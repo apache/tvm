@@ -381,9 +381,9 @@ class ACLRuntime : public JSONRuntimeBase {
   void CreatePoolingLayer(CachedLayer* layer, const JSONGraphNode& node) {
     std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
+    std::vector<std::string> dilation = node.GetAttr<std::vector<std::string>>("dilation");
     bool ceil_mode = std::stoi(node.GetAttr<std::vector<std::string>>("ceil_mode")[0]);
     arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides, ceil_mode);
-
     auto attr_pool_size = node.GetAttr<std::vector<std::string>>("pool_size");
     int pool_size_h = std::stoi(attr_pool_size[0]);
     int pool_size_w = std::stoi(attr_pool_size[1]);
@@ -408,6 +408,8 @@ class ACLRuntime : public JSONRuntimeBase {
       LOG(FATAL) << "Pooling type not supported";
     }
 
+    ICHECK(dilation.size() == 2 && dilation[0] == "1" && dilation[1] == "1")
+        << "Dilation other than (1, 1) not supported";
     arm_compute::PoolingLayerInfo pool_info =
         arm_compute::PoolingLayerInfo(pool_type, arm_compute::Size2D(pool_size_h, pool_size_w),
                                       arm_compute::DataLayout::NHWC, pad_stride_info, exclude_pad);

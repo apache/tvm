@@ -86,7 +86,7 @@ loops = []
 
 
 def find_width8(op):
-    """ Find all the 'tir.For' nodes whose extent can be divided by 8. """
+    """Find all the 'tir.For' nodes whose extent can be divided by 8."""
     if isinstance(op, tvm.tir.For):
         if isinstance(op.extent, tvm.tir.IntImm):
             if op.extent.value % 8 == 0:
@@ -110,7 +110,7 @@ def find_width8(op):
 
 
 def vectorize8(op):
-    """ Split can vectorize the loops found in `find_width8`. """
+    """Split can vectorize the loops found in `find_width8`."""
     if op in loops:
         extent = op.extent.value
         name = op.loop_var.name

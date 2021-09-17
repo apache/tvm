@@ -77,7 +77,7 @@ from tvm import autotvm
 # to tune other operators such as depthwise convolution and gemm.
 # In order to fully understand this template, you should be familiar with
 # the schedule primitives and auto tuning API. You can refer to the above
-# tutorials and :doc:`autotvm tutorial <tune_simple_template>`
+# tutorials and :ref:`autotvm tutorial <tutorial-autotvm-matmul-x86>`
 #
 # It is worth noting that the search space for a conv2d operator
 # can be very large (at the level of 10^9 for some input shapes)

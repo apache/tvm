@@ -25,6 +25,7 @@ import tvm._ffi
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_executor
 from . import debug_result
+from ...runtime.profiling import Report
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
@@ -64,8 +65,7 @@ def create(graph_json_str, libmod, device, dump_root=None):
             fcreate = tvm._ffi.get_global_func("tvm.graph_executor_debug.create")
     except ValueError:
         raise ValueError(
-            "Please set '(USE_GRAPH_EXECUTOR_DEBUG ON)' in "
-            "config.cmake and rebuild TVM to enable debug mode"
+            "Please set '(USE_PROFILER ON)' in " "config.cmake and rebuild TVM to enable debug mode"
         )
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
     return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root)
@@ -103,6 +103,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._execute_node = module["execute_node"]
         self._get_node_output = module["get_node_output"]
         self._profile = module["profile"]
+        self._profile_rpc = module["profile_rpc"]
         graph_executor.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, device)
 
@@ -268,14 +269,18 @@ class GraphModuleDebug(graph_executor.GraphModule):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
 
-    def profile(self, **input_dict):
+    def profile(self, collectors=None, **input_dict):
         """Run forward execution of the graph and collect overall and per-op
         performance metrics.
 
         Parameters
         ----------
+        collectors : Optional[Sequence[MetricCollector]]
+            Extra metrics to collect. If profiling over RPC, collectors must be `None`.
+
         input_dict : dict of str to NDArray
             List of input values to be feed to
+
         Return
         ------
         timing_results : str
@@ -284,7 +289,11 @@ class GraphModuleDebug(graph_executor.GraphModule):
         if input_dict:
             self.set_input(**input_dict)
 
-        return self._profile()
+        if self.module.type_key == "rpc":
+            # We cannot serialize MetricCollectors over RPC
+            assert collectors is None, "Profiling with collectors is not supported over RPC"
+            return Report.from_json(self._profile_rpc())
+        return self._profile(collectors)
 
     def exit(self):
         """Exits the dump folder and all its contents"""

@@ -44,14 +44,14 @@ def convert_graph_layout(mod, desired_layout):
 
     Parameters
     ----------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module to convert.
     desired_layout : str
         The layout to convert to.
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The converted module.
     """
 
@@ -97,10 +97,10 @@ def validate_targets(parse_targets):
         )
 
     tvm_targets = [t for t in targets if t in tvm_target_kinds]
-    if len(tvm_targets) > 1:
+    if len(tvm_targets) > 2:
         verbose_tvm_targets = ", ".join(tvm_targets)
         raise TVMCException(
-            "Only one of the following targets can be used at a time. "
+            "Only two of the following targets can be used at a time. "
             f"Found: {verbose_tvm_targets}."
         )
 
@@ -199,6 +199,7 @@ def parse_target(target):
     """
     codegens = []
 
+    tvm_target_kinds = tvm.target.Target.list_kinds()
     parsed_tokens = tokenize_target(target)
 
     split_codegens = []
@@ -222,6 +223,7 @@ def parse_target(target):
     for codegen_def in split_codegens:
         # the first is expected to be the name
         name = codegen_def[0]
+        is_tvm_target = name in tvm_target_kinds
         raw_target = " ".join(codegen_def)
         all_opts = codegen_def[1:] if len(codegen_def) > 1 else []
         opts = {}
@@ -244,7 +246,9 @@ def parse_target(target):
 
             opts[opt_name] = opt_value
 
-        codegens.append({"name": name, "opts": opts, "raw": raw_target})
+        codegens.append(
+            {"name": name, "opts": opts, "raw": raw_target, "is_tvm_target": is_tvm_target}
+        )
 
     return codegens
 
@@ -295,10 +299,21 @@ def target_from_cli(target):
             raise TVMCException(f"Error parsing target string '{target}'.\nThe error was: {ex}")
 
         validate_targets(parsed_targets)
-        target = parsed_targets[-1]["raw"]
-        extra_targets = parsed_targets[:-1] if len(parsed_targets) > 1 else []
+        tvm_targets = [t for t in parsed_targets if t["is_tvm_target"]]
 
-    return tvm.target.Target(target), extra_targets
+        # Validated target strings have 1 or 2 tvm targets, otherwise
+        # `validate_targets` above will fail.
+        if len(tvm_targets) == 1:
+            target = tvm_targets[0]["raw"]
+            target_host = None
+        else:
+            assert len(tvm_targets) == 2
+            target = tvm_targets[0]["raw"]
+            target_host = tvm_targets[1]["raw"]
+
+        extra_targets = [t for t in parsed_targets if not t["is_tvm_target"]]
+
+    return tvm.target.Target(target, host=target_host), extra_targets
 
 
 def tracker_host_port_from_cli(rpc_tracker_str):
@@ -381,7 +396,7 @@ def parse_shape_string(inputs_string):
     """
 
     # Create a regex pattern that extracts each separate input mapping.
-    pattern = r"\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
+    pattern = r"(?:\w+\/)?\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
     input_mappings = re.findall(pattern, inputs_string)
     if not input_mappings:
         raise argparse.ArgumentTypeError(
@@ -400,3 +415,103 @@ def parse_shape_string(inputs_string):
         shape_dict[name] = shape
 
     return shape_dict
+
+
+def get_pass_config_value(name, value, config_type):
+    """Get a PassContext configuration value, based on its config data type.
+
+    Parameters
+    ----------
+    name: str
+        config identifier name.
+    value: str
+        value assigned to the config, provided via command line.
+    config_type: str
+        data type defined to the config, as string.
+
+    Returns
+    -------
+    parsed_value: bool, int or str
+        a representation of the input value, converted to the type
+        specified by config_type.
+    """
+
+    if config_type == "IntImm":
+        # "Bool" configurations in the PassContext are recognized as
+        # IntImm, so deal with this case here
+        mapping_values = {
+            "false": False,
+            "true": True,
+        }
+
+        if value.isdigit():
+            parsed_value = int(value)
+        else:
+            # if not an int, accept only values on the mapping table, case insensitive
+            parsed_value = mapping_values.get(value.lower(), None)
+
+        if parsed_value is None:
+            raise TVMCException(f"Invalid value '{value}' for configuration '{name}'. ")
+
+    if config_type == "runtime.String":
+        parsed_value = value
+
+    return parsed_value
+
+
+def parse_configs(input_configs):
+    """Parse configuration values set via command line.
+
+    Parameters
+    ----------
+    input_configs: list of str
+        list of configurations provided via command line.
+
+    Returns
+    -------
+    pass_context_configs: dict
+        a dict containing key-value configs to be used in the PassContext.
+    """
+    if not input_configs:
+        return {}
+
+    all_configs = tvm.ir.transform.PassContext.list_configs()
+    supported_config_types = ("IntImm", "runtime.String")
+    supported_configs = [
+        name for name in all_configs.keys() if all_configs[name]["type"] in supported_config_types
+    ]
+
+    pass_context_configs = {}
+
+    for config in input_configs:
+        if not config:
+            raise TVMCException(
+                f"Invalid format for configuration '{config}', use <config>=<value>"
+            )
+
+        # Each config is expected to be provided as "name=value"
+        try:
+            name, value = config.split("=")
+            name = name.strip()
+            value = value.strip()
+        except ValueError:
+            raise TVMCException(
+                f"Invalid format for configuration '{config}', use <config>=<value>"
+            )
+
+        if name not in all_configs:
+            raise TVMCException(
+                f"Configuration '{name}' is not defined in TVM. "
+                f"These are the existing configurations: {', '.join(all_configs)}"
+            )
+
+        if name not in supported_configs:
+            raise TVMCException(
+                f"Configuration '{name}' uses a data type not supported by TVMC. "
+                f"The following configurations are supported: {', '.join(supported_configs)}"
+            )
+
+        parsed_value = get_pass_config_value(name, value, all_configs[name]["type"])
+        pass_context_configs[name] = parsed_value
+
+    return pass_context_configs

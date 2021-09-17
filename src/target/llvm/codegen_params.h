@@ -24,7 +24,6 @@
 #ifndef TVM_TARGET_LLVM_CODEGEN_PARAMS_H_
 #define TVM_TARGET_LLVM_CODEGEN_PARAMS_H_
 
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
 
 #include "llvm_common.h"

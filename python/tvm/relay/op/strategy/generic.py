@@ -175,18 +175,21 @@ def fast_softmax_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.fast_softmax),
-        naive_schedule,
+        wrap_topi_schedule(topi.generic.schedule_fast_softmax),
         name="fast_softmax.generic",
     )
     return strategy
 
 
-# log_softmax
-@generic_func
-def schedule_log_softmax(attrs, outs, target):
-    """Schedule log_softmax op"""
-    with target:
-        return topi.generic.schedule_softmax(outs)
+@override_native_generic_func("log_softmax_strategy")
+def log_softmax_strategy(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.log_softmax),
+        wrap_topi_schedule(topi.generic.schedule_softmax),
+        name="log_softmax.generic",
+    )
+    return strategy
 
 
 # lrn
@@ -712,6 +715,42 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# matmul
+def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
+    """wrap matmul topi compute"""
+
+    def _compute_matmul(attrs, inputs, out_type):
+        """Compute definition of matmul"""
+        out_dtype = attrs.out_dtype
+        out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+        args = [
+            inputs[0],
+            inputs[1],
+            None,
+            out_dtype,
+            attrs.transpose_a,
+            attrs.transpose_b,
+        ]
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
+
+    return _compute_matmul
+
+
+@override_native_generic_func("matmul_strategy")
+def matmul_strategy(attrs, inputs, out_type, target):
+    """matmul generic strategy"""
+    logger.warning("matmul is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_matmul(topi.nn.matmul),
+        wrap_topi_schedule(topi.generic.schedule_matmul),
+        name="matmul.generic",
+    )
+    return strategy
+
+
 # dense
 def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
     """wrap dense topi compute"""
@@ -760,10 +799,11 @@ def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, ne
 
     def _compute_batch_matmul(attrs, inputs, out_type):
         args = [inputs[0], inputs[1], out_type.shape]
+        args.append(out_type.dtype if need_out_dtype else None)
+        args.append(attrs.transpose_a)
+        args.append(attrs.transpose_b)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
-        if need_out_dtype:
-            args.append(out_type.dtype)
         return [topi_compute(*args)]
 
     return _compute_batch_matmul
@@ -1095,7 +1135,15 @@ def wrap_compute_all_class_nms(topi_compute):
         max_output_size = inputs[2]
         iou_threshold = inputs[3]
         score_threshold = inputs[4]
-        return topi_compute(inputs[0], inputs[1], max_output_size, iou_threshold, score_threshold)
+        output_format = attrs.output_format
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            max_output_size,
+            iou_threshold,
+            score_threshold,
+            output_format,
+        )
 
     return _compute_nms
 
@@ -1599,3 +1647,46 @@ def schedule_transpose(attrs, outs, target):
     """schedule transpose"""
     with target:
         return schedule_injective(attrs, outs, target)
+
+
+# invert_permutation
+def wrap_compute_invert_permutation(topi_compute):
+    """wrap invert_permutation topi compute"""
+
+    def _compute_invert_permutation(attrs, inputs, out_type):
+        return [topi_compute(inputs[0])]
+
+    return _compute_invert_permutation
+
+
+@override_native_generic_func("invert_permutation_strategy")
+def invert_permutation_strategy(attrs, inputs, out_type, target):
+    """invert_permutation generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_invert_permutation(topi.invert_permutation),
+        wrap_topi_schedule(topi.generic.schedule_injective),
+        name="invert_permutation.generic",
+    )
+    return strategy
+
+
+def wrap_compute_einsum(topi_compute):
+    """Wrap einsum topi compute"""
+
+    def _compute_einsum(attrs, inputs, _):
+        return [topi_compute(attrs.equation, *inputs)]
+
+    return _compute_einsum
+
+
+@override_native_generic_func("einsum_strategy")
+def einsum_strategy(attrs, inputs, out_type, target):
+    """einsum generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_einsum(topi.einsum),
+        wrap_topi_schedule(topi.generic.schedule_einsum),
+        name="einsum.generic",
+    )
+    return strategy

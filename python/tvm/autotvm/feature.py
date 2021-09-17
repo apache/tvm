@@ -39,7 +39,7 @@ def ana_lower(sch, args, binds=None, simple_mode=True):
     """Do lower while keeping all axes in IR
     i.e. Do not eliminate loop with extent of 1, do not vectorize, unroll or inject virtual threads
     """
-    binds, _ = build_module.get_binds(args, binds)
+    binds, _ = build_module.get_binds(args, compact=False, binds=binds)
     sch = sch.normalize()
     # Phase 0
     bounds = schedule.InferBound(sch)

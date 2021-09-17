@@ -73,7 +73,7 @@ def convert_to_tvm_func(pyfunc):
     local_pyfunc = pyfunc
 
     def cfun(args, type_codes, num_args, ret, _):
-        """ ctypes function """
+        """ctypes function"""
         num_args = num_args.value if isinstance(num_args, ctypes.c_int) else num_args
         pyargs = (C_TO_PY_ARG_SWITCH[type_codes[i]](args[i]) for i in range(num_args))
         # pylint: disable=broad-except

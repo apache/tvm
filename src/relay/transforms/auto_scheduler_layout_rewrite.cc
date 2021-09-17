@@ -87,6 +87,8 @@ class FuncMutator : public ExprMutator {
         updated_attrs = CopyAttrsWithNewLayout(pattr, new_layout);
       } else if (auto pattr = call->attrs.as<Conv3DAttrs>()) {
         updated_attrs = CopyAttrsWithNewLayout(pattr, new_layout);
+      } else if (auto pattr = call->attrs.as<MatmulAttrs>()) {
+        updated_attrs = CopyAttrsWithNewLayout(pattr, new_layout);
       } else if (auto pattr = call->attrs.as<DenseAttrs>()) {
         updated_attrs = CopyAttrsWithNewLayout(pattr, new_layout);
       } else if (auto pattr = call->attrs.as<BatchMatmulAttrs>()) {
@@ -103,9 +105,9 @@ class FuncMutator : public ExprMutator {
   std::deque<std::string> ori_layouts_queue_;
   std::deque<std::string> new_layouts_queue_;
 
-  std::vector<std::string> target_ops_{"nn.conv2d", "nn.conv3d",
-                                       "nn.contrib_conv2d_winograd_without_weight_transform",
-                                       "nn.dense", "nn.batch_matmul"};
+  std::vector<std::string> target_ops_{
+      "nn.conv2d", "nn.conv3d", "nn.contrib_conv2d_winograd_without_weight_transform",
+      "nn.matmul", "nn.dense",  "nn.batch_matmul"};
 };
 
 Expr AutoSchedulerLayoutRewriter::VisitExpr_(const CallNode* n) {
@@ -124,7 +126,7 @@ Expr AutoSchedulerLayoutRewriter::VisitExpr_(const CallNode* n) {
       CHECK(f) << "Could not find auto_scheduler.enter_layout_rewrite function.";
       (*f)();
 
-      CreateSchedule(GetRef<Function>(func), Target::Current());
+      PrimFuncFor(GetRef<Function>(func), Target::Current(), [](std::string name) { return name; });
 
       f = runtime::Registry::Get("auto_scheduler.exit_layout_rewrite");
       CHECK(f) << "Could not find ansor.exit_layout_rewrite function.";
@@ -166,6 +168,8 @@ TVM_REGISTER_GLOBAL("relay.attrs.get_auto_scheduler_rewritten_layout")
         return attrs.as<Conv2DWinogradAttrs>()->auto_scheduler_rewritten_layout;
       } else if (attrs->IsInstance<Conv3DAttrs>()) {
         return attrs.as<Conv3DAttrs>()->auto_scheduler_rewritten_layout;
+      } else if (attrs->IsInstance<MatmulAttrs>()) {
+        return attrs.as<MatmulAttrs>()->auto_scheduler_rewritten_layout;
       } else if (attrs->IsInstance<DenseAttrs>()) {
         return attrs.as<DenseAttrs>()->auto_scheduler_rewritten_layout;
       } else if (attrs->IsInstance<BatchMatmulAttrs>()) {

@@ -216,9 +216,12 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<String>("mfloat-abi")
+    .add_attr_option<String>("mabi")
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<String>("runtime")
     .add_attr_option<Bool>("link-params", Bool(false))
+    .add_attr_option<Bool>("unpacked-api")
+    .add_attr_option<String>("interface-api")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
@@ -229,6 +232,8 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("march")
     .add_attr_option<String>("executor")
     .add_attr_option<Integer>("workspace-byte-alignment")
+    .add_attr_option<Bool>("unpacked-api")
+    .add_attr_option<String>("interface-api")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
@@ -266,15 +271,52 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .set_default_keys({"opencl", "gpu"});
 
+// The metal has some limitations on the number of input parameters. This is why attribute
+// `max_function_args` was introduced. It specifies the maximum number of kernel argumetns. More
+// information about this limitation can be found here:
+// https://developer.apple.com/documentation/metal/buffers/about_argument_buffers?language=objc
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("thread_warp_size", Integer(16))
+    .add_attr_option<Integer>("max_function_args", Integer(31))
     .set_default_keys({"metal", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("system-lib")
+    // Feature support
+    .add_attr_option<Bool>("supports_float16")
+    .add_attr_option<Bool>("supports_float32", Bool(true))
+    .add_attr_option<Bool>("supports_float64")
+    .add_attr_option<Bool>("supports_int8")
+    .add_attr_option<Bool>("supports_int16")
+    .add_attr_option<Bool>("supports_int32", Bool(true))
+    .add_attr_option<Bool>("supports_int64")
+    .add_attr_option<Bool>("supports_8bit_buffer")
+    .add_attr_option<Bool>("supports_16bit_buffer")
+    .add_attr_option<Bool>("supports_storage_buffer_storage_class")
+    .add_attr_option<Bool>("supports_push_descriptor")
+    .add_attr_option<Bool>("supports_dedicated_allocation")
+    .add_attr_option<Integer>("supported_subgroup_operations")
+    // Physical device limits
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
+    .add_attr_option<Integer>("max_block_size_x")
+    .add_attr_option<Integer>("max_block_size_y")
+    .add_attr_option<Integer>("max_block_size_z")
+    .add_attr_option<Integer>("max_push_constants_size")
+    .add_attr_option<Integer>("max_uniform_buffer_range")
+    .add_attr_option<Integer>("max_storage_buffer_range")
+    .add_attr_option<Integer>("max_per_stage_descriptor_storage_buffer")
+    .add_attr_option<Integer>("max_shared_memory_per_block")
+    // Other device properties
+    .add_attr_option<String>("device_type")
+    .add_attr_option<String>("device_name")
+    .add_attr_option<String>("driver_name")
+    .add_attr_option<Integer>("driver_version")
+    .add_attr_option<Integer>("vulkan_api_version")
+    .add_attr_option<Integer>("max_spirv_version")
+    // Tags
     .set_default_keys({"vulkan", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
@@ -299,6 +341,7 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Array<String>>("llvm-options")
     .set_default_keys({"hexagon"});
 

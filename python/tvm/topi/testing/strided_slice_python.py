@@ -17,7 +17,7 @@
 """strided_slice/set in python"""
 
 
-def strided_slice_python(data, begin, end, strides, slice_mode="end"):
+def strided_slice_python(data, begin, end, strides, slice_mode="end", axes=None):
     """Python version of strided slice operator.
 
     Parameters
@@ -41,6 +41,8 @@ def strided_slice_python(data, begin, end, strides, slice_mode="end"):
               the sizeof a slice starting at the location specified by begin. If end[i] is -1,
               all remaining elements in that dimension are included in the slice.
 
+    axes : list, optional
+        Axes along which slicing is applied
 
     Returns
     -------
@@ -48,6 +50,22 @@ def strided_slice_python(data, begin, end, strides, slice_mode="end"):
         The sliced result.
     """
     strides = [] if strides is None else strides
+    if axes is not None:
+        rank = len(data.shape)
+        new_begin = [0] * rank
+        new_end = [data.shape[i] for i in range(rank)]
+        new_strides = [1] * rank
+
+        for i, axis in enumerate(axes):
+            new_begin[axis] = begin[i]
+            new_end[axis] = end[i]
+            if len(strides) > i:
+                new_strides[axis] = strides[i]
+
+        begin = new_begin
+        end = new_end
+        strides = new_strides
+
     slices = []
     for i in range(len(data.shape)):
         new_stride = None
@@ -66,6 +84,7 @@ def strided_slice_python(data, begin, end, strides, slice_mode="end"):
             new_end = end[i]
 
         slices.append(slice(new_begin, new_end, new_stride))
+
     return data[tuple(slices)]
 
 

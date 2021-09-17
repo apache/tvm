@@ -169,34 +169,37 @@ def test_pooling():
 
     fp32_dtype = ("float32", -127, 128, 0.001, 0.001)
     uint8_dtype = ("uint8", 0, 255, 1, 0)
-
+    # fmt: off
     trials = [
-        ["nn.max_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 0), False, False, (27, 27, 512)],
-        ["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 0), False, True, (16, 16, 16)],
-        ["nn.max_pool2d", fp32_dtype, (3, 3), (2, 2), (1, 1), True, True, (15, 15, 16)],
-        ["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 1), False, False, (16, 16, 16)],
-        ["nn.max_pool2d", uint8_dtype, (3, 3), (2, 2), (0, 1), False, False, (16, 16, 16)],
-        ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), True, True, (15, 15, 16)],
-        ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), False, False, (16, 16, 16)],
-        ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 0), False, True, (16, 16, 16)],
-        ["nn.avg_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 1), True, False, (15, 15, 16)],
+        ["nn.max_pool2d", fp32_dtype,  (3, 3), (2, 2), (1, 1), (0, 0), False, False, (27, 27, 512), (0, 1),],
+        ["nn.max_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (0, 0), False, True,  (16, 16, 16),  (0, 1),],
+        ["nn.max_pool2d", fp32_dtype,  (3, 3), (2, 2), (1, 1), (1, 1), True,  True,  (15, 15, 16),  (0, 1),],
+        ["nn.max_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16),  (0, 1),],
+        ["nn.max_pool2d", uint8_dtype, (3, 3), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16),  (0, 1),],
+        ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), (1, 1), True,  True,  (15, 15, 16),  (0, 1),],
+        ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (3, 2), (1, 1), True,  True,  (15, 15, 16),  (1, 0),],
+        ["nn.avg_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (1, 1), False, False, (16, 16, 16),  (0, 1),],
+        ["nn.avg_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (0, 0), False, True,  (16, 16, 16),  (0, 1),],
+        ["nn.avg_pool2d", fp32_dtype,  (3, 3), (2, 2), (3, 2), (0, 1), True,  False, (15, 15, 16),  (1, 0),],
         # 20.05: "exclude_padding equal false is not supported for AVG Pooling with padding on quantized types"
         # ["nn.avg_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), False, True, (16, 16, 16)],
-        ["nn.avg_pool2d", uint8_dtype, (3, 3), (2, 2), (0, 1), False, False, (16, 16, 16)],
-        ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 1), True, False, (16, 16, 16)],
-        ["nn.l2_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 0), False, False, (16, 16, 16)],
-        ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), False, True, (15, 15, 16)],
+        ["nn.avg_pool2d", uint8_dtype, (3, 3), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16),  (0, 1),],
+        ["nn.l2_pool2d",  fp32_dtype,  (2, 2), (2, 2), (1, 1), (0, 1), True,  False, (16, 16, 16),  (0, 1),],
+        ["nn.l2_pool2d",  fp32_dtype,  (3, 3), (2, 2), (1, 1), (0, 0), False, False, (16, 16, 16),  (0, 1),],
+        ["nn.l2_pool2d",  fp32_dtype,  (2, 2), (2, 2), (1, 1), (1, 1), False, True,  (15, 15, 16),  (0, 1),],
     ]
-
+    # fmt: on
     for (
         typef,
         (dtype, low, high, atol, rtol),
         size,
         stride,
+        dilation,
         pad,
         ceil_mode,
         count_include_pad,
         input_shape,
+        (tvm_ops, acl_partitions),
     ) in trials:
         shape = (1, *input_shape)
         outputs = []
@@ -205,7 +208,16 @@ def test_pooling():
         }
 
         func = _get_pooling_model(
-            shape, dtype, typef, size, stride, pad, ceil_mode, count_include_pad, iter(inputs)
+            shape,
+            dtype,
+            typef,
+            size,
+            stride,
+            dilation,
+            pad,
+            ceil_mode,
+            count_include_pad,
+            iter(inputs),
         )
 
         config = {
@@ -215,15 +227,25 @@ def test_pooling():
             "pooling type": typef,
             "dtype": dtype,
             "padding": pad,
+            "dilation": dilation,
             "ceil_mode": ceil_mode,
             "count_include_pad": count_include_pad,
             "inputs": inputs,
         }
         verify_saturation = True if dtype == "uint8" else False
-
         for acl in [False, True]:
             outputs.append(
-                build_and_run(func, inputs, 1, None, device, enable_acl=acl, config=config)[0]
+                build_and_run(
+                    func,
+                    inputs,
+                    1,
+                    None,
+                    device,
+                    enable_acl=acl,
+                    tvm_ops=tvm_ops,
+                    acl_partitions=acl_partitions,
+                    config=config,
+                )[0]
             )
 
         verify(outputs, atol=atol, rtol=rtol, config=config, verify_saturation=verify_saturation)
@@ -283,25 +305,25 @@ def test_codegen_pooling():
 
     fp32_dtype = ("float32", -127, 128)
     uint8_dtype = ("uint8", 0, 255)
-
+    # fmt: off
     trials = [
-        ["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), (0, 0), False, True, (16, 16, 16)],
-        ["nn.max_pool2d", fp32_dtype, (3, 3), (2, 2), (1, 1), (1, 1), True, True, (15, 15, 16)],
-        ["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16)],
-        ["nn.max_pool2d", uint8_dtype, (3, 3), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16)],
-        ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), (1, 1), True, True, (15, 15, 16)],
-        ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (3, 2), (1, 1), True, True, (15, 15, 16)],
-        ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), (1, 1), False, False, (16, 16, 16)],
-        ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), (1, 1), False, False, (16, 16, 16)],
-        ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), (0, 0), False, True, (16, 16, 16)],
-        ["nn.avg_pool2d", fp32_dtype, (3, 3), (2, 2), (3, 2), (0, 1), True, False, (15, 15, 16)],
-        ["nn.avg_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), (1, 1), False, True, (16, 16, 16)],
-        ["nn.avg_pool2d", uint8_dtype, (3, 3), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16)],
-        ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), (0, 1), True, False, (15, 15, 16)],
-        ["nn.l2_pool2d", fp32_dtype, (3, 3), (2, 2), (1, 1), (0, 0), False, False, (16, 16, 16)],
-        ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), (1, 1), False, True, (15, 15, 16)],
+        ["nn.max_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (0, 0), False,  True, (16, 16, 16), (0, 1),],
+        ["nn.max_pool2d", fp32_dtype,  (3, 3), (2, 2), (1, 1), (1, 1),  True,  True, (15, 15, 16), (0, 1),],
+        ["nn.max_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16), (0, 1),],
+        ["nn.max_pool2d", uint8_dtype, (3, 3), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16), (0, 1),],
+        ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), (1, 1),  True,  True, (15, 15, 16), (0, 1),],
+        ["nn.max_pool2d", uint8_dtype, (2, 2), (2, 2), (3, 2), (1, 1),  True,  True, (15, 15, 16), (1, 0),],
+        ["nn.avg_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (1, 1), False, False, (16, 16, 16), (0, 1),],
+        ["nn.avg_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (1, 1), False, False, (16, 16, 16), (0, 1),],
+        ["nn.avg_pool2d", fp32_dtype,  (2, 2), (2, 2), (1, 1), (0, 0), False,  True, (16, 16, 16), (0, 1),],
+        ["nn.avg_pool2d", fp32_dtype,  (3, 3), (2, 2), (3, 2), (0, 1),  True, False, (15, 15, 16), (1, 0),],
+        ["nn.avg_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), (1, 1), False,  True, (16, 16, 16), (0, 1),],
+        ["nn.avg_pool2d", uint8_dtype, (3, 3), (2, 2), (1, 1), (0, 1), False, False, (16, 16, 16), (0, 1),],
+        ["nn.l2_pool2d",  fp32_dtype,  (2, 2), (2, 2), (1, 1), (0, 1),  True, False, (15, 15, 16), (0, 1),],
+        ["nn.l2_pool2d",  fp32_dtype,  (3, 3), (2, 2), (1, 1), (0, 0), False, False, (16, 16, 16), (0, 1),],
+        ["nn.l2_pool2d",  fp32_dtype,  (2, 2), (2, 2), (1, 1), (1, 1), False,  True, (15, 15, 16), (0, 1),],
     ]
-
+    # fmt: on
     for (
         typef,
         (dtype, low, high),
@@ -312,6 +334,7 @@ def test_codegen_pooling():
         ceil_mode,
         count_include_pad,
         input_shape,
+        (tvm_ops, acl_partitions),
     ) in trials:
         shape = (1, *input_shape)
         inputs = {"a"}
@@ -319,7 +342,7 @@ def test_codegen_pooling():
         func = _get_pooling_model(*args, iter(inputs))
         exp_codegen = _get_expected_pooling_codegen(*args)
 
-        verify_codegen(func, exp_codegen, 1)
+        verify_codegen(func, exp_codegen, acl_partitions, tvm_ops)
 
 
 def test_codegen_global_pooling():

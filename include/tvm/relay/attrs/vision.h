@@ -114,11 +114,19 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
   }
 };
 
-/*! \brief Attributes used in non_maximum_suppression operator */
+/*! \brief Attributes used in all_class_non_maximum_suppression operator */
 struct AllClassNonMaximumSuppressionAttrs
     : public tvm::AttrsNode<AllClassNonMaximumSuppressionAttrs> {
+  std::string output_format;
+
   TVM_DECLARE_ATTRS(AllClassNonMaximumSuppressionAttrs,
-                    "relay.attrs.AllClassNonMaximumSuppressionAttrs") {}
+                    "relay.attrs.AllClassNonMaximumSuppressionAttrs") {
+    TVM_ATTR_FIELD(output_format)
+        .set_default("onnx")
+        .describe(
+            "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
+            "consumed by each frontend.");
+  }
 };
 
 /*! \brief Attributes used in roi_align operators */

@@ -15,26 +15,40 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test code for dense operator"""
+import contextlib
 import numpy as np
+import pytest
+import sys
+
 import tvm
-from tvm import te
-from tvm import topi
+import tvm.testing
 import tvm.topi.testing
+from tvm import te, topi
 from tvm.topi.utils import get_const_tuple
-from tvm.contrib.pickle_memoize import memoize
 
 from common import Int8Fallback
-import tvm.testing
 
-_dense_implement = {
+random_seed = tvm.testing.parameter(0)
+
+use_bias = tvm.testing.parameter(True, False)
+batch_size = tvm.testing.parameter(1, 2, 128)
+in_dim, out_dim = tvm.testing.parameters((1024, 1000))
+in_dtype, out_dtype = tvm.testing.parameters(
+    ("float32", "float32"),
+    ("float16", "float16"),
+    ("int8", "int32"),
+)
+
+
+_dense_implementations = {
     "generic": [(topi.nn.dense, topi.generic.schedule_dense)],
     "cpu": [
         (topi.x86.dense_nopack, topi.x86.schedule_dense_nopack),
         (topi.x86.dense_pack, topi.x86.schedule_dense_pack),
     ],
     "gpu": [
-        (topi.cuda.dense_small_batch, topi.cuda.schedule_dense_small_batch),
-        (topi.cuda.dense_large_batch, topi.cuda.schedule_dense_large_batch),
+        (topi.gpu.dense_small_batch, topi.gpu.schedule_dense_small_batch),
+        (topi.gpu.dense_large_batch, topi.gpu.schedule_dense_large_batch),
     ],
     "mali": [(topi.mali.dense, topi.mali.schedule_dense)],
     "bifrost": [(topi.bifrost.dense, topi.bifrost.schedule_dense)],
@@ -43,108 +57,129 @@ _dense_implement = {
 }
 
 
-def verify_dense(batch, in_dim, out_dim, use_bias=True):
-    A = te.placeholder((batch, in_dim), name="A")
-    B = te.placeholder((out_dim, in_dim), name="B")
-    C = te.placeholder((out_dim,), name="C")
-    dtype = A.dtype
+@tvm.testing.fixture(cache_return_value=True)
+def dense_ref_data(random_seed, batch_size, in_dim, out_dim, use_bias, in_dtype, out_dtype):
+    np.random.seed(random_seed)
 
-    # use memoize to pickle the test data for next time use
-    @memoize("topi.tests.test_topi_dense")
-    def get_ref_data():
-        a_np = np.random.uniform(size=(batch, in_dim)).astype(dtype)
-        b_np = np.random.uniform(size=(out_dim, in_dim)).astype(dtype)
-        c_np = np.random.uniform(size=(out_dim,)).astype(dtype)
-        if use_bias:
-            d_np = np.maximum(np.dot(a_np, b_np.T) + c_np, 0.0)
-        else:
-            d_np = np.maximum(np.dot(a_np, b_np.T), 0.0)
-        return (a_np, b_np, c_np, d_np)
+    if "float" in in_dtype:
+        a_np = np.random.uniform(size=(batch_size, in_dim)).astype(in_dtype)
+        b_np = np.random.uniform(size=(out_dim, in_dim)).astype(in_dtype)
+        c_np = np.random.uniform(size=(out_dim,)).astype(out_dtype)
+    elif in_dtype == "int8":
+        a_np = np.random.randint(low=-128, high=127, size=(batch_size, in_dim)).astype(in_dtype)
+        b_np = np.random.randint(low=-128, high=127, size=(out_dim, in_dim)).astype(in_dtype)
+        c_np = np.random.randint(low=-128, high=127, size=(out_dim,)).astype(out_dtype)
+    else:
+        raise ValueError("No method to generate test data for data type '{}'".format(in_dtype))
 
-    # get the test data
-    a_np, b_np, c_np, d_np = get_ref_data()
+    matmul = np.dot(a_np.astype(out_dtype), b_np.T.astype(out_dtype))
 
-    def check_device(device, dev):
-        print("Running on target: %s" % device)
-        for fcompute, fschedule in tvm.topi.testing.dispatch(device, _dense_implement):
-            with tvm.target.Target(device):
-                D = fcompute(A, B, C if use_bias else None)
-                D = topi.nn.relu(D)
-                s = fschedule([D])
-            a = tvm.nd.array(a_np, dev)
-            b = tvm.nd.array(b_np, dev)
-            c = tvm.nd.array(c_np, dev)
-            d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), dev)
-            f = tvm.build(s, [A, B, C, D], device, name="dense")
-            f(a, b, c, d)
-            tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-5)
+    if use_bias:
+        matmul += c_np
 
-    for device, dev in tvm.testing.enabled_targets():
-        check_device(device, dev)
+    d_np = np.maximum(matmul, 0)
+    return (a_np, b_np, c_np, d_np)
 
 
-def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
-    dtype = "int8"
-    out_dtype = "int32"
-    A = te.placeholder((batch, in_dim), name="A", dtype=dtype)
-    B = te.placeholder((out_dim, in_dim), name="B", dtype=dtype)
+def test_dense(
+    target,
+    dev,
+    batch_size,
+    in_dim,
+    out_dim,
+    use_bias,
+    dense_ref_data,
+    in_dtype,
+    out_dtype,
+    implementations=None,
+):
+    target = tvm.target.Target(target)
+
+    if target.kind.name == "cuda":
+        if in_dtype == "int8" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
+            pytest.xfail("CUDA int8 intrinsics not available")
+
+        if in_dtype == "float16" and not tvm.contrib.nvcc.have_fp16(dev.compute_version):
+            pytest.xfail("CUDA float16 intrinsics not available")
+
+    if target.kind.name == "vulkan":
+        if in_dtype == "int8" and (
+            not target.attrs.get("supports_int8", False)
+            or not target.attrs.get("supports_8bit_buffer", False)
+        ):
+            pytest.xfail("Vulkan int8 driver support not available")
+        if in_dtype == "float16" and (
+            not target.attrs.get("supports_float16", False)
+            or not target.attrs.get("supports_16bit_buffer", False)
+        ):
+            pytest.xfail("Vulkan float16 driver support not available")
+
+    if (
+        target.kind.name not in ["llvm", "c"]
+        and len(set(target.keys) & set(_dense_implementations)) == 0
+    ):
+        pytest.xfail("No implementation for tvm.topi.testing.dispatch to find")
+
+    if "int" in in_dtype:
+        tol = {"atol": 0, "rtol": 0}
+    elif in_dtype == "float32":
+        tol = {"rtol": 1e-5, "atol": 1e-5}
+    elif in_dtype == "float16":
+        tol = {"rtol": 5e-2, "atol": 1e-5}
+
+    A = te.placeholder((batch_size, in_dim), name="A", dtype=in_dtype)
+    B = te.placeholder((out_dim, in_dim), name="B", dtype=in_dtype)
     C = te.placeholder((out_dim,), name="C", dtype=out_dtype)
 
-    # use memoize to pickle the test data for next time use
-    @memoize("topi.tests.test_topi_dense_int8")
-    def get_ref_data():
-        a_np = np.random.randint(low=-128, high=127, size=(batch, in_dim)).astype(dtype)
-        b_np = np.random.randint(low=-128, high=127, size=(out_dim, in_dim)).astype(dtype)
-        c_np = np.random.randint(low=-128, high=127, size=(out_dim,)).astype(out_dtype)
-        d_np = np.dot(a_np.astype(out_dtype), b_np.T.astype(out_dtype))
-        if use_bias:
-            d_np += c_np
-        d_np = np.maximum(d_np, 0.0)
-        return (a_np, b_np, c_np, d_np)
+    a_np, b_np, c_np, d_np = dense_ref_data
 
-    # get the test data
-    a_np, b_np, c_np, d_np = get_ref_data()
+    if implementations is None:
+        implementations = tvm.topi.testing.dispatch(target, _dense_implementations)
 
-    def check_device(device):
-        dev = tvm.device(device, 0)
-        if device == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
-            print("Skip because int8 intrinsics are not available")
-            return
-
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            D = topi.cuda.dense_int8(A, B, C if use_bias else None, out_dtype)
+    for fcompute, fschedule in implementations:
+        with tvm.target.Target(target):
+            D = fcompute(A, B, C if use_bias else None, out_dtype)
             D = topi.nn.relu(D)
-            s = topi.cuda.schedule_dense_int8([D])
+            s = fschedule([D])
+
         a = tvm.nd.array(a_np, dev)
         b = tvm.nd.array(b_np, dev)
         c = tvm.nd.array(c_np, dev)
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=out_dtype), dev)
-        f = tvm.build(s, [A, B, C, D], device, name="dense")
+        f = tvm.build(s, [A, B, C, D], target, name="dense")
         f(a, b, c, d)
-        tvm.testing.assert_allclose(d.numpy(), d_np, rtol=1e-5)
-
-    for device in ["cuda"]:
-        check_device(device)
+        tvm.testing.assert_allclose(d.numpy(), d_np, **tol)
 
 
-@tvm.testing.uses_gpu
-def test_dense():
-    verify_dense(1, 1024, 1000, use_bias=True)
-    verify_dense(1, 1024, 1000, use_bias=False)
-    verify_dense(2, 1024, 1000, use_bias=True)
-    verify_dense(128, 1024, 1000, use_bias=False)
-    verify_dense(128, 1024, 1000, use_bias=True)
-
-
-@tvm.testing.requires_cuda
-@tvm.testing.requires_gpu
-def test_dense_int8():
+@pytest.mark.parametrize("target,in_dtype,out_dtype", [("cuda", "int8", "int32")])
+def test_dense_cuda_int8(
+    target,
+    dev,
+    batch_size,
+    in_dim,
+    out_dim,
+    use_bias,
+    dense_ref_data,
+    in_dtype,
+    out_dtype,
+):
+    implementations = [
+        (topi.cuda.dense_int8, topi.cuda.schedule_dense_int8),
+    ]
     with Int8Fallback():
-        verify_dense_int8(2, 1024, 1000, use_bias=True)
-        verify_dense_int8(2, 1024, 1000, use_bias=False)
+        test_dense(
+            target,
+            dev,
+            batch_size,
+            in_dim,
+            out_dim,
+            use_bias,
+            dense_ref_data,
+            in_dtype,
+            out_dtype,
+            implementations=implementations,
+        )
 
 
 if __name__ == "__main__":
-    test_dense()
-    test_dense_int8()
+    sys.exit(pytest.main(sys.argv))

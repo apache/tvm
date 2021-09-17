@@ -192,20 +192,116 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           << "}\n";
   }
 
-  void GenerateAOTDescriptor() {
-    code_ << "#include \"tvm/runtime/crt/internal/aot_executor/aot_executor.h\"\n";
-    code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
-    code_ << "#ifdef __cplusplus\n";
-    code_ << "extern \"C\"\n";
-    code_ << "#endif\n";
-    code_ << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_run_func_prefix;
+  void GenerateEntrypointForUnpackedAPI(const std::string& entrypoint_name,
+                                        const std::string& run_func) {
+    code_ << "TVM_DLL int32_t " << run_func << "(";
+    unsigned int total_args = (metadata_->inputs.size() + metadata_->num_outputs);
+    for (unsigned int i = 0; i < total_args; ++i) {
+      code_ << "void* arg" << i;
+      if (i + 1 != total_args) {
+        code_ << ",";
+      }
+    }
+    code_ << ");\n";
+    code_ << "int32_t " << entrypoint_name;
+    code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
+             "out_type_code, void* resource_handle) {\n";
+    code_ << "return " << run_func << "(";
+    for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
+      code_ << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
+    }
+    for (int i = 0; i < metadata_->num_outputs; ++i) {
+      int j = metadata_->inputs.size() + i;
+      code_ << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data";
+      if (i + 1 != metadata_->num_outputs) {
+        code_ << ",";
+      }
+    }
+    code_ << ");\n";
+    code_ << "}\n";
+  }
+
+  void GenerateEntrypointForPackedAPI(const std::string& entrypoint_name,
+                                      const std::string& run_func) {
+    code_ << "TVM_DLL int32_t " << run_func;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle);\n";
-    code_ << "const tvm_model_t network = {\n"
-          << "    .run_func = &" << ::tvm::runtime::symbol::tvm_run_func_prefix << ",\n"
-          << "    .num_input_tensors = " << metadata_->num_inputs << ",\n"
-          << "    .num_output_tensors = " << metadata_->num_outputs << ", \n"
-          << "};\n";
+    code_ << "int32_t " << entrypoint_name;
+    code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
+             "out_type_code, void* resource_handle) {\n";
+    code_ << "return " << run_func;
+    code_ << "(args, type_code, num_args, out_value, out_type_code, resource_handle);\n";
+    code_ << "}\n";
+  }
+
+  static int isNotAlnum(char c) { return !std::isalnum(c); }
+
+  void GenerateCInterfaceEntrypoint(const std::string& entrypoint_name, const std::string& run_func,
+                                    const std::string& mod_name) {
+    code_ << "#include <" << mod_name << ".h>\n";
+    code_ << "TVM_DLL int32_t " << run_func << "(";
+    unsigned int total_args = (metadata_->inputs.size() + metadata_->num_outputs);
+    for (unsigned int i = 0; i < total_args; ++i) {
+      code_ << "void* arg" << i;
+      if (i + 1 != total_args) {
+        code_ << ",";
+      }
+    }
+    code_ << ");\n";
+    code_ << "int32_t " << entrypoint_name << "(";
+    code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,"
+          << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs"
+          << ") {";
+    code_ << "return " << run_func << "(";
+    for (const auto& input : metadata_->inputs) {
+      std::string sanitised_input = input;
+      std::replace_if(sanitised_input.begin(), sanitised_input.end(), isNotAlnum, '_');
+      code_ << "inputs->" << sanitised_input << ",";
+    }
+    if (metadata_->num_outputs == 1) {
+      code_ << "outputs->output";
+    } else {
+      for (int i = 0; i < metadata_->num_outputs; ++i) {
+        code_ << "outputs->output" << i;
+        if (i + 1 != metadata_->num_outputs) {
+          code_ << ",";
+        }
+      }
+    }
+    code_ << ");\n";
+    code_ << "}\n";
+  }
+
+  void GenerateAOTDescriptor() {
+    const std::string run_func_suffix = ::tvm::runtime::symbol::tvm_run_func_suffix;
+    const std::string tvm_entrypoint_suffix = ::tvm::runtime::symbol::tvm_entrypoint_suffix;
+    const std::string run_func_mangled =
+        runtime::get_name_mangled(metadata_->mod_name, run_func_suffix);
+    const std::string entrypoint_mangled =
+        runtime::get_name_mangled(metadata_->mod_name, tvm_entrypoint_suffix);
+    const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name, "network");
+    auto unpacked_api = target_->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
+    auto interface_api = target_->GetAttr<String>("interface-api").value_or(String("packed"));
+
+    code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
+    code_ << "#ifdef __cplusplus\n";
+    code_ << "extern \"C\" {\n";
+    code_ << "#endif\n";
+
+    if (unpacked_api) {
+      if (interface_api == "c") {
+        GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
+      } else {
+        GenerateEntrypointForUnpackedAPI(entrypoint_mangled, run_func_mangled);
+      }
+    } else {
+      ICHECK_EQ(interface_api, "packed") << "Packed interface required for packed operators";
+      GenerateEntrypointForPackedAPI(entrypoint_mangled, run_func_mangled);
+    }
+
+    code_ << "#ifdef __cplusplus\n";
+    code_ << "}\n";
+    code_ << "#endif\n";
   }
 
   void CreateSource() {

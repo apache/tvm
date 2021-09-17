@@ -32,6 +32,8 @@
 #include <iterator>
 #include <stack>
 
+#include "../../arith/pattern_match.h"
+
 namespace tvm {
 namespace tir {
 
@@ -45,10 +47,11 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
   return array;
 }
 
-Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, Span span) {
+Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, String storage_scope,
+                   Span span) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
-  return Buffer(Var(name, PointerType(PrimType(storage_dtype)), span), dtype, shape,
-                Array<PrimExpr>(), PrimExpr(), name, "", 0, 0, kDefault, span);
+  return Buffer(Var(name, PointerType(PrimType(storage_dtype), storage_scope), span), dtype, shape,
+                Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault, span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -180,7 +183,12 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   //                     a list that contain all the elements that match Mod.
   // The elements in the Mod will be used to match against the elements in Mul.
   // The result will then be split and pushed back to these two lists.
-  PrimExpr simplified_base = analyzer->Simplify(base);
+  PrimExpr simplified_base = base;
+  arith::PVar<PrimExpr> x, y;
+  if ((floordiv(x, y) * y + floormod(x, y)).Match(simplified_base)) {
+    simplified_base = x.Eval();
+  }
+  simplified_base = analyzer->Simplify(simplified_base);
   std::vector<const PrimExpr*> eles = ExprSplitAddition(simplified_base);
   std::list<PrimExpr> mult_exprs;
   std::list<std::pair<PrimExpr, PrimExpr> > mod_exprs;
@@ -286,6 +294,7 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
 PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
@@ -300,6 +309,7 @@ PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
 Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   DataType dtype = value.dtype();
   ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot store " << dtype << " to buffer of " << n->dtype;
@@ -311,11 +321,22 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   }
 }
 
+String Buffer::scope() const {
+  const auto* ptr_type = (*this)->data->type_annotation.as<PointerTypeNode>();
+  ICHECK(ptr_type) << "Buffer variable is not of pointer type";
+  if (ptr_type->storage_scope.empty()) {
+    return "global";
+  }
+  return ptr_type->storage_scope;
+}
+
 Buffer Buffer::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
   if ((*this)->shape.size() == 0) return *this;
   std::vector<PrimExpr> temp;
-  auto n = make_object<BufferNode>(*operator->());
+  const BufferNode* self = operator->();
+  ICHECK(self != nullptr);
+  auto n = make_object<BufferNode>(*self);
   PrimExpr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0; --i) {
     temp.push_back(acc);
@@ -329,6 +350,7 @@ Buffer Buffer::MakeStrideView() const {
 
 Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const {
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
   PrimExpr elem_offset = ana.Simplify(ElemOffset(n, begins));
@@ -350,13 +372,14 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
       return MakeStrideView().MakeSlice(begins, extents);
     }
   }
-  return Buffer(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice", n->scope,
+  return Buffer(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice",
                 n->data_alignment, 0, n->buffer_type);
 }
 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,
                             PrimExpr offset) const {
   const BufferNode* self = operator->();
+  ICHECK(self != nullptr);
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
@@ -383,8 +406,8 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
 }
 
 Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
-               PrimExpr elem_offset, String name, String scope, int data_alignment,
-               int offset_factor, BufferType buffer_type, Span span) {
+               PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
+               BufferType buffer_type, Span span) {
   DataType storage_dtype = dtype;
   // specially handle bool
   if (storage_dtype == DataType::Bool()) {
@@ -401,10 +424,6 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   n->shape = std::move(shape);
   n->strides = std::move(strides);
   n->name = std::move(name);
-  if (scope.length() == 0) {
-    scope = "global";
-  }
-  n->scope = std::move(scope);
   if (!elem_offset.defined()) {
     elem_offset = make_const(n->DefaultIndexType(), 0);
   }
@@ -436,11 +455,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
 TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
-  ICHECK_EQ(args.size(), 11);
-  auto buffer_type = args[9].operator String();
+  ICHECK_EQ(args.size(), 10);
+  auto buffer_type = args[8].operator String();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret = Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
-                type, args[10]);
+  *ret =
+      Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], type, args[9]);
 });
 
 TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
@@ -448,6 +467,8 @@ TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
 TVM_REGISTER_GLOBAL("tir.BufferVLoad").set_body_method(&Buffer::vload);
 
 TVM_REGISTER_GLOBAL("tir.BufferVStore").set_body_method(&Buffer::vstore);
+
+TVM_REGISTER_GLOBAL("tir.BufferStorageScope").set_body_method(&Buffer::scope);
 
 }  // namespace tir
 }  // namespace tvm

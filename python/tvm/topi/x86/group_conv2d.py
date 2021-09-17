@@ -23,7 +23,7 @@ from tvm import autotvm
 from tvm import te
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
-from .utils import get_fp32_len
+from .utils import get_simd_32bit_lanes
 from ..utils import get_const_tuple
 from ..nn.pad import pad
 from .. import tag
@@ -43,7 +43,9 @@ def schedule_group_conv2d_nchw(outs):
     return schedule_group_conv2d_nchwc(outs)
 
 
-def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype, layout="NCHW"):
+def _get_default_config(
+    cfg, data, kernel, strides, padding, dilation, groups, out_dtype, layout="NCHW"
+):
     """
     Get default schedule config for the workload
     """
@@ -55,12 +57,12 @@ def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype, 
             static_data_shape.append(dim)
     data = te.placeholder(static_data_shape, dtype=data.dtype)
 
-    wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype, layout)
+    wkl = _get_conv2d_workload(data, kernel, strides, padding, dilation, out_dtype, layout)
     _fallback_schedule(cfg, wkl)
 
 
 def _fallback_schedule(cfg, wkl):
-    simd_width = get_fp32_len()
+    simd_width = get_simd_32bit_lanes()
     pad_left, pad_right = wkl.padl, wkl.padr
     stride_w = wkl.stride_w
     out_width = (wkl.width + pad_left + pad_right - wkl.kernel_w) // stride_w + 1
@@ -159,6 +161,7 @@ def group_conv2d_nchw_spatial_pack(
             ),
             strides,
             padding,
+            dilation,
             groups,
             out_dtype,
         )

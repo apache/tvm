@@ -18,9 +18,11 @@
 """The base node types for the Relay language."""
 import tvm._ffi
 import tvm.ir
-from tvm.driver import lower, build
-from tvm.target import get_native_generic_func, GenericFunc
+import tvm.ir._ffi_api
+from tvm.driver import build, lower
 from tvm.runtime import Object
+from tvm.target import GenericFunc, get_native_generic_func
+
 from . import _make
 
 
@@ -38,6 +40,40 @@ def get(op_name):
         The op of the corresponding name
     """
     return tvm.ir.Op.get(op_name)
+
+
+def register(op_name, describe=""):
+    """Get the Op for a given name.
+    when the op_name is not registered, create a new empty op with the given name.
+    when the op_name has been registered, abort with an error message.
+
+    Parameters
+    ----------
+    op_name : str
+        The operator name
+
+    describe : Optional[str]
+        The operator description
+    """
+
+    tvm.ir._ffi_api.RegisterOp(op_name, describe)
+
+
+def register_stateful(op_name, stateful, level=10):
+    """Register operator pattern for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    stateful : bool
+        The stateful flag.
+
+    level : int
+        The priority level
+    """
+    tvm.ir.register_op_attr(op_name, "TOpIsStateful", stateful, level)
 
 
 class OpPattern(object):
@@ -305,6 +341,23 @@ def register_convert_op_layout(op_name, convert_layout=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FTVMConvertOpLayout", convert_layout, level)
 
 
+def register_infer_correct_layout(op_name, infer_layout=None, level=10):
+    """Register infer op layout function for an op
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    infer_layout: function (attrs: Attrs, inputs: List[Layout]) -> InferCorrectLayoutOutput
+        The function to infer correct layout
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FInferCorrectLayout", infer_layout, level)
+
+
 def register_legalize(op_name, legal_op=None, level=10):
     """Register legal transformation function for an op
 
@@ -399,6 +452,53 @@ def register_external_compiler(op_name, fexternal=None, level=10):
         The priority level
     """
     return tvm.ir.register_op_attr(op_name, "FTVMExternalCompiler", fexternal, level)
+
+
+def register_fake_quantization_to_integer(op_name, func=None, level=10):
+    """Register quantize function for an op
+
+    Given an op and Affine Types on it's inputs, this function should return the op
+    in affine space/integer operators and the new type of the output, where affine
+    denotes the transformation x_real = (x_affine - zero_point) * scale
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    func: function (expr: Expr, map: Map<Expr, AffineType>) -> new_expr: Expr
+        The function for translating the op into affine space and integer operators
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FTVMFakeQuantizationToInteger", func, level)
+
+
+def register_mixed_precision_conversion(op_name, func=None, level=10):
+    """Register mixed precision conversion function for an op
+
+    Given an op the function should return information on how the value should be
+    converted. Specifically the function should take a call node and the target
+    mixed precision datatype (e.g. FP16) and return the conversion category
+    (see python/tvm/relay/transform/mixed_precision.py) as well as the accumulation
+    and output datatype of the operation in the mixed precision dtype space.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    func: function (call_node: relay.Call, target_dtype: string)
+    -> [conversion category, accumulation dtype, output dtype]: [int, string, string]
+        A function which given a call_node and target_dtype (e.g. FP16) returns the
+        conversion category and associated accumulation/output of the operation
+        when transformed into the mixed precision dtype space.
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FTVMMixedPrecisionConversionType", func, level)
 
 
 @tvm._ffi.register_func("relay.op.compiler._lower")

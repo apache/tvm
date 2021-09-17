@@ -33,7 +33,7 @@ from .arm_utils import is_aarch64_arm, is_dotprod_available, is_mmla_available
 
 
 def configure_knobs(cfg, M, K):
-    """ Configure auto-tuning knobs for the interleaved strategy """
+    """Configure auto-tuning knobs for the interleaved strategy"""
 
     x, y = cfg.axis(M // 4), cfg.axis(K // 16)
     cfg.define_reorder("reorder_gemm", [x, y], policy="candidate", candidate=[[x, y], [y, x]])
@@ -280,7 +280,7 @@ def compute_conv2d_gemm_without_weight_transform(
 
 
 def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
-    """ Schedule the conv2d_gemm interleaved strategy """
+    """Schedule the conv2d_gemm interleaved strategy"""
     C = out.op.input_tensors[0]
     C_interleaved = C.op.input_tensors[0]
     A_interleaved = C_interleaved.op.input_tensors[0]
@@ -372,7 +372,7 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
 
 
 def schedule_conv2d_gemm_native(cfg, s, out, final_out):
-    """ Schedule the conv2d_gemm hybrid strategy """
+    """Schedule the conv2d_gemm hybrid strategy"""
     C = out.op.input_tensors[0]
     A = C.op.input_tensors[0]
     in_type = A.dtype

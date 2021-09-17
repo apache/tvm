@@ -176,24 +176,28 @@ def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disa
     def visit(stmt):
         """Collect information about VTCM buffers and their alignments."""
         if isinstance(stmt, tvm.tir.AttrStmt):
-            if stmt.attr_key == "storage_scope" and stmt.value == "local.vtcm":
-                vtcm_buffers.append(stmt.node)
-            elif stmt.attr_key == "storage_alignment":
+            if stmt.attr_key == "storage_alignment":
                 if not stmt.node in alignments:
                     alignments[stmt.node] = []
                 alignments[stmt.node].append(stmt.value)
+        elif isinstance(stmt, tvm.tir.Allocate):
+            scope = stmt.buffer_var.type_annotation.storage_scope
+            if scope == "local.vtcm":
+                vtcm_buffers.append(stmt.buffer_var)
 
     def mutate(stmt):
         """Insert calls to VTCM allocation and deallocation routines."""
         if isinstance(stmt, tvm.tir.AttrStmt):
-            if stmt.attr_key == "storage_scope" and stmt.value == "local.vtcm":
-                vtcm_buffers.pop()
-            elif stmt.attr_key == "storage_alignment":
+            if stmt.attr_key == "storage_alignment":
                 alignments[stmt.node].pop()
             return stmt
         if isinstance(stmt, tvm.tir.Allocate):
             var = stmt.buffer_var
-            if var in vtcm_buffers:
+            scope = var.type_annotation.storage_scope
+            is_vtcm = var in vtcm_buffers
+            if scope == "local.vtcm":
+                vtcm_buffers.pop()
+            if is_vtcm:
                 is_null = tvm.tir.call_intrin("bool", tvm.ir.Op.get("tir.isnullptr"), var)
                 throw_error = tvm.tir.call_intrin(
                     "int32", tvm.ir.Op.get("tir.tvm_throw_last_error")

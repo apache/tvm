@@ -68,7 +68,7 @@ class Frontend(ABC):
 
         Returns
         -------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The produced relay module.
         params : dict
             The parameters (weights) for the relay module.
@@ -77,7 +77,7 @@ class Frontend(ABC):
 
 
 def import_keras():
-    """ Lazy import function for Keras"""
+    """Lazy import function for Keras"""
     # Keras writes the message "Using TensorFlow backend." to stderr
     # Redirect stderr during the import to disable this
     stderr = sys.stderr
@@ -93,7 +93,7 @@ def import_keras():
 
 
 class KerasFrontend(Frontend):
-    """ Keras frontend for TVMC """
+    """Keras frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -151,7 +151,7 @@ class KerasFrontend(Frontend):
 
 
 class OnnxFrontend(Frontend):
-    """ ONNX frontend for TVMC """
+    """ONNX frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -172,7 +172,7 @@ class OnnxFrontend(Frontend):
 
 
 class TensorflowFrontend(Frontend):
-    """ TensorFlow frontend for TVMC """
+    """TensorFlow frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -199,7 +199,7 @@ class TensorflowFrontend(Frontend):
 
 
 class TFLiteFrontend(Frontend):
-    """ TFLite frontend for TVMC """
+    """TFLite frontend for TVMC"""
 
     @staticmethod
     def name():
@@ -237,7 +237,7 @@ class TFLiteFrontend(Frontend):
 
 
 class PyTorchFrontend(Frontend):
-    """ PyTorch frontend for TVMC """
+    """PyTorch frontend for TVMC"""
 
     @staticmethod
     def name():

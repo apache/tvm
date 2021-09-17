@@ -27,7 +27,6 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 
 #include "pass_utils.h"
 

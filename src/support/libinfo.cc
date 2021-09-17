@@ -16,12 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
 #ifndef TVM_INFO_GIT_COMMIT_HASH
 #define TVM_INFO_GIT_COMMIT_HASH "NOT-FOUND"
+#endif
+
+#ifndef TVM_INFO_GIT_COMMIT_TIME
+#define TVM_INFO_GIT_COMMIT_TIME "NOT-FOUND"
 #endif
 
 #ifndef TVM_INFO_LLVM_VERSION
@@ -30,6 +33,10 @@
 
 #ifndef TVM_INFO_USE_CUDA
 #define TVM_INFO_USE_CUDA "NOT-FOUND"
+#endif
+
+#ifndef TVM_INFO_CUDA_VERSION
+#define TVM_INFO_CUDA_VERSION "NOT-FOUND"
 #endif
 
 #ifndef TVM_INFO_USE_OPENCL
@@ -80,8 +87,8 @@
 #define TVM_INFO_USE_GRAPH_EXECUTOR "NOT-FOUND"
 #endif
 
-#ifndef TVM_INFO_USE_GRAPH_EXECUTOR_DEBUG
-#define TVM_INFO_USE_GRAPH_EXECUTOR_DEBUG "NOT-FOUND"
+#ifndef TVM_INFO_USE_PROFILER
+#define TVM_INFO_USE_PROFILER "NOT-FOUND"
 #endif
 
 #ifndef TVM_INFO_USE_OPENMP
@@ -221,6 +228,7 @@ namespace tvm {
 TVM_DLL Map<String, String> GetLibInfo() {
   Map<String, String> result = {
       {"GIT_COMMIT_HASH", TVM_INFO_GIT_COMMIT_HASH},
+      {"GIT_COMMIT_TIME", TVM_INFO_GIT_COMMIT_TIME},
       {"USE_CUDA", TVM_INFO_USE_CUDA},
       {"USE_OPENCL", TVM_INFO_USE_OPENCL},
       {"USE_VULKAN", TVM_INFO_USE_VULKAN},
@@ -233,9 +241,10 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_THREADS", TVM_INFO_USE_THREADS},
       {"USE_LLVM", TVM_INFO_USE_LLVM},
       {"LLVM_VERSION", TVM_INFO_LLVM_VERSION},
+      {"CUDA_VERSION", TVM_INFO_CUDA_VERSION},
       {"USE_STACKVM_RUNTIME", TVM_INFO_USE_STACKVM_RUNTIME},
       {"USE_GRAPH_EXECUTOR", TVM_INFO_USE_GRAPH_EXECUTOR},
-      {"USE_GRAPH_EXECUTOR_DEBUG", TVM_INFO_USE_GRAPH_EXECUTOR_DEBUG},
+      {"USE_PROFILER", TVM_INFO_USE_PROFILER},
       {"USE_OPENMP", TVM_INFO_USE_OPENMP},
       {"USE_RELAY_DEBUG", TVM_INFO_USE_RELAY_DEBUG},
       {"USE_RTTI", TVM_INFO_USE_RTTI},

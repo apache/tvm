@@ -23,7 +23,6 @@
 #include "codegen_stackvm.h"
 
 #include <tvm/ir/module.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>

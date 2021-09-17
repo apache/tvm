@@ -90,7 +90,7 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold, num_boxes, indices):
     """
     one = is_constant()
 
-    # Equivelent PyTorch code from above snippet
+    # Equivalent PyTorch code from above snippet
     # offsets = idxs.to(boxes) * (max_coordinate + torch.tensor(1).to(boxes))
     cast = is_op("cast")(idxs)
     mx = is_op("max")(boxes)

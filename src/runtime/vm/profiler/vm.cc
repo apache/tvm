@@ -24,6 +24,7 @@
 
 #include "vm.h"
 
+#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -42,25 +43,45 @@ namespace vm {
 PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   if (name == "profile") {
-    return TypedPackedFunc<profiling::Report(String)>([sptr_to_self, this](String arg_name) {
-      std::vector<Device> devices;
-      for (auto dev : devices_) {
-        if (dev.device_type > 0) {
-          devices.push_back(dev);
-        }
-      }
+    return TypedPackedFunc<profiling::Report(String, Array<profiling::MetricCollector>)>(
+        [sptr_to_self, this](String arg_name, Array<profiling::MetricCollector> collectors) {
+          std::vector<Device> devices;
+          for (auto dev : devices_) {
+            if (dev.device_type > 0) {
+              devices.push_back(dev);
+            }
+          }
 
-      auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
-      // warmup
-      for (int i = 0; i < 3; i++) {
-        invoke(arg_name);
-      }
+          // We cannot send Arrays over rpc, so in order to support profiling
+          // on remotes, we accept a nullptr for collectors.
+          if (collectors.defined()) {
+            std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
+            prof_ = profiling::Profiler(devices, cs);
+          } else {
+            prof_ = profiling::Profiler(devices, {});
+          }
 
-      prof_ = profiling::Profiler();  // reset profiler
-      prof_.Start(devices);
-      invoke(arg_name);
-      prof_.Stop();
-      return prof_.Report();
+          auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
+          // warmup
+          for (int i = 0; i < 3; i++) {
+            invoke(arg_name);
+          }
+
+          prof_.operator*().Start();
+          invoke(arg_name);
+          prof_.operator*().Stop();
+          auto report = prof_.operator*().Report();
+          prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
+          return report;
+        });
+  } else if (name == "profile_rpc") {
+    // We cannot return a Report over RPC because TMV RPC mechanism only
+    // supports a subset of Object classes. Instead we serialize it on the
+    // remote (here) and deserialize it on the other end.
+    return TypedPackedFunc<std::string(std::string)>([sptr_to_self, this](std::string arg_name) {
+      PackedFunc profile = GetFunction("profile", sptr_to_self);
+      profiling::Report report = profile(arg_name, Array<profiling::MetricCollector>());
+      return report->AsJSON();
     });
   } else {
     return VirtualMachine::GetFunction(name, sptr_to_self);
@@ -79,7 +100,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
                                        Index output_size, const std::vector<ObjectRef>& args) {
   ICHECK(exec_);
   ICHECK(!devices_.empty()) << "Device has not been initialized yet.";
-  if (prof_.IsRunning()) {
+  if (prof_ && prof_.operator*().IsRunning()) {
     // The device of any input of the operator is used for synchronization.
     ICHECK_GT(arg_count, 0U);
     ObjectRef arg = args[0];
@@ -105,6 +126,10 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
     }
 
     std::unordered_map<std::string, ObjectRef> metrics;
+
+    ICHECK(exec_->op_attrs.find(packed_index) != exec_->op_attrs.end())
+        << packed_index_map_[packed_index] << " not found in op attrs";
+
     auto& op_attrs = exec_->op_attrs.at(packed_index);
     for (auto p : op_attrs) {
       if (std::string(p.first).find("layout") != std::string::npos) {
@@ -117,11 +142,11 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
     }
     metrics["Argument Shapes"] = profiling::ShapeString(shapes);
 
-    prof_.StartCall(packed_index_map_[packed_index], dev, metrics);
+    prof_.operator*().StartCall(packed_index_map_[packed_index], dev, metrics);
   }
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
-  if (prof_.IsRunning()) {
-    prof_.StopCall();
+  if (prof_ && prof_.operator*().IsRunning()) {
+    prof_.operator*().StopCall();
   }
 }
 

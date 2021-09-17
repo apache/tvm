@@ -181,7 +181,9 @@ This level enables additional math and transform operators.
 .. autosummary::
    :nosignatures:
 
-   tvm.relay.image.resize
+   tvm.relay.image.resize1d
+   tvm.relay.image.resize2d
+   tvm.relay.image.resize3d
    tvm.relay.image.crop_and_resize
    tvm.relay.image.dilation2d
    tvm.relay.vision.multibox_prior

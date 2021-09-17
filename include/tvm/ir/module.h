@@ -29,11 +29,14 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/type.h>
 #include <tvm/parser/source_map.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -56,6 +59,60 @@ class IRModuleNode : public Object {
   Map<GlobalTypeVar, TypeData> type_definitions;
   /*! \brief The source map for the module. */
   parser::SourceMap source_map;
+  /* \brief Additional attributes storing meta-data about the module. */
+  DictAttrs attrs;
+
+  /*!
+   * \brief Get a module attribute.
+   *
+   * \param attr_key The attribute key.
+   * \param default_value The default value if the key does not exist, defaults to nullptr.
+   *
+   * \return The result
+   *
+   * \tparam TOBjectRef the expected object type.
+   * \throw Error if the key exists but the value does not match TObjectRef
+   *
+   * \code
+   *
+   *  void GetAttrExample(const IRModule& mod) {
+   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
+   *  }
+   *
+   * \endcode
+   */
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(
+      const std::string& attr_key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+    return attrs.GetAttr(attr_key, default_value);
+  }
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  }
+
+  /*!
+   * \brief Check whether the module has an non-zero integer attr.
+   *
+   * This function can be used to check whether an optional
+   * attribute mark(e.g. inline) exists.
+   *
+   * \param attr_key The key to the attribute.
+   * \return The check result.
+   *
+   * \code
+   *
+   *  void HasNonzeroAttrExample(const IRModule& mod) {
+   *    if (mod->HasNonzeroAttr(attr::kInline)) {
+   *      // inline the function.
+   *    }
+   *  }
+   *
+   * \endcode
+   */
+  bool HasNonzeroAttr(const std::string& attr_key) const { return attrs.HasNonzeroAttr(attr_key); }
 
   IRModuleNode() : source_map() {}
 
@@ -65,6 +122,7 @@ class IRModuleNode : public Object {
     v->Visit("global_var_map_", &global_var_map_);
     v->Visit("global_type_var_map_", &global_type_var_map_);
     v->Visit("source_map", &source_map);
+    v->Visit("attrs", &attrs);
   }
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
@@ -221,6 +279,12 @@ class IRModuleNode : public Object {
   TVM_DLL void Update(const IRModule& other);
 
   /*!
+   * \brief Create a shallow copy of this IRModule.
+   * \returns The shallow copy of the IRModule.
+   */
+  TVM_DLL IRModule ShallowCopy();
+
+  /*!
    * \brief Import Relay code from the file at path.
    * \param path The path of the Relay code to import.
    *
@@ -250,6 +314,14 @@ class IRModuleNode : public Object {
  private:
   /*! \brief Helper function for registering a typedef's constructors */
   void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
+
+  /*!
+   * \brief Returns a version of \p name which is unique amongst all function definitions in module.
+   *
+   * \param name The original name.
+   * \return Updated name which is unique.
+   */
+  String GetUniqueName(const String& name);
 
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
@@ -283,12 +355,14 @@ class IRModule : public ObjectRef {
    * \brief constructor
    * \param functions Functions in the module.
    * \param type_definitions Type definitions in the module.
-   * \param import_set Set of imported files in the module
+   * \param import_set Set of imported files in the module.
    * \param map The module source map.
+   * \param attrs The module attributes.
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
-                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {});
+                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {},
+                            DictAttrs attrs = {});
 
   /*! \brief default constructor */
   IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}
@@ -305,16 +379,38 @@ class IRModule : public ObjectRef {
   }
 
   /*!
-   * \brief Construct a module from a standalone expression.
+   * \brief Constructs a module from a standalone expression \p expr.
    *
-   * Allows one to optionally pass a global function map and
-   * map of type definitions as well.
+   * If \p expr is a function it will be bound directly. Otherwise a function over the free
+   * variables of \p expr (possibly none) with \p expr as body is created and bound.
+   *
+   * The function is bound to, in preference order:
+   *  - The "global_symbol" attribute of \p expr, if it is a function with that attribute.
+   *  - 'main'
+   *  - A unique name derived from 'main' if 'main' is already bound in \p global_funcs.
+   *
+   * Additional global functions and type definitions may be included in the result module.
+   *
+   * See also \p FromExpr.
    *
    * \param expr The expression to set as the main function to the module.
-   * \param global_funcs The global function map.
-   * \param type_definitions Map of global type definitions
+   * \param global_funcs The global function map. Default empty.
+   * \param type_definitions The global type definition map. Default empty.
+   * \param import_set Set of external modules already imported. Default empty.
    *
-   * \returns A module with expr set as the main function.
+   * \returns A module with \p expr set as the main function, and the global var to which
+   * \p expr was bound (typcially 'main').
+   *
+   * TODO(mbs): Does import_set and the bound global var need to be exposed via ffi?
+   */
+  static std::pair<IRModule, GlobalVar> FromExprInContext(
+      const RelayExpr& expr, const Map<GlobalVar, BaseFunc>& global_funcs = {},
+      const Map<GlobalTypeVar, TypeData>& type_definitions = {},
+      std::unordered_set<String> import_set = {});
+
+  /*!
+   * \brief As for \p FromExprInContext, but assuming \p expr is bound to 'main' and no
+   * imports.
    */
   TVM_DLL static IRModule FromExpr(const RelayExpr& expr,
                                    const Map<GlobalVar, BaseFunc>& global_funcs = {},
@@ -327,6 +423,13 @@ class IRModule : public ObjectRef {
    * \return A Relay module.
    */
   TVM_DLL static IRModule FromText(const String& text, const String& source_path);
+
+  /*!
+   * \brief Create a shallow copy of an IRModule.
+   * \param mod The module to copy.
+   * \return The copied module.
+   */
+  IRModule ShallowCopyIRModule(IRModule mod);
 
   /*! \brief Declare the container type. */
   using ContainerType = IRModuleNode;

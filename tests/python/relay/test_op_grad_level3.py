@@ -41,8 +41,9 @@ def test_clip():
         bwd_func = run_infer_type(gradient(fwd_func))
 
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor(device=dev, target=target)
-            op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
+            op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(
+                bwd_func
+            )(data)
             np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
@@ -66,6 +67,13 @@ def test_negative_grad():
 def test_cast_grad():
     data = relay.var("data", relay.TensorType((10, 4), "float32"))
     fwd_func = relay.Function([data], relay.cast(data, "float64"))
+    check_grad(fwd_func)
+
+
+def test_cast_like_grad():
+    data = relay.var("data", shape=(10, 4), dtype="float32")
+    like = relay.var("like", shape=(1,), dtype="float64")
+    fwd_func = relay.Function([data, like], relay.cast_like(data, like))
     check_grad(fwd_func)
 
 
@@ -174,8 +182,9 @@ def test_zeros_ones_grad_dynamic():
         bwd_func = run_infer_type(gradient(run_infer_type(fwd_func)))
 
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor(device=dev, target=target)
-            res, (grad,) = intrp.evaluate(bwd_func)(dyn_shape)
+            res, (grad,) = relay.create_executor(device=dev, target=target).evaluate(bwd_func)(
+                dyn_shape
+            )
             tvm.testing.assert_allclose(res.numpy(), op_ref(dyn_shape, dtype="float32"))
             tvm.testing.assert_allclose(grad.numpy(), np.zeros((rank,), dtype="int32"))
 

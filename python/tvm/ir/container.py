@@ -38,6 +38,16 @@ class Array(Object):
     def __len__(self):
         return _ffi_api.ArraySize(self)
 
+    def __dir__(self):
+        return sorted(dir(self.__class__) + ["type_key"])
+
+    def __getattr__(self, name):
+        if name == "handle":
+            raise AttributeError("handle is not set")
+        if name == "type_key":
+            return super().__getattr__(name)
+        raise AttributeError("%s has no attribute %s" % (str(type(self)), name))
+
 
 @tvm._ffi.register_object
 class Map(Object):
@@ -58,6 +68,16 @@ class Map(Object):
         akvs = _ffi_api.MapItems(self)
         for i in range(len(self)):
             yield akvs[i * 2]
+
+    def __dir__(self):
+        return sorted(dir(self.__class__) + ["type_key"])
+
+    def __getattr__(self, name):
+        if name == "handle":
+            raise AttributeError("handle is not set")
+        if name == "type_key":
+            return super().__getattr__(name)
+        raise AttributeError("%s has no attribute %s" % (str(type(self)), name))
 
     def keys(self):
         return iter(self)

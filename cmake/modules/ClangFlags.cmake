@@ -52,7 +52,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       -Wno-shorten-64-to-32
       -Wno-covered-switch-default
       -Wno-unused-exception-parameter
-      -Wno-return-std-move-in-c++11
+      -Wno-return-std-move
       -Wno-over-aligned
       -Wno-undef
       -Wno-inconsistent-missing-destructor-override

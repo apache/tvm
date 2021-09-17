@@ -74,7 +74,7 @@ def test_legalize():
 
 
 def test_legalize_none():
-    """Test doing nothing by returning 'None' """
+    """Test doing nothing by returning 'None'"""
 
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))

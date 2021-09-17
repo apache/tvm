@@ -27,7 +27,7 @@ from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuffle
 from .expr import Call, CallEffectKind, Let, IterVar, Any
 
-from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For
+from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
 from .stmt import BufferStore, BufferRealize, Store, ProducerStore, Allocate, AttrStmt
 from .stmt import ProducerRealize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
@@ -48,7 +48,7 @@ from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift
 
-from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule
+from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
 
 from . import schedule
 from . import ir_builder

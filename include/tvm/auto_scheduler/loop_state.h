@@ -50,7 +50,6 @@
 
 #include <dmlc/common.h>
 #include <tvm/auto_scheduler/transform_step.h>
-#include <tvm/runtime/container.h>
 
 #include <functional>
 #include <unordered_map>

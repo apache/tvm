@@ -63,7 +63,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
-docs/gen_modules
+docs/_staging/
 
 # PyBuilder
 /target/
@@ -233,6 +233,9 @@ conda/pkg
 # nix files
 .envrc
 *.nix
+
+# Docker files
+.sudo_as_admin_successful
 
 # Downloaded models/datasets
 .tvm_test_data

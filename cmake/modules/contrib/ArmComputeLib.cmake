@@ -27,6 +27,10 @@ if(USE_ARM_COMPUTE_LIB)
     if(NOT USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
         list(APPEND COMPILER_SRCS ${ACL_RUNTIME_MODULE})
     endif()
+    if(NOT DEFINED TVM_LLVM_VERSION)
+      message(FATAL_ERROR "Support for offloading to Compute library for the Arm Architecture requires LLVM Support")
+    endif()
+
     message(STATUS "Build with Arm Compute Library support...")
 endif()
 

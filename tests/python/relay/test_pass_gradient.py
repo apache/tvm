@@ -45,9 +45,8 @@ def test_fo_id():
     func = run_infer_type(func)
     back_func = run_infer_type(gradient(func, mode="first_order"))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
-    ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, (grad,) = create_executor().evaluate(back_func)(x)
     tvm.testing.assert_allclose(forward.numpy(), x.numpy())
     tvm.testing.assert_allclose(grad.numpy(), np.ones_like(x.numpy()))
 
@@ -61,9 +60,8 @@ def test_id():
     func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
-    ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, (grad,) = create_executor().evaluate(back_func)(x)
     tvm.testing.assert_allclose(forward.numpy(), x.numpy())
     tvm.testing.assert_allclose(grad.numpy(), np.ones_like(x.numpy()))
 
@@ -89,9 +87,8 @@ def test_add():
     func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
-    ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, (grad,) = create_executor().evaluate(back_func)(x)
     tvm.testing.assert_allclose(forward.numpy(), 2 * x.numpy())
     tvm.testing.assert_allclose(grad.numpy(), 2 * np.ones_like(x.numpy()))
 
@@ -118,9 +115,8 @@ def test_temp_add():
     func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
-    ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, (grad,) = create_executor().evaluate(back_func)(x)
     tvm.testing.assert_allclose(forward.numpy(), 4 * x.numpy())
     tvm.testing.assert_allclose(grad.numpy(), 4 * np.ones_like(x.numpy()))
 
@@ -134,9 +130,8 @@ def test_sub():
     func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
-    ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, (grad,) = create_executor().evaluate(back_func)(x)
     tvm.testing.assert_allclose(forward.numpy(), np.zeros_like(x.numpy()))
     tvm.testing.assert_allclose(grad.numpy(), np.zeros_like(x.numpy()))
 
@@ -163,8 +158,7 @@ def test_broadcast_add():
             [relay.TensorType(expected_forward.shape, dtype), relay.TupleType([t1, t2])]
         ),
     )
-    ex = create_executor()
-    forward, (grad_x, grad_y) = ex.evaluate(full_func)(x_nd, y_nd)
+    forward, (grad_x, grad_y) = create_executor().evaluate(full_func)(x_nd, y_nd)
     tvm.testing.assert_allclose(forward.numpy(), expected_forward)
     tvm.testing.assert_allclose(
         grad_x.numpy(), np.ones_like(expected_forward).sum(axis=2, keepdims=True)
@@ -197,8 +191,7 @@ def test_broadcast_subtract():
             [relay.TensorType(expected_forward.shape, dtype), relay.TupleType([t1, t2])]
         ),
     )
-    ex = create_executor()
-    forward, (grad_x, grad_y) = ex.evaluate(full_func)(x_nd, y_nd)
+    forward, (grad_x, grad_y) = create_executor().evaluate(full_func)(x_nd, y_nd)
     tvm.testing.assert_allclose(forward.numpy(), expected_forward)
     tvm.testing.assert_allclose(
         grad_x.numpy(), np.ones_like(expected_forward).sum(axis=2, keepdims=True)
@@ -247,8 +240,7 @@ def _test_tuple(mode):
     y_np = y_nd.numpy()
     z_np = z_nd.numpy()
     expected_forward = x_np + y_np - z_np
-    ex = create_executor()
-    forward, (grad_x, grad_y, grad_z) = ex.evaluate(back_func)(x_nd, y_nd, z_nd)
+    forward, (grad_x, grad_y, grad_z) = create_executor().evaluate(back_func)(x_nd, y_nd, z_nd)
     tvm.testing.assert_allclose(forward.numpy(), expected_forward)
     tvm.testing.assert_allclose(grad_x.numpy(), np.ones_like(grad_x.numpy()))
     tvm.testing.assert_allclose(grad_y.numpy(), np.ones_like(grad_y.numpy()))
@@ -271,8 +263,7 @@ def _test_tuple_argument(mode):
     xs = [rand(dtype, *shape) for _ in range(fields)]
     xs_np = np.array([x.numpy() for x in xs])
     expected_forward = np.sum(xs_np, axis=0)
-    ex = create_executor()
-    forward, grad = ex.evaluate(back_func)(tuple(xs))
+    forward, grad = create_executor().evaluate(back_func)(tuple(xs))
     tvm.testing.assert_allclose(forward.numpy(), expected_forward)
     for field in grad[0]:
         tvm.testing.assert_allclose(field.numpy(), np.ones_like(field.numpy()))
@@ -315,8 +306,7 @@ def test_pow():
     back_func = m["main"]
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     i_nd = rand(dtype, *shape)
-    ex = create_executor(mod=mod)
-    forward, (grad_i,) = ex.evaluate(back_func)(i_nd)
+    forward, (grad_i,) = create_executor(mod=mod).evaluate(back_func)(i_nd)
     tvm.testing.assert_allclose(forward.numpy(), 8 * i_nd.numpy())
     tvm.testing.assert_allclose(grad_i.numpy(), 8 * np.ones_like(grad_i.numpy()))
 
@@ -336,8 +326,7 @@ def test_ref():
     back_func = run_infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     x_nd = rand(dtype, *shape)
-    ex = create_executor()
-    forward, (grad_x,) = ex.evaluate(back_func)(x_nd)
+    forward, (grad_x,) = create_executor().evaluate(back_func)(x_nd)
     tvm.testing.assert_allclose(forward.numpy(), 2 * x_nd.numpy())
     tvm.testing.assert_allclose(grad_x.numpy(), 2 * np.ones_like(grad_x.numpy()))
 
@@ -358,8 +347,7 @@ def test_square_second_order():
     back_back_func = run_infer_type(gradient(back_func_adjusted))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     x_nd = rand(dtype, *shape)
-    ex = create_executor()
-    forward, (grad_x,) = ex.evaluate(back_back_func)(x_nd)
+    forward, (grad_x,) = create_executor().evaluate(back_back_func)(x_nd)
     tvm.testing.assert_allclose(forward.numpy(), 2 * x_nd.numpy())
     tvm.testing.assert_allclose(grad_x.numpy(), 2 * np.ones_like(grad_x.numpy()))
 
@@ -390,9 +378,8 @@ def test_grad_tuple():
     assert back_func.checked_type == relay.FuncType(
         [t], relay.TupleType([relay.TupleType([t, t]), relay.TupleType([t])])
     )
-    ex = create_executor()
     x = rand(dtype, *shape)
-    (forward_four, forward_two), (grad,) = ex.evaluate(back_func)(x)
+    (forward_four, forward_two), (grad,) = create_executor().evaluate(back_func)(x)
     tvm.testing.assert_allclose(forward_four.numpy(), 4 * x.numpy())
     tvm.testing.assert_allclose(forward_two.numpy(), 2 * x.numpy())
     tvm.testing.assert_allclose(grad.numpy(), 4 * np.ones_like(x.numpy()))
@@ -429,6 +416,23 @@ def test_no_duplication():
     assert counts["nn.dense"] == 3, "We expect 3 dense (1 forward, two backward)"
 
 
+def test_no_duplication_tuples():
+    x = tvm.relay.Var("x", type_annotation=tvm.relay.TensorType([12, 12]))
+    y = tvm.relay.Var("y", type_annotation=tvm.relay.TensorType([12, 12]))
+    xy = tvm.relay.nn.dense(x, y)
+
+    t = relay.Tuple([xy, xy])
+
+    m = tvm.relay.sum(xy, keepdims=True)
+    s = tvm.relay.sum(relay.TupleGetItem(t, 0) - m)
+    fn = tvm.relay.Function([x, y], s)
+    fn = run_infer_type(fn)
+    gr = tvm.relay.transform.gradient(fn, mode="first_order")
+
+    counts = count_ops(gr)
+    assert counts["nn.dense"] == 3, "We expect 3 dense (1 forward, two backward)"
+
+
 def test_global_function():
     m = tvm.IRModule()
     shape = (10, 10)
@@ -446,9 +450,8 @@ def test_global_function():
     m = tvm.relay.transform.InferType()(m)
     back_func = m[g]
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
-    ex = create_executor(mod=m)
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, (grad,) = create_executor(mod=m).evaluate(back_func)(x)
     tvm.testing.assert_allclose(forward.numpy(), 4 * x.numpy())
     tvm.testing.assert_allclose(grad.numpy(), 4 * np.ones_like(x.numpy()))
 

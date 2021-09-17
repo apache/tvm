@@ -65,7 +65,6 @@ def _alias(name):
     """convert alias for some packages"""
     table = {
         "vtacpu": "vta",
-        "metal": "opencl",
         "webgpu": "opencl",
         "vulkan": "opencl",
         "nvptx": "cuda",
@@ -179,7 +178,7 @@ def download_package(tophub_location, package_name):
 
     download_url = "{0}/{1}".format(tophub_location, package_name)
     logger.info("Download pre-tuned parameters package from %s", download_url)
-    download(download_url, Path(rootpath, package_name), True, verbose=0)
+    download(download_url, Path(rootpath, package_name), overwrite=True)
 
 
 # global cache for load_reference_log
@@ -201,6 +200,8 @@ def load_reference_log(backend, model, workload_name):
     """
 
     backend = _alias(backend)
+    if backend not in PACKAGE_VERSION:
+        return []
     version = PACKAGE_VERSION[backend]
     package_name = "%s_%s.log" % (backend, version)
     filename = Path(AUTOTVM_TOPHUB_ROOT_PATH, package_name)

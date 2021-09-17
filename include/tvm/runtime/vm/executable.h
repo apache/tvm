@@ -24,7 +24,8 @@
 #ifndef TVM_RUNTIME_VM_EXECUTABLE_H_
 #define TVM_RUNTIME_VM_EXECUTABLE_H_
 
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>

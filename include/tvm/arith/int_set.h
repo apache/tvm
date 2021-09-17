@@ -36,6 +36,8 @@ using tir::IterVar;
 using tir::Var;
 using tir::VarNode;
 
+class Analyzer;
+
 //-----------------------------------------------
 // Integer set data structure.
 //
@@ -120,16 +122,23 @@ class IntSet : public ObjectRef {
    */
   static IntSet Vector(PrimExpr vec);
   /*!
+   * \brief Construct a set representing a range [min, min + extent).
+   * \param min The minimum of the range range
+   * \param extent The extent of the range.
+   * \return The constructed set.
+   */
+  static IntSet FromMinExtent(PrimExpr min, PrimExpr extent);
+  /*!
    * \brief Construct a set representing a range.
    * \param r The range
-   * \return constructed set.
+   * \return The constructed set.
    */
   static IntSet FromRange(tvm::Range r);
   /*!
    * \brief Construct a set representing a interval.
    * \param min The minimum value of the interval.
    * \param max The maximum value of the interval.
-   * \return constructed set.
+   * \return The constructed set.
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
@@ -190,6 +199,14 @@ IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_m
  * \return An integer set that can cover all the possible values of e.
  */
 IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map);
+/*!
+ * \brief Same as EvalSet, but takes Array<Range>
+ *
+ * \param region The range to be evaluated.
+ * \param dom_map The domain of each variable.
+ * \return An array of integer sets that can cover all the possible values.
+ */
+Array<IntSet> EvalSet(const Array<Range>& region, const Map<Var, IntSet>& dom_map);
 /*! \brief Map from Expr to IntSet */
 using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectPtrHash, ObjectPtrEqual>;
 /*!
@@ -204,11 +221,32 @@ ExprIntSetMap EvalSetForEachSubExpr(PrimExpr e,
                                     const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
- * \brief Create an union set of all sets
- * \param sets The sets to be unioned
+ * \brief Create a union set of all sets, possibly relaxed
+ * \param sets The sets to be combined
  * \return the set after union
  */
 IntSet Union(const Array<IntSet>& sets);
+
+/*!
+ * \brief The union of N-dimensional integer sets
+ * \param nd_int_sets A list of N-dimensional integer sets
+ * \return An N-dimensional integer set as the result of union
+ */
+Array<IntSet> UnionRegion(const Array<Array<IntSet>>& nd_int_sets);
+
+/*!
+ * \brief Create a lower-bound of union set, where some of the segments may be dropped
+ * \param sets The sets to be combined
+ * \return the set after union
+ */
+IntSet UnionLowerBound(const Array<IntSet>& sets);
+
+/*!
+ * \brief The union of N-dimensional integer sets
+ * \param nd_int_sets A list of N-dimensional integer sets
+ * \return An N-dimensional integer set as the result of union
+ */
+Array<IntSet> UnionRegionLowerBound(const Array<Array<IntSet>>& nd_int_sets);
 
 /*!
  * \brief Create an union set of all sets
@@ -216,6 +254,19 @@ IntSet Union(const Array<IntSet>& sets);
  * \return the set after intersected
  */
 IntSet Intersect(const Array<IntSet>& sets);
+
+/*!
+ * \brief Analyze the region with affine map, given the domain of variables and their predicate
+ * \param region The region to be analyzed
+ * \param var_dom The ranges of the variables
+ * \param predicate The predicate for the affine map
+ * \param analyzer The analyzer used
+ * \return NullOpt if the detection fails, or an array of arith::IntSet as the result of analysis
+ */
+TVM_DLL Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
+                                                         const Map<Var, Range>& var_dom,
+                                                         const PrimExpr& predicate,
+                                                         arith::Analyzer* analyzer);
 
 }  // namespace arith
 }  // namespace tvm

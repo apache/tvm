@@ -16,6 +16,7 @@
 # under the License.
 """
 Auto-tuning a ALU fused op on VTA
+---------------------------------
 """
 
 import os
@@ -27,7 +28,7 @@ from tvm import topi
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_runtime, download
+from tvm.contrib import download
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.autotvm import record

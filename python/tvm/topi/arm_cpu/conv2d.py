@@ -381,7 +381,7 @@ def schedule_conv2d_nchw_winograd_nnpack(cfg, outs):
 def _conv2d_arm_cpu_winograd_nnpack(
     cfg, data, kernel, strides, padding, dilation, out_dtype, convolution_algorithm
 ):
-    """ TOPI compute callback. Use winograd NNPACK template """
+    """TOPI compute callback. Use winograd NNPACK template"""
     N, CI, IH, IW = get_const_tuple(data.shape)
 
     if isinstance(dilation, int):

@@ -29,6 +29,13 @@ try:
     import tensorflow.compat.v1 as tf
 except ImportError:
     import tensorflow as tf
+
+# Only allow TF to run on half the GPU RAM to save the other half
+# For TVM
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
+sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+sess.close()
+
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
@@ -117,6 +124,7 @@ def run_tvm_graph(
     disabled_pass=None,
     ignore_in_shape=False,
     serialize=False,
+    convert_config=None,
 ):
     """Generic function to compile on relay and execute on tvm"""
     input_data = convert_to_list(input_data)
@@ -131,11 +139,14 @@ def run_tvm_graph(
             e: i.shape if hasattr(i, "shape") else () for e, i in zip(input_node, input_data)
         }
     mod, params = relay.frontend.from_tensorflow(
-        graph_def, layout=layout, shape=shape_dict, outputs=out_names
+        graph_def,
+        layout=layout,
+        shape=shape_dict,
+        outputs=out_names,
+        convert_config=convert_config,
     )
     dev = tvm.device(target, 0)
     if mode == "debug":
-        ex = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             found = False
@@ -147,11 +158,12 @@ def run_tvm_graph(
             # Interpreter doesn't bind constants, so still need to find in params
             if not found:
                 inputs.append(tvm.nd.array(params[param.name_hint]))
-        result = ex.evaluate()(*inputs)
+        result = relay.create_executor(mode, mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+            *inputs
+        )
         return vmobj_to_list(result)
     elif mode == "vm":
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
-            print(mod["main"])
             mod = relay.transform.InferType()(mod)
             vm_exec = relay.vm.compile(mod, target="llvm", params=params)
         if serialize:
@@ -214,6 +226,7 @@ def compare_tf_with_tvm(
     add_shapes_to_graph_def=True,
     targets=None,
     ignore_in_shape=False,
+    convert_config=None,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -261,6 +274,7 @@ def compare_tf_with_tvm(
                 mode=mode,
                 cuda_layout=cuda_layout,
                 ignore_in_shape=ignore_in_shape,
+                convert_config=convert_config,
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
@@ -312,6 +326,8 @@ def _test_pooling(input_shape, **kwargs):
     if is_gpu_available():
         if len(input_shape) == 4:
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+            if isinstance(kwargs["padding"], list):
+                kwargs["padding"] = [kwargs["padding"][ii] for ii in (0, 3, 1, 2)]
             kwargs["data_format"] = "NCHW"
             _test_pooling_iteration(input_shape, **kwargs)
 
@@ -1796,7 +1812,12 @@ def _test_matmul(i, j, k, dtype, outer=None):
 
                 A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
-                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
+                compare_tf_with_tvm(
+                    [A_np, B_np], [A.name, B.name], result.name, convert_config={"use_dense": True}
+                )
+                compare_tf_with_tvm(
+                    [A_np, B_np], [A.name, B.name], result.name, convert_config={"use_dense": False}
+                )
 
 
 def test_forward_matmul():
@@ -1814,7 +1835,18 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
 
         A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
         B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
-        compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
+        compare_tf_with_tvm(
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            convert_config={"use_nt_batch_matmul": True},
+        )
+        compare_tf_with_tvm(
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            convert_config={"use_nt_batch_matmul": False},
+        )
 
 
 def _test_batch_matmul_dynamic(
@@ -1827,10 +1859,23 @@ def _test_batch_matmul_dynamic(
 
         A_np = np.random.uniform(high=5.0, size=A_np_shape).astype(dtype)
         B_np = np.random.uniform(high=5.0, size=B_np_shape).astype(dtype)
-        # for now, in TOPI, only cublas's implementation support dynamic shape
+        # for now, in TOPI, only llvm & cublas's implementation support dynamic shape
         # TODO add more backends support in TOPI
         compare_tf_with_tvm(
-            [A_np, B_np], [A.name, B.name], result.name, mode="vm", targets=["cuda -libs=cublas"]
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            mode="vm",
+            targets=["llvm", "cuda -libs=cublas"],
+            convert_config={"use_nt_batch_matmul": True},
+        )
+        compare_tf_with_tvm(
+            [A_np, B_np],
+            [A.name, B.name],
+            result.name,
+            mode="vm",
+            targets=["llvm", "cuda -libs=cublas"],
+            convert_config={"use_nt_batch_matmul": False},
         )
 
 
@@ -1844,9 +1889,11 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 6, 5), "float32", True, True)
     _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), "int32", True, False)
     _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), "float32", False, True)
+    _test_batch_matmul((1, 8, 64, 2), (2, 1), "float32", False, False)
+    _test_batch_matmul((1, 8, 8, 64), (64, 1), "float32", False, False)
+    _test_batch_matmul((1, 8, 64), (64, 1), "float32", False, False)
 
 
-@tvm.testing.requires_cuda
 def test_forward_batch_matmul_dynamic():
     _test_batch_matmul_dynamic((None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "int32")
     _test_batch_matmul_dynamic(
@@ -1869,6 +1916,20 @@ def test_forward_batch_matmul_dynamic():
         (None, None, None, 6, 5),
         (2, 3, 4, 5, 6),
         (2, 3, 4, 6, 5),
+        "float32",
+    )
+    _test_batch_matmul_dynamic(
+        (None, None, None, 5, 6),
+        (6, None),
+        (2, 3, 4, 5, 6),
+        (6, 1),
+        "float32",
+    )
+    _test_batch_matmul_dynamic(
+        (None, 5, 6),
+        (6, None),
+        (24, 5, 6),
+        (6, 1),
         "float32",
     )
 
@@ -2451,9 +2512,15 @@ def _test_sparse_add(indices, values, A_shape, B_shape, dtype, flip=False):
 
         # TODO(ANSHUMAN87): support user input threashold values
         if flip:
-            result = tf.sparse.add(B, A_sp, threshold=0)
+            if package_version.parse(tf.VERSION) < package_version.parse("1.13.0"):
+                result = tf.sparse.add(B, A_sp, thresh=0)
+            else:
+                result = tf.sparse.add(B, A_sp, threshold=0)
         else:
-            result = tf.sparse.add(A_sp, B, threshold=0)
+            if package_version.parse(tf.VERSION) < package_version.parse("1.13.0"):
+                result = tf.sparse.add(A_sp, B, thresh=0)
+            else:
+                result = tf.sparse.add(A_sp, B, threshold=0)
 
         B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
 
@@ -2529,7 +2596,9 @@ def test_forward_stridedslice():
 
     _test_stridedslice([], [0], [0], [1], "float32", new_axis_mask=1)
     _test_stridedslice([2], [1], [1], [1], "float32", shrink_axis_mask=1)
+    _test_stridedslice([4], [-1], [0], [1], "float32", shrink_axis_mask=1)
     _test_stridedslice([2, 1], [0], [1], [1], "float32", shrink_axis_mask=1)
+    _test_stridedslice([2, 3, 4], [-2], [0], [1], "float32", shrink_axis_mask=8)
     _test_stridedslice([2, 3, 4], [0], [1], [1], "float32", shrink_axis_mask=8)
     _test_stridedslice([3, 4, 3], [1, -1, 0], [4, -5, 3], [2, -1, 1], "float32")
     _test_stridedslice([3, 4, 3], [1, 0], [4, 3], [2, 1], "float32", ellipsis_mask=8)
@@ -3411,8 +3480,14 @@ def _test_forward_combined_nms(
     clip_boxes=False,
     dtype="float32",
 ):
+    def get_random_scores(size, dtype):
+        size1d = np.prod(size)
+        scores = np.linspace(0, 1, num=size1d)
+        np.random.shuffle(scores)
+        return scores.reshape(size).astype(dtype)
+
     boxes = np.random.uniform(-1, 2, size=bx_shape).astype(dtype)
-    scores = np.random.uniform(size=score_shape).astype(dtype)
+    scores = get_random_scores(score_shape, dtype)
     max_output_size = np.int32(out_size)
     tf.reset_default_graph()
     in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
@@ -3438,16 +3513,20 @@ def _test_forward_combined_nms(
             "nms/CombinedNonMaxSuppression:2",
             "nms/CombinedNonMaxSuppression:3",
         ],
-        mode="vm",
     )
 
 
 def test_forward_combined_nms():
     """CombinedNonMaxSuppression"""
     _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 1), 0.7, 0.5, 64, 64)
+    _test_forward_combined_nms((1, 32, 1, 4), (1, 32, 1), 0.7, 0.5, 10, 64)
+    _test_forward_combined_nms((1, 32, 1, 4), (1, 32, 2), 0.7, 0.5, 32, 64)
     _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 20), 0.7, 0.5, 64, 10)
-    _test_forward_combined_nms((1, 64, 20, 4), (1, 64, 20), 0.7, 0.5, 64, 64, clip_boxes=True)
+    # This workload seems flaky on CI.
+    # See https://github.com/apache/tvm/issues/8140
+    # _test_forward_combined_nms((1, 64, 20, 4), (1, 64, 20), 0.7, 0.5, 64, 64, clip_boxes=True)
     _test_forward_combined_nms((2, 200, 1, 4), (2, 200, 1), 0.4, 0.6, 100, 100)
+    _test_forward_combined_nms((2, 200, 1, 4), (2, 200, 10), 0.4, 0.2, 150, 1000)
 
 
 #######################################################################
@@ -5549,6 +5628,24 @@ def test_moments():
     """
     mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
     tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
+
+
+#######################################################################
+# invert_permutation
+# --------------------
+
+
+def test_invert_permutation():
+    """test InvertPermutation"""
+    tf.reset_default_graph()
+
+    input_shape = [6]
+    x = np.array([3, 4, 0, 2, 1, 5]).astype("int32")
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype="int32")
+        tf.invert_permutation(in_data)
+        out_name = "InvertPermutation:0"
+        compare_tf_with_tvm(x, "Placeholder:0", out_name, no_gpu=False)
 
 
 if __name__ == "__main__":

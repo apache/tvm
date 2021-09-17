@@ -34,7 +34,11 @@ namespace relay {
 
 class FastMathMutator : public ExprRewriter {
  public:
-  FastMathMutator() : exp_op_(Op::Get("exp")), erf_op_(Op::Get("erf")), tanh_op_(Op::Get("tanh")) {}
+  FastMathMutator()
+      : exp_op_(Op::Get("exp")),
+        erf_op_(Op::Get("erf")),
+        tanh_op_(Op::Get("tanh")),
+        softmax_op_(Op::Get("nn.softmax")) {}
 
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     if (pre->op == exp_op_) {
@@ -43,6 +47,8 @@ class FastMathMutator : public ExprRewriter {
       return FastErf(post.as<CallNode>()->args[0]);
     } else if (pre->op == tanh_op_) {
       return FastTanh(post.as<CallNode>()->args[0]);
+    } else if (pre->op == softmax_op_) {
+      return FastSoftmax(post.as<CallNode>()->args[0], post.as<CallNode>()->attrs);
     }
     return post;
   }
@@ -54,6 +60,7 @@ class FastMathMutator : public ExprRewriter {
   const Op& exp_op_;
   const Op& erf_op_;
   const Op& tanh_op_;
+  const Op& softmax_op_;
 };
 
 Expr FastMath(const Expr& e) {

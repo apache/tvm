@@ -17,6 +17,8 @@
 import pytest
 import os
 
+from unittest import mock
+
 from os import path
 
 from tvm import autotvm
@@ -153,3 +155,22 @@ def test_tune_tasks__invalid_tuner(onnx_mnist, tmpdir_factory):
 
     with pytest.raises(tvmc.common.TVMCException):
         tvmc.autotuner.tune_tasks(tasks, log_file, _get_measure_options(), "invalid_tuner", 1, 1)
+
+
+@mock.patch("tvm.driver.tvmc.autotuner.auto_scheduler.HardwareParams", return_value=None)
+@mock.patch("tvm.driver.tvmc.autotuner.tune_model", return_value=None)
+@mock.patch("tvm.driver.tvmc.frontends.load_model", return_value=None)
+def test_tune_rpc_tracker_parsing(mock_load_model, mock_tune_model, mock_auto_scheduler):
+    cli_args = mock.MagicMock()
+    cli_args.rpc_tracker = "10.0.0.1:9999"
+
+    tvmc.autotuner.drive_tune(cli_args)
+
+    mock_tune_model.assert_called_once()
+
+    # inspect the mock call, to search for specific arguments
+    _, _, kwargs = mock_tune_model.mock_calls[0]
+    assert "hostname" in kwargs
+    assert "10.0.0.1" == kwargs["hostname"]
+    assert "port" in kwargs
+    assert 9999 == kwargs["port"]

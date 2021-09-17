@@ -20,6 +20,7 @@ import numpy as np
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCResult
 from tvm.driver.tvmc.result_utils import get_top_results
+from tvm.runtime.module import BenchmarkResult
 
 
 def test_generate_tensor_data_zeros():
@@ -52,7 +53,7 @@ def test_generate_tensor_data__type_unknown():
 
 
 def test_format_times__contains_header():
-    fake_result = TVMCResult(outputs=None, times=[0.6, 1.2, 0.12, 0.42])
+    fake_result = TVMCResult(outputs=None, times=BenchmarkResult([0.6, 1.2, 0.12, 0.42]))
     sut = fake_result.format_times()
     assert "std (ms)" in sut
 
@@ -71,12 +72,15 @@ def test_get_top_results_keep_results():
     assert len(sut[1]) == expected_number_of_results_per_line
 
 
-def test_run_tflite_module__with_profile__valid_input(tflite_compiled_model, imagenet_cat):
+def test_run_tflite_module__with_profile__valid_input(
+    tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
+):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")
 
     inputs = np.load(imagenet_cat)
 
+    tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant)
     result = tvmc.run(
         tflite_compiled_model,
         inputs=inputs,
@@ -98,5 +102,5 @@ def test_run_tflite_module__with_profile__valid_input(tflite_compiled_model, ima
         tiger_cat_mobilenet_id in top_5_ids
     ), "tiger cat is expected in the top-5 for mobilenet v1"
     assert type(result.outputs) is dict
-    assert type(result.times) is tuple
+    assert type(result.times) is BenchmarkResult
     assert "output_0" in result.outputs.keys()

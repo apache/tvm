@@ -26,8 +26,7 @@ from tvm.contrib import cblas
 from tvm.contrib import mkl
 from tvm.contrib import mkldnn
 
-from .utils import get_fp32_len
-from .injective import schedule_injective_from_existing
+from .utils import get_simd_32bit_lanes
 from .. import generic, tag
 from ..utils import traverse_inline, get_const_tuple
 
@@ -108,7 +107,7 @@ def _default_dense_pack_config(cfg, M, N, K):
     if isinstance(K, (tvm.tir.Var, tvm.tir.Any)):
         K = 16
 
-    vec_width = get_fp32_len()
+    vec_width = get_simd_32bit_lanes()
     tilex_ii = 1
     for bn in range(vec_width * 2, 0, -1):
         if N % bn == 0:
@@ -146,7 +145,7 @@ def _default_dense_nopack_config(cfg, M, N, K):
     if isinstance(K, (tvm.tir.Var, tvm.tir.Any)):
         K = 16
 
-    vec_width = get_fp32_len()
+    vec_width = get_simd_32bit_lanes()
     tilek_bn = 1
     for bn in range(vec_width * 2, 0, -1):
         if K % bn == 0:
@@ -280,23 +279,25 @@ def schedule_dense_pack(cfg, outs):
     return s
 
 
-def dense_blas_common(cfg, data, weight, bias, out_dtype, lib):
-    """Compute dense using a BLAS library"""
-    M, K = get_const_tuple(data.shape)
-    N, _ = get_const_tuple(weight.shape)
+def matmul_blas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, lib):
+    """Compute matmul/dense using a BLAS library"""
+    M, K = get_const_tuple(tensor_a.shape)
+    N, _ = get_const_tuple(tensor_b.shape)
     if isinstance(M, int) and isinstance(K, int) and isinstance(N, int):
         cfg.add_flop(M * K * N * 2)
-    if data.dtype == "uint8" and weight.dtype == "int8" and out_dtype == "int32":
+    if tensor_a.dtype == "uint8" and tensor_b.dtype == "int8" and out_dtype == "int32":
         if not hasattr(lib, "matmul_u8s8s32"):
             raise NotImplementedError(
-                f"Dense with {lib.__name__} for {data.dtype} is not supported "
+                f"Matmul/Dense with {lib.__name__} for {tensor_a.dtype} is not supported "
                 "(matmulu8s8s32 not imlemented)"
             )
-        C = lib.matmul_u8s8s32(data, weight, False, True, dtype=out_dtype)
-    elif data.dtype == "float32" or data.dtype == "float64":
-        C = lib.matmul(data, weight, False, True)
+        C = lib.matmul_u8s8s32(tensor_a, tensor_b, transpose_a, transpose_b, dtype=out_dtype)
+    elif tensor_a.dtype == "float32" or tensor_a.dtype == "float64":
+        C = lib.matmul(tensor_a, tensor_b, transpose_a, transpose_b)
     else:
-        raise NotImplementedError(f"Dense with {lib.__name__} for {data.dtype} is not supported")
+        raise NotImplementedError(
+            f"Matmul/Dense with {lib.__name__} for {tensor_a.dtype} is not supported"
+        )
 
     if bias is not None:
         C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
@@ -305,47 +306,83 @@ def dense_blas_common(cfg, data, weight, bias, out_dtype, lib):
 
 @autotvm.register_topi_compute("dense_cblas.x86")
 def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense using a cblas"""
-    return dense_blas_common(cfg, data, weight, bias, out_dtype, cblas)
+    """Compute dense using cblas. This is an alias of matmul_nt operator."""
+    return matmul_blas_common(cfg, data, weight, bias, out_dtype, False, True, cblas)
 
 
 @autotvm.register_topi_schedule("dense_cblas.x86")
 def schedule_dense_cblas(_, outs):
-    """Create schedule for dense_cblas"""
+    """Create schedule for dense_cblas. This is an alias of matmul_nt operator."""
     return generic.schedule_extern(outs)
 
 
 @autotvm.register_topi_compute("dense_mkl.x86")
 def dense_mkl(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense using mkl"""
-    return dense_blas_common(cfg, data, weight, bias, out_dtype, mkl)
+    """Compute dense using mkl. This is an alias of matmul_nt operator."""
+    return matmul_blas_common(cfg, data, weight, bias, out_dtype, False, True, mkl)
 
 
 @autotvm.register_topi_schedule("dense_mkl.x86")
 def schedule_dense_mkl(_, outs):
-    """Create schedule for dense_mkl"""
-    # return generic.schedule_extern(outs)
-    s = te.create_schedule([x.op for x in outs])
-    te.schedule.AutoInlineInjective(s)
-
-    def _callback(op):
-        if "broadcast" in op.tag or "injective" in op.tag or "elemwise" in op.tag:
-            schedule_injective_from_existing(s, op.output(0))
-
-    # traverse_inline(s, outs[0].op, _callback)
-    for out in outs:
-        if "dense" not in out.op.name:
-            schedule_injective_from_existing(s, out)
-    return s
+    """Create schedule for dense_mkl. This is an alias of matmul_nt operator."""
+    return generic.schedule_extern(outs)
 
 
 @autotvm.register_topi_compute("dense_mkldnn.x86")
 def dense_mkldnn(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense using mkldnn"""
-    return dense_blas_common(cfg, data, weight, bias, out_dtype, mkldnn)
+    """Compute dense using mkldnn. This is an alias of matmul_nt operator."""
+    return matmul_blas_common(cfg, data, weight, bias, out_dtype, False, True, mkldnn)
 
 
 @autotvm.register_topi_schedule("dense_mkldnn.x86")
 def schedule_dense_mkldnn(_, outs):
-    """Create schedule for dense_mkldnn"""
+    """Create schedule for dense_mkldnn. This is an alias of matmul_nt operator."""
+    return generic.schedule_extern(outs)
+
+
+@autotvm.register_topi_compute("matmul_cblas.x86")
+def matmul_cblas(
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
+):
+    """Compute matmul using cblas."""
+    return matmul_blas_common(
+        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, cblas
+    )
+
+
+@autotvm.register_topi_schedule("matmul_cblas.x86")
+def schedule_matmul_cblas(_, outs):
+    """Create schedule for matmul_cblas."""
+    return generic.schedule_extern(outs)
+
+
+@autotvm.register_topi_compute("matmul_mkl.x86")
+def matmul_mkl(
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
+):
+    """Compute matmul using mkl."""
+    return matmul_blas_common(
+        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, mkl
+    )
+
+
+@autotvm.register_topi_schedule("matmul_mkl.x86")
+def schedule_matmul_mkl(_, outs):
+    """Create schedule for matmul_mkl."""
+    return generic.schedule_extern(outs)
+
+
+@autotvm.register_topi_compute("matmul_mkldnn.x86")
+def matmul_mkldnn(
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
+):
+    """Compute matmul using mkldnn."""
+    return matmul_blas_common(
+        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, mkldnn
+    )
+
+
+@autotvm.register_topi_schedule("matmul_mkldnn.x86")
+def schedule_matmul_mkldnn(_, outs):
+    """Create schedule for matmul_mkldnn."""
     return generic.schedule_extern(outs)

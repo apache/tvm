@@ -276,8 +276,10 @@ def conv2d(
 ):
     r"""Quantized 2D convolution.
 
-    This operator convolves quantized data with quantized kernel. The scale of
-    the output quantized tensor is the product of the kernel_scale and
+    This operator convolves quantized data with quantized kernel.
+    If doing Per-channel quantization, qnn expects the kernel_zero_scale
+    and optionally the kernel_zero_point will be 1-D vectors instead of scalars.
+    The scale of the output quantized tensor is the product of the kernel_scale and
     input_scale of the input quantized tensors. The zero point of the output
     quantized tensor is 0. By default, the dtype of output is int32. Please also
     refer to Requantize operator to understand how to scale back the int32
@@ -544,6 +546,9 @@ def dense(
 
      `Y = X * W`
 
+    If doing Per-channel quantization, qnn expects the kernel_zero_scale
+    and optionally the kernel_zero_point will be 1-D vectors instead of scalars.
+
     Parameters
     ----------
     data : tvm.relay.Expr
@@ -680,6 +685,44 @@ def subtract(
         output_scale,
         output_zero_point,
     )
+
+
+def batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype="int32"):
+    r"""
+    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
+    in batch.
+
+    .. math::
+
+        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
+
+    Parameters
+    ----------
+    x : tvm.relay.Expr
+        The first quantized input.
+        A quantized tensor is represented in following manner
+        `A = scale_a x (QA - zp_A)`
+        where QA is quantized tensor, scale_a and zp_A are quantization
+        params.
+    y : tvm.relay.Expr
+        The second quantized input.
+    x_zero_point: tvm.relay.Expr
+        The first input zero point.
+    y_zero_point: tvm.relay.Expr
+        The second input zero point.
+    x_scale: tvm.relay.Expr
+        The scale for the first input tensor.
+    y_scale: tvm.relay.Expr
+        The scale for the second input tensor.
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense can be int32 or int16.
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        The computed result.
+    """
+    return _make.batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype)
 
 
 # register fuse pattern for qnn ops

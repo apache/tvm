@@ -29,8 +29,6 @@
 
 #include <string>
 
-#include "tvm/runtime/container.h"
-
 namespace tvm {
 namespace relay {
 
@@ -963,6 +961,32 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
   }
 };
 
+/*! \brief Attributes for matmul operator */
+struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
+  IndexExpr units;
+  DataType out_dtype;
+  bool transpose_a;
+  bool transpose_b;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+
+  TVM_DECLARE_ATTRS(MatmulAttrs, "relay.attrs.MatmulAttrs") {
+    TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
+
+    // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+
+    TVM_ATTR_FIELD(transpose_a)
+        .set_default(false)
+        .describe("Whether the first input tensor is in transposed format.");
+
+    TVM_ATTR_FIELD(transpose_b)
+        .set_default(false)
+        .describe("Whether the second input tensor is in transposed format.");
+  }
+};
+
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
@@ -979,16 +1003,45 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   }
 };
 
-/*! \brief Attributes for batch matmul operator */
-struct BatchMatmulAttrs : public tvm::AttrsNode<BatchMatmulAttrs> {
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+/*! \brief Attributes for dense_pack operator */
+struct DensePackAttrs : public tvm::AttrsNode<DensePackAttrs> {
+  IndexExpr units;
   DataType out_dtype;
+  tvm::String weight_layout;
+
+  TVM_DECLARE_ATTRS(DensePackAttrs, "relay.attrs.DensePackAttrs") {
+    TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
+
+    // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+    TVM_ATTR_FIELD(weight_layout)
+        .set_default("NC")
+        .describe("Dimension ordering of weight. Packed layouts, such as NC8n, are possible.");
+  }
+};
+
+/*! \brief Attributes for batch matmul operator. */
+struct BatchMatmulAttrs : public tvm::AttrsNode<BatchMatmulAttrs> {
+  DataType out_dtype;
+  bool transpose_a;
+  bool transpose_b;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
 
   TVM_DECLARE_ATTRS(BatchMatmulAttrs, "relay.attrs.BatchMatmulAttrs") {
     // use 0 bits to indicate none.
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
+
+    TVM_ATTR_FIELD(transpose_a)
+        .set_default(false)
+        .describe("Whether the first input tensor is in transposed format.");
+
+    TVM_ATTR_FIELD(transpose_b)
+        .set_default(false)
+        .describe("Whether the second input tensor is in transposed format.");
   }
 };
 
@@ -1013,12 +1066,16 @@ struct SparseTransposeAttrs : public tvm::AttrsNode<SparseTransposeAttrs> {
 /*! \brief Attributes for sparse_dense operator */
 struct SparseConv2DAttrs : public tvm::AttrsNode<SparseConv2DAttrs> {
   std::string layout;
+  Array<IndexExpr> kernel_size;
 
   TVM_DECLARE_ATTRS(SparseConv2DAttrs, "relay.attrs.SparseConv2DAttrs") {
     TVM_ATTR_FIELD(layout).set_default("NHWC").describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC'"
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively.");
+    TVM_ATTR_FIELD(kernel_size)
+        .set_default(Array<IndexExpr>{1, 1})
+        .describe("Kernel size for SparseConv2D, 1x1 or 3x3. ");
   }
 };
 
@@ -1425,6 +1482,19 @@ struct BatchToSpaceNDAttrs : public tvm::AttrsNode<BatchToSpaceNDAttrs> {
     TVM_ATTR_FIELD(crops).describe("2-D containing amount to crop from spatial dimension.");
   }
 };  // struct BatchToSpaceNDAttrs
+
+/*! \brief Attributes used in NLLLoss operator */
+struct NLLLossAttrs : public tvm::AttrsNode<NLLLossAttrs> {
+  std::string reduction;
+  int ignore_index;
+
+  TVM_DECLARE_ATTRS(NLLLossAttrs, "relay.attrs.NLLLossAttrs") {
+    TVM_ATTR_FIELD(reduction).set_default("mean").describe(
+        "The reduction method to apply to the output. Can be"
+        "'none', 'mean' or 'sum'.");
+    TVM_ATTR_FIELD(ignore_index).describe("The target value to ignore.");
+  }
+};  // struct NLLLossAttrs
 
 }  // namespace relay
 }  // namespace tvm

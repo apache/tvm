@@ -27,6 +27,7 @@
 #define TVM_TARGET_SPIRV_SPIRV_SUPPORT_H_
 
 #include <tvm/target/target.h>
+#include <vulkan/vulkan_core.h>
 
 namespace tvm {
 namespace codegen {
@@ -36,6 +37,19 @@ struct SPIRVSupport {
   /*! \brief Determine spirv capabilities from a vulkan target.
    */
   explicit SPIRVSupport(Target target);
+
+  /*! \brief The Vulkan API version supported by the device.
+   *
+   *  Vulkan struct: VkPhysicalDeviceProperties
+   *  Device property: apiVersion
+   *
+   *  If VK_KHR_driver_properties is present, will also check the
+   *  driver conformance version.  If the version advertised does not
+   *  pass the Vulkan conformance test, vulkan_api_version will be the
+   *  latest Vulkan version that does pass the conformance test
+   *  instead.
+   */
+  uint32_t vulkan_api_version{VK_MAKE_VERSION(1, 0, 0)};
 
   /*!
    * \brief The supported subgroup operations
@@ -86,6 +100,22 @@ struct SPIRVSupport {
    * Implementations may have a larger limit.
    */
   uint32_t max_storage_buffer_range{1 << 27};
+
+  /*!
+   * \brief The maximum amount of shared memory usable by a shader
+   *
+   * Vulkan extension: N/A
+   * Vulkan struct: VkPhysicalDeviceLimits
+   * Device Property: maxComputeSharedMemorySize
+   * SPV Extension name: N/A
+   * SPV Capability: N/A
+   *
+   * The maximum amount of shared memory (Workgroup scope) that may be
+   * allocated by a shader.  Default value is from Vulkan spec,
+   * "Required Limits" table.  Implementations may have a larger
+   * limit.
+   */
+  uint32_t max_shared_memory_per_block{16384};
 
   /*!
    * \brief The maximum number of storage buffers accessible by a single shader.

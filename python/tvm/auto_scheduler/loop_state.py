@@ -48,12 +48,12 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("auto_scheduler.Iterator")
 class Iterator(Object):
-    """ A loop iterator structure. """
+    """A loop iterator structure."""
 
 
 @tvm._ffi.register_object("auto_scheduler.Stage")
 class Stage(Object):
-    """ A stage in the compute declaration. Similar to tvm.te.schedule.Stage. """
+    """A stage in the compute declaration. Similar to tvm.te.schedule.Stage."""
 
     # Static trans table for compute_at location
     # This is used to transform the compute_at location to C++ enum
@@ -62,7 +62,7 @@ class Stage(Object):
 
 @tvm._ffi.register_object("auto_scheduler.State")
 class StateObject(Object):
-    """ The internal State object """
+    """The internal State object"""
 
     def __eq__(self, other):
         return _ffi_api.StateEqual(self, other)
@@ -579,7 +579,7 @@ class State:
         return self.stages[int(new_stage_id)].op
 
     def copy(self):
-        """ Do deep copy of this State. """
+        """Do deep copy of this State."""
         state = State(self.state_object, self.compute_dag)
         state.stage_id_map = self.stage_id_map.copy()
         return state

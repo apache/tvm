@@ -22,13 +22,13 @@ from typing import List
 import tvm._ffi
 import tvm.tir
 import tvm.tir._ffi_api
-
 from tvm._ffi.base import string_types
+from tvm.ir import Array
 from tvm.runtime import convert
 
+from . import _ffi_api
 from . import tag as _tag
 from . import tensor as _tensor
-from . import _ffi_api
 
 
 def placeholder(shape, dtype=None, name="placeholder"):
@@ -226,12 +226,12 @@ def extern(
         .. note::
              **Parameters**
 
-             - **ins** (list of :any:`Buffer`) - Placeholder for each inputs
-             - **outs** (list of :any:`Buffer`) - Placeholder for each outputs
+             - **ins** (list of :any:`tvm.tir.Buffer`) - Placeholder for each inputs
+             - **outs** (list of :any:`tvm.tir.Buffer`) - Placeholder for each outputs
 
              **Returns**
 
-             - **stmt** (:any:`Stmt`) - The statement that carries out array computation.
+             - **stmt** (:any:`tvm.tir.Stmt`) - The statement that carries out array computation.
 
     name: str, optional
         The name hint of the tensor
@@ -240,10 +240,10 @@ def extern(
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_buffers: Buffer or list of Buffer, optional
+    in_buffers: tvm.tir.Buffer or list of tvm.tir.Buffer, optional
         Input buffers.
 
-    out_buffers: Buffer or list of Buffers, optional
+    out_buffers: tvm.tir.Buffer or list of tvm.tir.Buffer, optional
         Output buffers.
 
 
@@ -431,6 +431,7 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
 
 def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
+
     Parameters
     ----------
     ops : List[Tensor]
@@ -473,6 +474,6 @@ def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
     func : tir.PrimFunc
         The created function.
     """
-    if not isinstance(ops, list):
+    if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops)

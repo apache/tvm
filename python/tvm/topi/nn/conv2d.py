@@ -18,13 +18,15 @@
 # pylint: disable=unused-argument, redefined-builtin
 """Conv2D operators"""
 from __future__ import absolute_import as _abs
-from collections import namedtuple
-import tvm
-from tvm import te, auto_scheduler
 
+from collections import namedtuple
+
+import tvm
+from tvm import auto_scheduler, te
+
+from ..utils import get_const_int, get_const_tuple, simplify, tag
 from .pad import pad
 from .utils import get_pad_tuple
-from ..utils import simplify, get_const_tuple, get_const_int, tag
 from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
@@ -159,7 +161,7 @@ def conv2d_infer_layout(workload, cfg):
 
 
 def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layout="NCHW"):
-    """ Get the workload structure. """
+    """Get the workload structure."""
     if data_layout == "NCHW":
         _, CI, IH, IW = get_const_tuple(data.shape)
     elif data_layout == "NHWC":
@@ -174,9 +176,12 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
     else:
         KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
-    pt, pl, pb, pr = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
     dilation_h, dilation_w = (
         dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    )
+    pt, pl, pb, pr = get_pad_tuple(
+        padding,
+        (get_const_int((KH - 1) * dilation_h + 1), get_const_int((KW - 1) * dilation_w + 1)),
     )
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
@@ -548,7 +553,9 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
                 ow * WSTR + kw * dilation_w,
                 idxmod(ic, ic_bn),
             ].astype(out_dtype)
-            * kernel[oc_chunk, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block],
+            * kernel[oc_chunk, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block].astype(
+                out_dtype
+            ),
             axis=[ic, kh, kw],
         ),
         name="conv2d_NCHWc",

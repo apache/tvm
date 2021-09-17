@@ -221,7 +221,9 @@ class BlockScopeNode : public Object {
    * equivalent to of a stage pipeline. Under the following conditions:
    *
    * 1) The region cover property holds for every of its child blocks
-   * 2) No write-after-read dependency
+   * 2) No write-after-read dependency or opaque dependency, only read-after-write and
+   * write-after-write are allowed
+   * 3) All the statements in the scope are schedulable statements, i.e. Block and For
    */
   bool stage_pipeline{false};
 
@@ -260,7 +262,7 @@ class BlockScope : public ObjectRef {
    * \param child_block_srefs The srefs to the leaf blocks
    * \note We assume the leaf blocks are given in pre-DFS order
    */
-  TVM_DLL BlockScope(const Array<StmtSRef>& child_block_srefs);
+  TVM_DLL explicit BlockScope(const Array<StmtSRef>& child_block_srefs);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockScope, ObjectRef, BlockScopeNode);
 };

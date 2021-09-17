@@ -16,9 +16,10 @@
 # under the License.
 import json
 import sys
+
 import pytest
 import tvm
-from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost, Target
+from tvm.target import Target, arm_cpu, bifrost, cuda, intel_graphics, mali, rocm, vta
 
 
 @tvm.target.generic_func
@@ -73,6 +74,19 @@ def test_target_string_parse():
     assert tvm.target.intel_graphics().device_name == "intel_graphics"
     assert tvm.target.mali().device_name == "mali"
     assert tvm.target.arm_cpu().device_name == "arm_cpu"
+
+
+def test_target_string_with_spaces():
+    target = tvm.target.Target(
+        "vulkan -device_name='Name of GPU with spaces' -device_type=discrete"
+    )
+    assert target.attrs["device_name"] == "Name of GPU with spaces"
+    assert target.attrs["device_type"] == "discrete"
+
+    target = tvm.target.Target(str(target))
+
+    assert target.attrs["device_name"] == "Name of GPU with spaces"
+    assert target.attrs["device_type"] == "discrete"
 
 
 def test_target_create():
@@ -210,17 +224,6 @@ def test_target_host_single_string_with_tag():
     assert tgt.host.attrs["registers_per_block"] == 32768
 
 
-def test_target_host_warning():
-    """
-    Confirm that constructing a target with invalid
-    attributes fails as expected.
-    """
-    with pytest.raises(
-        ValueError, match="Adding a host to a target whose host field has been defined"
-    ):
-        tvm.target.Target("cuda --host nvidia/jetson-nano", "llvm")
-
-
 def test_target_host_merge_0():
     tgt = tvm.target.Target(tvm.target.Target("cuda --host nvidia/jetson-nano"), None)
     assert tgt.kind.name == "cuda"
@@ -240,10 +243,10 @@ def test_target_host_merge_1():
 
 
 def test_target_host_merge_2():
-    with pytest.raises(
-        ValueError, match="Adding a host to a target whose host field has been defined"
-    ):
-        tvm.target.Target(tvm.target.Target("cuda --host llvm"), tvm.target.Target("llvm"))
+    """Test picking the same host is ok."""
+    tgt = tvm.target.Target(tvm.target.Target("cuda --host llvm"), tvm.target.Target("llvm"))
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "llvm"
 
 
 @pytest.mark.skip(reason="Causing infinite loop because of pytest and handle issue")
@@ -297,6 +300,17 @@ def test_check_and_update_host_consist_3():
     assert target.host.kind.name == "llvm"
     assert host.kind.name == "llvm"
     assert target.host == host
+
+
+def test_target_attr_bool_value():
+    target0 = Target("llvm --link-params=True")
+    assert target0.attrs["link-params"] == 1
+    target1 = Target("llvm --link-params=true")
+    assert target1.attrs["link-params"] == 1
+    target2 = Target("llvm --link-params=False")
+    assert target2.attrs["link-params"] == 0
+    target3 = Target("llvm --link-params=false")
+    assert target3.attrs["link-params"] == 0
 
 
 if __name__ == "__main__":

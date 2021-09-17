@@ -18,21 +18,18 @@
 Test the tuner
 """
 import logging
+import multiprocessing as mp
 import sys
 import textwrap
 import time
 
 import pytest
-
 import tvm
 import tvm.relay
-from tvm import te
-
-from tvm import autotvm
+import tvm.testing
+from tvm import autotvm, te
 from tvm.autotvm.tuner import RandomTuner
 from tvm.target import Target
-
-import tvm.testing
 
 
 def setup_module():
@@ -140,62 +137,84 @@ def get_sample_task(target=tvm.target.cuda(), target_host=None):
     return task, target
 
 
+def run_test_with_all_multiprocessing(func, *args, **kwargs):
+    """Check all multiprocessing methods work for the tuning test.
+
+    In the past fork() had the most support at detriment to spawn() and forkserver().
+    As fork() is unavailable or unsafe on some platforms it is good to check all
+    available methods.
+    """
+    for multiprocessing_method in mp.get_all_start_methods():
+        old_start_method = mp.get_start_method()
+        try:
+            mp.set_start_method(multiprocessing_method, force=True)
+            func(*args, **kwargs)
+        finally:
+            mp.set_start_method(old_start_method, force=True)
+
+
 @tvm.testing.parametrize_targets("cuda", "opencl")
 def test_tuning_gpu(target, dev):
-    # init task
-    task, target = get_sample_task(target, None)
-    logging.info("task config space: %s", task.config_space)
+    def runner(target, dev):
+        # init task
+        task, target = get_sample_task(target, None)
+        logging.info("task config space: %s", task.config_space)
 
-    measure_option = autotvm.measure_option(autotvm.LocalBuilder(), autotvm.LocalRunner())
+        measure_option = autotvm.measure_option(autotvm.LocalBuilder(), autotvm.LocalRunner())
 
-    results = []
+        results = []
 
-    tuner = RandomTuner(task)
-    tuner.tune(
-        n_trial=20,
-        measure_option=measure_option,
-        callbacks=(lambda _tuner, _inputs, rs: results.extend(rs),),
-    )
+        tuner = RandomTuner(task)
+        tuner.tune(
+            n_trial=20,
+            measure_option=measure_option,
+            callbacks=(lambda _tuner, _inputs, rs: results.extend(rs),),
+        )
 
-    assert len(results) == 20
+        assert len(results) == 20
 
-    successful_results = [r for r in results if r.error_no == autotvm.MeasureErrorNo.NO_ERROR]
-    assert len(successful_results) > 0, f"No successful tuning runs: {results!r}"
+        successful_results = [r for r in results if r.error_no == autotvm.MeasureErrorNo.NO_ERROR]
+        assert len(successful_results) > 0, f"No successful tuning runs: {results!r}"
+
+    run_test_with_all_multiprocessing(runner, target, dev)
 
 
 def test_tuning_cpu():
-    ir_mod = tvm.parser.fromtext(
-        textwrap.dedent(
+    def runner():
+        ir_mod = tvm.parser.fromtext(
+            textwrap.dedent(
+                """
+            #[version = "0.0.5"]
+            def @main(%a : Tensor[(1, 3, 32, 32), float32], %b : Tensor[(3, 3, 5, 5), float32]) {
+                nn.conv2d(%a, %b, data_layout="NCHW", kernel_layout="OIHW")
+            }
             """
-        #[version = "0.0.5"]
-        def @main(%a : Tensor[(1, 3, 32, 32), float32], %b : Tensor[(3, 3, 5, 5), float32]) {
-               nn.conv2d(%a, %b, data_layout="NCHW", kernel_layout="OIHW")
-        }
-        """
+            )
         )
-    )
-    tasks = autotvm.task.relay_integration.extract_from_program(
-        ir_mod, {}, tvm.target.create("llvm")
-    )
-    assert len(tasks) == 1, f"Extracted != 1 task from program: {tasks!r}"
+        tasks = autotvm.task.relay_integration.extract_from_program(
+            ir_mod, {}, tvm.target.create("llvm")
+        )
+        assert len(tasks) == 1, f"Extracted != 1 task from program: {tasks!r}"
 
-    task = tasks[0]
+        task = tasks[0]
 
-    measure_option = autotvm.measure_option(autotvm.LocalBuilder(), autotvm.LocalRunner())
+        measure_option = autotvm.measure_option(autotvm.LocalBuilder(), autotvm.LocalRunner())
 
-    results = []
+        results = []
 
-    tuner = RandomTuner(task)
-    tuner.tune(
-        n_trial=20,
-        measure_option=measure_option,
-        callbacks=(lambda _tuner, _inputs, rs: results.extend(rs),),
-    )
+        tuner = RandomTuner(task)
+        tuner.tune(
+            n_trial=20,
+            measure_option=measure_option,
+            callbacks=(lambda _tuner, _inputs, rs: results.extend(rs),),
+        )
 
-    assert len(results) == 20
+        assert len(results) == 20
 
-    successful_results = [r for r in results if r.error_no == autotvm.MeasureErrorNo.NO_ERROR]
-    assert len(successful_results) > 0, f"No successful tuning runs: {results!r}"
+        successful_results = [r for r in results if r.error_no == autotvm.MeasureErrorNo.NO_ERROR]
+        assert len(successful_results) > 0, f"No successful tuning runs: {results!r}"
+
+    run_test_with_all_multiprocessing(runner)
 
 
 if __name__ == "__main__":

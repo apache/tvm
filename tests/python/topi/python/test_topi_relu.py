@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test code for relu activation"""
+import sys
 import os
 import numpy as np
 import tvm
@@ -24,36 +25,43 @@ import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
 from tvm.contrib.nvcc import have_fp16
 
+import pytest
 import tvm.testing
 
 
-def verify_relu(m, n, dtype="float32"):
+m, n, dtype = tvm.testing.parameters(
+    (10, 128, "float32"),
+    (128, 64, "float16"),
+    (1024 * 100, 512, "float32"),
+)
+
+
+def test_relu(target, dev, m, n, dtype):
     A = te.placeholder((m, n), name="A", dtype=dtype)
     B = topi.nn.relu(A)
 
     a_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = a_np * (a_np > 0)
 
-    def check_target(target, dev):
-        if dtype == "float16" and target == "cuda" and not have_fp16(tvm.cuda(0).compute_version):
-            print("Skip because %s does not have fp16 support" % target)
-            return
-        print("Running on target: %s" % target)
-        with tvm.target.Target(target):
-            s = tvm.topi.testing.get_elemwise_schedule(target)(B)
+    if dtype == "float16" and target == "cuda" and not have_fp16(tvm.cuda(0).compute_version):
+        pytest.skip("Skip because %s does not have fp16 support" % target)
 
-        a = tvm.nd.array(a_np, dev)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-        foo = tvm.build(s, [A, B], target, name="relu")
-        foo(a, b)
-        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
+    print("Running on target: %s" % target)
+    with tvm.target.Target(target):
+        s = tvm.topi.testing.get_elemwise_schedule(target)(B)
 
-    for target, dev in tvm.testing.enabled_targets():
-        check_target(target, dev)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    foo = tvm.build(s, [A, B], target, name="relu")
+    foo(a, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
-def verify_leaky_relu(m, alpha):
-    A = te.placeholder((m,), name="A")
+size, alpha = tvm.testing.parameters((100, 0.1))
+
+
+def test_leaky_relu(size, alpha):
+    A = te.placeholder((size,), name="A")
     B = topi.nn.leaky_relu(A, alpha)
     s = te.create_schedule([B.op])
 
@@ -67,7 +75,14 @@ def verify_leaky_relu(m, alpha):
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
-def verify_prelu(x, w, axis, weight_reshape):
+x, w, axis, weight_reshape = tvm.testing.parameters(
+    ((1, 3, 2, 2), (3,), 1, (3, 1, 1)),
+    ((1, 3, 2, 2), (2,), 2, (2, 1)),
+    ((1, 3), (3,), 1, (3,)),
+)
+
+
+def test_prelu(x, w, axis, weight_reshape):
     X = te.placeholder((x), name="X")
     W = te.placeholder((w), name="W")
     x_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(X.shape)).astype(X.dtype)
@@ -90,29 +105,5 @@ def verify_prelu(x, w, axis, weight_reshape):
     tvm.testing.assert_allclose(b.numpy(), out_np, rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_relu():
-    verify_relu(10, 128, "float32")
-    verify_relu(128, 64, "float16")
-
-
-@tvm.testing.uses_gpu
-def test_schedule_big_array():
-    verify_relu(1024 * 100, 512)
-
-
-def test_leaky_relu():
-    verify_leaky_relu(100, 0.1)
-
-
-def test_prelu():
-    verify_prelu((1, 3, 2, 2), (3,), 1, (3, 1, 1))
-    verify_prelu((1, 3, 2, 2), (2,), 2, (2, 1))
-    verify_prelu((1, 3), (3,), 1, (3,))
-
-
 if __name__ == "__main__":
-    test_schedule_big_array()
-    test_relu()
-    test_leaky_relu()
-    test_prelu()
+    sys.exit(pytest.main(sys.argv))

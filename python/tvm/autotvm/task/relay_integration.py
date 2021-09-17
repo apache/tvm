@@ -22,6 +22,7 @@ Decorator and utilities for the integration with TOPI and Relay
 """
 import threading
 import logging
+from copy import deepcopy
 
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
@@ -53,7 +54,10 @@ def _lower(mod, target, params):
     # If failed to compile, then fallback to use VM compiler.
     # TODO: Currently VM compiler is likely to stack overflow for large models.
     try:
-        opt_mod, _ = relay.optimize(mod, target, params)
+        # TODO(jwfromm) Remove this once AlterOpLayout bug that mutates
+        # source module is fixed. Until then, create a clone.
+        mod_clone = deepcopy(mod)
+        opt_mod, _ = relay.optimize(mod_clone, target, params)
         grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
         grc.codegen(opt_mod["main"])
     except tvm.TVMError as e:
@@ -61,10 +65,11 @@ def _lower(mod, target, params):
             "Get errors with GraphExecutorCodegen for task extraction. "
             "Fallback to VMCompiler. Error details:\n%s" % str(e)
         )
+        mod_clone = deepcopy(mod)
         compiler = relay.vm.VMCompiler()
         if params:
             compiler.set_params(params)
-        compiler.lower(mod, target=target)
+        compiler.lower(mod_clone, target=target)
 
 
 def extract_from_program(mod, params, target, target_host=None, ops=None):

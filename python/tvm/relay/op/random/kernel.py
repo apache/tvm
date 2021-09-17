@@ -77,8 +77,7 @@ def threefry_generate(key, shape):
         this function.**
 
     shape : Sequence[int]
-        Desired outputs shape of random numbers. **Currently the total
-        number of elements must be a multiple of 4.**
+        Desired outputs shape of random numbers.
 
     Returns
     -------

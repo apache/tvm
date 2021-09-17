@@ -17,22 +17,19 @@
 """
 .. _tutorial-tensor-expr-get-started:
 
-Working with Operators Using Tensor Expressions
-===============================================
+Working with Operators Using Tensor Expression
+==============================================
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_
 
 In this tutorial we will turn our attention to how TVM works with Tensor
-Expressions (TE) to create a space to search for performant configurations. TE
+Expression (TE) to define tensor computations and apply loop optimizations. TE
 describes tensor computations in a pure functional language (that is each
 expression has no side effects). When viewed in context of the TVM as a whole,
 Relay describes a computation as a set of operators, and each of these
 operators can be represented as a TE expression where each TE expression takes
-input tensors and produces an output tensor. It's important to note that the
-tensor isn't necessarily a fully materialized array, rather it is a
-representation of a computation. If you want to produce a computation from a
-TE, you will need to use the scheduling features of TVM.
+input tensors and produces an output tensor.
 
-This is an introductory tutorial to the Tensor expression language in TVM. TVM
+This is an introductory tutorial to the Tensor Expression language in TVM. TVM
 uses a domain specific tensor expression for efficient kernel construction. We
 will demonstrate the basic workflow with two examples of using the tensor expression
 language. The first example introduces TE and scheduling with vector
@@ -47,8 +44,8 @@ features of TVM.
 # ---------------------------------------------------------------
 #
 # Let's look at an example in Python in which we will implement a TE for
-# vector addition, followed by a schedule targeted towards a CPU. We begin by initializing a TVM
-# environment.
+# vector addition, followed by a schedule targeted towards a CPU.
+# We begin by initializing a TVM environment.
 
 import tvm
 import tvm.testing
@@ -59,7 +56,8 @@ import numpy as np
 # and specify it. If you're using llvm, you can get this information from the
 # command ``llc --version`` to get the CPU type, and you can check
 # ``/proc/cpuinfo`` for additional extensions that your processor might
-# support. For example, ``tgt = "llvm -mcpu=`skylake`
+# support. For example, you can use "llvm -mcpu=skylake-avx512" for CPUs with
+# AVX-512 instructions.
 
 tgt = tvm.target.Target(target="llvm", host="llvm")
 
@@ -69,7 +67,7 @@ tgt = tvm.target.Target(target="llvm", host="llvm")
 # We describe a vector addition computation. TVM adopts tensor semantics, with
 # each intermediate result represented as a multi-dimensional array. The user
 # needs to describe the computation rule that generates the tensors. We first
-# define a symbolic variable n to represent the shape. We then define two
+# define a symbolic variable ``n`` to represent the shape. We then define two
 # placeholder Tensors, ``A`` and ``B``, with given shape ``(n,)``. We then
 # describe the result tensor ``C``, with a ``compute`` operation. The
 # ``compute`` defines a computation, with the output conforming to the
@@ -79,7 +77,6 @@ tgt = tvm.target.Target(target="llvm", host="llvm")
 # tensors. Remember, no actual computation happens during this phase, as we
 # are only declaring how the computation should be done.
 
-
 n = te.var("n")
 A = te.placeholder((n,), name="A")
 B = te.placeholder((n,), name="B")
@@ -88,10 +85,10 @@ C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 ################################################################################
 # .. note:: Lambda Functions
 #
-# The second argument to the ``te.compute`` method is the function that
-# performs the computation. In this example, we're using an anonymous function,
-# also known as a ``lambda`` function, to define the computation, in this case
-# addition on the ``i``th element of ``A`` and ``B``.
+#   The second argument to the ``te.compute`` method is the function that
+#   performs the computation. In this example, we're using an anonymous function,
+#   also known as a ``lambda`` function, to define the computation, in this case
+#   addition on the ``i``th element of ``A`` and ``B``.
 
 ################################################################################
 # Create a Default Schedule for the Computation
@@ -322,8 +319,6 @@ if run_cuda:
 
     bx, tx = s[C].split(C.op.axis[0], factor=64)
 
-    xXXXXXXXx
-
     ################################################################################
     # Finally we must bind the iteration axis bx and tx to threads in the GPU
     # compute grid. The naive schedule is not valid for GPUs, and these are
@@ -517,7 +512,7 @@ if tgt.kind.name.startswith("opencl"):
 #     before it moves on to the next stage.
 #
 #   A complete description of these primitives can be found in the
-# [Schedule Primitives](https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html) docs page.
+#   [Schedule Primitives](https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html) docs page.
 
 ################################################################################
 # Example 2: Manually Optimizing Matrix Multiplication with TE
@@ -526,14 +521,20 @@ if tgt.kind.name.startswith("opencl"):
 # Now we will consider a second, more advanced example, demonstrating how with
 # just 18 lines of python code TVM speeds up a common matrix multiplication operation by 18x.
 #
-# **Matrix multiplication is a compute intensive operation. There are two important optimizations for good CPU performance:**
-# 1. Increase the cache hit rate of memory access. Both complex numerical
-#    computation and hot-spot memory access can be accelerated by a high cache hit
-#    rate. This requires us to transform the origin memory access pattern to a pattern that fits the cache policy.
-# 2. SIMD (Single instruction multi-data), also known as the vector processing
-#    unit. On each cycle instead of processing a single value, SIMD can process a small batch of data.
-#    This requires us to transform the data access pattern in the loop
-#    body in uniform pattern so that the LLVM backend can lower it to SIMD.
+# **Matrix multiplication is a compute intensive operation. There are
+# two important optimizations for good CPU performance:**
+#
+# 1. Increase the cache hit rate of memory access. Both complex
+#    numerical computation and hot-spot memory access can be
+#    accelerated by a high cache hit rate. This requires us to
+#    transform the origin memory access pattern to a pattern that fits
+#    the cache policy.
+#
+# 2. SIMD (Single instruction multi-data), also known as the vector
+#    processing unit. On each cycle instead of processing a single
+#    value, SIMD can process a small batch of data.  This requires us
+#    to transform the data access pattern in the loop body in uniform
+#    pattern so that the LLVM backend can lower it to SIMD.
 #
 # The techniques used in this tutorial are a subset of tricks mentioned in this
 # `repository <https://github.com/flame/how-to-optimize-gemm>`_. Some of them

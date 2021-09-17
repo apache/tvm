@@ -25,7 +25,6 @@
 #define TVM_PRINTER_META_DATA_H_
 
 #include <tvm/node/serialization.h>
-#include <tvm/runtime/container.h>
 
 #include <string>
 #include <unordered_map>

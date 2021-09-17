@@ -30,6 +30,7 @@ from ..nn.conv2d import conv2d_winograd_nhwc, _conv2d_winograd_nhwc_impl
 
 # reuse some compute declarations from ARM CPU
 from ..arm_cpu.conv2d_spatial_pack import conv2d_spatial_pack_nchw
+from ..arm_cpu.conv2d_spatial_pack import conv2d_spatial_pack_nhwc
 
 logger = logging.getLogger("topi")
 
@@ -95,37 +96,59 @@ def schedule_conv2d_nchw_spatial_pack(cfg, outs):
     def _callback(op):
         # schedule conv2d
         if "spatial_conv2d_output" in op.tag:
-            output = op.output(0)
-            conv = op.input_tensors[0]
-
-            data_vec = conv.op.input_tensors[0]
-            data_pad = data_vec.op.input_tensors[0]
-            s[data_pad].compute_inline()
-
-            kernel_vec = conv.op.input_tensors[1]
-            if kernel_vec.op.name == "kernel_vec":
-                kernel = kernel_vec.op.input_tensors[0]
-            else:
-                kernel = kernel_vec
-            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
-                s[kernel].compute_inline()
-
-            _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec)
+            _schedule_spatial_pack(cfg, s, op, layout="NCHW")
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
-def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
+@autotvm.register_topi_compute("conv2d_nhwc_spatial_pack.mali")
+def conv2d_nhwc_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d with NHWC layout"""
+    return conv2d_spatial_pack_nhwc(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, num_tile=3
+    )
+
+
+@autotvm.register_topi_schedule("conv2d_nhwc_spatial_pack.mali")
+def schedule_conv2d_nhwc_spatial_pack(cfg, outs):
+    """Create schedule for conv2d_nhwc"""
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        # schedule conv2d
+        if "spatial_conv_output_NHWC" in op.tag:
+            _schedule_spatial_pack(cfg, s, op, layout="NHWC")
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+def _schedule_spatial_pack(cfg, s, op, layout):
     """schedule the spatial packing for conv2d"""
+
+    assert layout in ("NCHW", "NHWC")
+
+    output = op.output(0)
+    conv = op.input_tensors[0]
+    data_vec = conv.op.input_tensors[0]
+    data_pad = data_vec.op.input_tensors[0]
+    s[data_pad].compute_inline()
+    kernel_vec = conv.op.input_tensors[1]
+    if kernel_vec.op.name == "kernel_vec":
+        kernel = kernel_vec.op.input_tensors[0]
+    else:
+        kernel = kernel_vec
+    if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
+        s[kernel].compute_inline()
     data = s[data_vec].op.input_tensors[0]
 
     max_unroll = 16
     vec_size = [1, 2, 4, 8, 16]
     # get tunable parameters (they are defined in compute)
-    BC, TC, VC = cfg["tile_co"].size
-    BH, TH, VH = cfg["tile_oh"].size
-    BW, TW, VW = cfg["tile_ow"].size
+    _, TC, VC = cfg["tile_co"].size
+    _, TH, VH = cfg["tile_oh"].size
+    _, TW, VW = cfg["tile_ow"].size
 
     # schedule padding
     if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
@@ -133,21 +156,29 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_pad].compute_inline()
 
     # schedule data packing
-    if isinstance(data_vec.op, tvm.te.ComputeOp) and data_vec.op.name == "data_vec_undilated":
-        _, h, w, ci, _, _, vh, vw = s[data_vec].op.axis
+    if layout == "NCHW":
+        if isinstance(data_vec.op, tvm.te.ComputeOp) and data_vec.op.name == "data_vec_undilated":
+            _, h, w, ci, _, _, vh, vw = s[data_vec].op.axis
+        else:
+            _, h, w, ci, vh, vw = s[data_vec].op.axis
+        z, y, x, unroll1, unroll2 = h, w, ci, vh, vw
     else:
-        _, h, w, ci, vh, vw = s[data_vec].op.axis
-    tile_and_bind3d(s, data_vec, h, w, ci, 1)
-    if vh.dom.extent.value < max_unroll:
-        s[data_vec].unroll(vh)
-    if vw.dom.extent.value < max_unroll:
-        s[data_vec].unroll(vw)
+        if isinstance(data_vec.op, tvm.te.ComputeOp) and data_vec.op.name == "data_vec_undilated":
+            _, oho, owo, _, _, ic, ohi, owi = s[data_vec].op.axis
+        else:
+            _, oho, owo, ohi, owi, ic = s[data_vec].op.axis
+        z, y, x, unroll1, unroll2 = oho, owo, ohi, ic, owi
+    tile_and_bind3d(s, data_vec, z, y, x, 1)
+    if unroll1.dom.extent.value < max_unroll:
+        s[data_vec].unroll(unroll1)
+    if unroll2.dom.extent.value < max_unroll:
+        s[data_vec].unroll(unroll2)
 
     if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == "kernel_vec":
         if not autotvm.GLOBAL_SCOPE.in_tuning:
             max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
-            co, ci, kh, kw, vc = s[kernel_vec].op.axis
-            fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
+            ax1, ax2, ax3, ax4, ax5 = s[kernel_vec].op.axis
+            fused = s[kernel_vec].fuse(ax1, ax2, ax3, ax4, ax5)
             fused, vec = s[kernel_vec].split(fused, VC)
             bb, tt = s[kernel_vec].split(fused, max_threads)
             s[kernel_vec].bind(bb, te.thread_axis("blockIdx.x"))
@@ -156,25 +187,37 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
                 s[kernel_vec].vectorize(vec)
 
     # schedule convolution
-    n, c, h, w, vh, vw, vc = s[conv].op.axis
-    kc, kh, kw = s[conv].op.reduce_axis
-
-    cfg["reorder_0"].apply(s, conv, [n, c, h, w, kc, kh, kw, vh, vw, vc])
-    tile_and_bind3d(s, conv, c, h, w, TC, TH, TW)
-
+    ic, kh, kw = s[conv].op.reduce_axis
+    if layout == "NCHW":
+        kh_dim, kw_dim = kernel_vec.shape[2], kernel_vec.shape[3]
+    else:
+        kh_dim, kw_dim = kernel_vec.shape[0], kernel_vec.shape[1]
     cfg["ann_reduce"].apply(
         s,
         conv,
         [kh, kw],
-        axis_lens=[get_const_int(kernel_vec.shape[2]), get_const_int(kernel_vec.shape[3])],
+        axis_lens=[get_const_int(kh_dim), get_const_int(kw_dim)],
         max_unroll=max_unroll,
     )
+
+    if layout == "NCHW":
+        n, c, h, w, vh, vw, vc = s[conv].op.axis
+        cfg["reorder_0"].apply(s, conv, [n, c, h, w, ic, kh, kw, vh, vw, vc])
+        tile_and_bind3d(s, conv, c, h, w, TC, TH, TW)
+        unroll_vec_axes = [vh, vw, vc]
+        axis_lens = [VH, VW, VC]
+    else:
+        n, oho, owo, oco, ohi, owi, oci = s[conv].op.axis
+        cfg["reorder_conv"].apply(s, conv, [n, oho, owo, oco, kh, kw, ic, ohi, owi, oci])
+        tile_and_bind3d(s, conv, oho, owo, oco, TH, TW, TC)
+        unroll_vec_axes = [ohi, owi, oci]
+        axis_lens = [VH, VW, VC]
 
     cfg["ann_spatial"].apply(
         s,
         conv,
-        [vh, vw, vc],
-        axis_lens=[VH, VW, VC],
+        unroll_vec_axes,
+        axis_lens,
         max_unroll=max_unroll,
         vec_size=vec_size,
         cfg=cfg,
@@ -184,9 +227,12 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     if output.op not in s.outputs:  # has bias
         s[output].compute_inline()
         output = s.outputs[0]
-
-    _, co, oh, ow = s[output].op.axis
-    tile_and_bind3d(s, output, co, oh, ow, TC, TH, TW)
+    if layout == "NCHW":
+        _, co, oh, ow = s[output].op.axis
+        tile_and_bind3d(s, output, co, oh, ow, TC, TH, TW)
+    else:
+        _, oh, ow, co = s[output].op.axis
+        tile_and_bind3d(s, output, oh, ow, co, TH, TW, TC)
 
     return s
 
@@ -579,20 +625,35 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
 @conv2d_winograd_nhwc.register(["mali"])
 def conv2d_winograd_nhwc_mali(
-    data, weight, strides, padding, dilation, out_dtype, pre_computed=False
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
 ):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for mali.
     """
     tile_size = _pick_tile_size(data, weight, layout="NHWC")
     return _conv2d_winograd_nhwc_impl(
-        data, weight, strides, padding, dilation, out_dtype, tile_size, pre_computed
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        tile_size,
+        pre_computed,
+        auto_scheduler_rewritten_layout,
     )
 
 
 ##### SCHECULE UTILITIES #####
 def tile_and_bind(s, tensor, y, x, y_factor, x_factor=None):
-    """ tile and bind to GPU threads """
+    """tile and bind to GPU threads"""
     x_factor = x_factor or y_factor
     yo, xo, yi, xi = s[tensor].tile(y, x, y_factor, x_factor)
     s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
@@ -603,7 +664,7 @@ def tile_and_bind(s, tensor, y, x, y_factor, x_factor=None):
 
 
 def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None):
-    """ tile and bind 3d """
+    """tile and bind 3d"""
     y_factor = y_factor or z_factor
     x_factor = x_factor or y_factor
     zo, zi = s[tensor].split(z, z_factor)

@@ -26,8 +26,8 @@ def _parallel_sch(sch, oshape, do_vectorize=False):
         reorder_axis = [fused_axis]
         for i in range(num_parallel_axis, len(sch.op.axis) - 1):
             reorder_axis.append(sch.op.axis[i])
-        kw, kh = sch.op.reduce_axis
-        fuse_k = sch.fuse(kw, kh)
+        k = sch.op.reduce_axis
+        fuse_k = sch.fuse(*k)
         c = sch.op.axis[len(sch.op.axis) - 1]
         reorder_axis += [fuse_k, c]
         sch.reorder(*reorder_axis)
@@ -83,13 +83,13 @@ def schedule_pool(outs, layout):
     def _schedule(PaddedInput, Pool):
         if isinstance(PaddedInput.op, te.tensor.ComputeOp):
             s[PaddedInput].compute_inline()
-        do_vectorize = layout[-1] not in "HWhw"
+        do_vectorize = layout[-1] not in "DHWdhw"
         _parallel_sch(s[Pool], outs[0].shape, do_vectorize)
 
     def traverse(OP):
         """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(OP.tag):
+        if tag.is_injective(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
@@ -137,7 +137,7 @@ def schedule_adaptive_pool(outs):
     def traverse(OP):
         """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(OP.tag):
+        if tag.is_injective(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:

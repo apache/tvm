@@ -31,6 +31,8 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
+class VulkanDevice;
+
 class VulkanStreamState {
  public:
   VkCommandBuffer cmd_buffer_;
@@ -43,138 +45,65 @@ struct VulkanStreamToken {
   std::vector<VkBuffer> buffers_;
 };
 
+/*!
+ *  \brief Wrapper around a vulkan command buffer
+ *
+ *  The VulkanStream collects commands into a VkCommandBuffer.  When a
+ *  newly submitted command requires resources reserved by an
+ *  already-submitted command, all of the queued commands are
+ *  submitted to the GPU, and the CPU waits for all queued commands to
+ *  finish.  The queued commands can also be explicitly pushed/waited
+ *  on by calling VulkanStream::Synchronize.
+ *
+ *  Currently, there exists one VulkanStream for each GPU device, for
+ *  each CPU thread.  Each time a VulkanWrappedFunc is called, it is
+ *  submitted to the VulkanStream associated with the submitting CPU
+ *  thread, and associated the thread-specific active device set by
+ *  `DeviceAPI::SetDevice`.
+ */
 class VulkanStream {
  public:
-  explicit VulkanStream(const VulkanContext* vctx) : vctx_(vctx), state_(new VulkanStreamState()) {
-    // create command pool
-    VkCommandPoolCreateInfo cmd_pool_cinfo;
-    cmd_pool_cinfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cmd_pool_cinfo.pNext = nullptr;
-    cmd_pool_cinfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    cmd_pool_cinfo.queueFamilyIndex = vctx_->queue_family_index;
-    VULKAN_CALL(vkCreateCommandPool(vctx_->device, &cmd_pool_cinfo, nullptr, &cmd_pool_));
+  explicit VulkanStream(const VulkanDevice* device);
 
-    VkCommandBufferAllocateInfo buffer_alloc_info;
-    buffer_alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    buffer_alloc_info.pNext = nullptr;
-    buffer_alloc_info.commandPool = cmd_pool_;
-    buffer_alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    buffer_alloc_info.commandBufferCount = 1;
-    VULKAN_CALL(
-        vkAllocateCommandBuffers(vctx_->device, &buffer_alloc_info, &(state_->cmd_buffer_)));
+  ~VulkanStream();
 
-    VkFenceCreateInfo fence_cinfo;
-    fence_cinfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_cinfo.pNext = nullptr;
-    fence_cinfo.flags = 0;  // VK_FENCE_CREATE_SIGNALED_BIT;
-    VULKAN_CALL(vkCreateFence(vctx_->device, &fence_cinfo, nullptr, &(state_->fence_)));
+  /*! \brief Push the kernel onto the stream's command buffer.
+   *
+   * If device.UseImmediate() is true, the kernel is executed
+   * immediately to update the command buffer.  Otherwise, it is added
+   * to the list of deferred updates to be pushed onto the command
+   * buffer.
+   *
+   * Assumes that there are no descriptor sets or buffers accessed by this kernel.
+   *
+   */
+  void Launch(const std::function<void(VulkanStreamState*)>& kernel);
 
-    VkCommandBufferBeginInfo cb_begin;
-    cb_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cb_begin.pNext = nullptr;
-    cb_begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    cb_begin.pInheritanceInfo = 0;
-    VULKAN_CALL(vkBeginCommandBuffer(state_->cmd_buffer_, &cb_begin));
-  }
-
-  ~VulkanStream() {
-    vkDestroyFence(vctx_->device, state_->fence_, nullptr);
-    vkDestroyCommandPool(vctx_->device, cmd_pool_, nullptr);
-  }
-
-  // Launch the kernel on the current stream.
-  void Launch(const std::function<void(VulkanStreamState*)>& kernel) {
-    if (vctx_->UseImmediate()) {
-      kernel(state_.get());
-    } else {
-      deferred_kernels_.push_back(kernel);
-    }
-  }
-
-  // Launch the kernel on the current stream,
+  /*! \brief Push the kernel onto the stream's command buffer.
+   *
+   * Can only be called if device.UseImmediate() is false.  The
+   * kernel is delayed, and isn't pushed to the command buffer until
+   * all kernels are collected.
+   *
+   * \param deferred_initializer Updates the descriptor set.  Only
+   * called if the deferred_token has differences from
+   *
+   * \param deferred_kernel Submits updates to the command buffer.
+   *
+   * \param deferred_token Indicates which descriptor set and buffers
+   * are accessed by this kernel.  No two kernels in the command
+   * buffer can use the same descriptor set.
+   *
+   */
   void LaunchDeferred(const std::function<void()>& deferred_initializer,
                       const std::function<void(VulkanStreamState*)>& deferred_kernel,
-                      const VulkanStreamToken& deferred_token) {
-    ICHECK(!vctx_->UseImmediate());
-
-    // It is invalid to schedule this instance on the current stream if we already
-    // have a matching descriptor set and a non-matching buffer set.
-    if (std::any_of(deferred_tokens_[deferred_token.descriptor_set_].begin(),
-                    deferred_tokens_[deferred_token.descriptor_set_].end(),
-                    [&](const VulkanStreamToken& token) {
-                      DCHECK(token.descriptor_set_ == deferred_token.descriptor_set_);
-                      return token.descriptor_set_ == deferred_token.descriptor_set_ &&
-                             token.buffers_ != deferred_token.buffers_;
-                    })) {
-      Synchronize();
-    }
-
-    // It is unnecessary to invoke our initializer if we have a matching token.
-    if (!std::any_of(deferred_tokens_[deferred_token.descriptor_set_].begin(),
-                     deferred_tokens_[deferred_token.descriptor_set_].end(),
-                     [&](const VulkanStreamToken& token) {
-                       DCHECK(token.descriptor_set_ == deferred_token.descriptor_set_);
-                       return token.descriptor_set_ == deferred_token.descriptor_set_ &&
-                              token.buffers_ == deferred_token.buffers_;
-                     })) {
-      deferred_initializer();
-    }
-
-    deferred_kernels_.push_back(deferred_kernel);
-    deferred_tokens_[deferred_token.descriptor_set_].push_back(deferred_token);
-  }
+                      const VulkanStreamToken& deferred_token);
 
   // Synchronize the current stream `state_` with respect to the host.
-  void Synchronize() {
-    if (!vctx_->UseImmediate()) {
-      for (const auto& deferred_kernel : deferred_kernels_) {
-        deferred_kernel(state_.get());
-      }
-      deferred_kernels_.clear();
-      deferred_tokens_.clear();
-    } else {
-      DCHECK_EQ(deferred_kernels_.size(), 0);
-      DCHECK_EQ(deferred_tokens_.size(), 0);
-    }
-
-    VULKAN_CALL(vkEndCommandBuffer(state_->cmd_buffer_));
-    VkSubmitInfo cb_submit;
-    cb_submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    cb_submit.pNext = nullptr;
-    cb_submit.waitSemaphoreCount = 0;
-    cb_submit.pWaitSemaphores = nullptr;
-    cb_submit.pWaitDstStageMask = 0;
-    cb_submit.commandBufferCount = 1;
-    cb_submit.pCommandBuffers = &(state_->cmd_buffer_);
-    cb_submit.signalSemaphoreCount = 0;
-    cb_submit.pSignalSemaphores = nullptr;
-
-    {
-      // Multiple streams (on different threads) use the same VulkanContext
-      // instance, so we need to externally synchronize accesses.
-      std::lock_guard<std::mutex> g(*(vctx_->queue_mutex));
-      VULKAN_CALL(vkQueueSubmit(vctx_->queue, 1, &cb_submit, state_->fence_));
-    }
-    uint64_t timeout = 1UL << 30UL;
-    VkResult res;
-    do {
-      res = vkWaitForFences(vctx_->device, 1, &(state_->fence_), 0, timeout);
-    } while (res == VK_TIMEOUT);
-    VULKAN_CHECK_ERROR(res);
-    VULKAN_CALL(vkResetCommandBuffer(state_->cmd_buffer_, 0));
-    VULKAN_CALL(vkResetFences(vctx_->device, 1, &(state_->fence_)));
-
-    // Re-initialize the command buffer
-    VkCommandBufferBeginInfo cb_begin;
-    cb_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cb_begin.pNext = nullptr;
-    cb_begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    cb_begin.pInheritanceInfo = 0;
-    VULKAN_CALL(vkBeginCommandBuffer(state_->cmd_buffer_, &cb_begin));
-  }
+  void Synchronize();
 
  private:
-  const VulkanContext* vctx_;
+  const VulkanDevice* device_;
   std::unique_ptr<VulkanStreamState> state_;
   // An index of deferred tokens, allowing us to efficiently detect duplicated
   // deferred_initializer blocks.

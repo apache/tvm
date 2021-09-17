@@ -29,69 +29,16 @@
 
 #include <stack>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
+#include "../../support/nd_int_set.h"
 #include "../../support/utils.h"
+#include "../schedule/utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
 
-using NDIntSet = std::vector<arith::IntSet>;
-
-arith::IntSet IntSetFromMinExtent(const PrimExpr& min, const PrimExpr& extent) {
-  return arith::IntSet::FromRange(Range::FromMinExtent(min, extent));
-}
-
-NDIntSet NDIntSetFromRegion(const Region& region) {
-  NDIntSet result;
-  result.reserve(region.size());
-  for (const Range& range : region) {
-    result.push_back(arith::IntSet::FromRange(range));
-  }
-  return result;
-}
-
-NDIntSet NDIntSetFromShape(const Array<PrimExpr>& shape) {
-  PrimExpr zero = Integer(0);
-  NDIntSet result;
-  result.reserve(shape.size());
-  for (const PrimExpr& extent : shape) {
-    result.push_back(IntSetFromMinExtent(zero, extent));
-  }
-  return result;
-}
-
-NDIntSet NDIntSetFromPoint(const Array<PrimExpr>& indices) {
-  NDIntSet result;
-  result.reserve(indices.size());
-  for (const PrimExpr& index : indices) {
-    result.push_back(arith::IntSet::SinglePoint(index));
-  }
-  return result;
-}
-
-void NDIntSetUnionWith(NDIntSet* lhs, const NDIntSet& rhs) {
-  ICHECK_EQ(lhs->size(), rhs.size());
-  int ndim = rhs.size();
-  for (int i = 0; i < ndim; ++i) {
-    arith::IntSet& int_set = lhs->at(i);
-    int_set = arith::Union({int_set, rhs.at(i)});
-  }
-}
-
-NDIntSet NDIntSetEmpty(int ndim) {
-  return std::vector<arith::IntSet>(ndim, arith::IntSet::Nothing());
-}
-
-NDIntSet EvalNDIntSet(const NDIntSet& nd_int_set,
-                      const std::unordered_map<const VarNode*, arith::IntSet>& dom_map) {
-  NDIntSet ret;
-  ret.reserve(nd_int_set.size());
-  for (const arith::IntSet& s : nd_int_set) {
-    ret.push_back(arith::EvalSet(s, dom_map));
-  }
-  return ret;
-}
+using support::NDIntSet;
 
 /*!
  * \brief return the region collected by NDIntSet. return the oroginal buffer shape if the
@@ -163,7 +110,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     // The iter_dom_map is updated by post DFS order.
     // If the union point is under the for node, the loop var will not be relaxed.
     // If the union point is outer of the for loop, the loop var should be relaxed.
-    iter_dom_map_on_post_order_[op->loop_var.get()] = IntSetFromMinExtent(op->min, op->extent);
+    iter_dom_map_on_post_order_[op->loop_var.get()] =
+        arith::IntSet::FromMinExtent(op->min, op->extent);
   }
 
   void VisitStmt_(const BlockNode* op) final {
@@ -203,11 +151,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       std::unordered_map<const VarNode*, arith::IntSet> dom_map;
       for (const ForNode* loop : ancestor_loops_) {
         const VarNode* loop_var = loop->loop_var.get();
-        if (NeedRelaxThread(GetRef<For>(loop), runtime::StorageScope::Create(buffer->scope))) {
-          dom_map[loop_var] = IntSetFromMinExtent(loop->min, loop->extent);
+        if (NeedRelaxThread(GetRef<For>(loop), runtime::StorageScope::Create(buffer.scope()))) {
+          dom_map[loop_var] = arith::IntSet::FromMinExtent(loop->min, loop->extent);
         }
       }
-      NDIntSet int_set = EvalNDIntSet(nd_int_set, dom_map);
+      NDIntSet int_set = support::NDIntSetEval(nd_int_set, dom_map);
       buffer_access_region_[buffer] = NarrowBufferRegionFromNDIntSet(int_set, buffer->shape);
     }
   }
@@ -220,7 +168,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (it != buffer_var_in_scope_.end()) {
       const Buffer& buffer = it->second;
       const BufferAccessInfo* info =
-          arena_.make<BufferAccessInfo>(buffer, NDIntSetFromRegion(buffer_region->region));
+          arena_.make<BufferAccessInfo>(buffer, support::NDIntSetFromRegion(buffer_region->region));
       buffer_access_stack_.push(info);
     }
   }
@@ -245,10 +193,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     while (buffer_access_stack_.size() > stack_top) {
       const BufferAccessInfo* info = buffer_access_stack_.top();
       buffer_access_stack_.pop();
-      NDIntSet nd_int_set = EvalNDIntSet(info->accessed_region, iter_dom_map_on_post_order_);
+      NDIntSet nd_int_set =
+          support::NDIntSetEval(info->accessed_region, iter_dom_map_on_post_order_);
       auto it = accesses.find(info->buffer);
       if (it != accesses.end()) {
-        NDIntSetUnionWith(&it->second, nd_int_set);
+        support::NDIntSetUnionWith(&it->second, nd_int_set);
       } else {
         accesses[info->buffer] = nd_int_set;
       }
@@ -280,15 +229,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       return false;
     }
     ICHECK(loop->thread_binding.defined());
-    IterVar binding = loop->thread_binding.value();
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(binding->thread_tag);
-
+    const String& thread_tag = loop->thread_binding.value()->thread_tag;
     // When there is warp memory
     // threadIdx.x must be set to be warp index.
-    if (scope.rank == runtime::StorageRank::kWarp && ts.rank == 1 && ts.dim_index == 0) {
-      return true;
-    }
-    return static_cast<int>(scope.rank) <= ts.rank;
+    return CanRelaxStorageUndereThread(scope, runtime::ThreadScope::Create(thread_tag));
   }
 
   /**************** Class members ****************/
@@ -307,18 +251,61 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   support::Arena arena_;
 };
 
+/*! \brief Collect storage alignment information from block annotations. */
+class StorageAlignCollector : public StmtVisitor {
+ public:
+  static std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual> Collect(
+      const PrimFunc& f) {
+    StorageAlignCollector collector;
+    collector(f->body);
+    return std::move(collector.storage_align_);
+  }
+
+ private:
+  void VisitStmt_(const BlockNode* op) final {
+    auto it = op->annotations.find(attr::buffer_dim_align);
+    if (it != op->annotations.end()) {
+      auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
+      for (const auto& storage_align_tuple : storage_align_annotation) {
+        int buffer_index = storage_align_tuple[0]->value;
+        const Buffer& buffer = op->writes[buffer_index]->buffer;
+        storage_align_[buffer].push_back(storage_align_tuple);
+      }
+    }
+    StmtVisitor::VisitStmt_(op);
+  }
+
+  /*! \brief The map from Buffer to its storage alignment information. */
+  std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual> storage_align_;
+};
+
 /*! \brief Reallocate the buffers with minimal region. */
 class BufferCompactor : public StmtExprMutator {
  public:
   static Stmt Compact(
       const PrimFunc& f,
-      const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions) {
+      const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions,
+      const std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>&
+          storage_align) {
     std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info;
 
     for (const auto& kv : regions) {
       const Buffer& buffer = kv.first;
       Region region = kv.second;
-      buffer_info.emplace(buffer, BufferAllocInfo(std::move(region)));
+      BufferAllocInfo buffer_alloc_info(std::move(region));
+      auto it = storage_align.find(buffer);
+      if (it != storage_align.end()) {
+        std::vector<DimAlignInfo> dim_aligns(buffer->shape.size());
+        for (const StorageAlignTuple& dim_align : (*it).second) {
+          ICHECK(dim_align.size() == 4);
+          int dim = dim_align[1]->value;
+          int factor = dim_align[2]->value;
+          int offset = dim_align[3]->value;
+          dim_aligns.at(dim) = {factor, offset};
+        }
+        buffer_alloc_info.dim_aligns = std::move(dim_aligns);
+      }
+      buffer_info.emplace(buffer, std::move(buffer_alloc_info));
     }
     BufferCompactor compactor(std::move(buffer_info));
     Stmt stmt = compactor(f->body);
@@ -326,9 +313,19 @@ class BufferCompactor : public StmtExprMutator {
   }
 
  private:
+  /*! \brief The storage alignment for a dimension */
+  struct DimAlignInfo {
+    /*! \brief The factor of the alignment */
+    int align_factor{0};
+    /*! \brief The offset of the alignment */
+    int align_offset{0};
+  };
+
   struct BufferAllocInfo {
     /*! \brief The buffer access region. */
     Region region;
+    /*! \brief The storage alignment information. */
+    std::vector<DimAlignInfo> dim_aligns;
     /*!
      * \brief The reallocated buffer with minimal size.
      * \note The value if NullOpt if the buffer do not need reallocate (e.g parameter buffer).
@@ -367,6 +364,7 @@ class BufferCompactor : public StmtExprMutator {
     BlockNode* n = block.CopyOnWrite();
     RewriteBufferRegions(&n->reads);
     RewriteBufferRegions(&n->writes);
+    RewriteMatchBuffers(&n->match_buffers);
     n->alloc_buffers = std::move(alloc_buffers);
     return std::move(block);
   }
@@ -383,8 +381,25 @@ class BufferCompactor : public StmtExprMutator {
       for (const Range& range : info.region) {
         shape.push_back(range->extent);
       }
+      Array<PrimExpr> strides;
+      if (info.dim_aligns.size()) {
+        ICHECK(info.dim_aligns.size() == shape.size());
+        strides.resize(shape.size());
+        PrimExpr stride = make_const(shape[0].dtype(), 1);
+        for (size_t i = shape.size(); i != 0; --i) {
+          size_t dim = i - 1;
+          if (info.dim_aligns[dim].align_factor != 0) {
+            PrimExpr factor = make_const(stride.dtype(), info.dim_aligns[dim].align_factor);
+            PrimExpr offset = make_const(stride.dtype(), info.dim_aligns[dim].align_offset);
+            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
+          }
+          strides.Set(dim, stride);
+          stride = stride * shape[dim];
+        }
+      }
       ObjectPtr<BufferNode> n = make_object<BufferNode>(*buffer.get());
       n->shape = std::move(shape);
+      n->strides = std::move(strides);
       info.new_buffer = Buffer(std::move(n));
       result.push_back(info.new_buffer);
     }
@@ -439,16 +454,35 @@ class BufferCompactor : public StmtExprMutator {
     *regions = std::move(new_regions);
   }
 
+  void RewriteMatchBuffers(Array<MatchBufferRegion>* match_buffers) const {
+    Array<MatchBufferRegion> result;
+    result.reserve(match_buffers->size());
+    for (const auto& match_buffer : *match_buffers) {
+      const BufferRegion& buffer_region = match_buffer->source;
+      auto p = make_object<BufferRegionNode>(*buffer_region.get());
+      RewriteBufferRegion(&p->buffer, &p->region);
+      result.push_back(MatchBufferRegion(match_buffer->buffer, BufferRegion(p)));
+    }
+    *match_buffers = std::move(result);
+  }
+
   /*! \brief The allocation information about each buffer. */
   std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info_;
 };
 
 PrimFunc CompactBufferAllocation(PrimFunc f) {
-  PrimFuncNode* fptr = f.CopyOnWrite();
-  std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
-      BufferAccessRegionCollector::Collect(f);
-  fptr->body = BufferCompactor::Compact(f, region);
-  return f;
+  // Only apply this pass to TIR that is not from TE schedules
+  if (!IsFromLegacyTESchedule(f)) {
+    PrimFuncNode* fptr = f.CopyOnWrite();
+    std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
+        BufferAccessRegionCollector::Collect(f);
+    std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
+        storage_align = StorageAlignCollector::Collect(f);
+    fptr->body = BufferCompactor::Compact(f, region, storage_align);
+    return f;
+  } else {
+    return f;
+  }
 }
 
 namespace transform {

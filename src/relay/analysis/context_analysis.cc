@@ -59,7 +59,6 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
 namespace tvm {

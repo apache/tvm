@@ -1471,6 +1471,50 @@ def bias_add(data, bias, axis=1):
     return _make.bias_add(data, bias, axis)
 
 
+def matmul(tensor_a, tensor_b, units=None, out_dtype="", transpose_a=False, transpose_b=False):
+    """Matmul operator.
+    Applies a linear transformation. The A & B can be transposed.
+
+    .. math::
+
+        `C = A * B`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The first input of the operator,
+        of shape `(d_1, d_2, ..., d_n, units_in)` or `(d_1, d_2, ..., units_in, d_n)`.
+
+    weight : tvm.relay.Expr
+        The second input expressions, 2-D matrix,
+        of shape `(units_in, units)` or `(units, units_in)`.
+
+    units : Optional[int]
+        Number of hidden units of the matmul transformation.
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision matmul,
+        of shape `(d_1, d_2, ..., d_n, units)`.
+
+    transpose_a : Optional[bool] = False
+        Whether the data tensor is in transposed format.
+
+    transpose_b : Optional[bool] = False
+        Whether the weight tensor is in transposed format.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # Since currently `nn.dense` has better topi schedule support, will prefer to use `dense`
+    # rather than `matmul` for better compatibility
+    if not transpose_a and transpose_b:
+        # TODO(jcf94): Remove this when `nn.matmul` is finnaly ready
+        return dense(tensor_a, tensor_b, units, out_dtype)
+    return _make.matmul(tensor_a, tensor_b, units, out_dtype, transpose_a, transpose_b)
+
+
 def dense(data, weight, units=None, out_dtype=""):
     """Dense operator.
     Applies a linear transformation
@@ -1504,9 +1548,9 @@ def dense(data, weight, units=None, out_dtype=""):
     return _make.dense(data, weight, units, out_dtype)
 
 
-def contrib_dense_pack(data, weight, units=None, out_dtype=""):
+def contrib_dense_pack(data, weight, weight_layout="NC", units=None, out_dtype=""):
     """Dense operator.
-    Applies a linear transformation
+    Applies a linear transformation with packed weight
 
     .. math::
 
@@ -1516,25 +1560,27 @@ def contrib_dense_pack(data, weight, units=None, out_dtype=""):
     ----------
     data : tvm.relay.Expr
         The input data to the operator,
-        of shape `(d_1, d_2, ..., d_n, units_in)`.
+        of shape `(batch, units_in)`.
 
     weight : tvm.relay.Expr
         The transformed weight expressions, 3-D matrix,
         of shape `(units // pack_weight_tile, units_in, pack_weight_tile)`.
 
+    weight_layout: str
+        The layout of weight, such as "NC" or "NC8n".
+
     units : int, optional
         Number of hidden units of the dense transformation.
 
     out_dtype : str, optional
-        Specifies the output data type for mixed precision dense,
-        of shape `(d_1, d_2, ..., d_n, units)`.
+        Specifies the output data type for mixed precision dense.
 
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.contrib_dense_pack(data, weight, units, out_dtype)
+    return _make.contrib_dense_pack(data, weight, weight_layout, units, out_dtype)
 
 
 def fifo_buffer(data, buffer, axis):
@@ -2093,32 +2139,40 @@ def group_norm(data, gamma, beta, num_groups, axis=1, epsilon=1e-5, center=True,
     return _make.group_norm(data, gamma, beta, num_groups, axis, epsilon, center, scale)
 
 
-def batch_matmul(x, y, out_dtype=""):
+def batch_matmul(tensor_a, tensor_b, out_dtype="", transpose_a=False, transpose_b=True):
     r"""
-    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
-    in batch.
+    Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+    Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
+    (transpose_a=False, transpose_b=True) by default.
 
     .. math::
 
-        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
+        \mbox{batch_matmul}(A, B)[i, :, :] = \mbox{matmul}(A[i, :, :], B[i, :, :])
 
     Parameters
     ----------
-    x : tvm.relay.Expr
+    tensor_a : tvm.relay.Expr
         The first input.
 
-    y : tvm.relay.Expr
+    tensor_b : tvm.relay.Expr
         The second input.
 
-    out_dtype : str, optional
-        Specifies the output data type for mixed precision batch matmul
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision batch matmul.
+
+    transpose_a : Optional[bool] = False
+        Whether the first tensor is in transposed format.
+
+    transpose_b : Optional[bool] = True
+        Whether the second tensor is in transposed format.
 
     Returns
     -------
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.batch_matmul(x, y, out_dtype)
+    return _make.batch_matmul(tensor_a, tensor_b, out_dtype, transpose_a, transpose_b)
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements
@@ -2236,6 +2290,7 @@ def sparse_add(dense_mat, sparse_mat):
     Examples
     -------
     .. code-block:: python
+
         dense_data = [[ 3.,   4.,   4. ]
                       [ 4.,  2.,  5. ]]
         sparse_data = [4., 8.]
@@ -2971,6 +3026,42 @@ def cross_entropy_with_logits(predictions, targets):
       The computed result.
     """
     return _make.cross_entropy_with_logits(predictions, targets)
+
+
+def nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-100):
+    """Negative log likelihood loss.
+
+    output{n, i_1, i_2, ..., i_k} = -p * w
+      where t = target{n, i_1, i_2, ..., i_k}
+            p = predictions{n, t, i_1, i_2, i_k}
+            w = weights{n, i_1, i_2, ..., i_k} if t != ignore_index else 0
+
+    result = reduction(output)
+
+    Parameters
+    ----------
+    predictions : tvm.relay.Expr
+      The predictions.
+
+    targets : tvm.relay.Expr
+      The target value of each prediction.
+
+    weights : tvm.relay.Expr
+      The weight of each target value.
+
+    reduction : string
+      The reduction method to apply to the output.
+      Possible values are "mean", "sum" and "none".
+
+    ignore_index : int
+      The target value to ignore.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+      The computed result.
+    """
+    return _make.nll_loss(predictions, targets, weights, reduction, ignore_index)
 
 
 def depth_to_space(data, block_size, layout="NCHW", mode="DCR"):

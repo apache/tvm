@@ -26,10 +26,12 @@ import tvm.topi.testing
 import tvm.testing
 
 
-def run_opt_pass(expr, opt_pass):
+def run_opt_pass(expr, opt_pass, params=None):
     assert isinstance(opt_pass, tvm.transform.Pass)
 
     mod = tvm.IRModule.from_expr(expr)
+    if params is not None:
+        mod["main"] = bind_params_by_name(mod["main"], params)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -40,8 +42,9 @@ def verify_func(func, data, ref_res, rtol=1e-5, atol=1e-7):
     for target, dev in tvm.testing.enabled_targets():
         for kind in ["graph", "vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-            op_res = intrp.evaluate()(*data)
+            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                *data
+            )
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
 
@@ -147,11 +150,12 @@ def test_dynamic_to_static_topk():
     def verify_topk(k, axis, ret_type, is_ascend, dtype):
         shape = (20, 100)
         x = relay.var("x", relay.TensorType(shape, "float32"))
-        k_var = relay.const(k)
+        k_var = relay.var("k", relay.TensorType((), "int32"))
         out = relay.topk(x, k_var, axis, ret_type, is_ascend, dtype)
         if isinstance(out, relay.expr.TupleWrapper):
             out = out.astuple()
-        func = relay.Function([x], out)
+        func = relay.Function([x, k_var], out)
+        params = {"k": k}
 
         np_data = np.random.uniform(size=shape).astype("float32")
         if is_ascend:
@@ -171,7 +175,9 @@ def test_dynamic_to_static_topk():
                 np_values[i, :] = np_data[i, np_indices[i, :]]
         np_indices = np_indices.astype(dtype)
 
-        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        func2 = run_opt_pass(
+            run_opt_pass(func, transform.DynamicToStatic(), params), transform.InferType()
+        )
         zz = func2.body
         assert isinstance(zz, relay.Call)
         assert zz.op == relay.op.get("topk")
@@ -181,8 +187,9 @@ def test_dynamic_to_static_topk():
                 continue
             for kind in ["graph", "vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func2)
-                intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-                op_res = intrp.evaluate()(np_data)
+                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                    np_data
+                )
                 if ret_type == "both":
                     tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
                     tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)
@@ -248,7 +255,7 @@ def test_dynamic_to_static_zeros_ones():
 
 
 @tvm.testing.uses_gpu
-def test_dynamic_to_static_resize():
+def test_dynamic_to_static_resize2d():
     def verify_resize(shape, scale, method, layout):
         if layout == "NHWC":
             size = (shape[1] * scale, shape[2] * scale)
@@ -256,28 +263,28 @@ def test_dynamic_to_static_resize():
             size = (shape[2] * scale, shape[3] * scale)
 
         x = relay.var("x", relay.TensorType(shape, "float32"))
-        size_var = relay.const(np.array(size).astype("float32"))
+        size_var = relay.var("size", relay.TensorType((len(size),), "float32"))
         coord_trans = "asymmetric" if method == "nearest_neighbor" else "align_corners"
-        z = relay.image.resize(
+        z = relay.image.resize2d(
             x, size_var, layout, method, coordinate_transformation_mode=coord_trans
         )
+        params = {"size": np.array(size).astype("float32")}
 
-        func = run_infer_type(relay.Function([x], z))
-        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        func = run_infer_type(relay.Function([x, size_var], z))
+        func2 = run_opt_pass(
+            run_opt_pass(func, transform.DynamicToStatic(), params), transform.InferType()
+        )
 
         zz = func2.body
         assert isinstance(zz, relay.Call)
-        assert zz.op == relay.op.get("image.resize")
+        assert zz.op == relay.op.get("image.resize2d")
 
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data, (scale, scale), layout, method, coord_trans
+        )
 
-        if method == "bilinear":
-            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout)
-        else:
-            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
-        verify_func(func2, [x_data], ref_res, rtol=1e-4, atol=1e-6)
-
-    for method in ["bilinear", "nearest_neighbor"]:
+    for method in ["linear", "nearest_neighbor"]:
         for layout in ["NCHW", "NHWC"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
 
@@ -287,12 +294,18 @@ def test_dynamic_to_static_one_hot():
     def _verify(indices_shape, depth, on_value, off_value, axis, dtype):
         indices = relay.var("indices", relay.TensorType(indices_shape, "int32"))
         depth_var = relay.const(depth)
-        on_value_const = relay.const(on_value)
-        off_value_const = relay.const(off_value)
-        out = relay.one_hot(indices, on_value_const, off_value_const, depth_var, axis, dtype)
-        func = relay.Function([indices], out)
+        on_value_var = relay.var("on_value", relay.TensorType((), "int32"))
+        off_value_var = relay.var("off_value", relay.TensorType((), "int32"))
+        out = relay.one_hot(indices, on_value_var, off_value_var, depth_var, axis, dtype)
+        params = {
+            "on_value": on_value,
+            "off_value": off_value,
+        }
 
-        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        func = relay.Function([indices, on_value_var, off_value_var], out)
+        func2 = run_opt_pass(
+            run_opt_pass(func, transform.DynamicToStatic(), params), transform.InferType()
+        )
 
         zz = func2.body
         assert isinstance(zz, relay.Call)
@@ -335,19 +348,27 @@ def test_dynamic_to_static_full():
 def test_dynamic_to_static_upsampling():
     def verify_upsampling(data_shape, scale_h_val, scale_w_val, dtype):
         x = relay.var("x", relay.TensorType(data_shape, dtype))
-        scale_h = relay.const(scale_h_val)
-        scale_w = relay.const(scale_w_val)
+        scale_h = relay.var("scale_h", relay.TensorType((), "float32"))
+        scale_w = relay.var("scale_w", relay.TensorType((), "float32"))
         z = relay.nn.upsampling(x, scale_h, scale_w)
+        params = {
+            "scale_h": scale_h_val,
+            "scale_w": scale_w_val,
+        }
 
-        func = run_infer_type(relay.Function([x], z))
-        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        func = run_infer_type(relay.Function([x, scale_h, scale_w], z))
+        func2 = run_opt_pass(
+            run_opt_pass(func, transform.DynamicToStatic(), params), transform.InferType()
+        )
 
         zz = func2.body
         assert isinstance(zz, relay.Call)
         assert zz.op == relay.op.get("nn.upsampling")
 
         x_data = np.random.uniform(size=data_shape).astype(dtype)
-        ref_res = tvm.topi.testing.upsampling_python(x_data, (scale_h_val, scale_w_val), "NCHW")
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data, (scale_h_val, scale_w_val), "NCHW", "nearest_neighbor", "asymmetric"
+        )
         verify_func(func2, [x_data], ref_res)
 
     verify_upsampling((1, 16, 32, 32), 2, 2, "int8")
@@ -357,22 +378,33 @@ def test_dynamic_to_static_upsampling():
 def test_dynamic_to_static_upsampling3d():
     def verify_upsampling3d(data_shape, scale_d_val, scale_h_val, scale_w_val, dtype):
         x = relay.var("x", relay.TensorType(data_shape, dtype))
-        scale_d = relay.const(scale_d_val)
-        scale_h = relay.const(scale_h_val)
-        scale_w = relay.const(scale_w_val)
+        scale_d = relay.var("scale_d", relay.TensorType((), "float32"))
+        scale_h = relay.var("scale_h", relay.TensorType((), "float32"))
+        scale_w = relay.var("scale_w", relay.TensorType((), "float32"))
 
         z = relay.nn.upsampling3d(x, scale_d, scale_h, scale_w)
+        params = {
+            "scale_d": scale_d_val,
+            "scale_h": scale_h_val,
+            "scale_w": scale_w_val,
+        }
 
-        func = run_infer_type(relay.Function([x], z))
-        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        func = run_infer_type(relay.Function([x, scale_d, scale_h, scale_w], z))
+        func2 = run_opt_pass(
+            run_opt_pass(func, transform.DynamicToStatic(), params), transform.InferType()
+        )
 
         zz = func2.body
         assert isinstance(zz, relay.Call)
         assert zz.op == relay.op.get("nn.upsampling3d")
 
         x_data = np.random.uniform(size=data_shape).astype(dtype)
-        ref_res = tvm.topi.testing.upsampling3d_python(
-            x_data, (scale_d_val, scale_h_val, scale_w_val), "NCDHW"
+        ref_res = tvm.topi.testing.resize3d_python(
+            x_data,
+            (scale_d_val, scale_h_val, scale_w_val),
+            "NCDHW",
+            "nearest_neighbor",
+            "asymmetric",
         )
         verify_func(func2, [x_data], ref_res)
 
@@ -382,18 +414,24 @@ def test_dynamic_to_static_upsampling3d():
 
 
 def test_dynamic_to_static_pad():
-    def verify_pad(data_shape, pad_width, pad_val, dtype):
+    def verify_pad(data_shape, pad_width_val, pad_val, dtype):
         x = relay.var("x", relay.TensorType(data_shape, dtype))
-        z = relay.nn.pad(x, relay.const(np.array(pad_width)), pad_val)
-        func = run_infer_type(relay.Function([x], z))
-        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        pad_width = relay.var(
+            "pad_width", relay.TensorType((len(pad_width_val), len(pad_width_val[0])), "int32")
+        )
+        z = relay.nn.pad(x, pad_width, pad_val)
+        func = run_infer_type(relay.Function([x, pad_width], z))
+        params = {"pad_width": np.array(pad_width_val)}
+        func2 = run_opt_pass(
+            run_opt_pass(func, transform.DynamicToStatic(), params), transform.InferType()
+        )
         zz = func2.body
         assert isinstance(zz, relay.Call)
         assert zz.op == relay.op.get("nn.pad")
 
         x_data = np.random.uniform(size=data_shape).astype(dtype)
         ref_res = np.pad(
-            x_data, pad_width, "constant", constant_values=(((pad_val,) * 2),) * len(data_shape)
+            x_data, pad_width_val, "constant", constant_values=(((pad_val,) * 2),) * len(data_shape)
         )
         verify_func(func2, [x_data], ref_res)
 
@@ -402,35 +440,51 @@ def test_dynamic_to_static_pad():
 
 
 def test_dynamic_to_static_strided_slice():
-    def verify(dshape, begin, end, strides, output, slice_mode="end", test_ref=True, dtype="int32"):
+    def verify(
+        dshape,
+        begin_val,
+        end_val,
+        strides_val,
+        output,
+        slice_mode="end",
+        test_ref=True,
+        dtype="int32",
+    ):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         ndim = len(dshape)
-        begin = begin if begin else [0] * ndim
-        end = end if end else list(dshape)
-        if strides:
-            if len(strides) == 1:
-                strides = strides * ndim
+        begin_val = begin_val if begin_val else [0] * ndim
+        end_val = end_val if end_val else list(dshape)
+        if strides_val:
+            if len(strides_val) == 1:
+                strides_val = strides_val * ndim
         else:
-            strides = [1] * ndim
+            strides_val = [1] * ndim
 
         # target numpy result
         x_data = np.random.uniform(size=dshape).astype("float32")
-        ref_res = tvm.topi.testing.strided_slice_python(x_data, begin, end, strides, slice_mode)
-        data = [x_data, np.array(begin), np.array(end)]
+        ref_res = tvm.topi.testing.strided_slice_python(
+            x_data, begin_val, end_val, strides_val, slice_mode
+        )
+        data = [x_data, np.array(begin_val), np.array(end_val)]
 
-        begin = relay.const(begin, dtype=dtype)
-        end = relay.const(end, dtype=dtype)
+        begin = relay.var("begin", relay.TensorType((len(begin_val),), dtype))
+        end = relay.var("end", relay.TensorType((len(end_val),), dtype))
 
-        if strides:
-            data.append(np.array(strides))
-            strides = relay.const(strides, dtype=dtype)
+        func_params = [x, begin, end]
+        if strides_val:
+            data.append(np.array(strides_val))
+            strides = relay.var("strides", relay.TensorType((len(strides_val),), dtype))
             z = relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode)
+            func_params.append(strides)
         else:
             z = relay.strided_slice(x, begin=begin, end=end, slice_mode=slice_mode)
-        func = relay.Function([x], z)
+        func = relay.Function(func_params, z)
+        params = {"begin": begin_val, "end": end_val, "strides": strides_val}
 
         func = run_infer_type(func)
-        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        func2 = run_opt_pass(
+            run_opt_pass(func, transform.DynamicToStatic(), params), transform.InferType()
+        )
         assert isinstance(func2.body, relay.Call)
         assert func2.body.op == relay.op.get("strided_slice")
         verify_func(func2, [x_data], ref_res)

@@ -45,7 +45,8 @@ and finally run.
 """
 import os
 import tarfile
-from typing import Optional, Union, List, Dict, Callable, TextIO
+import json
+from typing import Optional, Union, Dict, Callable, TextIO
 import numpy as np
 
 import tvm
@@ -53,6 +54,12 @@ import tvm.contrib.cc
 from tvm import relay
 from tvm.contrib import utils
 from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
+from tvm.runtime.module import BenchmarkResult
+
+try:
+    from tvm.micro import export_model_library_format
+except ImportError:
+    export_model_library_format = None
 
 from .common import TVMCException
 
@@ -175,7 +182,7 @@ class TVMCModel(object):
         """
         return self._tmp_dir.relpath("model_package.tar")
 
-    def export_package(
+    def export_classic_format(
         self,
         executor_factory: GraphExecutorFactoryModule,
         package_path: Optional[str] = None,
@@ -203,8 +210,6 @@ class TVMCModel(object):
         package_path : str
             The path that the package was saved to.
         """
-        if lib_format not in ["so", "tar"]:
-            raise TVMCException("Only .so and .tar export formats are supported.")
         lib_name = "mod." + lib_format
         graph_name = "mod.json"
         param_name = "mod.params"
@@ -241,6 +246,53 @@ class TVMCModel(object):
 
         return package_path
 
+    def export_package(
+        self,
+        executor_factory: GraphExecutorFactoryModule,
+        package_path: Optional[str] = None,
+        cross: Optional[Union[str, Callable]] = None,
+        cross_options: Optional[str] = None,
+        output_format: str = "so",
+    ):
+        """Save this TVMCModel to file.
+        Parameters
+        ----------
+        executor_factory : GraphExecutorFactoryModule
+            The factory containing compiled the compiled artifacts needed to run this model.
+        package_path : str, None
+            Where the model should be saved. Note that it will be packaged as a .tar file.
+            If not provided, the package will be saved to a generically named file in tmp.
+        cross : str or callable object, optional
+            Function that performs the actual compilation.
+        cross_options : str, optional
+            Command line options to be passed to the cross compiler.
+        output_format : str
+            How to save the modules function library. Must be one of "so" and "tar" to save
+            using the classic format or "mlf" to save using the Model Library Format.
+
+        Returns
+        -------
+        package_path : str
+            The path that the package was saved to.
+        """
+        if output_format not in ["so", "tar", "mlf"]:
+            raise TVMCException("Only 'so', 'tar', and 'mlf' output formats are supported.")
+
+        if output_format == "mlf" and cross:
+            raise TVMCException("Specifying the MLF output and a cross compiler is not supported.")
+
+        if output_format in ["so", "tar"]:
+            package_path = self.export_classic_format(
+                executor_factory, package_path, cross, cross_options, output_format
+            )
+        elif output_format == "mlf":
+            if export_model_library_format:
+                package_path = export_model_library_format(executor_factory, package_path)
+            else:
+                raise Exception("micro tvm is not enabled. Set USE_MICRO to ON in config.cmake")
+
+        return package_path
+
     def summary(self, file: TextIO = None):
         """Print the IR corressponding to this model.
 
@@ -274,38 +326,60 @@ class TVMCPackage(object):
         package_path : str
             The path to the saved TVMCPackage.
         """
-        lib_name_so = "mod.so"
-        lib_name_tar = "mod.tar"
-        graph_name = "mod.json"
-        param_name = "mod.params"
-
         temp = self._tmp_dir
         t = tarfile.open(package_path)
         t.extractall(temp.relpath("."))
 
-        with open(temp.relpath(param_name), "rb") as param_file:
-            self.params = bytearray(param_file.read())
-        self.graph = open(temp.relpath(graph_name)).read()
-        if os.path.exists(temp.relpath(lib_name_so)):
-            self.lib_name = lib_name_so
-        elif os.path.exists(temp.relpath(lib_name_tar)):
-            self.lib_name = lib_name_tar
+        if os.path.exists(temp.relpath("metadata.json")):
+            # Model Library Format (MLF)
+            self.lib_name = None
+            self.lib_path = None
+            with open(temp.relpath("metadata.json")) as metadata_json:
+                metadata = json.load(metadata_json)
+
+            has_graph_executor = "graph" in metadata["executors"]
+            graph = temp.relpath("executor-config/graph/graph.json") if has_graph_executor else None
+            params = temp.relpath("parameters/default.params")
+
+            self.type = "mlf"
         else:
-            raise TVMCException("Couldn't find exported library in the package.")
-        self.lib_path = temp.relpath(self.lib_name)
+            # Classic format
+            lib_name_so = "mod.so"
+            lib_name_tar = "mod.tar"
+            if os.path.exists(temp.relpath(lib_name_so)):
+                self.lib_name = lib_name_so
+            elif os.path.exists(temp.relpath(lib_name_tar)):
+                self.lib_name = lib_name_tar
+            else:
+                raise TVMCException("Couldn't find exported library in the package.")
+            self.lib_path = temp.relpath(self.lib_name)
+
+            graph = temp.relpath("mod.json")
+            params = temp.relpath("mod.params")
+
+            self.type = "classic"
+
+        with open(params, "rb") as param_file:
+            self.params = bytearray(param_file.read())
+
+        if graph is not None:
+            with open(graph) as graph_file:
+                self.graph = graph_file.read()
+        else:
+            self.graph = None
 
 
 class TVMCResult(object):
     """A class that stores the results of tvmc.run and provides helper utilities."""
 
-    def __init__(self, outputs: Dict[str, np.ndarray], times: List[str]):
+    def __init__(self, outputs: Dict[str, np.ndarray], times: BenchmarkResult):
         """Create a convenience wrapper around the output of tvmc.run
 
         Parameters
         ----------
         outputs : dict
             Outputs dictionary mapping the name of the output to its numpy value.
-        times : list of float
+        times : BenchmarkResult
             The execution times measured by the time evaluator in seconds to produce outputs.
         """
         self.outputs = outputs
@@ -317,29 +391,15 @@ class TVMCResult(object):
         This has the effect of producing a small table that looks like:
         .. code-block::
             Execution time summary:
-            mean (ms)   max (ms)    min (ms)    std (ms)
-            0.14310    0.16161    0.12933    0.01004
+            mean (ms)  median (ms) max (ms)    min (ms)    std (ms)
+            0.14310      0.14310   0.16161     0.12933    0.01004
 
         Returns
         -------
         str
             A formatted string containing the statistics.
         """
-
-        # timestamps
-        mean_ts = np.mean(self.times) * 1000
-        std_ts = np.std(self.times) * 1000
-        max_ts = np.max(self.times) * 1000
-        min_ts = np.min(self.times) * 1000
-
-        header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
-            "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
-        )
-        stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(
-            mean_ts, max_ts, min_ts, std_ts
-        )
-
-        return "%s\n%s\n" % (header, stats)
+        return str(self.times)
 
     def get_output(self, name: str):
         """A helper function to grab one of the outputs by name.

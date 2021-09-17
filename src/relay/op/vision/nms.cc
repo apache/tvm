@@ -152,24 +152,39 @@ bool AllClassNMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   IndexExpr num_classes = scores_shape[1];
   IndexExpr num_boxes = boxes_shape[1];
 
-  IndexExpr num_total_boxes = Any();
-  if (!batch.as<AnyNode>() && !num_boxes.as<AnyNode>()) {
-    num_total_boxes = batch * num_classes * num_boxes;
-  }
+  const auto* param = attrs.as<AllClassNonMaximumSuppressionAttrs>();
+  CHECK(param);
 
-  // assign output type
   std::vector<Type> fields;
-  std::vector<IndexExpr> oshape{num_total_boxes, 3};
-  fields.push_back(TensorType(oshape, DataType::Int(64)));
-  std::vector<IndexExpr> countshape{1};
-  fields.push_back(TensorType(countshape, DataType::Int(64)));
+  if (param->output_format == "onnx") {
+    IndexExpr num_total_boxes = Any();
+    if (!batch.as<AnyNode>() && !num_boxes.as<AnyNode>()) {
+      num_total_boxes = batch * num_classes * num_boxes;
+    }
+    std::vector<IndexExpr> oshape{num_total_boxes, 3};
+    std::vector<IndexExpr> counts_shape{1};
+    fields.push_back(TensorType(oshape, DataType::Int(64)));
+    fields.push_back(TensorType(counts_shape, DataType::Int(64)));
+  } else {
+    IndexExpr num_total_boxes_per_batch = Any();
+    if (!num_boxes.as<AnyNode>()) {
+      num_total_boxes_per_batch = num_classes * num_boxes;
+    }
+    std::vector<IndexExpr> indices_shape{batch, num_total_boxes_per_batch, 2};
+    std::vector<IndexExpr> scores_shape{batch, num_total_boxes_per_batch};
+    std::vector<IndexExpr> counts_shape{batch};
+    fields.push_back(TensorType(indices_shape, DataType::Int(64)));
+    fields.push_back(TensorType(scores_shape, DataType::Float(32)));
+    fields.push_back(TensorType(counts_shape, DataType::Int(64)));
+  }
   reporter->Assign(types[5], TupleType(Array<Type>(fields)));
   return true;
 }
 
 Expr MakeAllClassNMS(Expr boxes, Expr scores, Expr max_output_boxes_per_class, Expr iou_threshold,
-                     Expr score_threshold) {
+                     Expr score_threshold, std::string output_format = "onnx") {
   auto attrs = make_object<AllClassNonMaximumSuppressionAttrs>();
+  attrs->output_format = std::move(output_format);
   static const Op& op = Op::Get("vision.all_class_non_max_suppression");
   return Call(op, {boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold},
               Attrs(attrs), {});

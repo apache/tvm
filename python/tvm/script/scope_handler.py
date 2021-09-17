@@ -104,16 +104,15 @@ class WithScopeHandler(ScopeHandler):
 
 @register
 class Allocate(WithScopeHandler):
-    """ With scope handler tir.allocate(extents, dtype, scope, condition) """
+    """With scope handler tir.allocate(extents, dtype, scope, condition)"""
 
     def __init__(self):
         def allocate(extents, dtype, scope, condition=True, span=None):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
-            body = tvm.tir.Allocate(
+            return tvm.tir.Allocate(
                 self.buffer_var, dtype, extents, condition, self.body, span=span
             )
-            return tvm.tir.AttrStmt(self.buffer_var, "storage_scope", scope, body, span=span)
 
         super().__init__(allocate, concise_scope=True, def_symbol=True)
         self.buffer_var = None
@@ -140,7 +139,7 @@ class Allocate(WithScopeHandler):
 
         def setup_buffer_var(extents, dtype, scope, condition=True, span: Span = None):
             """Setup buffer var for a given type."""
-            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
+            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), scope)
             self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
 
         setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
@@ -149,7 +148,7 @@ class Allocate(WithScopeHandler):
 
 @register
 class LaunchThread(WithScopeHandler):
-    """ With scope handler tir.launch_thread(env_var, extent) """
+    """With scope handler tir.launch_thread(env_var, extent)"""
 
     def __init__(self):
         def launch_thread(env_var, extent, span):
@@ -175,7 +174,7 @@ class LaunchThread(WithScopeHandler):
 
 @register
 class Realize(WithScopeHandler):
-    """ With scope handler tir.realize(buffer_bounds, scope, condition) """
+    """With scope handler tir.realize(buffer_bounds, scope, condition)"""
 
     def __init__(self):
         def realize(
@@ -205,7 +204,7 @@ class Realize(WithScopeHandler):
 
 @register
 class Attr(WithScopeHandler):
-    """ With scope handler tir.attr(attr_node, attr_key, value) """
+    """With scope handler tir.attr(attr_node, attr_key, value)"""
 
     def __init__(self):
         def attr(attr_node, attr_key, value, span):
@@ -218,7 +217,7 @@ class Attr(WithScopeHandler):
 
 @register
 class AssertHandler(WithScopeHandler):
-    """ With scope handler tir.Assert(condition, message) """
+    """With scope handler tir.Assert(condition, message)"""
 
     def __init__(self):
         def Assert(condition, message, span):
@@ -229,7 +228,7 @@ class AssertHandler(WithScopeHandler):
 
 @register
 class Let(WithScopeHandler):
-    """ With scope handler tir.let(var, value) """
+    """With scope handler tir.let(var, value)"""
 
     def __init__(self):
         def let(var, value, span):
@@ -240,7 +239,7 @@ class Let(WithScopeHandler):
 
 @register
 class Block(WithScopeHandler):
-    """ With scope handler tir.block(extents, name) as iter_vars"""
+    """With scope handler tir.block(extents, name) as iter_vars"""
 
     def __init__(self):
         def block(axes=None, name_hint: str = "", span: Optional[Span] = None):
@@ -359,7 +358,7 @@ class Block(WithScopeHandler):
 
 @register
 class InitBlock(WithScopeHandler):
-    """ With scope handler tir.init()"""
+    """With scope handler tir.init()"""
 
     def __init__(self):
         def init(span: Span = None):
@@ -490,7 +489,7 @@ class ForScopeHandler(ScopeHandler):
 
 @register
 class Serial(ForScopeHandler):
-    """ For scope handler tir.serial(begin, end, annotations)"""
+    """For scope handler tir.serial(begin, end, annotations)"""
 
     def __init__(self):
         def serial(
@@ -506,7 +505,7 @@ class Serial(ForScopeHandler):
 
 @register
 class Parallel(ForScopeHandler):
-    """ For scope handler tir.parallel(begin, end, annotations)"""
+    """For scope handler tir.parallel(begin, end, annotations)"""
 
     def __init__(self):
         def parallel(
@@ -524,7 +523,7 @@ class Parallel(ForScopeHandler):
 
 @register
 class Vectorized(ForScopeHandler):
-    """ For scope handler tir.vectorized(begin, end, annotations)"""
+    """For scope handler tir.vectorized(begin, end, annotations)"""
 
     def __init__(self):
         def vectorized(
@@ -542,7 +541,7 @@ class Vectorized(ForScopeHandler):
 
 @register
 class Unroll(ForScopeHandler):
-    """ For scope handler tir.unroll(begin, end, annotations)"""
+    """For scope handler tir.unroll(begin, end, annotations)"""
 
     def __init__(self):
         def unroll(
@@ -560,7 +559,7 @@ class Unroll(ForScopeHandler):
 
 @register
 class ThreadBinding(ForScopeHandler):
-    """ For scope handler tir.thread_binding(begin, end, thread, annotations)"""
+    """For scope handler tir.thread_binding(begin, end, thread, annotations)"""
 
     def __init__(self):
         def thread_binding(
@@ -592,10 +591,13 @@ class RangeHandler(ForScopeHandler):
     def __init__(self):
         def for_range(
             begin: PrimExpr,
-            end: PrimExpr,
+            end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
             span: Optional[Span] = None,
         ):
+            if end is None:
+                end = begin
+                begin = 0
             return self.create_loop(begin, end, ForKind.SERIAL, annotations=annotations, span=span)
 
         super().__init__(for_range)
@@ -606,7 +608,7 @@ class RangeHandler(ForScopeHandler):
 
 @register
 class Grid(ForScopeHandler):
-    """ For scope handler tir.grid(extents)"""
+    """For scope handler tir.grid(extents)"""
 
     def __init__(self):
         def grid(*extents: List[PrimExpr], span: Span):

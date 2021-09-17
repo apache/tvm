@@ -19,7 +19,7 @@ Provides support to run compiled networks both locally and remotely.
 """
 import json
 import logging
-from typing import Optional, Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import tvm
@@ -30,11 +30,10 @@ from tvm.contrib.debugger import debug_executor
 from tvm.relay.param_dict import load_param_dict
 
 from . import common
-from .model import TVMCPackage, TVMCResult
 from .common import TVMCException
 from .main import register_parser
+from .model import TVMCPackage, TVMCResult
 from .result_utils import get_top_results
-
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -51,7 +50,7 @@ def add_run_parser(subparsers):
     #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
-        choices=["cpu", "gpu", "cl"],
+        choices=["cpu", "cuda", "cl", "metal", "vulkan", "rocm"],
         default="cpu",
         help="target device to run the compiled module. Defaults to 'cpu'",
     )
@@ -323,7 +322,7 @@ def run_module(
     tvmc_package: TVMCPackage
         The compiled model package object that will be run.
     device: str,
-        the device (e.g. "cpu" or "gpu") to be targeted by the RPC
+        the device (e.g. "cpu" or "cuda") to be targeted by the RPC
         session, local or remote).
     hostname : str, optional
         The hostname of the target device on which to run.
@@ -359,6 +358,14 @@ def run_module(
             "Try calling tvmc.compile on the model before running it."
         )
 
+    # Currently only two package formats are supported: "classic" and
+    # "mlf". The later can only be used for micro targets, i.e. with microTVM.
+    if tvmc_package.type == "mlf":
+        raise TVMCException(
+            "You're trying to run a model saved using the Model Library Format (MLF)."
+            "MLF can only be used to run micro targets (microTVM)."
+        )
+
     if hostname:
         if isinstance(port, str):
             port = int(port)
@@ -383,6 +390,12 @@ def run_module(
         dev = session.cuda()
     elif device == "cl":
         dev = session.cl()
+    elif device == "metal":
+        dev = session.metal()
+    elif device == "vulkan":
+        dev = session.vulkan()
+    elif device == "rocm":
+        dev = session.rocm()
     else:
         assert device == "cpu"
         dev = session.cpu()
@@ -406,14 +419,12 @@ def run_module(
     # Run must be called explicitly if profiling
     if profile:
         logger.info("Running the module with profiling enabled.")
-        module.run()
+        report = module.profile()
+        # This print is intentional
+        print(report)
 
-    # create the module time evaluator (returns a function)
-    timer = module.module.time_evaluator("run", dev, number=number, repeat=repeat)
-    # call the evaluator function to invoke the module and save execution times
-    prof_result = timer()
-    # collect a list of execution times from the profiling results
-    times = prof_result.results
+    # call the benchmarking function of the executor
+    times = module.benchmark(dev, number=number, repeat=repeat)
 
     logger.debug("Collecting the output tensors.")
     num_outputs = module.get_num_outputs()

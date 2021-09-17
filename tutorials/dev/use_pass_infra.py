@@ -261,26 +261,30 @@ seq = tvm.transform.Sequential(
     ]
 )
 
+###############################################################################
 # By inserting the ``PrintIR`` pass after ``FoldConstant``, the pass infra will
 # dump out the module IR when ``FoldConstant`` is done. Users can plug in this
 # pass after any pass they want to debug for viewing the optimization effect.
 #
-# There is a more flexible debugging mechanism also exposed by the build configuration
-# object. One can pass a tracing function which can be used to execute arbitrary code
-# before and/or after each pass. A tracing function will receive a :py::class:`tvm.IRModule`,
-# a :py:class:`tvm.transform.PassInfo` object,
-# and a boolean indicating whether you are executing before, or after a pass.
-# An example is below.
+# There is a more flexible debugging mechanism. One can implement a ``PassInstrument``
+# class to execute arbitrary code not only before and/or after each pass but also
+# at entering/exiting ``PassContext``. See :ref:`pass_instrument_cpp_backend`
+# for more details.
+#
+# Here we use :py::func`tvm.instrument.pass_instrument` decorator to implement
+# a PassInsturment class printing IR before execution of each passes:
 
 
-def print_ir(mod, info, is_before):
+@tvm.instrument.pass_instrument
+class PrintIR:
     """Print the name of the pass, the IR, only before passes execute."""
-    if is_before:
+
+    def run_before_pass(self, mod, info):
         print("Running pass: {}", info)
         print(mod)
 
 
-with tvm.transform.PassContext(opt_level=3, trace=print_ir):
+with tvm.transform.PassContext(opt_level=3, instruments=[PrintIR()]):
     with tvm.target.Target("llvm"):
         # Perform the optimizations.
         mod = seq(mod)

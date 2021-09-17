@@ -22,7 +22,6 @@
 #include <dmlc/thread_local.h>
 #include <tvm/node/node.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/generic_func.h>
 #include <tvm/target/target.h>

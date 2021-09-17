@@ -24,7 +24,6 @@
 #include <dmlc/thread_local.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
@@ -56,6 +55,8 @@ struct PassContextThreadLocalEntry {
 typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> RelayPassContextThreadLocalStore;
 
 void PassContext::EnterWithScope() {
+  InstrumentEnterPassContext();
+
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   entry->context_stack.push(*this);
 }
@@ -65,6 +66,8 @@ void PassContext::ExitWithScope() {
   ICHECK(!entry->context_stack.empty());
   ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
+
+  InstrumentExitPassContext();
 }
 
 PassContext PassContext::Current() {
@@ -142,6 +145,16 @@ class PassConfigManager {
     }
   }
 
+  Map<String, Map<String, String>> ListConfigs() {
+    Map<String, Map<String, String>> configs;
+    for (const auto& kv : key2vtype_) {
+      Map<String, String> metadata;
+      metadata.Set("type", kv.second.type_key);
+      configs.Set(kv.first, metadata);
+    }
+    return configs;
+  }
+
   static PassConfigManager* Global() {
     static auto* inst = new PassConfigManager();
     return inst;
@@ -160,171 +173,101 @@ void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_inde
   PassConfigManager::Global()->Register(key, value_type_index);
 }
 
+Map<String, Map<String, String>> PassContext::ListConfigs() {
+  return PassConfigManager::Global()->ListConfigs();
+}
+
 PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
 
-void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_before) const {
+void PassContext::InstrumentEnterPassContext() {
   auto pass_ctx_node = this->operator->();
-  if (pass_ctx_node->trace_func != nullptr) {
-    pass_ctx_node->trace_func(module, info, is_before);
+  if (pass_ctx_node->instruments.defined()) {
+    Array<instrument::PassInstrument> enter_successes;
+    try {
+      for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+        pi->EnterPassContext();
+        enter_successes.push_back(pi);
+      }
+    } catch (const Error& e) {
+      LOG(INFO) << "Pass instrumentation entering pass context failed.";
+      LOG(INFO) << "Disable pass instrumentation.";
+      pass_ctx_node->instruments.clear();
+
+      for (instrument::PassInstrument pi : enter_successes) {
+        LOG(INFO) << pi->name << " exiting PassContext ...";
+        pi->ExitPassContext();
+        LOG(INFO) << pi->name << " exited PassContext.";
+      }
+      enter_successes.clear();
+
+      throw e;
+    }
   }
 }
 
-class ModulePass;
-
-/*! \brief PassProfile stores profiling information for a given pass and its sub-passes. */
-struct PassProfile {
-  // TODO(@altanh): expose PassProfile through TVM Object API
-  using Clock = std::chrono::steady_clock;
-  using Duration = std::chrono::duration<double, std::micro>;
-  using Time = std::chrono::time_point<Clock>;
-
-  /*! \brief The name of the pass being profiled. */
-  String name;
-  /*! \brief The time when the pass was entered. */
-  Time start;
-  /*! \brief The time when the pass completed. */
-  Time end;
-  /*! \brief The total duration of the pass, i.e. end - start. */
-  Duration duration;
-  /*! \brief PassProfiles for all sub-passes invoked during the execution of the pass. */
-  std::vector<PassProfile> children;
-
-  explicit PassProfile(String name)
-      : name(name), start(Clock::now()), end(Clock::now()), children() {}
-
-  /*! \brief Gets the PassProfile of the currently executing pass. */
-  static PassProfile* Current();
-  /*! \brief Pushes a new PassProfile with the given pass name. */
-  static void EnterPass(String name);
-  /*! \brief Pops the current PassProfile. */
-  static void ExitPass();
-};
-
-struct PassProfileThreadLocalEntry {
-  /*! \brief The placeholder top-level PassProfile. */
-  PassProfile root;
-  /*! \brief The stack of PassProfiles for nested passes currently running. */
-  std::stack<PassProfile*> profile_stack;
-  /*! \brief Whether or not pass profiling is active. */
-  bool active;
-
-  PassProfileThreadLocalEntry() : root("root"), active(false) {}
-};
-
-/*! \brief Thread local store to hold the pass profiling data. */
-typedef dmlc::ThreadLocalStore<PassProfileThreadLocalEntry> PassProfileThreadLocalStore;
-
-void PassProfile::EnterPass(String name) {
-  if (!PassProfileThreadLocalStore::Get()->active) return;
-  PassProfile* cur = PassProfile::Current();
-  cur->children.emplace_back(name);
-  PassProfileThreadLocalStore::Get()->profile_stack.push(&cur->children.back());
+void PassContext::InstrumentExitPassContext() {
+  auto pass_ctx_node = this->operator->();
+  if (pass_ctx_node->instruments.defined()) {
+    try {
+      for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+        pi->ExitPassContext();
+      }
+    } catch (const Error& e) {
+      LOG(INFO) << "Pass instrumentation exiting pass context failed.";
+      pass_ctx_node->instruments.clear();
+      throw e;
+    }
+  }
 }
 
-void PassProfile::ExitPass() {
-  if (!PassProfileThreadLocalStore::Get()->active) return;
-  PassProfile* cur = PassProfile::Current();
-  ICHECK_NE(cur->name, "root") << "mismatched enter/exit for pass profiling";
-  cur->end = std::move(PassProfile::Clock::now());
-  cur->duration = std::chrono::duration_cast<PassProfile::Duration>(cur->end - cur->start);
-  PassProfileThreadLocalStore::Get()->profile_stack.pop();
+bool PassContext::InstrumentBeforePass(const IRModule& ir_module, const PassInfo& pass_info) const {
+  auto pass_ctx_node = this->operator->();
+  if (!pass_ctx_node->instruments.defined()) {
+    return true;
+  }
+
+  const bool pass_required = PassArrayContains(pass_ctx_node->required_pass, pass_info->name);
+  bool should_run = true;
+  if (!pass_required) {
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      should_run &= pi->ShouldRun(ir_module, pass_info);
+    }
+  }
+
+  if (should_run) {
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->RunBeforePass(ir_module, pass_info);
+    }
+  }
+  return should_run;
 }
 
-PassProfile* PassProfile::Current() {
-  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
-  if (!entry->profile_stack.empty()) {
-    return entry->profile_stack.top();
-  } else {
-    return &entry->root;
+void PassContext::InstrumentAfterPass(const IRModule& ir_module, const PassInfo& pass_info) const {
+  auto pass_ctx_node = this->operator->();
+  if (pass_ctx_node->instruments.defined()) {
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->RunAfterPass(ir_module, pass_info);
+    }
   }
 }
 
 IRModule Pass::operator()(IRModule mod) const {
-  const PassNode* node = operator->();
-  ICHECK(node != nullptr);
-  PassProfile::EnterPass(node->Info()->name);
-  auto ret = node->operator()(std::move(mod));
-  PassProfile::ExitPass();
-  return std::move(ret);
+  return this->operator()(std::move(mod), PassContext::Current());
 }
 
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassNode* node = operator->();
   ICHECK(node != nullptr);
-  PassProfile::EnterPass(node->Info()->name);
+  const PassInfo& pass_info = node->Info();
+  if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
+    DLOG(INFO) << "Skipping pass : " << pass_info->name
+               << " with opt level: " << pass_info->opt_level;
+    return mod;
+  }
   auto ret = node->operator()(std::move(mod), pass_ctx);
-  PassProfile::ExitPass();
+  pass_ctx.InstrumentAfterPass(ret, pass_info);
   return std::move(ret);
 }
-
-String RenderPassProfiles() {
-  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
-  CHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
-
-  if (entry->root.children.empty()) {
-    LOG(WARNING) << "no passes have been profiled, did you enable pass profiling?";
-    return String();
-  }
-
-  // (depth, parent_duration, pass)
-  std::stack<std::tuple<size_t, PassProfile::Duration, PassProfile*>> profiles;
-
-  // push top level passes
-  PassProfile::Duration top_dur(0);
-  for (auto it = entry->root.children.begin(); it != entry->root.children.end(); ++it) {
-    top_dur += it->duration;
-  }
-  for (auto it = entry->root.children.rbegin(); it != entry->root.children.rend(); ++it) {
-    profiles.push(std::make_tuple(0, top_dur, &*it));
-  }
-
-  std::ostringstream os;
-  os << std::fixed;
-
-  while (profiles.size() > 0) {
-    size_t depth;
-    PassProfile::Duration parent_duration;
-    PassProfile* profile;
-    std::tie(depth, parent_duration, profile) = profiles.top();
-    profiles.pop();
-
-    // indent depth
-    for (size_t i = 0; i < depth; ++i) {
-      os << "\t";
-    }
-
-    // calculate time spent in pass itself (excluding sub-passes), and push children
-    PassProfile::Duration self_duration = profile->duration;
-    for (auto it = profile->children.rbegin(); it != profile->children.rend(); ++it) {
-      self_duration -= it->duration;
-      profiles.push(std::make_tuple(depth + 1, profile->duration, &*it));
-    }
-
-    double parent_pct = profile->duration.count() / parent_duration.count() * 100.0;
-    double total_pct = profile->duration.count() / top_dur.count() * 100.0;
-
-    os << profile->name << ": ";
-    os << std::setprecision(0);
-    os << profile->duration.count() << "us [" << self_duration.count() << "us] ";
-    os << std::setprecision(2) << "(" << total_pct << "%; " << parent_pct << "%)\n";
-  }
-
-  return os.str();
-}
-
-TVM_REGISTER_GLOBAL("transform.render_pass_profiles").set_body_typed(RenderPassProfiles);
-
-TVM_REGISTER_GLOBAL("transform.clear_pass_profiles").set_body_typed([]() {
-  PassProfileThreadLocalStore::Get()->root.children.clear();
-});
-
-TVM_REGISTER_GLOBAL("transform.enable_pass_profiling").set_body_typed([]() {
-  PassProfileThreadLocalStore::Get()->active = true;
-});
-
-TVM_REGISTER_GLOBAL("transform.disable_pass_profiling").set_body_typed([]() {
-  PassProfileThreadLocalStore::Get()->active = false;
-});
 
 /*!
  * \brief Module-level passes are designed to implement global
@@ -464,12 +407,11 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
       << "The diagnostic context was set at the top of this block this is a bug.";
 
   const PassInfo& pass_info = Info();
+  ICHECK(mod.defined()) << "The input module must be set.";
+
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;
 
-  ICHECK(mod.defined()) << "The input module must be set.";
-
-  pass_ctx.Trace(mod, pass_info, true);
   mod = pass_func(std::move(mod), pass_ctx);
 
   ICHECK(mod.defined()) << "The return value of a module pass must be set.";
@@ -480,7 +422,6 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
-  pass_ctx.Trace(mod, pass_info, false);
   return mod;
 }
 
@@ -494,7 +435,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
 Sequential::Sequential(tvm::Array<Pass> passes, String name) {
   auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
-  PassInfo pass_info = PassInfo(2, std::move(name), {});
+  PassInfo pass_info = PassInfo(0, std::move(name), {});
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
@@ -525,7 +466,7 @@ Pass GetPass(const String& pass_name) {
   return (*f)();
 }
 
-// TODO(zhiics): we currenlty only sequentially execute each pass in
+// TODO(zhiics): we currently only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
@@ -621,13 +562,14 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
-                       TraceFunc trace_func, Optional<Map<String, ObjectRef>> config) {
+                       Array<instrument::PassInstrument> instruments,
+                       Optional<Map<String, ObjectRef>> config) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
 
       pctx->required_pass = std::move(required);
       pctx->disabled_pass = std::move(disabled);
-      pctx->trace_func = std::move(trace_func);
+      pctx->instruments = std::move(instruments);
       if (config.defined()) {
         pctx->config = config.value();
       }
@@ -642,17 +584,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << "\n";
       p->stream << "\topt_level: " << node->opt_level << "\n";
 
-      p->stream << "\trequired passes: [";
-      for (const auto& it : node->required_pass) {
-        p->stream << it << " ";
-      }
-      p->stream << "]\n";
+      p->stream << "\trequired passes: " << node->required_pass << "\n";
+      p->stream << "\tdisabled passes: " << node->disabled_pass << "\n";
+      p->stream << "\tinstruments: " << node->instruments << "\n";
 
-      p->stream << "\tdisabled passes: [";
-      for (const auto& it : node->disabled_pass) {
-        p->stream << it << " ";
-      }
-      p->stream << "]\n";
       p->stream << "\tconfig: " << node->config;
     });
 
@@ -669,6 +604,13 @@ TVM_REGISTER_GLOBAL("transform.EnterPassContext").set_body_typed(PassContext::In
 
 TVM_REGISTER_GLOBAL("transform.ExitPassContext").set_body_typed(PassContext::Internal::ExitScope);
 
+TVM_REGISTER_GLOBAL("transform.OverrideInstruments")
+    .set_body_typed([](PassContext pass_ctx, Array<instrument::PassInstrument> instruments) {
+      pass_ctx.InstrumentExitPassContext();
+      pass_ctx->instruments = instruments;
+      pass_ctx.InstrumentEnterPassContext();
+    });
+
 Pass PrintIR(String header, bool show_meta_data) {
   auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {
     LOG(INFO) << "PrintIR(" << header << "):\n" << AsText(mod, show_meta_data);
@@ -678,6 +620,8 @@ Pass PrintIR(String header, bool show_meta_data) {
 }
 
 TVM_REGISTER_GLOBAL("transform.PrintIR").set_body_typed(PrintIR);
+
+TVM_REGISTER_GLOBAL("transform.ListConfigs").set_body_typed(PassContext::ListConfigs);
 
 }  // namespace transform
 }  // namespace tvm

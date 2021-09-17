@@ -79,7 +79,7 @@ Python Code Styles
 ------------------
 - The functions and classes are documented in `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format.
 - Check your code style using ``make pylint``
-- Stick to language features as in ``python 3.5``
+- Stick to language features as in ``python 3.6``
 
 
 Writing Python Tests

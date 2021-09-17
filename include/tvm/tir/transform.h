@@ -213,6 +213,17 @@ TVM_DLL Pass InstrumentBoundCheckers();
 TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
 
 /*!
+ * \brief Transform the high-level PrimFunc to a C signature that can be used
+ *   to call the operator directly.
+ *
+ *  The main task of this function is to create code that maps the values in the
+ *  api_args to Var that is required by body
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass MakeUnpackedAPI();
+
+/*!
  * \brief Remap the thread axis
  *
  *  This can be used to get equivalent program which uses
@@ -371,8 +382,9 @@ TVM_DLL Pass ConvertBlocksToOpaque();
 /*!
  * \brief Compact the buffer access region by removing the buffer regions that are not accessed,
  *        i.e. narrowing the buffer shape and adjust the access region if necessary.
- * \example
- *  Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+ *
+ * Before narrowing, `B` is a `[16, 16]` buffer, but only a skinny vector `B[i, 0:16]` is accessed.
+ *
  *  \code
  *
  *  for i in range(0, 16):
@@ -407,12 +419,49 @@ TVM_DLL Pass ConvertBlocksToOpaque();
 TVM_DLL Pass CompactBufferAllocation();
 
 /*!
+ * This pass legalizes packed calls by wrapping their arguments into TVMValues
+ */
+TVM_DLL Pass LegalizePackedCalls();
+
+/*!
+ * \brief Remove match buffers inside the block. Also, it will validate the binding.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerMatchBuffer();
+
+/*!
  * \brief Flatten the multi-dimensional BufferLoad and BufferStore
  *        to single dimensional Load/Store. Also remove Block to
  *        ensure that the flattened TIR can not be scheduled again.
  * \return The pass.
  */
 TVM_DLL Pass FlattenBuffer();
+
+/*
+ * \brief Flatten the multi-dimensional read/write
+ *  to two dimensional texture Load/Store and realize
+ *  texture buffer allocations.
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass TextureFlatten();
+
+/*!
+ * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
+ *        "vthread.x/y/z". Before the unification, two vars that are bound to a thread axis (e.g.,
+ *        "threadIdx.x") use different IterVars and variables in their AttrStmts. After the
+ *        unification, we use a consolidated IterVar and a variable for them.
+ * \return The pass.
+ * \note `vthread` is a legacy behavior that will be deprecated, though thread bindings of `vthread`
+ *       are still also unified in this pass. Please use `vthread.x`, `vthread.y` and `vthread.z`
+ *       instead.
+ */
+TVM_DLL Pass UnifyThreadBinding();
+
+/*!
+ *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
+ */
+TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
 
 }  // namespace transform
 }  // namespace tir

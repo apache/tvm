@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# pylint: disable=no-value-for-parameter
 """The template for cuda group_conv2d_nchw"""
 import tvm
 from tvm import te
@@ -23,9 +24,26 @@ from tvm import autotvm
 from .injective import schedule_injective_from_existing
 from .tensor_intrin import dp4a
 from ..nn.pad import pad
+from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.utils import get_pad_tuple
 from ..utils import traverse_inline, get_const_tuple, get_const_int
 from .. import nn
+
+
+def group_conv2d_nchw_int8(data, kernel, strides, padding, dilation, groups, out_dtype="float32"):
+    """Compute group_conv2d internally using group_conv2d_nchwc layout for int8 dtype"""
+    assert data.dtype in ("int8", "uint8")
+    assert kernel.dtype in ("int8", "uint8")
+    assert data.dtype == kernel.dtype
+    packed_out = group_conv2d_NCHWc_int8(
+        data, kernel, strides, padding, dilation, groups, out_dtype
+    )
+    return unpack_NCHWc_to_nchw(packed_out, out_dtype)
+
+
+def schedule_group_conv2d_nchw_int8(outs):
+    """Create schedule for tensors"""
+    return schedule_group_conv2d_NCHWc_int8(outs)
 
 
 @autotvm.register_topi_compute("group_conv2d_nchw.cuda")
@@ -422,7 +440,13 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
 
     oc_chunk = get_const_int(output.shape[1])
     # tile and bind spatial axes
-    n, f, y, x, c = s[output].op.axis
+    if len(s[output].op.axis) == 5:
+        n, f, y, x, c = s[output].op.axis
+    else:
+        # For task extraction of auto-tuning, the expected output is 4D.  Since auto-tuning tasks
+        # are created from scratch, therefore the real auto-tuning will still happen on 5D output.
+        n, f, y, x = s[output].op.axis
+
     cfg.define_split("tile_n", n, num_outputs=4)
     cfg.define_split("tile_g", cfg.axis(groups), num_outputs=2)
     cfg.define_split("tile_f", cfg.axis(oc_chunk // groups), num_outputs=4)

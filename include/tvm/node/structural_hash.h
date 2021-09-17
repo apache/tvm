@@ -24,7 +24,6 @@
 #define TVM_NODE_STRUCTURAL_HASH_H_
 
 #include <tvm/node/functor.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/data_type.h>
 
 #include <functional>

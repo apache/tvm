@@ -52,7 +52,7 @@ from matplotlib import pyplot as plt
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_executor, utils, download, graph_runtime
+from tvm.contrib import graph_executor, utils, download
 from tvm.contrib.debugger import debug_executor
 from tvm.relay import transform
 
@@ -141,7 +141,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
 ######################################################################
 # Build the inference graph executor
-# ---------------------------------
+# ----------------------------------
 # Grab vision model from Gluon model zoo and compile with Relay.
 # The compilation steps are:
 #
@@ -191,7 +191,7 @@ with autotvm.tophub.context(target):
                 env.WGT_WIDTH,
                 start_name=pack_dict[model][0],
                 stop_name=pack_dict[model][1],
-                device_annot=(env.TARGET == "intelfocl" or env.TARGET == "sim"),
+                device_annot=(env.TARGET == "intelfocl"),
             )
     else:
         relay_prog = mod["main"]
@@ -203,7 +203,7 @@ with autotvm.tophub.context(target):
                 relay_prog, target=target, params=params, target_host=env.target_host
             )
     else:
-        if env.TARGET == "intelfocl" or env.TARGET == "sim":
+        if env.TARGET == "intelfocl":
             # multiple targets to run both on cpu and vta
             target = {"cpu": env.target_vta_cpu, "ext_dev": target}
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
@@ -221,12 +221,12 @@ with autotvm.tophub.context(target):
     remote.upload(temp.relpath("graphlib.tar"))
     lib = remote.load_module("graphlib.tar")
 
-    if env.TARGET == "intelfocl" or env.TARGET == "sim":
+    if env.TARGET == "intelfocl":
         ctxes = [remote.ext_dev(0), remote.cpu(0)]
-        m = graph_runtime.create(graph, lib, ctxes)
+        m = graph_executor.create(graph, lib, ctxes)
     else:
         # Graph runtime
-        m = graph_runtime.create(graph, lib, ctx)
+        m = graph_executor.create(graph, lib, ctx)
 
 ######################################################################
 # Perform image classification inference

@@ -643,6 +643,10 @@ def test_forward_prelu():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.PReLU(num_parameters=3).eval(), input_data=input_data)
+    # Test when input channel > 1 and num parameters = 1
+    verify_model(torch.nn.PReLU(num_parameters=1).eval(), input_data=input_data)
+    # Test when input dims < 2
+    verify_model(torch.nn.PReLU(num_parameters=1).eval(), input_data=torch.randn(2))
 
 
 @tvm.testing.uses_gpu
@@ -662,7 +666,7 @@ def test_forward_leakyrelu():
 def test_forward_elu():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-    input_data = torch.rand(input_shape).float()
+    input_data = torch.randn(input_shape).float()
     verify_model(torch.nn.ELU().eval(), input_data=input_data)
     verify_model(torch.nn.ELU(alpha=0.3).eval(), input_data=input_data)
     verify_model(torch.nn.ELU(alpha=1.0).eval(), input_data=input_data)
@@ -694,6 +698,14 @@ def test_forward_selu():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.SELU().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_silu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.SiLU().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1564,9 +1576,18 @@ def test_forward_linear():
         def forward(self, input, weight):
             return F.linear(input, weight)
 
+    class LinearNested(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y, z):
+            return F.linear(x, F.linear(y, z))
+
     input2d = torch.rand([2, 2]).float()
+    input3d = torch.rand([4, 3, 2]).float()
     weight1d = torch.rand([2]).float()
     weight2d = torch.rand([2, 2]).float()
+    weight3x2 = torch.rand([3, 2]).float()
     bias1d = torch.rand([2]).float()
     bias2d = torch.rand([2, 2]).float()
     # 2D input, 2D weight, 1D bias
@@ -1575,9 +1596,15 @@ def test_forward_linear():
     verify_model(Linear(), input_data=[input2d, weight2d, bias2d])
     # 2D input, 2D weight, no bias
     verify_model(LinearNoBias(), input_data=[input2d, weight2d])
+    verify_model(LinearNoBias(), input_data=[input2d, weight3x2])
     # 2D input, 1D weight, 1D bias is not supported by torch.linear()
     # 2D input, 1D weight, no bias
     verify_model(LinearNoBias(), input_data=[input2d, weight1d])
+    # 3D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input3d, weight3x2])
+
+    verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
+
     # TODO: Add the following cases when matmul(1D, _) is supported by TVM
     # 1D input, 2D weight, 1D bias
     # 1D input, 2D weight, no bias
@@ -1752,6 +1779,9 @@ def test_upsample():
     verify_model(Upsample(size=(64, 64), mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(scale=2, mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(size=(50, 50), mode="bilinear", align_corners=True), inp)
+    verify_model(Upsample(size=(64, 64), mode="bicubic", align_corners=True), inp)
+    verify_model(Upsample(scale=2, mode="bicubic", align_corners=True), inp)
+    verify_model(Upsample(size=(50, 50), mode="bicubic", align_corners=True), inp)
 
 
 @tvm.testing.uses_gpu
@@ -2220,8 +2250,7 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
         print("Running on target", tgt)
         dev = tvm.device(tgt, 0)
 
-        executor = relay.create_executor("vm", mod=mod, device=dev, target=tgt)
-        evaluator = executor.evaluate()
+        evaluator = relay.create_executor("vm", mod=mod, device=dev, target=tgt).evaluate()
 
         # Inference
         for name, inp in zip(input_names, input_data):
@@ -3866,182 +3895,57 @@ def test_unique():
     verify_trace_model(test_fn(True, False, True), [in_data], targets)
 
 
+def test_forward_nll_loss():
+    torch.set_grad_enabled(False)
+    N, C = 10, 3
+    predictions = torch.rand((N, C)).float()
+    targets = torch.randint(0, 3, (N,))
+    weights = torch.tensor([1, 2, 3]).float()
+    verify_model(torch.nn.NLLLoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(weight=weights).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+    # multidimension nll loss (aten::nll_loss2d)
+    d1, d2 = 2, 3
+    predictions = torch.rand((N, C, d1, d2)).float()
+    targets = torch.randint(0, 3, (N, d1, d2))
+    verify_model(torch.nn.NLLLoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(weight=weights).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+
+@tvm.testing.uses_gpu
+def test_forward_flip():
+    torch.set_grad_enabled(False)
+
+    class Flip(Module):
+        def __init__(self, axis=0):
+            super().__init__()
+            self.axis = axis
+
+        def forward(self, x):
+            return x.flip([self.axis])
+
+    input = torch.randn(2, 3, 4)
+    verify_model(Flip(axis=0), input_data=input)
+    verify_model(Flip(axis=1), input_data=input)
+    verify_model(Flip(axis=2), input_data=input)
+    verify_model(Flip(axis=-1), input_data=input)
+
+
+def test_annotate_span():
+    model = torchvision.models.resnet18().eval()
+    inp = torch.randn([1, 3, 224, 224])
+    trace = torch.jit.trace(model, inp).eval()
+    mod, params = relay.frontend.from_pytorch(
+        trace, [("input", inp.shape)], use_parser_friendly_name=True
+    )
+    relay.transform.AnnotateSpans()(mod)
+
+
 if __name__ == "__main__":
-    # some structural tests
-    test_forward_traced_function()
-    test_forward_dtypes()
-    test_weight_names()
-    test_duplicate_weight_use()
-
-    # Single operator tests
-    test_forward_pixel_shuffle()
-    test_forward_add()
-    test_forward_subtract()
-    test_forward_multiply()
-    test_forward_matmul()
-    test_forward_rsub()
-    test_forward_onehot()
-    test_forward_embedding()
-    test_forward_reshape()
-    test_forward_reciprocal()
-    test_forward_repeat()
-    test_forward_repeat_interleave()
-    test_forward_squeeze()
-    test_forward_unsqueeze()
-    test_forward_concatenate()
-    test_forward_reduce_sum()
-    test_forward_reduce_prod()
-    test_forward_argmin()
-    test_forward_argmax()
-    test_forward_norm()
-    test_forward_frobenius_norm()
-    test_forward_std()
-    test_forward_variance()
-    test_forward_relu()
-    test_forward_prelu()
-    test_forward_leakyrelu()
-    test_forward_elu()
-    test_forward_celu()
-    test_forward_gelu()
-    test_forward_selu()
-    test_forward_log_sigmoid()
-    test_forward_adaptiveavgpool()
-    test_forward_maxpool2d()
-    test_forward_maxpool1d()
-    test_forward_maxpool3d()
-    test_forward_hardtanh()
-    test_forward_conv()
-    test_forward_conv_transpose()
-    test_forward_threshold()
-    test_forward_contiguous()
-    test_forward_batchnorm()
-    test_forward_instancenorm()
-    test_forward_layernorm()
-    test_forward_groupnorm()
-    test_forward_transpose()
-    test_forward_size()
-    test_forward_view()
-    test_forward_select()
-    test_forward_take()
-    test_forward_topk()
-    test_forward_where()
-    test_forward_addcdiv()
-    test_forward_addcmul()
-    test_forward_true_divide()
-    test_forward_is_floating_point()
-    test_forward_clone()
-    test_forward_softplus()
-    test_forward_softsign()
-    test_forward_logsoftmax()
-    test_forward_sigmoid()
-    test_forward_dense()
-    test_forward_avgpool1d()
-    test_forward_avgpool2d()
-    test_forward_avgpool3d()
-    test_forward_dropout()
-    test_forward_slice()
-    test_forward_narrow()
-    test_forward_mean()
-    test_forward_expand()
-    test_forward_pow()
-    test_forward_unary()
-    test_forward_clamp()
-    test_forward_clamp_()
-    test_forward_logical_not()
-    test_forward_bitwise_not()
-    test_forward_bitwise_xor()
-    test_forward_logical_xor()
-    test_forward_isfinite()
-    test_forward_isnan()
-    test_forward_isinf()
-    test_forward_ones()
-    test_forward_ones_like()
-    test_forward_zeros()
-    test_forward_zeros_like()
-    test_forward_full()
-    test_forward_full_like()
-    test_forward_linspace()
-    test_forward_arange()
-    test_forward_mesh_grid()
-    test_forward_chunk()
-    test_forward_split()
-    test_forward_gather()
-    test_upsample()
-    test_forward_upsample3d()
-    test_forward_nms()
-    test_forward_roi_align()
-    test_to()
-    test_flatten()
-    test_type_as()
-    test_forward_functional_pad()
-    test_forward_zero_pad2d()
-    test_forward_constant_pad1d()
-    test_forward_constant_pad2d()
-    test_forward_constant_pad3d()
-    test_forward_reflection_pad1d()
-    test_forward_reflection_pad2d()
-    test_forward_replication_pad1d()
-    test_forward_replication_pad2d()
-    test_forward_replication_pad3d()
-    test_adaptive_pool3d()
-    test_conv3d()
-    test_conv3d_transpose()
-    test_forward_index()
-    test_min_max()
-    test_logsumexp()
-    test_stack()
-    test_stack_dynamic()
-    test_forward_unbind()
-    test_forward_nonzero()
-    test_forward_scatter()
-    test_forward_index_put()
-    test_numel()
-    test_bincount()
-    test_cumsum()
-    test_masked_fill()
-    test_transformer()
-    test_sort()
-    test_argsort()
-    test_logical_and()
-    test_masked_select()
-    test_unique()
-    test_hard_swish()
-    test_hard_sigmoid()
-
-    # Model tests
-    test_resnet18()
-    test_squeezenet1_0()
-    test_squeezenet1_1()
-    test_densenet121()
-    # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
-    # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
-    # test_inception_v3()
-    test_googlenet()
-    test_mnasnet0_5()
-    test_mobilenet_v2()
-
-    test_custom_conversion_map()
-
-    test_segmentation_models()
-    test_3d_models()
-
-    # Quantization test
-    from qnn_test import test_quantized_imagenet, test_quantized_modules
-
-    test_quantized_modules()
-    test_quantized_imagenet()
-
-    # Test simple conditionals and loop
-    test_control_flow()
-    test_simple_rnn()
-
-    # More complex recurrent models
-    from test_lstm import test_custom_lstm
-
-    test_custom_lstm()
-
-    # Test bert model
-    test_forward_pretrained_bert_base_uncased()
-
-    # Test convert torch script(jit) with specific inputs' types
-    test_convert_torch_script_with_input_types()
+    pytest.main([__file__])

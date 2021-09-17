@@ -524,13 +524,22 @@ class Parser {
   NDArray NumberToNDArray(const Token& token) {
     if (token->token_type == TokenType::kInteger) {
       DLDevice dev = {DLDeviceType::kDLCPU, 0};
-      auto dtype = String2DLDataType("int32");
-      auto data = NDArray::Empty({}, dtype, dev);
-      auto array = reinterpret_cast<int32_t*>(data->data);
-      // revisit this, literal node issue.
-      int64_t value = Downcast<tvm::Integer>(token->data);
-      array[0] = (int32_t)value;
-      return data;
+      int64_t i = Downcast<tvm::Integer>(token->data);
+      if (i > std::numeric_limits<int32_t>::max()) {
+        auto dtype = String2DLDataType("int64");
+        auto data = NDArray::Empty({}, dtype, dev);
+        auto array = reinterpret_cast<int64_t*>(data->data);
+        // revisit this, literal node issue.
+        array[0] = i;
+        return data;
+      } else {
+        auto dtype = String2DLDataType("int32");
+        auto data = NDArray::Empty({}, dtype, dev);
+        auto array = reinterpret_cast<int32_t*>(data->data);
+        // revisit this, literal node issue.
+        array[0] = i;
+        return data;
+      }
     } else if (token->token_type == TokenType::kFloat) {
       DLDevice dev = {DLDeviceType::kDLCPU, 0};
       auto float_imm = Downcast<tvm::FloatImm>(token->data);
@@ -1516,7 +1525,7 @@ class Parser {
         }
         case TokenType::kBoolean: {
           Consume(TokenType::kBoolean);
-          int value = Downcast<tvm::Integer>(next->data);
+          int64_t value = Downcast<tvm::Integer>(next->data);
           auto boolean = BooleanToNDarray(value);
           Expr e = Constant(boolean, next->span);
           ICHECK(e->span.defined()) << "constant spans must be defined";

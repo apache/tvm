@@ -21,6 +21,8 @@ from tvm import te
 from tvm import relay
 from tvm.relay.op import register_alter_op_layout
 from tvm.relay import transform, analysis
+from tvm.relay.transform.infer_layout_utils import InferCorrectLayoutOutput
+from tvm.relay.op import op as reg
 
 
 def run_opt_pass(expr, passes):
@@ -735,7 +737,7 @@ def test_scalar_convert_layout():
 
 
 def test_conv_bn_convert_layout():
-    """ Check that layout transforms are propagated through bn. """
+    """Check that layout transforms are propagated through bn."""
 
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -1097,7 +1099,7 @@ def test_qnn_conv_nhwc_convert_layout():
 
 
 def test_conv_convert_kernel_layout():
-    """ Check that convolution kernel layout is correctly transformed. """
+    """Check that convolution kernel layout is correctly transformed."""
 
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -1235,6 +1237,49 @@ def test_conv_strided_slice_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_conv_strided_slice_axes_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 28, 28, 32))
+        weight = relay.var("weight", shape=(3, 3, 32, 32))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.strided_slice(y, begin=[0, 16], end=[1, 33], strides=[1, 1], axes=[0, 3])
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 28, 28, 32))
+        weight = relay.var("weight", shape=(3, 3, 32, 32))
+        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = relay.strided_slice(y, begin=[0, 16], end=[1, 33], strides=[1, 1], axes=[0, 1])
+
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = run_opt_pass(before(), transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_conv_roi_pool_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -1289,7 +1334,7 @@ def test_conv_roi_pool_convert_layout():
 
 
 def test_default_keyword():
-    """ Check that the default keyword selects correct TVM default layout. """
+    """Check that the default keyword selects correct TVM default layout."""
 
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -1754,6 +1799,132 @@ def test_conv_reduce_convert_layout():
     _test_conv_reduce_convert_layout2()
 
 
+def test_image_resize2d_convert_layout():
+    def _test_image_resize_convert_layout_nchw_to_nhwc():
+        def before():
+            x = relay.var("x", shape=(1, 2, 4, 4))
+            y = relay.image.resize2d(x, (8, 8))
+            y = relay.Function([x], y)
+            return y
+
+        def expected():
+            x = relay.var("x", shape=(1, 2, 4, 4))
+            x = relay.layout_transform(x, "NCHW", "NHWC")
+            y = relay.image.resize2d(x, (8, 8), layout="NHWC")
+            y = relay.layout_transform(y, "NHWC", "NCHW")
+            y = relay.Function(relay.analysis.free_vars(y), y)
+            return y
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"image.resize2d": ["NHWC"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+    def _test_image_resize_convert_layout_nhwc_to_nchw():
+        def before():
+            x = relay.var("x", shape=(1, 4, 4, 2))
+            y = relay.image.resize2d(x, (8, 8), layout="NHWC")
+            y = relay.Function([x], y)
+            return y
+
+        def expected():
+            x = relay.var("x", shape=(1, 4, 4, 2))
+            x = relay.layout_transform(x, "NHWC", "NCHW")
+            y = relay.image.resize2d(x, (8, 8), layout="NCHW")
+            y = relay.layout_transform(y, "NCHW", "NHWC")
+            y = relay.Function(relay.analysis.free_vars(y), y)
+            return y
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"image.resize2d": ["NCHW"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+    _test_image_resize_convert_layout_nchw_to_nhwc()
+    _test_image_resize_convert_layout_nhwc_to_nchw()
+
+
+def test_conv_image_resize2d_convert_layout():
+    """Check that layout transforms are propagated through image resize."""
+
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.image.resize2d(y, (112, 112), layout="NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        w = relay.var("weight", shape=(3, 3, 64, 64))
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        w = relay.layout_transform(w, "HWIO", "OIHW")
+        y = relay.nn.conv2d(x, w, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.image.resize2d(y, (112, 112), layout="NCHW")
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_infer_correct_layout():
+    test_infer_correct_layout_flag = False
+
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.nn.relu(y)
+        y = relay.Function([x, weight], y)
+        return y
+
+    @reg.register_infer_correct_layout("nn.relu", level=11)
+    def infer_correct_layout_relu(attrs, new_in_layouts, old_in_layouts, old_in_types):
+        nonlocal test_infer_correct_layout_flag
+        test_infer_correct_layout_flag = True
+        ret = tvm.tir.layout("")
+        if new_in_layouts:
+            assert len(new_in_layouts) >= 1
+            ret = new_in_layouts[0]
+        else:
+            for i in range(len(old_in_layouts)):
+                if old_in_layouts[i]:
+                    ret = old_in_layouts[i]
+                    break
+        input_layouts = []
+        for i in range(len(old_in_layouts)):
+            input_layouts.append(ret)
+        return InferCorrectLayoutOutput(input_layouts, [ret], attrs)
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    assert test_infer_correct_layout_flag == True
+
+
 if __name__ == "__main__":
     test_qnn_binary_no_convert_layout()
     test_no_convert_layout()
@@ -1784,3 +1955,7 @@ if __name__ == "__main__":
     test_convert_with_config()
     test_conv_squeeze_convert_layout()
     test_conv_reduce_convert_layout()
+    test_conv_strided_slice_axes_convert_layout()
+    test_image_resize_convert_layout()
+    test_conv_image_resize_convert_layout()
+    test_infer_correct_layout()

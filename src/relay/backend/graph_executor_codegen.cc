@@ -25,6 +25,7 @@
 #include <dmlc/any.h>
 #include <dmlc/json.h>
 #include <tvm/ir/module.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
@@ -35,11 +36,13 @@
 #include <string>
 #include <vector>
 
-#include "compile_engine.h"
-#include "utils.h"
+#include "./te_compiler.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
+// TODO(@jroesch, @csullivan): declare directly elsewhere
+backend::StaticMemoryPlan GraphPlanMemory(const Function& func);
 namespace backend {
 
 class GraphNode;
@@ -52,7 +55,6 @@ using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
 using GraphObjectPtr = std::shared_ptr<GraphNode>;
 using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
 using GraphOpObjectPtr = std::shared_ptr<GraphOpNode>;
-using TargetsMap = std::unordered_map<int, Target>;
 
 /*! \brief Node types */
 enum GraphNodeType {
@@ -176,111 +178,97 @@ class GraphOpNode : public GraphNode {
   const std::string op_type_name_{"tvm_op"};
 };
 
-/*! \brief Code generator for graph executor */
+/*! \brief Code generator for the graph executor, produces a module containing the graph JSON,
+ * module, and parameters.
+ */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphExecutorCodegen(runtime::Module* mod, const TargetsMap& targets) : mod_(mod) {
-    compile_engine_ = CompileEngine::Global();
+  GraphExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets) : mod_(mod) {
     targets_ = targets;
   }
 
-  /*!
-   * \brief Update the "main" control function's metadata
-   *
-   * \param func The main function that contains calls to relay primitive functions
-   */
-  void UpdateMainWorkspaceSize(const Function& func) {
-    // This is a Map<device,Map<storage_id, size>>
-    std::unordered_map<int, std::unordered_map<int, int>> sid_workspace;
-    // This is a Map<device, size_of_inputs_and_outputs>
-    std::unordered_map<int, int> device_io;
-    // This is a Map<device, size_of_constants>
-    std::unordered_map<int, int> device_consts;
-
-    // Initialize the maps to zero
-    for (const auto& kv : storage_device_map_) {
-      auto sids = kv.second[0];
-      auto devices = kv.second[1];
-      CHECK_EQ(sids.size(), devices.size());
-      for (uint32_t i = 0; i < sids.size(); i++) {
-        sid_workspace[devices[i]][sids[i]] = 0;
-        device_io[devices[i]] = 0;
-        device_consts[devices[i]] = 0;
-      }
-    }
-
-    // Collect sizes of tensors
-    for (const auto& kv : storage_device_map_) {
-      auto size_bytes = CalculateRelayExprSizeBytes(kv.first->checked_type());
-      auto sids = kv.second[0];
-      auto devices = kv.second[1];
-      if (kv.first->IsInstance<ConstantNode>()) {
-        for (const auto& dev : devices) {
-          device_consts[dev] += size_bytes;
-        }
-        continue;
-      } else if (kv.first->IsInstance<VarNode>() || kv.first == func->body) {
-        for (const auto& dev : devices) {
-          device_io[dev] += size_bytes;
-        }
-        continue;
-      }
-      for (uint32_t i = 0; i < sids.size(); i++) {
-        // Here we record the largest size of the tensor
-        // that share the same storage id, because storage_id will
-        // be shared between multiple tensors that are not live simultaneously.
-        if (size_bytes > sid_workspace[devices[i]][sids[i]]) {
-          sid_workspace[devices[i]][sids[i]] = size_bytes;
-        }
-      }
-    }
-
-    // This is a Map<device, workspace_size>
-    std::unordered_map<int, int> device_workspace;
-    // Once we know the sizes of sids, we need to accumulate per device
-    for (const auto& dev_sid_size : sid_workspace) {
-      auto dev = dev_sid_size.first;
-      device_workspace[dev] = 0;
-      for (const auto& sid_size : dev_sid_size.second) {
-        device_workspace[dev] += sid_size.second;
-      }
-    }
-
-    // Populate FunctionInfo
-    auto fi_node = make_object<FunctionInfoNode>();
-    // Initialize all target workspaces to zero
-    for (const auto& kv : targets_) {
-      auto tgt = kv.second;
-      fi_node->workspace_sizes.Set(tgt, 0);
-    }
-    for (const auto& dev_and_size : device_workspace) {
-      auto tgt = GetTargetFromInteger(dev_and_size.first);
-      fi_node->workspace_sizes.Set(tgt, dev_and_size.second);
-      fi_node->relay_primfuncs.Set(tgt, func);
-    }
-    for (const auto& dev_and_size : device_io) {
-      auto tgt = GetTargetFromInteger(dev_and_size.first);
-      fi_node->io_sizes.Set(tgt, dev_and_size.second);
-    }
-    for (const auto& dev_and_size : device_consts) {
-      auto tgt = GetTargetFromInteger(dev_and_size.first);
-      fi_node->constant_sizes.Set(tgt, dev_and_size.second);
-    }
-
-    function_metadata_.Set(String(runtime::symbol::tvm_module_main), FunctionInfo(fi_node));
+  StorageInfo GetStorageInfo(const Expr& e) {
+    size_t count = memory_plan_->expr_to_storage_info.count(e);
+    ICHECK_GT(count, 0) << "Expr is not existing in storage plan";
+    auto storage_info = memory_plan_->expr_to_storage_info[e];
+    return storage_info;
   }
 
-  LoweredOutput Codegen(relay::Function func) {
-    auto pf = GetPackedFunc("relay.backend.GraphPlanMemory");
-    storage_device_map_ = (*pf)(func);
-    UpdateMainWorkspaceSize(func);
+  LoweredOutput Codegen(relay::Function func, String mod_name) {
+    mod_name_ = mod_name;
+
+    // TODO(@jroesch): we need to split device planning and memory planning
+    // first we run device assignment, then we perform lowering, and then
+    // storage planning in ideal world.
+
+    memory_plan_ = GraphPlanMemory(func);
+
+    // This first phase moves from implicit use of compile engine,
+    // to instead explicitly lowering the incoming IRModule, and then
+    // performing the preexisting graph executor code generation phase.
+    IRModule mod = IRModule::FromExpr(func);
+
+    // Build a map from each operation to device.
+    tec::DeviceMap device_context_map;
+    for (const auto& it : memory_plan_->expr_to_storage_info) {
+      auto expr = it.first;
+      auto storage_info = it.second;
+      auto device_types = storage_info->device_types;
+      // CHECK_EQ(device_types.size(), 1);
+      tvm::Device dev;
+      dev.device_id = 0;
+      dev.device_type = device_types[0];
+      device_context_map.insert({expr, dev});
+    }
+
+    backend::FunctionInfo func_info;
+
+    if (memory_plan_.defined()) {
+      // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
+      func_info =
+          relay::tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan_->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
+    }
+
+    IRModule lowered_mod =
+        tec::LowerTEPass(targets_, device_context_map, mod_name_, [this](Function func) {
+          // We need to maintain the constant map for external
+          // functions so we pass this processing function which
+          // allows us to process each function as we lower it.
+          if (func->GetAttr<String>(attr::kCompiler).defined()) {
+            UpdateConstants(func, &params_);
+          }
+
+          // TODO(@areusch, @jroesch): We should refactor this to
+          // execute as a further pass, instead writing data to the
+          // lowering process directly.
+          tec::UpdateFunctionMetadata(func, this->function_metadata_);
+        })(mod);
+
+    Optional<backend::FunctionInfo> main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
+
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
+
+    Function lowered_main_func = Downcast<Function>(lowered_mod->Lookup("main"));
+
+    // Now that we have lowered all operators to TIR code, we can proceed with compilation.
+    //
+    // We need to unfortunately re-plan as the previous results have been invalidated by lowering
+    // we will fix this in future refactors.
+    memory_plan_ = GraphPlanMemory(lowered_main_func);
+
+    // The graph planner also can not handle planning calls to global variables to we must remap
+
     // First we convert all the parameters into input nodes.
-    for (auto param : func->params) {
+    for (auto param : lowered_main_func->params) {
       auto node_ptr = GraphInputNode::make_node_ptr(param->name_hint(), GraphAttrs());
       var_map_[param.get()] = AddNode(node_ptr, param);
     }
-    heads_ = VisitExpr(func->body);
+
+    heads_ = VisitExpr(lowered_main_func->body);
     std::ostringstream os;
+
     dmlc::JSONWriter writer(&os);
     GetJSON(&writer);
     LoweredOutput ret;
@@ -291,17 +279,15 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           param.first,
           std::make_pair(static_cast<int>(param_storage_ids_[param.first]), param.second)));
     }
-
-    for (auto& kv : lowered_funcs_) {
-      if (ret.lowered_funcs.count(kv.first) == 0) {
-        ret.lowered_funcs.Set(kv.first, IRModule(Map<GlobalVar, BaseFunc>({})));
-      }
-      auto& mod = ret.lowered_funcs[kv.first];
-      mod->Update(kv.second);
-      ret.lowered_funcs.Set(kv.first, mod);
-    }
-    ret.external_mods = compile_engine_->LowerExternalFunctions();
     ret.function_metadata = std::move(function_metadata_);
+
+    Optional<Array<tvm::runtime::Module>> external_modules =
+        lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+    ICHECK(external_modules) << "Attribute \"external_mods\" should be set at this point.";
+
+    // This is the point where we separate the functions in the module by target
+    ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
+    ret.external_mods = external_modules.value();
     return ret;
   }
 
@@ -330,20 +316,18 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
    */
   std::vector<GraphNodeRef> AddNode(GraphObjectPtr node, Expr expr) {
     auto checked_type = expr->checked_type();
-    size_t count = storage_device_map_.count(expr);
-    ICHECK_GT(count, 0) << "Expr is not existing in storage plan";
-    auto storage_device_info = storage_device_map_[expr];
-    ICHECK_EQ(storage_device_info.size(), 3);
+
+    auto storage_info = GetStorageInfo(expr);
     // storage
-    std::vector<int64_t> storage_info;
-    for (auto& v : storage_device_info[0]) {
-      storage_info.push_back(v->value);
+    std::vector<int64_t> storage_ids;
+    for (auto v : storage_info->storage_ids) {
+      storage_ids.push_back(v);
     }
-    node->attrs_["storage_id"] = std::move(storage_info);
+    node->attrs_["storage_id"] = std::move(storage_ids);
     // type
     std::vector<int64_t> device_types;
-    for (auto& v : storage_device_info[1]) {
-      device_types.push_back(v->value);
+    for (auto v : storage_info->device_types) {
+      device_types.push_back(static_cast<int64_t>(v));
     }
     size_t num_unknown_devices = std::count(device_types.begin(), device_types.end(), 0);
     if (num_unknown_devices != 0 && num_unknown_devices != device_types.size()) {
@@ -403,7 +387,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     auto node = GraphInputNode::make_node_ptr(name, GraphAttrs());
     auto to_return = AddNode(node, expr);
     CHECK_EQ(to_return.size(), 1) << "Expected exactly 1 parameter node created";
-    param_storage_ids_[name] = storage_device_map_[expr][0][0]->value;
+    param_storage_ids_[name] = GetStorageInfo(expr)->storage_ids[0];
     params_[name] = op->data;
     return to_return;
   }
@@ -419,8 +403,16 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return fields;
   }
 
-  std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* op, const std::string& op_name,
-                                             const std::string& func_name, GraphAttrs attrs) {
+  bool ShareSameStorage(const Expr& lhs, const Expr& rhs) {
+    StorageInfo lit = GetStorageInfo(lhs);
+    StorageInfo rit = GetStorageInfo(rhs);
+    int64_t lhs_storage_id = lit->storage_ids[0];
+    int64_t rhs_storage_id = rit->storage_ids[0];
+    return lhs_storage_id == rhs_storage_id;
+  }
+
+  std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* op, const std::string& func_name,
+                                             GraphAttrs attrs) {
     std::vector<GraphNodeRef> inputs;
     for (auto arg : op->args) {
       auto res = VisitExpr(arg);
@@ -428,161 +420,52 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
         inputs.push_back(nr);
       }
     }
+
+    /// An adapted version of the storage optimization for the time being.
+    bool reshape_only = false;
+    if (op->attrs.defined()) {
+      if (auto tir_call_attrs = op->attrs.as<TIRCallAttrs>()) {
+        Map<String, ObjectRef> metadata = tir_call_attrs->metadata;
+        if (metadata.count(attr::kReshapeOnly) &&
+            Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1) {
+          reshape_only = true;
+        }
+
+        auto relay_attrs = Downcast<DictAttrs>(tir_call_attrs->metadata["relay_attrs"]);
+
+        for (auto p : relay_attrs->dict) {
+          if (p.second.as<StringObj>()) {
+            attrs[p.first] = std::string(Downcast<String>(p.second));
+          }
+        }
+      }
+    }
+
+    if (reshape_only && ShareSameStorage(GetRef<Expr>(op), op->args[0])) {
+      auto node = GraphOpNode::make_node_ptr("reshape_nop", GraphAttrs(), "__nop", inputs, attrs);
+      return AddNode(node, GetRef<Expr>(op));
+    }
+
+    // Compute the operator name, because we used the get unique name when generating the kernel.
+    auto op_name = _GetUniqueName(func_name);
     auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, attrs);
     return AddNode(node, GetRef<Expr>(op));
   }
 
-  bool ShareSameStorage(const Expr& lhs, const Expr& rhs) {
-    auto lit = storage_device_map_.find(lhs);
-    auto rit = storage_device_map_.find(rhs);
-    ICHECK(lit != storage_device_map_.end());
-    ICHECK(rit != storage_device_map_.end());
-    int64_t lhs_storage_id = ((*lit).second)[0][0]->value;
-    int64_t rhs_storage_id = ((*rit).second)[0][0]->value;
-    return lhs_storage_id == rhs_storage_id;
-  }
+  std::vector<GraphNodeRef> VisitExpr_(const CallNode* call_node) override {
+    relay::Call call = GetRef<Call>(call_node);
+    if (auto global_node = call->op.as<GlobalVarNode>()) {
+      auto prim_fn_name = global_node->name_hint;
 
-  /*!
-   * \brief Obtain the Target from the device type.
-   * If homogenous compilation, this will return the only target.
-   * If heteregenous compilation, this will select associated using the targets_ Map.
-   *
-   * \param dev_type
-   * \return Target
-   */
-  Target GetTargetFromInteger(int64_t dev_type) {
-    if (targets_.size() == 1) {
-      // homogeneous execution.
-      const auto& it = targets_.begin();
-      return (*it).second;
+      return GraphAddCallNode(call_node, prim_fn_name, GraphAttrs());
     } else {
-      // heterogeneous execution.
-      std::string call_dev_name;
-      if (dev_type == 0) {
-        call_dev_name = "llvm";
-      } else {
-        call_dev_name = runtime::DeviceName(dev_type);
-      }
-      if (targets_.count(dev_type) == 0) {
-        LOG(FATAL) << "No target is provided for device " << call_dev_name;
-      }
-      return targets_[dev_type];
+      ICHECK(false) << "Non-primitive-call nodes should have been transformed away.\n"
+                    << "The graph executor code generator expects all calls to have their callee "
+                       "normalized to a GlobalVar but found a "
+                    << call->GetTypeKey() << "."
+                    << "AST: " << PrettyPrint(call) << PrettyPrint(call) << std::endl;
+      return {};
     }
-  }
-
-  /*!
-   * \brief Update the function metadata for a given cached function and its relay
-   * primitive function.
-   *
-   * \param cfunc The cached function as provided the by the compile engine
-   * \param relay_func The source relay primitive function
-   * \param relay_target The target associated with relay primitive function
-   */
-  void UpdateFunctionMetadata(const CachedFunc& cfunc, const Function& relay_func,
-                              const Target& relay_target) {
-    auto fi_node = make_object<FunctionInfoNode>();
-    for (const auto& kv : cfunc->funcs->functions) {
-      auto primfunc = Downcast<tir::PrimFunc>(kv.second);
-      auto workspace_byte_alignment = relay_target->GetAttr<Integer>("workspace-byte-alignment")
-                                          .value_or(tvm::runtime::kDefaultWorkspaceAlignment);
-      Integer workspace_size = CalculateWorkspaceBytes(primfunc, workspace_byte_alignment);
-      Target primfunc_target = relay_target;
-      if (primfunc->attrs->dict.count("target")) {
-        primfunc_target = Downcast<Target>(primfunc->attrs->dict["target"]);
-      }
-      fi_node->workspace_sizes.Set(primfunc_target, workspace_size);
-      // Calculating size for I/O
-      for (auto const& param : primfunc->params) {
-        auto p_shape = primfunc->buffer_map[param]->shape;
-        int num_of_elements = 1;
-        for (const auto& dim_index_expr : p_shape) {
-          if (dim_index_expr->IsInstance<IntImmNode>()) {
-            num_of_elements *= dim_index_expr.as<IntImmNode>()->value;
-          } else {
-            // If shape is dynamic, we cannot calculate workspace in compile time.
-            num_of_elements = 0;
-          }
-        }
-        int element_size = primfunc->buffer_map[param]->dtype.bytes();
-        fi_node->io_sizes.Set(primfunc_target, element_size * num_of_elements);
-      }
-      fi_node->constant_sizes.Set(primfunc_target, 0);
-      fi_node->tir_primfuncs.Set(primfunc_target, primfunc);
-      fi_node->relay_primfuncs.Set(primfunc_target, relay_func);
-    }
-    function_metadata_.Set(cfunc->func_name, FunctionInfo(fi_node));
-  }
-
-  std::vector<GraphNodeRef> VisitExpr_(const CallNode* op) override {
-    Expr expr = GetRef<Expr>(op);
-    Function func;
-    if (op->op.as<OpNode>()) {
-      LOG(FATAL) << "Operators should be transformed away; try applying"
-                 << "the fuse_ops transformation to the expression.";
-    } else if (op->op.as<GlobalVarNode>()) {
-      LOG(FATAL) << "Not implemented";
-    } else if (op->op.as<FunctionNode>()) {
-      func = GetRef<Function>(op->op.as<FunctionNode>());
-    } else {
-      LOG(FATAL) << "TVM runtime does not support calls to " << op->op->GetTypeKey();
-    }
-    if (!func->HasNonzeroAttr(attr::kPrimitive)) {
-      LOG(FATAL) << "TVM only support calls to primitive functions "
-                 << "(i.e functions composed of fusable operator invocations)";
-    }
-
-    // Copy attrs from function into the graph node
-    // For now we only handle strings
-    GraphAttrs attrs;
-    for (auto p : func->attrs->dict) {
-      if (p.second.as<StringObj>()) {
-        attrs[p.first] = std::string(Downcast<String>(p.second));
-      }
-    }
-
-    auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
-    auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
-    Target target;
-    // Handle external function
-    if (func->GetAttr<String>(attr::kCompiler).defined()) {
-      target = Target("ext_dev");
-      CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key);
-      ICHECK(ext_func.defined()) << "External function is not defined.";
-      UpdateConstants(func, &params_);
-      return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name, attrs);
-    }
-
-    // In the current flat memory allocation scenario
-    // the flat memory allocator can always allocate input
-    // and output of the reshape to the same memory, we can turn reshape only
-    // function to a nop.
-    //
-    // NOTE that for non-flat memory this is not necessarily true.
-    //
-    // TODO(tvm-team) Update checks of flat memory enablement when we support
-    // opaque-nd memory planning to skip this path.
-    if (func->HasNonzeroAttr(attr::kReshapeOnly) && ShareSameStorage(expr, op->args[0])) {
-      return GraphAddCallNode(op, "reshape_nop", "__nop", attrs);
-    }
-
-    ICHECK_GE(storage_device_map_.count(expr), 0);
-    auto& device_type = storage_device_map_[expr][1];
-    auto call_dev_type = device_type[0]->value;
-    target = GetTargetFromInteger(call_dev_type);
-    // Normal Relay Function
-
-    CCacheKey key = (*pf0)(func, target);
-    CachedFunc lowered_func = (*pf1)(compile_engine_, key);
-    if (!lowered_funcs_.count(target->str())) {
-      lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
-    }
-    lowered_funcs_[target->str()]->Update(lowered_func->funcs);
-
-    // Update function metadata via looking at all primfuncs
-    UpdateFunctionMetadata(lowered_func, func, target);
-    return GraphAddCallNode(op, _GetUniqueName(lowered_func->func_name), lowered_func->func_name,
-                            attrs);
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const LetNode* op) override {
@@ -713,7 +596,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   /*! \brief variable map */
   std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
   /*! \brief target device */
-  TargetsMap targets_;
+  tec::TargetMap targets_;
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
    * These are take as inputs to the GraphExecutor.
@@ -723,15 +606,13 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   std::unordered_map<std::string, runtime::NDArray> params_;
   std::unordered_map<std::string, int64_t> param_storage_ids_;
   /*! \brief plan memory of device result */
-  Map<Expr, Array<IntegerArray>> storage_device_map_;
-  /*! \brief lowered funcs */
-  std::unordered_map<std::string, IRModule> lowered_funcs_;
-  /*! \brief lowered funcs */
+  StaticMemoryPlan memory_plan_;
+  /*! \brief the module name we use to mangle the function names */
+  String mod_name_;
+  /*! \brief function metadata */
   Map<String, FunctionInfo> function_metadata_;
   /*! \brief name map */
   std::unordered_map<std::string, size_t> name_map_;
-  /*! \brief compile engine */
-  CompileEngine compile_engine_;
 };
 
 class GraphExecutorCodegenModule : public runtime::ModuleNode {
@@ -744,11 +625,11 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
                                     << "runtime::Module mod and Map<int, Target> targets";
         void* mod = args[0];
         Map<Integer, tvm::Target> tmp = args[1];
-        TargetsMap targets;
+        tec::TargetMap targets;
         for (const auto& it : tmp) {
           auto dev_type = it.first.as<tir::IntImmNode>();
           ICHECK(dev_type);
-          targets[dev_type->value] = it.second;
+          targets[static_cast<DLDeviceType>(dev_type->value)] = it.second;
         }
         codegen_ = std::make_shared<GraphExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod),
                                                           targets);
@@ -756,7 +637,8 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];
-        this->output_ = this->codegen_->Codegen(func);
+        String mod_name = args[1];
+        this->output_ = this->codegen_->Codegen(func, mod_name);
       });
     } else if (name == "get_graph_json") {
       return PackedFunc(

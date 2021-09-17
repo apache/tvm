@@ -23,6 +23,7 @@
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 

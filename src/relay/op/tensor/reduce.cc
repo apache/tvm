@@ -38,6 +38,7 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ReduceAttrs);
+TVM_REGISTER_NODE_TYPE(ArgReduceAttrs);
 TVM_REGISTER_NODE_TYPE(VarianceAttrs);
 
 /*!
@@ -115,12 +116,13 @@ Array<Integer> GetExcludeAxes(size_t indim, const Array<Integer>& inaxis) {
 }
 
 // Return the modified layout for AlterOpLayout pass.
-Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
-                                              const Array<Layout>& new_in_layouts,
-                                              const Array<Layout>& old_in_layouts,
-                                              const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  ReduceAttrs* params = const_cast<ReduceAttrs*>(attrs.as<ReduceAttrs>());
+InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
+                                                  const Array<Layout>& new_in_layouts,
+                                                  const Array<Layout>& old_in_layouts,
+                                                  const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<ReduceAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<ReduceAttrs> params = make_object<ReduceAttrs>(*attrs_ptr);
 
   // Get the reduce axes.
   Array<Array<IndexExpr>> old_in_shapes;
@@ -188,7 +190,7 @@ Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
     }
   }
 
-  return Array<Array<Layout>>{{inferred_in}, {inferred_out}};
+  return InferCorrectLayoutOutput({inferred_in}, {inferred_out}, Attrs(params));
 }
 
 template <typename F>
@@ -206,7 +208,27 @@ Array<te::Tensor> ReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inp
       return {topi::identity(inputs[0])};
     }
   }
+
   return {f(inputs[0], axes, param->keepdims, false)};
+}
+
+template <typename F>
+Array<te::Tensor> ArgReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                   const Type& out_type, F f) {
+  const ArgReduceAttrs* param = attrs.as<ArgReduceAttrs>();
+  ICHECK(param != nullptr);
+  if (inputs[0]->shape.size() == 0) {
+    return {topi::identity(inputs[0])};
+  }
+  auto axes = param->axis;
+  if (param->exclude) {
+    axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
+    if (axes.size() == 0) {
+      return {topi::identity(inputs[0])};
+    }
+  }
+
+  return {f(inputs[0], axes, param->keepdims, false, param->select_last_index)};
 }
 
 /*!
@@ -268,6 +290,23 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr>& in_s
   }
 }
 
+template <class T>
+bool GenericReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  ICHECK(static_cast<int>(data->shape.size()) != 0);
+  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
+
+  const T* param = attrs.as<T>();
+  ICHECK(param != nullptr);
+
+  // assign output type and shape
+  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
+  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
+  return true;
+}
 /*!
  * \brief ArgReduceRel Output type and shape relation evaluation function.
  * \param num_inputs Number of input types in the args.
@@ -277,19 +316,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr>& in_s
  */
 bool ArgReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 2);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) return false;
-  ICHECK(static_cast<int>(data->shape.size()) != 0);
-  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
-
-  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
-  ICHECK(param != nullptr);
-
-  // assign output type and shape
-  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
-  return true;
+  return GenericReduceRel<ReduceAttrs>(types, num_inputs, attrs, reporter);
 }
 
 /*!
@@ -323,6 +350,16 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
   return Call(Op::Get(op_name), {data}, Attrs(attrs), {});
 }
 
+Expr MakeOneElementReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude,
+                          bool select_last_index, String op_name) {
+  auto attrs = make_object<ArgReduceAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->keepdims = keepdims;
+  attrs->exclude = exclude;
+  attrs->select_last_index = select_last_index;
+  return Call(Op::Get(op_name), {data}, Attrs(attrs), {});
+}
+
 #define RELAY_REGISTER_REDUCE_OP(OpName)                                                \
   TVM_REGISTER_GLOBAL("relay.op._make." OpName)                                         \
       .set_body_typed([](Expr data, Array<Integer> axis, bool keepdims, bool exclude) { \
@@ -330,35 +367,43 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
       });                                                                               \
   RELAY_REGISTER_OP(OpName).set_num_inputs(1).add_argument("data", "Tensor", "The input tensor.")
 
+#define RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP(OpName)                                           \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                                                \
+      .set_body_typed([](Expr data, Array<Integer> axis, bool keepdims, bool exclude,          \
+                         bool select_last_index) {                                             \
+        return MakeOneElementReduce(data, axis, keepdims, exclude, select_last_index, OpName); \
+      });                                                                                      \
+  RELAY_REGISTER_OP(OpName).set_num_inputs(1).add_argument("data", "Tensor", "The input tensor.")
+
 Array<te::Tensor> ArgMaxCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
-  return ReduceCompute(attrs, inputs, out_type, topi::argmax);
+  return ArgReduceCompute(attrs, inputs, out_type, topi::argmax);
 }
 
-RELAY_REGISTER_REDUCE_OP("argmax")
+RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmax")
     .describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ReduceAttrs>()
+    .set_attrs_type<ArgReduceAttrs>()
     .set_support_level(4)
-    .add_type_rel("ArgReduce", ArgReduceRel)
+    .add_type_rel("ArgReduce", GenericReduceRel<ArgReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> ArgMinCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
-  return ReduceCompute(attrs, inputs, out_type, topi::argmin);
+  return ArgReduceCompute(attrs, inputs, out_type, topi::argmin);
 }
 
-RELAY_REGISTER_REDUCE_OP("argmin")
+RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmin")
     .describe(R"code(Creates an operation that finds the indices of the minimum
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ReduceAttrs>()
+    .set_attrs_type<ArgReduceAttrs>()
     .set_support_level(4)
-    .add_type_rel("ArgReduce", ArgReduceRel)
+    .add_type_rel("ArgReduce", GenericReduceRel<ArgReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 

@@ -56,7 +56,10 @@ def _build_and_run_network(mod, params, inputs, device, tvm_ops, acl_partitions,
 
 def _get_tflite_model(tflite_model_path, inputs_dict):
     """Convert TFlite graph to relay."""
-    import tflite.Model
+    try:
+        import tflite.Model
+    except ImportError:
+        pytest.skip("Missing Tflite support")
 
     with open(tflite_model_path, "rb") as f:
         tflite_model_buffer = f.read()
@@ -92,7 +95,10 @@ def test_vgg16():
     device = Device()
 
     def get_model():
-        from keras.applications import VGG16
+        try:
+            from keras.applications import VGG16
+        except ImportError:
+            pytest.skip("Missing Keras Package")
 
         vgg16 = VGG16(include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000)
         inputs = {vgg16.input_names[0]: ((1, 224, 224, 3), "float32")}
@@ -113,7 +119,10 @@ def test_mobilenet():
     device = Device()
 
     def get_model():
-        from keras.applications import MobileNet
+        try:
+            from keras.applications import MobileNet
+        except ImportError:
+            pytest.skip("Missing keras module")
 
         mobilenet = MobileNet(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
@@ -133,7 +142,10 @@ def test_quantized_mobilenet():
     if skip_runtime_test():
         return
 
-    import tvm.relay.testing.tf as tf_testing
+    try:
+        import tvm.relay.testing.tf as tf_testing
+    except ImportError:
+        pytest.skip("Missing Tflite support")
 
     device = Device()
 
@@ -158,7 +170,10 @@ def test_squeezenet():
     if skip_runtime_test():
         return
 
-    import tvm.relay.testing.tf as tf_testing
+    try:
+        import tvm.relay.testing.tf as tf_testing
+    except ImportError:
+        pytest.skip("Missing TF Support")
 
     device = Device()
 

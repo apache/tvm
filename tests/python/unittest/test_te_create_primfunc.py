@@ -18,6 +18,8 @@
 import tvm
 from tvm.script import ty
 from tvm import te, tir
+import numpy as np
+import tvm.testing
 
 
 def test_unique_name():
@@ -25,7 +27,7 @@ def test_unique_name():
     B = te.compute((16, 16), lambda x, y: A[x, y] * 2, name="main")
     C = te.compute((16, 16), lambda x, y: B[x, y] + 1, name="main")
     func = te.create_prim_func([A, C])
-    s = tir.Schedule(func, debug_mode=True)
+    s = tir.Schedule(func, debug_mask="all")
     assert isinstance(s.get_sref(s.get_block("main")), tir.schedule.StmtSRef)
     assert isinstance(s.get_sref(s.get_block("main_1")), tir.schedule.StmtSRef)
 
@@ -34,7 +36,7 @@ def _check_workload(te_workload, tir_workload):
     func = te.create_prim_func(te_workload())
     tvm.ir.assert_structural_equal(func, tir_workload)
     # make sure that we can create schedule from the func
-    s = tir.Schedule(func, debug_mode=True)
+    s = tir.Schedule(func, debug_mask="all")
     assert s
 
 
@@ -281,6 +283,38 @@ def test_error_reporting():
     assert False
 
 
+def test_constant():
+    M = 11
+    A = te.placeholder((M,), name="A")
+    B = te.compute(tuple(), lambda: 2, name="B")
+    # Manually craft ProducerLoad because `B[]` is not allowed.
+    C = te.compute(
+        (M,), lambda x: A[x] + tvm.tir.expr.ProducerLoad(B, []), name="C", tag="broadcast"
+    )
+
+    func = te.create_prim_func([C, A])
+    func = tvm.build(func)
+    a_np = np.random.uniform(size=(M,)).astype(A.dtype)
+    c = tvm.nd.array(np.zeros(M, dtype=C.dtype))
+    x = func(c, tvm.nd.array(a_np))
+    tvm.testing.assert_allclose(a_np + 2, c.numpy())
+
+
+def test_data_dependent_access():
+    A = te.placeholder((10,), name="A")
+    B = te.placeholder((10,), name="B", dtype="int32")
+    C = te.compute((10,), lambda i: A[B[i]])
+
+    func = te.create_prim_func([C, A, B])
+    func = tvm.build(func)
+
+    a_np = np.random.uniform(size=(10,)).astype(A.dtype)
+    b_np = np.arange(10, dtype=B.dtype)
+    c = tvm.nd.array(np.zeros(10, dtype=C.dtype))
+    func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
+    tvm.testing.assert_allclose(a_np[b_np], c.numpy())
+
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
@@ -290,3 +324,4 @@ if __name__ == "__main__":
     test_extern()
     test_arg_order()
     test_error_reporting()
+    test_constant()

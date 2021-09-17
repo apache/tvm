@@ -19,7 +19,6 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 
 namespace tvm {
 namespace relay {
@@ -77,6 +76,25 @@ class LabelOpsMutator : public MixedModeMutator {
       f = WithAttr(f, p.first, p.second);
     }
     return std::move(f);
+  }
+  Expr VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      this->Mutate(op->var);
+      this->Mutate(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      Var var = Downcast<Var>(this->Mutate(op->var));
+      auto value = this->Mutate(op->value);
+      auto body = this->Mutate(op->body);
+      auto expr = GetRef<Expr>(op);
+      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+        this->memo_[expr] = expr;
+      } else {
+        this->memo_[expr] = Let(var, value, body);
+      }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
   }
 
   Expr Rewrite_(const CallNode* op, const Expr& post) final {

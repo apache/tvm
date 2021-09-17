@@ -53,6 +53,9 @@ pytestmark = pytest.mark.skipif(
     ),
 )
 
+# NOTE: When writing tests, wrap remote related checking in a sub-function
+# to ensure all the remote resources destructs before the server terminates
+
 
 @tvm.testing.requires_rpc
 def test_bigendian_rpc():
@@ -90,38 +93,49 @@ def test_bigendian_rpc():
 def test_rpc_simple():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
-    f1 = client.get_function("rpc.test.addone")
-    assert f1(10) == 11
-    f3 = client.get_function("rpc.test.except")
 
-    with pytest.raises(tvm._ffi.base.TVMError):
-        f3("abc")
+    def check_remote():
+        f1 = client.get_function("rpc.test.addone")
+        assert f1(10) == 11
+        f3 = client.get_function("rpc.test.except")
 
-    f2 = client.get_function("rpc.test.strcat")
-    assert f2("abc", 11) == "abc:11"
+        with pytest.raises(tvm._ffi.base.TVMError):
+            f3("abc")
+
+        f2 = client.get_function("rpc.test.strcat")
+        assert f2("abc", 11) == "abc:11"
+
+    check_remote()
 
 
 @tvm.testing.requires_rpc
 def test_rpc_runtime_string():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
-    func = client.get_function("rpc.test.runtime_str_concat")
-    x = tvm.runtime.container.String("abc")
-    y = tvm.runtime.container.String("def")
-    assert str(func(x, y)) == "abcdef"
+
+    def check_remote():
+        func = client.get_function("rpc.test.runtime_str_concat")
+        x = tvm.runtime.container.String("abc")
+        y = tvm.runtime.container.String("def")
+        assert str(func(x, y)) == "abcdef"
+
+    check_remote()
 
 
 @tvm.testing.requires_rpc
 def test_rpc_array():
-    x = np.ones((3, 4))
-
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
-    r_cpu = tvm.nd.array(x, remote.cpu(0))
-    assert str(r_cpu.device).startswith("remote")
-    np.testing.assert_equal(r_cpu.numpy(), x)
-    fremote = remote.get_function("rpc.test.remote_array_func")
-    fremote(r_cpu)
+
+    def check_remote():
+        x = np.ones((3, 4))
+        r_cpu = tvm.nd.array(x, remote.cpu(0))
+        assert str(r_cpu.device).startswith("remote")
+        np.testing.assert_equal(r_cpu.numpy(), x)
+        fremote = remote.get_function("rpc.test.remote_array_func")
+        fremote(r_cpu)
+
+    check_remote()
 
 
 @tvm.testing.requires_rpc
@@ -129,13 +143,17 @@ def test_rpc_large_array():
     # testcase of large array creation
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
-    dev = remote.cpu(0)
-    a_np = np.ones((5041, 720)).astype("float32")
-    b_np = np.ones((720, 192)).astype("float32")
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(b_np, dev)
-    np.testing.assert_equal(a.numpy(), a_np)
-    np.testing.assert_equal(b.numpy(), b_np)
+
+    def check_remote():
+        dev = remote.cpu(0)
+        a_np = np.ones((5041, 720)).astype("float32")
+        b_np = np.ones((720, 192)).astype("float32")
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        np.testing.assert_equal(a.numpy(), a_np)
+        np.testing.assert_equal(b.numpy(), b_np)
+
+    check_remote()
 
 
 @tvm.testing.requires_rpc
@@ -186,10 +204,14 @@ def test_rpc_echo():
 def test_rpc_file_exchange():
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
-    blob = bytearray(np.random.randint(0, 10, size=(10)))
-    remote.upload(blob, "dat.bin")
-    rev = remote.download("dat.bin")
-    assert rev == blob
+
+    def check_remote():
+        blob = bytearray(np.random.randint(0, 10, size=(10)))
+        remote.upload(blob, "dat.bin")
+        rev = remote.download("dat.bin")
+        assert rev == blob
+
+    check_remote()
 
 
 @tvm.testing.requires_rpc
@@ -321,9 +343,13 @@ def test_rpc_remote_module():
 def test_rpc_return_func():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
-    f1 = client.get_function("rpc.test.add_to_lhs")
-    fadd = f1(10)
-    assert fadd(12) == 22
+
+    def check_remote():
+        f1 = client.get_function("rpc.test.add_to_lhs")
+        fadd = f1(10)
+        assert fadd(12) == 22
+
+    check_remote()
 
 
 @tvm.testing.requires_rpc
@@ -386,14 +412,18 @@ def test_rpc_return_ndarray():
 @tvm.testing.requires_rpc
 def test_local_func():
     client = rpc.LocalSession()
-    f1 = client.get_function("rpc.test.add_to_lhs")
-    fadd = f1(10)
-    assert fadd(12) == 22
 
-    blob = bytearray(np.random.randint(0, 10, size=(10)))
-    client.upload(blob, "dat.bin")
-    rev = client.download("dat.bin")
-    assert rev == blob
+    def check_remote():
+        f1 = client.get_function("rpc.test.add_to_lhs")
+        fadd = f1(10)
+        assert fadd(12) == 22
+
+        blob = bytearray(np.random.randint(0, 10, size=(10)))
+        client.upload(blob, "dat.bin")
+        rev = client.download("dat.bin")
+        assert rev == blob
+
+    check_remote()
 
 
 @tvm.testing.requires_rpc
@@ -401,33 +431,62 @@ def test_rpc_tracker_register():
     # test registration
     tracker = Tracker(port=9000, port_end=10000)
     device_key = "test_device"
-    server = rpc.Server(
+    server1 = rpc.Server(
+        host="127.0.0.1",
         port=9000,
         port_end=10000,
         key=device_key,
         tracker_addr=("127.0.0.1", tracker.port),
     )
+    server2 = rpc.Server(
+        host="127.0.0.1",
+        port=9000,
+        port_end=10000,
+        key=device_key,
+        tracker_addr=("127.0.0.1", tracker.port),
+        custom_addr="test_addr",  # this is a test address, which is unable to connect
+    )
     time.sleep(1)
     client = rpc.connect_tracker("127.0.0.1", tracker.port)
 
+    def exist_address(summary, key, host, port):
+        server_info = summary["server_info"]
+        for device in server_info:
+            if device["key"] == "server:%s" % key:
+                addr = device["addr"]
+                if (host is None or host == addr[0]) and port == addr[1]:
+                    return True
+        return False
+
     summary = client.summary()
-    assert summary["queue_info"][device_key]["free"] == 1
+    assert summary["queue_info"][device_key]["free"] == 2
+    assert exist_address(summary, device_key, "127.0.0.1", server1.port)
+    assert exist_address(summary, device_key, "test_addr", server2.port)
 
     remote = client.request(device_key)
     summary = client.summary()
-    assert summary["queue_info"][device_key]["free"] == 0
+    assert summary["queue_info"][device_key]["free"] == 1
 
     del remote
     time.sleep(1)
 
     summary = client.summary()
-    assert summary["queue_info"][device_key]["free"] == 1
+    assert summary["queue_info"][device_key]["free"] == 2
 
-    server.terminate()
+    server1.terminate()
+    time.sleep(1)
+
+    summary = client.summary()
+    assert summary["queue_info"][device_key]["free"] == 1
+    assert not exist_address(summary, device_key, "127.0.0.1", server1.port)
+    assert exist_address(summary, device_key, "test_addr", server2.port)
+
+    server2.terminate()
     time.sleep(1)
 
     summary = client.summary()
     assert summary["queue_info"][device_key]["free"] == 0
+    assert not exist_address(summary, device_key, "test_addr", server2.port)
 
     tracker.terminate()
 

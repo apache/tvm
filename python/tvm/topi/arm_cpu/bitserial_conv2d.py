@@ -55,7 +55,7 @@ def bitserial_conv2d_nhwc(
     out_dtype,
     unipolar,
 ):
-    """ Compute convolution with pack on spatial axes. """
+    """Compute convolution with pack on spatial axes."""
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     assert pack_dtype == "uint8", "only support packing into uint8 bits"
     assert out_dtype == "int16", "only support output type of int16"

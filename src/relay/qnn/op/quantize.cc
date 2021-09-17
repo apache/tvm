@@ -51,14 +51,27 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   int axis = quantize_attrs->axis;
-  axis = (axis < 0) ? data->shape.size() + axis : axis;
-  ICHECK_LT(axis, static_cast<int>(data->shape.size()))
-      << "axis " << quantize_attrs->axis << " is out of range";
-  ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
+  auto rank = static_cast<int>(data->shape.size());
+  axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
 
+  // If zero point and scale are scalar then axis doesnt matter.
+  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0;
+  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
+
+  if (!(scale_is_scalar && zp_is_scalar)) {
+    ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << quantize_attrs->axis << " is out of range";
+    ICHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
+  }
+
+  PrimExpr axis_shape;
+  if (rank > 0) {
+    axis_shape = data->shape[axis];
+  } else {
+    axis_shape = Integer(1);
+  }
   // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
+  AssignType(types[1], DataType::Float(32), axis_shape, reporter);  // scale
+  AssignType(types[2], DataType::Int(32), axis_shape, reporter);    // zero point
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   const DataType out_dtype = quantize_attrs->out_dtype;

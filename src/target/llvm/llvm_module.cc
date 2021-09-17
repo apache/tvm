@@ -69,12 +69,22 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     } else if (name == "get_const_vars") {
       return PackedFunc(nullptr);
     } else if (name == "_get_target_triple") {
-      std::string target_triple = tm_->getTargetTriple().str();
+      std::ostringstream target_triple_ss;
+      target_triple_ss << tm_->getTargetTriple().str();
       // getTargetTriple() doesn't include other flags besides the triple. Add back flags which are
       // important for ModulePackImportsToLLVM.
       if (tm_->Options.FloatABIType == llvm::FloatABI::ABIType::Soft) {
-        target_triple += " -mfloat-abi=soft";
+        target_triple_ss << " -mfloat-abi=soft";
       }
+      std::string mabi = tm_->Options.MCOptions.ABIName;
+      if (!mabi.empty()) {
+        target_triple_ss << " -mabi=" << mabi;
+      }
+      llvm::StringRef mcpu = tm_->getTargetCPU();
+      if (!mcpu.empty() && mcpu != "generic") {
+        target_triple_ss << " -mcpu=" << mcpu.str();
+      }
+      std::string target_triple = target_triple_ss.str();
       return PackedFunc([target_triple](TVMArgs args, TVMRetValue* rv) { *rv = target_triple; });
     }
     if (ee_ == nullptr) LazyInitJIT();
@@ -98,7 +108,11 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = runtime::GetFileFormat(file_name, format);
     std::error_code ecode;
+#if TVM_LLVM_VERSION <= 70
     llvm::raw_fd_ostream dest(file_name, ecode, llvm::sys::fs::F_None);
+#else
+    llvm::raw_fd_ostream dest(file_name, ecode, llvm::sys::fs::OF_None);
+#endif
     ICHECK_EQ(ecode.value(), 0) << "Cannot open file: " << file_name << " " << ecode.message();
     if (fmt == "o" || fmt == "obj") {
 #if TVM_LLVM_VERSION <= 60
@@ -223,8 +237,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         found_linked_params = true;
         continue;
       }
-      ICHECK(kv.second->IsInstance<PrimFuncNode>())
-          << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+      if (!kv.second->IsInstance<PrimFuncNode>()) {
+        // (@jroesch): we relax constraints here, Relay functions will just be ignored.
+        DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got "
+                   << kv.second->GetTypeKey();
+        continue;
+      }
       auto f = Downcast<PrimFunc>(kv.second);
       auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(global_symbol.defined());
@@ -234,14 +252,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       }
       funcs.push_back(f);
     }
-    ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
+    // TODO(@jroesch): follow up on this condition.
+    // ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
     // TODO(tqchen): remove the entry function behavior as it does not
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
 
-    for (const auto& f : funcs) {
-      cg->AddFunction(f);
-    }
+    cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
 
     if (entry_func.length() != 0) {
       cg->AddMainFunction(entry_func);

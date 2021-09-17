@@ -58,8 +58,10 @@
 
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/error.h>
+#include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/support/with.h>
 
 #include <string>
@@ -67,15 +69,6 @@
 
 namespace tvm {
 namespace transform {
-
-// Forward declare for TraceFunc.
-class PassInfo;
-
-/*!
- * \brief A callback for tracing passes, useful for debugging and logging.
- */
-using TraceFunc =
-    runtime::TypedPackedFunc<void(const IRModule& ir_module, const PassInfo& ctx, bool is_before)>;
 
 /*!
  * \brief PassContextNode contains the information that a pass can rely on,
@@ -95,8 +88,9 @@ class PassContextNode : public Object {
   mutable Optional<DiagnosticContext> diag_ctx;
   /*! \brief Pass specific configurations. */
   Map<String, ObjectRef> config;
-  /*! \brief Trace function to be invoked before and after each pass. */
-  TraceFunc trace_func;
+
+  /*! \brief A list of pass instrument implementations. */
+  Array<instrument::PassInstrument> instruments;
 
   PassContextNode() = default;
 
@@ -134,6 +128,7 @@ class PassContextNode : public Object {
     v->Visit("opt_level", &opt_level);
     v->Visit("required_pass", &required_pass);
     v->Visit("disabled_pass", &disabled_pass);
+    v->Visit("instruments", &instruments);
     v->Visit("config", &config);
     v->Visit("diag_ctx", &diag_ctx);
   }
@@ -189,12 +184,46 @@ class PassContext : public ObjectRef {
   TVM_DLL static PassContext Current();
 
   /*!
-   * \brief Apply the tracing functions of the context to the module, with the info.
-   * \param module The IRModule to trace.
-   * \param info The pass information.
-   * \param is_before Indicated whether the tracing is before or after a pass.
+   * \brief Get all supported configuration names and metadata, registered within the PassContext.
+   * \return Map indexed by the config name, pointing to the metadata map as key-value
    */
-  TVM_DLL void Trace(const IRModule& module, const PassInfo& info, bool is_before) const;
+  TVM_DLL static Map<String, Map<String, String>> ListConfigs();
+
+  /*!
+   * \brief Call instrument implementations' callbacks when entering PassContext.
+   *        The callbacks are called in order, and if one raises an exception, the rest will not be
+   *        called.
+   */
+  TVM_DLL void InstrumentEnterPassContext();
+
+  /*!
+   * \brief Call instrument implementations' callbacks when exiting PassContext.
+   *        The callbacks are called in order, and if one raises an exception, the rest will not be
+   *        called.
+   */
+  TVM_DLL void InstrumentExitPassContext();
+
+  /*!
+   * \brief Call instrument implementations' callbacks before a pass run.
+   *        The callbacks are called in order, and if one raises an exception, the rest will not be
+   *        called.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param info The pass information.
+   *
+   * \return false: the pass is skipped; true: the pass runs.
+   */
+  TVM_DLL bool InstrumentBeforePass(const IRModule& mod, const PassInfo& info) const;
+
+  /*!
+   * \brief Call instrument implementations callbacks after a pass run.
+   *        The callbacks are called in order, and if one raises an exception, the rest will not be
+   *        called.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param info The pass information.
+   */
+  TVM_DLL void InstrumentAfterPass(const IRModule& mod, const PassInfo& info) const;
 
   /*!
    * \brief Check whether a pass is enabled.
@@ -275,7 +304,7 @@ class PassInfoNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, Object);
 };
 
-/*
+/*!
  * \brief Managed reference class for PassInfoNode
  * \sa PassInfoNode
  */

@@ -42,8 +42,11 @@ We also want the runtime core to be minimal to deploy to embedded devices.
 PackedFunc
 ----------
 
-`PackedFunc`_ is a simple but elegant solution
-we find to solve the challenges listed. The following code block provides an example in C++
+`PackedFunc`_ is a simple but elegant solution we find to solve the
+challenges listed.  A single ``PackedFunc`` object represents a
+function call whose caller and callee may be in different languages.
+
+The following code block provides an example in C++
 
 .. _PackedFunc: https://github.com/apache/tvm/blob/main/include/tvm/runtime/packed_func.h
 
@@ -146,6 +149,8 @@ To keep the runtime minimum, we isolated the IR Object support from the deployme
 The overhead of calling into PackedFunc vs. a normal function is small, as it is only saving a few values on the stack.
 So it is OK as long as we don't wrap small functions.
 In summary, the PackedFunc is the universal glue in TVM where we use it extensively to support our compiler and deployment.
+
+.. _tvm-runtime-system-module:
 
 Module
 ------
@@ -291,3 +296,13 @@ To support extension types, we used a registry system to register type related i
 in C++, see `Extension types`_ for more details.
 
 .. _Extension types: https://github.com/apache/tvm/tree/main/apps/extension
+
+
+Runtime-Specific Information
+============================
+
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   runtimes/*

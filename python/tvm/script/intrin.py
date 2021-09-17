@@ -37,67 +37,67 @@ class Intrin:
 
 @register
 def bool(imm, span):
-    return tvm.tir.Cast("bool", imm, span)
+    return imm.astype("bool", span)
 
 
 @register
 def int8(imm, span):
-    return tvm.tir.Cast("int8", imm, span)
+    return imm.astype("int8", span)
 
 
 @register
 def int16(imm, span):
-    return tvm.tir.Cast("int16", imm, span)
+    return imm.astype("int16", span)
 
 
 @register
 def int32(imm, span):
-    return tvm.tir.Cast("int32", imm, span)
+    return imm.astype("int32", span)
 
 
 @register
 def int64(imm, span):
-    return tvm.tir.Cast("int64", imm, span)
+    return imm.astype("int64", span)
 
 
 @register
 def uint8(imm, span):
-    return tvm.tir.Cast("uint8", imm, span)
+    return imm.astype("uint8", span)
 
 
 @register
 def uint16(imm, span):
-    return tvm.tir.Cast("uint16", imm, span)
+    return imm.astype("uint16", span)
 
 
 @register
 def uint32(imm, span):
-    return tvm.tir.Cast("uint32", imm, span)
+    return imm.astype("uint32", span)
 
 
 @register
 def uint64(imm, span):
-    return tvm.tir.Cast("uint64", imm, span)
+    return imm.astype("uint64", span)
 
 
 @register
 def float8(imm, span):
-    return tvm.tir.Cast("float8", imm, span)
+    return imm.astype("float8", span)
 
 
 @register
 def float16(imm, span):
-    return tvm.tir.Cast("float16", imm, span)
+    return imm.astype("float16", span)
 
 
 @register
 def float32(imm, span):
-    return tvm.tir.Cast("float32", imm, span)
+    return imm.astype("float32", span)
 
 
 @register
 def float64(imm, span):
-    return tvm.tir.Cast("float64", imm, span)
+    return imm.astype("float64", span)
 
 
 @register
@@ -118,6 +118,11 @@ def floordiv(x, y, span):
 @register
 def floormod(x, y, span):
     return tvm.tir.floormod(x, y, span)
+
+
+@register
+def abs(x, span):
+    return tvm.tir.abs(x, span)
 
 
 @register
@@ -151,6 +156,11 @@ def max(a, b, span):  # pylint: disable=redefined-builtin
     return tvm.tir.Max(a, b, span)
 
 
+@register
+def min(a, b, span):  # pylint: disable=redefined-builtin
+    return tvm.tir.Min(a, b, span)
+
+
 def get_axis(begin, end, iter_type, span):
     ana = tvm.arith.Analyzer()
     extent = ana.simplify(end - begin)
@@ -178,6 +188,11 @@ def scan_axis(begin, end, span):
 @register
 def opaque_axis(begin, end, span):
     return get_axis(begin, end, "opaque", span)
+
+
+@register
+def Select(cond, if_body, else_body, span):  # pylint: disable=invalid-name
+    return tvm.tir.Select(cond, if_body, else_body, span)
 
 
 @register

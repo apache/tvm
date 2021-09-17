@@ -26,6 +26,7 @@ from tvm.ir.transform import PassContext
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
+from ..backend.utils import mangle_module_name
 from .. import function as _function
 from .. import ty as _ty
 from . import _backend
@@ -328,7 +329,7 @@ class CompileEngine(Object):
     def __init__(self):
         raise RuntimeError("Cannot construct a CompileEngine")
 
-    def lower(self, source_func, target=None):
+    def lower(self, source_func, target=None, mod_name="default"):
         """Lower a source_func to a CachedFunc.
 
         Parameters
@@ -346,8 +347,9 @@ class CompileEngine(Object):
         """
         # pylint: disable=broad-except, import-outside-toplevel
         try:
+            mod_name = mangle_module_name(mod_name)
             key = _get_cache_key(source_func, target)
-            return _backend._CompileEngineLower(self, key)
+            return _backend._CompileEngineLower(self, key, mod_name)
         except Exception:
             import traceback
 
@@ -427,7 +429,7 @@ class CompileEngine(Object):
             res += "------------------------------------\n"
             res += "target={}\n".format(k.target)
             res += "use_count={}\n".format(v.use_count)
-            res += "func_name={}\n".format(v.cached_func.func_name)
+            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
             res += "----relay function----\n"
             res += k.source_func.astext() + "\n"
             res += "----tir function----- \n"
@@ -442,7 +444,7 @@ class CompileEngine(Object):
             res += "------------------------------------\n"
             res += "target={}\n".format(k.target)
             res += "use_count={}\n".format(v.use_count)
-            res += "func_name={}\n".format(v.cached_func.func_name)
+            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
             res += "----relay function----\n"
             res += k.source_func.astext() + "\n"
             res += "----tir function----- \n"

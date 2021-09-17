@@ -24,7 +24,6 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {

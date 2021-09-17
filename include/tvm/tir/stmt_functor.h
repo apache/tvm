@@ -27,7 +27,6 @@
 #define TVM_TIR_STMT_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
-#include <tvm/runtime/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt.h>
@@ -210,6 +209,12 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    */
   template <typename TNode>
   ObjectPtr<TNode> CopyOnWrite(const TNode* node) {
+    static_assert(std::is_base_of<StmtNode, TNode>::value,
+                  "StmtMutator:: CopyOnWrite requires us to track uniqueness of all parent "
+                  "nodes during the recursion. Because the child classes do not necessarily "
+                  "check the Array, Expr and other structures during the visit, it is only safe to "
+                  "call this function with StmtNodes for now. "
+                  "Please create a new node directly in other cases.");
     if (allow_copy_on_write_) {
       // return the old node.
       return runtime::GetObjectPtr<TNode>(const_cast<TNode*>(node));
@@ -351,6 +356,14 @@ TVM_DLL Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var& v
  * \return The result.
  */
 TVM_DLL PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var& var)> vmap);
+
+/*!
+ * \brief Substitute the var specified by vmap.
+ * \param region The object whose vars are to be substituted
+ * \param vmap The map of new values.
+ * \return The result.
+ */
+TVM_DLL Array<Range> Substitute(const Array<Range>& region, const Map<Var, PrimExpr>& vmap);
 
 /*!
  * \brief Sugar for substitute via a given map.

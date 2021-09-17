@@ -40,6 +40,7 @@ pub mod ffi {
         num_args: c_int,
         out_ret_value: *mut TVMValue,
         out_ret_tcode: *mut u32,
+        resource_handle: *mut c_void,
     ) -> c_int;
 }
 

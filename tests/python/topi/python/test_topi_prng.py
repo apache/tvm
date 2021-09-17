@@ -57,7 +57,7 @@ def uniform(target, dev, gen, low, high, size, dtype):
     out_gen = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"))
     rands = tvm.nd.array(np.zeros(size, dtype=dtype))
     f(tvm.nd.array(gen), tvm.nd.array(low), tvm.nd.array(high), out_gen, rands)
-    return out_gen.asnumpy(), rands.asnumpy()
+    return out_gen.numpy(), rands.asnumpy()
 
 
 @tvm.testing.parametrize_targets
@@ -112,6 +112,12 @@ def test_threefry_generate(target, dev):
     # check that gen out does not equal input
     assert (a != gen).any(), "Output generator should be different from input generator"
 
+    # check that we can generate data whose total number of elements is not a multiple of 4.
+    a, rands = threefry_generate(target, dev, gen, (7,))
+    assert (
+        rands.shape[0] == 7 and len(rands.shape) == 1
+    ), "Output shape should match requested shape"
+
     # test enough generates to go over generate limit
     gen = np.array(
         [0, 0, 0, 0, 0, 0, 0, 2 ** 64 - 2, 1 << 63, 0], dtype="uint64"
@@ -137,7 +143,7 @@ def test_threefry_wrapping(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_uniform(target, dev):
-    gen = tvm.relay.random.threefry_key(0).data.asnumpy()
+    gen = tvm.relay.random.threefry_key(0).data.numpy()
     m = 1024
     n = 1024
     dtypes = ["float32", "float64"]

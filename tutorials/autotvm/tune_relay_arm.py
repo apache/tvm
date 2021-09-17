@@ -278,6 +278,10 @@ def tune_tasks(
             tuner_obj = XGBTuner(tsk, loss_type="rank")
         elif tuner == "xgb_knob":
             tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+        elif tuner == "xgb_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+        elif tuner == "xgb_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="curve")
         elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == "random":
@@ -291,7 +295,7 @@ def tune_tasks(
             if os.path.isfile(tmp_log_file):
                 tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
-        # do tuning
+        # process tuning
         tsk_trial = min(n_trial, len(tsk.config_space))
         tuner_obj.tune(
             n_trial=tsk_trial,
@@ -355,12 +359,7 @@ def tune_and_evaluate(tuning_opt):
 
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", dev, number=1, repeat=10)
-        prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
-        print(
-            "Mean inference time (std dev): %.2f ms (%.2f ms)"
-            % (np.mean(prof_res), np.std(prof_res))
-        )
+        print(module.benchmark(dev, number=1, repeat=10))
 
 
 # We do not run the tuning in our webpage server since it takes too long.

@@ -111,13 +111,13 @@ forwarding again. It may not be obvious to the end user when this occurs. Instru
 Rebuilding TVM inside the Reference VM
 --------------------------------------
 
-After the first boot, you'll need to ensure you keep the build, in ``$TVM_HOME/build-microtvm``,
+After the first boot, you'll need to ensure you keep the build, in ``$TVM_HOME/build-microtvm-zephyr``,
 up-to-date when you modify the C++ runtime or checkout a different revision. You can either
 re-provision the machine (``vagrant provision`` in the same directory you ran ``vagrant up`` before)
 or manually rebuild TVM yourself.
 
 Remember: the TVM ``.so`` built inside the VM is different from the one you may use on your host
-machine. This is why it's built inside the special directory ``build-microtvm``.
+machine. This is why it's built inside the special directory ``build-microtvm-zephyr``.
 
 Logging in to the VM
 --------------------
@@ -143,7 +143,7 @@ Once the VM has been provisioned, tests can executed using ``poetry``:
 .. code-block:: bash
 
     $ cd apps/microtvm/reference-vm/zephyr
-    $ poetry run python3 ../../../../tests/micro/qemu/test_zephyr.py --microtvm-platforms=stm32f746xx
+    $ poetry run python3 ../../../../tests/micro/qemu/test_zephyr.py --zephyr-board=stm32f746g_disco
 
 If you do not have physical hardware attached, but wish to run the tests using the
 local QEMU emulator running within the VM, run the following commands instead:
@@ -151,9 +151,8 @@ local QEMU emulator running within the VM, run the following commands instead:
 .. code-block:: bash
 
     $ cd /Users/yourusername/path/to/tvm
-    $ sudo ./docker/install/ubuntu_install_qemu.sh
     $ cd apps/microtvm/reference-vm/zephyr/
-    $ poetry run pytest ../../../../tests/micro/qemu/test_zephyr.py --microtvm-platforms=host
+    $ poetry run pytest ../../../../tests/micro/qemu/test_zephyr.py --zephyr-board=qemu_x86
 
 
 

@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import pytest
+import sys
 import tvm
 from tvm import tir
 from tvm.script import ty, from_source
@@ -202,7 +205,7 @@ def test_inconsistent_grid():
 
 def invalid_match_buffer_region() -> None:
     with tir.block([16, 16]) as [vi, vj]:
-        A = tir.match_buffer_region(vi)  # error
+        A = tir.match_buffer(vi)  # error
         tir.evaluate(1.0)
 
 
@@ -291,8 +294,36 @@ def error_index_type() -> None:
         A[vi, vj] = A[vi, 0.0] + 1  # error
 
 
+def error_bufferslice_index_type() -> None:
+    A = tir.alloc_buffer((1,), "float32")
+    B = tir.alloc_buffer((16, 16), "float32")
+    C = tir.alloc_buffer((16, 16), "float32")
+    with tir.block([16, 16]) as [vi, vj]:
+        C[vi, vj] = B[vi, A[0]]  # error
+
+
 def test_error_index_type():
     check_error(error_index_type, 4)
+    check_error(error_bufferslice_index_type, 6)
+
+
+def error_index_with_stop() -> None:
+    A = tir.alloc_buffer((128, 128), "float32")
+    with tir.block([16, 16]) as [vi, vj]:
+        A[vi, vj] = A[vi, 1:10] + 1  # error
+
+
+def error_bufferslice_index_with_stop() -> None:
+    A = tir.alloc_buffer((1,), "int32")
+    B = tir.alloc_buffer((16, 16), "float32")
+    C = tir.alloc_buffer((16, 16), "float32")
+    with tir.block([16, 16]) as [vi, vj]:
+        C[vi, vj] = B[vi, A[0:1]]  # error
+
+
+def test_error_index_with_stop_slice():
+    check_error(error_index_with_stop, 4)
+    check_error(error_bufferslice_index_with_stop, 6)
 
 
 def mismatch_args() -> None:
@@ -335,6 +366,34 @@ def test_tvm_exception_catch():
     check_error(intrin_except_assign, 3)
 
 
+def buffer_shape_mismatch(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (8, 8))
+    for i, j in tir.grid(8, 2):
+        with tir.block([]):
+            tir.reads([])
+            tir.writes([A[i, j * 4 : j * 4 + 4]])
+            sub_A = tir.match_buffer(
+                A[i, j * 4 : j * 4 + 4], (5)
+            )  # error: shape mismatched between 4 and 5
+            for jj in range(0, 4):
+                sub_A[i, j * 4 + jj] = 1
+
+
+def test_match_buffer_shape_mismatch():
+    check_error(buffer_shape_mismatch, 7)
+
+
+def high_dim_store() -> None:
+    with tir.block([], "root"):
+        B = tir.allocate([256], "float32", "global")
+        for i, j in tir.grid(16, 16):
+            B[i, j] = 1.0  # error: Store is only allowed with one index
+
+
+def test_high_dim_store():
+    check_error(high_dim_store, 5)
+
+
 def check_error(module, rel_lineno):
     # Override the default renderer to accumulate errors
     _, start_line = inspect.getsourcelines(module)
@@ -359,29 +418,4 @@ def check_error(module, rel_lineno):
 
 
 if __name__ == "__main__":
-    test_buffer_bind()
-    test_range_missing_args()
-    test_undefined_buffer()
-    test_unsupported_stmt()
-    test_unsupported_function_call()
-    test_missing_type_annotation()
-    test_invalid_expr_stmt()
-    test_invalid_for_function()
-    test_invalid_block_function()
-    test_return_not_allowed()
-    test_tir_assert()
-    test_no_body()
-    test_allocate_with_buffers()
-    test_inconsistent_binding()
-    test_invalid_block_axes()
-    test_miss_block_bind()
-    test_invalid_loop_var()
-    test_inconsistent_grid()
-    test_invalid_match_buffer_region()
-    test_duplicate_buffer()
-    test_duplicate_block_signature()
-    test_opaque_access_during_complete()
-    test_convert_slice_to_bufferload()
-    test_error_index_type()
-    test_mismatch_args()
-    test_tvm_exception_catch()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

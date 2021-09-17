@@ -237,7 +237,7 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
       // This segment would be generated in C++ because of the usage
       // of tvm::runtime::Array. This is not ideal, but this to demonstrate
       // constant copying process used packed imports in other external
-      // codegen. Moreover, in uTVM we dont expect this part to be generated.
+      // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << "#include <tvm/runtime/ndarray.h>\n";
       code_stream_ << "#include <tvm/runtime/packed_func.h>\n";

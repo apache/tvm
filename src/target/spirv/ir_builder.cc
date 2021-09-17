@@ -93,6 +93,7 @@ std::vector<uint32_t> IRBuilder::Finalize() {
   data.insert(data.end(), decorate_.begin(), decorate_.end());
   data.insert(data.end(), global_.begin(), global_.end());
   data.insert(data.end(), func_header_.begin(), func_header_.end());
+  data.insert(data.end(), function_scope_vars_.begin(), function_scope_vars_.end());
   data.insert(data.end(), function_.begin(), function_.end());
   return data;
 }
@@ -309,11 +310,8 @@ Value IRBuilder::NewFunction() { return NewValue(t_void_func_, kFunction); }
 void IRBuilder::CommitKernelFunction(const Value& func, const std::string& name) {
   ICHECK_EQ(func.flag, kFunction);
   ib_.Begin(spv::OpEntryPoint).AddSeq(spv::ExecutionModelGLCompute, func, name);
-  if (workgroup_id_.id != 0) {
-    ib_.Add(workgroup_id_);
-  }
-  if (local_id_.id != 0) {
-    ib_.Add(local_id_);
+  for (auto& it : built_in_tbl_) {
+    ib_.Add(it.second);
   }
   ib_.Commit(&entry_);
 }
@@ -350,34 +348,88 @@ Value IRBuilder::Allocate(const SType& value_type, uint32_t num_elems,
 }
 
 Value IRBuilder::GetWorkgroupID(uint32_t dim_index) {
-  if (workgroup_id_.id == 0) {
-    SType vec3_type = this->GetSType(DataType::Int(32).with_lanes(3));
-    SType ptr_type = this->GetPointerType(vec3_type, spv::StorageClassInput);
-    workgroup_id_ = NewValue(ptr_type, kVectorPtr);
-    ib_.Begin(spv::OpVariable)
-        .AddSeq(ptr_type, workgroup_id_, spv::StorageClassInput)
-        .Commit(&global_);
-    this->Decorate(spv::OpDecorate, workgroup_id_, spv::DecorationBuiltIn, spv::BuiltInWorkgroupId);
-  }
-  SType pint_type = this->GetPointerType(t_int32_, spv::StorageClassInput);
-  Value ptr = this->MakeValue(spv::OpAccessChain, pint_type, workgroup_id_,
-                              IntImm(t_int32_, static_cast<int64_t>(dim_index)));
-  return this->MakeValue(spv::OpLoad, t_int32_, ptr);
+  std::string name = "blockIdx." + std::string(1, 'x' + dim_index);
+  return GetBuiltInValue(spv::BuiltInWorkgroupId, dim_index, name);
 }
 
 Value IRBuilder::GetLocalID(uint32_t dim_index) {
-  if (local_id_.id == 0) {
-    SType vec3_type = this->GetSType(DataType::Int(32).with_lanes(3));
-    SType ptr_type = this->GetPointerType(vec3_type, spv::StorageClassInput);
-    local_id_ = NewValue(ptr_type, kVectorPtr);
-    ib_.Begin(spv::OpVariable).AddSeq(ptr_type, local_id_, spv::StorageClassInput).Commit(&global_);
-    this->Decorate(spv::OpDecorate, local_id_, spv::DecorationBuiltIn,
-                   spv::BuiltInLocalInvocationId);
+  std::string name = "threadIdx." + std::string(1, 'x' + dim_index);
+  return GetBuiltInValue(spv::BuiltInLocalInvocationId, dim_index, name);
+}
+
+Value IRBuilder::GetBuiltInValue(spv::BuiltIn built_in, uint32_t index, const std::string& name) {
+  // Returned cached value if it exists
+  {
+    auto it = built_in_values_tbl_.find({built_in, index});
+    if (it != built_in_values_tbl_.end()) {
+      return it->second;
+    }
   }
-  SType pint_type = this->GetPointerType(t_int32_, spv::StorageClassInput);
-  Value ptr = this->MakeValue(spv::OpAccessChain, pint_type, local_id_,
-                              UIntImm(t_int32_, static_cast<int64_t>(dim_index)));
-  return this->MakeValue(spv::OpLoad, t_int32_, ptr);
+
+  DataType data_type;
+  DataType global_arr_type;
+  switch (built_in) {
+    case spv::BuiltInLocalInvocationId:
+    case spv::BuiltInWorkgroupId:
+      data_type = DataType::Int(32);
+      global_arr_type = data_type.with_lanes(3);
+      break;
+
+    default:
+      LOG(FATAL) << "No data type defined for SPIR-V Built-In " << built_in;
+  }
+
+  // Look up the decorated array value at global scope.  If it doesn't
+  // exist already, declare it.
+  Value global_array;
+  {
+    auto it = built_in_tbl_.find(built_in);
+    if (it != built_in_tbl_.end()) {
+      global_array = it->second;
+    } else {
+      SType ptr_arr_type = this->GetPointerType(GetSType(global_arr_type), spv::StorageClassInput);
+      global_array = NewValue(ptr_arr_type, kVectorPtr);
+
+      ib_.Begin(spv::OpVariable)
+          .AddSeq(ptr_arr_type, global_array, spv::StorageClassInput)
+          .Commit(&global_);
+      this->Decorate(spv::OpDecorate, global_array, spv::DecorationBuiltIn, built_in);
+
+      switch (built_in) {
+        case spv::BuiltInLocalInvocationId:
+          SetName(global_array, "BuiltInLocalInvocationId");
+          break;
+        case spv::BuiltInWorkgroupId:
+          SetName(global_array, "BuiltInWorkgroupId");
+          break;
+
+        default:
+          break;
+      }
+
+      built_in_tbl_[built_in] = global_array;
+    }
+  }
+
+  // Declare the dereferenced value
+  SType data_stype = GetSType(data_type);
+  SType ptr_type = this->GetPointerType(data_stype, spv::StorageClassInput);
+  Value global_const_index = UIntImm(t_int32_, static_cast<int64_t>(index));
+
+  Value ptr = NewValue(ptr_type, kNormal);
+  ib_.Begin(spv::OpAccessChain)
+      .AddSeq(ptr_type, ptr, global_array, global_const_index)
+      .Commit(&function_scope_vars_);
+
+  Value output = NewValue(data_stype, kNormal);
+  ib_.Begin(spv::OpLoad).AddSeq(data_stype, output, ptr).Commit(&function_scope_vars_);
+  if (name.size()) {
+    SetName(output, name);
+  }
+
+  // Store to cache and return
+  built_in_values_tbl_[{built_in, index}] = output;
+  return output;
 }
 
 Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
@@ -449,24 +501,42 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
   // Declare appropriate capabilities for int/float types
   if (dtype.is_int() || dtype.is_uint()) {
     if (dtype.bits() == 8) {
-      ICHECK(spirv_support_.supports_int8) << "Vulkan target does not support Int8 capability";
+      ICHECK(spirv_support_.supports_int8)
+          << "Vulkan target does not support Int8 capability.  "
+          << "If your device supports 8-bit int operations, "
+          << "please either add -supports_int8=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityInt8);
     } else if (dtype.bits() == 16) {
-      ICHECK(spirv_support_.supports_int16) << "Vulkan target does not support Int16 capability";
+      ICHECK(spirv_support_.supports_int16)
+          << "Vulkan target does not support Int16 capability.  "
+          << "If your device supports 16-bit int operations, "
+          << "please either add -supports_int16=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityInt16);
     } else if (dtype.bits() == 64) {
-      ICHECK(spirv_support_.supports_int64) << "Vulkan target does not support Int64 capability";
+      ICHECK(spirv_support_.supports_int64)
+          << "Vulkan target does not support Int64 capability.  "
+          << "If your device supports 64-bit int operations, "
+          << "please either add -supports_int64=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityInt64);
     }
 
   } else if (dtype.is_float()) {
     if (dtype.bits() == 16) {
       ICHECK(spirv_support_.supports_float16)
-          << "Vulkan target does not support Float16 capability";
+          << "Vulkan target does not support Float16 capability.  "
+          << "If your device supports 16-bit float operations, "
+          << "please either add -supports_float16=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityFloat16);
     } else if (dtype.bits() == 64) {
       ICHECK(spirv_support_.supports_float64)
-          << "Vulkan target does not support Float64 capability";
+          << "Vulkan target does not support Float64 capability.  "
+          << "If your device supports 64-bit float operations, "
+          << "please either add -supports_float64=1 to the target, "
+          << "or query all device parameters by adding -from_device=0.";
       capabilities_used_.insert(spv::CapabilityFloat64);
     }
   }
@@ -478,17 +548,25 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
   // supports Int8 but doesn't support 8-bit buffer access.
   if (dtype.bits() == 8) {
     ICHECK(spirv_support_.supports_storage_buffer_8bit_access)
-        << "Vulkan target does not support StorageBuffer8BitAccess";
+        << "Vulkan target does not support StorageBuffer8BitAccess.  "
+        << "If your device supports 8-bit buffer access, "
+        << "please either add -supports_8bit_buffer=1 to the target, "
+        << "or query all device parameters by adding -from_device=0.";
     capabilities_used_.insert(spv::CapabilityStorageBuffer8BitAccess);
     extensions_used_.insert("SPV_KHR_8bit_storage");
 
     ICHECK(spirv_support_.supports_storage_buffer_storage_class)
         << "Illegal Vulkan target description.  "
         << "Vulkan spec requires extension VK_KHR_storage_buffer_storage_class "
-        << "if VK_KHR_8bit_storage is supported";
+        << "if VK_KHR_8bit_storage is supported.  "
+        << "Please either add -supports_storage_buffer_storage_class=1 to the target, "
+        << "or query all device parameters by adding -from_device=0.";
   } else if (dtype.bits() == 16) {
-    ICHECK(spirv_support_.supports_storage_buffer_8bit_access)
-        << "Vulkan target does not support StorageBuffer16BitAccess";
+    ICHECK(spirv_support_.supports_storage_buffer_16bit_access)
+        << "Vulkan target does not support StorageBuffer16BitAccess.  "
+        << "If your device supports 16-bit buffer access, "
+        << "please either add -supports_16bit_buffer=1 to the target, "
+        << "or query all device parameters by adding -from_device=0.";
 
     extensions_used_.insert("SPV_KHR_16bit_storage");
     if (spirv_support_.supports_storage_buffer_storage_class) {

@@ -36,11 +36,13 @@ namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
 
-Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
-                                                  const Array<Layout>& new_in_layouts,
-                                                  const Array<Layout>& old_in_layouts,
-                                                  const Array<tvm::relay::Type>& old_in_types) {
-  RequantizeAttrs* param = const_cast<RequantizeAttrs*>(attrs.as<RequantizeAttrs>());
+InferCorrectLayoutOutput RequantizeInferCorrectLayout(const Attrs& attrs,
+                                                      const Array<Layout>& new_in_layouts,
+                                                      const Array<Layout>& old_in_layouts,
+                                                      const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<RequantizeAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<RequantizeAttrs> param = make_object<RequantizeAttrs>(*attrs_ptr);
 
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
@@ -106,7 +108,7 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
     output_layouts = {undef};
   }
 
-  return Array<Array<Layout>>{input_layouts, output_layouts};
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, Attrs(param));
 }
 
 // Lowering of qnn.requantize op
@@ -134,10 +136,17 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
   auto tensor = Cast(input_tensor, DataType::Int(32));
-  // 1) Subtract the input_zero_point
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
   if (!IsEqualScalar(input_zero_point, zero_scalar)) {
-    tensor = Subtract(tensor, Cast(input_zero_point, DataType::Int(32)));
+    // Broadcast input zero point if needed.
+    int rank = static_cast<int>(input_shape.size());
+    int axis = (param->axis < 0) ? ((rank > 0) ? rank + param->axis : 0) : param->axis;
+    Expr input_zero_broadcast = ExpandBiasToMatchAxis(Reshape(input_zero_point,
+                                                              {
+                                                                  -1,
+                                                              }),
+                                                      rank, {axis});
+    tensor = Subtract(tensor, Cast(input_zero_broadcast, DataType::Int(32)));
   }
 
   // 2) If the input and output scales are same, we can skip the fixed point multiplication. Check
@@ -277,14 +286,20 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
   int axis = requantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1 : axis;
-  ICHECK_LT(axis, static_cast<int>(data->shape.size()))
-      << "axis " << requantize_attrs->axis << " is out of range";
+  auto rank = static_cast<int>(data->shape.size());
+  axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
+  ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << requantize_attrs->axis << " is out of range";
   ICHECK_GE(axis, 0) << "axis " << requantize_attrs->axis << " is out of range";
 
+  PrimExpr axis_shape;
+  if (rank > 0) {
+    axis_shape = data->shape[axis];
+  } else {
+    axis_shape = Integer(1);
+  }
   // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // input_scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // input_zero_pt
+  AssignType(types[1], DataType::Float(32), axis_shape, reporter);  // input_scale
+  AssignType(types[2], DataType::Int(32), axis_shape, reporter);    // input_zero_pt
   // For now, requantize output tensor is limited to full tensor uniform quantization.
   ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
   ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point

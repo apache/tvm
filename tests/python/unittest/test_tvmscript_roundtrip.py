@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
+import pytest
+
 import tvm
 from tvm import tir
 from tvm.script import ty
@@ -277,8 +280,8 @@ class Module3:
             }
         )
         # var definition
-        C_global = tir.var("handle")
-        packedB = tir.var("handle")
+        C_global = tir.buffer_var("float32", "global")
+        packedB = tir.buffer_var("float32", "global")
         # body
         assert num_args == 3, "mmult: num_args should be 3"
         arg0: ty.handle = tir.tvm_struct_get(args, 0, 12, dtype="handle")
@@ -2675,9 +2678,9 @@ def vthread_func(a: ty.handle, c: ty.handle) -> None:
     tir.launch_thread(i1, 2)
     tir.launch_thread(i2, 2)
     B = tir.allocate([16], "float32", "local")
-    for j in range(0, 16):
+    for j in range(16):
         B[j] = tir.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + tir.float32(1)
-    for j in range(0, 16):
+    for j in range(16):
         C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = tir.load("float32", B, j) * tir.float32(2)
 
 
@@ -2709,7 +2712,7 @@ def matmul_original(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
         with tir.block([128, 128], "init") as [vi, vj]:
             C[vi, vj] = tir.float32(0)
 
-        for k in range(0, 128):
+        for k in range(128):
             with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -2803,7 +2806,9 @@ def for_thread_binding(a: ty.handle, b: ty.handle) -> None:
     B = tir.match_buffer(b, (16, 16), "float32")
 
     for i in tir.thread_binding(0, 16, thread="threadIdx.x"):
-        for j in tir.thread_binding(0, 16, thread="threadIdx.y"):
+        for j in tir.thread_binding(
+            0, 16, thread="threadIdx.y", annotations={"attr_key": "attr_value"}
+        ):
             A[i, j] = B[i, j] + tir.float32(1)
 
 
@@ -2818,6 +2823,44 @@ def test_for_thread_binding():
     assert isinstance(rt_func.body.body, tir.stmt.For)
     assert rt_func.body.body.kind == 4
     assert rt_func.body.body.thread_binding.thread_tag == "threadIdx.y"
+    assert rt_func.body.body.annotations["attr_key"] == "attr_value"
+
+
+@tvm.script.tir
+def match_buffer_region(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16, 16), "float32")
+    B = tir.match_buffer(b, (1), "float32")
+
+    with tir.block([16, 4]) as [vi, vj]:
+        C = tir.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
+        with tir.block([4]) as [vii]:
+            D = tir.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
+            for i, j in tir.grid(4, 4):
+                B[0] += D[i, 0, j]
+
+
+def test_match_buffer_region():
+    func = match_buffer_region
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    assert isinstance(rt_func.body, tir.stmt.BlockRealize)
+    root = rt_func.body.block
+
+    assert isinstance(root.body, tir.stmt.For)
+    assert isinstance(root.body.body, tir.stmt.For)
+    assert isinstance(root.body.body.body, tir.stmt.BlockRealize)
+    outer_block = root.body.body.body.block
+    assert len(outer_block.match_buffers) == 1
+    buffer_C = outer_block.match_buffers[0].buffer
+    tvm.ir.assert_structural_equal(buffer_C.shape, [16, 1, 4])
+
+    assert isinstance(outer_block.body, tir.stmt.For)
+    assert isinstance(outer_block.body.body, tir.stmt.BlockRealize)
+    inner_block = outer_block.body.body.block
+    assert len(inner_block.match_buffers) == 1
+    buffer_D = inner_block.match_buffers[0].buffer
+    tvm.ir.assert_structural_equal(buffer_D.shape, [4, 1, 4])
 
 
 @tvm.script.tir
@@ -2832,10 +2875,10 @@ def block_elements(a: ty.handle, b: ty.handle) -> None:
         tir.writes(B[0, 0])
         tir.block_attr({"attr_key": "attr_value"})
         C = tir.alloc_buffer((4, 4), dtype="float32")
-        D = tir.match_buffer_region(A[0:4, 0])
+        D = tir.match_buffer(A[0:4, 0], (4, 1))
         with tir.init():
             B[0, 0] = tir.float32(0)
-        B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2, 0]
+        B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2]
 
 
 def test_block_elements():
@@ -2858,8 +2901,8 @@ def opaque_block(a: ty.handle, b: ty.handle) -> None:
     A = tir.match_buffer(a, (16, 16), "float32")
     B = tir.match_buffer(b, (16, 16), "float32")
 
-    for i in range(0, 16):
-        for j in range(0, 16):
+    for i in range(16):
+        for j in range(16):
             with tir.block([]):
                 tir.reads([])
                 tir.writes(A[i, j])
@@ -2867,7 +2910,7 @@ def opaque_block(a: ty.handle, b: ty.handle) -> None:
         with tir.block([]):
             tir.reads([A[i, 0:16]])
             tir.writes([B[i, 0:16]])
-            for j in range(0, 16):
+            for j in range(16):
                 B[i, j] = A[i, j]
 
 
@@ -2888,19 +2931,157 @@ def test_opaque_block():
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
+@tvm.script.tir
+def rank0(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    B = tir.alloc_buffer((), "float32")
+    A[()] = 2
+    B[()] = A[()]
+
+
+def test_rank0_buffers():
+    func = rank0
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def rank0_block(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    B = tir.alloc_buffer((), "float32")
+    tir.store(B.data, 0, tir.load("float32", A.data, 0))
+
+    with tir.block([], "update") as []:
+        tir.reads([A[()]])
+        tir.writes([B[()]])
+        for i in range(1):
+            B[()] = A[()]
+
+
+def test_rank0_blocks():
+    func = rank0_block
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def select(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    A[()] = tir.Select(True, 1, 2)
+
+
+def test_select():
+    func = select
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def minmax(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    A[()] = tir.min(1, 2)
+    A[()] = tir.max(1, 2)
+
+
+def test_minmax():
+    func = minmax
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def abs(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (128, 128), "float32")
+
+    with tir.block([128, 128], "A") as [vi, vj]:
+        A[vi, vj] = tir.abs(A[vi, vj])
+
+
+def test_abs():
+    func = abs
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def constant_folding(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (), "float32")
+    A[()] = tir.min(2.2, 5.2)
+    A[()] = tir.max(tir.float32(2.2), tir.float32(tir.float32(5.2)))
+    A[()] = tir.min(2.2, 5.0)
+
+
+def test_constant_folding():
+    func = constant_folding
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@tvm.script.tir
+def simplify_bracket() -> None:
+    a = tir.var("int32")
+    b = tir.var("int32")
+    c = tir.var("int32")
+    d = tir.var("int32")
+    tir.evaluate(a + b * (c + d))
+
+
+def test_simplify_bracket():
+    func = simplify_bracket
+    out_str = tvm.script.asscript(func, True)
+    assert out_str.count("a + b*(c + d)") == 1
+
+
+@tvm.script.tir
+def var_with_same_name(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 16), "float32")
+    with tir.block([16, 16]) as [vi, vj]:
+        A[vi, vj] = 0
+    with tir.block([16, 16]) as [vi, vj]:
+        A[vi, vj] = 0
+    for i, j in tir.grid(16, 16):
+        with tir.block([16, 16]) as [vi, vj]:
+            A[vi, vj] = 0
+    for i, j in tir.grid(16, 16):
+        with tir.block([16, 16]) as [vi, vj]:
+            A[vi, vj] = 0
+
+
+def test_same_name_var():
+    func = var_with_same_name
+    out_str = tvm.script.asscript(func, True)
+    rt_func = tvm.script.from_source(out_str)
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+    assert out_str.count("with tir.block([16, 16]) as [vi, vj]") == 4
+    assert out_str.find("vi_") == -1
+    assert out_str.find("vj_") == -1
+
+    assert out_str.count("for i0, i1 in tir.grid(16, 16)") == 2
+    assert out_str.find("i0_") == -1
+    assert out_str.find("i1_") == -1
+
+    assert out_str.count("for i, j in tir.grid(16, 16)") == 2
+    assert out_str.find("i_") == -1
+    assert out_str.find("i_") == -1
+
+
+@tvm.script.tir
+def while_loop(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (16,), "float32")
+    B = tir.match_buffer(b, (16,), "float32")
+    i = tir.alloc_buffer((), "int32", scope="local")
+    with tir.block([16]) as [vi]:
+        B[vi] = 0
+    while i[()] < 10:
+        for j in range(16):
+            B[j] += A[j]
+
+
+def test_while_loop():
+    rt_func = tvm.script.from_source(tvm.script.asscript(while_loop, True))
+    tvm.ir.assert_structural_equal(while_loop, rt_func)
+
+
 if __name__ == "__main__":
-    test_opt_gemm_normalize()
-    test_opt_gemm_mod_host()
-    test_opt_gemm_lower()
-    test_opt_conv_tensorcore_normalize()
-    test_opt_conv_tensorcore_lower()
-    test_opt_conv_tensorcore_mod_host()
-    test_vthread()
-    test_module_define()
-    test_matmul()
-    test_matmul_original()
-    test_element_wise()
-    test_predicate()
-    test_for_thread_binding()
-    test_block_elements()
-    test_opaque_block()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

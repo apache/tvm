@@ -65,12 +65,20 @@ class PassContext(tvm.runtime.Object):
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
 
+    instruments : Optional[Sequence[PassInstrument]]
+        The list of pass instrument implementations.
+
     config : Optional[Dict[str, Object]]
         Additional configurations for specific passes.
     """
 
     def __init__(
-        self, opt_level=2, required_pass=None, disabled_pass=None, trace=None, config=None
+        self,
+        opt_level=2,
+        required_pass=None,
+        disabled_pass=None,
+        instruments=None,
+        config=None,
     ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
@@ -80,9 +88,13 @@ class PassContext(tvm.runtime.Object):
         if not isinstance(disabled, (list, tuple)):
             raise TypeError("disabled_pass is expected to be the type of " + "list/tuple/set.")
 
+        instruments = list(instruments) if instruments else []
+        if not isinstance(instruments, (list, tuple)):
+            raise TypeError("instruments is expected to be the type of " + "list/tuple/set.")
+
         config = config if config else None
         self.__init_handle_by_constructor__(
-            _ffi_transform_api.PassContext, opt_level, required, disabled, trace, config
+            _ffi_transform_api.PassContext, opt_level, required, disabled, instruments, config
         )
 
     def __enter__(self):
@@ -92,10 +104,32 @@ class PassContext(tvm.runtime.Object):
     def __exit__(self, ptype, value, trace):
         _ffi_transform_api.ExitPassContext(self)
 
+    def override_instruments(self, instruments):
+        """Override instruments within this PassContext.
+
+        If there are existing instruments, their ``exit_pass_ctx`` callbacks are called.
+        Then switching to new instruments and calling new ``enter_pass_ctx`` callbacks.
+
+        instruments : Sequence[PassInstrument]
+            The list of pass instrument implementations.
+        """
+        _ffi_transform_api.OverrideInstruments(self, instruments)
+
     @staticmethod
     def current():
         """Return the current pass context."""
         return _ffi_transform_api.GetCurrentPassContext()
+
+    @staticmethod
+    def list_configs():
+        """List all registered `PassContext` configuration names and metadata.
+
+        Returns
+        -------
+        configs : Dict[str, Dict[str, str]]
+
+        """
+        return _ffi_transform_api.ListConfigs()
 
 
 @tvm._ffi.register_object("transform.Pass")
@@ -165,7 +199,7 @@ class Sequential(Pass):
         The list of passes that the sequential pass is dependent on.
     """
 
-    def __init__(self, passes=None, opt_level=2, name="sequential", required=None):
+    def __init__(self, passes=None, opt_level=0, name="sequential", required=None):
         passes = passes if passes else []
         if not isinstance(passes, (list, tuple)):
             raise TypeError("passes must be a list of Pass objects.")
@@ -189,6 +223,7 @@ def _wrap_class_module_pass(pass_cls, pass_info):
             # initialize handle in cass pass_cls creation failed.fg
             self.handle = None
             inst = pass_cls(*args, **kwargs)
+
             # it is important not to capture self to
             # avoid a cyclic dependency
             def _pass_func(mod, ctx):
@@ -330,26 +365,3 @@ def PrintIR(header="", show_meta_data=False):
     The pass
     """
     return _ffi_transform_api.PrintIR(header, show_meta_data)
-
-
-def render_pass_profiles():
-    """Returns a string render of the pass profiling data. The format of each output line is
-    `{name}: {time} [{time excluding sub-passes}] ({% of total}; {% of parent})`.
-    The indentation of each line corresponds to nesting of passes.
-    """
-    return _ffi_transform_api.render_pass_profiles()
-
-
-def clear_pass_profiles():
-    """Clears all stored pass profiling data."""
-    _ffi_transform_api.clear_pass_profiles()
-
-
-def enable_pass_profiling():
-    """Enables pass profiling."""
-    _ffi_transform_api.enable_pass_profiling()
-
-
-def disable_pass_profiling():
-    """Disables pass profiling."""
-    _ffi_transform_api.disable_pass_profiling()

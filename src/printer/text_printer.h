@@ -34,6 +34,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/var.h>
 
 #include <string>
 #include <unordered_map>
@@ -176,6 +177,8 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   std::vector<Doc> doc_stack_{};
   /*! \brief Set for introduced vars */
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
+  /*! \brief Set for exprs have been printed optional information */
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> opt_info_memo_;
   /*! \brief Map for result and memo_ diffs for visited expression */
   std::unordered_map<Expr, Doc, ObjectPtrHash, ObjectPtrEqual> result_memo_;
   /*! \brief Map from Expr to Doc */
@@ -253,6 +256,13 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
 
   /*! \brief Print the node */
   Doc Print(const ObjectRef& node);
+
+  /*! \brief Place into `s` the name used in the preceding Print call for `v`.
+   * \param v Var instance to check. Must point to a VarNode visited by Print.
+   * \param s String to receive the name.
+   * \return true when a name re-mapping was found.
+   */
+  bool GetVarName(::tvm::tir::Var v, std::string* s);
 
  private:
   /*! \brief whether show meta data */
@@ -359,6 +369,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBody(const Stmt& body, bool indent = true);
 };
 
+String AsTVMScript(const ObjectRef& mod, bool show_meta = false);
+
 }  // namespace tir
 }  // namespace tvm
 
@@ -389,6 +401,8 @@ class TextPrinter {
   relay::RelayTextPrinter relay_text_printer_;
   /*! \brief TIR Text Printer */
   tir::TIRTextPrinter tir_text_printer_;
+
+  bool GetVarName(::tvm::tir::Var v, std::string* s) { return tir_text_printer_.GetVarName(v, s); }
 
   Doc PrintFinal(const ObjectRef& node) {
     Doc doc;

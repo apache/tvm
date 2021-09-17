@@ -26,8 +26,12 @@
 #include <libspirv.h>
 #include <tvm/tir/transform.h>
 
+#include <fstream>
+#include <sstream>
+
 #include "../../runtime/vulkan/vulkan_module.h"
 #include "../../runtime/vulkan/vulkan_shader.h"
+#include "../../support/utils.h"
 #include "../build_common.h"
 #include "codegen_spirv.h"
 
@@ -36,7 +40,24 @@ namespace codegen {
 
 class SPIRVTools {
  public:
-  SPIRVTools() { ctx_ = spvContextCreate(SPV_ENV_VULKAN_1_0); }
+  explicit SPIRVTools(Target target) {
+    uint32_t vulkan_version =
+        target->GetAttr<Integer>("vulkan_api_version").value_or(VK_API_VERSION_1_0);
+    uint32_t spirv_version = target->GetAttr<Integer>("max_spirv_version").value_or(0x10000);
+
+    spv_target_env validation_version;
+    if (vulkan_version >= VK_API_VERSION_1_2) {
+      validation_version = SPV_ENV_VULKAN_1_2;
+    } else if (vulkan_version >= VK_API_VERSION_1_1 && spirv_version >= 0x10400) {
+      validation_version = SPV_ENV_VULKAN_1_1_SPIRV_1_4;
+    } else if (vulkan_version >= VK_API_VERSION_1_1) {
+      validation_version = SPV_ENV_VULKAN_1_1;
+    } else {
+      validation_version = SPV_ENV_VULKAN_1_0;
+    }
+
+    ctx_ = spvContextCreate(validation_version);
+  }
   ~SPIRVTools() { spvContextDestroy(ctx_); }
   std::string BinaryToText(const std::vector<uint32_t>& bin) {
     spv_text text = nullptr;
@@ -80,7 +101,7 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
   using tvm::runtime::VulkanShader;
 
   std::ostringstream code_data;
-  static SPIRVTools spirv_tools;
+  SPIRVTools spirv_tools(target);
   std::unordered_map<std::string, VulkanShader> smap;
 
   const auto* postproc = Registry::Get("tvm_callback_vulkan_postproc");
@@ -104,7 +125,23 @@ runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction)
 
     VulkanShader shader = cg.BuildFunction(f, entry);
 
-    spirv_tools.ValidateShader(shader.data);
+    if (auto path = std::getenv("TVM_VULKAN_DEBUG_SHADER_SAVEPATH")) {
+      if (*path) {
+        std::stringstream ss;
+        ss << path << "/" << f_name << "_";
+        std::string prefix = ss.str();
+
+        std::ofstream(prefix + "tir.txt") << f;
+        std::ofstream(prefix + "spv.txt") << spirv_tools.BinaryToText(shader.data);
+        std::ofstream(prefix + "spv.spv", std::ios::binary)
+            .write(reinterpret_cast<const char*>(shader.data.data()),
+                   sizeof(shader.data[0]) * shader.data.size());
+      }
+    }
+
+    if (!support::BoolEnvironmentVar("TVM_VULKAN_DISABLE_SHADER_VALIDATION")) {
+      spirv_tools.ValidateShader(shader.data);
+    }
 
     if (webgpu_restriction) {
       for (auto param : f->params) {

@@ -31,6 +31,16 @@ class InvalidShapeError(ValueError):
     """Invalid shape for a topi function. i.e. call winograd template for non-3x3 kernel)"""
 
 
+def ncw_pack_layout(layout_info):
+    """Check whether the layout type is NCWinic"""
+    return layout_info[:3] == "NCW" and "c" in layout_info and "n" in layout_info
+
+
+def ncw_xc_layout(layout_info):
+    """Check whether the layout type is NCWxc"""
+    return layout_info[:3] == "NCW" and "c" in layout_info and layout_info[3:-1].isnumeric()
+
+
 def nchw_pack_layout(layout_info):
     """Check whether the layout type is NCHWinic"""
     return layout_info[:4] == "NCHW" and "c" in layout_info and "n" in layout_info
@@ -495,5 +505,5 @@ def ceil_div(a, b):
 
 
 def swap(arr, axis):
-    """ swap arr[axis] and arr[-1] """
+    """swap arr[axis] and arr[-1]"""
     return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]

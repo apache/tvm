@@ -51,27 +51,41 @@ Build the Shared Library
 
 Our goal is to build the shared libraries:
 
-- On Linux the target library are `libtvm.so`
-- On macOS the target library are `libtvm.dylib`
-- On Windows the target library are `libtvm.dll`
+   - On Linux the target library are `libtvm.so` and `libtvm_runtime.so`
+   - On macOS the target library are `libtvm.dylib` and `libtvm_runtime.dylib` 
+   - On Windows the target library are `libtvm.dll` and `libtvm_runtime.dll` 
 
+It is also possible to :ref:`build the runtime <deploy-and-integration>` library only.
+
+The minimal building requirements for the ``TVM`` libraries are:
+
+   - A recent c++ compiler supporting C++ 14 (g++-5 or higher)
+   - CMake 3.5 or higher
+   - We highly recommend to build with LLVM to enable all the features.
+   - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
+   - On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily install and manage dependencies.
+   - Python is also required. Avoid using Python 3.9.X+ which is not `supported <https://github.com/apache/tvm/issues/8577>`_. 3.7.X+ and 3.8.X+ should be well supported however.
+
+To install the these minimal pre-requisites on Ubuntu/Debian like
+linux operating systems, execute (in a terminal):
 
 .. code:: bash
 
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
-The minimal building requirements are
+Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by 
+Homebrew to ensure the dependencies are correctly installed and configured:
 
-- A recent c++ compiler supporting C++ 14 (g++-5 or higher)
-- CMake 3.5 or higher
-- We highly recommend to build with LLVM to enable all the features.
-- If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
-- On macOS, you may want to install `Homebrew <https://brew.sh>` to easily install and manage dependencies.
+.. code:: bash 
+
+    brew install gcc git cmake 
+    brew install llvm 
+    brew install python@3.8 
 
 
 We use cmake to build the library.
-The configuration of TVM can be modified by `config.cmake`.
+The configuration of TVM can be modified by editing `config.cmake` and/or by passing cmake flags to the command line:
 
 
 - First, check the cmake in your system. If you do not have cmake,
@@ -124,6 +138,40 @@ The configuration of TVM can be modified by `config.cmake`.
       cd build
       cmake .. -G Ninja
       ninja
+
+  - There is also a makefile in the top-level tvm directory that can
+    automate several of these steps.  It will create the build
+    directory, copy the default ``config.cmake`` to the build
+    directory, run cmake, then run make.
+
+    The build directory can be specified using the environment
+    variable ``TVM_BUILD_PATH``.  If ``TVM_BUILD_PATH`` is unset, the
+    makefile assumes that the ``build`` directory inside tvm should be
+    used.  Paths specified by ``TVM_BUILD_PATH`` can be either
+    absolute paths or paths relative to the base tvm directory.
+    ``TVM_BUILD_PATH`` can also be set to a list of space-separated
+    paths, in which case all paths listed will be built.
+
+    If an alternate build directory is used, then the environment
+    variable ``TVM_LIBRARY_PATH`` should be set at runtime, pointing
+    to the location of the compiled ``libtvm.so`` and
+    ``libtvm_runtime.so``.  If not set, tvm will look relative to the
+    location of the tvm python module.  Unlike ``TVM_BUILD_PATH``,
+    this must be an absolute path.
+
+  .. code:: bash
+
+     # Build in the "build" directory
+     make
+
+     # Alternate location, "build_debug"
+     TVM_BUILD_PATH=build_debug make
+
+     # Build both "build_release" and "build_debug"
+     TVM_BUILD_PATH="build_debug build_release" make
+
+     # Use debug build
+     TVM_LIBRARY_PATH=~/tvm/build_debug python3
 
 If everything goes well, we can go to :ref:`python-package-installation`
 
@@ -255,6 +303,21 @@ like ``virtualenv``.
 
        pip3 install --user tornado psutil xgboost cloudpickle
 
+Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed, 
+including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and 
+configuration. A workaround for this is to do the following commands:
+
+    .. code:: bash 
+
+        brew install openblas gfortran
+
+        pip install pybind11 cython pythran   
+        
+        export OPENBLAS=/opt/homebrew/opt/openblas/lib/ 
+        
+        pip install scipy --no-use-pep517
+        
+        pip install xgboost
 
 Install Contrib Libraries
 -------------------------
@@ -278,7 +341,7 @@ tests in TVM. The easiest way to install GTest is from source.
        cd googletest
        mkdir build
        cd build
-       cmake -DMAKE_SHARED_LIBS=ON ..
+       cmake -DBUILD_SHARED_LIBS=ON ..
        make
        sudo make install
 

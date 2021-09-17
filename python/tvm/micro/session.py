@@ -17,14 +17,17 @@
 
 """Defines a top-level glue class that operates the Transport and Flasher classes."""
 
+import json
 import logging
 import sys
 
 from ..error import register_error
-from .._ffi import get_global_func
+from .._ffi import get_global_func, register_func
 from ..contrib import graph_executor
+from ..contrib import utils
 from ..contrib.debugger import debug_executor
 from ..rpc import RPCSession
+from . import project
 from .transport import IoTimeoutError
 from .transport import TransportLogger
 
@@ -60,8 +63,6 @@ class Session:
 
     def __init__(
         self,
-        binary=None,
-        flasher=None,
         transport_context_manager=None,
         session_name="micro-rpc",
         timeout_override=None,
@@ -70,12 +71,6 @@ class Session:
 
         Parameters
         ----------
-        binary : MicroBinary
-            If given, `flasher` must also be given. During session initialization, this binary will
-            be flashed to the device before the transport is created.
-        flasher : Flasher
-            If given, `binary` must also be given. Used to flash `binary` during session
-            initialization.
         transport_context_manager : ContextManager[transport.Transport]
             If given, `flasher` and `binary` should not be given. On entry, this context manager
             should establish a tarnsport between this TVM instance and the device.
@@ -85,8 +80,6 @@ class Session:
             If given, TransportTimeouts that govern the way Receive() behaves. If not given, this is
             determined by calling has_flow_control() on the transport.
         """
-        self.binary = binary
-        self.flasher = flasher
         self.transport_context_manager = transport_context_manager
         self.session_name = session_name
         self.timeout_override = timeout_override
@@ -106,12 +99,11 @@ class Session:
             return bytes([])
 
     def _wrap_transport_write(self, data, timeout_microsec):
-        try:
-            return self.transport.write(
-                data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else None
-            )
-        except IoTimeoutError:
-            return 0
+        self.transport.write(
+            data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else None
+        )
+
+        return len(data)  # TODO(areusch): delete
 
     def __enter__(self):
         """Initialize this session and establish an RPC session with the on-device RPC server.
@@ -121,9 +113,6 @@ class Session:
         Session :
             Returns self.
         """
-        if self.flasher is not None:
-            self.transport_context_manager = self.flasher.flash(self.binary)
-
         self.transport = TransportLogger(
             self.session_name, self.transport_context_manager, level=logging.DEBUG
         ).__enter__()
@@ -141,6 +130,7 @@ class Session:
                     int(timeouts.session_start_retry_timeout_sec * 1e6),
                     int(timeouts.session_start_timeout_sec * 1e6),
                     int(timeouts.session_established_timeout_sec * 1e6),
+                    self._shutdown,
                 )
             )
             self.device = self._rpc.cpu(0)
@@ -153,6 +143,9 @@ class Session:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""
         self.transport.__exit__(exc_type, exc_value, exc_traceback)
+
+    def _shutdown(self):
+        self.__exit__(None, None, None)
 
 
 def lookup_remote_linked_param(mod, storage_id, template_tensor, device):
@@ -248,3 +241,54 @@ def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
         graph_json_str,
         dump_root=dump_root,
     )
+
+
+@register_func("tvm.micro.compile_and_create_micro_session")
+def compile_and_create_micro_session(
+    mod_src_bytes: bytes,
+    template_project_dir: str,
+    project_options: dict = None,
+):
+    """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
+
+    Parameters
+    ----------
+    mod_src_bytes : bytes
+        The content of a tarfile which contains the TVM-generated sources which together form the
+        SystemLib. This tar is expected to be created by export_library. The tar will be extracted
+        into a directory and the sources compiled into a MicroLibrary using the Compiler.
+
+    template_project_dir: str
+        The path to a template microTVM Project API project which is used to generate the embedded
+        project that is built and flashed onto the target device.
+
+    project_options: dict
+        Options for the microTVM API Server contained in template_project_dir.
+    """
+
+    temp_dir = utils.tempdir()
+    # Keep temp directory for generate project
+    temp_dir.set_keep_for_debug(True)
+    model_library_format_path = temp_dir / "model.tar.gz"
+    with open(model_library_format_path, "wb") as mlf_f:
+        mlf_f.write(mod_src_bytes)
+
+    try:
+        template_project = project.TemplateProject.from_directory(template_project_dir)
+        generated_project = template_project.generate_project_from_mlf(
+            model_library_format_path,
+            str(temp_dir / "generated-project"),
+            options=json.loads(project_options),
+        )
+    except Exception as exception:
+        logging.error("Project Generate Error: %s", str(exception))
+        raise exception
+
+    generated_project.build()
+    generated_project.flash()
+    transport = generated_project.transport()
+
+    rpc_session = Session(transport_context_manager=transport)
+    # RPC exit is called by shutdown function.
+    rpc_session.__enter__()
+    return rpc_session._rpc._sess

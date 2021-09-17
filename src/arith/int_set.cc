@@ -22,6 +22,7 @@
  * \brief The integer set functions
  */
 #include <tvm/arith/int_set.h>
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -606,6 +607,13 @@ inline bool ProveEqual(Analyzer* analyzer, PrimExpr lhs, PrimExpr rhs) {
   return is_zero(analyzer->Simplify(lhs - rhs));
 }
 
+IntSet IntSet::FromMinExtent(PrimExpr min, PrimExpr extent) {
+  if (is_one(extent)) {
+    return IntSet::SinglePoint(min);
+  }
+  return IntervalSet(min, extent + min - 1);
+}
+
 IntSet IntSet::FromRange(Range r) {
   // must make sure it can be matched back by MatchRange.
   if (is_one(r->extent)) {
@@ -633,6 +641,77 @@ IntSet Union(const Array<IntSet>& sets) {
     x = Union(&ana, x, ToIntervalSet(sets[i]));
   }
   return IntervalSet(ana.Simplify(x->min_value), ana.Simplify(x->max_value));
+}
+
+Array<IntSet> UnionRegion(const Array<Array<IntSet>>& nd_int_sets) {
+  if (nd_int_sets.empty()) {
+    return {};
+  }
+  int n = nd_int_sets.size();
+  int ndim = nd_int_sets[0].size();
+  Array<IntSet> result;
+  result.reserve(ndim);
+  for (int i = 0; i < ndim; ++i) {
+    Array<IntSet> candidates;
+    candidates.reserve(n);
+    for (int j = 0; j < n; ++j) {
+      candidates.push_back(nd_int_sets[j][i]);
+    }
+    result.push_back(Union(candidates));
+  }
+  return result;
+}
+
+IntSet UnionLowerBound(const Array<IntSet>& sets) {
+  if (sets.size() == 0) return IntSet::Nothing();
+  if (sets.size() == 1) return sets[0];
+  Analyzer analyzer;
+  bool is_first_interval = true;
+  PrimExpr min_inclusive{nullptr};
+  PrimExpr max_inclusive(nullptr);
+  for (const IntSet& int_set : sets) {
+    if (const auto* interval_set = int_set.as<IntervalSetNode>()) {
+      PrimExpr new_min_inclusive = interval_set->min_value;
+      PrimExpr new_max_inclusive = interval_set->max_value;
+      if (is_first_interval) {
+        is_first_interval = false;
+        min_inclusive = std::move(new_min_inclusive);
+        max_inclusive = std::move(new_max_inclusive);
+        continue;
+      }
+      bool bound_1 = is_neg_inf(new_min_inclusive) || is_pos_inf(max_inclusive) ||
+                     analyzer.CanProve(new_min_inclusive <= max_inclusive + 1);
+      bool bound_2 = is_neg_inf(min_inclusive) || is_pos_inf(new_max_inclusive) ||
+                     analyzer.CanProve(min_inclusive <= new_max_inclusive + 1);
+      if (bound_1 && bound_2) {
+        min_inclusive = min(min_inclusive, new_min_inclusive);
+        max_inclusive = max(max_inclusive, new_max_inclusive);
+      }
+    }
+  }
+  if (is_first_interval) {
+    return IntSet::Nothing();
+  }
+  return IntSet::Interval(min_inclusive, max_inclusive);
+}
+
+Array<IntSet> UnionRegionLowerBound(const Array<Array<IntSet>>& nd_int_sets) {
+  if (nd_int_sets.empty()) {
+    return {};
+  }
+  int n = nd_int_sets.size();
+  int ndim = nd_int_sets[0].size();
+  Array<IntSet> result;
+  result.reserve(ndim);
+  for (int i = 0; i < ndim; ++i) {
+    Array<IntSet> candidates;
+    candidates.reserve(n);
+    for (int j = 0; j < n; ++j) {
+      candidates.push_back(nd_int_sets[j][i]);
+    }
+    result.push_back(UnionLowerBound(candidates));
+  }
+  return result;
 }
 
 IntSet Intersect(const Array<IntSet>& sets) {
@@ -694,6 +773,18 @@ IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_ma
   return EvalSet(r, ConvertDomMap(dom_map));
 }
 
+Array<IntSet> EvalSet(const Array<Range>& region, const Map<Var, IntSet>& dom_map) {
+  Analyzer ana;
+  IntervalSetEvaluator m(&ana, dom_map);
+  Array<IntSet> result;
+  result.reserve(region.size());
+  for (const Range& r : region) {
+    PrimExpr sum = r->min + (r->extent - 1);
+    result.push_back(m.Eval(IntervalSet(r->min, ana.Simplify(sum))));
+  }
+  return result;
+}
+
 IntSet EvalSet(IntSet s, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   Analyzer ana;
   auto dmap = ConvertDomMap(dom_map);
@@ -731,6 +822,49 @@ IntSet EvalSet(Range r, const Map<IterVar, IntSet>& dom_map) {
   return EvalSet(r, ConvertDomMap(dom_map));
 }
 
+Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
+                                                 const Map<Var, Range>& var_dom,
+                                                 const PrimExpr& predicate, Analyzer* analyzer) {
+  int ndim = region.size();
+  Array<IterSumExpr> iter_sum_exprs{nullptr};
+  {
+    Array<PrimExpr> affine_indices;
+    affine_indices.reserve(ndim);
+    for (const Range& range : region) {
+      affine_indices.push_back(range->min);
+    }
+    iter_sum_exprs = DetectIterMap(
+        /*indices=*/affine_indices, /*input_iters=*/var_dom,
+        /*predicate=*/predicate, /*require_bijective=*/false, analyzer);
+  }
+  if (iter_sum_exprs.empty()) {
+    return NullOpt;
+  }
+  ICHECK_EQ(iter_sum_exprs.size(), ndim);
+  Array<IntSet> result;
+  result.reserve(ndim);
+  for (int i = 0; i < ndim; ++i) {
+    const IterSumExpr& sum_expr = iter_sum_exprs[i];
+    const Range& range = region[i];
+    if (sum_expr->args.empty()) {
+      result.push_back(IntSet::FromMinExtent(sum_expr->base, range->extent));
+      continue;
+    }
+    ICHECK_EQ(sum_expr->args.size(), 1);
+    const IterSplitExpr& split = sum_expr->args[0];
+    if (!analyzer->CanProve(range->extent >= split->scale)) {
+      return NullOpt;
+    }
+    const PrimExpr& base = sum_expr->base;
+    // IterSplitExpr: (source // lower_factor) % extent * scale
+    // where `(source // lower_factor) % extent` is within [0, extent - 1]
+    // Therefore, the range of `region[i]->min` is `base + [0, (extent - 1) * scale]`
+    result.push_back(
+        IntSet::FromMinExtent(base, split->extent * split->scale + (range->extent - split->scale)));
+  }
+  return result;
+}
+
 TVM_REGISTER_NODE_TYPE(IntervalSetNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -753,6 +887,17 @@ TVM_REGISTER_GLOBAL("arith.IntervalSetGetMax").set_body_method(&IntSet::max);
 TVM_REGISTER_GLOBAL("arith.IntSetIsNothing").set_body_method(&IntSet::IsNothing);
 
 TVM_REGISTER_GLOBAL("arith.IntSetIsEverything").set_body_method(&IntSet::IsEverything);
+
+TVM_REGISTER_GLOBAL("arith.EstimateRegionLowerBound")
+    .set_body_typed([](Array<Range> region, Map<Var, Range> var_dom,
+                       PrimExpr predicate) -> Optional<Array<IntSet>> {
+      Analyzer analyzer;
+      return EstimateRegionLowerBound(region, var_dom, predicate, &analyzer);
+    });
+
+TVM_REGISTER_GLOBAL("arith.PosInf").set_body_typed([]() { return SymbolicLimits::pos_inf_; });
+TVM_REGISTER_GLOBAL("arith.NegInf").set_body_typed([]() { return SymbolicLimits::neg_inf_; });
+TVM_REGISTER_GLOBAL("arith.UnionLowerBound").set_body_typed(UnionLowerBound);
 
 }  // namespace arith
 }  // namespace tvm

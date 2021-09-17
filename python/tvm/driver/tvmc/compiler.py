@@ -38,42 +38,58 @@ logger = logging.getLogger("TVMC")
 
 @register_parser
 def add_compile_parser(subparsers):
-    """ Include parser for 'compile' subcommand """
+    """Include parser for 'compile' subcommand"""
 
-    parser = subparsers.add_parser("compile", help="compile a model")
+    parser = subparsers.add_parser("compile", help="compile a model.")
     parser.set_defaults(func=drive_compile)
     parser.add_argument(
         "--cross-compiler",
         default="",
-        help="the cross compiler to generate target libraries, e.g. 'aarch64-linux-gnu-gcc'",
+        help="the cross compiler to generate target libraries, e.g. 'aarch64-linux-gnu-gcc'.",
     )
     parser.add_argument(
         "--cross-compiler-options",
         default="",
-        help="the cross compiler options to generate target libraries, e.g. '-mfpu=neon-vfpv4'",
+        help="the cross compiler options to generate target libraries, e.g. '-mfpu=neon-vfpv4'.",
     )
     parser.add_argument(
         "--desired-layout",
         choices=["NCHW", "NHWC"],
         default=None,
-        help="change the data layout of the whole graph",
+        help="change the data layout of the whole graph.",
     )
     parser.add_argument(
         "--dump-code",
         metavar="FORMAT",
         default="",
-        help="comma separarated list of formats to export, e.g. 'asm,ll,relay' ",
+        help="comma separated list of formats to export the input model, e.g. 'asm,ll,relay'.",
     )
     parser.add_argument(
         "--model-format",
         choices=frontends.get_frontend_names(),
-        help="specify input model format",
+        help="specify input model format.",
     )
     parser.add_argument(
         "-o",
         "--output",
         default="module.tar",
-        help="output the compiled module to an archive",
+        help="output the compiled module to a specifed archive. Defaults to 'module.tar'.",
+    )
+    parser.add_argument(
+        "-f",
+        "--output-format",
+        choices=["so", "mlf"],
+        default="so",
+        help="output format. Use 'so' for shared object or 'mlf' for Model Library Format "
+        "(only for microTVM targets). Defaults to 'so'.",
+    )
+    parser.add_argument(
+        "--pass-config",
+        action="append",
+        metavar=("name=value"),
+        help="configurations to be used at compile time. This option can be provided multiple "
+        "times, each one to set one configuration value, "
+        "e.g. '--pass-config relay.backend.use_auto_scheduler=0'.",
     )
     parser.add_argument(
         "--target",
@@ -85,23 +101,23 @@ def add_compile_parser(subparsers):
         metavar="PATH",
         default="",
         help="path to an auto-tuning log file by AutoTVM. If not presented, "
-        "the fallback/tophub configs will be used",
+        "the fallback/tophub configs will be used.",
     )
-    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
-    parser.add_argument("FILE", help="path to the input model file")
+    parser.add_argument("FILE", help="path to the input model file.")
     parser.add_argument(
         "--input-shapes",
         help="specify non-generic shapes for model to run, format is "
-        '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"',
+        '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]".',
         type=common.parse_shape_string,
         default=None,
     )
     parser.add_argument(
         "--disabled-pass",
-        help="disable specific passes, comma-separated list of pass names",
+        help="disable specific passes, comma-separated list of pass names.",
         type=common.parse_pass_list_str,
         default="",
     )
@@ -132,10 +148,12 @@ def drive_compile(args):
         package_path=args.output,
         cross=args.cross_compiler,
         cross_options=args.cross_compiler_options,
+        output_format=args.output_format,
         dump_code=dump_code,
         target_host=None,
         desired_layout=args.desired_layout,
         disabled_pass=args.disabled_pass,
+        pass_context_configs=args.pass_config,
     )
 
     return 0
@@ -148,11 +166,12 @@ def compile_model(
     package_path: Optional[str] = None,
     cross: Optional[Union[str, Callable]] = None,
     cross_options: Optional[str] = None,
-    export_format: str = "so",
+    output_format: str = "so",
     dump_code: Optional[List[str]] = None,
     target_host: Optional[str] = None,
     desired_layout: Optional[str] = None,
     disabled_pass: Optional[str] = None,
+    pass_context_configs: Optional[List[str]] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -177,7 +196,7 @@ def compile_model(
         Function that performs the actual compilation
     cross_options : str, optional
         Command line options to be passed to the cross compiler.
-    export_format : str
+    output_format : str
         What format to use when saving the function library. Must be one of "so" or "tar".
         When compiling for a remote device without a cross compiler, "tar" will likely work better.
     dump_code : list, optional
@@ -193,6 +212,9 @@ def compile_model(
     disabled_pass: str, optional
         Comma-separated list of passes which needs to be disabled
         during compilation
+    pass_context_configs: list[str], optional
+        List of strings containing a set of configurations to be passed to the
+        PassContext.
 
 
     Returns
@@ -203,7 +225,7 @@ def compile_model(
     """
     mod, params = tvmc_model.mod, tvmc_model.params
 
-    config = {}
+    config = common.parse_configs(pass_context_configs)
 
     if desired_layout:
         mod = common.convert_graph_layout(mod, desired_layout)
@@ -262,7 +284,11 @@ def compile_model(
 
     # Create a new tvmc model package object from the graph definition.
     package_path = tvmc_model.export_package(
-        graph_module, package_path, cross, cross_options, export_format
+        graph_module,
+        package_path,
+        cross,
+        cross_options,
+        output_format,
     )
 
     # Write dumps to file.

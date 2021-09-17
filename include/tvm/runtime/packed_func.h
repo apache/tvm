@@ -25,7 +25,8 @@
 #define TVM_RUNTIME_PACKED_FUNC_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>

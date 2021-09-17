@@ -86,14 +86,13 @@ def conv2d_cudnn(
     # handle dilation
     stride_h, stride_w = (strides, strides) if isinstance(strides, int) else strides
     dilation_h, dilation_w = (dilation, dilation) if isinstance(dilation, int) else dilation
+    KH_dilated = (KH - 1) * dilation_h + 1
+    KW_dilated = (KW - 1) * dilation_h + 1
 
-    if (
-        isinstance(padding, (list, tuple))
-        and len(padding) == 4
-        and (padding[0] != padding[2] or padding[1] != padding[3])
-    ):
+    pt, pl, pb, pr = get_pad_tuple(padding, (KH_dilated, KW_dilated))
+    if (pt != pb) or (pl != pr):
         raise ValueError("Cudnn doesn't support asymmetric padding.")
-    pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
+
     OH = (H + pt + pb - KH) // stride_h + 1
     OW = (W + pl + pr - KW) // stride_w + 1
 
@@ -117,9 +116,15 @@ def conv2d_cudnn(
     else:
         dtype = data.dtype
 
-    cfg.define_knob("algo", range(8))
-    if cfg.is_fallback:  # Let CUDNN choose the best algo
-        cfg["algo"] = OtherOptionEntity(-1)
+    cfg.define_knob("algo", range(cudnn.algo_to_index("fwd", "CUDNN_CONVOLUTION_FWD_ALGO_COUNT")))
+    if cfg.is_fallback:
+        if cudnn.exists():
+            # Let CUDNN choose the best algo, based on benchmarks run
+            # on the local machine.  In the future, this should be
+            # based on parameters stored in the Target.
+            cfg["algo"] = OtherOptionEntity(-1)
+        else:
+            cfg["algo"] = OtherOptionEntity(0)
 
     return cudnn.conv_forward(
         data,

@@ -58,7 +58,7 @@ struct BuildOutput {
 struct ExecutorCodegen {
   void Init(runtime::Module* m, TargetsMap targets) { CallFunc("init", m, targets); }
 
-  void Codegen(const Function& func) { CallFunc("codegen", func); }
+  void Codegen(const Function& func, String mod_name) { CallFunc("codegen", func, mod_name); }
 
   virtual void UpdateOutput(BuildOutput* ret) = 0;
 
@@ -92,8 +92,8 @@ struct ExecutorCodegen {
     return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
 
-  Map<String, IRModule> GetIRModule() {
-    return CallFunc<Map<String, IRModule>>("get_irmodule", nullptr);
+  Map<Target, IRModule> GetIRModule() {
+    return CallFunc<Map<Target, IRModule>>("get_irmodule", nullptr);
   }
 
   runtime::Metadata GetMetadata() { return CallFunc<runtime::Metadata>("get_metadata"); }
@@ -177,8 +177,8 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 4);
-        this->Build(args[0], args[1], args[2], args[3]);
+        ICHECK_EQ(args.num_args, 5);
+        this->Build(args[0], args[1], args[2], args[3], args[4]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -279,13 +279,13 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target_host Host target device
    */
   void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host,
-             const String executor) {
+             const String executor, const String mod_name) {
     // Create protected variable targets_ from ground up
     targets_ = targets;
     target_host_ = target_host;
     executor_ = executor;
     CheckAndUpdateHostConsistency(&targets_, &target_host_);
-    BuildRelay(mod, params_);
+    BuildRelay(mod, params_, mod_name);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
     CompileEngine::Global()->Clear();
   }
@@ -313,57 +313,13 @@ class RelayBuildModule : public runtime::ModuleNode {
       relay_module_ptr->Update(main_glb_var, new_main);
     }
 
-    Array<Pass> pass_seqs;
-    Array<runtime::String> entry_functions{"main"};
-    pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
-    pass_seqs.push_back(transform::ToBasicBlockNormalForm());
+    Array<Pass> pass_seqs = GetPassPrefix(targets, false);
 
-    // Run all dialect legalization passes.
-    pass_seqs.push_back(relay::qnn::transform::Legalize());
-
-    // Legalize pass is restricted to homogeneous execution for now.
     if (targets.size() == 1) {
-      pass_seqs.push_back(transform::Legalize());
+      const auto& target = (*targets.begin()).second;
+      pass_seqs.push_back(
+          transform::SplitArgs(target->GetAttr<Integer>("max_function_args", -1).value()));
     }
-
-    pass_seqs.push_back(transform::SimplifyInference());
-
-    // Convert Dynamic ops to static versions
-    pass_seqs.push_back(transform::DynamicToStatic());
-
-    PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-      Expr expr = args[0];
-      *rv = false;
-      if (expr.as<CallNode>()) {
-        auto call_node = expr.as<CallNode>();
-        auto op_node = call_node->op.as<OpNode>();
-        if (op_node->name == "cast") {
-          auto attrs = call_node->attrs.as<CastAttrs>();
-          if (attrs->dtype == DataType::Int(32)) {
-            *rv = true;
-          }
-        }
-      }
-    });
-    pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
-    pass_seqs.push_back(transform::SimplifyExpr());
-    pass_seqs.push_back(transform::CombineParallelConv2D(3));
-    pass_seqs.push_back(transform::CombineParallelDense(3));
-    pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
-    pass_seqs.push_back(transform::FoldConstant());
-    pass_seqs.push_back(transform::FoldScaleAxis());
-    pass_seqs.push_back(transform::CanonicalizeCast());
-    pass_seqs.push_back(transform::CanonicalizeOps());
-
-    // Alter layout transformation is only applied to homogeneous execution yet.
-    if (targets.size() == 1) {
-      pass_seqs.push_back(transform::InferType());
-      pass_seqs.push_back(transform::AlterOpLayout());
-    }
-
-    // Fast math optimizations.
-    pass_seqs.push_back(transform::FastMath());
-    pass_seqs.push_back(transform::FoldConstant());
 
     // Create a sequential pass and perform optimizations.
     transform::Pass seq = transform::Sequential(pass_seqs);
@@ -508,7 +464,8 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param params The parameters.
    */
   void BuildRelay(IRModule relay_module,
-                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
+                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+                  const String mod_name) {
     Target target_host = GetTargetHost();
     // If no target_host has been set, we choose a default one, which is
     // llvm if "codegen.LLVMModuleCreate" is accessible.
@@ -527,11 +484,17 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_);
     executor_codegen_->Init(nullptr, targets_);
-    executor_codegen_->Codegen(func);
+    executor_codegen_->Codegen(func, mod_name);
     executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();
 
     auto lowered_funcs = executor_codegen_->GetIRModule();
+
+    // No need to build for external functions.
+    Target ext_dev("ext_dev");
+    if (lowered_funcs.find(ext_dev) != lowered_funcs.end()) {
+      lowered_funcs.Set(ext_dev, IRModule());
+    }
 
     // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {
@@ -548,11 +511,11 @@ class RelayBuildModule : public runtime::ModuleNode {
       DictAttrs attrs{dict};
       auto prim = tir::PrimFunc(Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(),
                                 Map<tir::Var, tir::Buffer>(), attrs);
-      if (lowered_funcs.find(target_host->str()) == lowered_funcs.end()) {
-        lowered_funcs.Set(target_host->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
+      if (lowered_funcs.find(target_host) == lowered_funcs.end()) {
+        lowered_funcs.Set(target_host, IRModule(Map<GlobalVar, BaseFunc>({})));
       }
-      lowered_funcs[target_host->str()]->Add(
-          GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param), prim);
+      lowered_funcs[target_host]->Add(GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param),
+                                      prim);
     }
 
     // When there is no lowered_funcs due to reasons such as optimization.

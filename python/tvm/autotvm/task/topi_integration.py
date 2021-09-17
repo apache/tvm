@@ -26,6 +26,8 @@ we will serialize it to a hashable tuple.
 
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
+import functools
+
 import tvm.te._ffi_api
 from tvm.target import Target
 from tvm.te import tensor
@@ -149,6 +151,7 @@ def register_topi_compute(task_name, func=None):
     """
 
     def _decorate(topi_compute):
+        @functools.wraps(topi_compute)
         @_register_task_compute(task_name)
         def wrapper(*args, **kwargs):
             """wrapper function for topi compute"""
@@ -224,6 +227,7 @@ def register_topi_schedule(task_name, func=None):
     """
 
     def _decorate(topi_schedule):
+        @functools.wraps(topi_schedule)
         @_register_task_schedule(task_name)
         def wrapper(outs, *args, **kwargs):
             """wrapper function for topi schedule"""

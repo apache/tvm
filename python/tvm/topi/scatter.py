@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Scatter operator"""
-from ..tir import decl_buffer, ir_builder, AssertStmt, StringImm, Evaluate
+from ..tir import decl_buffer, ir_builder, AssertStmt, StringImm, Evaluate, expr
 from ..te import extern, hybrid
 
 
@@ -206,12 +206,16 @@ def _verify_scatter_nd_inputs(data, indices, updates):
         f"the length of the shape of the output ({len(shape)})."
     )
     for i in range(len(indices.shape) - 1):
+        if isinstance(indices.shape[i + 1], expr.Var) or isinstance(updates.shape[i], expr.Var):
+            continue
         assert indices.shape[i + 1] == updates.shape[i], (
             f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
             f"updates[{i}] ({updates.shape[i]})."
         )
     for i in range(mdim, len(data.shape)):
         data_ind = i - mdim + len(indices.shape) - 1
+        if isinstance(updates.shape[data_ind], expr.Var) or isinstance(data.shape[i], expr.Var):
+            continue
         assert updates.shape[data_ind] == data.shape[i], (
             f"Dimension of updates[{data_ind}] ({updates.shape[data_ind]}) must equal dimension "
             f"of out_shape[{i}] ({data.shape[i]})."

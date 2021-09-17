@@ -34,6 +34,7 @@
 #include <tvm/support/with.h>
 #include <tvm/target/target.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/tir/function.h>
 
 #include <string>
 #include <unordered_map>
@@ -42,17 +43,68 @@
 #include <vector>
 
 namespace tvm {
+
 /*!
- * \brief Build an IRModule given a schedule, args and binds
- * \param sch The schedule to lower.
+ * \brief Lower an IRModule (optimize with it with the pass list defined in CreatePassList)
+ * \param mod The IRmodule to lower
+ * \param simple_mode Disables the loop partition pass. Defaults to false.
+ * \return The result module.
+ */
+TVM_DLL IRModule LowerModule(IRModule mod, bool simple_mode = false);
+
+/*!
+ * \brief Lower a primfunc and name (convert to IRModule, and optimize it with the pass list
+ * defined in CreatePassList)
+ * \param func The PrimFunc to lower
+ * \param name The name of the lowered function.
+ * \param simple_mode Disables the loop partition pass. Defaults to false.
+ * \return The result module.
+ */
+TVM_DLL IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name,
+                               bool simple_mode = false);
+
+/*!
+ * \brief Build an IRModule given a TE schedule, args and binds. This function also applies
+ * the lowering passes defined in CreatePassList.
+ * \param sch The TE schedule to lower.
+ * \param args The arguments to the function.
+ * \param name The name of the lowered function.
+ * \param binds Buffer assignments.
+ * \param simple_mode Disables the loop partition pass. Defaults to false.
+ * \return The result module.
+ */
+
+TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args,
+                               const std::string& name,
+                               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                               bool simple_mode = false);
+
+/*!
+ * \brief Build an IRModule given a TE schedule, args and binds. This function also applies
+ * the lowering passes defined in CreatePassList.
+ * \param sch The TE schedule to lower.
+ * \param args The arguments to the function (Array of Tensor, Buffer and Vars)
+ * \param name The name of the lowered function.
+ * \param binds Buffer assignments.
+ * \param simple_mode Disables the loop partition pass. Defaults to false.
+ * \return The result module.
+ */
+TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args,
+                               const std::string& name,
+                               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                               bool simple_mode = false);
+
+/*!
+ * \brief Create an IRModule out of a TE Schedule. It does not apply lowering passes. If you want
+ * to apply lowering passes as well, use LowerSchedule.
+ * \param sch The schedule
  * \param args The arguments to the function.
  * \param name The name of the lowered function.
  * \param binds Buffer assignments.
  * \return The result module.
  */
-TVM_DLL IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds);
-
+IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
+                          const std::unordered_map<te::Tensor, tir::Buffer>& binds);
 /*!
  * \brief Build a device and host module for a specific target from an IRModule.
  * \param funcs The functions to be built.

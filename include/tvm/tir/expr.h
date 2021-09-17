@@ -29,7 +29,9 @@
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/var.h>
@@ -1123,6 +1125,9 @@ class AnyNode : public PrimExprNode {
 
   /*! \brief Convert to var. */
   Var ToVar() const { return Var("any_dim", DataType::Int(32)); }
+
+  /*! \brief Convert to SizeVar. */
+  SizeVar ToSizeVar() const { return SizeVar("any_dim", DataType::Int(32)); }
 
   static constexpr const char* _type_key = "tir.Any";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnyNode, PrimExprNode);

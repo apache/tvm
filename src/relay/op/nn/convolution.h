@@ -871,8 +871,12 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     dilated_ksize_x = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     channels = param->channels;
 
+    DataType weight_dtype = data->dtype;
+    if (weight != nullptr) {
+      weight_dtype = weight->dtype;
+    }
     // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -965,8 +969,12 @@ bool Conv3DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     dilated_ksize_x = 1 + (param->kernel_size[2] - 1) * param->dilation[2];
     channels = param->channels;
 
+    DataType weight_dtype = data->dtype;
+    if (weight != nullptr) {
+      weight_dtype = weight->dtype;
+    }
     // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -1076,8 +1084,12 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
     channels = param->channels;
 
+    DataType weight_dtype = data->dtype;
+    if (weight != nullptr) {
+      weight_dtype = weight->dtype;
+    }
     // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -1243,29 +1255,26 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
 }
 
 template <typename AttrType>
-Array<Array<Layout> > DeformableConvInferCorrectLayout(
+InferCorrectLayoutOutput DeformableConvInferCorrectLayout(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types) {
   const AttrType* params = attrs.as<AttrType>();
-
-  // Layout of {data, offet, kernel}, {out}
-  return Array<Array<Layout> >{
+  return InferCorrectLayoutOutput(
       {params->data_layout, params->data_layout, params->kernel_layout},
-      {params->out_layout == "" ? params->data_layout : params->out_layout}};
+      {params->out_layout == "" ? params->data_layout : params->out_layout}, attrs);
 }
 
 template <typename T>
-Array<Array<Layout> > ConvInferCorrectLayout(const Attrs& attrs,
-                                             const Array<Layout>& new_in_layouts,
-                                             const Array<Layout>& old_in_layouts,
-                                             const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput ConvInferCorrectLayout(const Attrs& attrs,
+                                                const Array<Layout>& new_in_layouts,
+                                                const Array<Layout>& old_in_layouts,
+                                                const Array<tvm::relay::Type>& old_in_types) {
   const T* params = attrs.as<T>();
-
   // We always make other operators to fit the layouts of convolution layers
   // So this inference ignores all inputs
-  return Array<Array<Layout> >{
+  return InferCorrectLayoutOutput(
       {params->data_layout, params->kernel_layout},
-      {params->out_layout == "" ? params->data_layout : params->out_layout}};
+      {params->out_layout == "" ? params->data_layout : params->out_layout}, attrs);
 }
 
 }  // namespace relay

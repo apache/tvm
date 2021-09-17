@@ -16,6 +16,6 @@
     under the License.
 
 tvm.contrib.graph_executor
--------------------------
+--------------------------
 .. automodule:: tvm.contrib.graph_executor
     :members:

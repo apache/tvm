@@ -26,7 +26,7 @@ from .. import rpc
 
 
 def _convert_to_remote(func, remote):
-    """ convert module function to remote rpc function"""
+    """convert module function to remote rpc function"""
     temp = utils.tempdir()
     path_dso = temp.relpath("tmp_func.tar")
     func.export_library(path_dso)

@@ -93,7 +93,7 @@ def _calc_num_unique(inc_scan):
 
 
 def _calc_unique_ir(
-    data, argsorted_indices, inc_scan, index_converter, unique_elements, indices, counts
+    data, argsorted_indices, inc_scan, index_converter, unique_elements, inverse_indices, counts
 ):
     """Low level IR to calculate unique elements, inverse indices, and counts (optional) of
     unique elements of 1-D array.
@@ -117,7 +117,7 @@ def _calc_unique_ir(
     unique_elements : Buffer
         A buffer that stores the unique elements.
 
-    indices : Buffer
+    inverse_indices : Buffer
         A buffer that stores the the index of each input data element in the unique element array.
 
     counts (optional) : Buffer
@@ -128,7 +128,7 @@ def _calc_unique_ir(
     argsorted_indices_ptr = ib.buffer_ptr(argsorted_indices)
     inc_scan_ptr = ib.buffer_ptr(inc_scan)
     unique_elements_ptr = ib.buffer_ptr(unique_elements)
-    indices_ptr = ib.buffer_ptr(indices)
+    inverse_indices_ptr = ib.buffer_ptr(inverse_indices)
 
     index_converter_ptr = None
     if isinstance(index_converter, tir.Buffer):
@@ -137,7 +137,7 @@ def _calc_unique_ir(
     if isinstance(counts, tir.Buffer):
         counts_ptr = ib.buffer_ptr(counts)
         # use indices_ptr as a tmp buffer to store tids with inc_scan[tid] != inc_scan[tid-1]
-        unique_seq_indices_ptr = ib.buffer_ptr(indices)
+        unique_seq_indices_ptr = ib.buffer_ptr(inverse_indices)
 
     data_length = data.shape[0]
 
@@ -167,7 +167,7 @@ def _calc_unique_ir(
             unique_idx = (
                 inc_scan_ptr[i] if not index_converter_ptr else index_converter_ptr[inc_scan_ptr[i]]
             )
-            indices_ptr[data_idx] = unique_idx
+            inverse_indices_ptr[data_idx] = unique_idx
             with ib.if_scope(i == 0):
                 unique_elements_ptr[unique_idx] = data_ptr[data_idx]
             with ib.else_scope():
@@ -219,11 +219,20 @@ def unique(data, is_sorted=True, return_counts=False):
 
     Returns
     -------
-    output : tvm.te.Tensor
-        A 1-D tensor containing the unique elements of the input data tensor.
+    unique : tvm.te.Tensor
+        A 1-D tensor containing the unique elements of the input data tensor. The same size as
+        the input data. If there are less unique elements than input data, the end of the tensor
+        is padded with zeros.
 
     indices : tvm.te.Tensor
-        A 1-D tensor containing the index of each data element in the output tensor.
+        A 1-D tensor. The same size as output. For each entry in output, it contains
+        the index of its first occurence in the input data. The end of the tensor is padded
+        with the length of the input data.
+
+    inverse_indices : tvm.te.Tensor
+        A 1-D tensor. For each entry in data, it contains the index of that data element in
+        the unique array. (Note that inverse_indices is very similar to indices if output is not
+        sorted.)
 
     num_unique : tvm.te.Tensor
         A 1-D tensor with size=1 containing the number of unique elements in the input data tensor.
@@ -234,21 +243,25 @@ def unique(data, is_sorted=True, return_counts=False):
     Examples
     --------
     .. code-block:: python
+
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, False)
-        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
-        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
-        num_unique     =  [5]
+        output          =  [4, 5, 1, 2, 3, _, _, _]
+        indices         =  [0, 1, 2, 3, 4, _, _, _]
+        inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique      =  [5]
 
         [output, indices, num_unique, counts] = unique([4, 5, 1, 2, 3, 3, 4, 5], False, True)
-        output         =  [4, 5, 1, 2, 3, ?, ?, ?]
-        indices        =  [0, 1, 2, 3, 4, 4, 0, 1]
-        num_unique     =  [5]
-        counts         =  [2, 2, 1, 1, 2, ?, ?, ?]
+        output          =  [4, 5, 1, 2, 3, _, _, _]
+        indices         =  [0, 1, 2, 3, 4, _, _, _]
+        inverse_indices =  [0, 1, 2, 3, 4, 4, 0, 1]
+        num_unique      =  [5]
+        counts          =  [2, 2, 1, 1, 2, _, _, _]
 
         [output, indices, num_unique] = unique([4, 5, 1, 2, 3, 3, 4, 5], True)
-        output         =  [1, 2, 3, 4, 5, ?, ?, ?]
-        indices        =  [3, 4, 0, 1, 2, 2, 3, 4]
-        num_unique     =  [5]
+        output          =  [1, 2, 3, 4, 5, _, _, _]
+        indices         =  [2, 3, 4, 0, 1, _, _, _]
+        inverse_indices =  [3, 4, 0, 1, 2, 2, 3, 4]
+        num_unique      =  [5]
     """
     sorted_data = sort(data)
     argsorted_indices = argsort(data, dtype="int32")
@@ -266,16 +279,17 @@ def unique(data, is_sorted=True, return_counts=False):
         out_data_shape = [data.shape] * 2
         out_dtypes = [data.dtype, "int32"]
     # prepare inputs and fcompute
+
+    first_occurence = _calc_first_occurence(argsorted_indices, inc_scan)
     if is_sorted:
         in_data = [data, argsorted_indices, inc_scan]
         if return_counts:
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, None, *outs)
         else:
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, None, *outs, None)
+
+        indices = first_occurence
     else:
-        # calculate the index converter if the unique elements should not be sorted
-        # calculate first occurence
-        first_occurence = _calc_first_occurence(argsorted_indices, inc_scan)
         # calculate index converter by sorting unique elements by their first occurence
         argsorted_first_occurence = argsort(first_occurence, dtype="int32")
         index_converter = argsort(argsorted_first_occurence, dtype="int32")
@@ -284,6 +298,10 @@ def unique(data, is_sorted=True, return_counts=False):
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, *outs)
         else:
             fcompute = lambda ins, outs: _calc_unique_ir(*ins, *outs, None)
+        # First occurence is in order of sorted unique output, if we sort the first_occurence array
+        # we get the correct result
+        indices = sort(first_occurence)
+
     outs = te.extern(
         out_data_shape,
         in_data,
@@ -293,5 +311,5 @@ def unique(data, is_sorted=True, return_counts=False):
         tag="_calc_unique_cpu",
     )
     if return_counts:
-        return [outs[0], outs[1], num_unique_elements, outs[2]]
-    return [*outs, num_unique_elements]
+        return [outs[0], indices, outs[1], num_unique_elements, outs[2]]
+    return [outs[0], indices, outs[1], num_unique_elements]

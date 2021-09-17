@@ -44,7 +44,7 @@ ivec_get = tvm.get_global_func("tvm_ext.ivec_get")
 
 @tvm.register_object("tvm_ext.IntVector")
 class IntVec(tvm.Object):
-    """Example for using extension class in c++ """
+    """Example for using extension class in c++"""
 
     @property
     def _tvm_handle(self):

@@ -26,7 +26,9 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <type_traits>
@@ -41,7 +43,7 @@ namespace tvm {
  */
 enum class CallingConv : int {
   /*!
-   * \brief Default calling convetion.
+   * \brief Default calling convention.
    *
    * - Uses the native calling convention of the target.
    * - Implementation: specified by the native target.
@@ -100,21 +102,14 @@ class BaseFuncNode : public RelayExprNode {
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
       Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
-    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
-                  "Can only call GetAttr with ObjectRef types.");
-    if (!attrs.defined()) return default_value;
-    auto it = attrs->dict.find(attr_key);
-    if (it != attrs->dict.end()) {
-      return Downcast<Optional<TObjectRef>>((*it).second);
-    } else {
-      return default_value;
-    }
+    return attrs.GetAttr(attr_key, default_value);
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
   }
+
   /*!
    * \brief Check whether the function has an non-zero integer attr.
    *
@@ -134,9 +129,7 @@ class BaseFuncNode : public RelayExprNode {
    *
    * \endcode
    */
-  bool HasNonzeroAttr(const std::string& attr_key) const {
-    return GetAttr<Integer>(attr_key, 0) != 0;
-  }
+  bool HasNonzeroAttr(const std::string& attr_key) const { return attrs.HasNonzeroAttr(attr_key); }
 
   static constexpr const char* _type_key = "BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
@@ -151,48 +144,6 @@ class BaseFunc : public RelayExpr {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelayExpr, BaseFuncNode);
 };
-
-/*!
- * \brief Create a new function that copies func, but overrides
- *        the attribute value key with the value.
- *
- * \param func The input function.
- * \param attr_key The attribute key.
- * \param attr_value The value attribute value.
- *
- * \tparam TFunc The corresponding function type.
- *
- * \returns The new function with updated attributes.
- *
- * \note This function performs copy on write optimization for func.
- *       If we move a uniquely referenced func into WithAttr,
- *       then no additional copy will be performed.
- *
- *       This is also why we make it as a function instead of a member function
- *       and why we pass by value in the first argument.
- *
- * \code
- *
- *  // Recommended way to trigger copy on write
- *  func = WithAttr(std::move(func), "key1", value1);
- *  func = WithAttr(std::move(func), "key2", value2);
- *
- * \endcode
- */
-template <typename TFunc,
-          typename = typename std::enable_if<std::is_base_of<BaseFunc, TFunc>::value>::type>
-inline TFunc WithAttr(TFunc func, const std::string& attr_key, ObjectRef attr_value) {
-  using TNode = typename TFunc::ContainerType;
-  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
-  TNode* node = func.CopyOnWrite();
-  if (node->attrs.defined()) {
-    node->attrs.CopyOnWrite()->dict.Set(attr_key, attr_value);
-  } else {
-    Map<String, ObjectRef> dict = {{attr_key, attr_value}};
-    node->attrs = DictAttrs(dict);
-  }
-  return func;
-}
 
 /*!
  * \brief Generic attribute names that can be attached to any function.

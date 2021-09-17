@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_VM_VM_H_
 #define TVM_RUNTIME_VM_VM_H_
 
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -257,6 +257,16 @@ class VirtualMachine : public runtime::ModuleNode {
    * This does not begin execution of the VM.
    */
   void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
+
+  /*!
+   * \brief Set inputs to a function.
+   * \param name The function name
+   * \param args args[offset:] are arguments to the
+   * function. If the arguments are not of the correct device for the function,
+   * they will be copied to the device.
+   * \param offset Starting offset of the arguments in `args`.
+   */
+  void SetInput(std::string name, TVMArgs args, int offset);
 
  protected:
   /*! \brief The virtual machine's packed function table. */

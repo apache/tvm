@@ -44,7 +44,59 @@
 
 namespace tvm {
 namespace relay {
+namespace transform {
+Pass InlinePrimitives();
+}
+
 namespace backend {
+using Pass = tvm::transform::Pass;
+
+/*!
+ * \brief The static storage information produced by memory planning.
+ */
+class StorageInfoNode : public Object {
+ public:
+  /*! \brief The set of storage ids where the expression is stored. */
+  std::vector<int64_t> storage_ids;
+  /* \brief The type of "virtual devices" these expressions are stored on. */
+  std::vector<DLDeviceType> device_types;
+  /* \brief The sizes of each storage element. */
+  std::vector<int64_t> storage_sizes_in_bytes;
+
+  // TODO(@jroesch): expose the fields
+  void VisitAttrs(AttrVisitor* v) {}
+
+  static constexpr const char* _type_key = "relay.StorageInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StorageInfoNode, Object);
+};
+
+/*! \brief The storage information for a single expression. */
+class StorageInfo : public ObjectRef {
+ public:
+  StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceType> device_types,
+              std::vector<int64_t> storage_sizes_in_bytes);
+  TVM_DEFINE_OBJECT_REF_METHODS(StorageInfo, ObjectRef, StorageInfoNode);
+};
+
+/*!
+ * \brief The result of static memory planning.
+ */
+class StaticMemoryPlanNode : public Object {
+ public:
+  Map<Expr, StorageInfo> expr_to_storage_info;
+
+  void VisitAttrs(AttrVisitor* v) { v->Visit("expr_to_storage_info", &expr_to_storage_info); }
+
+  static constexpr const char* _type_key = "relay.StaticMemoryPlan";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StaticMemoryPlanNode, Object);
+};
+
+/*! \brief The result of running static memory planning. */
+class StaticMemoryPlan : public ObjectRef {
+ public:
+  explicit StaticMemoryPlan(Map<Expr, StorageInfo> expr_to_storage_info);
+  TVM_DEFINE_OBJECT_REF_METHODS(StaticMemoryPlan, ObjectRef, StaticMemoryPlanNode);
+};
 
 struct FunctionInfoNode : public Object {
   Map<Target, Integer> workspace_sizes;
@@ -67,6 +119,10 @@ struct FunctionInfoNode : public Object {
 
 class FunctionInfo : public ObjectRef {
  public:
+  FunctionInfo(Map<Target, Integer> workspace_sizes, Map<Target, Integer> io_sizes,
+               Map<Target, Integer> constant_sizes, Map<Target, tir::PrimFunc> tir_primfuncs,
+               Map<Target, Function> relay_primfuncs);
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(FunctionInfo, ObjectRef, FunctionInfoNode);
 };
 
@@ -83,11 +139,22 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type);
  */
 struct LoweredOutput {
   std::string graph_json;
-  Map<String, IRModule> lowered_funcs;
+  Map<Target, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
   runtime::Metadata metadata;
+};
+
+/*!
+ * \brief This class is needed to avoid a GCC 5 bug that prevents maps containing enums from being
+ compiled. If i386 GCC version is increased, we can remove it.
+ */
+struct EnumClassHash {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
 };
 
 /*!
@@ -358,6 +425,72 @@ inline bool IsCompileEngineCacheDisabled() {
       ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
       .value();
 }
+
+/*!
+ * \brief Get the sequence of Relay optimization passes based on backend type.
+ * The prefix of the Relay passes almost overlaps between the vm and graph backend, with some slight
+ * difference. This function unifies the shared optimization pass prefix between vm and graph
+ * runtime, and returns the pass prefix given the backend type.
+ *
+ * \param targets The device type to `Target` mapping.
+ * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
+ * \return An array of passes.
+ */
+Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
+
+/*! \brief Target hash function */
+struct TargetStrHash {
+  /*!
+   * \brief Calculate the hash code of a Target based on the string value of the Target.
+   Note that this hash should NOT be used in new usecases, equality of targets based on their
+   value is not well-defined.
+   This will be removed when maps from Targets to IRModules are removed from the codebase.
+   * \param target The Target to hash
+   * \return String hash of the target
+   */
+  size_t operator()(const Target& target) const {
+    return String::HashBytes(target->str().c_str(), target->str().size());
+  }
+};
+
+/*! \brief Target equality function based on the string value of Target
+Note that this equality function should NOT be used in new usecases, equality of targets based on
+their value is not well-defined. This will be removed when maps from Targets to IRModules are
+removed from the codebase.*/
+struct TargetStrEqual {
+  /*!
+   * \brief Check if the two Targets are equal
+   * \param target One Target
+   * \param other_target The other Target
+   * \return String equality of the targets
+   */
+  const bool operator()(const Target& target, const Target& other_target) const {
+    TargetStrHash target_hash = TargetStrHash();
+    return target_hash(target) == target_hash(other_target);
+  }
+};
+
+/*!
+ * \brief Convert a Map<Target, IRModule> to std::unordered_map<Target, IRmodule, TargetStrHash,
+ * TargetStrEqual> Target equality is currently based on pointer equality, which is a problem since
+ * we have a lot of Map<Target, IRModule> in the codebase. This function converts the map to a
+ * version that is keyed based on string value of the Target instead. Note that once we remove
+ * Map<Target, IRModule>, this function will be removed.
+ * \param input_map The map to convert
+ * \return The converted map
+ */
+std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual>
+TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
+
+/*!
+ * \brief Convert a std::unordered_map<Target, IRmodule, TargetStrHash, TargetStrEqual> to
+ * Map<Target, IRModule> This function is a helper that undoes TargetModuleMapToTargetStr. Note that
+ * once we remove Map<Target, IRModule>, this function will be removed.
+ * \param input_map The map to convert
+ * \return The converted map
+ */
+Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
+    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
 
 }  // namespace backend
 }  // namespace relay

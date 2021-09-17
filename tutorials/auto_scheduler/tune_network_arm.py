@@ -349,11 +349,7 @@ def tune_and_evaluate():
 
     # Evaluate
     print("Evaluate inference time cost...")
-    ftimer = module.module.time_evaluator("run", dev, repeat=3, min_repeat_ms=500)
-    prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
-    print(
-        "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
-    )
+    print(module.benchmark(dev, repeat=3, min_repeat_ms=500))
 
 
 # We do not run the tuning in our webpage server since the server doesn't have a Raspberry Pi,
@@ -437,7 +433,7 @@ def tune_and_evaluate():
 #    in function :code:`run_tuning`. Say,
 #    :code:`tuner = auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=log_file)`
 # 4. If you have multiple target CPUs, you can use all of them for measurements to
-#    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-rpc-tracker>`
+#    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-scale-up-rpc-tracker>`
 #    to learn how to use the RPC Tracker and RPC Server.
 #    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
 #    with :any:`auto_scheduler.RPCRunner`.

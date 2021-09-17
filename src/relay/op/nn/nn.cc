@@ -162,7 +162,39 @@ Useful for
     .set_support_level(3)
     .add_type_rel("FIFOBuffer", FIFOBufferRel);
 
-// relay.nn.dense
+// ------------------- relay.nn.matmul
+TVM_REGISTER_NODE_TYPE(MatmulAttrs);
+
+Expr MakeMatmul(Expr tensor_a, Expr tensor_b, IndexExpr units, DataType out_dtype, bool transpose_a,
+                bool transpose_b) {
+  auto attrs = make_object<MatmulAttrs>();
+  attrs->units = units;
+  attrs->out_dtype = out_dtype;
+  attrs->transpose_a = transpose_a;
+  attrs->transpose_b = transpose_b;
+  static const Op& matmul_op = Op::Get("nn.matmul");
+  return Call(matmul_op, {tensor_a, tensor_b}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.matmul").set_body_typed(MakeMatmul);
+
+RELAY_REGISTER_OP("nn.matmul")
+    .describe(R"code(Applies a linear transformation: :math:`C = A * B`. A & B can be transposed.
+
+- **tensor_a**: `(x1, x2, ..., xn, input_dim)` or `(x1, x2, ..., input_dim, xn)`
+- **tensor_b**: `(input_dim, units)` or `(units, input_dim)`
+- **out**: `(x1, x2, ..., xn, units)`.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<MatmulAttrs>()
+    .set_num_inputs(2)
+    .add_argument("tensor_a", "nD Tensor", "The first input Tensor.")
+    .add_argument("tensor_b", "2D Tensor", "The second input Tensor.")
+    .set_support_level(1)
+    .add_type_rel("Matmul", MatmulRel<MatmulAttrs>);
+// ------------------- relay.nn.matmul
+
+// ------------------- relay.nn.dense
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
 // Positional relay function to create dense operator used by frontend FFI.
@@ -172,6 +204,13 @@ Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
   return Call(op, {data, weight}, Attrs(attrs), {});
+}
+
+InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
+  return InferCorrectLayoutOutput({"NC", "NC"}, {"NC"}, attrs);
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.dense").set_body_typed(MakeDense);
@@ -189,34 +228,76 @@ RELAY_REGISTER_OP("nn.dense")
     .add_argument("data", "nD Tensor", "Input data.")
     .add_argument("weight", "2D Tensor", "Weight matrix.")
     .set_support_level(1)
-    .add_type_rel("Dense", DenseRel<DenseAttrs>);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", DenseInferCorrectLayout)
+    .add_type_rel("Dense", MatmulRel<DenseAttrs>);
+// ------------------- relay.nn.dense
 
-// relay.nn.contrib_dense_pack
+// ------------------- relay.nn.contrib_dense_pack
+TVM_REGISTER_NODE_TYPE(DensePackAttrs);
+
 // Positional relay function to create dense_pack operator used by frontend FFI.
-Expr MakeDensePack(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
-  auto attrs = make_object<DenseAttrs>();
+Expr MakeDensePack(Expr data, Expr weight, tvm::String weight_layout, IndexExpr units,
+                   DataType out_dtype) {
+  auto attrs = make_object<DensePackAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
+  attrs->weight_layout = std::move(weight_layout);
   static const Op& op = Op::Get("nn.contrib_dense_pack");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_dense_pack").set_body_typed(MakeDensePack);
 
+bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr || weight == nullptr) return false;
+
+  const DensePackAttrs* param = attrs.as<DensePackAttrs>();
+  ICHECK(param != nullptr);
+
+  ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
+  ICHECK_EQ(weight->shape.size(), 3) << "Weight is not packed";
+
+  Array<tvm::PrimExpr> oshape = data->shape;
+  oshape.Set(1, weight->shape[0] * weight->shape[2]);
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+InferCorrectLayoutOutput DensePackInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
+  auto params = attrs.as<DensePackAttrs>();
+  ICHECK(params);
+  return InferCorrectLayoutOutput({"NC", params->weight_layout}, {"NC"}, attrs);
+}
+
 RELAY_REGISTER_OP("nn.contrib_dense_pack")
     .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
 
-- **data**: `(x1, x2, ..., xn, input_dim)`
+- **data**: `(batch, input_dim)`
 - **weight**: `(units // pack_weight_tile, input_dim, pack_weight_tile)`
-- **out**: `(x1, x2, ..., xn, units)`.
+- **out**: `(batch, units)`.
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<DenseAttrs>()
     .set_num_inputs(2)
-    .add_argument("data", "nD Tensor", "Input data.")
+    .add_argument("data", "2D Tensor", "Input data.")
     .add_argument("weight", "3D Tensor", "Packed weight matrix.")
     .set_support_level(10)
-    .add_type_rel("DensePack", DensePackRel<DenseAttrs>);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", DensePackInferCorrectLayout)
+    .add_type_rel("DensePack", DensePackRel);
+// ------------------- relay.nn.contrib_dense_pack
 
 // relay.leaky_relu
 TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
@@ -273,18 +354,17 @@ bool PReluRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-template <typename T>
-Array<Array<Layout>> PReluInferCorrectLayout(const Attrs& attrs,
-                                             const Array<Layout>& new_in_layouts,
-                                             const Array<Layout>& old_in_layouts,
-                                             const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput PReluInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
   ICHECK_EQ(old_in_layouts.size(), 2U);
   ICHECK_EQ(old_in_types.size(), 2U);
   Layout data_layout = old_in_layouts[0];
   if (new_in_layouts.defined()) {
     ICHECK_EQ(new_in_layouts.size(), 2U);
   }
-  return Array<Array<Layout>>{{data_layout, Layout("C")}, {data_layout}};
+  return InferCorrectLayoutOutput({data_layout, Layout("C")}, {data_layout}, attrs);
 }
 
 // Positional relay function to create prelu operator used by frontend FFI.
@@ -309,7 +389,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
     .add_argument("alpha", "Tensor", "Input channelwise alpha.")
     .set_support_level(3)
     .add_type_rel("PRelu", PReluRel)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout<PReluAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout)
     .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
       const auto* param = attrs.as<PReluAttrs>();
@@ -598,11 +678,13 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
-Array<Array<Layout>> BatchNormInferCorrectLayout(const Attrs& attrs,
-                                                 const Array<Layout>& new_in_layouts,
-                                                 const Array<Layout>& old_in_layouts,
-                                                 const Array<tvm::relay::Type>& old_in_types) {
-  BatchNormAttrs* param = const_cast<BatchNormAttrs*>(attrs.as<BatchNormAttrs>());
+InferCorrectLayoutOutput BatchNormInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<BatchNormAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<BatchNormAttrs> param = make_object<BatchNormAttrs>(*attrs_ptr);
 
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
@@ -627,9 +709,8 @@ Array<Array<Layout>> BatchNormInferCorrectLayout(const Attrs& attrs,
   }
   // BN has 5 inputs, 3 outputs. The last 4 inputs and last 2 outputs have "C" layout.
   Layout c_layout = Layout("C");
-
-  return Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
-                              {ret, c_layout, c_layout}};
+  return InferCorrectLayoutOutput({ret, c_layout, c_layout, c_layout, c_layout},
+                                  {ret, c_layout, c_layout}, Attrs(param));
 }
 
 bool BatchNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -897,89 +978,43 @@ If the input has size k on axis 1, then both gamma and beta have shape (k,).
     .set_support_level(1)
     .add_type_rel("GroupNorm", GroupNormRel);
 
-// relay.nn.batch_matmul
+// ------------------- relay.nn.batch_matmul
 TVM_REGISTER_NODE_TYPE(BatchMatmulAttrs);
 
-bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                    const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 3);
-  const auto* x = types[0].as<TensorTypeNode>();
-  const auto* y = types[1].as<TensorTypeNode>();
-  if (x == nullptr || y == nullptr) return false;
-
-  const auto* param = attrs.as<BatchMatmulAttrs>();
-  Array<PrimExpr> y_shape;
-  if (param->auto_scheduler_rewritten_layout.size() == 0) {
-    y_shape = y->shape;
-  } else {
-    y_shape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
-                                                          {"b", "j", "k"});
-  }
-
-  ICHECK(x->shape.size() == 3 && y_shape.size() == 3);
-  bool is_dyn = false;
-  Array<tvm::PrimExpr> oshape;
-  for (size_t i = 0; i < 3; ++i) {
-    if (x->shape[i].as<tir::AnyNode>() != nullptr || y_shape[i].as<tir::AnyNode>() != nullptr) {
-      is_dyn = true;
-      oshape.push_back(Any());
-    } else {
-      if (i == 0) {
-        oshape.push_back(max(x->shape[i], y_shape[i]));
-      } else {
-        oshape.push_back(x->shape[i]);
-      }
-    }
-  }
-  if (!is_dyn) {
-    ICHECK(reporter->AssertEQ(x->shape[0], y_shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
-           reporter->AssertEQ(y_shape[0], 1))
-        << "BatchDot: batch dimensions don't match, "
-        << " x shape=" << x->shape << ", y shape=" << y_shape;
-    ICHECK(reporter->AssertEQ(x->shape[2], y_shape[2]))
-        << "BatchDot: shapes of x and y is inconsistent, "
-        << " x shape=" << x->shape << ", y shape=" << y_shape;
-
-    oshape.Set(2, y_shape[1]);
-  }
-
-  DataType out_dtype = param->out_dtype;
-  if (out_dtype.bits() == 0) {
-    out_dtype = x->dtype;
-  }
-  // assign output type
-  reporter->Assign(types[2], TensorType(oshape, out_dtype));
-  return true;
-}
-
 // Positional relay function to create batch_matmul operator used by frontend FFI.
-Expr MakeBatchMatmul(Expr x, Expr y, DataType out_dtype) {
+Expr MakeBatchMatmul(Expr tensor_a, Expr tensor_b, DataType out_dtype, bool transpose_a,
+                     bool transpose_b) {
   auto attrs = make_object<BatchMatmulAttrs>();
   attrs->out_dtype = out_dtype;
+  attrs->transpose_a = transpose_a;
+  attrs->transpose_b = transpose_b;
   static const Op& op = Op::Get("nn.batch_matmul");
-  return Call(op, {x, y}, Attrs(attrs), {});
+  return Call(op, {tensor_a, tensor_b}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_matmul").set_body_typed(MakeBatchMatmul);
 
 RELAY_REGISTER_OP("nn.batch_matmul")
-    .describe(R"code(Computes matrix multiplication of `x` and `y` when `x` and `y`
-are data in batch.
+    .describe(R"code(Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
+(transpose_a=False, transpose_b=True) by default.
 
 .. math::
 
-  batch\_matmul(x, y)[i, :, :] = matmul(x[i, :, :], y[i, :, :]^T)
+  batch\_matmul(A, B)[i, :, :] = matmul(A[i, :, :], B[i, :, :]^T)
 
-- **x**: `(b, m, k)`
-- **y**: `(b, n, k)`
+- **tensor_a**: `(b, m, k)` or `(b, k, m)`
+- **tensor_b**: `(b, k, n)` or `(b, n, k)`
 - **out**: `(b, m, n)`.
 
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
-    .add_argument("x", "3D Tensor", "First input.")
-    .add_argument("y", "3D Tensor", "Second input.")
+    .add_argument("tensor_a", "3D Tensor", "The first input.")
+    .add_argument("tensor_b", "3D Tensor", "The second input.")
     .set_support_level(10)
-    .add_type_rel("BatchMatmul", BatchMatmulRel);
+    .add_type_rel("BatchMatmul", BatchMatmulRel<BatchMatmulAttrs>);
+// ------------------- relay.nn.batch_matmul
 
 // relay.nn.cross_entropy
 bool CrossEntropyRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -1068,6 +1103,7 @@ Dilate data with given dilation value (0 by default).
     .set_support_level(10)
     .add_type_rel("Dilate", DilateRel);
 
+// relay.nn.cross_entropy_with_logits
 // Positional relay function to create cross_entropy_with_logits operator used by frontend FFI.
 Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {
   static const Op& op = Op::Get("nn.cross_entropy_with_logits");
@@ -1090,6 +1126,85 @@ Accept logits.
 
 // Depth to space and space to depth
 TVM_REGISTER_NODE_TYPE(SubPixelAttrs);
+
+// relay.nn.nll_loss
+TVM_REGISTER_NODE_TYPE(NLLLossAttrs);
+
+bool NLLLossRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 4) << "NLLLossRel expects 4 types, but " << types.size()
+                             << " were provided.";
+  const auto* predictions = types[0].as<TensorTypeNode>();
+  const auto* targets = types[1].as<TensorTypeNode>();
+  const auto* weights = types[2].as<TensorTypeNode>();
+  const NLLLossAttrs* param = attrs.as<NLLLossAttrs>();
+  if (predictions == nullptr || targets == nullptr || weights == nullptr) return false;
+  if (!(predictions->shape.size() - targets->shape.size() == 1)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: predictions should be one"
+                                     << " dimension larger than targets,"
+                                     << "predictions shape = " << predictions->shape
+                                     << ", targets shape = " << targets->shape);
+    return false;
+  }
+  if (!(weights->shape.size() == 1)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: weights should be a one dimension"
+                                     << " Tensor with its length the number of classes,"
+                                     << " but Tensor of dimension " << weights->shape.size()
+                                     << " were provided.");
+    return false;
+  }
+  if (!reporter->AssertEQ(predictions->shape[1], weights->shape[0])) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: the second dimension of predictions"
+                                     << " should be the number of classes, "
+                                     << "which is the length of weights, "
+                                     << "predictions shape = " << predictions->shape
+                                     << ", weights shape = " << weights->shape);
+    return false;
+  }
+  if (!(predictions->dtype == weights->dtype && predictions->dtype.is_float())) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: predictions and weights should"
+                                     << " be of the same floating type.");
+    return false;
+  }
+  if (!targets->dtype.is_int()) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "NLLLossRel: targets should be of int type.");
+    return false;
+  }
+  // assign output type
+  if (param->reduction == "none") {
+    reporter->Assign(types[3], TensorType(targets->shape, predictions->dtype));
+  } else {
+    reporter->Assign(types[3], TensorType({}, predictions->dtype));
+  }
+  return true;
+}
+
+// Handler to create a call to the padding op used by front-end FFI
+Expr MakeNLLLoss(Expr predictions, Expr targets, Expr weights, String reduction, int ignore_index) {
+  auto attrs = make_object<NLLLossAttrs>();
+  attrs->reduction = reduction;
+  attrs->ignore_index = ignore_index;
+  static const Op& op = Op::Get("nn.nll_loss");
+  return Call(op, {predictions, targets, weights}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.nll_loss").set_body_typed(MakeNLLLoss);
+
+RELAY_REGISTER_OP("nn.nll_loss")
+    .describe(R"code(
+Negative log likelihood loss for given prediction and target.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<NLLLossAttrs>()
+    .set_num_inputs(3)
+    .add_argument("predictions", "Tensor", "The prediction tensor.")
+    .add_argument("targets", "Tensor", "The target tensor.")
+    .add_argument("weights", "Tensor", "The weight of each target values.")
+    .add_type_rel("NLLLoss", NLLLossRel);
 
 bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {

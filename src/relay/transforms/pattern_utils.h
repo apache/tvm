@@ -498,6 +498,11 @@ inline Expr FastTanh(Expr e) {
   return Call(op, {e});
 }
 
+inline Expr FastSoftmax(Expr e, tvm::Attrs attr) {
+  static const Op& op = Op::Get("nn.fast_softmax");
+  return Call(op, {e}, attr);
+}
+
 inline Expr Log(Expr e) {
   static const Op& op = Op::Get("log");
   return Call(op, {e});

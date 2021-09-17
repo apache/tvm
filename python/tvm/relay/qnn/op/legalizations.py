@@ -20,7 +20,9 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm._ffi.base import TVMError
 from .. import op as reg
+from ....topi.x86.utils import target_has_sse42
 
 #################################################
 # Register the functions for different operators.
@@ -91,7 +93,26 @@ def get_scalar_from_constant(expr):
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
         np.float32
     ), "value must be float32/int32"
-    return np.asscalar(value)
+    return value.item(0)
+
+
+def _shift(data, zero_point, out_dtype):
+    """Shifts (add/subtracts) the qnn tensor with +/-128)"""
+    if out_dtype == "uint8":
+        shift = 128
+    elif out_dtype == "int8":
+        shift = -128
+    else:
+        raise ValueError("Unsupported out dtype.")
+    data_modified = relay.cast(data, "int32")
+    data_modified = relay.add(data_modified, relay.const(shift, "int32"))
+    data_modified = relay.cast(data_modified, out_dtype)
+    if isinstance(zero_point, relay.Constant):
+        zero_point_val = get_scalar_from_constant(zero_point)
+        zero_point_modified = relay.const(zero_point_val + shift, "int32")
+    else:
+        zero_point_modified = zero_point + relay.const(shift, "int32")
+    return (data_modified, zero_point_modified)
 
 
 # Helper function for lowering in the abscence of fast Int8 arithmetic units.
@@ -120,11 +141,35 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
     data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
 
     shift_data = relay.subtract(
-        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
+        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, dtype="int16")
     )
-    shift_kernel = relay.subtract(
-        relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
-    )
+    # If kernel zero point is a scalar we can directly subtract it.
+    if len(types[3].shape) == 0:
+        shift_kernel = relay.subtract(
+            relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, dtype="int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        # Determine output axis of kernel for spatial operations.
+        if hasattr(attrs, "kernel_layout"):
+            output_axis = tvm.tir.layout(attrs["kernel_layout"]).index_of("O")
+        # For dense operations, broadcast to [N, K] layout.
+        elif isinstance(attrs, relay.op.op_attrs.DenseAttrs):
+            output_axis = 0
+        # For matrix multiplication instead expand to [K, N] layout.
+        elif isinstance(attrs, relay.op.op_attrs.MatmulAttrs):
+            output_axis = 1
+        else:
+            raise TVMError(
+                "Legalization of %s is not yet supported with per channel parameters"
+                % str(type(attrs))
+            )
+
+        shift_kernel = relay.nn.bias_add(
+            relay.cast(kernel, dtype="int16"),
+            relay.cast(kernel_zero_point, dtype="int16"),
+            output_axis,
+        )
     new_attrs = {k: attrs[k] for k in attrs.keys()}
     return relay_op(shift_data, shift_kernel, **new_attrs)
 
@@ -161,22 +206,6 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
     result : tvm.relay.Expr
         The legalized expr
     """
-
-    def _shift(data, zero_point, out_dtype):
-        """Shifts (add/subtracts) the qnn tensor with +/-128)"""
-        if out_dtype == "uint8":
-            shift = 128
-        elif out_dtype == "int8":
-            shift = -128
-        else:
-            raise ValueError("Unsupported out dtype.")
-        data_modified = relay.cast(data, "int32")
-        data_modified = relay.add(data_modified, relay.const(shift, "int32"))
-        data_modified = relay.cast(data_modified, out_dtype)
-        zero_point_val = get_scalar_from_constant(zero_point)
-        zero_point_modified = relay.const(zero_point_val + shift, "int32")
-        return (data_modified, zero_point_modified)
-
     # Collect the dtypes.
     data_dtype = types[0].dtype
     kernel_dtype = types[1].dtype
@@ -192,6 +221,54 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
     if data_dtype == "int8":
         # Compute (QA + 128) and (zp_a + 128)
         data, input_zero_point = _shift(data, input_zero_point, "uint8")
+
+    # Shift kernel if necessary.
+    if kernel_dtype == "uint8":
+        # Compute (QA - 128) and (zp_a - 128)
+        kernel, kernel_zero_point = _shift(kernel, kernel_zero_point, "int8")
+
+    # Call qnn.conv2d with modified inputs and zero points.
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+    return relay_op(
+        data, kernel, input_zero_point, kernel_zero_point, input_scale, kernel_scale, **new_attrs
+    )
+
+
+# Helper function to change dtypes to int8 x int8. Cuda dp4a instructions prefer this setting.
+def helper_change_dtypes_to_int8(attrs, inputs, types, relay_op):
+    """Legalizes QNN conv2d/dense op for Nvidia HW. dp4a supports i8 x i8 fast conv/MM. If the
+    dtypes are already good, we dont transform. Else, we shift the tensor values and zero points
+    to change the dtype.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # Collect the dtypes.
+    data_dtype = types[0].dtype
+    kernel_dtype = types[1].dtype
+
+    # Collect the input exprs.
+    data, kernel, input_zero_point, kernel_zero_point, input_scale, kernel_scale = inputs
+
+    # dp4a supports i8 x i8 fast conv/MM. Don't do anything if it is already satisfied.
+    if data_dtype == "int8" and kernel_dtype == "int8":
+        return None
+
+    # Shift input if necessary.
+    if data_dtype == "uint8":
+        # Compute (QA + 128) and (zp_a + 128)
+        data, input_zero_point = _shift(data, input_zero_point, "int8")
 
     # Shift kernel if necessary.
     if kernel_dtype == "uint8":
@@ -267,7 +344,7 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 def is_fast_int8_on_intel():
     """Checks whether the hardware has support for fast Int8 arithmetic operations."""
     target = tvm.target.Target.current(allow_none=False)
-    return target.mcpu in {"skylake-avx512", "cascadelake"}
+    return target_has_sse42(target.mcpu)
 
 
 def is_fast_int8_on_arm():
@@ -339,11 +416,11 @@ def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
 
 @qnn_conv2d_legalize.register("cuda")
 def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
-    # CUDA prefers the dtypes to be same.
-    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
+    # CUDA prefers both datatypes to be int8.
+    return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.conv2d)
 
 
 @qnn_dense_legalize.register("cuda")
 def _qnn_dense_legalize_cuda(attrs, inputs, types):
-    # CUDA prefers the dtypes to be same.
-    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
+    # CUDA prefers both datatypes to be the int8.
+    return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.dense)

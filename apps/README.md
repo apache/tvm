@@ -25,4 +25,4 @@ they also serve as examples on how to use TVM in your own project.
 - [android_rpc](android_rpc) Android RPC server.
 - [benchmark](benchmark) Example end to end compilation benchmarks
 - [howto_deploy](howto_deploy) Tutorial on how to deploy TVM with minimum code dependency.
-- [wasm_standalone](tvm-standalone) WebAssembly standalone for deep learning framework with TVM runtime.
+- [wasm_standalone](wasm-standalone) WebAssembly standalone for deep learning framework with TVM runtime.

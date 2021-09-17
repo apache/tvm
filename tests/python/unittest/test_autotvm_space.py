@@ -84,6 +84,8 @@ def test_split():
     cfg = FallbackConfigEntity()
     cfg.define_split("tile_n", cfg.axis(128), num_outputs=3)
     cfg.fallback_split("tile_n", [-1, 8, 4])
+    # verify if define_split override previously manualy defined split params
+    cfg.define_split("tile_n", cfg.axis(128), num_outputs=3)
     assert cfg["tile_n"].size == [4, 8, 4]
 
     cfg = FallbackConfigEntity()

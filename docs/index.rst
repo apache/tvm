@@ -46,6 +46,7 @@ For Developers
    dev/how_to
    microtvm/index
    errors
+   faq
 
 .. toctree::
    :maxdepth: 1
@@ -77,7 +78,7 @@ For Developers
    :caption: MISC
 
    vta/index
-   faq
+   profiling/index
 
 
 Index

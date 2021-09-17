@@ -34,12 +34,29 @@ from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
 from .transform import InferType
+from .backend.utils import mangle_module_name
 from .backend import executor_factory as _executor_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
 
-def _update_target(target):
+def build_target_by_device_type_map(target):
+    """Build a map from DLDevice device_type to a Target used with that device.
+
+    At runtime, TVM assigns target code to DLDevices by determining a device_type for each Target.
+    This function handles this process at compile time and, as a side effect, validates that exactly
+    one target maps to one device_type.
+
+    Parameters
+    ----------
+    target : Target or str or dict
+       If a Target or str: assumes that exactly one device type is present in the model.
+       If a dict: keys are tvm.ndarray.device, values are the targets used for each device.
+
+    Returns
+    -------
+
+    """
     target = target if target else Target.current()
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
@@ -85,7 +102,9 @@ class BuildModule(object):
         self._get_params_func = self.mod["get_params"]
         self._get_function_metadata = self.mod["get_function_metadata"]
 
-    def build(self, mod, target=None, target_host=None, params=None, executor="graph"):
+    def build(
+        self, mod, target=None, target_host=None, params=None, executor="graph", mod_name=None
+    ):
         """
         Parameters
         ----------
@@ -115,6 +134,9 @@ class BuildModule(object):
             - If "graph" is specified, then the graph_executor will be used
             - If "aot" is specified, then the aot_executor will be used
 
+        mod_name: Optional[str]
+            The module name we will build
+
         Returns
         -------
         graph_json : str
@@ -126,7 +148,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        target = _update_target(target)
+        target = build_target_by_device_type_map(target)
         target, target_host = Target.check_and_update_host_consist(
             target, target_host, target_is_dict_key=False
         )
@@ -145,7 +167,9 @@ class BuildModule(object):
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
         autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
-        self._build(mod, target, target_host, executor)
+        mod_name = mangle_module_name(mod_name)
+
+        self._build(mod, target, target_host, executor, mod_name)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
@@ -179,7 +203,7 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        target = _update_target(target)
+        target = build_target_by_device_type_map(target)
 
         # Setup the params.
         if params:
@@ -295,6 +319,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     """
     # pylint: enable=line-too-long
     # fmt: on
+
     if not isinstance(ir_mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
@@ -307,7 +332,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning,
         )
-    target = _update_target(target)
+    target = build_target_by_device_type_map(target)
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
@@ -330,7 +355,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     with tophub_context:
         bld_mod = BuildModule()
         executor_config, runtime_mod, params = bld_mod.build(
-            mod=ir_mod, target=target, params=params, executor=executor
+            mod=ir_mod, target=target, params=params, executor=executor, mod_name=mod_name
         )
         func_metadata = bld_mod.get_function_metadata()
 
@@ -386,7 +411,7 @@ def optimize(mod, target=None, params=None):
             DeprecationWarning,
         )
 
-    target = _update_target(target)
+    target = build_target_by_device_type_map(target)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
@@ -486,7 +511,10 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
-def create_executor(kind="debug", mod=None, device=None, target="llvm"):
+# TODO(mbs): Collapse the create_executor/evaluate phases together since a) most callers don't
+# reuse the executor for multiple expressions and b) any preparation necessary for the expression
+# evaluation needs to (currently) be done along with preparation for the module.
+def create_executor(kind="debug", mod=None, device=None, target="llvm", params=None):
     """Factory function to create an executor.
 
     Example
@@ -519,6 +547,10 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm"):
     target : :py:class:`tvm.Target`
         The corresponding context
 
+    params : dict of str to NDArray
+         Input parameters to the graph that do not change
+         during inference time.
+
     Returns
     -------
     executor : :py:class:`~tvm.relay.backend.interpreter.Executor`
@@ -529,6 +561,9 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm"):
         assert device.device_type == _nd.device(str(target), 0).device_type
     else:
         device = _nd.device(str(target), 0)
+
+    if params is not None:
+        mod = IRModule.from_expr(bind_params_by_name(mod["main"], params))
 
     if isinstance(target, str):
         target = Target(target)

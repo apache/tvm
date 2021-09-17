@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 #include <gtest/gtest.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type_functor.h>
@@ -37,6 +36,8 @@
 #include <tvm/te/operation.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/generic/injective.h>
+
+#include <memory>
 
 using namespace tvm;
 using namespace tvm::relay;
@@ -69,8 +70,76 @@ TEST(Relay, OutOfStack_cast) {
   ASSERT_EXIT((foo(), exit(0)), ::testing::ExitedWithCode(0), ".*");
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
+TEST(Relay, OutOfStack_packed_func) {
+  constexpr int len = 1e6;
+  auto foo = [] {
+    auto x = relay::Var("x", relay::TensorType({3, 2}, DataType::Float(32)));
+    auto one = relay::Constant(tvm::runtime::NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0}));
+    auto add_func = tvm::runtime::Registry::Get("relay.op._make.add");
+    auto y = (*add_func)(x, one);
+    for (int i = 0; i < len; ++i) {
+      y = (*add_func)(y, one);
+    }
+
+    // check if still reachable
+    int k = 0;
+    Expr e = y;
+    while (e.defined() && e.as<CallNode>() != nullptr) {
+      e = e.as<CallNode>()->args[0];
+      ++k;
+    }
+    ASSERT_EQ(len + 1, k);
+  };
+  ASSERT_EXIT((foo(), exit(0)), ::testing::ExitedWithCode(0), ".*");
+}
+
+TEST(Relay, CallNodeSharedArgs) {
+  auto x = relay::Var("x", relay::TensorType({3, 2}, DataType::Float(32)));
+  auto one = relay::Constant(tvm::runtime::NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0}));
+  auto relu_op = relay::Op::Get("nn.relu");
+  Call y = relay::Call(relu_op, {x}, Attrs(), {});
+  y = relay::Call(relu_op, {y}, Attrs(), {});
+  ASSERT_EQ(1, y.get()->args[0].as<CallNode>()->args.size());
+  y = relay::Call(y.get()->op, y.get()->args, y.get()->attrs, y.get()->type_args);
+  ASSERT_EQ(1, y.get()->args[0].as<CallNode>()->args.size());
+}
+
+TEST(Relay, TupleSharedFields) {
+  auto x = relay::Var("x", relay::TensorType({3, 2}, DataType::Float(32)));
+  auto one = relay::Constant(tvm::runtime::NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0}));
+  auto relu_op = relay::Op::Get("nn.relu");
+  Expr y = relay::Call(relu_op, {x}, Attrs(), {});
+  y = relay::Call(relu_op, {y}, Attrs(), {});
+  {
+    Expr y1 = relay::Tuple(y.as<CallNode>()->args);
+    Expr y2 = relay::Tuple(y.as<CallNode>()->args);
+
+    y1 = relay::Call(relu_op, {y1});
+    y2 = relay::Call(relu_op, {y2});
+    y = y1;
+  }
+  ASSERT_EQ(1, y.as<CallNode>()->args[0].as<TupleNode>()->fields[0].as<CallNode>()->args.size());
+}
+
+TEST(Relay, TupleiGetItemSharedTuple) {
+  auto x = relay::Var("x", relay::TensorType({3, 2}, DataType::Float(32)));
+  auto one = relay::Constant(tvm::runtime::NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0}));
+  auto relu_op = relay::Op::Get("nn.relu");
+  Expr y = relay::Call(relu_op, {x}, Attrs(), {});
+  y = relay::Tuple({y});
+  {
+    Expr y1 = relay::TupleGetItem(y, 0);
+    Expr y2 = relay::TupleGetItem(y, 0);
+
+    y1 = relay::Call(relu_op, {y1});
+    y2 = relay::Call(relu_op, {y2});
+    y = y1;
+  }
+  ASSERT_EQ(1, y.as<CallNode>()
+                   ->args[0]
+                   .as<TupleGetItemNode>()
+                   ->tuple.as<TupleNode>()
+                   ->fields[0]
+                   .as<CallNode>()
+                   ->args.size());
 }

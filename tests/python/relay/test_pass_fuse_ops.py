@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_opt_pass
 import tvm.testing
+import tvm.topi.testing
 
 
 def test_fuse_simple():
@@ -775,32 +777,51 @@ def test_fuse_dynamic_squeeze_slice_take():
     take = relay.op.take(strided_slice, take_val, axis=0)
 
     mod = tvm.IRModule.from_expr(take)
-    ex = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-
-    result = ex.evaluate()(*input_data)
+    result = relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+        *input_data
+    )
 
     np_result = np.squeeze(input_data[0][:, input_data[1][0], :], axis=0)
 
     assert np.allclose(result.numpy(), np_result)
 
 
+@tvm.testing.uses_gpu
+def test_fuse_softmax():
+    """Test if softmax can be fused with following ops."""
+    channel_size = 16
+
+    def before():
+        x = relay.var("x", shape=(16, channel_size))
+        softmax = relay.nn.softmax(x)
+        out = relay.cast(softmax, "float16")
+        return relay.Function([x], out)
+
+    def expected():
+        p0 = relay.var("p0", shape=(16, channel_size))
+        softmax = relay.nn.softmax(p0)
+        out = relay.cast(softmax, "float16")
+
+        x = relay.var("x", shape=(16, channel_size))
+
+        f0 = relay.Function([p0], out)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        y = relay.Call(f0, [x])
+        return relay.Function([x], y)
+
+    orig = before()
+    m = fuse2(tvm.IRModule.from_expr(orig))
+    after = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(m["main"], after)
+
+    inp = np.random.randn(16, channel_size).astype("float32")
+    ref = tvm.topi.testing.softmax_python(inp).astype("float16")
+
+    for tgt, dev in tvm.testing.enabled_targets():
+        ex = relay.create_executor("graph", mod=m, device=dev, target=tgt)
+        result = ex.evaluate()(inp).numpy()
+        tvm.testing.assert_allclose(result, ref, rtol=1e-4, atol=1e-4)
+
+
 if __name__ == "__main__":
-    test_fuse_simple()
-    test_conv2d_fuse()
-    test_concatenate()
-    test_tuple_root()
-    test_stop_fusion()
-    test_fuse_myia_regression()
-    test_fuse_tuple_get_elemwise()
-    test_tuple_get_root()
-    test_tuple_intermediate()
-    test_tuple_consecutive()
-    test_inception_like()
-    test_fuse_parallel_injective()
-    test_immutable()
-    test_split()
-    test_fuse_max()
-    test_fuse_take()
-    test_fuse_gather_nd()
-    test_fuse_bcast_reduce_scalar()
-    test_fuse_max_diamond()
+    pytest.main([__pfile__])

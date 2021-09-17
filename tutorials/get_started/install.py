@@ -23,8 +23,9 @@ Installing TVM
 
 Depending on your needs and your working environment, there are a few different
 methods for installing TVM. These include:
-    * Installing from source 
-    * Installing from third-party binary package.
+
+* Installing from source
+* Installing from third-party binary package.
 """
 
 ################################################################################
@@ -32,7 +33,7 @@ methods for installing TVM. These include:
 # ----------------------
 # Installing from source is the recommended method for installing TVM. It will
 # allow you to enable specific features such as GPU support, microcontroller
-# support (uTVM), and a debugging runtime, and other features. You will also
+# support (microTVM), and a debugging runtime, and other features. You will also
 # want to install from source if you want to actively contribute to the TVM
 # project. The full instructions are on the `Install TVM From Source
 # <https://tvm.apache.org/docs/install/from_source.html>`_ page.

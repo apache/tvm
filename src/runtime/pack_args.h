@@ -32,6 +32,7 @@
 #define TVM_RUNTIME_PACK_ARGS_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <cstring>
 #include <vector>

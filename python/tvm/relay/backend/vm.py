@@ -198,20 +198,26 @@ class VMCompiler(object):
         target = target if target else tvm.target.Target.current()
         if target is None:
             raise ValueError("Target is not set in env or passed as argument.")
-        tgts = {}
-        if isinstance(target, (str, tvm.target.Target)):
-            dev_type = tvm.tir.IntImm("int32", tvm.nd.device(str(target)).device_type)
-            tgts[dev_type] = tvm.target.Target(target)
-        elif isinstance(target, dict):
-            for dev, tgt in target.items():
-                dev_type = tvm.tir.IntImm("int32", tvm.nd.device(dev).device_type)
-                tgts[dev_type] = tvm.target.Target(tgt)
-        else:
+
+        if isinstance(target, str):
+            target = {target: target}
+        elif isinstance(target, tvm.target.Target):
+            target = {target.kind.name: target}
+        elif not isinstance(target, dict):
             raise TypeError(
                 "target is expected to be str, tvm.target.Target, "
                 + "or dict of str to str/tvm.target.Target, but received "
                 + "{}".format(type(target))
             )
+
+        tgts = {}
+        for dev, tgt in target.items():
+            dev_type = tvm.tir.IntImm("int32", tvm.nd.device(dev).device_type)
+            if isinstance(tgt, str):
+                tgt = tvm.target.Target(tgt)
+
+            tgts[dev_type] = tgt
+
         return tgts
 
     def _update_target_host(self, target, target_host):
