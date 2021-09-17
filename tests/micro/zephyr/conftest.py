@@ -17,68 +17,19 @@
 import datetime
 import os
 import pathlib
-import json
 
 import pytest
 
-from tvm.micro import project
-import tvm.contrib.utils
-import tvm.target.target
+import test_utils
 
-TEMPLATE_PROJECT_DIR = (
-    pathlib.Path(__file__).parent
-    / ".."
-    / ".."
-    / ".."
-    / "apps"
-    / "microtvm"
-    / "zephyr"
-    / "template_project"
-).resolve()
-
-BOARD_JSON_PATH = TEMPLATE_PROJECT_DIR / "boards.json"
-
-
-def zephyr_boards() -> dict:
-    """Returns a dict mapping board to target model"""
-    template = project.TemplateProject.from_directory(TEMPLATE_PROJECT_DIR)
-    project_options = template.info()["project_options"]
-    for option in project_options:
-        if option["name"] == "zephyr_board":
-            boards = option["choices"]
-        if option["name"] == "zephyr_model":
-            models = option["choices"]
-
-    arduino_boards = {boards[i]: models[i] for i in range(len(boards))}
-    return arduino_boards
-
-
-ZEPHYR_BOARDS = zephyr_boards()
-
-
-def qemu_boards(board: str):
-    """Returns True if board is QEMU."""
-    with open(BOARD_JSON_PATH) as f:
-        board_properties = json.load(f)
-
-    qemu_boards = [name for name, board in board_properties.items() if board["is_qemu"]]
-    return board in qemu_boards
-
-
-def has_fpu(board: str):
-    """Returns True if board has FPU."""
-    with open(BOARD_JSON_PATH) as f:
-        board_properties = json.load(f)
-
-    fpu_boards = [name for name, board in board_properties.items() if board["fpu"]]
-    return board in fpu_boards
+from tvm.contrib.utils import tempdir
 
 
 def pytest_addoption(parser):
     parser.addoption(
         "--zephyr-board",
         required=True,
-        choices=ZEPHYR_BOARDS.keys(),
+        choices=test_utils.ZEPHYR_BOARDS.keys(),
         help=("Zephyr board for test."),
     )
     parser.addoption(
@@ -125,4 +76,4 @@ def temp_dir(board):
     if not os.path.exists(board_workspace.parent):
         os.makedirs(board_workspace.parent)
 
-    return tvm.contrib.utils.tempdir(board_workspace)
+    return tempdir(board_workspace)

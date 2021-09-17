@@ -58,15 +58,16 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
+
+BOARDS = API_SERVER_DIR / "boards.json"
+
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
-BOARD_PROPERTIES = None
-BOARDS_FILE_NAME = "boards.json"
-
-with open(
-    BOARDS_FILE_NAME,
-) as board_f:
-    BOARD_PROPERTIES = json.load(board_f)
+try:
+    with open(BOARDS) as boards:
+        BOARD_PROPERTIES = json.load(boards)
+except FileNotFoundError:
+    raise FileNotFoundError(f"Board file {{{BOARDS}}} does not exist.")
 
 
 def check_call(cmd_args, *args, **kwargs):
@@ -260,12 +261,7 @@ PROJECT_OPTIONS = [
         help="Name of the Zephyr board to build for.",
     ),
     server.ProjectOption(
-        "zephyr_model",
-        choices=[board["model"] for _, board in BOARD_PROPERTIES.items()],
-        help="Name of the model for each Zephyr board.",
-    ),
-    server.ProjectOption(
-        "main_stack_size",
+        "config_main_stack_size",
         help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
     ),
 ]
@@ -326,8 +322,8 @@ class Handler(server.ProjectAPIHandler):
                 f.write("# For models with floating point.\n" "CONFIG_FPU=y\n" "\n")
 
             # Set main stack size, if needed.
-            if options["main_stack_size"] is not None:
-                f.write(f"CONFIG_MAIN_STACK_SIZE={options['main_stack_size']}\n")
+            if options.get("config_main_stack_size") is not None:
+                f.write(f"CONFIG_MAIN_STACK_SIZE={options['config_main_stack_size']}\n")
 
             f.write("# For random number generation.\n" "CONFIG_TEST_RANDOM_GENERATOR=y\n")
 
@@ -355,9 +351,7 @@ class Handler(server.ProjectAPIHandler):
         shutil.copy2(__file__, project_dir / os.path.basename(__file__))
 
         # Copy boards.json file to generated project.
-        shutil.copy2(
-            pathlib.Path(__file__).parent / BOARDS_FILE_NAME, project_dir / BOARDS_FILE_NAME
-        )
+        shutil.copy2(BOARDS, project_dir / BOARDS.name)
 
         # Place Model Library Format tarball in the special location, which this script uses to decide
         # whether it's being invoked in a template or generated project.
