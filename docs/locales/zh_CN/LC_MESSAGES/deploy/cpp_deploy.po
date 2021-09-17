@@ -1,0 +1,93 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1708+gd62e1844d\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-17 09:29+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/deploy/cpp_deploy.rst:20
+msgid "Deploy TVM Module using C++ API"
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:22
+msgid ""
+"We provide an example on how to deploy TVM modules in `apps/howto_deploy "
+"<https://github.com/apache/tvm/tree/main/apps/howto_deploy>`_"
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:24
+msgid "To run the example, you can use the following command"
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:34
+msgid "Get TVM Runtime Library"
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:36
+msgid ""
+"The only thing we need is to link to a TVM runtime in your target "
+"platform. TVM provides a minimum runtime, which costs around 300K to 600K"
+" depending on how much modules we use. In most cases, we can use "
+"``libtvm_runtime.so`` that comes with the build."
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:40
+msgid ""
+"If somehow you find it is hard to build ``libtvm_runtime``, checkout "
+"`tvm_runtime_pack.cc "
+"<https://github.com/apache/tvm/tree/main/apps/howto_deploy/tvm_runtime_pack.cc>`_."
+" It is an example all in one file that gives you TVM runtime. You can "
+"compile this file using your build system and include this into your "
+"project."
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:45
+msgid ""
+"You can also checkout `apps "
+"<https://github.com/apache/tvm/tree/main/apps/>`_ for example "
+"applications build with TVM on iOS, Android and others."
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:48
+msgid "Dynamic Library vs. System Module"
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:49
+msgid ""
+"TVM provides two ways to use the compiled library. You can checkout "
+"`prepare_test_libs.py "
+"<https://github.com/apache/tvm/tree/main/apps/howto_deploy/prepare_test_libs.py>`_"
+" on how to generate the library and `cpp_deploy.cc "
+"<https://github.com/apache/tvm/tree/main/apps/howto_deploy/cpp_deploy.cc>`_"
+" on how to use them."
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:53
+msgid ""
+"Store library as a shared library and dynamically load the library into "
+"your project."
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:54
+msgid "Bundle the compiled library into your project in system module mode."
+msgstr ""
+
+#: ../../_staging/deploy/cpp_deploy.rst:56
+msgid ""
+"Dynamic loading is more flexible and can load new modules on the fly. "
+"System module is a more ``static`` approach.  We can use system module in"
+" places where dynamic library loading is banned."
+msgstr ""
+

@@ -1,0 +1,313 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1708+gd62e1844d\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-17 09:29+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/dev/benchmark.rst:20
+msgid "Benchmark Performance Log Format"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:21
+msgid ""
+"This page details schema v0.1 for a unified benchmark log format. This "
+"schema will allow easier cross-references with other frameworks/runs, "
+"experiment reproduction, data for nightly perf regression, and the "
+"separation of logging/visualization efforts."
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:24
+msgid "Log Format Overview"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:26
+msgid ""
+"For simplicity, we suggest prioritizing the fields `workload`, `engine`, "
+"`hardware` `runtime_ms_mean`, and `runtime_ms_std`. For finer-grained "
+"logging, one may additionally propagate the `*_config` fields."
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:29
+msgid "header"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:29
+msgid "examples"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:29
+msgid "category"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:29
+msgid "notes/justification"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:31 ../../_staging/dev/benchmark.rst:47
+#: ../../_staging/dev/benchmark.rst:49
+msgid "workload"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:31
+msgid "resnet-18"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:31
+msgid "name of workload"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:33
+msgid "engine"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:33
+msgid "\"tvm\" / \"onnxruntime\""
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:33 ../../_staging/dev/benchmark.rst:51
+#: ../../_staging/dev/benchmark.rst:53 ../../_staging/dev/benchmark.rst:55
+msgid "compiler"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:35 ../../_staging/dev/benchmark.rst:61
+msgid "hardware"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:35
+msgid "\"gcp-c2-standard-16\""
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:35
+msgid "descriptor of target hardware environment"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:37
+msgid "runtime_ms_mean"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:37
+msgid "12.452"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:37 ../../_staging/dev/benchmark.rst:39
+#: ../../_staging/dev/benchmark.rst:63 ../../_staging/dev/benchmark.rst:65
+#: ../../_staging/dev/benchmark.rst:67
+msgid "statistics"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:39
+msgid "runtime_ms_std"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:39
+msgid "5.3"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:41
+msgid "timestamp"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:41
+msgid "1572282699.6"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:41 ../../_staging/dev/benchmark.rst:43
+#: ../../_staging/dev/benchmark.rst:45
+msgid "metadata"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:41
+msgid "indicates when this record is logged"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:43
+msgid "schema\\_version"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:43
+msgid "\"0.1\""
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:43
+msgid "ensure reproducibility as we iterate on this schema"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:45
+msgid "{ \"docker\\_tag\":\"gcr.io/.../0a680\", ... }"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:45
+msgid "``docker_tag`` is optional"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:47
+msgid "workload\\_args"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:47
+msgid ""
+"{“input\\_name”: \"Input3\", “input\\_shape”: [list\\_of\\_shape], "
+"“data\\_layout”: NHCW}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:49
+msgid "workload\\_metadata"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:49
+msgid ""
+"{\"class\": \"vision\",\"doc\\_url\": "
+"\"``https://github.com/.../README.md``\", \"opset\": 7,\"type\": "
+"\"body\\_analysis\",\"url\": \"``https://onnxzoo...ferplus.tar.gz``\", "
+"\"md5\": \"07fc7...\"}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:49
+msgid "source of workload"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:51
+msgid "engine\\_version"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:51
+msgid "\"1.0.5\""
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:51
+msgid "use semvar format"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:53
+msgid "engine\\_config"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:53
+msgid ""
+"{“llvm”: “llvm-8”, “nvcc”: 10.1, \"accelerator\": \"MLAS\", "
+"\"relay_opt_level\": 3, \"tvm_target\":\"llvm -mcpu=cascadelake\"}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:53 ../../_staging/dev/benchmark.rst:55
+msgid "fields are optionally specified"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:55
+msgid "compilation\\_config"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:55
+msgid "{\"opt_level\": 3, \"layer_schedules\":[]/ <SHA_to_schedules>}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:57
+msgid "software\\_config"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:57
+msgid ""
+"{\"os\": \"ubuntu:18.04\",\"pip\": { \"docker\": \"4.1.0\", "
+"\"gitpython\": \"3.0.4\", \"numpy\": \"1.17.4\", \"onnx\": \"1.6.0\"}, "
+"“cudnn”: “cudnn-8”, \"cuda_driver”: “480.10.1”}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:57 ../../_staging/dev/benchmark.rst:59
+msgid "backend"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:57
+msgid "env dependency list"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:59
+msgid "runtime\\_config"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:59
+msgid "{\"num_cpu_threads\": 3}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:59
+msgid "info on non-hardware, non-software metadata"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:61
+msgid "hardware\\_config"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:61
+msgid ""
+"{\"cpu_count\": 16, \"cloud_machine_type\":\"c2-standard-16\", "
+"\"memory_GB\":64}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:61
+msgid "json descriptor of target hardware environment"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:63
+msgid "execution\\_config"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:63
+msgid "{“number”: 1, “repeat”: 10, “min\\_repeat\\_ms”, 0}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:63
+msgid "workload execution parameters"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:65
+msgid "metrics"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:65
+msgid "{“accuracy”: 48.5,“compilation_ms_mean”: 12}"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:65
+msgid "other metrics"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:67
+msgid "runtime_raw"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:67
+msgid "[{\"runtime_ms\": 12, ...}, {\"runtime_ms\":13,...},...]"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:67
+msgid "optional raw metrics array"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:73
+msgid "Storage format"
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:74
+msgid ""
+"Currently we're prototyping benchmark data as JSON objects for "
+"extensibility and convenience, especially in early versions of the "
+"schema. However, as we scale up benchmark aggregation and stabilize "
+"parameters, we anticipate switching to a columnar format, such as Arrow "
+"or Parquet."
+msgstr ""
+
+#: ../../_staging/dev/benchmark.rst:76
+msgid "Here is sample data encoded as JSON:"
+msgstr ""
+

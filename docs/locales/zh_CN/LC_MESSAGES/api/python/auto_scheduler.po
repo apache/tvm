@@ -1,0 +1,2084 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1708+gd62e1844d\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-17 09:29+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/api/python/auto_scheduler.rst:19
+msgid "tvm.auto_scheduler"
+msgstr ""
+
+#: of tvm.auto_scheduler:1
+msgid "Namespace for TVM Auto-scheduler."
+msgstr ""
+
+#: of tvm.auto_scheduler:1
+msgid "**Classes:**"
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`ComputeDAG <tvm.auto_scheduler.ComputeDAG>`\\ "
+"\\(compute\\_or\\_sche\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "The auto-scheduler's computational graph and related program analyses."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`LayoutRewriteOption <tvm.auto_scheduler.LayoutRewriteOption>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.LayoutRewriteOption:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "Options for applying layout rewrite."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ":obj:`RandomModel <tvm.auto_scheduler.RandomModel>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.cost_model.RandomModel:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "A model that returns random estimation for all inputs"
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`XGBModel <tvm.auto_scheduler.XGBModel>`\\ \\(\\[verbose\\_eval\\, "
+"num\\_warmup\\_sample\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid "Train a XGBoost model to predict the normalized throughputs of programs."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ":obj:`DispatchContext <tvm.auto_scheduler.DispatchContext>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.DispatchContext:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "Base class of dispatch context."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`ApplyHistoryBest <tvm.auto_scheduler.ApplyHistoryBest>`\\ "
+"\\(records\\[\\, n\\_lines\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "Apply the history best config"
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`ApplyHistoryBestOrSample "
+"<tvm.auto_scheduler.ApplyHistoryBestOrSample>`\\ \\(records\\[\\, "
+"...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+"Apply the history best config, or sample a valid schedule if no config is"
+" found."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`MeasureInput <tvm.auto_scheduler.MeasureInput>`\\ \\(task\\, "
+"state\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureInput:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "Store the input of a measurement."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`MeasureResult <tvm.auto_scheduler.MeasureResult>`\\ \\(costs\\, "
+"error\\_no\\, error\\_msg\\, ...\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureResult:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "Store the results of a measurement."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`LocalBuilder <tvm.auto_scheduler.LocalBuilder>`\\ \\(\\[timeout\\, "
+"n\\_parallel\\, build\\_func\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalBuilder:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "LocalBuilder use local CPU cores to build programs in parallel."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`LocalRunner <tvm.auto_scheduler.LocalRunner>`\\ \\(\\[timeout\\, "
+"number\\, repeat\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRunner:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "LocalRunner that uses local CPU/GPU to measures the time cost of programs."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`RPCRunner <tvm.auto_scheduler.RPCRunner>`\\ \\(key\\, host\\, "
+"port\\[\\, priority\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+"RPCRunner that uses RPC call to measures the time cost of programs on "
+"remote devices."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`LocalRPCMeasureContext "
+"<tvm.auto_scheduler.LocalRPCMeasureContext>`\\ \\(\\[priority\\, "
+"...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid "A context wrapper for running RPCRunner locally."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ":obj:`RecordToFile <tvm.auto_scheduler.RecordToFile>`\\ \\(filename\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordToFile:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "A measurement callback that writes measurement records into a file."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ":obj:`RecordReader <tvm.auto_scheduler.RecordReader>`\\ \\(filename\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "Reader of the json log file."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`SearchTask <tvm.auto_scheduler.SearchTask>`\\ \\(\\[func\\, args\\,"
+" compute\\_dag\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+"The computation information and hardware parameters for a schedule search"
+" task."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`TuningOptions <tvm.auto_scheduler.TuningOptions>`\\ "
+"\\(\\[num\\_measure\\_trials\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.TuningOptions:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "This controls the options of performance tuning."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`HardwareParams <tvm.auto_scheduler.HardwareParams>`\\ "
+"\\(\\[num\\_cores\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.HardwareParams:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid "The parameters of target hardware used to guide the search policy."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`EmptyPolicy <tvm.auto_scheduler.EmptyPolicy>`\\ \\(task\\[\\, "
+"init\\_search\\_callbacks\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.EmptyPolicy:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+"A simple example of the search policy which always returns the initial "
+"naive schedule (state)."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`SketchPolicy <tvm.auto_scheduler.SketchPolicy>`\\ \\(task\\[\\, "
+"program\\_cost\\_model\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+"The search policy that searches in a hierarchical search space defined by"
+" sketches."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`PreloadMeasuredStates <tvm.auto_scheduler.PreloadMeasuredStates>`\\"
+" \\(filename\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadMeasuredStates:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+"A SearchCallback to load measured states from the log file for a search "
+"policy."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`PreloadCustomSketchRule "
+"<tvm.auto_scheduler.PreloadCustomSketchRule>`\\ "
+"\\(meet\\_condition\\_func\\, ...\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadCustomSketchRule:1
+#: tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+"A SearchCallback for SketchSearchPolicy that allows users to add custom "
+"sketch rule."
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid ""
+":obj:`TaskScheduler <tvm.auto_scheduler.TaskScheduler>`\\ \\(tasks\\[\\, "
+"task\\_weights\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler:1:<autosummary>:1
+msgid "Allocate the time resources when tuning multiple tasks together."
+msgstr ""
+
+#: of tvm.auto_scheduler:1
+msgid "**Functions:**"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`get_shape_from_rewritten_layout "
+"<tvm.auto_scheduler.get_shape_from_rewritten_layout>`\\ \\(...\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.compute_dag.get_shape_from_rewritten_layout:1
+msgid "Get the orginal shape from a rewritten layout string."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`register_task_input_check_func "
+"<tvm.auto_scheduler.register_task_input_check_func>`\\ "
+"\\(func\\_name\\[\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.measure.register_task_input_check_func:1
+msgid "Register a function that checks the input buffer map."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`load_best_record <tvm.auto_scheduler.load_best_record>`\\ "
+"\\(filename\\[\\, workload\\_key\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid "Return the best measurement pair form a log file."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ":obj:`load_records <tvm.auto_scheduler.load_records>`\\ \\(filename\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.measure_record.load_records:1
+msgid "Load measurement records from a file."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`save_records <tvm.auto_scheduler.save_records>`\\ \\(filename\\, "
+"inputs\\, results\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.measure_record.save_records:1
+msgid "Append measure records to file."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`extract_tasks <tvm.auto_scheduler.extract_tasks>`\\ \\(mod\\, "
+"params\\, target\\[\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.relay_integration.extract_tasks:1
+msgid "Extract tuning tasks from a relay program."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`remove_index_check <tvm.auto_scheduler.remove_index_check>`\\ "
+"\\(tensor\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid "Remove the safety check in the indexing function for a tensor."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`rewrite_compute_body <tvm.auto_scheduler.rewrite_compute_body>`\\ "
+"\\(compute\\_tensor\\, new\\_layout\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.relay_integration.rewrite_compute_body:1
+msgid "Rewrite the body of a ComputeOp according to a new layout of a placeholder"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`is_auto_scheduler_enabled "
+"<tvm.auto_scheduler.is_auto_scheduler_enabled>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.relay_integration.is_auto_scheduler_enabled:1
+msgid "Return whether the auto-scheduler is enabled."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`create_task <tvm.auto_scheduler.create_task>`\\ \\(func\\, args\\, "
+"target\\[\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.search_task.auto_schedule:1
+#: tvm.auto_scheduler.search_task.create_task:1
+msgid "THIS API IS DEPRECATED."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`auto_schedule <tvm.auto_scheduler.auto_schedule>`\\ \\(task\\[\\, "
+"search\\_policy\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`register_workload <tvm.auto_scheduler.register_workload>`\\ "
+"\\(func\\_name\\[\\, f\\, override\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.workload_registry.register_workload:1
+msgid "Register a function that generates a certain workload."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+msgid ""
+":obj:`make_workload_key <tvm.auto_scheduler.make_workload_key>`\\ "
+"\\(func\\, args\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1
+#: tvm.auto_scheduler.workload_registry.make_workload_key:1
+msgid "Make a workload key by function and arguments."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:3
+msgid ""
+"We convert a compute declaration described by `tvm.compute` (could be a "
+"single operator or a subgraph) to a ComputeDAG. It keeps the input/output"
+" tensors, all operations in the DAG, and some static analysis results for"
+" the DAG (e.g. the total float operation count, consumer/producer "
+"relations of operations, whether an operation stage should be "
+"tiled/compute inlined). These analyses can help the search policy to make"
+" decisions during the search. ComputeDAG is also responsible for the "
+"interaction between auto-scheduler's `LoopState` and TVM schedule (e.g. "
+"applying the `LoopState` transform steps to a TVM schedule, providing "
+"`LoopState` with extra information got from TVM schedule)."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.apply_steps_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.infer_bound_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.print_python_code_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.rewrite_layout_from_state
+#: tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default
+#: tvm.auto_scheduler.compute_dag.get_shape_from_rewritten_layout
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel.predict
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel.update
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.load
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.update
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query
+#: tvm.auto_scheduler.dispatcher.DispatchContext.update
+#: tvm.auto_scheduler.measure.LocalBuilder
+#: tvm.auto_scheduler.measure.LocalRPCMeasureContext
+#: tvm.auto_scheduler.measure.LocalRunner
+#: tvm.auto_scheduler.measure.MeasureInput
+#: tvm.auto_scheduler.measure.MeasureResult
+#: tvm.auto_scheduler.measure.RPCRunner
+#: tvm.auto_scheduler.measure.register_task_input_check_func
+#: tvm.auto_scheduler.measure_record.RecordReader
+#: tvm.auto_scheduler.measure_record.RecordReader.check_workload_key
+#: tvm.auto_scheduler.measure_record.RecordReader.read_lines
+#: tvm.auto_scheduler.measure_record.RecordToFile
+#: tvm.auto_scheduler.measure_record.load_best_record
+#: tvm.auto_scheduler.measure_record.load_records
+#: tvm.auto_scheduler.measure_record.save_records
+#: tvm.auto_scheduler.relay_integration.extract_tasks
+#: tvm.auto_scheduler.relay_integration.is_auto_scheduler_enabled
+#: tvm.auto_scheduler.relay_integration.remove_index_check
+#: tvm.auto_scheduler.search_policy.EmptyPolicy
+#: tvm.auto_scheduler.search_policy.PreloadCustomSketchRule
+#: tvm.auto_scheduler.search_policy.PreloadMeasuredStates
+#: tvm.auto_scheduler.search_policy.SketchPolicy
+#: tvm.auto_scheduler.search_policy.SketchPolicy.evolutionary_search
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches
+#: tvm.auto_scheduler.search_task.SearchTask
+#: tvm.auto_scheduler.search_task.SearchTask.apply_best
+#: tvm.auto_scheduler.search_task.SearchTask.print_best
+#: tvm.auto_scheduler.search_task.SearchTask.tune
+#: tvm.auto_scheduler.search_task.TuningOptions
+#: tvm.auto_scheduler.search_task.auto_schedule
+#: tvm.auto_scheduler.search_task.create_task
+#: tvm.auto_scheduler.task_scheduler.TaskScheduler
+#: tvm.auto_scheduler.task_scheduler.TaskScheduler.tune
+#: tvm.auto_scheduler.workload_registry.make_workload_key
+#: tvm.auto_scheduler.workload_registry.register_workload
+msgid "Parameters"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:13
+msgid "Input/output tensors or workload key for a compute declaration."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG:1
+#: tvm.auto_scheduler.compute_dag.LayoutRewriteOption:1
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel:1
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel:1
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest:1
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample:1
+#: tvm.auto_scheduler.dispatcher.DispatchContext:1
+#: tvm.auto_scheduler.measure.MeasureInput:1
+#: tvm.auto_scheduler.measure_record.RecordReader:1
+#: tvm.auto_scheduler.search_policy.SketchPolicy:1
+#: tvm.auto_scheduler.search_task.SearchTask:1
+#: tvm.auto_scheduler.task_scheduler.TaskScheduler:1
+msgid "**Methods:**"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid ""
+":obj:`get_init_state <tvm.auto_scheduler.ComputeDAG.get_init_state>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid "Get the init state of this ComputeDAG."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid ""
+":obj:`apply_steps_from_state "
+"<tvm.auto_scheduler.ComputeDAG.apply_steps_from_state>`\\ \\(state\\[\\, "
+"layout\\_rewrite\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.apply_steps_from_state:1
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid "Apply the history transform steps from a State to get a TVM schedule."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid ""
+":obj:`print_python_code_from_state "
+"<tvm.auto_scheduler.ComputeDAG.print_python_code_from_state>`\\ "
+"\\(state\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.print_python_code_from_state:1
+msgid ""
+"Print transform steps in the history of a State as TVM's python schedule "
+"code."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid ""
+":obj:`infer_bound_from_state "
+"<tvm.auto_scheduler.ComputeDAG.infer_bound_from_state>`\\ \\(state\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.infer_bound_from_state:1
+msgid "Infer and fill the bound of all iterators of a state."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid ""
+":obj:`rewrite_layout_from_state "
+"<tvm.auto_scheduler.ComputeDAG.rewrite_layout_from_state>`\\ \\(state\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.rewrite_layout_from_state:1
+msgid ""
+"Rewrite the layout of the DAG according to the history transform steps of"
+" a state."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid ":obj:`workload_key <tvm.auto_scheduler.ComputeDAG.workload_key>`\\ \\(\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:1:<autosummary>:1
+msgid "Return the workload key of this compute DAG."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.apply_steps_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.infer_bound_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.print_python_code_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.rewrite_layout_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.workload_key
+#: tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default
+#: tvm.auto_scheduler.compute_dag.get_shape_from_rewritten_layout
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel.predict
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query
+#: tvm.auto_scheduler.measure_record.RecordReader.read_lines
+#: tvm.auto_scheduler.measure_record.load_best_record
+#: tvm.auto_scheduler.measure_record.load_records
+#: tvm.auto_scheduler.relay_integration.extract_tasks
+#: tvm.auto_scheduler.search_policy.SketchPolicy.evolutionary_search
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches
+#: tvm.auto_scheduler.search_policy.SketchPolicy.sample_initial_population
+#: tvm.auto_scheduler.search_task.SearchTask.apply_best
+#: tvm.auto_scheduler.search_task.SearchTask.print_best
+#: tvm.auto_scheduler.search_task.auto_schedule
+#: tvm.auto_scheduler.search_task.create_task
+#: tvm.auto_scheduler.workload_registry.make_workload_key
+msgid "Returns"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state:3
+msgid "**state** -- The initial State without any transform steps."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.apply_steps_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.get_init_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.infer_bound_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.print_python_code_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.rewrite_layout_from_state
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.workload_key
+#: tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default
+#: tvm.auto_scheduler.compute_dag.get_shape_from_rewritten_layout
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel.predict
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query
+#: tvm.auto_scheduler.measure_record.load_records
+#: tvm.auto_scheduler.search_policy.SketchPolicy.evolutionary_search
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches
+#: tvm.auto_scheduler.search_policy.SketchPolicy.sample_initial_population
+#: tvm.auto_scheduler.search_task.SearchTask.apply_best
+#: tvm.auto_scheduler.search_task.SearchTask.print_best
+#: tvm.auto_scheduler.search_task.auto_schedule
+#: tvm.auto_scheduler.search_task.create_task
+#: tvm.auto_scheduler.workload_registry.make_workload_key
+msgid "Return type"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.apply_steps_from_state:3
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.infer_bound_from_state:10
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.print_python_code_from_state:6
+#: tvm.auto_scheduler.compute_dag.ComputeDAG.rewrite_layout_from_state:3
+msgid "The state from which we get transform steps."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.apply_steps_from_state:5
+msgid ""
+"Rewrite the layout of placeholders specified by "
+"\"layout_free_placeholders\" attr to make it most friendly for the "
+"generated schedule to read from."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.apply_steps_from_state:10
+msgid ""
+"A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` "
+"or `tvm.build`."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.print_python_code_from_state:3
+msgid ""
+"This is used to print transformation steps for debugging. Use "
+"`apply_steps_from_state` if you want to get a schedule for code "
+"generation."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.print_python_code_from_state:9
+msgid "**str** -- The Python schedule code."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.infer_bound_from_state:3
+msgid ""
+"The states may lose complete bound information after some transform steps"
+" (e.g., compute_at). We can call this function to infer and fill all the "
+"bound information. This function calls TVM InferBound pass internally to "
+"get the bound. The returned state of this function is guaranteed to have "
+"complete iterator extent information."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.infer_bound_from_state:13
+msgid "**updated_state** -- The State with complete bound information."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.rewrite_layout_from_state:6
+msgid "**updated_dag** -- The compute dag with rewritten layout."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.workload_key:1
+msgid ""
+"Return the workload key of this compute DAG. The workload key is a JSON "
+"string from a tuple of (hash of DAG, tensor shapes...)"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.ComputeDAG.workload_key:4
+msgid "**key** -- The workload key of this compute DAG"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.LayoutRewriteOption:3
+msgid ""
+"The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when "
+"tuning a standalone op, and the REWRITE_FOR_PRE_TRANSFORMED is expected "
+"to be used when tuning ops inside a network."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default:1:<autosummary>:1
+msgid ""
+":obj:`get_target_default "
+"<tvm.auto_scheduler.LayoutRewriteOption.get_target_default>`\\ "
+"\\(target\\[\\, ...\\]\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default:1:<autosummary>:1
+msgid "Get the default layout rewrite option for the specified target."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default:1
+msgid ""
+"Get the default layout rewrite option for the specified target. Currently"
+" we only enable layout rewrite for cpu / mali backend for now"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default:4
+msgid "The compilation target."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default:6
+msgid "If this check is ask for relay integration."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.LayoutRewriteOption.get_target_default:9
+msgid ""
+"**layout_rewrite_option** -- The default layout rewrite option for the "
+"specified target."
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.get_shape_from_rewritten_layout:3
+msgid "The layout after rewrite"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.get_shape_from_rewritten_layout:5
+msgid "Specify the order of axes by names"
+msgstr ""
+
+#: of tvm.auto_scheduler.compute_dag.get_shape_from_rewritten_layout:8
+msgid "**shape** -- The original shape"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel.update:1:<autosummary>:1
+msgid ""
+":obj:`update <tvm.auto_scheduler.RandomModel.update>`\\ \\(inputs\\, "
+"results\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.cost_model.RandomModel.update:1
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel.update:1:<autosummary>:1
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ""
+"Update the cost model according to new measurement results (training "
+"data)."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel.update:1:<autosummary>:1
+msgid ""
+":obj:`predict <tvm.auto_scheduler.RandomModel.predict>`\\ "
+"\\(search\\_task\\, states\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.cost_model.RandomModel.predict:1
+#: tvm.auto_scheduler.cost_model.cost_model.RandomModel.update:1:<autosummary>:1
+msgid "Predict the scores of states"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.cost_model.RandomModel.update:3
+msgid "The measurement inputs"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.cost_model.RandomModel.update:5
+msgid "The measurement results"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.cost_model.RandomModel.predict:3
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages:3
+msgid "The search task of states"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.cost_model.RandomModel.predict:5
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages:5
+msgid "The input states"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.cost_model.RandomModel.predict:8
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict:7
+msgid "**scores** -- The predicted scores for all states"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel:1
+msgid ""
+"Train a XGBoost model to predict the normalized throughputs of programs. "
+"Let the normalized throughput be the score of a program (higher is "
+"better). We predict the (approximate) score of a program = the sum of the"
+" scores of all stages in this program. i.e. score(P) = score_s0 + "
+"score_s1 + ... + score_sn, where score_si is the score of Stage i in "
+"Program P. We extract feature for each stage and let the xgboost predict "
+"the score for each stage. We then sum up the predictions as the score of "
+"the whole program. We use RMSE as the loss function.  i.e. loss(P, y) = "
+"1/2 * (score(P) - y)^2, where P is the program and y is the normalized "
+"throughput according to the ground truth (measurement). XGBoost does not "
+"support this loss function because `score(P)` is a sum of the prediction "
+"of several samples, so we implemented a custom loss function and call it "
+"pack-sum-rmse. It is called \"pack-sum\" because we combine several "
+"samples into a \"pack\" and sum up their predictions."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel:16
+msgid "Print training log every `verbose_eval` iterations."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel:18
+msgid ""
+"The minimum number of samples to start to use the trained model. If the "
+"number of samples is less than this number, the model outputs random "
+"predictions."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel:21
+msgid "The random seed"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel:23
+msgid "If is not None, save model to this file after every update."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel:25
+msgid ""
+"Whether to use adapatie training, which reduces the training frequency "
+"when there are too many logs."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ""
+":obj:`update <tvm.auto_scheduler.XGBModel.update>`\\ \\(inputs\\, "
+"results\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ""
+":obj:`predict <tvm.auto_scheduler.XGBModel.predict>`\\ \\(task\\, "
+"states\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict:1
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ""
+"Predict the scores of states :param search_task: The search task of "
+"states :type search_task: SearchTask :param statse: The input states "
+":type statse: List[State]"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ""
+":obj:`predict_stages <tvm.auto_scheduler.XGBModel.predict_stages>`\\ "
+"\\(task\\, states\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid "Predict the scores of all stages in states."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ""
+":obj:`update_from_file <tvm.auto_scheduler.XGBModel.update_from_file>`\\ "
+"\\(file\\_name\\[\\, n\\_lines\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid "Load measure records from a log file to update the cost model."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ":obj:`save <tvm.auto_scheduler.XGBModel.save>`\\ \\(file\\_name\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.save:1
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ""
+"Save the model to a file :param file_name: The filename :type file_name: "
+"str"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ":obj:`load <tvm.auto_scheduler.XGBModel.load>`\\ \\(file\\_name\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.load:1
+#: tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1:<autosummary>:1
+msgid ""
+"Load the model from a file :param file_name: The filename :type "
+"file_name: str"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update:1
+msgid ""
+"Update the cost model according to new measurement results (training "
+"data). XGBoost does not support incremental training, so we re-train a "
+"new model every time. :param inputs: The measurement inputs :type inputs:"
+" List[MeasureInput] :param results: The measurement results :type "
+"results: List[MeasureResult]"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages:1
+msgid ""
+"Predict the scores of all stages in states. This is the breakdown version"
+" of `predict`."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages:8
+msgid ""
+"**scores** -- The predicted scores for all stages in all states in the "
+"packed format"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages:13
+msgid ""
+"For faster data copy between c++ and python, the python part returns "
+"scores in a single flatten array using a packed format. The c++ part then"
+" unpacks the flatten array. The packed format is: {"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages:18
+msgid ""
+"float  scores[N];                 // scores[i] is the score for "
+"states[i]. int    n_stage_0;                 // the number of stages in "
+"states[0] float  stage_scores_0[[n_stage_0] // the scores for all stages "
+"in states[0] int    n_stage_1;                 // the number of stages in"
+" states[1] float  stage_scores_1[n_stage_1]; // the scores for all stages"
+" in states[1] ... int    n_stage_i;                 // the number of "
+"stages in states[i] float  stage_scores_1[n_stage_i]; // the scores for "
+"all stages in states[i] ...  // untill i == N - 1"
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.predict_stages:28
+msgid ""
+"} To implement this format, we also store int as float, so we can store "
+"all numbers into a single float array."
+msgstr ""
+
+#: of tvm.auto_scheduler.cost_model.xgb_model.XGBModel.update_from_file:1
+msgid ""
+"Load measure records from a log file to update the cost model. This "
+"function can be used to pre-train the cost model with history log files. "
+":param file_name: The filename :type file_name: str :param n_lines: Only "
+"load first n lines of the log file :type n_lines: Optional[int]"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.DispatchContext.query:1:<autosummary>:1
+msgid ""
+":obj:`query <tvm.auto_scheduler.DispatchContext.query>`\\ \\(target\\, "
+"workload\\_key\\, has\\_complex\\_op\\, ...\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:1:<autosummary>:1
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:1:<autosummary>:1
+msgid "Query the context to get the specific config for a workload."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.DispatchContext.query:1:<autosummary>:1
+msgid ""
+":obj:`update <tvm.auto_scheduler.DispatchContext.update>`\\ \\(target\\, "
+"workload\\_key\\, state\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:1:<autosummary>:1
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.update:1
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:1:<autosummary>:1
+#: tvm.auto_scheduler.dispatcher.DispatchContext.update:1
+msgid "Update the config for a workload"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:1
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:1
+msgid ""
+"Query the context to get the specific config for a workload. If this "
+"function cannot find the result inside this context, it will query the "
+"result from the upper contexts."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.update:3
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:5
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:5
+#: tvm.auto_scheduler.dispatcher.DispatchContext.update:3
+msgid "The current target"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:7
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:7
+msgid "The workload key"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:9
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:9
+msgid "Whether this workload has at least one complex op."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:11
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:11
+msgid "The ComputeDAG of the workload."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:13
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:13
+msgid "The function name of this workload."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:16
+#: tvm.auto_scheduler.dispatcher.DispatchContext.query:16
+msgid "**state** -- The state that stores schedule configuration for the workload"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.update:5
+#: tvm.auto_scheduler.dispatcher.DispatchContext.update:5
+msgid "The current workload_key."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.update:7
+#: tvm.auto_scheduler.dispatcher.DispatchContext.update:7
+msgid "The state that stores schedule configuration for the workload"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest:3
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.load:3
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample:3
+msgid ""
+"Collection of tuning records. If is str, then it should be the filename "
+"of a records log file. Each row of this file is an encoded record pair. "
+"Otherwise, it is an iterator."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest:7
+msgid "if it is not None, only load the first `n_lines` lines of log."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest:9
+msgid "When set to True, compatible records will also be considered."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:1:<autosummary>:1
+msgid ""
+":obj:`get_workload_entry "
+"<tvm.auto_scheduler.ApplyHistoryBest.get_workload_entry>`\\ "
+"\\(best\\_records\\, target\\_key\\, ...\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:1
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:1:<autosummary>:1
+msgid ""
+"Get the entry of the target key and workload key hash in the given best "
+"record map."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:1:<autosummary>:1
+msgid ""
+":obj:`load <tvm.auto_scheduler.ApplyHistoryBest.load>`\\ \\(records\\[\\,"
+" n\\_lines\\]\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:1:<autosummary>:1
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.load:1
+msgid "Load records to this dispatch context"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:1:<autosummary>:1
+msgid ""
+":obj:`update <tvm.auto_scheduler.ApplyHistoryBest.update>`\\ \\(target\\,"
+" workload\\_key\\, state\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:3
+msgid "The best record map."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:5
+msgid "The first key to the best_records."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:7
+msgid "The workload key that can be decoded to workload hash and args."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:10
+msgid ""
+"* **entry** (*Dict[str, Any]*) -- The entry in best_records with target "
+"key and workload hash. * **workload_hash** (*str*) -- The workload hash "
+"decoded from workload_key. * **workload_args** (*Tuple[Any, ...]*) -- The"
+" hashable tuple of workload args decoded from workload_key."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:10
+msgid ""
+"**entry** (*Dict[str, Any]*) -- The entry in best_records with target key"
+" and workload hash."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:11
+msgid "**workload_hash** (*str*) -- The workload hash decoded from workload_key."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.get_workload_entry:12
+msgid ""
+"**workload_args** (*Tuple[Any, ...]*) -- The hashable tuple of workload "
+"args decoded from workload_key."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBest.load:7
+msgid "if it is not None, only load the first `n_lines` lines of log"
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample:7
+msgid "When False, sampling will not apply to simple workloads (w/o reduction)."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample:9
+msgid ""
+"The filename of the pre-trained XGBoost cost model. If not present, then "
+"random model will be used."
+msgstr ""
+
+#: of tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample:12
+msgid ""
+"Meausre the top-N rank of sampled schedules on the device. The default -1"
+" means no measurement and simply return the top-1 schedule ranked by the "
+"cost model."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.dispatcher.ApplyHistoryBestOrSample.query:1:<autosummary>:1
+msgid ""
+":obj:`query <tvm.auto_scheduler.ApplyHistoryBestOrSample.query>`\\ "
+"\\(target\\, workload\\_key\\, has\\_complex\\_op\\, ...\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureInput:3
+msgid "The SearchTask of this measurement."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureInput:5
+msgid "The State to be measured."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureInput.serialize:1:<autosummary>:1
+msgid ":obj:`serialize <tvm.auto_scheduler.MeasureInput.serialize>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureInput.serialize:1
+#: tvm.auto_scheduler.measure.MeasureInput.serialize:1:<autosummary>:1
+msgid ""
+"Custom serialization to workaround MeasureInput not exposing all its "
+"members to the TVM ffi interface."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureInput.serialize:4
+msgid ""
+"Note that we do not implement __getstate__ as it does not seem to work "
+"with initialization of the workload registry (maybe because of "
+"initialization order?)."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureResult:3
+msgid "The time costs of execution."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureResult:5
+msgid "The error code."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureResult:7
+msgid "The error message if there is any error."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureResult:9
+msgid "The time cost of build and run."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.MeasureResult:11
+msgid "The time stamps of this measurement."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalBuilder:3
+msgid ""
+"The timeout limit (in second) for each build thread. This is used in a "
+"wrapper of the multiprocessing.Process.join()."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalBuilder:6
+msgid "Number of threads used to build in parallel."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalBuilder:8
+msgid ""
+"If is 'default', use default build function If is 'ndk', use function for"
+" android ndk If is callable, use it as custom build function, expect "
+"lib_format field."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:8
+#: tvm.auto_scheduler.measure.LocalRunner:3
+#: tvm.auto_scheduler.measure.RPCRunner:15
+msgid ""
+"The timeout limit (in second) for each run. This is used in a wrapper of "
+"the multiprocessing.Process.join()."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:11
+#: tvm.auto_scheduler.measure.LocalRunner:6
+#: tvm.auto_scheduler.measure.RPCRunner:18
+msgid ""
+"The number of times to run the generated code for taking average. We call"
+" these runs as one `repeat` of measurement."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:14
+#: tvm.auto_scheduler.measure.LocalRunner:9
+#: tvm.auto_scheduler.measure.RPCRunner:21
+msgid ""
+"The number of times to repeat the measurement. In total, the generated "
+"code will be run (1 + number x repeat) times, where the first \"1\" is "
+"warm up and will be discarded. The returned result contains `repeat` "
+"costs, each of which is an average of `number` costs."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:20
+#: tvm.auto_scheduler.measure.LocalRunner:15
+#: tvm.auto_scheduler.measure.RPCRunner:27
+msgid ""
+"The minimum duration of one `repeat` in milliseconds. By default, one "
+"`repeat` contains `number` runs. If this parameter is set, the parameters"
+" `number` will be dynamically adjusted to meet the minimum duration "
+"requirement of one `repeat`. i.e., When the run time of one `repeat` "
+"falls below this time, the `number` parameter will be automatically "
+"increased."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:27
+#: tvm.auto_scheduler.measure.LocalRunner:22
+#: tvm.auto_scheduler.measure.RPCRunner:34
+msgid "The cool down interval between two measurements in seconds."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:29
+#: tvm.auto_scheduler.measure.LocalRunner:24
+#: tvm.auto_scheduler.measure.RPCRunner:36
+msgid ""
+"Whether to flush cache on CPU between repeated measurements. Flushing "
+"cache can make the measured latency of one operator closer to its actual "
+"latency during end-to-end inference. To make this option effective, the "
+"argument `number` should also be set to 1. This is only has effect on CPU"
+" task."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.RPCRunner:1
+msgid ""
+"RPCRunner that uses RPC call to measures the time cost of programs on "
+"remote devices. Or sometime we may need to use RPC even in local running "
+"to insulate the thread environment. (e.g. running CUDA programs)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.RPCRunner:5
+msgid "The key of the device registered in the RPC tracker."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.RPCRunner:7
+msgid "The host address of the RPC Tracker."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.RPCRunner:9
+msgid "The port of RPC Tracker."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:4
+#: tvm.auto_scheduler.measure.RPCRunner:11
+msgid "The priority of this run request, larger is more prior."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:6
+#: tvm.auto_scheduler.measure.RPCRunner:13
+msgid "The number of tasks run in parallel."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.LocalRPCMeasureContext:1
+msgid ""
+"A context wrapper for running RPCRunner locally. This will launch a local"
+" RPC Tracker and local RPC Server."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.register_task_input_check_func:3
+msgid ""
+"The input function should take a list of Tensor wich indicate the "
+"Input/output Tensor of a TVM subgraph and return a Map from the input "
+"Tensor to its buffer name."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.register_task_input_check_func:6
+msgid ""
+"The check function that returns the compute declaration Tensors or its "
+"function name."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.register_task_input_check_func:8
+msgid "The check function to be registered."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.register_task_input_check_func:10
+#: tvm.auto_scheduler.workload_registry.register_workload:10
+msgid "Whether to override existing entry."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure.register_task_input_check_func:14
+#: tvm.auto_scheduler.search_task.SearchTask:39
+#: tvm.auto_scheduler.workload_registry.register_workload:14
+msgid "Examples"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordToFile:3
+msgid "File name for this callback to write log to."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader:3
+msgid "File name for this reader to load log from."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.measure_record.RecordReader.check_workload_key:1:<autosummary>:1
+msgid ""
+":obj:`check_workload_key "
+"<tvm.auto_scheduler.RecordReader.check_workload_key>`\\ \\(inputs\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.check_workload_key:1
+#: tvm.auto_scheduler.measure_record.RecordReader.check_workload_key:1:<autosummary>:1
+msgid "Check and throw warnings for records with old format workload key."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.measure_record.RecordReader.check_workload_key:1:<autosummary>:1
+msgid ""
+":obj:`read_lines <tvm.auto_scheduler.RecordReader.read_lines>`\\ "
+"\\(\\[max\\_lines\\, skip\\_lines\\]\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.measure_record.RecordReader.check_workload_key:1:<autosummary>:1
+#: tvm.auto_scheduler.measure_record.RecordReader.read_lines:1
+msgid "Read multiple lines from the log file."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.check_workload_key:3
+msgid "The measure inputs to be checked."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.check_workload_key:7
+#: tvm.auto_scheduler.measure_record.RecordReader.read_lines:12
+#: tvm.auto_scheduler.measure_record.load_records:10
+#: tvm.auto_scheduler.search_policy.PreloadCustomSketchRule:5
+msgid "Notes"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.check_workload_key:8
+msgid "This checker could be deprecated in the future."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.read_lines:3
+msgid "The maximum number of lines. None to read all lines."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.read_lines:5
+msgid "Skip the first n lines."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.read_lines:8
+msgid ""
+"* **inputs** (*List[auto_scheduler.measure.MeasureInput]*) -- The "
+"MeasureInputs loaded from the log file. * **results** "
+"(*List[auto_scheduler.measure.MeasureResult]*) -- The MeasureResults "
+"loaded from the log file."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.read_lines:8
+msgid ""
+"**inputs** (*List[auto_scheduler.measure.MeasureInput]*) -- The "
+"MeasureInputs loaded from the log file."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.read_lines:9
+msgid ""
+"**results** (*List[auto_scheduler.measure.MeasureResult]*) -- The "
+"MeasureResults loaded from the log file."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.RecordReader.read_lines:13
+msgid ""
+"Some unimportant and expensive fields in the returned MeasureInput are "
+"not deserialized for faster read speed (e.g. input.task.compute_dag, "
+"input.state.stages). If you want to use them, you can call the "
+":code:`recover_measure_input` below to rebuild these fields."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_best_record:1
+msgid ""
+"Return the best measurement pair form a log file. This may return none "
+"results if there is no legal measure pair with the specified "
+"workload_key/target found from the log file."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_best_record:4
+#: tvm.auto_scheduler.measure_record.load_records:3
+msgid "File name to load log from."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_best_record:6
+msgid ""
+"The workload key of the compute declaration. With `None`, this returns "
+"the best measure pair of all workloads."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_best_record:9
+msgid ""
+"The target device. With `None`, this returns the best measure pair of all"
+" target devices."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_best_record:12
+#: tvm.auto_scheduler.search_task.SearchTask.apply_best:5
+msgid ""
+"When set to True, all compatible records in the log file will be "
+"considered."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_best_record:15
+msgid ""
+"* **input** (*auto_scheduler.measure.MeasureInput*) -- The best State's "
+"MeasureInput from this log fine. * **result** "
+"(*auto_scheduler.measure.MeasureResult*) -- The best State's "
+"MeasureResult from this log fine."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_best_record:15
+msgid ""
+"**input** (*auto_scheduler.measure.MeasureInput*) -- The best State's "
+"MeasureInput from this log fine."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_best_record:16
+msgid ""
+"**result** (*auto_scheduler.measure.MeasureResult*) -- The best State's "
+"MeasureResult from this log fine."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_records:6
+msgid "**logs**"
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.load_records:11
+msgid ""
+"Some unimportant and expensive fields in the returned MeasureInput are "
+"not deserialized for faster read speed (e.g., input.task.compute_dag, "
+"input.state.stages). If you want to use them, you can call the "
+":code:`recover_measure_input` below to rebuild these fields."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.save_records:3
+msgid "File name to write log to."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.save_records:5
+msgid "The MeasureInputs to be written."
+msgstr ""
+
+#: of tvm.auto_scheduler.measure_record.save_records:7
+msgid "The MeasureResults to be written."
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:3
+msgid "The module or function to tune"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:5
+msgid "The associated parameters of the program"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:7
+msgid "The compilation target"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:9
+msgid "The host compilation target"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:11
+msgid "Hardware parameters used for the search tasks"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:13
+msgid "Whether to extract simple tasks that do not include complicated ops."
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:15
+msgid "A file to dump an association between the workload keys and the actual DAG"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:17
+msgid "The optimization level of the task extractions."
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:20
+msgid ""
+"* **tasks** (*List[SearchTask]*) -- The tasks in this network * "
+"**weights** (*List[int]*) -- The weight (i.e. the number of appearance) "
+"of extracted tasks"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:20
+msgid "**tasks** (*List[SearchTask]*) -- The tasks in this network"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.extract_tasks:21
+msgid ""
+"**weights** (*List[int]*) -- The weight (i.e. the number of appearance) "
+"of extracted tasks"
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.remove_index_check:1
+msgid ""
+"Remove the safety check in the indexing function for a tensor. This is "
+"done by monkey patching its indexing function. After removing the check, "
+"we are allowed to create a temporary wrong IR and fix it later in other "
+"places."
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.remove_index_check:6
+msgid "The tensor to remove index check."
+msgstr ""
+
+#: of tvm.auto_scheduler.relay_integration.is_auto_scheduler_enabled:3
+msgid "Whether the auto-scheduler is enabled"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:3
+#: tvm.auto_scheduler.search_task.create_task:5
+#: tvm.auto_scheduler.workload_registry.make_workload_key:3
+msgid ""
+"The function that returns the compute declaration Tensors. Can be the a "
+"function or the function name."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:6
+#: tvm.auto_scheduler.search_task.create_task:8
+#: tvm.auto_scheduler.workload_registry.make_workload_key:6
+msgid "The args of the function."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:8
+msgid "The ComputeDAG for the corresponding compute declaration."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:10
+msgid "The workload key for the corresponding compute declaration."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:12
+#: tvm.auto_scheduler.search_task.create_task:10
+msgid "The target device of this search task."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:14
+#: tvm.auto_scheduler.search_task.create_task:12
+msgid "The target host device of this search task."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:16
+#: tvm.auto_scheduler.search_task.create_task:14
+msgid "Hardware parameters used in this search task."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:18
+msgid ""
+"The layout rewrite option used for measuring programs. If None, the "
+"default value will be set depending on the specified target. "
+"Auto_scheduler will find a better schedule for the specified layout "
+"rewrite option. The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to"
+" be used when tuning a standalone op, and the REWRITE_FOR_PRE_TRANSFORMED"
+" is expected to be used when tuning ops inside a network."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:25
+msgid ""
+"A dict maps the input names to input tensors or a list of input names. "
+"Some special Tensor used as inputs in program measuring. Usually we do "
+"not need to care about it, but for special workloads like Sparse "
+"computation the Sparse Tensor input are meaningful that we cannot use "
+"random input directly."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:30
+msgid "Whether to overwrite the data if a name has already in the global table."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:32
+msgid ""
+"Whether to save the data to a local file as well. This can be reused to "
+"resume the last tuning process."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask:35
+msgid "The description string of this task."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.tune:1:<autosummary>:1
+msgid ""
+":obj:`tune <tvm.auto_scheduler.SearchTask.tune>`\\ "
+"\\(tuning\\_options\\[\\, search\\_policy\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.tune:1
+#: tvm.auto_scheduler.search_task.SearchTask.tune:1:<autosummary>:1
+msgid "Run auto scheduling search for a task"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.tune:1:<autosummary>:1
+msgid ""
+":obj:`apply_best <tvm.auto_scheduler.SearchTask.apply_best>`\\ "
+"\\(log\\_file\\[\\, include\\_compatible\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.apply_best:1
+#: tvm.auto_scheduler.search_task.SearchTask.tune:1:<autosummary>:1
+msgid "Apply the history best from a log file and return the schedule."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.tune:1:<autosummary>:1
+msgid ""
+":obj:`print_best <tvm.auto_scheduler.SearchTask.print_best>`\\ "
+"\\(log\\_file\\[\\, print\\_mode\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.print_best:1
+#: tvm.auto_scheduler.search_task.SearchTask.tune:1:<autosummary>:1
+msgid "Print the best schedule as python schedule API code or CUDA source code."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.tune:3
+#: tvm.auto_scheduler.search_task.auto_schedule:9
+msgid "Tuning and measurement options."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.tune:5
+#: tvm.auto_scheduler.search_task.auto_schedule:7
+msgid "The search policy to be used for schedule search."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.apply_best:3
+msgid "The name of the log file."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.apply_best:7
+msgid "The layout rewrite option."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.apply_best:11
+#: tvm.auto_scheduler.search_task.auto_schedule:13
+msgid ""
+"A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` "
+"or `tvm.build`."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.print_best:3
+msgid "The name of the log file"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.print_best:5
+msgid ""
+"if \"schedule\", print the best schedule as python schedule API code. if "
+"\"cuda\", print the best schedule as CUDA source code."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.SearchTask.print_best:9
+msgid "**code** -- The best schedule code in python API or CUDA source code"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.TuningOptions:3
+msgid ""
+"The number of measurement trials. The search policy measures "
+"`num_measure_trials` schedules in total and returns the best one among "
+"them. With `num_measure_trials` == 0, the policy will do the schedule "
+"search but won't involve measurement. This can be used to get a runnable "
+"schedule quickly without auto-tuning."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.TuningOptions:9
+msgid "Stop the tuning early if getting no improvement after n measurements."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.TuningOptions:11
+msgid ""
+"The number of schedules to be measured at each search round. The whole "
+"schedule search process will try a total number of `num_measure_trials` "
+"in several rounds."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:15
+#: tvm.auto_scheduler.search_task.TuningOptions:15
+msgid ""
+"Verbosity level. 0 for silent, 1 to output information during schedule "
+"search."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.TuningOptions:17
+msgid "ProgramBuilder which builds the program."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.TuningOptions:19
+msgid "ProgramRunner which runs the program and measures time costs."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.TuningOptions:21
+msgid ""
+"Callback functions called after each measurement. Candidates: - "
+"auto_scheduler.RecordToFile"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.HardwareParams:3
+msgid ""
+"When a parameter isn't provided, it will instead use the current "
+"machine's default value if target is specified. TODO(jcf94): This is "
+"considered to be merged with the new Target specification: "
+"https://discuss.tvm.apache.org/t/rfc-tvm-target-specification/6844 :param"
+" num_cores: The number of device cores. :type num_cores: int, optional "
+":param vector_unit_bytes: The width of vector units in bytes. :type "
+"vector_unit_bytes: int, optional :param cache_line_bytes: The size of "
+"cache line in bytes. :type cache_line_bytes: int, optional :param "
+"max_shared_memory_per_block: The max shared memory per block in bytes. "
+":type max_shared_memory_per_block: int, optional :param "
+"max_local_memory_per_block: The max local memory per block in bytes. "
+":type max_local_memory_per_block: int, optional :param "
+"max_threads_per_block: The max number of threads per block. :type "
+"max_threads_per_block: int, optional :param max_vthread_extent: The max "
+"vthread extent. :type max_vthread_extent: int, optional :param warp_size:"
+" The thread numbers of a warp. :type warp_size: int, optional :param "
+"target: The compilation target. Used to determine default values if "
+"provided. :type target: str or Target, optional :param target_host: The "
+"compilation target host. Used to determine default values if provided. "
+":type target_host: str or Target, optional"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.create_task:3
+msgid "Create a search task."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.create_task:17
+msgid "**SearchTask**"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_task.auto_schedule:3
+msgid "Run auto scheduling search for a task."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.EmptyPolicy:4
+#: tvm.auto_scheduler.search_policy.SketchPolicy:5
+#: tvm.auto_scheduler.search_task.auto_schedule:5
+msgid "The SearchTask for the computation declaration."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.EmptyPolicy:6
+msgid "Callback functions called before the search process."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:1
+msgid ""
+"The search policy that searches in a hierarchical search space defined by"
+" sketches. The policy randomly samples programs from the space defined by"
+" sketches and use evolutionary search to fine-tune them."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:7
+msgid "The cost model to estimate the complete schedules."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:9
+msgid ""
+"Parameters of the search policy. See "
+"`src/auto_scheduler/search_policy/sketch_search_policy.h` for the "
+"definitions. See `DEFAULT_PARAMS` below to find the default values."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:13
+msgid "Random seed."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:17
+msgid ""
+"Callback functions called before the search process, usually used to do "
+"extra initializations. Possible callbacks:    - "
+"auto_scheduler.PreloadMeasuredStates   - "
+"auto_scheduler.PreloadCustomSketchRule"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:17
+msgid ""
+"Callback functions called before the search process, usually used to do "
+"extra initializations. Possible callbacks:"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:21
+msgid "auto_scheduler.PreloadMeasuredStates"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy:22
+msgid "auto_scheduler.PreloadCustomSketchRule"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:1:<autosummary>:1
+msgid ""
+":obj:`generate_sketches "
+"<tvm.auto_scheduler.SketchPolicy.generate_sketches>`\\ "
+"\\(\\[print\\_for\\_debug\\]\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:1:<autosummary>:1
+msgid "Generate the sketches."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:1:<autosummary>:1
+msgid ""
+":obj:`sample_initial_population "
+"<tvm.auto_scheduler.SketchPolicy.sample_initial_population>`\\ \\(\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:1:<autosummary>:1
+msgid "Sample initial population."
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:1:<autosummary>:1
+msgid ""
+":obj:`evolutionary_search "
+"<tvm.auto_scheduler.SketchPolicy.evolutionary_search>`\\ "
+"\\(init\\_populations\\, out\\_size\\)"
+msgstr ""
+
+#: of
+#: tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:1:<autosummary>:1
+msgid "Perform evolutionary search."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:1
+msgid ""
+"Generate the sketches. This python interface is mainly used for debugging"
+" and testing. The actual search is all done in c++."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:5
+msgid "Whether print out the sketches for debug."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.generate_sketches:8
+msgid "**sketches** -- The generated sketches of this search task."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.sample_initial_population:1
+msgid ""
+"Sample initial population. This python interface is mainly used for "
+"debugging and testing. The actual search is all done in c++."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.sample_initial_population:5
+msgid "**states** -- The sampled states"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.evolutionary_search:1
+msgid ""
+"Perform evolutionary search. This python interface is mainly used for "
+"debugging and testing. The actual search is all done in c++."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.evolutionary_search:5
+msgid "The initial population states"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.evolutionary_search:7
+msgid "The size of generated states"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.SketchPolicy.evolutionary_search:10
+msgid "**states** -- The generated states"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadMeasuredStates:6
+msgid "This can resume the state of the search policy:"
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadMeasuredStates:4
+msgid ""
+"Making sure an already measured state in former searches will never be "
+"measured again."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadMeasuredStates:5
+msgid ""
+"The history states can be used to speed up the search process(e.g. "
+"SketchPolicy uses history states as starting point to perform "
+"Evolutionary Search)."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadMeasuredStates:8
+msgid "The name of the record file."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadCustomSketchRule:6
+msgid ""
+"This is an advanced feature. Make sure you're clear how it works and this"
+" should only be used in SketchSearchPolicy."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadCustomSketchRule:9
+msgid ""
+"A function with `(policy, state, stage_id) -> int`. Should return one of "
+"the result enumeration."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadCustomSketchRule:12
+msgid "A function with `(policy, state, stage_id) -> [[State, int], ...]`."
+msgstr ""
+
+#: of tvm.auto_scheduler.search_policy.PreloadCustomSketchRule:14
+msgid "The name of this custom sketch rule."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:1
+msgid ""
+"Allocate the time resources when tuning multiple tasks together. This "
+"implements two strategies: \"round-robin\" and \"gradient\"."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:4
+msgid "All tasks to tune"
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:6
+msgid ""
+"The weights of tasks. If provided, the task scheduler will set the "
+"objective function to sum(weight[t] * latency[t]), where weight[t] is the"
+" weight of a task and the lantecy[t] is the lantecy of the task. If not "
+"provided, the task scheduer will assign equal weights to all tasks (i.e.,"
+" the objective function is sum(latency[t]))."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:13
+msgid ""
+"The objective function to be minimized. The objective function accepts "
+"the current latencies of all tasks and returns the objective. If not "
+"provided, the objective is the weighted sum of the latencies of all "
+"tasks."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:18
+msgid ""
+"The scheduling strategy. \"round-robin\": Tune tasks in round robin "
+"order. \"gradient\" : Tune tasks with gradient descent."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:22
+msgid ""
+"Load pre-trained model from this file. If this is None, the cost model "
+"will be trained from scratch."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:25
+msgid ""
+"Load measurement records from this file. If it is not None, the status of"
+" the task scheduler, search policies and cost models will be restored "
+"according to this file."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:28
+msgid "The level of verbosity. 0 means silent."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:30
+#: tvm.auto_scheduler.task_scheduler.TaskScheduler:32
+#: tvm.auto_scheduler.task_scheduler.TaskScheduler:34
+msgid "The parameter used for 'gradient' strategy"
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler:36
+msgid ""
+"The task scheduler callbacks that will be called before and after tuning "
+"a task. If None, PrintTableInfo and LogEstimatedLatency callback will be "
+"used."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler.tune:1:<autosummary>:1
+msgid ""
+":obj:`tune <tvm.auto_scheduler.TaskScheduler.tune>`\\ "
+"\\(tune\\_option\\[\\, search\\_policy\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler.tune:1
+#: tvm.auto_scheduler.task_scheduler.TaskScheduler.tune:1:<autosummary>:1
+msgid "Tune a batch of tasks together."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler.tune:3
+msgid "The tuning options applied to all tasks."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler.tune:5
+msgid ""
+"The list of search policies. If it is str, \"default\" for the default "
+"policy (SketchPolicy + XGBModel), \"sketch.xgb\" for SketchPolicy + "
+"XGBModel, \"sketch.random\" for SketchPolicy + RandomModel."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler.tune:11
+msgid "The parameters of the search policy"
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler.tune:13
+msgid ""
+"Option used by XGBModel to reduce the model training frequency when "
+"there're too many logs."
+msgstr ""
+
+#: of tvm.auto_scheduler.task_scheduler.TaskScheduler.tune:16
+msgid "Stop tuning a task early if getting no improvement after n measurements."
+msgstr ""
+
+#: of tvm.auto_scheduler.workload_registry.register_workload:3
+msgid ""
+"The input function should take hashable and jsonable arguments (int, "
+"float, tuple of int, tvm.tensor.Tensor, ...) and return a list of "
+"tvm.tensor.Tensor."
+msgstr ""
+
+#: of tvm.auto_scheduler.workload_registry.register_workload:6
+msgid ""
+"The generation function that returns the compute declaration Tensors or "
+"its function name."
+msgstr ""
+
+#: of tvm.auto_scheduler.workload_registry.register_workload:8
+msgid "The generation function to be registered."
+msgstr ""
+
+#: of tvm.auto_scheduler.workload_registry.make_workload_key:9
+msgid "**workload_key** -- The workload key of the function."
+msgstr ""
+

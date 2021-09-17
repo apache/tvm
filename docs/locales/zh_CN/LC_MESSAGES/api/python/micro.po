@@ -1,0 +1,443 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1708+gd62e1844d\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-17 09:29+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/api/python/micro.rst:19
+msgid "tvm.micro"
+msgstr ""
+
+#: of tvm.micro:1
+msgid "MicroTVM module for bare-metal backends"
+msgstr ""
+
+#: of tvm.micro:1
+msgid "**Functions:**"
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ":obj:`autotvm_build_func <tvm.micro.autotvm_build_func>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.micro.build.autotvm_build_func:1 tvm.micro:1:<autosummary>:1
+msgid ""
+"A dummy build function which causes autotvm to use a different export "
+"format."
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ":obj:`get_standalone_crt_dir <tvm.micro.get_standalone_crt_dir>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.micro.build.get_standalone_crt_dir:1 tvm.micro:1:<autosummary>:1
+msgid "Find the standalone_crt directory."
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ""
+":obj:`export_model_library_format "
+"<tvm.micro.export_model_library_format>`\\ \\(mod\\, file\\_name\\)"
+msgstr ""
+
+#: of tvm.micro.model_library_format.export_model_library_format:1
+#: tvm.micro:1:<autosummary>:1
+msgid "Export the build artifact in Model Library Format."
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ""
+":obj:`generate_project <tvm.micro.generate_project>`\\ "
+"\\(template\\_project\\_dir\\, ...\\)"
+msgstr ""
+
+#: of tvm.micro.project.generate_project:1 tvm.micro:1:<autosummary>:1
+msgid "Generate a project for an embedded platform that contains the given model."
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ""
+":obj:`create_local_graph_executor "
+"<tvm.micro.create_local_graph_executor>`\\ \\(graph\\_json\\_str\\, "
+"...\\)"
+msgstr ""
+
+#: of tvm.micro.session.create_local_graph_executor:1
+#: tvm.micro:1:<autosummary>:1
+msgid ""
+"Create a local graph executor driving execution on the remote CPU device "
+"given."
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ""
+":obj:`create_local_debug_executor "
+"<tvm.micro.create_local_debug_executor>`\\ \\(graph\\_json\\_str\\, "
+"...\\)"
+msgstr ""
+
+#: of tvm.micro.session.create_local_debug_executor:1
+#: tvm.micro:1:<autosummary>:1
+msgid ""
+"Create a local debug runtime driving execution on the remote CPU device "
+"given."
+msgstr ""
+
+#: of tvm.micro:1
+msgid "**Classes:**"
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ""
+":obj:`AutoTvmModuleLoader <tvm.micro.AutoTvmModuleLoader>`\\ "
+"\\(template\\_project\\_dir\\, ...\\)"
+msgstr ""
+
+#: of tvm.micro.build.AutoTvmModuleLoader:1 tvm.micro:1:<autosummary>:1
+msgid "MicroTVM AutoTVM Module Loader"
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ""
+":obj:`GeneratedProject <tvm.micro.GeneratedProject>`\\ \\(api\\_client\\,"
+" options\\)"
+msgstr ""
+
+#: of tvm.micro.project.GeneratedProject:1 tvm.micro:1:<autosummary>:1
+msgid ""
+"Defines a glue interface to interact with a generated project through the"
+" API server."
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ":obj:`TemplateProject <tvm.micro.TemplateProject>`\\ \\(api\\_client\\)"
+msgstr ""
+
+#: of tvm.micro.project.TemplateProject:1 tvm.micro:1:<autosummary>:1
+msgid ""
+"Defines a glue interface to interact with a template project through the "
+"API Server."
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ""
+":obj:`Session <tvm.micro.Session>`\\ "
+"\\(\\[transport\\_context\\_manager\\, ...\\]\\)"
+msgstr ""
+
+#: of tvm.micro.session.Session:1 tvm.micro:1:<autosummary>:1
+msgid "MicroTVM Device Session"
+msgstr ""
+
+#: of tvm.micro:1:<autosummary>:1
+msgid ""
+":obj:`TransportLogger <tvm.micro.TransportLogger>`\\ \\(name\\, "
+"child\\[\\, logger\\, level\\]\\)"
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger:1 tvm.micro:1:<autosummary>:1
+msgid ""
+"Wraps a Transport implementation and logs traffic to the Python logging "
+"infrastructure."
+msgstr ""
+
+#: of tvm.micro:1
+msgid "**Exceptions:**"
+msgstr ""
+
+#: of tvm.micro.build.autotvm_build_func:1:<autosummary>:1
+msgid ""
+":obj:`UnsupportedInModelLibraryFormatError "
+"<tvm.micro.UnsupportedInModelLibraryFormatError>`\\"
+msgstr ""
+
+#: of tvm.micro.build.autotvm_build_func:1:<autosummary>:1
+#: tvm.micro.model_library_format.UnsupportedInModelLibraryFormatError:1
+msgid ""
+"Raised when export_model_library_format does not support the given Module"
+" tree."
+msgstr ""
+
+#: of tvm.micro.build.autotvm_build_func:1:<autosummary>:1
+msgid ":obj:`SessionTerminatedError <tvm.micro.SessionTerminatedError>`\\"
+msgstr ""
+
+#: of tvm.micro.build.autotvm_build_func:1:<autosummary>:1
+#: tvm.micro.session.SessionTerminatedError:1
+msgid ""
+"Raised when a transport read operationd discovers that the remote session"
+" is terminated."
+msgstr ""
+
+#: of tvm.micro.build.AutoTvmModuleLoader
+#: tvm.micro.model_library_format.export_model_library_format
+#: tvm.micro.project.generate_project tvm.micro.session.Session
+#: tvm.micro.session.create_local_debug_executor
+#: tvm.micro.session.create_local_graph_executor
+#: tvm.micro.transport.TransportLogger.read
+#: tvm.micro.transport.TransportLogger.write
+msgid "Parameters"
+msgstr ""
+
+#: of tvm.micro.build.AutoTvmModuleLoader:3
+msgid "project template path"
+msgstr ""
+
+#: of tvm.micro.build.AutoTvmModuleLoader:5
+msgid "project generation option"
+msgstr ""
+
+#: of tvm.micro.build.get_standalone_crt_dir:3
+msgid ""
+"Though the C runtime source lives in the tvm tree, it is intended to be "
+"distributed with any binary build of TVM. This source tree is intended to"
+" be integrated into user projects to run models targeted with "
+"--runtime=c."
+msgstr ""
+
+#: of tvm.micro.build.get_standalone_crt_dir
+#: tvm.micro.model_library_format.export_model_library_format
+#: tvm.micro.project.generate_project
+#: tvm.micro.session.create_local_debug_executor
+#: tvm.micro.session.create_local_graph_executor
+#: tvm.micro.transport.TransportLogger.read
+#: tvm.micro.transport.TransportLogger.write
+msgid "Returns"
+msgstr ""
+
+#: of tvm.micro.build.get_standalone_crt_dir:7
+msgid "The path to the standalone_crt"
+msgstr ""
+
+#: of tvm.micro.build.get_standalone_crt_dir
+#: tvm.micro.model_library_format.export_model_library_format
+#: tvm.micro.project.generate_project
+#: tvm.micro.session.create_local_debug_executor
+#: tvm.micro.session.create_local_graph_executor
+#: tvm.micro.transport.TransportLogger.read
+#: tvm.micro.transport.TransportLogger.write
+msgid "Return type"
+msgstr ""
+
+#: of tvm.micro.model_library_format.export_model_library_format:3
+msgid ""
+"This function creates a .tar archive containing the build artifacts in a "
+"standardized layout. It's intended to allow downstream automation to "
+"build TVM artifacts against the C runtime."
+msgstr ""
+
+#: of tvm.micro.model_library_format.export_model_library_format:7
+msgid "The return value of tvm.build or tvm.relay.build."
+msgstr ""
+
+#: of tvm.micro.model_library_format.export_model_library_format:9
+msgid "Path to the .tar archive to generate."
+msgstr ""
+
+#: of tvm.micro.model_library_format.export_model_library_format:12
+msgid "**file_name** -- The path to the generated .tar archive."
+msgstr ""
+
+#: of tvm.micro.project.generate_project:3
+msgid "Path to a template project containing a microTVM Project API server."
+msgstr ""
+
+#: of tvm.micro.project.generate_project:5
+msgid "Path to a directory to be created and filled with the built project."
+msgstr ""
+
+#: of tvm.micro.project.generate_project:7
+msgid ""
+"A runtime.Module exportable as Model Library Format. The value returned "
+"from tvm.relay.build or tvm.build."
+msgstr ""
+
+#: of tvm.micro.project.generate_project:10
+msgid ""
+"If given, Project API options given to the microTVM API server found in "
+"both template_project_path and generated_project_path."
+msgstr ""
+
+#: of tvm.micro.project.generate_project:14
+msgid ""
+"A class that wraps the generated project and which can be used to further"
+" interact with it."
+msgstr ""
+
+#: of tvm.micro.project.TemplateProject:1 tvm.micro.transport.TransportLogger:1
+msgid "**Methods:**"
+msgstr ""
+
+#: of tvm.micro.project.TemplateProject.generate_project:1:<autosummary>:1
+msgid ""
+":obj:`generate_project <tvm.micro.TemplateProject.generate_project>`\\ "
+"\\(graph\\_executor\\_factory\\, ...\\)"
+msgstr ""
+
+#: of tvm.micro.project.TemplateProject.generate_project:1
+#: tvm.micro.project.TemplateProject.generate_project:1:<autosummary>:1
+msgid "Generate a project given GraphRuntimeFactory."
+msgstr ""
+
+#: of tvm.micro.session.create_local_debug_executor:3
+#: tvm.micro.session.create_local_graph_executor:3
+msgid "A string containing the graph representation."
+msgstr ""
+
+#: of tvm.micro.session.create_local_debug_executor:5
+#: tvm.micro.session.create_local_graph_executor:5
+msgid "The remote module containing functions in graph_json_str."
+msgstr ""
+
+#: of tvm.micro.session.create_local_debug_executor:7
+#: tvm.micro.session.create_local_graph_executor:7
+msgid "The remote CPU execution device."
+msgstr ""
+
+#: of tvm.micro.session.create_local_debug_executor:12
+#: tvm.micro.session.create_local_graph_executor:10
+msgid "A local graph executor instance that executes on the remote device."
+msgstr ""
+
+#: of tvm.micro.session.create_local_debug_executor:9
+msgid "If given, passed as dump_root= to GraphModuleDebug."
+msgstr ""
+
+#: of tvm.micro.session.Session:3
+msgid ""
+"configuration for this session (as generated by "
+"`tvm.micro.device.host.default_config()`, for example)"
+msgstr ""
+
+#: of tvm.micro.session.Session:8
+msgid "Example"
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid ":obj:`timeouts <tvm.micro.TransportLogger.timeouts>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.timeouts:1
+#: tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid "Return TransportTimeouts suitable for use with this transport."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid ":obj:`open <tvm.micro.TransportLogger.open>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.open:1
+#: tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid ""
+"Open any resources needed to send and receive RPC protocol data for a "
+"single session."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid ":obj:`close <tvm.micro.TransportLogger.close>`\\ \\(\\)"
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.close:1
+#: tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid "Release resources associated with this transport."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid ":obj:`read <tvm.micro.TransportLogger.read>`\\ \\(n\\, timeout\\_sec\\)"
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.read:1
+#: tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid "Read up to n bytes from the transport."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+msgid ""
+":obj:`write <tvm.micro.TransportLogger.write>`\\ \\(data\\, "
+"timeout\\_sec\\)"
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.timeouts:1:<autosummary>:1
+#: tvm.micro.transport.TransportLogger.write:1
+msgid "Write data to the transport channel."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.timeouts:3
+msgid "See the TransportTimeouts documentation in python/tvm/micro/session.py."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.read:3
+msgid "Maximum number of bytes to read from the transport."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.read:5
+msgid ""
+"Number of seconds to wait for all `n` bytes to be received before timing "
+"out. The transport can wait additional time to account for transport "
+"latency or bandwidth limitations based on the selected configuration and "
+"number of bytes being received. If timeout_sec is 0, read should attempt "
+"to service the request in a non-blocking fashion. If timeout_sec is None,"
+" read should block until at least 1 byte of data can be returned."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.read:12
+msgid ""
+"Data read from the channel. Less than `n` bytes may be returned, but 0 "
+"bytes should never be returned. If returning less than `n` bytes, the "
+"full timeout_sec, plus any internally-added timeout, should be waited. If"
+" a timeout or transport error occurs, an exception should be raised "
+"rather than simply returning empty bytes."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.read
+#: tvm.micro.transport.TransportLogger.write
+msgid "Raises"
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.read:18
+#: tvm.micro.transport.TransportLogger.write:17
+msgid ""
+"When the transport layer determines that the transport can no longer send"
+" or receive     data due to an underlying I/O problem (i.e. file "
+"descriptor closed, cable removed, etc)."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.read:19
+#: tvm.micro.transport.TransportLogger.write:18
+msgid "When `timeout_sec` elapses without receiving any data."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.write:3
+msgid "The data to write over the channel."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.write:5
+msgid ""
+"Number of seconds to wait for at least one byte to be written before "
+"timing out. The transport can wait additional time to account for "
+"transport latency or bandwidth limitations based on the selected "
+"configuration and number of bytes being received. If timeout_sec is 0, "
+"write should attempt to service the request in a non-blocking fashion. If"
+" timeout_sec is None, write should block until at least 1 byte of data "
+"can be returned."
+msgstr ""
+
+#: of tvm.micro.transport.TransportLogger.write:13
+msgid ""
+"The number of bytes written to the underlying channel. This can be less "
+"than the length of `data`, but cannot be 0 (raise an exception instead)."
+msgstr ""
+

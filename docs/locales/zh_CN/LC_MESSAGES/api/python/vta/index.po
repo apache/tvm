@@ -1,0 +1,158 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1708+gd62e1844d\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-17 09:29+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/api/python/vta/index.rst:19
+msgid "vta"
+msgstr ""
+
+#: ../../_staging/api/python/vta/index.rst:21
+msgid "This document contains the python API to VTA compiler toolchain."
+msgstr ""
+
+#: of vta:1
+msgid "VTA Package is a TVM backend extension to support VTA hardware."
+msgstr ""
+
+#: of vta:3
+msgid ""
+"Besides the compiler toolchain, it also includes utility functions to "
+"configure the hardware environment and access remote device through RPC."
+msgstr ""
+
+#: ../../_staging/api/python/vta/index.rst:26
+msgid "Hardware Information"
+msgstr ""
+
+#: of vta.environment.Environment:1
+msgid "Hardware configuration object."
+msgstr ""
+
+#: of vta.environment.Environment:3
+msgid ""
+"This object contains all the information needed for compiling to a "
+"specific VTA backend."
+msgstr ""
+
+#: of vta.build_module.build_config vta.environment.Environment
+#: vta.rpc_client.program_fpga vta.rpc_client.reconfig_runtime
+msgid "Parameters"
+msgstr ""
+
+#: of vta.environment.Environment:6
+msgid "The configuration parameters."
+msgstr ""
+
+#: of vta.build_module.build_config:12 vta.environment.Environment:10
+msgid "Example"
+msgstr ""
+
+#: of vta.environment.get_env:1
+msgid "Get the current VTA Environment."
+msgstr ""
+
+#: of vta.build_module.build_config vta.environment.get_env
+msgid "Returns"
+msgstr ""
+
+#: of vta.environment.get_env:3
+msgid "**env** -- The current environment."
+msgstr ""
+
+#: of vta.build_module.build_config vta.environment.get_env
+msgid "Return type"
+msgstr ""
+
+#: ../../_staging/api/python/vta/index.rst:32
+msgid "RPC Utilities"
+msgstr ""
+
+#: of vta.rpc_client.reconfig_runtime:1
+msgid "Reconfigure remote runtime based on current hardware spec."
+msgstr ""
+
+#: of vta.rpc_client.program_fpga:3 vta.rpc_client.reconfig_runtime:3
+msgid "The TVM RPC session"
+msgstr ""
+
+#: of vta.rpc_client.program_fpga:1
+msgid "Upload and program bistream"
+msgstr ""
+
+#: of vta.rpc_client.program_fpga:5
+msgid ""
+"Path to a local bistream file. If unset, tries to download from cache "
+"server."
+msgstr ""
+
+#: ../../_staging/api/python/vta/index.rst:39
+msgid "Compiler API"
+msgstr ""
+
+#: ../../_staging/api/python/vta/index.rst:40
+msgid ""
+"We program VTA using TVM, so the compiler API in vta package is only a "
+"thin wrapper to provide VTA specific extensions."
+msgstr ""
+
+#: of vta.build_module.build_config:1
+msgid "Build a build config for VTA."
+msgstr ""
+
+#: of vta.build_module.build_config:3
+msgid "The dbeug flag to be passed."
+msgstr ""
+
+#: of vta.build_module.build_config:5
+msgid "Additional configurations."
+msgstr ""
+
+#: of vta.build_module.build_config:8
+msgid "**build_config** -- The build config that can be used in TVM."
+msgstr ""
+
+#: of vta.build_module.build:1
+msgid "Thin wrapper of tvm.build"
+msgstr ""
+
+#: of vta.build_module.build:3 vta.build_module.lower:3
+msgid ""
+"This wrapper automatically applies VTA's build_config if there is no user"
+" specified build_config in context."
+msgstr ""
+
+#: of vta.build_module.build:8
+msgid ":obj:`tvm.build`"
+msgstr ""
+
+#: of vta.build_module.build:9
+msgid "The original TVM's build function"
+msgstr ""
+
+#: of vta.build_module.lower:1
+msgid "Thin wrapper of tvm.lower"
+msgstr ""
+
+#: of vta.build_module.lower:8
+msgid ":obj:`tvm.lower`"
+msgstr ""
+
+#: of vta.build_module.lower:9
+msgid "The original TVM's lower function"
+msgstr ""
+
