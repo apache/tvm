@@ -1390,6 +1390,10 @@ class Unsqueeze(OnnxOpConverter):
             inputs[0] = _op.expand_dims(inputs[0], axis=axis, num_newaxis=1)
         return inputs[0]
 
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        return _op.expand_dims(inputs[0], inputs[1])
+
 
 class Split(OnnxOpConverter):
     """Operator converter for Split."""
