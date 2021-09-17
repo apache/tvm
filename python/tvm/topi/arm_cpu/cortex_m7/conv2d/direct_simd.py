@@ -114,9 +114,12 @@ def conv2d_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, ou
 
     owo, owi = cfg.define_split("tile_ow", ow, policy="factors", num_outputs=2)
     cio, cii = cfg.define_split(
-        "tile_ci", ci, policy="factors", num_outputs=2,
+        "tile_ci",
+        ci,
+        policy="factors",
+        num_outputs=2,
         # TODO: check case with in_channels.value % 4 != 0 with AutoTVM
-        filter=None if cfg.is_fallback else lambda x: x.size[-1] % 4 == 0
+        filter=None if cfg.is_fallback else lambda x: x.size[-1] % 4 == 0,
     )
     coo, coi = cfg.define_split("tile_co", co, policy="factors", num_outputs=2)
 
