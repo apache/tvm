@@ -61,7 +61,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
 
   TVM_DLL Span GetSpan() final { return this->span; }
 
-  TVM_DLL DiagnosticContext GetDiagCtx() final { return this->solver_->diag_ctx_; }
+  TVM_DLL DiagnosticContext GetDiagCtx() final { return this->solver_->diag_ctx; }
 
   // TVM_DLL void Emit(Diagnostic diagnostic) final {
   //   return this->solver_->
@@ -131,7 +131,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       Type resolved = this->VisitType(rhs->resolved_type, lhs->resolved_type);
 
       if (!resolved.defined()) {
-        solver_->diag_ctx_.Emit(
+        solver_->diag_ctx.Emit(
             Diagnostic::Error(this->span)
             << "The Relay type checker is unable to show the following types match.\n"
             << "In particular "
@@ -233,7 +233,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
     tvm::Array<IndexExpr> shape;
     if (tt1->shape.size() != tt2->shape.size()) {
-      this->solver_->diag_ctx_.Emit(Diagnostic::Error(this->span)
+      this->solver_->diag_ctx.Emit(Diagnostic::Error(this->span)
                                     << "tensor type `" << PrettyPrint(tt1) << "` has "
                                     << tt1->shape.size() << " dimensions, while `"
                                     << PrettyPrint(tt2) << "` has " << tt2->shape.size()
@@ -266,7 +266,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
         err << "dimension " << std::get<0>(mismatch) << " conflicts: " << std::get<1>(mismatch)
             << " does not match " << std::get<2>(mismatch) << ".";
       }
-      this->solver_->diag_ctx_.Emit(err);
+      this->solver_->diag_ctx.Emit(err);
       return Type(nullptr);
     }
 
@@ -526,8 +526,8 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 // constructor
 TypeSolver::TypeSolver(const GlobalVar& current_func, DiagnosticContext diag_ctx)
     : reporter_(make_object<Reporter>(this)),
-      current_func(current_func),
-      diag_ctx_(diag_ctx),
+      current_func_(current_func),
+      diag_ctx(diag_ctx),
       module_(diag_ctx->module) {
   ICHECK(module_.defined());
 }
@@ -618,7 +618,7 @@ bool TypeSolver::Solve() {
 
       rnode->resolved = resolved;
     } catch (const CompileError& err) {
-      this->diag_ctx_.Emit(Diagnostic::Error(rnode->span) << err.what());
+      this->diag_ctx.Emit(Diagnostic::Error(rnode->span) << err.what());
       rnode->resolved = false;
     } catch (const Error& e) {
       ICHECK(false) << e.what();

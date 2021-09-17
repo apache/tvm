@@ -176,11 +176,11 @@ class TypeSolver {
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
   /*! \brief The global representing the current function. */
-  GlobalVar current_func;
+  GlobalVar current_func_;
 
  public:
   /*! \brief The diagnostic context. */
-  DiagnosticContext diag_ctx_;
+  DiagnosticContext diag_ctx;
 
  private:
   /*! \brief The module. */
