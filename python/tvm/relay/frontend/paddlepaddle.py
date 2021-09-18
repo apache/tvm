@@ -1383,6 +1383,36 @@ def convert_pool2d(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_max_pool2d_with_index(g, op, block):
+    """Operator converter for max_pool2d_with_index."""
+
+    adaptive = op.attr("adaptive")
+    global_pooling = op.attr("global_pooling")
+    ksize = op.attr("ksize")
+    paddings = op.attr("paddings")
+    if global_pooling:
+        adaptive = True
+        ksize = [1, 1]
+
+    input_x = g.get_node(op.input("X")[0])
+
+    strides = op.attr("strides")
+    if isinstance(strides, int):
+        strides = [strides, strides]
+    if isinstance(ksize, int):
+        ksize = [ksize, ksize]
+    if isinstance(paddings, int):
+        paddings = [paddings] * 2
+
+    if not adaptive:
+        out = getattr(_op.nn, "max_pool2d")(
+            input_x, pool_size=ksize, strides=strides, padding=paddings
+        )
+    else:
+        out = getattr(_op.nn, "adaptive_max_pool2d")(input_x, output_size=ksize)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_padding(g, op, block):
     """Operator converter for padding."""
 
@@ -2218,6 +2248,7 @@ _convert_map = {
     "nearest_interp_v2": convert_interpolate,
     "not_equal": convert_elementwise_op,
     "pool2d": convert_pool2d,
+    "max_pool2d_with_index": convert_max_pool2d_with_index,
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,

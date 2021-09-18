@@ -48,6 +48,7 @@ def get_paddle_model(func, input_spec):
     global PADDLE_TEST_DATA_ROOT_PATH
     model_path = Path(PADDLE_TEST_DATA_ROOT_PATH, "model")
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
+    paddle.jit.save(func, "/paddle/pr_for_tvm/0905/tvm/inference_model_test/inference", input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
 
     shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
@@ -1339,15 +1340,16 @@ def test_forward_pool2d():
 
     @paddle.jit.to_static
     def pool2d3(inputs):
-        return nn.functional.max_pool2d(
+        output, max_indices = nn.functional.max_pool2d(
             inputs, kernel_size=2, stride=2, padding=0, return_mask=True
         )
+        return output
 
     input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
     verify_model(pool2d1, input_data=input_data)
     verify_model(pool2d2, input_data=input_data)
     # need op max_pool2d_with_index
-    # verify_model(pool2d3, input_data=input_data)
+    verify_model(pool2d3, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
