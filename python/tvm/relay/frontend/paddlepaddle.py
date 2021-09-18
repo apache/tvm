@@ -1773,6 +1773,7 @@ def convert_scatter(g, op, block):
         out = _op.scatter(x, index, updates, axis=0)
     else:
         out = _op.scatter_add(_op.zeros_like(x), index, updates, axis=0)
+        out += _op.scatter(x, index, _op.zeros_like(updates), axis=0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1792,7 +1793,7 @@ def convert_scatter_nd_add(g, op, block):
 def convert_selu(g, op, block):
     """Operator converter for selu."""
 
-    x = g.get_node(op.input("x")[0])
+    x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
     alpha = _op.const(op.attr("alpha"), dtype)
     scale = _op.const(op.attr("scale"), dtype)

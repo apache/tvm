@@ -875,9 +875,9 @@ def test_forward_group_norm():
         def forward(self, inputs):
             return self.group_norm(inputs)
 
-    input_shape = [2, 6, 2, 2]
+    input_shape = [2, 6, 10, 10]
     x = paddle.rand(input_shape, dtype="float32")
-    verify_model(GroupNorm(6, 6), x)
+    verify_model(GroupNorm(6, 6), x, rtol=1e-4, atol=1e-4)
 
 
 @tvm.testing.uses_gpu
