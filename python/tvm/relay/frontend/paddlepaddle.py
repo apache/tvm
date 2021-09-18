@@ -2301,6 +2301,7 @@ _convert_map = {
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
     "scatter": convert_scatter,
+    "scatter_nd_add": convert_scatter_nd_add,
     "selu": convert_selu,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
