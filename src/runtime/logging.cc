@@ -169,7 +169,9 @@ namespace detail {
 
 namespace {
 constexpr const char* kSrcPrefix = "/src/";
-constexpr const size_t kSrcPrefixLength = std::char_traits<const char>::length(kSrcPrefix);
+// Note: Better would be std::char_traits<const char>::length(kSrcPrefix) but it is not
+// a constexpr on all compilation targets.
+constexpr const size_t kSrcPrefixLength = 5;
 constexpr const char* kDefaultKeyword = "DEFAULT";
 }  // namespace
 
