@@ -26,7 +26,8 @@ BUILDDIR      = _build
 STAGINGDIR    = _staging
 
 # for internationalization
-LOCALES		  = locales
+TRANSLATEDIR  = translates
+LOCALESDIR	  = locales
 HTMLFOLD	  = html_zh
 
 # Internal variables.
@@ -89,6 +90,8 @@ staging:
 	# removed without knowing the exact directory.
 
 	mkdir -p $(STAGINGDIR)
+	mkdir -p $(TRANSLATEDIR)
+	mkdir -p $(STAGINGDIR)/$(TRANSLATEDIR)
 
 	# Remove any symlinks that currently exist
 	find $(STAGINGDIR) -type l -exec rm {} \;
@@ -108,8 +111,8 @@ staging:
 
 	# symlinks docs/locales into the staging directory
 	find . \
-	      -path ./$(LOCALES) -prune \
-	      -exec ln -s $(PWD)/$(LOCALES) $(PWD)/$(STAGINGDIR)/$(LOCALES) \;
+	      -path ./$(TRANSLATEDIR)/$(LOCALESDIR) -prune \
+	      -exec ln -s $(PWD)/$(TRANSLATEDIR)/$(LOCALESDIR) $(PWD)/$(STAGINGDIR)/$(TRANSLATEDIR)/$(LOCALESDIR) \;
 
 	ln -s $(PWD)/conf.py $(STAGINGDIR)/conf.py
 	ln -s $(PWD)/_static $(STAGINGDIR)/_static
@@ -219,9 +222,9 @@ info: staging
 	@echo "makeinfo finished; the Info files are in $(BUILDDIR)/texinfo."
 
 gettext: staging
-	cd $(STAGINGDIR) && $(SPHINXBUILD) -b gettext $(I18NSPHINXOPTS) $(PWD)/$(BUILDDIR)/locale
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b gettext $(I18NSPHINXOPTS) $(PWD)/$(TRANSLATEDIR)/gettext
 	@echo
-	@echo "Build finished. The message catalogs are in $(BUILDDIR)/locale."
+	@echo "Build finished. The message catalogs are in $(TRANSLATEDIR)/gettext."
 
 changes: staging
 	cd $(STAGINGDIR) && $(SPHINXBUILD) -b changes $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/changes

@@ -43,8 +43,10 @@ fi
 SCRIPTFOLD=$(dirname $0)
 DOCS=$(cd "$SCRIPTFOLD/../../docs/";pwd)
 
-GETTEXT="_build/locale"
-LOCALES="locales"
+BUILDDIR="_build"
+GETTEXT="translates/gettext"
+LOCALE="translates/locale"
+LOCALES="translates/locales"
 LANGUAGE=$4
 
 cd $DOCS
@@ -62,17 +64,23 @@ else
     fi 
 fi
 
-if [ ! -d "$DOCS/$LOCALES" ];
+if [ ! -d "$DOCS/$LOCALES/$LANGUAGE" ];
 then
-    echo "--$DOCS/$LOCALES/ is not exist, process will automaticly generate, start to execute: sphinx-intl update -p $GETTEXT -l $LANGUAGE."
+    echo "--$DOCS/$LOCALES/$LANGUAGE is not exist, process will automaticly generate, start to execute: sphinx-intl update -p $GETTEXT -l $LANGUAGE."
     pip3 install sphinx-intl
     sphinx-intl update -p $GETTEXT -l $LANGUAGE
+
+    mkdir -p $DOCS/$BUILDDIR
+    ln -s $DOCS/$GETTEXT $DOCS/$BUILDDIR/locale
 else
     if $2
     then
         echo "--start to update *.po, execute: sphinx-intl update -p $GETTEXT -l $LANGUAGE."
         pip3 install sphinx-intl
         sphinx-intl update -p $GETTEXT -l $LANGUAGE
+        
+        mkdir -p $DOCS/$BUILDDIR
+        ln -s $DOCS/$GETTEXT $DOCS/$BUILDDIR/locale
     else
         echo "--skip update the *.po ."
     fi 
@@ -85,8 +93,8 @@ then
     # Multi-threading may cause errors
     make -e  SPHINXOPTS="-D language='$LANGUAGE'" html  LOCALES=$LOCALES  HTMLFOLD=html_$LANGUAGE
     # fix github pages theme error
-    touch $SCRIPTFOLD/_build/html_$LANGUAGE/.nojekyll
+    touch $DOCS/_build/html_$LANGUAGE/.nojekyll
 
-    echo "--finish create the $SCRIPTFOLD/_build/html_$LANGUAGE"
+    echo "--finish create the $DOCS/_build/html_$LANGUAGE"
     echo "done."
 fi

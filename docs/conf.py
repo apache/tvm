@@ -56,8 +56,7 @@ sys.path.insert(0, str(tvm_path / "vta" / "python"))
 
 # -- General configuration ------------------------------------------------
 
-# for internationalization
-locale_dirs = ['locales/'] 
+locale_dirs = ['translates/locales/'] 
 gettext_compact=False
 
 # General information about the project.
