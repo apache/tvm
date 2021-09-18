@@ -875,9 +875,9 @@ def test_forward_group_norm():
         def forward(self, inputs):
             return self.group_norm(inputs)
 
-    input_shape = [2, 6, 2, 2]
+    input_shape = [2, 6, 10, 10]
     x = paddle.rand(input_shape, dtype="float32")
-    verify_model(GroupNorm(6, 6), x)
+    verify_model(GroupNorm(6, 6), x, rtol=1e-4, atol=1e-4)
 
 
 @tvm.testing.uses_gpu
@@ -906,7 +906,6 @@ def test_forward_activation():
         "hardtanh",
         "log_sigmoid",
         "log_softmax",
-        "relu",
         "relu6",
         "selu",
         "sigmoid",
@@ -919,7 +918,7 @@ def test_forward_activation():
     ]
     for op_name in op_list:
         verify_model(Activation(op_name), input_data=input_data)
-        verify_model(Activation(op_name), input_data=input_data_2, rtol=1e-9, atol=1e-6)
+        verify_model(Activation(op_name), input_data=input_data_2)
 
 
 @tvm.testing.uses_gpu
@@ -1171,6 +1170,32 @@ def test_forward_multiply():
 
 
 @tvm.testing.uses_gpu
+def test_forward_masked_select():
+    @paddle.jit.to_static
+    def masked_select(x):
+        mask_data = np.array(
+            [[True, False, False, False], [True, True, False, False], [True, False, False, False]]
+        ).astype("bool")
+        mask = paddle.to_tensor(mask_data)
+        mask = paddle.logical_not(mask)
+        return paddle.masked_select(x, mask)
+
+    @paddle.jit.to_static
+    def masked_select2(x, mask):
+        return paddle.masked_select(x, mask)
+
+    data = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0]]).astype(
+        "float32"
+    )
+    x = paddle.to_tensor(data)
+    verify_model(masked_select, x)
+    input_shape = [2, 3, 10]
+    x = paddle.rand(input_shape, dtype="float32")
+    mask = paddle.randint(0, 2, input_shape).astype("bool")
+    verify_model(masked_select2, [x, mask], input_shape=[input_shape, input_shape])
+
+
+@tvm.testing.uses_gpu
 def test_forward_matmul():
     class MatMul1(nn.Layer):
         def forward(self, input1, input2):
@@ -1198,6 +1223,17 @@ def test_forward_matmul():
 
 
 @tvm.testing.uses_gpu
+def test_forward_meshgrid():
+    @paddle.jit.to_static
+    def t(x, y, z):
+        return paddle.meshgrid(x, y, z)
+
+    x = paddle.randint(low=0, high=100, shape=[2])
+    y = paddle.randint(low=0, high=100, shape=[3])
+    z = paddle.randint(low=0, high=100, shape=[5])
+    verify_model(t, [x, y, z])
+
+
 def test_forward_mm():
     class Mm(nn.Layer):
         def forward(self, input1, input2):
@@ -1594,6 +1630,50 @@ def test_forward_scale():
 
 
 @tvm.testing.uses_gpu
+def test_forward_scatter():
+    @paddle.jit.to_static
+    def scatter(x, index, updates):
+        return paddle.scatter(x, index, updates, overwrite=True)
+
+    @paddle.jit.to_static
+    def scatter2(x, index, updates):
+        return paddle.scatter(x, index, updates, overwrite=False)
+
+    x = paddle.rand([10, 8, 5], dtype="float32")
+    index = paddle.to_tensor(
+        [
+            2,
+            1,
+            0,
+            6,
+        ]
+    )
+    updates = paddle.rand([4, 8, 5], dtype="float32")
+    verify_model(scatter, [x, index, updates])
+    verify_model(scatter2, [x, index, updates])
+
+
+def test_forward_scatter_nd():
+    @paddle.jit.to_static
+    def scatter_nd(index, updates):
+        shape = [3, 5, 9, 10]
+        return paddle.scatter_nd(index, updates, shape)
+
+    @paddle.jit.to_static
+    def scatter_nd_add(x, index, updates):
+        return paddle.scatter_nd_add(x, index, updates)
+
+    index_data = np.array([[1, 1], [0, 1], [1, 3]]).astype(np.int64)
+    index = paddle.to_tensor(index_data)
+    updates = paddle.rand(shape=[3, 9, 10], dtype="float32")
+    verify_model(scatter_nd, [index, updates])
+    x = paddle.rand(shape=[3, 5, 4, 9, 10], dtype="float32")
+    updates = paddle.rand(shape=[3, 2, 9, 10], dtype="float32")
+    index = paddle.randint(0, 4, shape=[3, 2, 3])
+    verify_model(scatter_nd_add, [x, index, updates])
+
+
+@tvm.testing.uses_gpu
 def test_forward_slice():
     @paddle.jit.to_static
     def slice1(inputs):
@@ -1735,7 +1815,7 @@ def test_forward_std():
         @paddle.jit.to_static
         def forward(self, inputs):
             return paddle.std(inputs, unbiased=False)
-    
+
     class Std7(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1759,8 +1839,8 @@ def test_forward_subtract():
         def forward(self, x, y):
             return paddle.subtract(x, y)
 
-    input_data1 = paddle.to_tensor([2, np.nan, 5], dtype='float32')
-    input_data2 = paddle.to_tensor([1, 4, np.nan], dtype='float32')
+    input_data1 = paddle.to_tensor([2, np.nan, 5], dtype="float32")
+    input_data2 = paddle.to_tensor([1, 4, np.nan], dtype="float32")
     verify_model(Subtract(), input_data=[input_data1, input_data2])
 
     input_data1 = paddle.randint(0, 10, (3, 4), dtype="int32")
@@ -1893,7 +1973,7 @@ def test_forward_unique():
     @paddle.jit.to_static
     def unique4(x):
         return paddle.unique(x, return_index=False, return_inverse=False, return_counts=True)
-    
+
     @paddle.jit.to_static
     def unique5(x):
         return paddle.unique(x, return_index=True, return_inverse=True, return_counts=False)
@@ -2018,7 +2098,9 @@ if __name__ == "__main__":
     test_forward_logical_op()
     test_forward_look_up()
     test_forward_lstm()
+    test_forward_masked_select()
     test_forward_matmul()
+    test_forward_meshgrid
     test_forward_mm()
     test_forward_mv()
     test_forward_multiply()
@@ -2033,6 +2115,8 @@ if __name__ == "__main__":
     test_forward_reduce_op()
     test_forward_reshape()
     test_forward_scale()
+    test_forward_scatter()
+    test_forward_scatter_nd()
     test_forward_slice()
     test_forward_sort()
     test_forward_split()

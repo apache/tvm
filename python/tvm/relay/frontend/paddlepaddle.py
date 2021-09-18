@@ -52,12 +52,11 @@ class ControlFlow:
 
     @classmethod
     def convert_block(cls, graph, block):
-        for i, op in enumerate(block.ops):
+        for op in block.ops:
             if op.type in ControlFlow.operators:
                 raise Exception("Nested Control Flow Not Support Yet.")
-            else:
-                convert_func = _convert_map[op.type]
-                convert_func(graph, op, block)
+            convert_func = _convert_map[op.type]
+            convert_func(graph, op, block)
 
     @classmethod
     def convert(cls, graph, op, program):
@@ -66,6 +65,8 @@ class ControlFlow:
 
     @classmethod
     def convert_while(cls, graph, op, program):
+        """Operator converter for while."""
+
         sub_block_id = op.attr("sub_block").id
         sub_block = program.blocks[sub_block_id]
         input_names = op.input("X")
@@ -77,7 +78,6 @@ class ControlFlow:
                 continue
             if name not in input_names:
                 raise Exception("Output '{}' not in inputs".format(name))
-        inputs = [graph.get_node(x) for x in op.input("X")]
 
         sub_graph = GraphProto(graph.freeze_params)
         sub_graph.set_params(graph.get_params())
@@ -96,7 +96,6 @@ class ControlFlow:
             return _op.equal(squeezed_cond, _expr.const(True, "bool"))
 
         def body_fn(*loop_inputs):
-            cond = loop_inputs[0]
             body_inputs = loop_inputs[1:]
             for i, ipt in enumerate(body_inputs):
                 sub_graph.add_node(input_names[i], ipt)
@@ -141,13 +140,13 @@ def _dtype_shape_promotion(inputs):
             if r == 0:
                 inputs[i] = _op.expand_dims(inputs[i], axis=0)
 
-    dtypes = set([dtype_order.index(infer_type(x).checked_type.dtype) for x in inputs])
+    dtypes = set(dtype_order.index(infer_type(x).checked_type.dtype) for x in inputs)
     if len(dtypes) == 1:
         return inputs
-    max_dtype = dtype_order(max(dtypes))
-    for i in range(len(inputs)):
-        if infer_type(inputs[i]).checked_type.dtype != max_dtype:
-            inputs[i] = inputs[i].astype(max_dtype)
+    max_dtype = dtype_order[max(dtypes)]
+    for i, input_op in enumerate(inputs):
+        if infer_type(input_op).checked_type.dtype != max_dtype:
+            inputs[i] = input_op.astype(max_dtype)
     return inputs
 
 
@@ -1145,6 +1144,20 @@ def convert_logsumexp(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_masked_select(g, op, block):
+    """Operator converter for masked_select."""
+
+    x = g.get_node(op.input("X")[0])
+    mask = g.get_node(op.input("Mask")[0])
+    index = _op.transform.argwhere(mask)
+    shape = infer_shape(index)
+    perm = list(range(0, len(shape) - 1))
+    perm.insert(0, len(shape) - 1)
+    index = _op.transpose(index, axes=perm)
+    out = _op.gather_nd(x, index, 0, shape[-1])
+    g.add_node(op.output("Y")[0], out)
+
+
 def convert_matmul(g, op, block):
     """Operator converter for matmul."""
 
@@ -1252,6 +1265,16 @@ def convert_matmul(g, op, block):
         if not np.isclose(alpha, 1.0):
             out = out * _expr.const(alpha).astype("float32")
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_meshgrid(g, op, block):
+    """Operator converter for meshgrid."""
+
+    inputs = op.input("X")
+    x = [g.get_node(i) for i in inputs]
+    outs = _op.meshgrid(x, indexing="ij")
+    for i, out in enumerate(outs):
+        g.add_node(op.output("Out")[i], out)
 
 
 def convert_mul(g, op, block):
@@ -1733,10 +1756,44 @@ def convert_scale(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_scatter(g, op, block):
+    """Operator converter for scatter."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Ids")[0])
+    updates = g.get_node(op.input("Updates")[0])
+    overwrite = op.attr("overwrite")
+
+    shape = infer_shape(updates)
+    ndims = len(shape)
+    index = _op.expand_dims(index, axis=-1, num_newaxis=ndims - 1)
+    index = _op.transform.broadcast_to(index, shape)
+
+    if overwrite:
+        out = _op.scatter(x, index, updates, axis=0)
+    else:
+        out = _op.scatter_add(_op.zeros_like(x), index, updates, axis=0)
+        out += _op.scatter(x, index, _op.zeros_like(updates), axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_scatter_nd_add(g, op, block):
+    """Operator converter for scatter_nd_add."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Index")[0])
+    updates = g.get_node(op.input("Updates")[0])
+    indices_dim = len(infer_shape(index))
+    axes = list(range(indices_dim))
+    index = _op.transpose(index, axes[-1:] + axes[:-1])
+    out = _op.scatter_nd(x, index, updates, mode="add")
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_selu(g, op, block):
     """Operator converter for selu."""
 
-    x = g.get_node(op.input("x")[0])
+    x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
     alpha = _op.const(op.attr("alpha"), dtype)
     scale = _op.const(op.attr("scale"), dtype)
@@ -2211,8 +2268,10 @@ _convert_map = {
     "logsigmoid": convert_logsigmoid,
     "log_softmax": convert_logsoftmax,
     "logsumexp": convert_logsumexp,
+    "masked_select": convert_masked_select,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
+    "meshgrid": convert_meshgrid,
     "mv": convert_mv,
     "mul": convert_mul,
     "nearest_interp_v2": convert_interpolate,
@@ -2241,6 +2300,8 @@ _convert_map = {
     "round": convert_unary_op,
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
+    "scatter": convert_scatter,
+    "scatter_nd_add": convert_scatter_nd_add,
     "selu": convert_selu,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
@@ -2370,7 +2431,7 @@ class GraphProto:
             for input_spec in input_specs:
                 convert_feed(self, input_spec, None)
         global_block = program.blocks[0]
-        for i, op in enumerate(global_block.ops):
+        for op in global_block.ops:
             if op.type == "fetch":
                 continue
             if op.type in ControlFlow.operators:
