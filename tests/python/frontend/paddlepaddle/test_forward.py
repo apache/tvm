@@ -48,7 +48,6 @@ def get_paddle_model(func, input_spec):
     global PADDLE_TEST_DATA_ROOT_PATH
     model_path = Path(PADDLE_TEST_DATA_ROOT_PATH, "model")
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
-    paddle.jit.save(func, "/paddle/pr_for_tvm/0905/tvm/inference_model_test/inference", input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
 
     shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
