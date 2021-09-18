@@ -44,6 +44,7 @@ SCRIPTFOLD=$(dirname $0)
 DOCS=$(cd "$SCRIPTFOLD/../../docs/";pwd)
 
 BUILDDIR="_build"
+TXDIR=".tx"
 GETTEXT="translates/gettext"
 LOCALE="translates/locale"
 LOCALES="translates/locales"
