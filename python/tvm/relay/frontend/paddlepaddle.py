@@ -1623,7 +1623,19 @@ def convert_reshape(g, op, block):
 def convert_rnn(g, op, block):
     """Operator converter for rnn."""
 
-    def generate_lstm(input_seqs, hidden_state, cell_state, w_inp, w_hid, b_inp, b_hid, f_act, g_act, h_act, backwards=False):
+    def generate_lstm(
+        input_seqs,
+        hidden_state,
+        cell_state,
+        w_inp,
+        w_hid,
+        b_inp,
+        b_hid,
+        f_act,
+        g_act,
+        h_act,
+        backwards=False,
+    ):
         """Implementation of LSTM cell for paddlepaddle of TVM"""
 
         h_list = []
@@ -1663,7 +1675,9 @@ def convert_rnn(g, op, block):
 
         return output, hidden_state, cell_state
 
-    def generate_gru(input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, rz_act, n_act, backwards=False):
+    def generate_gru(
+        input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, rz_act, n_act, backwards=False
+    ):
         """Implementation of GRU cell for paddlepaddle of TVM"""
 
         h_list = []
@@ -1738,7 +1752,7 @@ def convert_rnn(g, op, block):
                 axes=[0],
             )
             return init_h, init_c
-        elif mode == "GRU":
+        else:
             all_init_h = node.input("PreState")[0]
             bidirect_len = 2 if node.attr("is_bidirec") else 1
             init_h = _op.strided_slice(
