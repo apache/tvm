@@ -52,12 +52,11 @@ class ControlFlow:
 
     @classmethod
     def convert_block(cls, graph, block):
-        for i, op in enumerate(block.ops):
+        for op in block.ops:
             if op.type in ControlFlow.operators:
                 raise Exception("Nested Control Flow Not Support Yet.")
-            else:
-                convert_func = _convert_map[op.type]
-                convert_func(graph, op, block)
+            convert_func = _convert_map[op.type]
+            convert_func(graph, op, block)
 
     @classmethod
     def convert(cls, graph, op, program):
@@ -66,6 +65,8 @@ class ControlFlow:
 
     @classmethod
     def convert_while(cls, graph, op, program):
+        """Operator converter for while."""
+
         sub_block_id = op.attr("sub_block").id
         sub_block = program.blocks[sub_block_id]
         input_names = op.input("X")
@@ -77,7 +78,6 @@ class ControlFlow:
                 continue
             if name not in input_names:
                 raise Exception("Output '{}' not in inputs".format(name))
-        inputs = [graph.get_node(x) for x in op.input("X")]
 
         sub_graph = GraphProto(graph.freeze_params)
         sub_graph.set_params(graph.get_params())
@@ -96,7 +96,6 @@ class ControlFlow:
             return _op.equal(squeezed_cond, _expr.const(True, "bool"))
 
         def body_fn(*loop_inputs):
-            cond = loop_inputs[0]
             body_inputs = loop_inputs[1:]
             for i, ipt in enumerate(body_inputs):
                 sub_graph.add_node(input_names[i], ipt)
@@ -141,13 +140,13 @@ def _dtype_shape_promotion(inputs):
             if r == 0:
                 inputs[i] = _op.expand_dims(inputs[i], axis=0)
 
-    dtypes = set([dtype_order.index(infer_type(x).checked_type.dtype) for x in inputs])
+    dtypes = set(dtype_order.index(infer_type(x).checked_type.dtype) for x in inputs)
     if len(dtypes) == 1:
         return inputs
-    max_dtype = dtype_order(max(dtypes))
-    for i in range(len(inputs)):
-        if infer_type(inputs[i]).checked_type.dtype != max_dtype:
-            inputs[i] = inputs[i].astype(max_dtype)
+    max_dtype = dtype_order[max(dtypes)]
+    for i, input_op in enumerate(inputs):
+        if infer_type(input_op).checked_type.dtype != max_dtype:
+            inputs[i] = input_op.astype(max_dtype)
     return inputs
 
 
@@ -660,7 +659,7 @@ def convert_elu(g, op, block):
     x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
     alpha = op.attr("alpha")
-    alpha = _expr.const(alpha, dtype=dtype)
+    alpha = _expr.const(-1.0 * alpha, dtype=dtype)
     out = alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(x)) + _op.nn.relu(x)
     g.add_node(op.output("Out")[0], out)
 
@@ -1145,6 +1144,20 @@ def convert_logsumexp(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_masked_select(g, op, block):
+    """Operator converter for masked_select."""
+
+    x = g.get_node(op.input("X")[0])
+    mask = g.get_node(op.input("Mask")[0])
+    index = _op.transform.argwhere(mask)
+    shape = infer_shape(index)
+    perm = list(range(0, len(shape) - 1))
+    perm.insert(0, len(shape) - 1)
+    index = _op.transpose(index, axes=perm)
+    out = _op.gather_nd(x, index, 0, shape[-1])
+    g.add_node(op.output("Y")[0], out)
+
+
 def convert_matmul(g, op, block):
     """Operator converter for matmul."""
 
@@ -1252,6 +1265,16 @@ def convert_matmul(g, op, block):
         if not np.isclose(alpha, 1.0):
             out = out * _expr.const(alpha).astype("float32")
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_meshgrid(g, op, block):
+    """Operator converter for meshgrid."""
+
+    inputs = op.input("X")
+    x = [g.get_node(i) for i in inputs]
+    outs = _op.meshgrid(x, indexing="ij")
+    for i, out in enumerate(outs):
+        g.add_node(op.output("Out")[i], out)
 
 
 def convert_mul(g, op, block):
@@ -1383,6 +1406,36 @@ def convert_pool2d(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_max_pool2d_with_index(g, op, block):
+    """Operator converter for max_pool2d_with_index."""
+
+    adaptive = op.attr("adaptive")
+    global_pooling = op.attr("global_pooling")
+    ksize = op.attr("ksize")
+    paddings = op.attr("paddings")
+    if global_pooling:
+        adaptive = True
+        ksize = [1, 1]
+
+    input_x = g.get_node(op.input("X")[0])
+
+    strides = op.attr("strides")
+    if isinstance(strides, int):
+        strides = [strides, strides]
+    if isinstance(ksize, int):
+        ksize = [ksize, ksize]
+    if isinstance(paddings, int):
+        paddings = [paddings] * 2
+
+    if not adaptive:
+        out = getattr(_op.nn, "max_pool2d")(
+            input_x, pool_size=ksize, strides=strides, padding=paddings
+        )
+    else:
+        out = getattr(_op.nn, "adaptive_max_pool2d")(input_x, output_size=ksize)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_padding(g, op, block):
     """Operator converter for padding."""
 
@@ -1416,14 +1469,40 @@ def convert_padding(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_pixel_shuffle(g, op, block):
+    """Operator converter for pixel_shuffle."""
+
+    x = g.get_node(op.input("X")[0])
+    upscale_factor = op.attr("upscale_factor")
+    out = _op.nn.depth_to_space(x, upscale_factor, mode="CRD")
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_pow(g, op, block):
     """Operator converter for pow."""
 
     x = g.get_node(op.input("X")[0])
     factor = op.attr("factor")
     factor = _expr.const(factor, dtype="float32").astype("float32")
-
     out = _op.power(x, factor)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_prelu(g, op, block):
+    """Operator converter for prelu."""
+
+    x = g.get_node(op.input("X")[0])
+    alpha = g.get_node(op.input("Alpha")[0])
+    ndims = len(infer_shape(x))
+    axis = 0 if ndims <= 1 else 1
+    mode = op.attr("mode")
+    if mode == "all":
+        if ndims == 1:
+            shape = _op.strided_slice(shape_of(x), [0], [1])
+        else:
+            shape = _op.strided_slice(shape_of(x), [1], [2])
+        alpha = _op.broadcast_to(alpha, shape)
+    out = _op.nn.prelu(x, alpha, axis)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1510,6 +1589,14 @@ def convert_reduce(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_relu6(g, op, block):
+    """Operator converter for relu6."""
+
+    x = g.get_node(op.input("X")[0])
+    out = _op.clip(x, 0.0, 6.0)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_reshape(g, op, block):
     """Operator converter for reshape."""
 
@@ -1536,31 +1623,33 @@ def convert_reshape(g, op, block):
 def convert_rnn(g, op, block):
     """Operator converter for rnn."""
 
-    def generate_lstm(X_steps, H_t, C_t, W, R, WB, RB, f_act, g_act, h_act, backwards=False):
+    def generate_lstm(input_seqs, hidden_state, cell_state, w_inp, w_hid, b_inp, b_hid, f_act, g_act, h_act, backwards=False):
+        """Implementation of LSTM cell for paddlepaddle of TVM"""
+
         h_list = []
-        seq_length = len(X_steps)
+        seq_length = len(input_seqs)
         for i in range(seq_length):
-            step = X_steps[i] if not backwards else X_steps[seq_length - (i + 1)]
+            step = input_seqs[i] if not backwards else input_seqs[seq_length - (i + 1)]
             step = _op.squeeze(step, axis=[0])
-            gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
-            if WB is not None:
-                gates += WB
-            if RB is not None:
-                gates += RB
+            gates = _op.nn.dense(step, w_inp) + _op.nn.dense(hidden_state, w_hid)
+            if b_inp is not None:
+                gates += b_inp
+            if b_hid is not None:
+                gates += b_hid
             i, f, c, o = _op.split(gates, 4, axis=-1)
 
             i = f_act(i)
             f = f_act(f)
 
             c = g_act(c)
-            C = f * C_t + i * c
+            C = f * cell_state + i * c
 
             o = f_act(o)
 
             H = o * h_act(C)
 
-            H_t = H
-            C_t = C
+            hidden_state = H
+            cell_state = C
             h_list.append(_op.expand_dims(H, axis=0))
 
         if backwards:
@@ -1569,12 +1658,48 @@ def convert_rnn(g, op, block):
         # Concatenate outputs and add back in direction axis.
         concatenated = _op.concatenate(h_list, 0)
         output = _op.expand_dims(concatenated, axis=1)
-        H_t = _op.expand_dims(H_t, axis=0)
-        C_t = _op.expand_dims(C_t, axis=0)
+        hidden_state = _op.expand_dims(hidden_state, axis=0)
+        cell_state = _op.expand_dims(cell_state, axis=0)
 
-        return output, H_t, C_t
+        return output, hidden_state, cell_state
+
+    def generate_gru(input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, rz_act, n_act, backwards=False):
+        """Implementation of GRU cell for paddlepaddle of TVM"""
+
+        h_list = []
+        seq_length = len(input_seqs)
+        for i in range(seq_length):
+            step = input_seqs[i] if not backwards else input_seqs[seq_length - (i + 1)]
+            step = _op.squeeze(step, axis=[0])
+            xwt = _op.nn.dense(step, w_inp)
+            hwt = _op.nn.dense(hidden_state, w_hid)
+            if b_inp is not None:
+                xwt += b_inp
+            if b_hid is not None:
+                hwt += b_hid
+            i_r, i_z, i_n = _op.split(xwt, 3, axis=-1)
+            h_r, h_z, h_n = _op.split(hwt, 3, axis=-1)
+
+            r_gate = rz_act(i_r + h_r)
+            z_gate = rz_act(i_z + h_z)
+            n_gate = n_act(i_n + r_gate * h_n)
+
+            hidden_state = (hidden_state - n_gate) * z_gate + n_gate
+            h_list.append(_op.expand_dims(hidden_state, axis=0))
+
+        if backwards:
+            h_list = h_list[::-1]
+
+        # Concatenate outputs and add back in direction axis.
+        concatenated = _op.concatenate(h_list, 0)
+        output = _op.expand_dims(concatenated, axis=1)
+        hidden_state = _op.expand_dims(hidden_state, axis=0)
+
+        return output, hidden_state
 
     def make_param_inputs(g, node, layer, hidden_size, num_layers):
+        """Param for weight and bias."""
+
         bidirect_len = 4 if node.attr("is_bidirec") else 2
         all_layer_param_len = len(node.input("WeightList"))
         weight_list = node.input("WeightList")[: all_layer_param_len // 2]
@@ -1594,21 +1719,35 @@ def convert_rnn(g, op, block):
         return input_weights, hidden_weights, input_bias, hidden_bias
 
     def make_init_param_inputs(g, node, layer):
-        all_init_h, all_init_c = node.input("PreState")
-        bidirect_len = 2 if node.attr("is_bidirec") else 1
-        init_h = _op.strided_slice(
-            g.get_node(all_init_h),
-            [layer * bidirect_len],
-            [layer * bidirect_len + bidirect_len],
-            axes=[0],
-        )
-        init_c = _op.strided_slice(
-            g.get_node(all_init_c),
-            [layer * bidirect_len],
-            [layer * bidirect_len + bidirect_len],
-            axes=[0],
-        )
-        return init_h, init_c
+        """Init param for inputs."""
+
+        mode = node.attr("mode")
+        if mode == "LSTM":
+            all_init_h, all_init_c = node.input("PreState")
+            bidirect_len = 2 if node.attr("is_bidirec") else 1
+            init_h = _op.strided_slice(
+                g.get_node(all_init_h),
+                [layer * bidirect_len],
+                [layer * bidirect_len + bidirect_len],
+                axes=[0],
+            )
+            init_c = _op.strided_slice(
+                g.get_node(all_init_c),
+                [layer * bidirect_len],
+                [layer * bidirect_len + bidirect_len],
+                axes=[0],
+            )
+            return init_h, init_c
+        elif mode == "GRU":
+            all_init_h = node.input("PreState")[0]
+            bidirect_len = 2 if node.attr("is_bidirec") else 1
+            init_h = _op.strided_slice(
+                g.get_node(all_init_h),
+                [layer * bidirect_len],
+                [layer * bidirect_len + bidirect_len],
+                axes=[0],
+            )
+            return init_h
 
     hidden_size = op.attr("hidden_size")
     num_layers = op.attr("num_layers")
@@ -1628,39 +1767,65 @@ def convert_rnn(g, op, block):
         input_weights, hidden_weights, input_bias, hidden_bias = make_param_inputs(
             g, op, layer, hidden_size, num_layers
         )
-
-        init_h, init_c = make_init_param_inputs(g, op, layer)
-        init_hs = _op.split(init_h, num_directions)
-        init_cs = _op.split(init_c, num_directions)
-        result_output = []
-        result_H = []
-        result_C = []
-        for i in range(num_directions):
-            H_t = _op.squeeze(init_hs[i], axis=[0])
-            C_t = _op.squeeze(init_cs[i], axis=[0])
-            W = g.get_node(input_weights[i])
-            R = g.get_node(hidden_weights[i])
-            WB = g.get_node(input_bias[i])
-            RB = g.get_node(hidden_bias[i])
-            output, H, C = generate_lstm(
-                X_steps=x_steps,
-                H_t=H_t,
-                C_t=C_t,
-                W=W,
-                R=R,
-                WB=WB,
-                RB=RB,
-                f_act=_op.sigmoid,
-                g_act=_op.tanh,
-                h_act=_op.tanh,
-                backwards=i == 1,
-            )
-            result_output.append(output)
-            result_H.append(H)
-            result_C.append(C)
-        output = _op.concatenate(result_output, axis=1)
-        H = _op.concatenate(result_H, axis=0)
-        C = _op.concatenate(result_C, axis=0)
+        if mode == "LSTM":
+            init_h, init_c = make_init_param_inputs(g, op, layer)
+            init_hs = _op.split(init_h, num_directions)
+            init_cs = _op.split(init_c, num_directions)
+            result_output = []
+            result_H = []
+            result_C = []
+            for i in range(num_directions):
+                H_t = _op.squeeze(init_hs[i], axis=[0])
+                C_t = _op.squeeze(init_cs[i], axis=[0])
+                W = g.get_node(input_weights[i])
+                R = g.get_node(hidden_weights[i])
+                WB = g.get_node(input_bias[i])
+                RB = g.get_node(hidden_bias[i])
+                output, H, C = generate_lstm(
+                    input_seqs=x_steps,
+                    hidden_state=H_t,
+                    cell_state=C_t,
+                    w_inp=W,
+                    w_hid=R,
+                    b_inp=WB,
+                    b_hid=RB,
+                    f_act=_op.sigmoid,
+                    g_act=_op.tanh,
+                    h_act=_op.tanh,
+                    backwards=i == 1,
+                )
+                result_output.append(output)
+                result_H.append(H)
+                result_C.append(C)
+            output = _op.concatenate(result_output, axis=1)
+            H = _op.concatenate(result_H, axis=0)
+            C = _op.concatenate(result_C, axis=0)
+        elif mode == "GRU":
+            init_h = make_init_param_inputs(g, op, layer)
+            init_hs = _op.split(init_h, num_directions)
+            result_output = []
+            result_H = []
+            for i in range(num_directions):
+                H_t = _op.squeeze(init_hs[i], axis=[0])
+                W = g.get_node(input_weights[i])
+                R = g.get_node(hidden_weights[i])
+                WB = g.get_node(input_bias[i])
+                RB = g.get_node(hidden_bias[i])
+                output, H = generate_gru(
+                    input_seqs=x_steps,
+                    hidden_state=H_t,
+                    w_inp=W,
+                    w_hid=R,
+                    b_inp=WB,
+                    b_hid=RB,
+                    rz_act=_op.sigmoid,
+                    n_act=_op.tanh,
+                    backwards=i == 1,
+                )
+                result_output.append(output)
+                result_H.append(H)
+            output = _op.concatenate(result_output, axis=1)
+            H = _op.concatenate(result_H, axis=0)
 
         output = _op.transpose(output, axes=[0, 2, 1, 3])
         output = _op.reshape(output, newshape=(0, 0, -1))
@@ -1697,6 +1862,56 @@ def convert_scale(g, op, block):
                 )
         if x_dtype != "float32":
             out = out.astype(x_dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_scatter(g, op, block):
+    """Operator converter for scatter."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Ids")[0])
+    updates = g.get_node(op.input("Updates")[0])
+    overwrite = op.attr("overwrite")
+
+    shape = infer_shape(updates)
+    ndims = len(shape)
+    index = _op.expand_dims(index, axis=-1, num_newaxis=ndims - 1)
+    index = _op.transform.broadcast_to(index, shape)
+
+    if overwrite:
+        out = _op.scatter(x, index, updates, axis=0)
+    else:
+        out = _op.scatter_add(_op.zeros_like(x), index, updates, axis=0)
+        out += _op.scatter(x, index, _op.zeros_like(updates), axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_scatter_nd_add(g, op, block):
+    """Operator converter for scatter_nd_add."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Index")[0])
+    updates = g.get_node(op.input("Updates")[0])
+    indices_dim = len(infer_shape(index))
+    axes = list(range(indices_dim))
+    index = _op.transpose(index, axes[-1:] + axes[:-1])
+    out = _op.scatter_nd(x, index, updates, mode="add")
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_selu(g, op, block):
+    """Operator converter for selu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    alpha = _op.const(op.attr("alpha"), dtype)
+    scale = _op.const(op.attr("scale"), dtype)
+    out = (
+        _expr.const(-1.0, dtype=dtype)
+        * alpha
+        * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x))
+    )
+    out = scale * (out + _op.nn.relu(x))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1828,6 +2043,62 @@ def convert_softmax(g, op, block):
     m = _op.max(x, axis, keepdims=True)
     e = _op.exp(x - m)
     out = e / _op.sum(e, axis, keepdims=True)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softplus(g, op, block):
+    """Operator converter for softplus."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    beta = op.attr("beta")
+    beta = _expr.const(beta, dtype=dtype)
+    out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softshrink(g, op, block):
+    """Operator converter for softshrink."""
+
+    x = g.get_node(op.input("X")[0])
+    threshold = op.attr("lambda")
+    out = x - _op.clip(x, -1.0 * threshold, threshold)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softsign(g, op, block):
+    """Operator converter for softsign."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = x / (_op.const(1.0, dtype) + _op.abs(x))
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_swish(g, op, block):
+    """Operator converter for swish."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = x / (_op.const(1.0, dtype) + _op.exp(_op.const(-1.0, dtype) * x))
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_tanhshrink(g, op, block):
+    """Operator converter for swish."""
+
+    x = g.get_node(op.input("X")[0])
+    out = x - _op.tanh(x)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_thresholded_relu(g, op, block):
+    """Operator converter for thresholded_relu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = _op.const(op.attr("threshold"), dtype)
+    out = _op.where(_op.greater(x, threshold), x, _op.const(0.0, dtype))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2106,17 +2377,22 @@ _convert_map = {
     "logsigmoid": convert_logsigmoid,
     "log_softmax": convert_logsoftmax,
     "logsumexp": convert_logsumexp,
+    "masked_select": convert_masked_select,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
+    "meshgrid": convert_meshgrid,
     "mv": convert_mv,
     "mul": convert_mul,
     "nearest_interp_v2": convert_interpolate,
     "not_equal": convert_elementwise_op,
     "pool2d": convert_pool2d,
+    "max_pool2d_with_index": convert_max_pool2d_with_index,
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
+    "pixel_shuffle": convert_pixel_shuffle,
     "pow": convert_pow,
+    "prelu": convert_prelu,
     "p_norm": convert_norm,
     "range": convert_range,
     "reciprocal": convert_reciprocal,
@@ -2128,11 +2404,15 @@ _convert_map = {
     "reduce_sum": convert_reduce,
     "reduce_mean": convert_reduce,
     "relu": convert_unary_op,
+    "relu6": convert_relu6,
     "reshape2": convert_reshape,
     "rnn": convert_rnn,
     "round": convert_unary_op,
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
+    "scatter": convert_scatter,
+    "scatter_nd_add": convert_scatter_nd_add,
+    "selu": convert_selu,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
     "sign": convert_unary_op,
@@ -2141,6 +2421,9 @@ _convert_map = {
     "size": convert_numel,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "softplus": convert_softplus,
+    "softshrink": convert_softshrink,
+    "softsign": convert_softsign,
     "split": convert_split,
     "sqrt": convert_unary_op,
     "square": convert_square,
@@ -2148,8 +2431,11 @@ _convert_map = {
     "stack": convert_stack,
     "strided_slice": convert_slice,
     "sum": convert_addn,
+    "swish": convert_swish,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "tanh_shrink": convert_tanhshrink,
+    "thresholded_relu": convert_thresholded_relu,
     "top_k_v2": convert_topk,
     "tile": convert_tile,
     "transpose2": convert_transpose,
@@ -2255,7 +2541,7 @@ class GraphProto:
             for input_spec in input_specs:
                 convert_feed(self, input_spec, None)
         global_block = program.blocks[0]
-        for i, op in enumerate(global_block.ops):
+        for op in global_block.ops:
             if op.type == "fetch":
                 continue
             if op.type in ControlFlow.operators:

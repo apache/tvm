@@ -48,7 +48,6 @@ def get_paddle_model(func, input_spec):
     global PADDLE_TEST_DATA_ROOT_PATH
     model_path = Path(PADDLE_TEST_DATA_ROOT_PATH, "model")
     paddle.jit.save(func, str(model_path), input_spec=input_spec)
-    paddle.jit.save(func, "/paddle/pr_for_tvm/0905/tvm/inference_model_test/inference", input_spec=input_spec)
     baseline_model = paddle.jit.load(str(model_path))
 
     shutil.rmtree(str(PADDLE_TEST_DATA_ROOT_PATH))
@@ -522,7 +521,6 @@ def test_forward_cumsum():
 
 @tvm.testing.uses_gpu
 def test_forward_conv():
-
     class Conv2D1(nn.Layer):
         def __init__(self):
             super(Conv2D1, self).__init__()
@@ -532,7 +530,6 @@ def test_forward_conv():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-
 
     class Conv2D2(nn.Layer):
         def __init__(self):
@@ -544,7 +541,6 @@ def test_forward_conv():
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
 
-
     class Conv2D3(nn.Layer):
         def __init__(self):
             super(Conv2D3, self).__init__()
@@ -554,11 +550,12 @@ def test_forward_conv():
         def forward(self, inputs):
             return self.conv(inputs)
 
-
     class Conv2D4(nn.Layer):
         def __init__(self):
             super(Conv2D4, self).__init__()
-            self.conv = nn.Conv2D(3, 6, 7, groups=3, bias_attr=False, padding=[1, 2, 0, 1], stride=2, dilation=2)
+            self.conv = nn.Conv2D(
+                3, 6, 7, groups=3, bias_attr=False, padding=[1, 2, 0, 1], stride=2, dilation=2
+            )
 
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -878,9 +875,9 @@ def test_forward_group_norm():
         def forward(self, inputs):
             return self.group_norm(inputs)
 
-    input_shape = [2, 6, 2, 2]
+    input_shape = [2, 6, 10, 10]
     x = paddle.rand(input_shape, dtype="float32")
-    verify_model(GroupNorm(6, 6), x)
+    verify_model(GroupNorm(6, 6), x, rtol=1e-4, atol=1e-4)
 
 
 @tvm.testing.uses_gpu
@@ -899,12 +896,29 @@ def test_forward_activation():
             return self.func(inputs)
 
     input_shape = [1, 3, 10, 10]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    input_data_2 = paddle.rand(input_shape).astype("float16")
-    op_list = ["elu", "hardshrink", "hardsigmoid", "hardswish", "hardtanh", "relu", "sigmoid"]
+    input_data = paddle.normal(shape=input_shape) * 10.0
+    input_data_2 = paddle.normal(shape=input_shape).astype("float64") * 10.0
+    op_list = [
+        "elu",
+        "hardshrink",
+        "hardsigmoid",
+        "hardswish",
+        "hardtanh",
+        "log_sigmoid",
+        "log_softmax",
+        "relu6",
+        "selu",
+        "sigmoid",
+        "softplus",
+        "softshrink",
+        "softsign",
+        "swish",
+        "tanhshrink",
+        "thresholded_relu",
+    ]
     for op_name in op_list:
         verify_model(Activation(op_name), input_data=input_data)
-        verify_model(Activation(op_name), input_data=input_data_2, rtol=1e-3, atol=1e-3)
+        verify_model(Activation(op_name), input_data=input_data_2)
 
 
 @tvm.testing.uses_gpu
@@ -1172,47 +1186,10 @@ def test_forward_gru():
     gru_input_data = paddle.rand(gru_input_shape, dtype="float32")
     prev_h = paddle.rand([4, 1, 48], dtype="float32")
     verify_model(GRU1(), input_data=[gru_input_data, prev_h])
-    # gru_input_shape = [4, 16]
-    # gru_input_data = paddle.rand(gru_input_shape, dtype="float32")
-    # prev_h = paddle.rand([4, 32], dtype="float32")
-    # prev_c = paddle.rand([4, 32], dtype="float32")
-    # verify_model(GRU2(), input_data=[gru_input_data, prev_h, prev_c])
-
-
-# @tvm.testing.uses_gpu
-# def test_forward_birnn():
-#     class BiRNN(nn.Layer):
-#         def __init__(self):
-#             super(BiRNN, self).__init__()
-#             cell_fw = nn.LSTMCell(16, 32)
-#             cell_bw = nn.LSTMCell(16, 32)
-#             self.rnn = nn.BiRNN(cell_fw, cell_bw)
-
-#         @paddle.jit.to_static
-#         def forward(self, inputs):
-#             outputs, final_states = self.rnn(inputs)
-#             return outputs
-
-#     input_data = paddle.rand((2, 23, 16))
-#     verify_model(BiRNN(), input_data=[input_data])
-
-
-@tvm.testing.uses_gpu
-def test_forward_rnn():
-    class RNN(nn.Layer):
-        def __init__(self):
-            super(RNN, self).__init__()
-            cell = nn.SimpleRNNCell(16, 32)
-            self.rnn = nn.RNN(cell)
-
-        @paddle.jit.to_static
-        def forward(self, inputs, prev_h):
-            outputs, final_states = self.rnn(inputs, prev_h)
-            return outputs
-
-    input_data = paddle.rand((4, 23, 16))
-    prev_h = paddle.randn((4, 32))
-    verify_model(RNN(), input_data=[input_data, prev_h])
+    gru_input_shape = [4, 16]
+    gru_input_data = paddle.rand(gru_input_shape, dtype="float32")
+    prev_h = paddle.rand([4, 32], dtype="float32")
+    verify_model(GRU2(), input_data=[gru_input_data, prev_h])
 
 
 @tvm.testing.uses_gpu
@@ -1236,6 +1213,32 @@ def test_forward_multiply():
     verify_model(multiply2, input_data=input_data)
     input_data2 = paddle.rand(input_shape, dtype="float32")
     verify_model(multiply3, input_data=[input_data, input_data2])
+
+
+@tvm.testing.uses_gpu
+def test_forward_masked_select():
+    @paddle.jit.to_static
+    def masked_select(x):
+        mask_data = np.array(
+            [[True, False, False, False], [True, True, False, False], [True, False, False, False]]
+        ).astype("bool")
+        mask = paddle.to_tensor(mask_data)
+        mask = paddle.logical_not(mask)
+        return paddle.masked_select(x, mask)
+
+    @paddle.jit.to_static
+    def masked_select2(x, mask):
+        return paddle.masked_select(x, mask)
+
+    data = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0]]).astype(
+        "float32"
+    )
+    x = paddle.to_tensor(data)
+    verify_model(masked_select, x)
+    input_shape = [2, 3, 10]
+    x = paddle.rand(input_shape, dtype="float32")
+    mask = paddle.randint(0, 2, input_shape).astype("bool")
+    verify_model(masked_select2, [x, mask], input_shape=[input_shape, input_shape])
 
 
 @tvm.testing.uses_gpu
@@ -1266,6 +1269,17 @@ def test_forward_matmul():
 
 
 @tvm.testing.uses_gpu
+def test_forward_meshgrid():
+    @paddle.jit.to_static
+    def t(x, y, z):
+        return paddle.meshgrid(x, y, z)
+
+    x = paddle.randint(low=0, high=100, shape=[2])
+    y = paddle.randint(low=0, high=100, shape=[3])
+    z = paddle.randint(low=0, high=100, shape=[5])
+    verify_model(t, [x, y, z])
+
+
 def test_forward_mm():
     class Mm(nn.Layer):
         def forward(self, input1, input2):
@@ -1407,15 +1421,16 @@ def test_forward_pool2d():
 
     @paddle.jit.to_static
     def pool2d3(inputs):
-        return nn.functional.max_pool2d(
+        output, max_indices = nn.functional.max_pool2d(
             inputs, kernel_size=2, stride=2, padding=0, return_mask=True
         )
+        return output
 
     input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
     verify_model(pool2d1, input_data=input_data)
     verify_model(pool2d2, input_data=input_data)
     # need op max_pool2d_with_index
-    # verify_model(pool2d3, input_data=input_data)
+    verify_model(pool2d3, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1454,6 +1469,43 @@ def test_forward_pad():
     verify_model(pad3, input_data=input_data)
     input_data = paddle.rand([2, 4, 5], dtype="float32")
     verify_model(pad4, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_pixel_shuffle():
+    class PixelShuffle(nn.Layer):
+        def __init__(self, upscale_factor):
+            super(PixelShuffle, self).__init__()
+            self.pixel_shuffle = paddle.nn.PixelShuffle(upscale_factor)
+
+        @paddle.jit.to_static
+        def forward(self, x):
+            return self.pixel_shuffle(x)
+
+    x = paddle.rand([2, 9, 5, 5], dtype="float32")
+    verify_model(PixelShuffle(3), x)
+    x2 = paddle.rand([3, 8, 9, 9], dtype="float32")
+    verify_model(PixelShuffle(2), x2)
+
+
+@tvm.testing.uses_gpu
+def test_forward_prelu():
+    class PRelu(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, w):
+            return paddle.nn.functional.prelu(x, w)
+
+    x = paddle.normal(shape=[4, 3, 5, 5])
+    w = paddle.to_tensor(
+        np.array(
+            [
+                0.25,
+            ]
+        ).astype("float32")
+    )
+    verify_model(PRelu(), [x, w])
+    w2 = paddle.to_tensor(np.array([0.25, 0.5, 0.8]).astype("float32"))
+    verify_model(PRelu(), [x, w2])
 
 
 @tvm.testing.uses_gpu
@@ -1625,6 +1677,50 @@ def test_forward_scale():
 
 
 @tvm.testing.uses_gpu
+def test_forward_scatter():
+    @paddle.jit.to_static
+    def scatter(x, index, updates):
+        return paddle.scatter(x, index, updates, overwrite=True)
+
+    @paddle.jit.to_static
+    def scatter2(x, index, updates):
+        return paddle.scatter(x, index, updates, overwrite=False)
+
+    x = paddle.rand([10, 8, 5], dtype="float32")
+    index = paddle.to_tensor(
+        [
+            2,
+            1,
+            0,
+            6,
+        ]
+    )
+    updates = paddle.rand([4, 8, 5], dtype="float32")
+    verify_model(scatter, [x, index, updates])
+    verify_model(scatter2, [x, index, updates])
+
+
+def test_forward_scatter_nd():
+    @paddle.jit.to_static
+    def scatter_nd(index, updates):
+        shape = [3, 5, 9, 10]
+        return paddle.scatter_nd(index, updates, shape)
+
+    @paddle.jit.to_static
+    def scatter_nd_add(x, index, updates):
+        return paddle.scatter_nd_add(x, index, updates)
+
+    index_data = np.array([[1, 1], [0, 1], [1, 3]]).astype(np.int64)
+    index = paddle.to_tensor(index_data)
+    updates = paddle.rand(shape=[3, 9, 10], dtype="float32")
+    verify_model(scatter_nd, [index, updates])
+    x = paddle.rand(shape=[3, 5, 4, 9, 10], dtype="float32")
+    updates = paddle.rand(shape=[3, 2, 9, 10], dtype="float32")
+    index = paddle.randint(0, 4, shape=[3, 2, 3])
+    verify_model(scatter_nd_add, [x, index, updates])
+
+
+@tvm.testing.uses_gpu
 def test_forward_slice():
     @paddle.jit.to_static
     def slice1(inputs):
@@ -1766,7 +1862,7 @@ def test_forward_std():
         @paddle.jit.to_static
         def forward(self, inputs):
             return paddle.std(inputs, unbiased=False)
-    
+
     class Std7(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1790,8 +1886,8 @@ def test_forward_subtract():
         def forward(self, x, y):
             return paddle.subtract(x, y)
 
-    input_data1 = paddle.to_tensor([2, np.nan, 5], dtype='float32')
-    input_data2 = paddle.to_tensor([1, 4, np.nan], dtype='float32')
+    input_data1 = paddle.to_tensor([2, np.nan, 5], dtype="float32")
+    input_data2 = paddle.to_tensor([1, 4, np.nan], dtype="float32")
     verify_model(Subtract(), input_data=[input_data1, input_data2])
 
     input_data1 = paddle.randint(0, 10, (3, 4), dtype="int32")
@@ -1924,7 +2020,7 @@ def test_forward_unique():
     @paddle.jit.to_static
     def unique4(x):
         return paddle.unique(x, return_index=False, return_inverse=False, return_counts=True)
-    
+
     @paddle.jit.to_static
     def unique5(x):
         return paddle.unique(x, return_index=True, return_inverse=True, return_counts=False)
@@ -2009,75 +2105,79 @@ def test_forward_while():
 
 
 if __name__ == "__main__":
-    # test_forward_add_subtract()
-    # test_forward_addmm()
-    # test_forward_addn()
-    # test_forward_arange()
-    # test_forward_argmax()
-    # test_forward_argmin()
-    # test_forward_argsort()
-    # test_forward_assign()
-    # test_forward_batch_norm()
-    # test_forward_cast()
-    # test_forward_clip()
-    # test_forward_concat_unsqueeze()
-    # test_forward_conv()
-    # test_forward_crop()
-    # test_forward_cumsum()
-    # test_forward_dist()
-    # test_forward_dot()
-    # test_forward_dropout()
-    # test_forward_elemwise()
-    # test_forward_expand()
-    # test_forward_expand_as()
-    # test_forward_flatten()
-    # test_forward_shape_full()
-    # test_forward_ones()
-    # test_forward_ones_like()
-    # test_forward_gather_assign_value()
-    # test_forward_gather_nd()
-    # test_forward_gelu()
-    # test_forward_group_norm()
-    # test_forward_math()
-    # test_forward_activation()
-    # test_forward_index_select()
-    # test_forward_instance_norm()
-    # test_forward_interpolate()
-    # test_forward_isinf()
-    # test_forward_layer_norm()
-    # test_forward_leaky_relu()
-    # test_forward_logical_op()
-    # test_forward_look_up()
-    # test_forward_lstm()
+    test_forward_add_subtract()
+    test_forward_addmm()
+    test_forward_addn()
+    test_forward_arange()
+    test_forward_argmax()
+    test_forward_argmin()
+    test_forward_argsort()
+    test_forward_assign()
+    test_forward_batch_norm()
+    test_forward_cast()
+    test_forward_clip()
+    test_forward_concat_unsqueeze()
+    test_forward_conv()
+    test_forward_crop()
+    test_forward_cumsum()
+    test_forward_dist()
+    test_forward_dot()
+    test_forward_dropout()
+    test_forward_elemwise()
+    test_forward_expand()
+    test_forward_expand_as()
+    test_forward_flatten()
+    test_forward_shape_full()
+    test_forward_ones()
+    test_forward_ones_like()
+    test_forward_gather_assign_value()
+    test_forward_gather_nd()
+    test_forward_gelu()
+    test_forward_group_norm()
+    test_forward_math()
+    test_forward_activation()
+    test_forward_index_select()
+    test_forward_instance_norm()
+    test_forward_interpolate()
+    test_forward_isinf()
+    test_forward_layer_norm()
+    test_forward_leaky_relu()
+    test_forward_logical_op()
+    test_forward_look_up()
+    test_forward_lstm()
     test_forward_gru()
-    # test_forward_birnn()
-    # test_forward_rnn()
-    # test_forward_matmul()
-    # test_forward_mm()
-    # test_forward_mv()
-    # test_forward_multiply()
-    # test_forward_nonzero()
-    # test_forward_norm()
-    # test_forward_pool2d()
-    # test_forward_pad()
-    # test_forward_pow()
-    # test_forward_rank()
-    # test_forward_reduce_op()
-    # test_forward_reshape()
-    # test_forward_scale()
-    # test_forward_slice()
-    # test_forward_sort()
-    # test_forward_split()
-    # test_forward_squeeze()
-    # test_forward_std()
-    # test_forward_subtract()
-    # test_forward_t()
-    # test_forward_topk()
-    # test_forward_tile()
-    # test_forward_conv_transpose()
-    # test_forward_unstack()
-    # test_forward_unique()
-    # test_forward_math()
-    # test_forward_zeros()
-    # test_forward_where()
-    # test_forward_while()
+    test_forward_masked_select()
+    test_forward_matmul()
+    test_forward_meshgrid
+    test_forward_mm()
+    test_forward_mv()
+    test_forward_multiply()
+    test_forward_nonzero()
+    test_forward_norm()
+    test_forward_pool2d()
+    test_forward_pad()
+    test_forward_pixel_shuffle()
+    test_forward_prelu()
+    test_forward_pow()
+    test_forward_rank()
+    test_forward_reduce_op()
+    test_forward_reshape()
+    test_forward_scale()
+    test_forward_scatter()
+    test_forward_scatter_nd()
+    test_forward_slice()
+    test_forward_sort()
+    test_forward_split()
+    test_forward_squeeze()
+    test_forward_std()
+    test_forward_subtract()
+    test_forward_t()
+    test_forward_topk()
+    test_forward_tile()
+    test_forward_conv_transpose()
+    test_forward_unstack()
+    test_forward_unique()
+    test_forward_math()
+    test_forward_zeros()
+    test_forward_where()
+    test_forward_while()
