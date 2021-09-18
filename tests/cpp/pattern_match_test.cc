@@ -142,7 +142,7 @@ TEST(Pattern, IntImm) {
 TEST(Pattern, MatchWithType) {
   using namespace tvm;
   // match expr with specified dtype
-  arith::PVarWithType<PrimExpr, arith::PConst<DataType>> pat(DataType::Float(32));
+  arith::PVarWithDataType<PrimExpr, arith::PConst<DataType>> pat(DataType::Float(32));
   tir::Var x("x", DataType::Float(32));
   tir::Var y("y", DataType::Float(32));
   tir::Var x_int("x", DataType::Int(32));
@@ -151,8 +151,8 @@ TEST(Pattern, MatchWithType) {
   ICHECK(!pat.Match(x_int + y_int * 2));
 
   // match vectorized expr with specified element dtype
-  arith::PVecType vec_ty(DataType::Float(32));
-  arith::PVarWithType<PrimExpr, arith::PVecType> vpat(vec_ty);
+  arith::PVecDataType vec_ty(DataType::Float(32));
+  arith::PVarWithDataType<PrimExpr, arith::PVecDataType> vpat(vec_ty);
   tir::Var vx = tir::Var("x", DataType::Float(32, 8));
   tir::Var vy("y", DataType::Float(32, 8));
   tir::Var vx_int("x", DataType::Int(32, 8));

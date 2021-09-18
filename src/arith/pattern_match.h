@@ -253,9 +253,9 @@ class PVarWithCheck : public arith::Pattern<PVarWithCheck<Derived, T>> {
  */
 template <typename T, typename DType,
           typename = std::enable_if<std::is_base_of<T, PrimExpr>::value>>
-class PVarWithType : public PVarWithCheck<PVarWithType<T, DType>, T> {
+class PVarWithDataType : public PVarWithCheck<PVarWithDataType<T, DType>, T> {
  public:
-  explicit PVarWithType(const DType& dtype) : dtype_(dtype) {}
+  explicit PVarWithDataType(const DType& dtype) : dtype_(dtype) {}
 
   bool Match_(const T& value) const { return dtype_.Match_(value->dtype); }
 
@@ -266,10 +266,10 @@ class PVarWithType : public PVarWithCheck<PVarWithType<T, DType>, T> {
 /*!
  * \brief Pattern variable container for data type with lanes.
  */
-class PVecType : public PVarWithCheck<PVecType, DataType> {
+class PVecDataType : public PVarWithCheck<PVecDataType, DataType> {
  public:
   /*! \brief construct vector dtype placeholder with element type check */
-  explicit PVecType(const DataType& elem_dtype) : elem_dtype_(elem_dtype) {}
+  explicit PVecDataType(const DataType& elem_dtype) : elem_dtype_(elem_dtype) {}
 
   bool Match_(const DataType& dtype) const { return dtype.code() == elem_dtype_.code(); }
 
