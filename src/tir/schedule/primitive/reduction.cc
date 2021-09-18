@@ -1262,7 +1262,8 @@ struct DecomposeReductionTraits : public UnpackedInstTraits<DecomposeReductionTr
     return py.Str();
   }
 
-  friend struct UnpackedInstTraits;
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
 struct RFactorTraits : public UnpackedInstTraits<RFactorTraits> {
