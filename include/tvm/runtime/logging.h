@@ -434,7 +434,7 @@ inline bool DebugLoggingEnabled() {
 
 /*!
  * \brief Returns true if a VLOG statement in \p filename is enabled by the \p TVM_LOG_DEBUG
- * environment variable for logging at verbosity \p level.
+ * environment variable for logging at verbosity \p level. Levels should be non-negative.
  *
  * Filenames are canonicalized to be w.r.t. the src/ dir of the TVM tree. (VLOG's should not
  * appear under include/).
