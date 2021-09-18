@@ -2148,7 +2148,7 @@ if __name__ == "__main__":
     test_forward_gru()
     test_forward_masked_select()
     test_forward_matmul()
-    test_forward_meshgrid
+    test_forward_meshgrid()
     test_forward_mm()
     test_forward_mv()
     test_forward_multiply()
