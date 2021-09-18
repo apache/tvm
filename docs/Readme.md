@@ -1,4 +1,19 @@
 ### How to generate Chinese-Docs
+0. prepare the env, only give a kind of way.
+
+* prepare the container
+
+```bash
+# install docker first.
+docker pull tlcpack/ci-gpu:v0.77
+
+# then configure LLVM, CUDA and TVM environments as usual, use /home/syfeng/tvm-upstream/tests/scripts/task_config_build_gpu.sh to create config.cmake
+```
+
+* in a new tvm fold to compile the tvm again, use `/home/syfeng/tvm-upstream/tests/scripts/task_config_build_gpu.sh` to `create config.cmake` and start your work
+
+* Consider using proxy to enhance your network environment, which may help a lot.
+
 1. create gettext fold, where store the `*.pot` and `*.po` files.
 
 ```bash
@@ -33,7 +48,7 @@ cd docs/
 
 ```bash
 cd docs/
-../tests/scripts/task_python_generate_documents.sh true false false zh_CN   # update your gettext(*.pot)
+../tests/scripts/task_python_generate_documents.sh false false true zh_CN   # update your gettext(*.pot)
 
 ./tx_transifex.sh update                                                    # update transifex-config
 ```
