@@ -1,0 +1,111 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 05:25+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/install/docker.rst:21
+msgid "Docker Images"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:22
+msgid ""
+"We provide docker utility scripts to help developers to setup development "
+"environment. They are also helpful run through TVM demo and tutorials. We "
+"need `docker <https://docs.docker.com/engine/installation/>`_ and `nvidia-"
+"docker <https://github.com/NVIDIA/nvidia-docker/>`_ if we want to use cuda."
+msgstr ""
+
+#: ../../_staging/install/docker.rst:27
+msgid ""
+"Get a tvm source distribution or clone the github repo to get the auxiliary "
+"scripts"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:34
+msgid "We can then use the following command to launch a docker image."
+msgstr ""
+
+#: ../../_staging/install/docker.rst:40
+msgid ""
+"Here the image-name can be a local docker image name, e.g. `tvm.ci_cpu` "
+"after you have done the local build."
+msgstr ""
+
+#: ../../_staging/install/docker.rst:42
+msgid "This auxiliary script does the following things:"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:44
+msgid "Mount current directory to /workspace"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:45
+msgid ""
+"Switch user to be the same user that calls the bash.sh (so you can "
+"read/write host system)"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:46
+msgid ""
+"Use the host-side network on Linux. Use the bridge network and expose port "
+"8888 on macOS, because host networking driver isn't supported. (so you can "
+"use jupyter notebook)"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:50
+msgid "Then you can start a jupyter notebook by typing"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:56
+msgid ""
+"You might see an error ``OSError: [Errno 99] Cannot assign requested "
+"address`` when starting a jupyter notebook on macOS. You can change the "
+"binding IP address by"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:63
+msgid ""
+"Note that on macOS, because we use bridge network, jupyter notebook will be "
+"reportedly running at an URL like "
+"``http://{container_hostname}:8888/?token=...``. You should replace the "
+"``container_hostname`` with ``localhost`` when pasting it into browser."
+msgstr ""
+
+#: ../../_staging/install/docker.rst:69
+msgid "Docker Source"
+msgstr ""
+
+#: ../../_staging/install/docker.rst:70
+msgid ""
+"Check out `The docker source "
+"<https://github.com/apache/tvm/tree/main/docker>`_ if you are interested in "
+"building your own docker images."
+msgstr ""
+
+#: ../../_staging/install/docker.rst:74
+msgid "Run the following command to build the docker image."
+msgstr ""
+
+#: ../../_staging/install/docker.rst:81
+msgid ""
+"You can find some un-official thirdparty prebuilt images. These images are "
+"used for test purposes and are NOT of the ASF release."
+msgstr ""
+
+#: ../../_staging/install/docker.rst:85
+msgid "`<https://hub.docker.com/r/tlcpack/>`_."
+msgstr ""

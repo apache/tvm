@@ -241,3 +241,6 @@ conda/pkg
 .tvm_test_data
 .dgl
 .caffe2
+
+# Document internationalization
+*.mo

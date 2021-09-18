@@ -1,3 +1,5 @@
 doxygen
 modules
 tutorials
+_build
+_staging

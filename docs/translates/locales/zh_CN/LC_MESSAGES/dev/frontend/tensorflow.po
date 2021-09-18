@@ -1,0 +1,710 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 05:25+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/dev/frontend/tensorflow.rst:19
+msgid "TensorFlow Frontend"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:21
+msgid "The TensorFlow frontend helps in importing TensorFlow models into TVM."
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:23
+msgid "Supported versions:"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:25
+msgid "1.12 and below"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:27
+msgid "Tested models:"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:29
+msgid "Inception (V1/V2/V3/V4)"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:30
+msgid "Resnet (All)"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:31
+msgid "Mobilenet (V1/V2 All)"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:32
+msgid "Vgg (16/19)"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:33
+msgid "BERT (Base/3-layer)"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:36
+msgid "Preparing a Model for Inference"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:39
+msgid "Remove Unneeded Nodes"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:41
+msgid ""
+"The export process will remove many nodes that are not needed for inference,"
+" but unfortunately will leave some remaining. The nodes that should be "
+"manually removed are:"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:43
+msgid "Dropout, including `Dropout`_ and `DropoutWrapper`_"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:44
+msgid "`Assert`_"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:51
+msgid "Convert None Dimensions to Constants"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:53
+msgid ""
+"TVM has minimal support for dynamic tensor shapes. Dimensions that are "
+"``None`` should be replaced with constants. For example, a model may accept "
+"an input with shape ``(None,20)``. This should be converted to a shape like "
+"``(1,20)``. The model should be modified accordingly to ensure that these "
+"shapes match throughout the graph."
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:56
+msgid "Export"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:58
+msgid ""
+"TensorFlow frontend expects a frozen protobuf (.pb) or saved model as input."
+" It currently does not support checkpoint (.ckpt). The graphdef needed by "
+"the TensorFlow frontend can be extracted from the active session, or by "
+"using the `TFParser`_ helper class."
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:62
+msgid ""
+"The model should be exported with a number of transformations to prepare the"
+" model for inference. It is also important to set ```add_shapes=True```, as "
+"this will embed the output shapes of each node into the graph. Here is one "
+"function to export a model as a protobuf given a session:"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:96
+msgid ""
+"Another method is to `export and freeze the graph "
+"<https://github.com/tensorflow/models/tree/master/research/slim#exporting-"
+"the-inference-graph>`_."
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:99
+msgid "Import the Model"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:102
+msgid "Explicit Shape:"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:104
+msgid ""
+"To ensure shapes can be known throughout the entire graph, pass the "
+"```shape``` argument to ```from_tensorflow```. This dictionary maps input "
+"names to input shapes. Please refer to these `test cases "
+"<https://github.com/apache/tvm/blob/main/tests/python/frontend/tensorflow/test_forward.py#L36>`_"
+" for examples."
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:107
+msgid "Data Layout"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:109
+msgid ""
+"Most TensorFlow models are released with NHWC layout. NCHW layout often "
+"provides better performance, especially on GPU. The TensorFlow frontend can "
+"automatically convert the model's data layout by passing the argument "
+"```layout='NCHW'``` to ```from_tensorflow```."
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:112
+msgid "Best Practices"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:114
+msgid ""
+"Use static tensor shapes instead of dynamic shapes (remove ```None``` "
+"dimensions)."
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:115
+msgid ""
+"Use static RNN instead of dynamic RNN, as ```TensorArray``` isn't supported "
+"yet."
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:118
+msgid "Supported Ops"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:120
+msgid "Abs"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:121
+msgid "Add"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:122
+msgid "AddN"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:123
+msgid "All"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:124
+msgid "Any"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:125
+msgid "ArgMax"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:126
+msgid "ArgMin"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:127
+msgid "AvgPool"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:128
+msgid "BatchMatMul"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:129
+msgid "BatchMatMulV2"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:130
+msgid "BatchNormWithGlobalNormalization"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:131
+msgid "BatchToSpaceND"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:132
+msgid "BiasAdd"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:133
+msgid "BroadcastTo"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:134
+msgid "Cast"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:135
+msgid "Ceil"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:136
+msgid "CheckNumerics"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:137
+msgid "ClipByValue"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:138
+msgid "Concat"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:139
+msgid "ConcatV2"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:140
+msgid "Conv2D"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:141
+msgid "Cos"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:142
+msgid "Tan"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:143
+msgid "CropAndResize"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:144
+msgid "DecodeJpeg"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:145
+msgid "DepthwiseConv2dNative"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:146
+msgid "DepthToSpace"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:147
+msgid "Dilation2D"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:148
+msgid "Equal"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:149
+msgid "Elu"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:150
+msgid "Enter"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:151
+msgid "Erf"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:152
+msgid "Exit"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:153
+msgid "Exp"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:154
+msgid "ExpandDims"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:155
+msgid "Fill"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:156
+msgid "Floor"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:157
+msgid "FloorDiv"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:158
+msgid "FloorMod"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:159
+msgid "FusedBatchNorm"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:160
+msgid "FusedBatchNormV2"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:161
+msgid "Gather"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:162
+msgid "GatherNd"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:163
+msgid "GatherV2"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:164
+msgid "Greater"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:165
+msgid "GreaterEqual"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:166
+msgid "Identity"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:167
+msgid "IsFinite"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:168
+msgid "IsInf"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:169
+msgid "IsNan"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:170
+msgid "LeakyRelu"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:171
+msgid "LeftShift"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:172
+msgid "Less"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:173
+msgid "LessEqual"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:174
+msgid "Log"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:175
+msgid "Log1p"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:176
+msgid "LoopCond"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:177
+msgid "LogicalAnd"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:178
+msgid "LogicalOr"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:179
+msgid "LogicalNot"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:180
+msgid "LogSoftmax"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:181
+msgid "LRN"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:182
+msgid "LSTMBlockCell"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:183
+msgid "MatMul"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:184
+msgid "Max"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:185
+msgid "MaxPool"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:186
+msgid "Maximum"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:187
+msgid "Mean"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:188
+msgid "Merge"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:189
+msgid "Min"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:190
+msgid "Minimum"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:191
+msgid "MirrorPad"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:192
+msgid "Mod"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:193
+msgid "Mul"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:194
+msgid "Neg"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:195
+msgid "NextIteration"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:196
+msgid "NotEqual"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:197
+msgid "OneHot"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:198
+msgid "Pack"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:199
+msgid "Pad"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:200
+msgid "PadV2"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:201
+msgid "Pow"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:202
+msgid "Prod"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:203
+msgid "Range"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:204
+msgid "Rank"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:205
+msgid "RealDiv"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:206
+msgid "Relu"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:207
+msgid "Relu6"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:208
+msgid "Reshape"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:209
+msgid "ResizeBilinear"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:210
+msgid "ResizeBicubic"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:211
+msgid "ResizeNearestNeighbor"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:212
+msgid "ReverseV2"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:213
+msgid "RightShift"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:214
+msgid "Round"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:215
+msgid "Rsqrt"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:216
+msgid "Select"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:217
+msgid "Selu"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:218
+msgid "Shape"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:219
+msgid "Sigmoid"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:220
+msgid "Sign"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:221
+msgid "Sin"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:222
+msgid "Size"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:223
+msgid "Slice"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:224
+msgid "Softmax"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:225
+msgid "Softplus"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:226
+msgid "SpaceToBatchND"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:227
+msgid "SpaceToDepth,"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:228
+msgid "Split"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:229
+msgid "SplitV"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:230
+msgid "Sqrt"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:231
+msgid "Square"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:232
+msgid "SquareDifference"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:233
+msgid "Squeeze"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:234
+msgid "StridedSlice"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:235
+msgid "Sub"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:236
+msgid "Sum"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:237
+msgid "Switch"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:238
+msgid "Tanh"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:239
+msgid "TensorArrayV3"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:240
+msgid "TensorArrayScatterV3"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:241
+msgid "TensorArrayGatherV3"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:242
+msgid "TensorArraySizeV3"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:243
+msgid "TensorArrayWriteV3"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:244
+msgid "TensorArrayReadV3"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:245
+msgid "TensorArraySplitV3"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:246
+msgid "TensorArrayConcatV3"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:247
+msgid "Tile"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:248
+msgid "TopKV2"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:249
+msgid "Transpose"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:250
+msgid "TruncateMod"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:251
+msgid "Unpack"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:252
+msgid "UnravelIndex"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:253
+msgid "Where"
+msgstr ""
+
+#: ../../_staging/dev/frontend/tensorflow.rst:254
+msgid "ZerosLike"
+msgstr ""
