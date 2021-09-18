@@ -1268,11 +1268,9 @@ class Schedule(Object):
                     for j in tir.serial(128):
                         with tir.block([128, 128]) as [vi, vj]:
                             C[vi, vj] = 0.0
-                for i in tir.serial(128):
-                    for j in tir.serial(128):
-                        for k in tir.serial(128):
-                            with tir.block([128, 128, tir.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
-                                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+                for i, j, k in tir.grid(128, 128, 128):
+                    with tir.block([128, 128, tir.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
+                        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
         """
         _ffi_api.ScheduleDecomposeReduction(self, block, loop)  # type: ignore # pylint: disable=no-member
 
