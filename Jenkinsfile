@@ -45,13 +45,13 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:v0.67'
-ci_gpu = 'tlcpack/ci-gpu:v0.77'
-ci_cpu = 'tlcpack/ci-cpu:v0.77'
-ci_wasm = 'tlcpack/ci-wasm:v0.71'
-ci_i386 = 'tlcpack/ci-i386:v0.73'
-ci_qemu = 'tlcpack/ci-qemu:v0.08'
-ci_arm = 'tlcpack/ci-arm:v0.06'
+ci_lint = "tlcpack/ci-lint:v0.67"
+ci_gpu = "tlcpack/ci-gpu:v0.77"
+ci_cpu = "tlcpack/ci-cpu:v0.77"
+ci_wasm = "tlcpack/ci-wasm:v0.71"
+ci_i386 = "tlcpack/ci-i386:v0.73"
+ci_qemu = "tlcpack/ci-qemu:v0.08"
+ci_arm = "tlcpack/ci-arm:v0.06"
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -59,25 +59,25 @@ ci_arm = 'tlcpack/ci-arm:v0.06'
 // over default values above.
 properties([
   parameters([
-    string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_cpu_param',  defaultValue: ''),
-    string(name: 'ci_gpu_param',  defaultValue: ''),
-    string(name: 'ci_wasm_param', defaultValue: ''),
-    string(name: 'ci_i386_param', defaultValue: ''),
-    string(name: 'ci_qemu_param', defaultValue: ''),
-    string(name: 'ci_arm_param',  defaultValue: '')
+    string(name: 'ci_lint_param', defaultValue: ""),
+    string(name: 'ci_cpu_param',  defaultValue: ""),
+    string(name: 'ci_gpu_param',  defaultValue: ""),
+    string(name: 'ci_wasm_param', defaultValue: ""),
+    string(name: 'ci_i386_param', defaultValue: ""),
+    string(name: 'ci_qemu_param', defaultValue: ""),
+    string(name: 'ci_arm_param',  defaultValue: "")
   ])
 ])
 
 // tvm libraries
-tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'
-tvm_lib = 'build/libtvm.so, ' + tvm_runtime
+tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
+tvm_lib = "build/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
-tvm_multilib = 'build/libtvm.so, ' +
-               'build/libvta_fsim.so, ' +
+tvm_multilib = "build/libtvm.so, " +
+               "build/libvta_fsim.so, " +
                tvm_runtime
 
-tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
+tvm_multilib_tsim = "build/libvta_tsim.so, " +
                tvm_multilib
 
 // command to start a docker container
@@ -114,7 +114,7 @@ def init_git_win() {
 
 def cancel_previous_build() {
   // cancel previous build if it is not on main.
-  if (env.BRANCH_NAME != 'main') {
+  if (env.BRANCH_NAME != "main") {
     def buildNumber = env.BUILD_NUMBER as int
     // Milestone API allows us to cancel previous build
     // with the same milestone number
@@ -154,7 +154,7 @@ stage('Sanity Check') {
     node('CPU') {
       ws(per_exec_ws('tvm/sanity')) {
         init_git()
-        docs = sh (returnStatus: true, script: '''
+        is_docs_only_build = sh (returnStatus: true, script: '''
         ./tests/scripts/git_check_tree.sh
         '''
         )
@@ -219,7 +219,7 @@ stage('Build') {
       }
   },
   'BUILD: CPU': {
-    if (docs == 1) {
+    if (is_docs_only_build == 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
@@ -244,7 +244,7 @@ stage('Build') {
     }
   },
   'BUILD: WASM': {
-    if (docs == 1) {
+    if (is_docs_only_build == 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-wasm')) {
           init_git()
@@ -261,7 +261,7 @@ stage('Build') {
     }
   },
   'BUILD : i386': {
-    if ( docs == 1) {
+    if ( is_docs_only_build == 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-i386')) {
           init_git()
@@ -275,7 +275,7 @@ stage('Build') {
     }
   },
   'BUILD : arm': {
-    if (docs == 1) {
+    if (is_docs_only_build == 1) {
       node('ARM') {
         ws(per_exec_ws('tvm/build-arm')) {
           init_git()
@@ -289,7 +289,7 @@ stage('Build') {
     }
   },
   'BUILD: QEMU': {
-    if (docs == 1) {
+    if (is_docs_only_build == 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-qemu')) {
           init_git()
@@ -310,7 +310,7 @@ stage('Build') {
 
 stage('Unit Test') {
     parallel 'python3: GPU': {
-      if (docs == 1) {
+      if (is_docs_only_build == 1) {
         node('TensorCore') {
           ws(per_exec_ws('tvm/ut-python-gpu')) {
             init_git()
@@ -329,7 +329,7 @@ stage('Unit Test') {
       }
     },
     'python3: i386': {
-      if (docs == 1) {
+      if (is_docs_only_build == 1) {
         node('CPU') {
           ws(per_exec_ws('tvm/ut-python-i386')) {
             init_git()
@@ -348,7 +348,7 @@ stage('Unit Test') {
       }
     },
     'python3: arm': {
-      if (docs == 1) {
+      if (is_docs_only_build == 1) {
         node('ARM') {
           ws(per_exec_ws('tvm/ut-python-arm')) {
             init_git()
@@ -367,7 +367,7 @@ stage('Unit Test') {
       }
     },
     'java: GPU': {
-      if ( docs == 1 ) {
+      if (is_docs_only_build == 1 ) {
         node('GPU') {
           ws(per_exec_ws('tvm/ut-java')) {
             init_git()
@@ -386,7 +386,7 @@ stage('Unit Test') {
 
 stage('Integration Test') {
   parallel 'topi: GPU': {
-  if (docs == 1) {
+  if (is_docs_only_build == 1) {
     node('GPU') {
       ws(per_exec_ws('tvm/topi-python-gpu')) {
         init_git()
@@ -403,7 +403,7 @@ stage('Integration Test') {
   }
   },
   'frontend: GPU': {
-    if (docs == 1) {
+    if (is_docs_only_build == 1) {
       node('GPU') {
         ws(per_exec_ws('tvm/frontend-python-gpu')) {
           init_git()
@@ -420,7 +420,7 @@ stage('Integration Test') {
     }
   },
   'frontend: CPU': {
-    if (docs == 1) {
+    if (is_docs_only_build == 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/frontend-python-cpu')) {
           init_git()
