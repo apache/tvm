@@ -1623,31 +1623,45 @@ def convert_reshape(g, op, block):
 def convert_rnn(g, op, block):
     """Operator converter for rnn."""
 
-    def generate_lstm(X_steps, H_t, C_t, W, R, WB, RB, f_act, g_act, h_act, backwards=False):
+    def generate_lstm(
+        input_seqs,
+        hidden_state,
+        cell_state,
+        w_inp,
+        w_hid,
+        b_inp,
+        b_hid,
+        f_act,
+        g_act,
+        h_act,
+        backwards=False,
+    ):
+        """Implementation of LSTM cell for paddlepaddle of TVM"""
+
         h_list = []
-        seq_length = len(X_steps)
+        seq_length = len(input_seqs)
         for i in range(seq_length):
-            step = X_steps[i] if not backwards else X_steps[seq_length - (i + 1)]
+            step = input_seqs[i] if not backwards else input_seqs[seq_length - (i + 1)]
             step = _op.squeeze(step, axis=[0])
-            gates = _op.nn.dense(step, W) + _op.nn.dense(H_t, R)
-            if WB is not None:
-                gates += WB
-            if RB is not None:
-                gates += RB
+            gates = _op.nn.dense(step, w_inp) + _op.nn.dense(hidden_state, w_hid)
+            if b_inp is not None:
+                gates += b_inp
+            if b_hid is not None:
+                gates += b_hid
             i, f, c, o = _op.split(gates, 4, axis=-1)
 
             i = f_act(i)
             f = f_act(f)
 
             c = g_act(c)
-            C = f * C_t + i * c
+            C = f * cell_state + i * c
 
             o = f_act(o)
 
             H = o * h_act(C)
 
-            H_t = H
-            C_t = C
+            hidden_state = H
+            cell_state = C
             h_list.append(_op.expand_dims(H, axis=0))
 
         if backwards:
@@ -1656,12 +1670,50 @@ def convert_rnn(g, op, block):
         # Concatenate outputs and add back in direction axis.
         concatenated = _op.concatenate(h_list, 0)
         output = _op.expand_dims(concatenated, axis=1)
-        H_t = _op.expand_dims(H_t, axis=0)
-        C_t = _op.expand_dims(C_t, axis=0)
+        hidden_state = _op.expand_dims(hidden_state, axis=0)
+        cell_state = _op.expand_dims(cell_state, axis=0)
 
-        return output, H_t, C_t
+        return output, hidden_state, cell_state
+
+    def generate_gru(
+        input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, rz_act, n_act, backwards=False
+    ):
+        """Implementation of GRU cell for paddlepaddle of TVM"""
+
+        h_list = []
+        seq_length = len(input_seqs)
+        for i in range(seq_length):
+            step = input_seqs[i] if not backwards else input_seqs[seq_length - (i + 1)]
+            step = _op.squeeze(step, axis=[0])
+            xwt = _op.nn.dense(step, w_inp)
+            hwt = _op.nn.dense(hidden_state, w_hid)
+            if b_inp is not None:
+                xwt += b_inp
+            if b_hid is not None:
+                hwt += b_hid
+            i_r, i_z, i_n = _op.split(xwt, 3, axis=-1)
+            h_r, h_z, h_n = _op.split(hwt, 3, axis=-1)
+
+            r_gate = rz_act(i_r + h_r)
+            z_gate = rz_act(i_z + h_z)
+            n_gate = n_act(i_n + r_gate * h_n)
+
+            hidden_state = (hidden_state - n_gate) * z_gate + n_gate
+            h_list.append(_op.expand_dims(hidden_state, axis=0))
+
+        if backwards:
+            h_list = h_list[::-1]
+
+        # Concatenate outputs and add back in direction axis.
+        concatenated = _op.concatenate(h_list, 0)
+        output = _op.expand_dims(concatenated, axis=1)
+        hidden_state = _op.expand_dims(hidden_state, axis=0)
+
+        return output, hidden_state
 
     def make_param_inputs(g, node, layer, hidden_size, num_layers):
+        """Param for weight and bias."""
+
         bidirect_len = 4 if node.attr("is_bidirec") else 2
         all_layer_param_len = len(node.input("WeightList"))
         weight_list = node.input("WeightList")[: all_layer_param_len // 2]
@@ -1681,25 +1733,40 @@ def convert_rnn(g, op, block):
         return input_weights, hidden_weights, input_bias, hidden_bias
 
     def make_init_param_inputs(g, node, layer):
-        all_init_h, all_init_c = node.input("PreState")
-        bidirect_len = 2 if node.attr("is_bidirec") else 1
-        init_h = _op.strided_slice(
-            g.get_node(all_init_h),
-            [layer * bidirect_len],
-            [layer * bidirect_len + bidirect_len],
-            axes=[0],
-        )
-        init_c = _op.strided_slice(
-            g.get_node(all_init_c),
-            [layer * bidirect_len],
-            [layer * bidirect_len + bidirect_len],
-            axes=[0],
-        )
-        return init_h, init_c
+        """Init param for inputs."""
+
+        mode = node.attr("mode")
+        if mode == "LSTM":
+            all_init_h, all_init_c = node.input("PreState")
+            bidirect_len = 2 if node.attr("is_bidirec") else 1
+            init_h = _op.strided_slice(
+                g.get_node(all_init_h),
+                [layer * bidirect_len],
+                [layer * bidirect_len + bidirect_len],
+                axes=[0],
+            )
+            init_c = _op.strided_slice(
+                g.get_node(all_init_c),
+                [layer * bidirect_len],
+                [layer * bidirect_len + bidirect_len],
+                axes=[0],
+            )
+            return init_h, init_c
+        else:
+            all_init_h = node.input("PreState")[0]
+            bidirect_len = 2 if node.attr("is_bidirec") else 1
+            init_h = _op.strided_slice(
+                g.get_node(all_init_h),
+                [layer * bidirect_len],
+                [layer * bidirect_len + bidirect_len],
+                axes=[0],
+            )
+            return init_h
 
     hidden_size = op.attr("hidden_size")
     num_layers = op.attr("num_layers")
     is_bidirec = op.attr("is_bidirec")
+    mode = op.attr("mode")
 
     input_x = g.get_node(op.input("Input")[0])
 
@@ -1714,39 +1781,65 @@ def convert_rnn(g, op, block):
         input_weights, hidden_weights, input_bias, hidden_bias = make_param_inputs(
             g, op, layer, hidden_size, num_layers
         )
-
-        init_h, init_c = make_init_param_inputs(g, op, layer)
-        init_hs = _op.split(init_h, num_directions)
-        init_cs = _op.split(init_c, num_directions)
-        result_output = []
-        result_H = []
-        result_C = []
-        for i in range(num_directions):
-            H_t = _op.squeeze(init_hs[i], axis=[0])
-            C_t = _op.squeeze(init_cs[i], axis=[0])
-            W = g.get_node(input_weights[i])
-            R = g.get_node(hidden_weights[i])
-            WB = g.get_node(input_bias[i])
-            RB = g.get_node(hidden_bias[i])
-            output, H, C = generate_lstm(
-                X_steps=x_steps,
-                H_t=H_t,
-                C_t=C_t,
-                W=W,
-                R=R,
-                WB=WB,
-                RB=RB,
-                f_act=_op.sigmoid,
-                g_act=_op.tanh,
-                h_act=_op.tanh,
-                backwards=i == 1,
-            )
-            result_output.append(output)
-            result_H.append(H)
-            result_C.append(C)
-        output = _op.concatenate(result_output, axis=1)
-        H = _op.concatenate(result_H, axis=0)
-        C = _op.concatenate(result_C, axis=0)
+        if mode == "LSTM":
+            init_h, init_c = make_init_param_inputs(g, op, layer)
+            init_hs = _op.split(init_h, num_directions)
+            init_cs = _op.split(init_c, num_directions)
+            result_output = []
+            result_H = []
+            result_C = []
+            for i in range(num_directions):
+                H_t = _op.squeeze(init_hs[i], axis=[0])
+                C_t = _op.squeeze(init_cs[i], axis=[0])
+                W = g.get_node(input_weights[i])
+                R = g.get_node(hidden_weights[i])
+                WB = g.get_node(input_bias[i])
+                RB = g.get_node(hidden_bias[i])
+                output, H, C = generate_lstm(
+                    input_seqs=x_steps,
+                    hidden_state=H_t,
+                    cell_state=C_t,
+                    w_inp=W,
+                    w_hid=R,
+                    b_inp=WB,
+                    b_hid=RB,
+                    f_act=_op.sigmoid,
+                    g_act=_op.tanh,
+                    h_act=_op.tanh,
+                    backwards=i == 1,
+                )
+                result_output.append(output)
+                result_H.append(H)
+                result_C.append(C)
+            output = _op.concatenate(result_output, axis=1)
+            H = _op.concatenate(result_H, axis=0)
+            C = _op.concatenate(result_C, axis=0)
+        elif mode == "GRU":
+            init_h = make_init_param_inputs(g, op, layer)
+            init_hs = _op.split(init_h, num_directions)
+            result_output = []
+            result_H = []
+            for i in range(num_directions):
+                H_t = _op.squeeze(init_hs[i], axis=[0])
+                W = g.get_node(input_weights[i])
+                R = g.get_node(hidden_weights[i])
+                WB = g.get_node(input_bias[i])
+                RB = g.get_node(hidden_bias[i])
+                output, H = generate_gru(
+                    input_seqs=x_steps,
+                    hidden_state=H_t,
+                    w_inp=W,
+                    w_hid=R,
+                    b_inp=WB,
+                    b_hid=RB,
+                    rz_act=_op.sigmoid,
+                    n_act=_op.tanh,
+                    backwards=i == 1,
+                )
+                result_output.append(output)
+                result_H.append(H)
+            output = _op.concatenate(result_output, axis=1)
+            H = _op.concatenate(result_H, axis=0)
 
         output = _op.transpose(output, axes=[0, 2, 1, 3])
         output = _op.reshape(output, newshape=(0, 0, -1))

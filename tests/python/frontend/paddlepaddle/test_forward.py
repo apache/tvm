@@ -1128,8 +1128,6 @@ def test_forward_look_up():
 
 @tvm.testing.uses_gpu
 def test_forward_lstm():
-    lstm_input_shape = [25, 1, 288]
-
     class LSTM1(nn.Layer):
         def __init__(self):
             super(LSTM1, self).__init__()
@@ -1140,10 +1138,58 @@ def test_forward_lstm():
             y, (h, c) = self.lstm(inputs, (prev_h, prev_c))
             return y
 
+    class LSTM2(nn.Layer):
+        def __init__(self):
+            super(LSTM2, self).__init__()
+            self.lstm = nn.LSTMCell(16, 32)
+
+        @paddle.jit.to_static
+        def forward(self, inputs, prev_h, prev_c):
+            y, (h, c) = self.lstm(inputs, (prev_h, prev_c))
+            return y
+
+    lstm_input_shape = [25, 1, 288]
     lstm_input_data = paddle.rand(lstm_input_shape, dtype="float32")
     prev_h = paddle.rand([4, 1, 48], dtype="float32")
     prev_c = paddle.rand([4, 1, 48], dtype="float32")
     verify_model(LSTM1(), input_data=[lstm_input_data, prev_h, prev_c])
+    lstm_input_shape = [4, 16]
+    lstm_input_data = paddle.rand(lstm_input_shape, dtype="float32")
+    prev_h = paddle.rand([4, 32], dtype="float32")
+    prev_c = paddle.rand([4, 32], dtype="float32")
+    verify_model(LSTM2(), input_data=[lstm_input_data, prev_h, prev_c])
+
+
+@tvm.testing.uses_gpu
+def test_forward_gru():
+    class GRU1(nn.Layer):
+        def __init__(self):
+            super(GRU1, self).__init__()
+            self.gru = nn.GRU(288, 48, 2, direction="bidirect", time_major=True)
+
+        @paddle.jit.to_static
+        def forward(self, inputs, prev_h):
+            y, h = self.gru(inputs, prev_h)
+            return y
+
+    class GRU2(nn.Layer):
+        def __init__(self):
+            super(GRU2, self).__init__()
+            self.gru = nn.GRUCell(16, 32)
+
+        @paddle.jit.to_static
+        def forward(self, inputs, prev_h):
+            y, h = self.gru(inputs, prev_h)
+            return y
+
+    gru_input_shape = [25, 1, 288]
+    gru_input_data = paddle.rand(gru_input_shape, dtype="float32")
+    prev_h = paddle.rand([4, 1, 48], dtype="float32")
+    verify_model(GRU1(), input_data=[gru_input_data, prev_h])
+    gru_input_shape = [4, 16]
+    gru_input_data = paddle.rand(gru_input_shape, dtype="float32")
+    prev_h = paddle.rand([4, 32], dtype="float32")
+    verify_model(GRU2(), input_data=[gru_input_data, prev_h])
 
 
 @tvm.testing.uses_gpu
@@ -2099,9 +2145,10 @@ if __name__ == "__main__":
     test_forward_logical_op()
     test_forward_look_up()
     test_forward_lstm()
+    test_forward_gru()
     test_forward_masked_select()
     test_forward_matmul()
-    test_forward_meshgrid
+    test_forward_meshgrid()
     test_forward_mm()
     test_forward_mv()
     test_forward_multiply()
