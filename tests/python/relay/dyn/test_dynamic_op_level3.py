@@ -94,7 +94,9 @@ def test_dyn_shape_reshape():
 
 @tvm.testing.uses_gpu
 def test_dyn_expand_dims():
-    def verify_expand_dims(dshape, dtype, oshape, axis, num_newaxis):
+    def verify_expand_dims(
+        dshape, dtype, oshape, axis, num_newaxis, target_device=tvm.testing.enabled_targets()
+    ):
         # Use 1 to avoid issues with invalid buffer sizes
         x = relay.Var("x", relay.TensorType(dshape, dtype))
         y = relay.var("axis", shape=[], dtype="int64")
@@ -104,16 +106,23 @@ def test_dyn_expand_dims():
         data_np = np.random.uniform(size=dshape).astype(dtype)
         axis_np = np.array(axis).astype("int64")
         ref_res = data_np.reshape(oshape)
-        verify_func(func, [data_np, axis_np], ref_res)
+        verify_func(func, [data_np, axis_np], ref_res, target_device=target_device)
 
     for dtype in ["float16", "float32"]:
         verify_expand_dims((2, 2), dtype, (2, 2, 1), 2, 1)
         verify_expand_dims((2, 2), dtype, (2, 1, 2), 1, 1)
         verify_expand_dims((2, 2), dtype, (1, 2, 2), 0, 1)
 
-        # TODO: investigate why runtimes in openCL are extremely slow
+        # TODO: investigate why runtimes in non-llvm are extremely slow
         # for multiple new axis
-        verify_expand_dims((2, 2), dtype, (2, 1, 1, 2), 1, 2)
+        verify_expand_dims(
+            (2, 2),
+            dtype,
+            (2, 1, 1, 2),
+            1,
+            2,
+            target_device=[x for x in tvm.testing.enabled_targets() if "llvm" in x],
+        )
 
 
 @tvm.testing.uses_gpu
