@@ -16,4 +16,3 @@
 # under the License.
 """Backend codegen modules for relay."""
 from . import compile_engine
-from .contrib import cmsisnn

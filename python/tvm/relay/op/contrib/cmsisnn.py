@@ -80,5 +80,5 @@ def pattern_table():
         )
 
     return [
-        ("cmsisnn.qnn_softmax", softmax_pattern(), check_quantized_softmax),
+        ("cmsisnn.quantized_softmax", softmax_pattern(), check_quantized_softmax),
     ]
