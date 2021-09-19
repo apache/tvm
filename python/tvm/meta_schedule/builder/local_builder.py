@@ -146,7 +146,7 @@ class LocalBuilder(PyBuilder):
                     )
                 )
             else:
-                raise NotImplementedError(map_result.status)
+                raise ValueError("Unreachable: unexpected result: {map_result}")
         return results
 
     def _sanity_check(self) -> None:
