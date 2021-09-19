@@ -37,21 +37,9 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    gru_cell,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    lstm_cell,
-    new_var,
-    unbind,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     gru_cell, infer_channels, infer_shape, infer_type,
+                     infer_value, lstm_cell, new_var, unbind)
 
 __all__ = ["from_onnx"]
 
@@ -1452,18 +1440,49 @@ class Cast(OnnxOpConverter):
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
 
-class Unsqueeze(OnnxOpConverter):
-    """Operator converter for Unsqueeze."""
+class Squeeze(OnnxOpConverter):
+    @classmethod
+    def run_calculation(cls, tensor, axes):
+        return _op.squeeze(tensor, axis=axes)
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axes = sorted(attr["axes"])
-        for axis in axes:
-            inputs[0] = _op.expand_dims(inputs[0], axis=axis, num_newaxis=1)
-        return inputs[0]
+        return cls.run_calculation(inputs[0], axes)
 
     @classmethod
     def _impl_v12(cls, inputs, attr, params):
+        if isinstance(inputs[1], _expr.Constant):
+            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(map(int, constant_axes))
+            return cls.run_calculation(inputs[0], constant_axes)
+
+        raise ValueError("Dynamic squeeze is not supported yet!")
+
+
+class Unsqueeze(OnnxOpConverter):
+    """Operator converter for Unsqueeze."""
+
+    @classmethod
+    def run_calculation(cls, tensor, axes):
+        """Calculation for the non-dynamic case."""
+        for axis in axes:
+            tensor = _op.expand_dims(tensor, axis=axis, num_newaxis=1)
+        return tensor
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axes = sorted(attr["axes"])
+        return cls.run_calculation(inputs[0], axes)
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        if isinstance(inputs[1], _expr.Constant):
+            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(map(int, constant_axes))
+            return cls.run_calculation(inputs[0], constant_axes)
+
+        result = inputs[0]
         rank_input = len(infer_type(inputs[0]).checked_type.shape)
         num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0])
         axes = relay.split(inputs[1], num_new_axis).astuple()
@@ -1603,7 +1622,7 @@ def normalize_gather_indices(data, indices, axis):
     """Make sure gather indicies aren't negative"""
     ind_dtype = infer_type(indices).checked_type.dtype
     # Normalize the indices to a positive range
-    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis, dtype="int64"))
     cond = fold_constant(indices < _op.const(0, ind_dtype))
     if isinstance(cond, _expr.Constant):
         val = cond.data.numpy()
@@ -4096,7 +4115,7 @@ def _get_convert_map(opset):
         "ScatterElements": Scatter.get_converter(opset),
         "ScatterND": ScatterND.get_converter(opset),
         "EyeLike": EyeLike.get_converter(opset),
-        "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
+        "Squeeze": Squeeze.get_converter(opset),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),
         "Shape": Shape.get_converter(opset),
