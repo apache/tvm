@@ -17,7 +17,7 @@
 """Local builder that compile on the local host"""
 import os
 import tempfile
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Union
 
 from tvm._ffi import register_func
 from tvm.ir import IRModule
@@ -38,14 +38,21 @@ class LocalBuilder(PyBuilder):
         The process pool to run the build.
     timeout_sec : float
         The timeout in seconds for the build.
-    f_build : Optional[str]
+    f_build : Union[None, str, LocalBuilder.T_BUILD]
         Name of the build function to be used.
         Defaults to `meta_schedule.builder.default_build`.
-        The signature is Callable[[IRModule, Target], Module].
-    f_export : Optional[str]
+    f_export : Union[None, str, LocalBuilder.T_EXPORT]
         Name of the export function to be used.
         Defaults to `meta_schedule.builder.default_export`.
-        The signature is Callable[[Module], str].
+
+    Attributes
+    ----------
+    T_BUILD : typing._GenericAlias
+        The signature of the build function `f_build`, which is
+        `Callable[[IRModule, Target], Module]`
+    T_EXPORT : typing._GenericAlias
+        The signature of the build function `f_export`, which is
+        `Callable[[Module], str]`
 
     Note
     ----
@@ -55,18 +62,21 @@ class LocalBuilder(PyBuilder):
     please send the registration logic via initializer.
     """
 
+    T_BUILD = Callable[[IRModule, Target], Module]
+    T_EXPORT = Callable[[Module], str]
+
     pool: PopenPoolExecutor
     timeout_sec: float
-    f_build: Optional[str]
-    f_export: Optional[str]
+    f_build: Union[None, str, T_BUILD]
+    f_export: Union[None, str, T_EXPORT]
 
     def __init__(
         self,
         *,
         max_workers: Optional[int] = None,
         timeout_sec: float = 30.0,
-        f_build: str = None,
-        f_export: str = None,
+        f_build: Union[None, str, T_BUILD] = None,
+        f_export: Union[None, str, T_EXPORT] = None,
         initializer: Optional[Callable[[], None]] = None,
     ) -> None:
         """Constructor.
@@ -78,14 +88,12 @@ class LocalBuilder(PyBuilder):
             Defaults to number of CPUs.
         timeout_sec : float
             The timeout in seconds for the build.
-        f_build : Optional[str]
+        f_build : LocalBuilder.T_BUILD
             Name of the build function to be used.
             Defaults to `meta_schedule.builder.default_build`.
-            The signature is Callable[[IRModule, Target], Module].
-        f_export : Optional[str]
+        f_export : LocalBuilder.T_EXPORT
             Name of the export function to be used.
             Defaults to `meta_schedule.builder.default_export`.
-            The signature is Callable[[Module], str].
         initializer : Optional[Callable[[], None]]
             The initializer to be used for the worker processes.
         """
@@ -142,10 +150,7 @@ class LocalBuilder(PyBuilder):
         return results
 
     def _sanity_check(self) -> None:
-        def _check(
-            f_build: Optional[str],
-            f_export: Optional[str],
-        ) -> None:
+        def _check(f_build, f_export) -> None:
             get_global_func_with_default_on_worker(name=f_build, default=None)
             get_global_func_with_default_on_worker(name=f_export, default=None)
 
@@ -154,20 +159,20 @@ class LocalBuilder(PyBuilder):
 
     @staticmethod
     def _worker_func(
-        _f_build: Optional[str],
-        _f_export: Optional[str],
+        _f_build: Union[None, str, T_BUILD],
+        _f_export: Union[None, str, T_EXPORT],
         mod: IRModule,
         target: Target,
     ) -> str:
         # Step 0. Get the registered functions
-        f_build: Callable[
-            [IRModule, Target],
-            Module,
-        ] = get_global_func_with_default_on_worker(_f_build, default_build)
-        f_export: Callable[
-            [Module],
-            str,
-        ] = get_global_func_with_default_on_worker(_f_export, default_export)
+        f_build: LocalBuilder.T_BUILD = get_global_func_with_default_on_worker(
+            _f_build,
+            default_build,
+        )
+        f_export: LocalBuilder.T_EXPORT = get_global_func_with_default_on_worker(
+            _f_export,
+            default_export,
+        )
         # Step 1. Build the IRModule
         rt_mod: Module = f_build(mod, target)
         # Step 2. Export the Module
