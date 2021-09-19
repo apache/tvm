@@ -96,57 +96,21 @@ def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
 
 @script
 def _expand_dims_shape_func_input_data(data, axis, ndims):
-    """
-    We need to construct the new tensor shape. By limiting only one dimension to be expanded at a
-    time we therefore know the rank of the tensor after the expand op. Let `R` be the rank of the
-    input tensor. The output tensor has rank `R + 1`
-
-    The difficulty is then in determining the shape of the output tensor. Consider the case where we
-    want to expand dimension `N`. in a tensor with shape [a, b, c, d]. Note that if we copied all
-    `R` elements of the input tensor shape into the first `R` elements of the output tensor shape
-    we would have the shape be correct up to the `N`th location.
-
-    E.g. `N` = 1 we want a final shape of:
-        Initial shape: [?, ?, ?, ?, ?]
-        Answer       : [a, 1, b, c, d]
-    If we copied the first R elements:
-        Forward Pass : [a, b, c, d, ?]
-        Answer       : [a, 1, b, c, d]
-    Likewise if we copy from the back, the first `R - N - 1` elements will be correct:
-        Backward Pass: [?, a, b, c, d]
-        Answer       : [a, 1, b, c, d]
-
-    If we run the forward and then backward pass, being careful not to overwrite the contents
-    of the output array pass the `N`th dimension then it is clear we will get the output shape.
-    By initializing the output shape array with all 1's, we can get the right answer:
-
-        Initial shape  : [1, 1, 1, 1, 1]
-        + Forward Pass : [a, 1, 1, 1, 1]
-        + Backward Pass: [a, 1, b, c, d]
-        --------------------------------
-        Answer         : [a, 1, b, c, d]
-
-    Note we have to do this because we can only use the current index to determine the output
-    of an array.
-    """
     out = output_tensor((ndims,), "int64")
-
-    for i in const_range(ndims):
-        out[i] = int64(1)
-
-    # Forward pass
-    for i in const_range(len(data.shape)):
+    for i in const_range(ndims - 1):
         if i < axis:
             out[i] = int64(data.shape[i])
+        elif i > axis:
+            out[i] = int64(data.shape[i - 1])
         else:
-            out[i] = int64(out[i])
+            out[i] = int64(1)
 
-    # Backward pass
-    for i in const_range(len(data.shape)):
-        if len(data.shape) - i > axis:
-            out[len(data.shape) - i] = int64(data.shape[len(data.shape) - i - 1])
-        else:
-            out[len(data.shape) - i] = int64(out[len(data.shape) - i])
+    # We have to fold the last index seperately since otherwise hybrid script parser
+    # has an out of index error
+    if ndims - 1 == axis:
+        out[ndims - 1] = int64(1)
+    else:
+        out[ndims - 1] = int64(data.shape[-1])
 
     return out
 
