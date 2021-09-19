@@ -19,10 +19,7 @@
 from __future__ import absolute_import
 
 from tvm.runtime import convert
-from tvm.runtime.object_generic import const
 from tvm.te.hybrid import script
-from tvm.te.tensor import Tensor
-from tvm.tir.expr import ConstExpr
 
 from .. import op as _reg
 

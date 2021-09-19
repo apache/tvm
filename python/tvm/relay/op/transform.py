@@ -18,8 +18,6 @@
 # pylint: disable=import-outside-toplevel
 """Transform operators."""
 
-from numpy.lib.type_check import real
-
 from ...tir import expr as _expr
 from ..expr import Constant, Expr, Tuple, TupleWrapper, const
 from . import _make
@@ -114,7 +112,7 @@ def expand_dims(data, axis, num_newaxis=1):
     """
     if isinstance(axis, int):
         return _make.expand_dims(data, axis, num_newaxis)
-    elif isinstance(axis, Expr):
+    if isinstance(axis, Expr):
         for _ in range(num_newaxis):
             # Dynamic rank is not well supported so we can only increase rank
             # by a static amount (e.g. 1) so we have to do this
