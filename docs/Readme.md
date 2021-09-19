@@ -48,7 +48,7 @@ cd docs/
 
 ```bash
 cd docs/
-../tests/scripts/task_python_generate_documents.sh false false true zh_CN   # update your gettext(*.pot)
+../tests/scripts/task_python_generate_documents.sh true false false zh_CN   # update your gettext(*.pot)
 
 ./tx_transifex.sh update                                                    # update transifex-config
 ```
