@@ -1466,17 +1466,20 @@ class Unsqueeze(OnnxOpConverter):
     def _impl_v12(cls, inputs, attr, params):
         # Unpack scalar
         result = inputs[0]
-        rank_input = len(infer_type(inputs[0]).checked_type.shape) 
-        num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0]) 
+        rank_input = len(infer_type(inputs[0]).checked_type.shape)
+        num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0])
         axes = relay.split(inputs[1], num_new_axis).astuple()
         for i in range(num_new_axis):
             axis = relay.TupleGetItem(axes, i)
 
             # Unpack scalar
             axis = relay.reshape(axis, [])
-            axis = relay.If(axis >= relay.const(0, "int64"), axis, axis + relay.const(rank_input, "int64")) 
+            axis = relay.If(
+                axis >= relay.const(0, "int64"), axis, axis + relay.const(rank_input, "int64")
+            )
             result = _op.expand_dims(result, axis)
         return result
+
 
 class Split(OnnxOpConverter):
     """Operator converter for Split."""
