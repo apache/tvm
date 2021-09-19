@@ -113,7 +113,7 @@ def test_dyn_expand_dims():
 
         # TODO: investigate why runtimes in openCL are extremely slow
         # for multiple new axis
-        # verify_expand_dims((2, 2), dtype, (2, 1, 1, 2), 1, 2)
+        verify_expand_dims((2, 2), dtype, (2, 1, 1, 2), 1, 2)
 
 
 @tvm.testing.uses_gpu
