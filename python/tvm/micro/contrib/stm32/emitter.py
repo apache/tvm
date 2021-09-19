@@ -657,7 +657,7 @@ class CodeEmitter(object):
         #
         # Extract informations from the Model Library Format
         #
-        graph_file = os.path.join(extract_path, "runtime-config", "graph", "graph.json")
+        graph_file = os.path.join(extract_path, "executor-config", "graph", "graph.json")
         with open(graph_file, "r") as f:
             # returns JSON object as a dictionary
             graph_dict = json.load(f)
