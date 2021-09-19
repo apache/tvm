@@ -118,8 +118,7 @@ def expand_dims(data, axis, num_newaxis=1):
             # by a static amount (e.g. 1) so we have to do this
             data = _dyn_make.expand_dims(data, axis)
         return data
-    else:
-        raise ValueError(f"Unknown type for axis: {type(axis)}")
+    raise ValueError(f"Unknown type for axis: {type(axis)}")
 
 
 def transpose(data, axes=None):
