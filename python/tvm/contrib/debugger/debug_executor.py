@@ -56,7 +56,7 @@ def create(graph_json_str, libmod, device, dump_root=None, number=10, repeat=1, 
         `number` should be increased when the runtime of the function is small (less than a 1/10
         of a millisecond).
     repeat : int
-        Number of times to run the outer loop of the timing code (see above). The output will
+        Number of times to run the outer loop of the timing code. The output will
         contain `repeat` number of datapoints.
     min_repeat_ms : Optional[float]
         If set, the inner loop will be run until it takes longer than `min_repeat_ms`
@@ -111,7 +111,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         `number` should be increased when the runtime of the function is small (less than a 1/10
         of a millisecond).
     repeat : int
-        Number of times to run the outer loop of the timing code (see above). The output will
+        Number of times to run the outer loop of the timing code. The output will
         contain `repeat` number of datapoints.
     min_repeat_ms : Optional[float]
         If set, the inner loop will be run until it takes longer than `min_repeat_ms`

@@ -140,7 +140,7 @@ How to use Debugger?
 ::
 
     from tvm.contrib.debugger import debug_executor as graph_executor
-    m = graph_executor.create(graph, lib, dev, dump_root="/tmp/tvmdbg", iters_num=10, repeat=1)
+    m = graph_executor.create(graph, lib, dev, dump_root="/tmp/tvmdbg", number=10, repeat=1, min_repeat_ms=1)
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
     m.set_input(**params)
@@ -155,7 +155,7 @@ How to use Debugger?
 ::
 
     lib = tvm.runtime.load_module("network.so")
-    m = graph_executor.create(lib["get_graph_json"](), lib, dev, dump_root="/tmp/tvmdbg", iters_num=10, repeat=1)
+    m = graph_executor.create(lib["get_graph_json"](), lib, dev, dump_root="/tmp/tvmdbg", number=10, repeat=1, min_repeat_ms=1)
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
     m.set_input(**params)
@@ -166,8 +166,13 @@ How to use Debugger?
 
 The outputs are dumped to a temporary folder in ``/tmp`` folder or the
 folder specified while creating the runtime.
-iters_num is number of runs for measurement of average performance time for each op.
-repeat is number of iterations group. As a result, the number of outputs (see below) will be equal to repeat
+number argument is the number of times to run the inner loop of the timing code. This inner loop is run in
+between the timer starting and stopping. In order to amortize any timing overhead, `number` should be increased
+when the runtime of the function is small (less than a 1/10 of a millisecond).
+repeat argument is the number of times to run the outer loop of the timing code. The output will
+contain `repeat` number of datapoints.
+min_repeat_ms argument is optional. If set, the inner loop will be run until it takes longer than `min_repeat_ms`
+milliseconds. This can be used to ensure that the function is run enough to get an accurate measurement.
 
 ***************************************
 Sample Output
