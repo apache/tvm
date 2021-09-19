@@ -1,0 +1,769 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 05:24+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/deploy/vitis_ai.rst:20
+msgid "Vitis-AI Integration"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:22
+msgid ""
+"`Vitis-AI <https://github.com/Xilinx/Vitis-AI>`__ is Xilinx's development "
+"stack for hardware-accelerated AI inference on Xilinx platforms, including "
+"both edge devices and Alveo cards. It consists of optimized IP, tools, "
+"libraries, models, and example designs. It is designed with high efficiency "
+"and ease of use in mind, unleashing the full potential of AI acceleration on"
+" Xilinx FPGA and ACAP."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:29
+msgid ""
+"The current Vitis-AI Byoc flow inside TVM enables acceleration of Neural "
+"Network model inference on edge and cloud. The identifiers for the supported"
+" edge and cloud Deep Learning Processor Units (DPU's) are DPUCZDX8G "
+"respectively DPUCADX8G. DPUCZDX8G and DPUCADX8G are hardware accelerators "
+"for convolutional neural networks (CNN's) on top of the Xilinx `Zynq "
+"Ultrascale+ MPSoc <https://www.xilinx.com/products/silicon-devices/soc/zynq-"
+"ultrascale-mpsoc.html>`__ respectively `Alveo "
+"<https://www.xilinx.com/products/boards-and-kits/alveo.html>`__ (U200/U250) "
+"platforms. For more information about the DPU identifiers see the section on"
+" `DPU naming information <#dpu-naming-information>`__."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:41
+msgid ""
+"On this page you will find information on how to `build <#build-"
+"instructions>`__ TVM with Vitis-AI and on how to `get started <#getting-"
+"started>`__ with an example."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:46
+msgid "DPU naming information"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:49
+msgid "DPU"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:49
+msgid "Application"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:49
+msgid "HW Platform"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:49
+msgid "Quantization Method"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:49
+msgid "Quantization Bitwidth"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:49
+msgid "Design Target"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:51
+msgid "Deep Learning Processing Unit"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:51
+msgid "C: CNN R: RNN"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:51
+msgid "AD: Alveo DDR AH: Alveo HBM VD: Versal DDR with AIE & PL ZD: Zynq DDR"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:51
+msgid "X: DECENT I: Integer threshold F: Float threshold R: RNN"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:51
+msgid "4: 4-bit 8: 8-bit 16: 16-bit M: Mixed Precision"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:51
+msgid "G: General purpose H: High throughput L: Low latency C: Cost optimized"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:55
+msgid "Build instructions"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:57
+msgid ""
+"This section lists the instructions for building TVM with Vitis-AI for both "
+"`cloud <#cloud-dpucadx8g>`__ and `edge <#edge-dpuczdx8g>`__."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:61
+msgid "Cloud (DPUCADX8G)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:63
+msgid ""
+"For Vitis-AI acceleration in the cloud TVM has to be built on top of the "
+"Xilinx Alveo platform."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:67
+msgid "System requirements"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:69
+msgid ""
+"The following table lists system requirements for running docker containers "
+"as well as Alveo cards."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:73
+#: ../../_staging/deploy/vitis_ai.rst:215
+msgid "**Component**"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:73
+#: ../../_staging/deploy/vitis_ai.rst:215
+msgid "**Requirement**"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:75
+msgid "Motherboard"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:75
+msgid "PCI Express 3.0-compliant with one dual-width x16 slot"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:77
+msgid "System Power Supply"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:77
+msgid "225W"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:79
+#: ../../_staging/deploy/vitis_ai.rst:217
+msgid "Operating System"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:79
+#: ../../_staging/deploy/vitis_ai.rst:217
+msgid "Ubuntu 16.04, 18.04"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:81
+#: ../../_staging/deploy/vitis_ai.rst:219
+msgid "CentOS 7.4, 7.5"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:83
+#: ../../_staging/deploy/vitis_ai.rst:221
+msgid "RHEL 7.4, 7.5"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:85
+#: ../../_staging/deploy/vitis_ai.rst:223
+msgid "CPU"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:85
+#: ../../_staging/deploy/vitis_ai.rst:223
+msgid "Intel i3/i5/i7/i9/Xeon 64-bit CPU"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:87
+#: ../../_staging/deploy/vitis_ai.rst:225
+msgid "GPU (Optional to accelerate quantization)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:87
+#: ../../_staging/deploy/vitis_ai.rst:225
+msgid "NVIDIA GPU with a compute capability > 3.0"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:89
+#: ../../_staging/deploy/vitis_ai.rst:227
+msgid "CUDA Driver (Optional to accelerate quantization)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:89
+#: ../../_staging/deploy/vitis_ai.rst:227
+msgid "nvidia-410"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:91
+#: ../../_staging/deploy/vitis_ai.rst:229
+msgid "FPGA"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:91
+msgid "Xilinx Alveo U200 or U250"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:93
+#: ../../_staging/deploy/vitis_ai.rst:231
+msgid "Docker Version"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:93
+#: ../../_staging/deploy/vitis_ai.rst:231
+msgid "19.03.1"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:97
+msgid "Hardware setup and docker build"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:99
+msgid "Clone the Vitis AI repository:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:105
+msgid ""
+"Install Docker, and add the user to the docker group. Link the user to "
+"docker installation instructions from the following docker's website:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:110
+msgid "https://docs.docker.com/install/linux/docker-ce/ubuntu/"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:111
+msgid "https://docs.docker.com/install/linux/docker-ce/centos/"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:112
+msgid "https://docs.docker.com/install/linux/linux-postinstall/"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:114
+msgid ""
+"Download the latest Vitis AI Docker with the following command. This "
+"container runs on CPU."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:120
+msgid ""
+"To accelerate the quantization, you can optionally use the Vitis-AI GPU "
+"docker image. Use the below commands to build the Vitis-AI GPU docker "
+"container:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:127
+msgid ""
+"Set up Vitis AI to target Alveo cards. To target Alveo cards with Vitis AI "
+"for machine learning workloads, you must install the following software "
+"components:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:131
+msgid "Xilinx Runtime (XRT)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:132
+msgid "Alveo Deployment Shells (DSAs)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:133
+msgid "Xilinx Resource Manager (XRM) (xbutler)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:134
+msgid ""
+"Xilinx Overlaybins (Accelerators to Dynamically Load - binary programming "
+"files)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:137
+msgid ""
+"While it is possible to install all of these software components "
+"individually, a script has been provided to automatically install them at "
+"once. To do so:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:141
+msgid "Run the following commands:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:149
+msgid "Power cycle the system."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:151
+msgid "Clone tvm repo and pyxir repo"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:158
+#: ../../_staging/deploy/vitis_ai.rst:242
+msgid "Build and start the tvm runtime Vitis-AI Docker Container."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:170
+#: ../../_staging/deploy/vitis_ai.rst:254
+#: ../../_staging/deploy/vitis_ai.rst:355
+msgid "Install PyXIR"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:178
+msgid "Build TVM inside the container with Vitis-AI"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:191
+#: ../../_staging/deploy/vitis_ai.rst:276
+#: ../../_staging/deploy/vitis_ai.rst:377
+msgid "Install TVM"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:199
+msgid "Edge (DPUCZDX8G)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:202
+msgid ""
+"For edge deployment we make use of two systems referred to as host and edge."
+" The `host <#host-requirements>`__ system is responsible for quantization "
+"and compilation of the neural network model in a first offline step. "
+"Afterwards, the model will de deployed on the `edge <#edge-requirements>`__ "
+"system."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:209
+msgid "Host requirements"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:211
+msgid ""
+"The following table lists system requirements for running the TVM - Vitis-AI"
+" docker container."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:229
+msgid "Not necessary on host"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:235
+msgid "Host setup and docker build"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:237
+msgid "Clone tvm repo"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:263
+msgid "Build TVM inside the container with Vitis-AI."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:284
+msgid "Edge requirements"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:286
+msgid ""
+"The DPUCZDX8G can be deployed on the `Zynq Ultrascale+ MPSoc "
+"<https://www.xilinx.com/products/silicon-devices/soc/zynq-ultrascale-"
+"mpsoc.html>`__ platform. The following development boards can be used out-"
+"of-the-box:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:291
+msgid "**Target board**"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:291
+msgid "**TVM identifier**"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:291
+msgid "**Info**"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:293
+msgid "Ultra96"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:293
+msgid "DPUCZDX8G-ultra96"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:293
+msgid "https://www.xilinx.com/products/boards-and-kits/1-vad4rl.html"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:295
+msgid "ZCU104"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:295
+msgid "DPUCZDX8G-zcu104"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:295
+msgid "https://www.xilinx.com/products/boards-and-kits/zcu104.html"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:297
+msgid "ZCU102"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:297
+msgid "DPUCZDX8G-zcu102"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:297
+msgid "https://www.xilinx.com/products/boards-and-kits/ek-u1-zcu102-g.html"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:301
+msgid "Edge hardware setup"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:304
+msgid ""
+"This section provides instructions for setting up with the `Pynq "
+"<http://www.pynq.io/>`__ platform but Petalinux based flows are also "
+"supported."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:307
+msgid ""
+"Download the Pynq v2.6 image for your target (use Z1 or Z2 for Ultra96 "
+"target depending on board version) Link to image: "
+"https://github.com/Xilinx/PYNQ/releases/tag/v2.6.0"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:310
+msgid ""
+"Follow Pynq instructions for setting up the board: `pynq setup "
+"<https://pynq.readthedocs.io/en/latest/getting_started.html>`__"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:312
+msgid ""
+"After connecting to the board, make sure to run as root. **Execute** ``su``"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:314
+msgid "Set up DPU on Pynq:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:323
+msgid "Run the following command to download the DPU bitstream:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:329
+msgid "Check whether the DPU kernel is alive:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:336
+msgid "Edge TVM setup"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:340
+msgid ""
+"When working on Petalinux instead of Pynq, the following steps might take "
+"more manual work (e.g building hdf5 from source). Also, TVM has a scipy "
+"dependency which you then might have to build from source or circumvent. We "
+"don't depend on scipy in our flow."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:344
+msgid ""
+"Building TVM depends on the Xilinx `PyXIR "
+"<https://github.com/Xilinx/pyxir>`__ package. PyXIR acts as an interface "
+"between TVM and Vitis-AI tools."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:348
+msgid "First install the PyXIR h5py and pydot dependencies:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:363
+msgid "Build TVM with Vitis-AI"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:384
+msgid "Check whether the setup was successful in the Python shell:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:392
+msgid "Getting started"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:394
+msgid ""
+"This section shows how to use TVM with Vitis-AI. For this it's important to "
+"understand that neural network models are quantized for Vitis-AI execution "
+"in fixed point arithmetic. The approach we take here is to quantize on-the-"
+"fly using the first N inputs as explained in the next section."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:401
+msgid "On-the-fly quantization"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:403
+msgid ""
+"Usually, to be able to accelerate inference of Neural Network models with "
+"Vitis-AI DPU accelerators, those models need to quantized upfront. In TVM - "
+"Vitis-AI flow, we make use of on-the-fly quantization to remove this "
+"additional preprocessing step. In this flow, one doesn't need to quantize "
+"his/her model upfront but can make use of the typical inference execution "
+"calls (module.run) to quantize the model on-the-fly using the first N inputs"
+" that are provided (see more information below). This will set up and "
+"calibrate the Vitis-AI DPU and from that point onwards inference will be "
+"accelerated for all next inputs. Note that the edge flow deviates slightly "
+"from the explained flow in that inference won't be accelerated after the "
+"first N inputs but the model will have been quantized and compiled and can "
+"be moved to the edge device for deployment. Please check out the `edge "
+"<#Edge%20usage>`__ usage instructions below for more information."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:419
+msgid "Config/Settings"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:421
+msgid ""
+"A couple of environment variables can be used to customize the Vitis-AI Byoc"
+" flow."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:425
+msgid "**Environment Variable**"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:425
+msgid "**Default if unset**"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:425
+msgid "**Explanation**"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:427
+msgid "PX\\_QUANT\\_SIZE"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:427
+msgid "128"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:427
+msgid ""
+"The number of inputs that will be used for quantization (necessary for "
+"Vitis-AI acceleration)"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:429
+msgid "PX\\_BUILD\\_DIR"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:429
+msgid "Use the on-the-fly quantization flow"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:429
+msgid ""
+"Loads the quantization and compilation information from the provided build "
+"directory and immediately starts Vitis-AI hardware acceleration. This "
+"configuration can be used if the model has been executed before using on-"
+"the-fly quantization during which the quantization and comilation "
+"information was cached in a build directory."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:433
+msgid "Cloud usage"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:435
+msgid ""
+"This section shows how to accelerate a convolutional neural network model in"
+" TVM with Vitis-AI on the cloud."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:438
+msgid ""
+"To be able to target the Vitis-AI cloud DPUCADX8G we first have to import "
+"the DPU target in PyXIR. This PyXIR package is the interface being used by "
+"TVM to integrate with the Vitis-AI stack. Additionaly, import the typical "
+"TVM and Relay modules and the Vitis-AI contrib module inside TVM."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:456
+msgid ""
+"After importing a convolutional neural network model using the usual Relay "
+"API's, annotate the Relay expression for the given Vitis-AI DPU target and "
+"partition the graph."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:465
+msgid ""
+"Now, we can build the TVM runtime library for executing the model. The TVM "
+"target is 'llvm' as the operations that can't be handled by the DPU are "
+"executed on the CPU. The Vitis-AI DPU is DPUCADX8G as we are targeting the "
+"cloud DPU and this DPU identifier is passed as a config to the TVM build "
+"call."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:478
+msgid ""
+"As one more step before we can accelerate a model with Vitis-AI in TVM we "
+"have to quantize and compile the model for execution on the DPU. We make use"
+" of on-the-fly quantization for this. Using this method one doesn’t need to "
+"quantize their model upfront and can make use of the typical inference "
+"execution calls (module.run) to calibrate the model on-the-fly using the "
+"first N inputs that are provided. After the first N iterations, computations"
+" will be accelerated on the DPU. So now we will feed N inputs to the TVM "
+"runtime module. Note that these first N inputs will take a substantial "
+"amount of time."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:499
+msgid "Afterwards, inference will be accelerated on the DPU."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:506
+msgid "To save and load the built module, one can use the typical TVM API's:"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:513
+msgid "Load the module from compiled files and run inference"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:525
+msgid "Edge usage"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:527
+msgid ""
+"This section shows how to accelerate a convolutional neural network model in"
+" TVM with Vitis-AI at the edge. The first couple of steps will have to be "
+"run on the host machine and take care of quantization and compilation for "
+"deployment at the edge."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:532
+msgid ""
+"A complete ResNet 18 example can be found `here "
+"<https://github.com/Xilinx/pyxir/tree/master/examples/tvm>`__."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:535
+msgid "Host steps"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:537
+msgid ""
+"To be able to target the Vitis-AI cloud DPUCZDX8G we first have to import "
+"the DPU target in PyXIR. This PyXIR package is the interface being used by "
+"TVM to integrate with the Vitis-AI stack. Additionaly, import the typical "
+"TVM and Relay modules and the Vitis-AI contrib module inside TVM."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:555
+msgid ""
+"After importing a convolutional neural network model using the usual Relay "
+"API's, annotate the Relay expression for the given Vitis-AI DPU and "
+"partition the graph."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:561
+msgid ""
+"We recommend converting DPU convolutions' data layouts to NHWC and CPU "
+"convolutions' data layouts to NCHW for best DPU and out of the box CPU "
+"performance. You can use the ConvertLayout transformation pass two times to "
+"achieve this as demonstrated in the code block underneath. You can also "
+"leave the CPU convolution layouts in NHWC and tune ARM CPU performance for "
+"this data layout to avoid the layout transformation overheads introduced by "
+"executing DPU convolutions in NHWC and CPU convolutions in NCHW (check out "
+"the `AutoScheduling <https://tvm.apache.org/docs/tutorials/index.html"
+"#autoscheduler-template-free-auto-scheduling>`__ and `AutoTuning "
+"<https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_arm.html>`__ "
+"tutorials for this)."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:600
+msgid ""
+"Now, we can build the TVM runtime library for executing the model. The TVM "
+"target is 'llvm' as the operations that can't be handled by the DPU are "
+"executed on the CPU. At this point that means the CPU on the host machine. "
+"The Vitis-AI DPU identifier is DPUCZDX8G-zcu104 as we are targeting the edge"
+" DPU on the ZCU104 board and this identifier is passed as a config to the "
+"TVM build call. Note that different identifiers can be passed for different "
+"DPU's, see `edge DPU's info <#edge-requirements>`__. Additionally, we "
+"provide the 'export_runtime_module' config that points to a file to which we"
+" can export the Vitis-AI runtime module. We have to do this because we will "
+"first be compiling and quantizing the model on the host machine before "
+"building the model for edge deployment. As you will see later on, the "
+"exported runtime module will be passed to the edge build so that the Vitis-"
+"AI runtime module can be included."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:626
+msgid ""
+"We will quantize and compile the model for execution on the DPU using on-"
+"the-fly quantization on the host machine. This makes use of TVM inference "
+"calls (module.run) to quantize the model on the host with the first N "
+"inputs."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:641
+msgid ""
+"Save the TVM lib module so that the Vitis-AI runtime module will also be "
+"exported (to the 'export_runtime_module' path we previously passed as a "
+"config)."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:651
+msgid ""
+"After quantizing and compiling the model for Vitis-AI acceleration using the"
+" first N inputs we can build the model for execution on the ARM edge device."
+" Here we pass the previously exported Vitis-AI runtime module so it can be "
+"included in the TVM build."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:673
+msgid ""
+"Now, move the TVM build files (tvm\\_dpu\\_arm.json, tvm\\_dpu\\_arm.so, "
+"tvm\\_dpu\\_arm.params) to the edge device. For information on setting up "
+"the edge device check out the `edge setup <#edge-dpuczdx8g>`__ section."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:679
+msgid "Edge steps"
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:681
+msgid ""
+"After setting up TVM with Vitis-AI on the edge device, you can now load the "
+"TVM runtime module into memory and feed inputs for inference. A nearly "
+"complete runtiem script can be found underneath. Make sure to run the script"
+" as root (execute ``su`` in terminal to log into root)."
+msgstr ""
+
+#: ../../_staging/deploy/vitis_ai.rst:689
+msgid ""
+"You will see a warning about the 'cpu-tf' runtime not being found. This "
+"warning is expected on the board and can be ignored. Note also that you "
+"**shouldn't** import the PyXIR DPU targets in the run script (``import "
+"pyxir.contrib.target.DPUCZDX8G``)."
+msgstr ""

@@ -1,0 +1,1059 @@
+[main]
+host = https://www.transifex.com
+
+[tvmchinese_0_8_dev.errors]
+file_filter = translates/locales/<lang>/LC_MESSAGES/errors.po
+source_file = translates/gettext/errors.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.faq]
+file_filter = translates/locales/<lang>/LC_MESSAGES/faq.po
+source_file = translates/gettext/faq.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.genindex]
+file_filter = translates/locales/<lang>/LC_MESSAGES/genindex.po
+source_file = translates/gettext/genindex.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/index.po
+source_file = translates/gettext/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.sphinx]
+file_filter = translates/locales/<lang>/LC_MESSAGES/sphinx.po
+source_file = translates/gettext/sphinx.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--links]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/links.po
+source_file = translates/gettext/api/links.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--auto_scheduler]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/auto_scheduler.po
+source_file = translates/gettext/api/python/auto_scheduler.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--autotvm]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/autotvm.po
+source_file = translates/gettext/api/python/autotvm.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--contrib]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/contrib.po
+source_file = translates/gettext/api/python/contrib.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--driver]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/driver.po
+source_file = translates/gettext/api/python/driver.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--error]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/error.po
+source_file = translates/gettext/api/python/error.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--graph_executor]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/graph_executor.po
+source_file = translates/gettext/api/python/graph_executor.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/index.po
+source_file = translates/gettext/api/python/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--ir]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/ir.po
+source_file = translates/gettext/api/python/ir.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--micro]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/micro.po
+source_file = translates/gettext/api/python/micro.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--ndarray]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/ndarray.po
+source_file = translates/gettext/api/python/ndarray.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--rpc]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/rpc.po
+source_file = translates/gettext/api/python/rpc.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--runtime]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/runtime.po
+source_file = translates/gettext/api/python/runtime.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--target]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/target.po
+source_file = translates/gettext/api/python/target.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--te]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/te.po
+source_file = translates/gettext/api/python/te.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--tir]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/tir.po
+source_file = translates/gettext/api/python/tir.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--topi]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/topi.po
+source_file = translates/gettext/api/python/topi.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--analysis]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/analysis.po
+source_file = translates/gettext/api/python/relay/analysis.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--backend]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/backend.po
+source_file = translates/gettext/api/python/relay/backend.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--dataflow_pattern]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/dataflow_pattern.po
+source_file = translates/gettext/api/python/relay/dataflow_pattern.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--frontend]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/frontend.po
+source_file = translates/gettext/api/python/relay/frontend.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--image]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/image.po
+source_file = translates/gettext/api/python/relay/image.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/index.po
+source_file = translates/gettext/api/python/relay/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--nn]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/nn.po
+source_file = translates/gettext/api/python/relay/nn.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--testing]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/testing.po
+source_file = translates/gettext/api/python/relay/testing.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--transform]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/transform.po
+source_file = translates/gettext/api/python/relay/transform.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--relay--vision]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/relay/vision.po
+source_file = translates/gettext/api/python/relay/vision.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.api--python--vta--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/api/python/vta/index.po
+source_file = translates/gettext/api/python/vta/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--code_guide]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/code_guide.po
+source_file = translates/gettext/contribute/code_guide.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--code_review]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/code_review.po
+source_file = translates/gettext/contribute/code_review.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--committer_guide]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/committer_guide.po
+source_file = translates/gettext/contribute/committer_guide.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--community]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/community.po
+source_file = translates/gettext/contribute/community.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--document]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/document.po
+source_file = translates/gettext/contribute/document.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--error_handling]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/error_handling.po
+source_file = translates/gettext/contribute/error_handling.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--git_howto]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/git_howto.po
+source_file = translates/gettext/contribute/git_howto.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/index.po
+source_file = translates/gettext/contribute/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--pull_request]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/pull_request.po
+source_file = translates/gettext/contribute/pull_request.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.contribute--release_process]
+file_filter = translates/locales/<lang>/LC_MESSAGES/contribute/release_process.po
+source_file = translates/gettext/contribute/release_process.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--android]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/android.po
+source_file = translates/gettext/deploy/android.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--arm_compute_lib]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/arm_compute_lib.po
+source_file = translates/gettext/deploy/arm_compute_lib.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--bnns]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/bnns.po
+source_file = translates/gettext/deploy/bnns.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--cpp_deploy]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/cpp_deploy.po
+source_file = translates/gettext/deploy/cpp_deploy.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--hls]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/hls.po
+source_file = translates/gettext/deploy/hls.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/index.po
+source_file = translates/gettext/deploy/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--integrate]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/integrate.po
+source_file = translates/gettext/deploy/integrate.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--tensorrt]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/tensorrt.po
+source_file = translates/gettext/deploy/tensorrt.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.deploy--vitis_ai]
+file_filter = translates/locales/<lang>/LC_MESSAGES/deploy/vitis_ai.po
+source_file = translates/gettext/deploy/vitis_ai.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--benchmark]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/benchmark.po
+source_file = translates/gettext/dev/benchmark.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--codebase_walkthrough]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/codebase_walkthrough.po
+source_file = translates/gettext/dev/codebase_walkthrough.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--convert_layout]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/convert_layout.po
+source_file = translates/gettext/dev/convert_layout.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--debugger]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/debugger.po
+source_file = translates/gettext/dev/debugger.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--device_target_interactions]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/device_target_interactions.po
+source_file = translates/gettext/dev/device_target_interactions.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--how_to]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/how_to.po
+source_file = translates/gettext/dev/how_to.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--hybrid_script]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/hybrid_script.po
+source_file = translates/gettext/dev/hybrid_script.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/index.po
+source_file = translates/gettext/dev/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--inferbound]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/inferbound.po
+source_file = translates/gettext/dev/inferbound.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--introduction_to_module_serialization]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/introduction_to_module_serialization.po
+source_file = translates/gettext/dev/introduction_to_module_serialization.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--microtvm_design]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/microtvm_design.po
+source_file = translates/gettext/dev/microtvm_design.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--model_library_format]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/model_library_format.po
+source_file = translates/gettext/dev/model_library_format.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--pass_infra]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/pass_infra.po
+source_file = translates/gettext/dev/pass_infra.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--pytest_target_parametrization]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/pytest_target_parametrization.po
+source_file = translates/gettext/dev/pytest_target_parametrization.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--relay_add_op]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/relay_add_op.po
+source_file = translates/gettext/dev/relay_add_op.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--relay_add_pass]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/relay_add_pass.po
+source_file = translates/gettext/dev/relay_add_pass.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--relay_bring_your_own_codegen]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/relay_bring_your_own_codegen.po
+source_file = translates/gettext/dev/relay_bring_your_own_codegen.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--relay_intro]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/relay_intro.po
+source_file = translates/gettext/dev/relay_intro.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--relay_op_strategy]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/relay_op_strategy.po
+source_file = translates/gettext/dev/relay_op_strategy.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--runtime]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/runtime.po
+source_file = translates/gettext/dev/runtime.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--security]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/security.po
+source_file = translates/gettext/dev/security.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--virtual_machine]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/virtual_machine.po
+source_file = translates/gettext/dev/virtual_machine.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--frontend--tensorflow]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/frontend/tensorflow.po
+source_file = translates/gettext/dev/frontend/tensorflow.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.dev--runtimes--vulkan]
+file_filter = translates/locales/<lang>/LC_MESSAGES/dev/runtimes/vulkan.po
+source_file = translates/gettext/dev/runtimes/vulkan.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.install--docker]
+file_filter = translates/locales/<lang>/LC_MESSAGES/install/docker.po
+source_file = translates/gettext/install/docker.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.install--from_source]
+file_filter = translates/locales/<lang>/LC_MESSAGES/install/from_source.po
+source_file = translates/gettext/install/from_source.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.install--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/install/index.po
+source_file = translates/gettext/install/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.install--nnpack]
+file_filter = translates/locales/<lang>/LC_MESSAGES/install/nnpack.po
+source_file = translates/gettext/install/nnpack.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.langref--hybrid_script]
+file_filter = translates/locales/<lang>/LC_MESSAGES/langref/hybrid_script.po
+source_file = translates/gettext/langref/hybrid_script.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.langref--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/langref/index.po
+source_file = translates/gettext/langref/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.langref--relay_adt]
+file_filter = translates/locales/<lang>/LC_MESSAGES/langref/relay_adt.po
+source_file = translates/gettext/langref/relay_adt.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.langref--relay_expr]
+file_filter = translates/locales/<lang>/LC_MESSAGES/langref/relay_expr.po
+source_file = translates/gettext/langref/relay_expr.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.langref--relay_op]
+file_filter = translates/locales/<lang>/LC_MESSAGES/langref/relay_op.po
+source_file = translates/gettext/langref/relay_op.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.langref--relay_pattern]
+file_filter = translates/locales/<lang>/LC_MESSAGES/langref/relay_pattern.po
+source_file = translates/gettext/langref/relay_pattern.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.langref--relay_type]
+file_filter = translates/locales/<lang>/LC_MESSAGES/langref/relay_type.po
+source_file = translates/gettext/langref/relay_type.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.microtvm--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/microtvm/index.po
+source_file = translates/gettext/microtvm/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.profiling--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/profiling/index.po
+source_file = translates/gettext/profiling/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.profiling--papi]
+file_filter = translates/locales/<lang>/LC_MESSAGES/profiling/papi.po
+source_file = translates/gettext/profiling/papi.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/index.po
+source_file = translates/gettext/tutorials/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--auto_scheduler--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/auto_scheduler/sg_execution_times.po
+source_file = translates/gettext/tutorials/auto_scheduler/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--auto_scheduler--tune_conv2d_layer_cuda]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/auto_scheduler/tune_conv2d_layer_cuda.po
+source_file = translates/gettext/tutorials/auto_scheduler/tune_conv2d_layer_cuda.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--auto_scheduler--tune_network_arm]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/auto_scheduler/tune_network_arm.po
+source_file = translates/gettext/tutorials/auto_scheduler/tune_network_arm.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--auto_scheduler--tune_network_cuda]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/auto_scheduler/tune_network_cuda.po
+source_file = translates/gettext/tutorials/auto_scheduler/tune_network_cuda.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--auto_scheduler--tune_network_mali]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/auto_scheduler/tune_network_mali.po
+source_file = translates/gettext/tutorials/auto_scheduler/tune_network_mali.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--auto_scheduler--tune_network_x86]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/auto_scheduler/tune_network_x86.po
+source_file = translates/gettext/tutorials/auto_scheduler/tune_network_x86.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--auto_scheduler--tune_sparse_x86]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/auto_scheduler/tune_sparse_x86.po
+source_file = translates/gettext/tutorials/auto_scheduler/tune_sparse_x86.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--autotvm--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/autotvm/sg_execution_times.po
+source_file = translates/gettext/tutorials/autotvm/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--autotvm--tune_conv2d_cuda]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/autotvm/tune_conv2d_cuda.po
+source_file = translates/gettext/tutorials/autotvm/tune_conv2d_cuda.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--autotvm--tune_relay_arm]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/autotvm/tune_relay_arm.po
+source_file = translates/gettext/tutorials/autotvm/tune_relay_arm.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--autotvm--tune_relay_cuda]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/autotvm/tune_relay_cuda.po
+source_file = translates/gettext/tutorials/autotvm/tune_relay_cuda.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--autotvm--tune_relay_mobile_gpu]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/autotvm/tune_relay_mobile_gpu.po
+source_file = translates/gettext/tutorials/autotvm/tune_relay_mobile_gpu.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--autotvm--tune_relay_x86]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/autotvm/tune_relay_x86.po
+source_file = translates/gettext/tutorials/autotvm/tune_relay_x86.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--dev--bring_your_own_datatypes]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/dev/bring_your_own_datatypes.po
+source_file = translates/gettext/tutorials/dev/bring_your_own_datatypes.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--dev--low_level_custom_pass]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/dev/low_level_custom_pass.po
+source_file = translates/gettext/tutorials/dev/low_level_custom_pass.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--dev--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/dev/sg_execution_times.po
+source_file = translates/gettext/tutorials/dev/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--dev--use_pass_infra]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/dev/use_pass_infra.po
+source_file = translates/gettext/tutorials/dev/use_pass_infra.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--dev--use_pass_instrument]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/dev/use_pass_instrument.po
+source_file = translates/gettext/tutorials/dev/use_pass_instrument.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--build_gcn]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/build_gcn.po
+source_file = translates/gettext/tutorials/frontend/build_gcn.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--deploy_model_on_android]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/deploy_model_on_android.po
+source_file = translates/gettext/tutorials/frontend/deploy_model_on_android.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--deploy_model_on_rasp]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/deploy_model_on_rasp.po
+source_file = translates/gettext/tutorials/frontend/deploy_model_on_rasp.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--deploy_object_detection_pytorch]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/deploy_object_detection_pytorch.po
+source_file = translates/gettext/tutorials/frontend/deploy_object_detection_pytorch.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--deploy_prequantized]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/deploy_prequantized.po
+source_file = translates/gettext/tutorials/frontend/deploy_prequantized.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--deploy_prequantized_tflite]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/deploy_prequantized_tflite.po
+source_file = translates/gettext/tutorials/frontend/deploy_prequantized_tflite.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--deploy_quantized]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/deploy_quantized.po
+source_file = translates/gettext/tutorials/frontend/deploy_quantized.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--deploy_sparse]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/deploy_sparse.po
+source_file = translates/gettext/tutorials/frontend/deploy_sparse.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--deploy_ssd_gluoncv]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/deploy_ssd_gluoncv.po
+source_file = translates/gettext/tutorials/frontend/deploy_ssd_gluoncv.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_caffe2]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_caffe2.po
+source_file = translates/gettext/tutorials/frontend/from_caffe2.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_coreml]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_coreml.po
+source_file = translates/gettext/tutorials/frontend/from_coreml.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_darknet]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_darknet.po
+source_file = translates/gettext/tutorials/frontend/from_darknet.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_keras]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_keras.po
+source_file = translates/gettext/tutorials/frontend/from_keras.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_mxnet]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_mxnet.po
+source_file = translates/gettext/tutorials/frontend/from_mxnet.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_onnx]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_onnx.po
+source_file = translates/gettext/tutorials/frontend/from_onnx.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_pytorch]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_pytorch.po
+source_file = translates/gettext/tutorials/frontend/from_pytorch.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_tensorflow]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_tensorflow.po
+source_file = translates/gettext/tutorials/frontend/from_tensorflow.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--from_tflite]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/from_tflite.po
+source_file = translates/gettext/tutorials/frontend/from_tflite.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/sg_execution_times.po
+source_file = translates/gettext/tutorials/frontend/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--frontend--using_external_lib]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/frontend/using_external_lib.po
+source_file = translates/gettext/tutorials/frontend/using_external_lib.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--auto_scheduler_matmul_x86]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/auto_scheduler_matmul_x86.po
+source_file = translates/gettext/tutorials/get_started/auto_scheduler_matmul_x86.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--autotvm_matmul_x86]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/autotvm_matmul_x86.po
+source_file = translates/gettext/tutorials/get_started/autotvm_matmul_x86.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--autotvm_relay_x86]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/autotvm_relay_x86.po
+source_file = translates/gettext/tutorials/get_started/autotvm_relay_x86.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--cross_compilation_and_rpc]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/cross_compilation_and_rpc.po
+source_file = translates/gettext/tutorials/get_started/cross_compilation_and_rpc.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--install]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/install.po
+source_file = translates/gettext/tutorials/get_started/install.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--introduction]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/introduction.po
+source_file = translates/gettext/tutorials/get_started/introduction.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--relay_quick_start]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/relay_quick_start.po
+source_file = translates/gettext/tutorials/get_started/relay_quick_start.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/sg_execution_times.po
+source_file = translates/gettext/tutorials/get_started/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--tensor_expr_get_started]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/tensor_expr_get_started.po
+source_file = translates/gettext/tutorials/get_started/tensor_expr_get_started.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--get_started--tvmc_command_line_driver]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/get_started/tvmc_command_line_driver.po
+source_file = translates/gettext/tutorials/get_started/tvmc_command_line_driver.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--extern_op]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/extern_op.po
+source_file = translates/gettext/tutorials/language/extern_op.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--intrin_math]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/intrin_math.po
+source_file = translates/gettext/tutorials/language/intrin_math.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--reduction]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/reduction.po
+source_file = translates/gettext/tutorials/language/reduction.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--scan]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/scan.po
+source_file = translates/gettext/tutorials/language/scan.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--schedule_primitives]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/schedule_primitives.po
+source_file = translates/gettext/tutorials/language/schedule_primitives.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/sg_execution_times.po
+source_file = translates/gettext/tutorials/language/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--tedd]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/tedd.po
+source_file = translates/gettext/tutorials/language/tedd.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--tensorize]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/tensorize.po
+source_file = translates/gettext/tutorials/language/tensorize.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--language--tuple_inputs]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/language/tuple_inputs.po
+source_file = translates/gettext/tutorials/language/tuple_inputs.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--micro--micro_autotune]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/micro/micro_autotune.po
+source_file = translates/gettext/tutorials/micro/micro_autotune.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--micro--micro_reference_vm]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/micro/micro_reference_vm.po
+source_file = translates/gettext/tutorials/micro/micro_reference_vm.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--micro--micro_tflite]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/micro/micro_tflite.po
+source_file = translates/gettext/tutorials/micro/micro_tflite.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--micro--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/micro/sg_execution_times.po
+source_file = translates/gettext/tutorials/micro/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--optimize--opt_conv_cuda]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/optimize/opt_conv_cuda.po
+source_file = translates/gettext/tutorials/optimize/opt_conv_cuda.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--optimize--opt_conv_tensorcore]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/optimize/opt_conv_tensorcore.po
+source_file = translates/gettext/tutorials/optimize/opt_conv_tensorcore.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--optimize--opt_gemm]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/optimize/opt_gemm.po
+source_file = translates/gettext/tutorials/optimize/opt_gemm.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--optimize--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/optimize/sg_execution_times.po
+source_file = translates/gettext/tutorials/optimize/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--topi--intro_topi]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/topi/intro_topi.po
+source_file = translates/gettext/tutorials/topi/intro_topi.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.tutorials--topi--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/tutorials/topi/sg_execution_times.po
+source_file = translates/gettext/tutorials/topi/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/index.po
+source_file = translates/gettext/vta/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--install]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/install.po
+source_file = translates/gettext/vta/install.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--dev--config]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/dev/config.po
+source_file = translates/gettext/vta/dev/config.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--dev--hardware]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/dev/hardware.po
+source_file = translates/gettext/vta/dev/hardware.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--dev--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/dev/index.po
+source_file = translates/gettext/vta/dev/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--index]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/index.po
+source_file = translates/gettext/vta/tutorials/index.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--matrix_multiply]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/matrix_multiply.po
+source_file = translates/gettext/vta/tutorials/matrix_multiply.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/sg_execution_times.po
+source_file = translates/gettext/vta/tutorials/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--vta_get_started]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/vta_get_started.po
+source_file = translates/gettext/vta/tutorials/vta_get_started.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--autotvm--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/autotvm/sg_execution_times.po
+source_file = translates/gettext/vta/tutorials/autotvm/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--autotvm--tune_alu_vta]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/autotvm/tune_alu_vta.po
+source_file = translates/gettext/vta/tutorials/autotvm/tune_alu_vta.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--autotvm--tune_relay_vta]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/autotvm/tune_relay_vta.po
+source_file = translates/gettext/vta/tutorials/autotvm/tune_relay_vta.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--frontend--deploy_classification]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/frontend/deploy_classification.po
+source_file = translates/gettext/vta/tutorials/frontend/deploy_classification.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--frontend--deploy_detection]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/frontend/deploy_detection.po
+source_file = translates/gettext/vta/tutorials/frontend/deploy_detection.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--frontend--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/frontend/sg_execution_times.po
+source_file = translates/gettext/vta/tutorials/frontend/sg_execution_times.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--optimize--convolution_opt]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/optimize/convolution_opt.po
+source_file = translates/gettext/vta/tutorials/optimize/convolution_opt.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--optimize--matrix_multiply_opt]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/optimize/matrix_multiply_opt.po
+source_file = translates/gettext/vta/tutorials/optimize/matrix_multiply_opt.pot
+source_lang = en
+type = PO
+
+[tvmchinese_0_8_dev.vta--tutorials--optimize--sg_execution_times]
+file_filter = translates/locales/<lang>/LC_MESSAGES/vta/tutorials/optimize/sg_execution_times.po
+source_file = translates/gettext/vta/tutorials/optimize/sg_execution_times.pot
+source_lang = en
+type = PO
+

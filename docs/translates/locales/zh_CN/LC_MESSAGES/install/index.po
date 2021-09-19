@@ -3,14 +3,19 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# HLearning, 2021
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
-"PO-Revision-Date: 2021-09-18 05:26+0000\n"
-"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"PO-Revision-Date: 2021-09-18 07:44+0000\n"
+"Last-Translator: a_flying_fish <a_flying_fish@outlook.com>, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -19,7 +24,7 @@ msgstr ""
 
 #: ../../_staging/install/index.rst:21
 msgid "Installation"
-msgstr ""
+msgstr "安装"
 
 #: ../../_staging/install/index.rst:22
 msgid ""
@@ -29,3 +34,6 @@ msgid ""
 "runtime, please read :ref:`deploy-and-integration`. If you would like to "
 "quickly try out TVM or do demo/tutorials, checkout :ref:`docker-images`"
 msgstr ""
+"为了安装TVM，请先阅读 :ref:`install-from-source` "
+"。如果您只对部署到移动/嵌入式设备感兴趣，那么并不需要在您的设备上安装完整的TVM 堆栈。相反，您只需要 runtime， 请参阅 :ref"
+":`deploy-and-integration` 。如果您想快速试用 TVM 或执行演示/教程，请查看 :ref:`docker-images`"

@@ -1,0 +1,101 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 05:23+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/contribute/document.rst:21
+msgid "Write Document and Tutorials"
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:23
+msgid ""
+"We use the `Sphinx <http://sphinx-doc.org>`_ for the main documentation. "
+"Sphinx support both the reStructuredText and markdown. When possible, we "
+"encourage to use reStructuredText as it has richer features. Note that the "
+"python doc-string and tutorials allow you to embed reStructuredText syntax."
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:30
+msgid "Document Python"
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:31
+msgid ""
+"We use `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format to "
+"document the function and classes. The following snippet gives an example "
+"docstring. We always document all the public functions, when necessary, "
+"provide an usage example of the features we support(as shown below)."
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:67
+msgid ""
+"Be careful to leave blank lines between sections of your documents. In the "
+"above case, there has to be a blank line before `Parameters`, `Returns` and "
+"`Examples` in order for the doc to be built correctly. To add a new function"
+" to the doc, we need to add the `sphinx.autodoc <http://www.sphinx-"
+"doc.org/en/master/ext/autodoc.html>`_ rules to the `docs/api/python "
+"<https://github.com/apache/tvm/tree/main/docs/api/python>`_). You can refer "
+"to the existing files under this folder on how to add the functions."
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:76
+msgid "Document C++"
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:77
+msgid ""
+"We use the doxgen format to document c++ functions. The following snippet "
+"shows an example of c++ docstring."
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:92
+msgid ""
+"Besides documenting function usages, we also highly recommend contributors "
+"to add comments about code logics to improve readability."
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:97
+msgid "Write Tutorials"
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:98
+msgid ""
+"We use the `sphinx-gallery <https://sphinx-gallery.github.io/>`_ to build "
+"python tutorials. You can find the source code under `tutorials "
+"<https://github.com/apache/tvm/tree/main/tutorials>`_ quite self "
+"explanatory. One thing that worth noting is that the comment blocks are "
+"written in reStructuredText instead of markdown so be aware of the syntax."
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:102
+msgid ""
+"The tutorial code will run on our build server to generate the document "
+"page. So we may have a restriction like not being able to access a remote "
+"Raspberry Pi, in such case add a flag variable to the tutorial (e.g. "
+"`use_rasp`) and allow users to easily switch to the real device by changing "
+"one flag. Then use the existing environment to demonstrate the usage."
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:109
+msgid "Refer to Another Location in the Document"
+msgstr ""
+
+#: ../../_staging/contribute/document.rst:110
+msgid ""
+"Please use sphinx's `:ref:` markup to refer to another location in the same "
+"doc."
+msgstr ""

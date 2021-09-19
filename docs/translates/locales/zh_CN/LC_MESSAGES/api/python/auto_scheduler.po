@@ -3,14 +3,20 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# 长德 司, 2021
+# HLearning, 2021
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
-"PO-Revision-Date: 2021-09-18 05:20+0000\n"
-"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"PO-Revision-Date: 2021-09-18 07:38+0000\n"
+"Last-Translator: a_flying_fish <a_flying_fish@outlook.com>, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -19,29 +25,29 @@ msgstr ""
 
 #: ../../_staging/api/python/auto_scheduler.rst:19
 msgid "tvm.auto_scheduler"
-msgstr ""
+msgstr "tvm.auto_scheduler"
 
 #: ../../../python/tvm/auto_scheduler/__init__.pydocstring of
 #: tvm.auto_scheduler:1
 msgid "Namespace for TVM Auto-scheduler."
-msgstr ""
+msgstr "TVM 自动调度器（Auto-scheduler）的命名空间。"
 
 #: ../../../python/tvm/auto_scheduler/__init__.pydocstring of
 #: tvm.auto_scheduler:1
 msgid "**Classes:**"
-msgstr ""
+msgstr "**Classes:**"
 
 #: ../../../python/tvm/auto_scheduler/__init__.pydocstring of
 #: tvm.auto_scheduler:1:<autosummary>:1
 msgid ":obj:`ComputeDAG <tvm.auto_scheduler.ComputeDAG>`\\ \\(compute\\_or\\_sche\\)"
-msgstr ""
+msgstr ":obj:`ComputeDAG <tvm.auto_scheduler.ComputeDAG>`\\ \\(compute\\_or\\_sche\\)"
 
 #: ../../../python/tvm/auto_scheduler/__init__.pydocstring of
 #: tvm.auto_scheduler:1:<autosummary>:1
 #: ../../../python/tvm/auto_scheduler/compute_dag.pydocstring of
 #: tvm.auto_scheduler.compute_dag.ComputeDAG:1
 msgid "The auto-scheduler's computational graph and related program analyses."
-msgstr ""
+msgstr "自动调度器（auto-sheduler）的计算图和相关程序分析。"
 
 #: ../../../python/tvm/auto_scheduler/__init__.pydocstring of
 #: tvm.auto_scheduler:1:<autosummary>:1
@@ -78,7 +84,7 @@ msgstr ""
 #: tvm.auto_scheduler:1:<autosummary>:1
 msgid ""
 "Train a XGBoost model to predict the normalized throughputs of programs."
-msgstr ""
+msgstr "训练 XGBoost 模型来预测程序的正常吞吐量。"
 
 #: ../../../python/tvm/auto_scheduler/__init__.pydocstring of
 #: tvm.auto_scheduler:1:<autosummary>:1
@@ -349,7 +355,7 @@ msgstr ""
 #: ../../../python/tvm/auto_scheduler/__init__.pydocstring of
 #: tvm.auto_scheduler:1
 msgid "**Functions:**"
-msgstr ""
+msgstr "**Functions:**"
 
 #: ../../../python/tvm/auto_scheduler/compute_dag.pydocstring of
 #: tvm.auto_scheduler.compute_dag.ComputeDAG:1:<autosummary>:1

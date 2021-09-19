@@ -3,14 +3,18 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
-"PO-Revision-Date: 2021-09-18 05:23+0000\n"
-"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"PO-Revision-Date: 2021-09-18 07:42+0000\n"
+"Last-Translator: a_flying_fish <a_flying_fish@outlook.com>, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -19,32 +23,32 @@ msgstr ""
 
 #: ../../_staging/deploy/index.rst:21
 msgid "Deploy and Integration"
-msgstr ""
+msgstr "部署和集成"
 
 #: ../../_staging/deploy/index.rst:23
 msgid ""
 "This page contains guidelines on how to deploy TVM to various platforms as "
 "well as how to integrate it with your project."
-msgstr ""
+msgstr "此页面包含如何将 TVM 部署到各种平台以及如何将其与项目集成的指南。"
 
 #: ../../_staging/deploy/index.rst:29
 msgid "Build the TVM runtime library"
-msgstr ""
+msgstr "构建 TVM 运行 runtime 库"
 
 #: ../../_staging/deploy/index.rst:33
 msgid ""
 "Unlike traditional deep learning frameworks. TVM stack is divided into two "
 "major components:"
-msgstr ""
+msgstr "与传统的深度学习框架不同，TVM 堆栈分为两个主要组件："
 
 #: ../../_staging/deploy/index.rst:35
 msgid ""
 "TVM compiler, which does all the compilation and optimizations of the model"
-msgstr ""
+msgstr "TVM 编译器，它负责模型的所有编译和优化"
 
 #: ../../_staging/deploy/index.rst:36
 msgid "TVM runtime, which runs on the target devices."
-msgstr ""
+msgstr "TVM runtime，在目标设备上运行。"
 
 #: ../../_staging/deploy/index.rst:38
 msgid ""
@@ -53,29 +57,30 @@ msgid ""
 "stack on your desktop and use that to cross-compile modules that are "
 "deployed on the target device."
 msgstr ""
+"为了集成编译的模块，我们**不需要**在目标设备上构建整个 TVM。您只需要在桌面上构建 TVM 编译器堆栈，并用它来交叉编译部署在目标设备上的模块。"
 
 #: ../../_staging/deploy/index.rst:42
 msgid ""
 "We only need to use a light-weight runtime API that can be integrated into "
 "various platforms."
-msgstr ""
+msgstr "我们只需要使用可以集成到各种平台的轻量级 runtime API。"
 
 #: ../../_staging/deploy/index.rst:44
 msgid ""
 "For example, you can run the following commands to build the runtime API on "
 "a Linux based embedded system such as Raspberry Pi:"
-msgstr ""
+msgstr "例如，您可以运行以下命令，以便在基于 Linux 的嵌入式系统（如树莓派）上构建runtime API："
 
 #: ../../_staging/deploy/index.rst:57
 msgid "Note that we type ``make runtime`` to only build the runtime library."
-msgstr ""
+msgstr "请注意，我们通过 ``make runtime`` 实现仅构建runtime库。"
 
 #: ../../_staging/deploy/index.rst:59
 msgid ""
 "It is also possible to cross compile the runtime. Cross compiling the "
 "runtime library should not be confused with cross compiling models for "
 "embedded devices."
-msgstr ""
+msgstr "也可以交叉编译runtime。交叉编译runtime库不应与嵌入式设备的交叉编译模型混淆。"
 
 #: ../../_staging/deploy/index.rst:63
 msgid ""
@@ -83,6 +88,8 @@ msgid ""
 "``config.cmake`` to enable these options. After you get the TVM runtime "
 "library, you can link the compiled library"
 msgstr ""
+"如果您想包括额外的runtime（如 OpenCL），您可以修改 ``config.cmake`` 来启用这些选项。获得 TVM runtime "
+"库后，您可以链接编译好的库"
 
 #: ../../_staging/deploy/index.rst:71
 msgid ""
@@ -91,6 +98,8 @@ msgid ""
 "cross compiled it is neccessary to have a runtime compatible with the target"
 " architecture to be able to run the cross compiled model."
 msgstr ""
+"模型（无论是否基于 TVM 优化）可以针对不同的架构基于 TVM 进行交叉编译，例如在 ``x64_64`` 主机上编译 ``aarch64`` "
+"。一旦模型被交叉编译，就必须有一个与目标架构兼容的runtime，以便能够运行交叉编译的模型。"
 
 #: ../../_staging/deploy/index.rst:78
 msgid "Cross compile the TVM runtime for other architectures"

@@ -1,0 +1,732 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 05:22+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/api/python/relay/frontend.rst:20
+msgid "tvm.relay.frontend"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1
+msgid "Frontends for constructing Relay programs."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:3
+msgid "Contains the model importers currently defined for Relay."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1
+msgid "**Functions:**"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_mxnet <tvm.relay.frontend.from_mxnet>`\\ \\(symbol\\[\\, shape\\,"
+" dtype\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:1
+msgid "Convert from MXNet\"s model into compatible relay Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`quantize_conv_bias_mkldnn_from_var "
+"<tvm.relay.frontend.quantize_conv_bias_mkldnn_from_var>`\\ \\(bias\\_var\\, "
+"...\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet_qnn_op_utils.quantize_conv_bias_mkldnn_from_var:1
+msgid "Quantized conv2d bias"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_keras <tvm.relay.frontend.from_keras>`\\ \\(model\\[\\, shape\\, "
+"layout\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:1
+msgid "Convert keras model to relay Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_onnx <tvm.relay.frontend.from_onnx>`\\ \\(model\\[\\, shape\\, "
+"dtype\\, opset\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:1
+msgid "Convert a ONNX model into an equivalent Relay Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_tflite <tvm.relay.frontend.from_tflite>`\\ \\(model\\[\\, "
+"shape\\_dict\\, dtype\\_dict\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:1
+msgid "Convert from tflite model into compatible relay Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ":obj:`from_coreml <tvm.relay.frontend.from_coreml>`\\ \\(model\\[\\, shape\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.coreml.from_coreml:1
+msgid "Convert from coreml model into Relay Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_caffe2 <tvm.relay.frontend.from_caffe2>`\\ \\(init\\_net\\, "
+"predict\\_net\\[\\, shape\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:1
+msgid ""
+"Load caffe2 graph which contains init_net and predict_net into Relay "
+"Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_tensorflow <tvm.relay.frontend.from_tensorflow>`\\ \\(graph\\[\\,"
+" layout\\, shape\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+"Load tensorflow graph which is a python tensorflow graph object into relay."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_darknet <tvm.relay.frontend.from_darknet>`\\ \\(net\\[\\, "
+"shape\\, dtype\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:1
+msgid "Convert from Darknet's model into compatible relay Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_pytorch <tvm.relay.frontend.from_pytorch>`\\ "
+"\\(script\\_module\\, input\\_infos\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+"Load PyTorch model in the form of a scripted PyTorch model and convert into "
+"relay."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_caffe <tvm.relay.frontend.from_caffe>`\\ \\(init\\_net\\, "
+"predict\\_net\\, ...\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:1
+msgid "Convert from caffe model into compatible relay Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+msgid ""
+":obj:`from_paddle <tvm.relay.frontend.from_paddle>`\\ "
+"\\(program\\_or\\_layer\\[\\, shape\\_dict\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.paddlepaddle.from_paddle:1
+msgid "Convert a PaddlePaddle model into an equivalent Relay Function."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend:1
+msgid "**Classes:**"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:1:<autosummary>:1
+msgid ":obj:`ChangeDatatype <tvm.relay.frontend.ChangeDatatype>`\\ \\(src\\, dst\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:1:<autosummary>:1
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:1
+msgid "Mutator for changing the datatype of Relay programs."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.coreml.from_coreml:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:0
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:0
+msgid "Parameters"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:3
+msgid "MXNet symbol."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:5
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:19
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:7
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:5
+msgid "The input shape to the graph"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:7
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:21
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:9
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:7
+msgid "The input types to the graph"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:9
+msgid "The argument parameters in mxnet"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:11
+msgid "The auxiliary parameters in mxnet"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.coreml.from_coreml:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:0
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:0
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:0
+msgid "Returns"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:14
+msgid ""
+"* **mod** (*tvm.IRModule*) -- The relay module for compilation * **params** "
+"(*dict of str to tvm.nd.NDArray*) -- The parameter dict to be used by nnvm"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:14
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:39
+msgid "**mod** (*tvm.IRModule*) -- The relay module for compilation"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.mxnet.from_mxnet:15
+msgid ""
+"**params** (*dict of str to tvm.nd.NDArray*) -- The parameter dict to be "
+"used by nnvm"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:3
+msgid "The keras model to be converted."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:5
+msgid "Input shapes of the model, optional"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:7
+msgid ""
+"One of 'NCHW' or 'NHWC', indicates how data should be arranged in the output"
+" model. Default layout is 'NCHW' as it in general performs better across "
+"TVM."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:12
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.coreml.from_coreml:7
+msgid ""
+"* **mod** (*tvm.IRModule*) -- The relay module for compilation. * **params**"
+" (*dict of str to tvm.nd.NDArray*) -- The parameter dict to be used by "
+"Relay."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:12
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:9
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.coreml.from_coreml:7
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:10
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:12
+msgid "**mod** (*tvm.IRModule*) -- The relay module for compilation."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.keras.from_keras:13
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.coreml.from_coreml:8
+msgid ""
+"**params** (*dict of str to tvm.nd.NDArray*) -- The parameter dict to be "
+"used by Relay."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:3
+msgid ""
+"ONNX graphs are represented as Python Protobuf objects. The companion "
+"parameters will be handled automatically. However, the input names from onnx"
+" graph is vague, mixing inputs and network weights/bias such as \"1\", "
+"\"2\"... For convenience, we rename the `real` input names to \"input_0\", "
+"\"input_1\"... And renaming parameters to \"param_0\", \"param_1\"..."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:10
+msgid ""
+"By default, ONNX defines models in terms of dynamic shapes. The ONNX "
+"importer retains that dynamism upon import, and the compiler attempts to "
+"convert the model into a static shapes at compile time. If this fails, there"
+" may still be dynamic operations in the model. Not all TVM kernels currently"
+" support dynamic shapes, please file an issue on discuss.tvm.apache.org if "
+"you hit an error with dynamic kernels."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:17
+msgid "ONNX ModelProto after ONNX v1.1.0"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:23
+msgid "Override to autodetected opset. This can be helpful for some testing."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:26
+msgid ""
+"If this parameter is true, the importer will take any provided onnx input "
+"values (weights, shapes, etc) and embed them into the relay model as "
+"Constants instead of variables. This allows more aggressive optimizations at"
+" compile time and helps in making models static if certain inputs represent "
+"attributes relay would traditionally consider compile-time constants."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:32
+msgid ""
+"Default config:     use_nt_batch_matmul : bool = True         True to "
+"convert qualified onnx `matmul` to `nn.batch_matmul` strict to NT format"
+"         (transpose_a=False, transpose_b=True)."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:35
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:19
+msgid "Default config:"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:35
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:19
+msgid "use_nt_batch_matmul"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnxNone
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflowNone
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflowNone
+msgid "bool = True"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:35
+msgid ""
+"True to convert qualified onnx `matmul` to `nn.batch_matmul` strict to NT "
+"format (transpose_a=False, transpose_b=True)."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:39
+msgid ""
+"* **mod** (*tvm.IRModule*) -- The relay module for compilation * **params** "
+"(*dict of str to tvm.nd.NDArray*) -- The parameter dict to be used by relay"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.onnx.from_onnx:40
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:10
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:11
+msgid ""
+"**params** (*dict of str to tvm.nd.NDArray*) -- The parameter dict to be "
+"used by relay"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:3
+msgid "tflite.Model or tflite.Model.Model (depending on tflite version)"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:4
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:7
+msgid "Input shapes of the model."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:6
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:9
+msgid "Input types of the model."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tflite.from_tflite:9
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:10
+msgid ""
+"* **mod** (*tvm.IRModule*) -- The relay module for compilation. * **params**"
+" (*dict of str to tvm.nd.NDArray*) -- The parameter dict to be used by relay"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.coreml.from_coreml:3
+msgid "coremltools.models.MLModel of a NeuralNetworkClassifier"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.coreml.from_coreml:4
+msgid "The input shapes"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:3
+msgid "Caffe2 NetDef containing the weights"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:5
+msgid "Caffe2 NetDef containing the graph"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:12
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:23
+msgid ""
+"* **mod** (*tvm.IRModule*) -- The module that optimizations will be "
+"performed on. * **params** (*dict of str to tvm.nd.NDArray*) -- Dict of "
+"converted parameters stored in tvm.nd.NDArray format"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:12
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:23
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:19
+msgid ""
+"**mod** (*tvm.IRModule*) -- The module that optimizations will be performed "
+"on."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe2.from_caffe2:13
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:24
+msgid ""
+"**params** (*dict of str to tvm.nd.NDArray*) -- Dict of converted parameters"
+" stored in tvm.nd.NDArray format"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:1
+msgid ""
+"Load tensorflow graph which is a python tensorflow graph object into relay. "
+"The companion parameters will be handled automatically."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:4
+msgid "Tensorflow GraphDef"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:6
+msgid "NCHW only supported now to enable NHWC models on GPU."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:8
+msgid "Graph level input shape dictionary."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:10
+msgid "if not specified then the last node is assumed as graph output."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:12
+msgid ""
+"Default config:     use_dense : bool = True         Ture to convert "
+"`tf.matmul` to `nn.dense`, else to `nn.matmul`.         The `nn.dense` op "
+"requires the data tensor to be non-transposed and weight tensor         to "
+"be transposed, may insert extra `transpose` to the original graph.     "
+"use_nt_batch_matmul : bool = True         True to convert `tf.batch_matmul` "
+"to `nn.batch_matmul` strict to NT format         (transpose_a=False, "
+"transpose_b=True)."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:16
+msgid "use_dense"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:15
+msgid ""
+"Ture to convert `tf.matmul` to `nn.dense`, else to `nn.matmul`. The "
+"`nn.dense` op requires the data tensor to be non-transposed and weight "
+"tensor to be transposed, may insert extra `transpose` to the original graph."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.tensorflow.from_tensorflow:19
+msgid ""
+"True to convert `tf.batch_matmul` to `nn.batch_matmul` strict to NT format "
+"(transpose_a=False, transpose_b=True)."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.darknet.from_darknet:3
+msgid "Darknet net structure."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:1
+msgid ""
+"Load PyTorch model in the form of a scripted PyTorch model and convert into "
+"relay. The companion parameters will be handled automatically."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:4
+msgid ""
+"TorchScripted PyTorch graph Note: We currently only support traces (ie: "
+"torch.jit.trace(model, input))"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:7
+msgid ""
+"Can be (input name, input shape) or (input name, (input shape, input types))"
+" Graph level input shape and type list The same input names need to be used "
+"for deployment, so choose easy to remember names (such as: input0, input1) "
+"e.g. [('input0', (1, 2)), ('input1', (3, 4))] or [('input0', ((1, 2), "
+"'int')), ('input1', ((3, 4), 'float'))]"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:16
+msgid "A custom op conversion map in the same format as _convert_map above"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:19
+msgid ""
+"* **mod** (*tvm.IRModule*) -- The module that optimizations will be "
+"performed on. * **params** (*dict of str to tvm.runtime.NDArray*) -- Dict of"
+" converted parameters stored in tvm.runtime.ndarray format"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.pytorch.from_pytorch:20
+msgid ""
+"**params** (*dict of str to tvm.runtime.NDArray*) -- Dict of converted "
+"parameters stored in tvm.runtime.ndarray format"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:3
+msgid "caffemodel"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:5
+msgid "caffe prototxt"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:12
+msgid ""
+"* **mod** (*tvm.IRModule*) -- The relay module for compilation. * **params**"
+" (*dict of str to tvm.NDArray*) -- The parameter dict to be used by relay"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.caffe.from_caffe:13
+msgid ""
+"**params** (*dict of str to tvm.NDArray*) -- The parameter dict to be used "
+"by relay"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/__init__.pydocstring of
+#: tvm.relay.frontend.paddlepaddle.from_paddle:3
+msgid ""
+"PaddlePaddle Program/TranslatedLayer represent the computation graph of "
+"PaddlePaddle model, and PaddlePaddle scope stores all the weights of "
+"PaddlePaddle model."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:3
+msgid ""
+"This pass should be useful for users of the Bring Your Own Datatypes "
+"framework. TODO(@gussmith23 @hypercubestart) Add link to documentation when "
+"it exists"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:7
+msgid "Example:"
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:21
+msgid ""
+"The source datatype name, e.g. \"float\" or \"posites2\" (but not "
+"\"float32\" or \"custom[posites2]32\")."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:24
+msgid "The destination datatype name, in the same format."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:27
+msgid ""
+"**mod** -- Module where all nodes of dtype `src` have been changed to have "
+"dtype `dst`."
+msgstr ""
+
+#: ../../../python/tvm/relay/frontend/change_datatype.pydocstring of
+#: tvm.relay.frontend.change_datatype._wrap_class_function_pass.<locals>.PyFunctionPass:0
+msgid "Return type"
+msgstr ""

@@ -3,14 +3,18 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# Yuchen, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
-"PO-Revision-Date: 2021-09-18 05:25+0000\n"
-"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"PO-Revision-Date: 2021-09-18 07:43+0000\n"
+"Last-Translator: Yuchen, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -19,7 +23,7 @@ msgstr ""
 
 #: ../../_staging/dev/relay_intro.rst:21
 msgid "Introduction to Relay IR"
-msgstr ""
+msgstr "Relay 介绍"
 
 #: ../../_staging/dev/relay_intro.rst:22
 msgid ""
@@ -28,30 +32,31 @@ msgid ""
 "language background and deep learning framework developers who are familiar "
 "with the computational graph representation."
 msgstr ""
+"本文将介绍 NNVM 的下一代中间表示: Relay。 我们期待两种背景的读者——具有编程语言背景的读者和熟悉计算图表示的深度学习框架开发人员。"
 
 #: ../../_staging/dev/relay_intro.rst:26
 msgid ""
 "We briefly summarize the design goal here, and will touch upon these points "
 "in the later part of the article."
-msgstr ""
+msgstr "我们在这里简要总结Relay的设计目标，并将在后面部分讨论这些要点。"
 
 #: ../../_staging/dev/relay_intro.rst:28
 msgid "Support traditional data flow-style programming and transformations."
-msgstr ""
+msgstr "支持传统的数据流风格的编程和变换。"
 
 #: ../../_staging/dev/relay_intro.rst:29
 msgid ""
 "Support functional-style scoping, let-binding and making it a fully featured"
 " differentiable language."
-msgstr ""
+msgstr "支持函数式编程风格，包括函数式编程里的scoping 和 let-binding，并且我们将Relay设计成了一门可微分的语言。"
 
 #: ../../_staging/dev/relay_intro.rst:30
 msgid "Being able to allow the user to mix the two programming styles."
-msgstr ""
+msgstr "支持数据流风格和函数式风格的混合编程。"
 
 #: ../../_staging/dev/relay_intro.rst:33
 msgid "Build a Computational Graph with Relay"
-msgstr ""
+msgstr "使用Relay建立一个计算图"
 
 #: ../../_staging/dev/relay_intro.rst:34
 msgid ""
@@ -63,6 +68,8 @@ msgid ""
 " implement automatic differentiation and compile for heterogeneous execution"
 " environments (e.g., executing parts of the graph on specialized hardware)."
 msgstr ""
+"传统的深度学习框架使用计算图作为它们的中间表示。 计算图（或数据流图）是代表计算过程的有向无环图（DAG）。 "
+"尽管由于缺少控制流，数据流图在计算能力方面受到限制，但它们的简单性使其易于实现自动微分并针对异构执行环境进行编译（例如，在专用硬件上执行计算图的一部分，即子图）。"
 
 #: ../../_staging/dev/relay_intro.rst:44
 msgid ""
@@ -72,14 +79,16 @@ msgid ""
 "computational graph IR like NNVMv1, with the only difference in terms of "
 "terminology:"
 msgstr ""
+"我们可以使用 Relay 构建计算（数据流）图。具体来说，上面的代码展示了如何构造一个简单只有两个节点的计算图。你会发现示例的语法与第一代 NNVM "
+"等现有基于计算图的中间表示没有太大区别，唯一的区别只是术语的不同："
 
 #: ../../_staging/dev/relay_intro.rst:48
 msgid "Existing frameworks usually use graph and subgraph"
-msgstr ""
+msgstr "现有框架通常使用图和子图"
 
 #: ../../_staging/dev/relay_intro.rst:49
 msgid "Relay uses function e.g. --  ``fn (%x)``, to indicate the graph"
-msgstr ""
+msgstr "Relay 使用函数，例如 ``fn (%x)`` 来表示图"
 
 #: ../../_staging/dev/relay_intro.rst:51
 msgid ""
@@ -94,6 +103,12 @@ msgid ""
 "and treat the result as nested Call expression, it becomes ``log(%x) + "
 "log(%x)``."
 msgstr ""
+"每个数据流节点都是 Relay 中的一个 CallNode。 Relay Python DSL "
+"允许用户快速地构建数据流图。在上面的代码中需要注意的是我们显式地构造了一个 Add 节点，其中两个输入点都指向 "
+"``%1``。当深度学习框架对上面这段程序进行推理时，它将会按照拓扑顺序进行计算，并且 ``%1`` "
+"只会被计算一次。尽管这对于深度学习框架构建者来说是很自然的，但它可能会让 "
+"PL（程序语言）的研究者感到惊讶。如果我们实现一个简单的visitor来打印结果并将结果视为嵌套的 Call 表达式，它就变成了 ``log(%x) +"
+" log(%x)`` 。"
 
 #: ../../_staging/dev/relay_intro.rst:59
 msgid ""
@@ -102,6 +117,8 @@ msgid ""
 "IR, nested expressions are treated as expression trees, without considering "
 "the fact that the ``%1`` is actually reused twice in ``%2``."
 msgstr ""
+"这种歧义是由于当 DAG 中存在共享节点时对程序语义的不同理解造成的。在正常的函数式 IR 中，嵌套表达式被视为表达式树，而没有考虑 ``%1`` 在 "
+"``%2`` 中其实被重用两次。"
 
 #: ../../_staging/dev/relay_intro.rst:63
 msgid ""
@@ -112,6 +129,9 @@ msgid ""
 "%2)`` to each CallNode so each common node can be referenced in later parts "
 "of the program."
 msgstr ""
+"Relay IR 注意到了这个区别。深度学习框架用户经常使用这种方式构建计算图的时候经常会发生 DAG 节点的重用。因此，当我们以文本格式打印 "
+"Relay 程序时，我们每行打印一个 CallNode ，并且给每个 CallNode 分配一个临时 id ``(%1, "
+"%2)``，以便可以在程序的后续部分中引用每个被重用的节点。"
 
 #: ../../_staging/dev/relay_intro.rst:69
 msgid "Module: Support Multiple Functions (Graphs)"

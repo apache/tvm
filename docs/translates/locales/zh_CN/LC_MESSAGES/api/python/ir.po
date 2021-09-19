@@ -3,14 +3,20 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# 长德 司, 2021
+# HLearning, 2021
+# baijie xie, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
-"PO-Revision-Date: 2021-09-18 05:21+0000\n"
-"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"PO-Revision-Date: 2021-09-18 07:39+0000\n"
+"Last-Translator: baijie xie, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -19,21 +25,21 @@ msgstr ""
 
 #: ../../_staging/api/python/ir.rst:19
 msgid "tvm.ir"
-msgstr ""
+msgstr "tvm.ir"
 
 #: ../../../python/tvm/ir/__init__.pydocstring of tvm.ir:1
 msgid "Common data structures across all IR variants."
-msgstr ""
+msgstr "IR相关的常见数据结构"
 
 #: ../../../python/tvm/ir/__init__.pydocstring of tvm.ir:1
 #: ../../_staging/docstring of tvm.instrument:1 ../../_staging/docstring of
 #: tvm.transform:1
 msgid "**Classes:**"
-msgstr ""
+msgstr "**Classes:**"
 
 #: ../../../python/tvm/ir/__init__.pydocstring of tvm.ir:1:<autosummary>:1
 msgid ":obj:`SourceName <tvm.ir.SourceName>`\\ \\(name\\)"
-msgstr ""
+msgstr ":obj:`SourceName <tvm.ir.SourceName>`\\ \\(name\\)"
 
 #: ../../../python/tvm/ir/__init__.pydocstring of tvm.ir:1:<autosummary>:1
 #: ../../../python/tvm/ir/base.pydocstring of tvm.ir.base.SourceName:1
@@ -367,7 +373,7 @@ msgstr ""
 #: ../../_staging/docstring of tvm.instrument:1 ../../_staging/docstring of
 #: tvm.transform:1
 msgid "**Functions:**"
-msgstr ""
+msgstr "**Functions:**"
 
 #: ../../../python/tvm/ir/base.pydocstring of
 #: tvm.ir.base.SourceName:1:<autosummary>:1

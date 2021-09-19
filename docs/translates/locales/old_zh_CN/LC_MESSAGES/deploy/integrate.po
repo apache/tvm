@@ -1,0 +1,83 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 05:23+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/deploy/integrate.rst:19
+msgid "Integrate TVM into Your Project"
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:21
+msgid ""
+"TVM's runtime is designed to be lightweight and portable. There are several "
+"ways you can integrate TVM into your project."
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:24
+msgid ""
+"This article introduces possible ways to integrate TVM as a JIT compiler to "
+"generate functions on your system."
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:29
+msgid "DLPack Support"
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:31
+msgid ""
+"TVM's generated function follows the PackedFunc convention. It is a function"
+" that can take positional arguments including standard types such as float, "
+"integer, string. The PackedFunc takes DLTensor pointer in `DLPack "
+"<https://github.com/dmlc/dlpack>`_ convention. So the only thing you need to"
+" solve is to create a corresponding DLTensor object."
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:40
+msgid "Integrate User Defined C++ Array"
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:42
+msgid ""
+"The only thing we have to do in C++ is to convert your array to DLTensor and"
+" pass in its address as ``DLTensor*`` to the generated function."
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:47
+msgid "Integrate User Defined Python Array"
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:49
+msgid ""
+"Assume you have a python object ``MyArray``. There are three things that you"
+" need to do"
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:51
+msgid ""
+"Add ``_tvm_tcode`` field to your array which returns "
+"``tvm.TypeCode.ARRAY_HANDLE``"
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:52
+msgid ""
+"Support ``_tvm_handle`` property in your object, which returns the address "
+"of DLTensor in python integer"
+msgstr ""
+
+#: ../../_staging/deploy/integrate.rst:53
+msgid "Register this class by ``tvm.register_extension``"
+msgstr ""

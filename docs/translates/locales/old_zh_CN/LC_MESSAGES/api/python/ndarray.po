@@ -1,0 +1,215 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 05:21+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/api/python/ndarray.rst:19
+msgid "tvm.runtime.ndarray"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of tvm.runtime.ndarray:1
+msgid "Runtime NDArray API"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray:1
+msgid "Lightweight NDArray class of TVM runtime."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray:3
+msgid ""
+"Strictly this is only an Array Container (a buffer object) No arthimetic "
+"operations are defined. All operations are performed by TVM functions."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray:7
+msgid ""
+"The goal is not to re-build yet another array library. Instead, this is a "
+"minimal data structure to demonstrate how can we use TVM in existing project"
+" which might have their own array containers."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of tvm.nd.NDArray.dtype:1
+msgid "Type of this array"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of tvm.nd.NDArray.device:1
+msgid "Device of this array"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.same_as:1
+msgid "Check object identity equality"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.same_as:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyfrom:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyto:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.array:0 ../../../python/tvm/runtime/ndarray.pydocstring
+#: of tvm.runtime.ndarray.empty:0
+msgid "Parameters"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.same_as:3
+msgid "The other object to compare to"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.same_as:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyfrom:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.numpy:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm._ffi._ctypes.ndarray.NDArrayBase.to_dlpack:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.array:0 ../../../python/tvm/runtime/ndarray.pydocstring
+#: of tvm.runtime.ndarray.empty:0
+msgid "Returns"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.same_as:6
+msgid "**same** -- Whether other is same as self."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.same_as:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyfrom:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.numpy:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm._ffi._ctypes.ndarray.NDArrayBase.to_dlpack:0
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.array:0 ../../../python/tvm/runtime/ndarray.pydocstring
+#: of tvm.runtime.ndarray.empty:0
+msgid "Return type"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyfrom:1
+msgid "Peform an synchronize copy from the array."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyfrom:3
+msgid "The data source we should like to copy from."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyfrom:6
+msgid "**arr** -- Reference to self."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.asnumpy:1
+msgid ""
+"Convert this array to numpy array. This API will be deprecated in TVM v0.8 "
+"release. Please use `numpy` instead."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.numpy:1
+msgid "Convert this array to numpy array"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.numpy:3
+msgid "**np_arr** -- The corresponding numpy array."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyto:1
+msgid "Copy array to target"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.NDArray.copyto:3
+msgid "The target array to be copied, must have same shape as this array."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of tvm.nd.NDArray.shape:1
+msgid "Shape of this array"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm._ffi._ctypes.ndarray.NDArrayBase.to_dlpack:1
+msgid "Produce an array from a DLPack Tensor without copying memory"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm._ffi._ctypes.ndarray.NDArrayBase.to_dlpack:3
+msgid "**dlpack**"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.array:1
+msgid "Create an array from source arr."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.array:3
+msgid "The array to be copied from"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.array:5
+msgid "The device device to create the array"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.array:8
+msgid "**ret** -- The created array"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.empty:1
+msgid "Create an empty array given shape and device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.empty:3
+msgid "The shape of the array."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.empty:5
+msgid "The data type of the array."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.empty:7
+msgid "The device of the array."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.empty:9
+msgid "The memory scope of the array."
+msgstr ""
+
+#: ../../../python/tvm/runtime/ndarray.pydocstring of
+#: tvm.runtime.ndarray.empty:12
+msgid "**arr** -- The array tvm supported."
+msgstr ""
