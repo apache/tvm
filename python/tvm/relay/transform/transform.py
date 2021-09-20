@@ -1204,7 +1204,7 @@ def FakeQuantizationToInteger():
         x    w
         |    |
         dq   dq
-         \   /
+         \\   /
           op1
            |
           op2
