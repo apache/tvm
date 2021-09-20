@@ -50,8 +50,8 @@ inline PrimExpr Tensor::index_tensor(Array<PrimExpr> indices, bool support_negat
 
   if (support_negative_indices) {
     for (size_t i = 0; i < shape.size(); i++) {
-      PrimExpr new_index = if_then_else(indices[i] < make_const(indices[i]->dtype, 0),
-                                        indices[i] + shape[i], indices[i]);
+      PrimExpr new_index =
+          Select(indices[i] < make_const(indices[i]->dtype, 0), indices[i] + shape[i], indices[i]);
       indices.Set(i, new_index);
     }
   }
