@@ -52,27 +52,55 @@ def get_device_uid(target_device: Dict) -> AnyStr:
 
 def boot_device(udid: AnyStr) -> None:
     os.system(f"xcrun simctl boot {udid}")
+    if not is_booted(udid):
+        raise RuntimeError(f"Failed to boot device with unique id: {udid}")
 
 
 def shutdown_device(udid: AnyStr) -> None:
     os.system(f"xcrun simctl shutdown {udid}")
+    if not is_turned_off(udid):
+        raise RuntimeError(f"Failed to shut down device with unique id: {udid}")
 
 
-def deploy_bundle_to_simulator(udid: AnyStr, bundle_path: AnyStr) -> None:
-    os.system(f"xcrun simctl install {udid} {bundle_path}")
+def deploy_bundle_to_simulator(udid: AnyStr, bundle_path: AnyStr) -> bool:
+    ret_code = os.system(f"xcrun simctl install {udid} {bundle_path}")
+    if ret_code != 0:
+        raise RuntimeError(f"Failed to deploy bundle <{bundle_path}> to device with unique id: {udid}")
+    return True
 
 
 def delete_bundle_from_simulator(udid: AnyStr, bundle_id: AnyStr) -> None:
-    os.system(f"xcrun simctl uninstall {udid} {bundle_id}")
+    ret_code = os.system(f"xcrun simctl uninstall {udid} {bundle_id}")
+    if ret_code != 0:
+        raise RuntimeError(f"Failed to uninstall bundle <{bundle_id}> from device with unique id: {udid}")
 
 
-def launch_ios_rpc(udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr) -> None:
-    os.system(f"xcrun simctl launch {udid} {bundle_id}"
-              f" --immediate_connect --host_url={host_url} --host_port={host_port} --key={key} --server_mode={mode}")
+def launch_ios_rpc(udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr) -> bool:
+    ret_code = os.system(f"xcrun simctl launch {udid} {bundle_id}"
+                         f" --immediate_connect"
+                         f" --host_url={host_url}"
+                         f" --host_port={host_port}"
+                         f" --key={key}"
+                         f" --server_mode={mode}")
+    if ret_code != 0:
+        raise RuntimeError(f"Failed to launch bundle <{bundle_id}> on device with unique id: {udid}")
+    return True
 
 
 def terminate_ios_rpc(udid: AnyStr, bundle_id: AnyStr) -> None:
-    os.system(f"xcrun simctl terminate {udid} {bundle_id}")
+    ret_code = os.system(f"xcrun simctl terminate {udid} {bundle_id}")
+    if ret_code != 0:
+        raise RuntimeError(f"Failed to terminate bundle <{bundle_id}> from device with unique id: {udid}")
+
+
+def is_booted(udid: AnyStr) -> bool:
+    device = find_device(udid)
+    return device["state"] == "Booted"
+
+
+def is_turned_off(udid: AnyStr) -> bool:
+    device = find_device(udid)
+    return device["state"] == "Shutdown"
 
 
 def check_booted_device(devices: List[Dict]) -> Dict:
@@ -82,45 +110,41 @@ def check_booted_device(devices: List[Dict]) -> Dict:
     return {}
 
 
+def find_device(udid: AnyStr) -> Dict:
+    available_devices = get_list_of_available_simulators()
+    for devices in available_devices.values():
+        for device in devices:
+            if device["udid"] == udid:
+                return device
+
+
 class ServerIOSLauncher:
     booted_devices = []
-    external_booted_device = None
     bundle_id = "org.apache.tvmrpc"
     bundle_path = "/Users/agladyshev/workspace/tvm/build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Debug-iphonesimulator/tvmrpc.app"
 
     def __init__(self, mode, host, port, key):
-        ServerIOSLauncher.external_booted_device = None
+        self.external_booted_device = None
         if not ServerIOSLauncher.booted_devices:
-            target_system = SimulatorSystem.iOS
-            target_device_type = IOSDevice.iPhone
-            available_devices = get_list_of_available_simulators()
-            if not available_devices:
-                raise ValueError(f"No devices available in this environment")
-            target_devices = grep_by_system(available_devices, target_system)
-            if not target_devices:
-                raise ValueError(f"No available simulators for target system: {target_system.value}")
-            target_devices = grep_by_device(target_devices, target_device_type)
-            if not target_devices:
-                raise ValueError(f"No available simulators for target device type: {target_device_type.value}")
+            self._boot_or_find_booted_device()
 
-            maybe_booted = check_booted_device(target_devices)
-            if maybe_booted != {}:
-                ServerIOSLauncher.external_booted_device = maybe_booted
-            else:
-                take_latest_model = True
-                target_device = target_devices[-1 if take_latest_model else 0]
-                boot_device(get_device_uid(target_device))
-                ServerIOSLauncher.booted_devices.append(target_device)
-
-        self.udid = get_device_uid(ServerIOSLauncher.external_booted_device
-                                   if ServerIOSLauncher.external_booted_device is not None
+        self.udid = get_device_uid(self.external_booted_device
+                                   if self.external_booted_device is not None
                                    else ServerIOSLauncher.booted_devices[-1])
-        deploy_bundle_to_simulator(self.udid, self.bundle_path)
-        launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
+        self.bundle_was_deployed = deploy_bundle_to_simulator(self.udid, self.bundle_path)
+        self.server_was_started = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
 
     def terminate(self):
-        terminate_ios_rpc(self.udid, self.bundle_id)
-        delete_bundle_from_simulator(self.udid, self.bundle_id)
+        if self.server_was_started:
+            try:
+                terminate_ios_rpc(self.udid, self.bundle_id)
+            except Exception as e:
+                print(e)
+        if self.bundle_was_deployed:
+            try:
+                delete_bundle_from_simulator(self.udid, self.bundle_id)
+            except Exception as e:
+                print(e)
 
     def __del__(self):
         self.terminate()
@@ -128,4 +152,30 @@ class ServerIOSLauncher:
     @staticmethod
     def shutdown_booted_devices():
         for device_meta in ServerIOSLauncher.booted_devices:
-            shutdown_device(get_device_uid(device_meta))
+            try:
+                shutdown_device(get_device_uid(device_meta))
+            except Exception as e:
+                print(e)
+        ServerIOSLauncher.booted_devices = []
+
+    def _boot_or_find_booted_device(self):
+        target_system = SimulatorSystem.iOS
+        target_device_type = IOSDevice.iPhone
+        available_devices = get_list_of_available_simulators()
+        if not available_devices:
+            raise ValueError(f"No devices available in this environment")
+        target_devices = grep_by_system(available_devices, target_system)
+        if not target_devices:
+            raise ValueError(f"No available simulators for target system: {target_system.value}")
+        target_devices = grep_by_device(target_devices, target_device_type)
+        if not target_devices:
+            raise ValueError(f"No available simulators for target device type: {target_device_type.value}")
+
+        maybe_booted = check_booted_device(target_devices)
+        if maybe_booted != {}:
+            self.external_booted_device = maybe_booted
+        else:
+            take_latest_model = True
+            target_device = target_devices[-1 if take_latest_model else 0]
+            boot_device(get_device_uid(target_device))
+            ServerIOSLauncher.booted_devices.append(target_device)
