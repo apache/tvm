@@ -92,7 +92,7 @@ class TuneContext(Object):
             num_threads = cpu_count()
 
         self.__init_handle_by_constructor__(
-            _ffi_api.TuneContext,  # pylint: disable=no-member
+            _ffi_api.TuneContext,  # type: ignore # pylint: disable=no-member
             mod,
             target,
             task_name,
