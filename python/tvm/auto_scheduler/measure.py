@@ -37,7 +37,6 @@ import shutil
 import tempfile
 import multiprocessing
 import logging
-import copy
 
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
@@ -910,18 +909,18 @@ def _timed_eval_func(
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
             assert len(args) == len(build_res.args)
-            loc_args = copy.deepcopy(args)
+            loc_args = []
             # pylint: disable=consider-using-enumerate
-            for idx in range(len(loc_args)):
-                if loc_args[idx] is None:
+            for idx in range(len(args)):
+                if args[idx] is None:
                     build_res_arg = build_res.args[idx]
                     empty_array = ndarray.empty(
                         get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
                     )
                     random_fill(empty_array)
-                    loc_args[idx] = empty_array
+                    loc_args.append(empty_array)
                 else:
-                    loc_args[idx] = ndarray.array(loc_args[idx], dev)
+                    loc_args.append(ndarray.array(arg))
             dev.sync()
             costs = time_f(*loc_args).results
         # pylint: disable=broad-except
@@ -1114,18 +1113,18 @@ def _rpc_run(
             ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
             assert len(args) == len(build_res.args)
-            loc_args = copy.deepcopy(args)
+            loc_args = []
             # pylint: disable=consider-using-enumerate
-            for idx in range(len(loc_args)):
-                if loc_args[idx] is None:
+            for idx in range(len(args)):
+                if args[idx] is None:
                     build_res_arg = build_res.args[idx]
                     empty_array = ndarray.empty(
                         get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
                     )
                     random_fill(empty_array)
-                    loc_args[idx] = empty_array
+                    loc_args.append(empty_array)
                 else:
-                    loc_args[idx] = ndarray.array(loc_args[idx], dev)
+                    loc_args.append(ndarray.array(args[idx], dev))
             dev.sync()
 
             # First run for check that the kernel is correct
