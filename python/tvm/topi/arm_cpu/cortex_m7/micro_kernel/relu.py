@@ -1,6 +1,8 @@
 def relu_MxN_impl(M, N, uniq_id):
     """Emit C code for relu impl."""
     cc_code = f"""
+#include "cortex_m7_defines.h"
+
 #ifndef __STATIC_FORCEINLINE
     #define __STATIC_FORCEINLINE  static inline
 #endif
