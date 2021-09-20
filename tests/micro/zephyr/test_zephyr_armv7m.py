@@ -225,6 +225,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     sample, output_shape = _get_test_data(testdata_dir)
 
     relay_mod_simd = _apply_desired_layout_simd(relay_mod)
+    
     # kernel layout "HWIO" is not supported by arm_cpu SIMD extension (see tvm\python\relay\op\strategy\arm_cpu.py)
     relay_mod_no_simd = _apply_desired_layout_no_simd(relay_mod)
 
