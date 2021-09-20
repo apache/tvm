@@ -49,6 +49,7 @@ def _make_sess_from_op(
 
 
 def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
+    config_main_stack_size = None
     if test_utils.qemu_boards(zephyr_board):
         config_main_stack_size = 1536
 
@@ -58,7 +59,7 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
         "verbose": bool(build_config.get("debug")),
         "zephyr_board": zephyr_board,
     }
-    if config_main_stack_size:
+    if config_main_stack_size is not None:
         project_options["config_main_stack_size"] = config_main_stack_size
 
     project = tvm.micro.generate_project(
@@ -407,6 +408,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
     assert len(tasks) > 0
 
+    config_main_stack_size = None
     if test_utils.qemu_boards(board):
         config_main_stack_size = 1536
 
@@ -416,7 +418,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         "verbose": 1,
         "project_type": "host_driven",
     }
-    if config_main_stack_size:
+    if config_main_stack_size is not None:
         project_options["config_main_stack_size"] = config_main_stack_size
 
     module_loader = tvm.micro.AutoTvmModuleLoader(
