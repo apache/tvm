@@ -73,6 +73,35 @@ def test_rpc_tracker():
     tracker_server.terminate()
 
 
+def test_rpc_tracker_via_proxy():
+    """
+         tracker
+         /     \
+    Host   --   Proxy -- RPC server
+    """
+    tracker_server = tracker.Tracker(host=host_url, port=host_port, silent=True)
+    proxy_server_tracker = proxy.Proxy(host=host_url, port=8888, tracker_addr=(tracker_server.host, tracker_server.port))
+    device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.proxy.value,
+                                                                   host=proxy_server_tracker.host,
+                                                                   port=proxy_server_tracker.port,
+                                                                   key=key)
+
+    try:
+        results = []
+        for _ in range(2):
+            ret = can_create_connection_without_deadlock(timeout=10, func=request_remote,
+                                                         args=(key, tracker_server.host, tracker_server.port))
+            results.append(ret)
+        if not np.all(np.array(results) == StatusKind.COMPLETE):
+            raise ValueError("One or more sessions ended incorrectly.")
+    except Exception as e:
+        print(e)
+
+    device_server_launcher.terminate()
+    proxy_server_tracker.terminate()
+    tracker_server.terminate()
+
+
 if __name__ == '__main__':
     host_url = "0.0.0.0"
     host_port = 9190
@@ -80,5 +109,6 @@ if __name__ == '__main__':
 
     test_rpc_proxy()
     test_rpc_tracker()
+    test_rpc_tracker_via_proxy()
 
     server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
