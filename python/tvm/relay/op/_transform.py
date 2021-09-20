@@ -1174,3 +1174,32 @@ def gather_nd_shape_func(attrs, inputs, _):
     assert index_rank > 0, "index_rank needs to be specified for dynamic gather_nd"
 
     return [_gather_nd_shape(inputs[0], inputs[1], convert(batch_dims), convert(index_rank))]
+
+
+@script
+def _squeeze_shape_func_input_data(data, axis, ndims):
+    out = output_tensor((ndims,), "int64")
+    out_i = 0
+    for i in const_range(data.shape[0]):
+        not_in_axis = True
+        for j in const_range(axis.shape[0]):
+            if i == axis[j]:
+                not_in_axis = False
+        if not_in_axis:
+            out[out_i] = int64(data[i])
+            out_i += 1
+
+    return out
+
+
+# def _squeeze_shape_func_input_data(data, axis, ndims):
+#     out = []
+#     for i in range(len(data)):
+#         if not i in axis:
+#             out.append(data[i])
+#     return out
+
+
+@_reg.register_shape_func("dyn.squeeze", [False, True])
+def dynamic_squeeze_shape_func(attrs, inputs, out_ndims):
+    return [_squeeze_shape_func_input_data(inputs[0], inputs[1], out_ndims[0])]

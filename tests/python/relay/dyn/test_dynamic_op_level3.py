@@ -95,20 +95,19 @@ def test_dyn_shape_reshape():
 def test_squeeze():
     def verify_squeeze(shape, dtype, axis):
         x = relay.var("x", relay.TensorType(shape, dtype))
-        if axis is not None:
-            axis = relay.var("axis", relay.TensorType([len(axis)], "int64"))
+        assert axis is not None
+        np_axis = tuple(axis)
+        axis = relay.var("axis", relay.TensorType([len(axis)], "int64"))
         squeeze = relay.squeeze(x, axis=axis)
+
         print(squeeze)
-        print(run_infer_type(squeeze))
+        func = relay.Function([x, axis], squeeze)
+        print(func)
+        
+        x_data = np.random.random_sample(shape).astype(dtype)
+        ref_res = np.squeeze(x_data, axis=np_axis)
+        verify_func(func, [x_data, np.array(np_axis).astype("int64")], ref_res)
 
-        # np_axis = tuple(axis) if axis is not None else None
-
-        # data = np.random.random_sample(shape).astype(dtype)
-        # op_res = create_executor().evaluate(squeeze, {x: relay.const(data)})
-        # ref_res = np.squeeze(data, axis=np_axis)
-        # np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
-
-    verify_squeeze((1, 3, 2, 5), "float32", None)
     verify_squeeze((1, 3, 1), "float32", [0])
     verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
 
