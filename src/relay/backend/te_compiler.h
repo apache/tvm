@@ -52,24 +52,15 @@
 #include "../transforms/infer_layout_utils.h"
 #include "../transforms/pass_utils.h"
 #include "./te_compiler_cache.h"
-#include "utils.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
 namespace tec {
 
-// This class is needed to avoid a GCC 5 bug that prevents maps containing enums
-// from being compiled. If i386 GCC version is increased, we can remove it.
-struct EnumClassHash {
-  template <typename T>
-  std::size_t operator()(T t) const {
-    return static_cast<std::size_t>(t);
-  }
-};
-
 // TODO(@jroesch, @chrisS) these should be a tvm::Map for uniformity sake
 // we should a version of context which works in Map
-using TargetMap = std::unordered_map<DLDeviceType, Target, EnumClassHash>;
+using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
 using DeviceMap =
     std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 using ProcessFn = std::function<void(Function)>;
@@ -96,8 +87,9 @@ class TECompilerNode : public Object {
    */
   virtual CachedFunc Lower(const CCacheKey& key, const String mod_name) = 0;
 
-  /* Return all functions which have been lowered by the compiler, keyed by target. */
-  virtual Map<String, IRModule> GetLoweredFunctions() = 0;
+  /* Return all functions which have been lowered by the compiler in an IRModule, annotated with
+   * their target. */
+  virtual IRModule GetLoweredFunctions() = 0;
 
   /*!
    * \brief Just in time compile to get a PackedFunc.
@@ -113,7 +105,7 @@ class TECompilerNode : public Object {
   virtual CachedFunc LowerShapeFunc(const CCacheKey& key) = 0;
   /*!
    * \brief Lower the external function using external codegen tools.
-   * \return The runtime moduels for each needed external codegen tool.
+   * \return The runtime modules for each needed external codegen tool.
    */
   virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
 
@@ -137,23 +129,6 @@ class TECompiler : public ObjectRef {
   using ContainerType = TECompilerNode;
 };
 
-/*! \brief The result of lowering a module, for now we need to pass an aggregate data structure
- * which contains more then a single module in order to interact with the today API.
- */
-struct LoweredModule {
-  /*! \brief The module which contains the Relay code. */
-  IRModule main_module;
-  /*! \brief The module which contains per target code. */
-  Map<String, IRModule> per_target_module;
-  /*! \brief The external runtime modules which must be combined with the lowered code. */
-  Array<tvm::runtime::Module> external_mods;
-  // TODO(@electriclilies): THis might need to become a map
-  /*! \brief The info for this function (not sure what a better description is??)
-   *
-   */
-  backend::FunctionInfo main_func_info;
-};
-
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
@@ -174,27 +149,22 @@ void UpdateFunctionMetadata(Function relay_func,
  */
 Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
 
-/*! \brief Utility to convert a LoweredModule to an IRModule.
+/*!
+ * \brief Update the "main" control function's metadata
  *
- * This function takes all the target specific modules in LoweredModule and
- * annotates their functions with the correct target, and puts all those functions
- * in one IRModule.
- * The purpose of this utility is to allow us to slowly remove LoweredModule from the codebase.
- *
- * \param mod The LoweredModule to convert.
- * \return The IRModule form of the input LoweredModule.
+ * \param mod The module
+ * \param targets Map of targets
+ * \return function_infos Function info for each function in the module
  */
-IRModule LoweredModuleToIRModule(LoweredModule mod);
+backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
+                                              Map<Expr, backend::StorageInfo> storage_info_map);
 
-/*! \brief Utility to convert an IRModule to a LoweredModule.
+/*! \brief Utility to separate the functions in an IRModule by Target.
  *
- * This function takes all the functions in the IRModule and moves them into target-specific
- * IRModules stored inside a LoweredModule.
- * The purpose of this utility is to allow us to slowly remove LoweredModule from the codebase.
- * \param mod The IRModule to convert.
- * \return The LoweredModule form of the input IRModule.
+ * \param mod The IRModule to extract the per target module from
+ * \return The map from Target to IRModule
  */
-LoweredModule IRModuleToLoweredModule(IRModule mod);
+Map<Target, IRModule> GetPerTargetModules(IRModule mod);
 
 /*! \brief Lower an IRModule's primitive functions to TIR.
  *
@@ -210,7 +180,7 @@ LoweredModule IRModuleToLoweredModule(IRModule mod);
  * each function that we lower
  * \return The lowered module, see above.
  */
-LoweredModule LowerTE(
+IRModule LowerTE(
     const IRModule& module, TargetMap targets, DeviceMap device_map,
     backend::StaticMemoryPlan memory_plan, const String& module_name,
     ProcessFn process_fn = [](Function f) {});
@@ -218,21 +188,18 @@ LoweredModule LowerTE(
 /*! \brief Pass to lower an IRModule's primitive functions to TIR.
  *
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
- * to TE expressions, schedules them, and then to TIR. This Pass calls LowerTE, and
- * uses LoweredModuleToIRModule utility to convert the output LowerTE's output
- * LoweredModule into an IRModule before returning it.
+ * to TE expressions, schedules them, and then to TIR. It annotates all functions
+ * with their target.
  *
  * \param targets The mapping for devices to targets.
  * \param device_context_map An analysis result mapping each sub-expression to a device.
- * \param memory_plan The memory plan used during lowering
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
  * \returns The pass which lowers primative functions to TIR
  */
 transform::Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
-                            backend::StaticMemoryPlan memory_plan, const String& module_name,
-                            std::function<void(Function)> process_fn);
+                            const String& module_name, std::function<void(Function)> process_fn);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

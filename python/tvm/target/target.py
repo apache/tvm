@@ -87,6 +87,8 @@ class Target(Object):
             mfloat-abi : str (optional)
                 An llvm setting that is one of 'hard' or 'soft' indicating whether to use
                 hardware or software floating-point operations.
+            mabi : str (optional)
+                An llvm setting. Generate code for the specified ABI, for example "lp64d".
             host : Union[str, Dict[str, Any]] (optional)
                 Description for target host. Can be recursive. Similar to target.
         host : Optional[Union[str, Dict[str, Any]]]
@@ -413,6 +415,54 @@ def bifrost(model="unknown", options=None):
     return Target(" ".join(["opencl"] + opts))
 
 
+def riscv_cpu(model="sifive-u54", options=None):
+    """Returns a RISC-V CPU target.
+    Default: sifive-u54 rv64gc
+
+    Parameters
+    ----------
+    model: str
+        CPU name.
+    options : str or list of str
+        Additional options
+    """
+    trans_table = {
+        "sifive-e31": [
+            "-model=sifive-e31",
+            "-mtriple=riscv32-unknown-linux-gnu",
+            "-mcpu=sifive-e31",
+            "-mabi=ilp32",
+            # cc: riscv64-unknown-linux-gnu-g++ -march=rv32imac -mabi=ilp32 -mcpu=sifive-e31
+        ],
+        "sifive-e76": [
+            "-model=sifive-e76",
+            "-mtriple=riscv32-unknown-linux-gnu",
+            "-mcpu=sifive-e76",
+            "-mabi=ilp32",
+            # cc: riscv64-unknown-linux-gnu-g++ -march=rv32imafc -mabi=ilp32 -mcpu=sifive-e76
+        ],
+        "sifive-u54": [
+            "-model=sifive-u54",
+            "-mtriple=riscv64-unknown-linux-gnu",
+            "-mcpu=sifive-u54",
+            "-mabi=lp64d",
+            # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gc -mabi=lp64d -mcpu=sifive-u54
+        ],
+        "sifive-u74": [
+            "-model=sifive-u74",
+            "-mtriple=riscv64-unknown-linux-gnu",
+            "-mcpu=sifive-u74",
+            "-mabi=lp64d",
+            # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gc -mabi=lp64d -mcpu=sifive-u74
+        ],
+    }
+    pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
+
+    opts = ["-device=arm_cpu"] + pre_defined_opt
+    opts = _merge_opts(opts, options)
+    return Target(" ".join(["llvm"] + opts))
+
+
 def hexagon(cpu_ver="v66", **kwargs):
     """Returns a Hexagon target.
 
@@ -433,6 +483,8 @@ def hexagon(cpu_ver="v66", **kwargs):
         error if invalid. Does not affect codegen.
     llvm_options : str or list of str (default: None)
         User defined compiler arguments.
+    link_params : bool (default: False)
+        Whether to link graph parameters into the LLVM module.
     """
 
     # Some of the target parameters correspond to target kind attributes
@@ -457,6 +509,7 @@ def hexagon(cpu_ver="v66", **kwargs):
         "hvx": 128,
         "sim_options": None,
         "llvm_options": None,
+        "link_params": False,
     }
     config.update(kwargs)
 
@@ -565,12 +618,27 @@ def hexagon(cpu_ver="v66", **kwargs):
         args = [s.replace("=", "@") for s in llvm_options.split()]
         return "--llvm-options=" + ",".join(args)
 
+    # TVM target attributes string
+    def create_tvm_options(cpu_ver, config):  # pylint: disable=unused-argument
+        """ Create TVM target features string. """
+
+        features = {
+            "link_params": "link-params",
+        }
+        opts = ""
+        for k in config:
+            if k in features:
+                opts += " --" + features[k] + "=" + str(config[k])
+        return opts
+
     # Sim args
     os.environ["HEXAGON_SIM_ARGS"] = create_sim_options(cpu_ver, config)
 
     target_str = create_llvm_target(cpu_ver, config)
     llvm_str = create_llvm_options(cpu_ver, config)
-    args_list = target_str.split() + llvm_str.split()
+    tvm_str = create_tvm_options(cpu_ver, config)
+
+    args_list = target_str.split() + llvm_str.split() + tvm_str.split()
 
     return Target(" ".join(["hexagon"] + args_list))
 

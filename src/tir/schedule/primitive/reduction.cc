@@ -427,7 +427,7 @@ class BaseBlockCreator {
     CreateReadWriteRegions();
 
     String new_block_name = old_block_realize_->block->name_hint;
-    PrimExpr predicate = Bool(true);
+    PrimExpr predicate = const_true();
     if (is_rf_block_) {
       new_block_name = new_block_name + "_rf";
       predicate = old_block_realize_->predicate;
@@ -860,7 +860,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, rf_loop_sref);
   const StmtSRef& block_sref = self->stmt2ref.at(block_realize->block.get());
   const Block& block = block_realize->block;
-  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
+                                     /*require_stage_pipeline=*/true,
+                                     /*require_subtree_compact_dataflow=*/false);
   CheckReductionBlock(self, block_sref, scope_root);
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop, rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {
@@ -954,7 +956,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   return new_block_srefs[0];
 }
 
-/******** Instruction Registration ********/
+/******** InstructionKind Registration ********/
 
 struct RFactorTraits : public UnpackedInstTraits<RFactorTraits> {
   static constexpr const char* kName = "RFactor";

@@ -135,7 +135,69 @@ TVM_DLL void Bind(ScheduleState self, const StmtSRef& loop_sref, const IterVar& 
  */
 TVM_DLL void Unroll(ScheduleState self, const StmtSRef& loop_sref);
 /******** Schedule: Insert cache stages ********/
+/*!
+ * \brief Create a block that reads a buffer region into a read cache. It requires:
+ * 1) There is at most one block who writes the buffer in the scope.
+ * 2) The scope block have stage-pipeline property.
+ * \param self The state of the schedule
+ * \param block_sref The consumer block of the target buffer.
+ * \param read_buffer_index The index of the buffer in block's read region.
+ * \param storage_scope The target storage scope.
+ * \return The cache stage block.
+ */
+TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
+                           const String& storage_scope);
+/*!
+ * \brief Create a block that writes a buffer region into a write cache. It requires:
+ * 1) There is only one block that writes the target buffer.
+ * 2) The scope block have stage-pipeline property.
+ * \param self The state of the schedule
+ * \param block_sref The producer of the buffer
+ * \param write_buffer_index The index of the buffer in block's write region
+ * \param storage_scope The target storage scope
+ * \return The cache stage block.
+ */
+TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
+                            const String& storage_scope);
 /******** Schedule: Compute location ********/
+/*!
+ * \brief Move a producer block under the specific loop, and regenerate the
+ * loops induced by the block so that the buffer region produced by the producer block could
+ * cover those regions consumed by its consumer blocks under the given loop. It requires:
+ * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+ * 2) The scope block has stage-pipeline property
+ * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+ * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+ * reduction block
+ * 4) The block is not an output block with regard to the scope block, i.e. the buffers written by
+ * the block are allocated under the scope block
+ * 5) All the consumers of the block are under the given loop
+ *
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ */
+TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
+                       bool preserve_unit_loops);
+/*!
+ * \brief Move a consumer block under the specific loop, and regenerate the
+ * loops induced by the block so that the buffer region consumed by the consumer block could
+ * cover those regions produced by its producer blocks under the given loop. It requires:
+ * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+ * 2) The scope block has stage-pipeline property
+ * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+ * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+ * reduction block
+ * 4) All the producers of the block are under the given loop
+ *
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ */
+TVM_DLL void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref,
+                              const StmtSRef& loop_sref, bool preserve_unit_loops);
 /*!
  * \brief Inline a block into its consumer(s). It requires:
  * 1) The block is a complete non-root block, which only produces one buffer
@@ -175,6 +237,10 @@ TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
 /******** Schedule: Block annotation ********/
+/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
+using StorageAlignTuple = Array<Integer>;
+/*! \brief A list of StorageAlignTuple, used by StorageAlign */
+using StorageAlignAnnotation = Array<StorageAlignTuple>;
 /*!
  * \brief Set alignment requirement for specific dimension such that
  *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
@@ -189,10 +255,6 @@ TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int fact
  */
 TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           int axis, int factor, int offset);
-
-/******** Annotation types for StorageAlign ********/
-using StorageAlignTuple = Array<Integer>;                 // (buffer_idx, axis, factor, offset)
-using StorageAlignAnnotation = Array<StorageAlignTuple>;  // unordered array of StorageAlignTuple
 
 /******** Schedule: Blockize & Tensorize ********/
 /******** Schedule: Annotation ********/

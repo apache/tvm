@@ -35,15 +35,22 @@ using SMap = std::unordered_map<K, V, ObjectPtrHash, ObjectPtrEqual>;
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
-                                             const StmtSRef& dom_low_inclusive,
-                                             const StmtSRef& dom_high_exclusive) {
-  return arith::EvalSet(
-      region->region,
-      AsIntSet(LoopDomainOfSRefTreePath(
-          /*low_inclusive=*/dom_low_inclusive,
-          /*high_exclusive=*/dom_high_exclusive,
-          /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()))));
+Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,          //
+                                             const PrimExpr& predicate,           //
+                                             const StmtSRef& dom_low_inclusive,   //
+                                             const StmtSRef& dom_high_exclusive,  //
+                                             arith::Analyzer* analyzer) {
+  Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
+      /*low_inclusive=*/dom_low_inclusive,
+      /*high_exclusive=*/dom_high_exclusive,
+      /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
+  if (Optional<Array<arith::IntSet>> result = EstimateRegionLowerBound(
+          /*region=*/region->region,
+          /*var_dom=*/var_dom,
+          /*predicate=*/predicate, /*analyzer=*/analyzer)) {
+    return result.value();
+  }
+  return arith::EvalSet(region->region, AsIntSet(var_dom));
 }
 
 /*!
@@ -56,19 +63,19 @@ Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-Array<arith::IntSet> AnalyzeRegionLowerBound(const BlockRealize& realize,
-                                             const BufferRegion& region,
-                                             const StmtSRef& dom_low_inclusive,
-                                             const StmtSRef& dom_high_exclusive,
+Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,          //
+                                             const PrimExpr& predicate,           //
+                                             const StmtSRef& dom_low_inclusive,   //
+                                             const StmtSRef& dom_high_exclusive,  //
                                              arith::Analyzer* analyzer) {
+  Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
+      /*low_inclusive=*/dom_low_inclusive,
+      /*high_exclusive=*/dom_high_exclusive,
+      /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
   if (Optional<Array<arith::IntSet>> result = EstimateRegionLowerBound(
           /*region=*/region->region,
-          /*var_dom=*/
-          LoopDomainOfSRefTreePath(
-              /*low_inclusive=*/dom_low_inclusive,
-              /*high_exclusive=*/dom_high_exclusive,
-              /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope())),
-          /*predicate=*/realize->predicate, /*analyzer=*/analyzer)) {
+          /*var_dom=*/var_dom,
+          /*predicate=*/predicate, /*analyzer=*/analyzer)) {
     return result.value();
   }
   return Array<arith::IntSet>(region->buffer->shape.size(), arith::IntSet::Nothing());
@@ -90,16 +97,16 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
   ICHECK_EQ(produced_region.size(), consumed_region.size());
   int ndim = produced_region.size();
   for (int i = 0; i < ndim; ++i) {
-    Range buffer_size = Range::FromMinExtent(0, buffer_shape[i]);
+    arith::IntSet buffer_size = arith::IntSet::FromMinExtent(0, buffer_shape[i]);
     if (produced_region[i].IsNothing()) {
       return false;
     }
-    Range produced = produced_region[i].CoverRange(buffer_size);
-    Range consumed = consumed_region[i].CoverRange(buffer_size);
-    PrimExpr produced_min = produced->min;
-    PrimExpr produced_max = produced->min + produced->extent;
-    PrimExpr consumed_min = consumed->min;
-    PrimExpr consumed_max = consumed->min + consumed->extent;
+    arith::IntSet produced = arith::Intersect({produced_region[i], buffer_size});
+    arith::IntSet consumed = arith::Intersect({consumed_region[i], buffer_size});
+    PrimExpr produced_min = analyzer->Simplify(produced.min());
+    PrimExpr produced_max = analyzer->Simplify(produced.max() - produced_min + 1);
+    PrimExpr consumed_min = analyzer->Simplify(consumed.min());
+    PrimExpr consumed_max = analyzer->Simplify(consumed.max() - consumed_min + 1);
     if (!analyzer->CanProve((produced_min <= consumed_min) && (consumed_max <= produced_max))) {
       return false;
     }
@@ -276,6 +283,8 @@ class StateCreator : private StmtVisitor {
     for (const auto& kv : info.scope->dst2deps) {
       const StmtSRef& consumer_block_sref = kv.first;
       const Array<Dependency>& deps = kv.second;
+      const BlockNode* consumer_block = TVM_SREF_TO_BLOCK(consumer_block, consumer_block_sref);
+      const BlockRealize& consumer_realize = block2realize_.at(consumer_block);
       bool& region_cover = self_->block_info.at(consumer_block_sref).region_cover = true;
       // Step 2.1. Extract the path to the scope root
       std::unordered_map<const StmtSRefNode*, std::vector<const StmtSRefNode*>> lca_loc;
@@ -334,11 +343,12 @@ class StateCreator : private StmtVisitor {
               // and to make sure region cover property must be satisfied once the flag is on
               // Therefore, we use lower-bound analysis for producers and upper-bound analysis for
               // consumer, and require that the produced region can cover the consumed region
-              touched_region.push_back(AnalyzeRegionLowerBound(/*realize=*/producer_realize,
-                                                               /*region=*/region,
-                                                               /*dom_low_inclusive=*/parent_sref,
-                                                               /*dom_high_exclusive=*/lca,
-                                                               /*analyzer=*/&analyzer_));
+              touched_region.push_back(AnalyzeRegionLowerBound(
+                  /*region=*/region,
+                  /*predicate=*/producer_realize->predicate,
+                  /*dom_low_inclusive=*/parent_sref,
+                  /*dom_high_exclusive=*/lca,
+                  /*analyzer=*/&analyzer_));
             }
           }
         }
@@ -353,8 +363,10 @@ class StateCreator : private StmtVisitor {
                   arith::UnionRegionLowerBound({touched_region.begin(), touched_region.end()});
               Array<arith::IntSet> consumed_region = AnalyzeRegionUpperBound(
                   /*region=*/region,
+                  /*predicate=*/consumer_realize->predicate,
                   /*dom_low_inclusive=*/parent_sref,
-                  /*dom_high_exclusive=*/lca);
+                  /*dom_high_exclusive=*/lca,
+                  /*analyzer=*/&analyzer_);
               if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
                                           &analyzer_)) {
                 region_cover = false;
@@ -920,8 +932,8 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
   // Before step `i`:
   // 1) `child_sref` is `src_sref` going up by `i` steps
   // 2) `child_tgt_stmt` is the subtree that `child_sref` should correspond to after replacement
-  // 3) except for the subtree root, srefs that point to the subtree of `child_tgt_stmt` are
-  // correct 4) for the subtree root of `child_tgt_stmt`, `child_sref` has not pointed to it yet
+  // 3) except for the subtree root, srefs that point to the subtree of `child_tgt_stmt` are correct
+  // 4) for the subtree root of `child_tgt_stmt`, `child_sref` has not pointed to it yet
   // 5) `tgt_stmt` is of type Loop, Block or BlockRealize
   //
   // During step `i`:

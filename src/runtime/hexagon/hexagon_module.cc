@@ -483,9 +483,10 @@ hexagon::ArgLayout HexagonModuleNode::BuildArgLayout(const TVMArgs& As) const {
         ICHECK_EQ(static_cast<int64_t>(A), static_cast<int32_t>(A));
         Args.Push(static_cast<int>(A));
         break;
-      // 64-bit values
+      // As above, treat floating point values as float32.
       case kDLFloat:
-        Args.Push(static_cast<double>(A));
+        ICHECK_EQ(static_cast<double>(A), static_cast<float>(static_cast<double>(A)));
+        Args.Push(static_cast<float>(static_cast<double>(A)));
         break;
 
       case kTVMOpaqueHandle:

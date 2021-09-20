@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm
-from tvm import te
+from tvm import te, topi
 import numpy as np
 import tvm.testing
+import tvm.topi.testing
 
 
 @tvm.testing.requires_gpu
@@ -524,16 +527,73 @@ def test_warp_reduction2():
     check_target("rocm")
 
 
+@tvm.testing.requires_gpu
+def test_reduce_storage_reuse():
+    target = tvm.target.Target("cuda")
+
+    def run_passes(sch, args):
+        bounds = tvm.te.schedule.InferBound(sch)
+        stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
+        func = tvm.te.schedule.SchedulePostProcToPrimFunc(args, stmt, None)
+        mod = tvm.IRModule.from_expr(func)
+        mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
+        return tvm.transform.Sequential(
+            [
+                tvm.tir.transform.StorageFlatten(64),
+                tvm.tir.transform.Simplify(),
+                tvm.tir.transform.StorageRewrite(),
+                tvm.tir.transform.LowerThreadAllreduce(),
+            ]
+        )(mod)
+
+    dev = tvm.device(target.kind.name, 0)
+    shape = (16, 16)
+
+    A = te.placeholder(shape, dtype="float32", name="A")
+    B = topi.nn.softmax(A, axis=1) + 1.0
+
+    with tvm.target.Target(target):
+        s = topi.cuda.schedule_softmax(B)
+
+    mod = run_passes(s, [A, B])
+
+    # Due to the storage rewrite pass, the reduction output storage reduce_temp0 can be reused as
+    # the storage of the next compute.
+
+    # Example:
+    # ...
+    # tir.tvm_thread_allreduce((uint32)1, normal_reduce_temp0[0], 1, reduce_temp0, threadIdx.x)
+    # if ((threadIdx.x < 16)) {
+    #   reduce_temp0[0] = (T_softmax_exp[threadIdx.x]/reduce_temp0[0])
+    # }
+    # ...
+
+    # The LowerThreadAllreduce pass should remap reduce_temp0 on the left hand side of the store
+    # above, as well as the load on the right hand side.
+
+    # Expected output:
+    # ...
+    # red_buf0[0] = tir.tvm_warp_shuffle(mask[0], red_buf0[0], 0, 32, 32)
+    # if ((threadIdx.x < 16)) {
+    #   red_buf0[0] = (T_softmax_exp[threadIdx.x]/red_buf0[0])
+    # }
+    # ...
+
+    def check_store_dst_remapped(op):
+        if isinstance(op, tvm.tir.Store):
+            assert op.buffer_var.name != "reduce_temp0"
+
+    tvm.tir.stmt_functor.post_order_visit(mod["main"].body, check_store_dst_remapped)
+
+    inp = np.random.uniform(size=shape).astype("float32")
+    ref = tvm.topi.testing.softmax_python(inp) + 1.0
+
+    f = tvm.build(s, [A, B], target)
+    a = tvm.nd.array(inp, dev)
+    b = tvm.nd.array(np.zeros(shape, dtype=B.dtype), dev)
+    f(a, b)
+    tvm.testing.assert_allclose(b.numpy(), ref, rtol=1e-5)
+
+
 if __name__ == "__main__":
-    test_rfactor_elemwise_threads()
-    test_rfactor_threads()
-    test_rfactor_factor_axis()
-    test_rfactor()
-    test_reduce_prims()
-    test_argmax()
-    test_rfactor_argmax()
-    test_warp_reduction1()
-    test_warp_reduction2()
-    test_init()
-    test_init_imm()
-    test_rfactor_init()
+    pytest.main([__pfile__])
