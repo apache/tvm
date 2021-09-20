@@ -379,36 +379,14 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
                                                 const transform::PassContext& pass_ctx) {
   Target target = target_arg, target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&target, &target_host);
-  Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
-                                                 tir::transform::VerifyMemory()};
-
-  printf("calling split for device ********** \n");
-
-  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
-  if (pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value()) {
-    mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
-  }
-  mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
-  mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
-  mixed_pass_list.push_back(tir::transform::InferFragment());
-  mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
-
-  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
-    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
-  } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
-  }
-
-  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
-
-  auto opt_mixed = transform::Sequential(mixed_pass_list);
-  mod_mixed = opt_mixed(std::move(mod_mixed));
 
   ICHECK(mod_mixed.defined()) << "This module must be defined";
 
-  auto host_mod = GetOptimizedHostModule(mod_mixed, target_host);
+  mod_mixed = OptimizeMixedModule(mod_mixed, target);
 
-  auto device_mod = GetDeviceOptimizedModule(mod_mixed, target);
+  auto host_mod = OptimizeHostModule(mod_mixed, target_host);
+
+  auto device_mod = OptimizeDeviceModule(mod_mixed, target);
 
   // some final misc checks.
   auto keys = target->GetKeys();
@@ -515,12 +493,16 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
 
 // Gets the "mixed_module" from python driver/build_module.py's build function.
 // Honestly not really sure what this actually is.
-IRModule GetModMixed(IRModule mod) {
+IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
-  Array<transform::Pass> pass_list;
-  pass_list.push_back(tir::transform::VerifyMemory());
-  pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
+  Array<transform::Pass> mixed_pass_list;
+  if (target.defined()) {
+    mixed_pass_list.push_back(BindTarget(target));
+  }
+
+  mixed_pass_list.push_back(tir::transform::VerifyMemory());
+  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
   // Python annotates all functions in the mod with the Target passed in here; I think we shouldn't
   // have to do that.
@@ -528,100 +510,82 @@ IRModule GetModMixed(IRModule mod) {
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
   if (detect_global_barrier) {
-    pass_list.push_back(tir::transform::ThreadSync("global"));
+    mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
   }
 
-  pass_list.push_back(tir::transform::ThreadSync("shared"));
-  pass_list.push_back(tir::transform::ThreadSync("warp"));
-  pass_list.push_back(tir::transform::InferFragment());
-  pass_list.push_back(tir::transform::LowerThreadAllreduce());
-  pass_list.push_back(tir::transform::MakePackedAPI(
-      -1));  // -1 is the default input passed in in the python version
-  pass_list.push_back(tir::transform::SplitHostDevice());
+  mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
+  mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
+  mixed_pass_list.push_back(tir::transform::InferFragment());
+  mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  return transform::Sequential(pass_list)(mod);
+  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
+  } else {
+    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
+  }
+  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+
+  auto opt_mixed = transform::Sequential(mixed_pass_list);
+  return opt_mixed(std::move(mixed_mod));
 }
 
 TVM_REGISTER_GLOBAL("driver.get_mod_mixed").set_body_typed([](IRModule mod) {
-  return GetModMixed(mod);
+  Target empty_target;
+  return OptimizeMixedModule(mod, empty_target);
 });
-
-IRModule GetDeviceMod(IRModule mixed_mod) {
-  Array<transform::Pass> pass_list;
-  auto check_calling_conv_func = [=](tir::PrimFunc func) {
-    Optional<Integer> calling_conv = func->GetAttr<Integer>(tvm::attr::kCallingConv);
-    return (!calling_conv) || (calling_conv.value() != CallingConv::kDeviceKernelLaunch);
-  };
-
-  pass_list.push_back(Filter(check_calling_conv_func));  // Filter by calling convention
-  pass_list.push_back(tir::transform::LowerWarpMemory());
-  pass_list.push_back(tir::transform::Simplify());
-  pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
-  pass_list.push_back(tir::transform::LowerCustomDatatypes());
-  pass_list.push_back(tir::transform::LowerIntrin());
-
-  return transform::Sequential(pass_list)(mixed_mod);
-}
 
 TVM_REGISTER_GLOBAL("driver.get_device_mod").set_body_typed([](IRModule mod) {
-  return GetDeviceMod(mod);
+  Target empty_target;
+  return OptimizeDeviceModule(mod, empty_target);
 });
 
-IRModule GetHostMod(IRModule mixed_mod) {
-  Array<transform::Pass> pass_list;
-  auto check_calling_conv_func = [=](tir::PrimFunc func) {
-    Optional<Integer> calling_conv = func->GetAttr<Integer>(tvm::attr::kCallingConv);
-    return (!calling_conv) || (calling_conv.value() != CallingConv::kDeviceKernelLaunch);
-  };
-
-  pass_list.push_back(Filter(check_calling_conv_func));  // Filter by calling convention
-  // Python version added target_host as an attribute to every function here
-  pass_list.push_back(tir::transform::LowerTVMBuiltin());
-  pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
-  pass_list.push_back(tir::transform::LowerCustomDatatypes());
-  pass_list.push_back(tir::transform::LowerIntrin());
-  pass_list.push_back(tir::transform::CombineContextCall());
-
-  return transform::Sequential(pass_list)(mixed_mod);
-}
 TVM_REGISTER_GLOBAL("driver.get_host_mod").set_body_typed([](IRModule mod) {
-  return GetHostMod(mod);
+  Target empty_target;
+  return OptimizeHostModule(mod, empty_target);
 });
 
-IRModule GetOptimizedHostModule(IRModule mixed_mod, Target target_host) {
-  auto host_pass_list = {
-      Filter([](const tir::PrimFunc& f) {
-        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
-               CallingConv::kDeviceKernelLaunch;
-      }),
-      BindTarget(target_host),
-      tir::transform::LowerTVMBuiltin(),
-      tir::transform::LowerCustomDatatypes(),
-      tir::transform::LowerIntrin(),
-      tir::transform::LowerDeviceStorageAccessInfo(),
-      tir::transform::CombineContextCall(),
-  };
+IRModule OptimizeHostModule(IRModule mixed_mod, Target target_host) {
+  Array<transform::Pass> host_pass_list;
+  host_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
+    return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
+           CallingConv::kDeviceKernelLaunch;
+  }));
+
+  if (target_host.defined()) {
+    host_pass_list.push_back(BindTarget(target_host));
+  }
+
+  host_pass_list.push_back(tir::transform::LowerTVMBuiltin());
+  host_pass_list.push_back(tir::transform::LowerCustomDatatypes());
+  host_pass_list.push_back(tir::transform::LowerIntrin());
+  host_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
+  host_pass_list.push_back(tir::transform::CombineContextCall());
+
   auto host_module = transform::Sequential(host_pass_list);
   ICHECK(mixed_mod.defined()) << "This module must be defined";
 
   return host_module(mixed_mod);
 }
 
-IRModule GetDeviceOptimizedModule(IRModule mixed_mod, Target target) {
-  // device pipeline
-  auto device_pass_list = {
-      Filter([](const tir::PrimFunc& f) {
-        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
-               CallingConv::kDeviceKernelLaunch;
-      }),
-      BindTarget(target),
-      tir::transform::LowerWarpMemory(),
-      tir::transform::Simplify(),
-      tir::transform::LowerCustomDatatypes(),
-      tir::transform::LowerIntrin(),
-      tir::transform::LowerDeviceStorageAccessInfo(),
-  };
+IRModule OptimizeDeviceModule(IRModule mixed_mod, Target target) {
+  Array<transform::Pass> device_pass_list;
+  device_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
+    return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+           CallingConv::kDeviceKernelLaunch;
+  }));
+
+  if (target.defined()) {
+    device_pass_list.push_back(BindTarget(target));
+  }
+
+  device_pass_list.push_back(tir::transform::LowerWarpMemory());
+  device_pass_list.push_back(tir::transform::Simplify());
+  device_pass_list.push_back(tir::transform::LowerCustomDatatypes());
+  device_pass_list.push_back(tir::transform::LowerIntrin());
+  device_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
+
   auto device_opt_mod = transform::Sequential(device_pass_list);
+
   auto mdevice = device_opt_mod(mixed_mod);
 
   return device_opt_mod(mixed_mod);

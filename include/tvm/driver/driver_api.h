@@ -45,12 +45,19 @@
 namespace tvm {
 
 /*!
+ * \brief Returns the optimized IRModule for original fused module (pre split) that contains device
+ * and host code. \param mixed_mod The original mixed module. \param target The device Target.
+ * \return The result optimized mixed module.
+ */
+IRModule OptimizeMixedModule(IRModule mixed_mod, Target target);
+
+/*!
  * \brief Returns the optimized IRModule for the device Target after device/host from mixed module.
  * \param mixed_mod The optimized mixed module.
  * \param target The device Target.
  * \return The result optimized device module.
  */
-IRModule GetDeviceOptimizedModule(IRModule mixed_mod, Target target);
+IRModule OptimizeDeviceModule(IRModule mixed_mod, Target target);
 
 /*!
  * \brief Returns the optimized IRModule for the host Target after device/host from mixed module.
@@ -58,7 +65,7 @@ IRModule GetDeviceOptimizedModule(IRModule mixed_mod, Target target);
  * \param target The host Target.
  * \return The result optimized host module.
  */
-IRModule GetOptimizedHostModule(IRModule mixed_mod, Target target_host);
+IRModule OptimizeHostModule(IRModule mixed_mod, Target target_host);
 
 /*!
  * \brief Lower an IRModule (optimize with it with the pass list defined in CreatePassList)
