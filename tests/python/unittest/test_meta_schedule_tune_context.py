@@ -23,7 +23,7 @@ import tvm
 from tvm import tir
 from tvm.script import ty
 from tvm.target import Target
-from tvm.meta_schedule import TuneContext
+from tvm.meta_schedule.tune_context import TuneContext
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
@@ -44,7 +44,7 @@ class Matmul:
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
 
-def test_tune_context():
+def test_tune_context_create():
     mod = Matmul()
     context = TuneContext(mod, Target("llvm"), "Test Task")
     assert context.num_threads > 0

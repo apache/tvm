@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The tune context of meta schedule."""
+"""Meta Schedule tuning context."""
 
 from typing import Optional
 
@@ -36,8 +36,8 @@ class TuneContext(Object):
     the same task can interact with each other through tune context. Most classes have a function
     to initialize with a tune context.
 
-    Members
-    -------
+    Parameters
+    ----------
     mod : Optional[IRModule] = None
         The workload to be optimized.
     target : Optional[Target] = None
