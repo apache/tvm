@@ -23,7 +23,7 @@ import tvm
 from tvm import tir
 from tvm.script import ty
 from tvm.target import Target
-from tvm.meta_schedule.tune_context import TuneContext
+from tvm.meta_schedule import TuneContext
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 

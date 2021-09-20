@@ -37,8 +37,7 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
                          Optional<Target> target,                                   //
                          Optional<String> task_name,                                //
                          support::LinearCongruentialEngine::TRandState rand_state,  //
-                         int num_threads,                                           //
-                         int verbose) {
+                         int num_threads) {
   ObjectPtr<TuneContextNode> n = make_object<TuneContextNode>();
   n->mod = mod;
   n->target = target;
@@ -48,8 +47,6 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
   }
   support::LinearCongruentialEngine(&n->rand_state).Seed(rand_state);
   n->num_threads = num_threads;
-  n->verbose = verbose;
-  n->is_stopped = false;
   data_ = std::move(n);
 }
 
@@ -60,9 +57,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
                        Optional<Target> target,                                   //
                        Optional<String> task_name,                                //
                        support::LinearCongruentialEngine::TRandState rand_state,  //
-                       int num_threads,                                           //
-                       int verbose) -> TuneContext {
-      return TuneContext(mod, target, task_name, rand_state, num_threads, verbose);
+                       int num_threads) -> TuneContext {
+      return TuneContext(mod, target, task_name, rand_state, num_threads);
     });
 }  // namespace meta_schedule
 }  // namespace tvm

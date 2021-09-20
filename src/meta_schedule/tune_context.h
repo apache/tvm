@@ -39,10 +39,6 @@ class TuneContextNode : public runtime::Object {
   support::LinearCongruentialEngine::TRandState rand_state;
   /*! \brief The number of threads to be used. */
   int num_threads;
-  /*! \brief The verbosity level. */
-  int verbose;
-  /*! \brief Whether the tuning task has been stopped. */
-  bool is_stopped;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("mod", &mod);
@@ -50,8 +46,6 @@ class TuneContextNode : public runtime::Object {
     v->Visit("task_name", &task_name);
     v->Visit("rand_state", &rand_state);
     v->Visit("num_threads", &num_threads);
-    v->Visit("verbose", &verbose);
-    v->Visit("is_stopped", &is_stopped);
   }
 
   static constexpr const char* _type_key = "meta_schedule.TuneContext";
@@ -71,14 +65,12 @@ class TuneContext : public runtime::ObjectRef {
    * \param task_name The name of the tuning task.
    * \param rand_state The random state.
    * \param num_threads The number of threads to be used.
-   * \param verbose The verbosity level.
    */
   TVM_DLL explicit TuneContext(Optional<IRModule> mod,                                    //
                                Optional<Target> target,                                   //
                                Optional<String> task_name,                                //
                                support::LinearCongruentialEngine::TRandState rand_state,  //
-                               int num_threads,                                           //
-                               int verbose);
+                               int num_threads);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TuneContext, ObjectRef, TuneContextNode);
 };
 

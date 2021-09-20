@@ -47,10 +47,8 @@ class TuneContext(Object):
     rand_state : int = -1
         The random state.
         Need to be in integer in [1, 2^31-1], -1 means using random number.
-    num_threads : int = -1
-        The number of threads to be used, -1 means using the logical cpu count.
-    verbose : int = 0
-        The verbosity level.
+    num_threads : int = None
+        The number of threads to be used, None means using the logical cpu count.
     """
 
     mod: Optional[IRModule]
@@ -58,8 +56,6 @@ class TuneContext(Object):
     task_name: Optional[str]
     rand_state: int
     num_threads: int
-    verbose: int
-    is_stopped: bool
 
     def __init__(
         self,
@@ -67,8 +63,7 @@ class TuneContext(Object):
         target: Optional[Target] = None,
         task_name: Optional[str] = None,
         rand_state: int = -1,
-        num_threads: Optional[int] = -1,
-        verbose: Optional[int] = 0,
+        num_threads: Optional[int] = None,
     ):
         """Constructor.
 
@@ -83,12 +78,10 @@ class TuneContext(Object):
         rand_state : int = -1
             The random state.
             Need to be in integer in [1, 2^31-1], -1 means using random number.
-        num_threads : int = -1
-            The number of threads to be used, -1 means using the logical cpu count.
-        verbose : int = 0
-            The verbosity level.
+        num_threads : Optional[int] = None
+            The number of threads to be used, None means using the logical cpu count.
         """
-        if num_threads == -1:
+        if num_threads is None:
             num_threads = cpu_count()
 
         self.__init_handle_by_constructor__(
@@ -98,5 +91,4 @@ class TuneContext(Object):
             task_name,
             rand_state,
             num_threads,
-            verbose,
         )
