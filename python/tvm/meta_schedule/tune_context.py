@@ -19,10 +19,10 @@
 from typing import Optional
 
 from tvm import IRModule
-from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.meta_schedule.utils import cpu_count
+from tvm._ffi import register_object
 
 from . import _ffi_api
 
@@ -36,8 +36,8 @@ class TuneContext(Object):
     the same task can interact with each other through tune context. Most classes have a function
     to initialize with a tune context.
 
-    Parameters
-    ----------
+    Members
+    -------
     mod : Optional[IRModule] = None
         The workload to be optimized.
     target : Optional[Target] = None
@@ -46,9 +46,9 @@ class TuneContext(Object):
         The name of the tuning task.
     rand_state : int = -1
         The random state.
-        Need to be in integer in [1, 2^31-1], -1 means use random number.
+        Need to be in integer in [1, 2^31-1], -1 means using random number.
     num_threads : int = -1
-        The number of threads to be used, -1 means use the logic cpu count.
+        The number of threads to be used, -1 means using the logical cpu count.
     verbose : int = 0
         The verbosity level.
     """
@@ -70,7 +70,7 @@ class TuneContext(Object):
         num_threads: Optional[int] = -1,
         verbose: Optional[int] = 0,
     ):
-        """Construct a TuneContext.
+        """Constructor.
 
         Parameters
         ----------
@@ -82,9 +82,9 @@ class TuneContext(Object):
             The name of the tuning task.
         rand_state : int = -1
             The random state.
-            Need to be in integer in [1, 2^31-1], -1 means use random number.
+            Need to be in integer in [1, 2^31-1], -1 means using random number.
         num_threads : int = -1
-            The number of threads to be used, -1 means use the logic cpu count.
+            The number of threads to be used, -1 means using the logical cpu count.
         verbose : int = 0
             The verbosity level.
         """

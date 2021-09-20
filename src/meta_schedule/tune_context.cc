@@ -53,6 +53,8 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
   data_ = std::move(n);
 }
 
+TVM_REGISTER_NODE_TYPE(TuneContextNode);
+
 TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
     .set_body_typed([](Optional<IRModule> mod,                                    //
                        Optional<Target> target,                                   //
@@ -62,8 +64,5 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
                        int verbose) -> TuneContext {
       return TuneContext(mod, target, task_name, rand_state, num_threads, verbose);
     });
-
-TVM_REGISTER_NODE_TYPE(TuneContextNode);
-
 }  // namespace meta_schedule
 }  // namespace tvm
