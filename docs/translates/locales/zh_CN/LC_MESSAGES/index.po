@@ -24,7 +24,7 @@ msgstr ""
 
 #: ../../_staging/index.rst:38
 msgid "How to"
-msgstr "怎么做"
+msgstr "引导"
 
 #: ../../_staging/index.rst:51
 msgid "Tutorials"
@@ -53,9 +53,9 @@ msgid ""
 " learning frameworks, and the performance- or efficiency-oriented hardware "
 "backends."
 msgstr ""
-"TVM "
-"是一个开源深度学习编译栈，支持CPU、GPU以及特定的加速器。它旨在缩小以生产力为中心的深度学习框架与以性能和效率为中心的硬件后端之间的差距。TVM "
-"与深度学习框架配合使用，为不同的后端提供端到端编译。"
+"**翻译**: `yutian <https://github.com/oneflyingfish>`_\n"
+"\n"
+"TVM 是一个开源深度学习编译栈，支持CPU、GPU以及特定的加速器。它旨在缩小以生产力为中心的深度学习框架与以性能和效率为中心的硬件后端之间的差距。TVM 与深度学习框架配合使用，为不同的后端提供端到端编译。"
 
 #: ../../_staging/index.rst:25
 msgid "Get Started"

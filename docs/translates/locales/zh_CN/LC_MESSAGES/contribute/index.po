@@ -5,6 +5,7 @@
 # 
 # Translators:
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
 # 
 #, fuzzy
 msgid ""
@@ -13,7 +14,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:41+0000\n"
-"Last-Translator: a_flying_fish <a_flying_fish@outlook.com>, 2021\n"
+"Last-Translator: HLearning, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -30,11 +31,14 @@ msgid ""
 "TVM has been developed by community members. Everyone is welcomed to "
 "contribute. We value all forms of contributions, including, but not limited "
 "to:"
-msgstr "TVM 由社区成员开发，欢迎大家作出贡献。我们重视所有形式的捐款，包括但不限于："
+msgstr ""
+"**翻译**: `yutian <https://github.com/oneflyingfish>`_\n"
+"\n"
+"TVM 由社区成员开发，欢迎大家作出贡献。我们重视所有形式的贡献，包括但不限于："
 
 #: ../../_staging/contribute/index.rst:25
 msgid "Code reviewing of the existing patches."
-msgstr "对现有程序修补进行代码审查。"
+msgstr "对现有程序补丁进行代码审查"
 
 #: ../../_staging/contribute/index.rst:26
 msgid "Documentation and usage examples"
@@ -42,11 +46,11 @@ msgstr "文档和使用示例"
 
 #: ../../_staging/contribute/index.rst:27
 msgid "Community participation in forums and issues."
-msgstr "社区中参与 forums 和 issues。"
+msgstr "社区中参与 forums 和 issues"
 
 #: ../../_staging/contribute/index.rst:28
 msgid "Code readability and developer guide"
-msgstr "代码可读性和开发人员指南"
+msgstr "代码可读性和开发者指南"
 
 #: ../../_staging/contribute/index.rst:30
 msgid "We welcome contributions that add code comments to improve readability"
@@ -56,15 +60,15 @@ msgstr "我们欢迎添加代码注释来提高可读性形式的贡献"
 msgid ""
 "We also welcome contributions to docs to explain the design choices of the "
 "internal."
-msgstr "我们也欢迎提供文档来解释内部的设计选择。"
+msgstr "我们也欢迎提供文档来解释内部的设计选项"
 
 #: ../../_staging/contribute/index.rst:35
 msgid "Test cases to make the codebase more robust"
-msgstr "测试案例，使代码库更加健壮"
+msgstr "测试样例，使代码库更加健壮"
 
 #: ../../_staging/contribute/index.rst:36
 msgid "Tutorials, blog posts, talks that promote the project."
-msgstr "教程，博客文章，对项目有促进作用的言论。"
+msgstr "教程，博客文章，对项目有促进作用的言论"
 
 #: ../../_staging/contribute/index.rst:38
 msgid "Here are guidelines for contributing to various aspect of the project:"

@@ -3,6 +3,10 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +14,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:45+0000\n"
+"Last-Translator: HLearning, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,7 +24,7 @@ msgstr ""
 
 #: ../../_staging/microtvm/index.rst:21
 msgid "microTVM: TVM on bare-metal"
-msgstr ""
+msgstr "mocroTVM： 裸机使用 TVM"
 
 #: ../../_staging/microtvm/index.rst:23
 msgid ""
@@ -27,28 +32,31 @@ msgid ""
 "only on the C standard library, and doesn't require an operating system to "
 "execute. microTVM is currently under heavy development."
 msgstr ""
+"**翻译**: `yutian <https://github.com/oneflyingfish>`_\n"
+"\n"
+"microTVM 用于在裸机（即物联网）设备上运行 TVM 模型。它仅仅依赖于 C 标准库且不需要操作系统，目前正在大力发展中。"
 
 #: ../../_staging/microtvm/index.rst:31
 msgid "microTVM is:"
-msgstr ""
+msgstr "microTVM 是:"
 
 #: ../../_staging/microtvm/index.rst:33
 msgid "an extension to TVM's compiler to allow it to target microcontrollers"
-msgstr ""
+msgstr "一个针对 TVM 编译器的扩展，使其能够应用于微控制器"
 
 #: ../../_staging/microtvm/index.rst:34
 msgid "a way to run the TVM RPC server on-device, to allow autotuning"
-msgstr ""
+msgstr "一种在设备上运行 TVM RPC 服务完成自动调整的方法"
 
 #: ../../_staging/microtvm/index.rst:35
 msgid ""
 "a minimal C runtime that supports standalone model inference on bare metal "
 "devices."
-msgstr ""
+msgstr "一套最小化 C 语言runtime，使得裸机设备可以独立完成模型推理"
 
 #: ../../_staging/microtvm/index.rst:38
 msgid "Supported Hardware"
-msgstr ""
+msgstr "受支持的硬件"
 
 #: ../../_staging/microtvm/index.rst:40
 msgid ""
@@ -57,34 +65,42 @@ msgid ""
 "RISC-V and does not require Zephyr. The current demos run against QEMU and "
 "the following hardware:"
 msgstr ""
+"microTVM 目前正在测试 Cortex-M 微控制器和 Zephyr RTOS；然而它具备灵活性并可移植到其他处理器（例如 "
+"RISC-V）中并且无需 Zephyr。目前示例基于 QEMU 及以下硬件运行："
 
 #: ../../_staging/microtvm/index.rst:44
 msgid ""
 "`STM Nucleo-F746ZG <https://www.st.com/en/evaluation-tools/nucleo-"
 "f746zg.html>`_"
 msgstr ""
+"`STM Nucleo-F746ZG <https://www.st.com/en/evaluation-tools/nucleo-"
+"f746zg.html>`_"
 
 #: ../../_staging/microtvm/index.rst:45
 msgid ""
 "`STM STM32F746 Discovery <https://www.st.com/en/evaluation-"
 "tools/32f746gdiscovery.html>`_"
 msgstr ""
+"`STM STM32F746 Discovery <https://www.st.com/en/evaluation-"
+"tools/32f746gdiscovery.html>`_"
 
 #: ../../_staging/microtvm/index.rst:46
 msgid ""
 "`nRF 5340 Development Kit <https://www.nordicsemi.com/Software-and-tools"
 "/Development-Kits/nRF5340-DK>`_"
 msgstr ""
+"`nRF 5340 Development Kit <https://www.nordicsemi.com/Software-and-tools"
+"/Development-Kits/nRF5340-DK>`_"
 
 #: ../../_staging/microtvm/index.rst:50
 msgid "Getting Started with microTVM"
-msgstr ""
+msgstr "开始使用 microTVM"
 
 #: ../../_staging/microtvm/index.rst:52
 msgid ""
 "Before working with microTVM, we recommend you have a supported development "
 "board. Then, follow these tutorials to get started with microTVM:"
-msgstr ""
+msgstr "在开始使用 microTVM 工作之前，我们建议您拥有一个受支持的开发板。然后，按照这些教程开始使用 microTVM："
 
 #: ../../_staging/microtvm/index.rst:55
 msgid ""
@@ -93,32 +109,36 @@ msgid ""
 "hardware. The reference VM is a convenient way to install those "
 "dependencies."
 msgstr ""
+":ref:`参照VM来开始microTVM <tutorial-micro-reference-vm>`.。microTVM 教程依赖于 Zephyr "
+"和一套硬件的编译器工具链。参照 VM 是安装这些依赖的快捷方式"
 
 #: ../../_staging/microtvm/index.rst:58
 msgid ""
 "Try the :doc:`microTVM with TFLite Tutorial "
 "</tutorials/micro/micro_tflite>`."
-msgstr ""
+msgstr "尝试 :doc:`带有TFLite的microTVM教程 </tutorials/micro/micro_tflite>`"
 
 #: ../../_staging/microtvm/index.rst:59
 msgid ""
 "Try running a more complex `CIFAR10-CNN model <https://github.com/areusch"
 "/microtvm-blogpost-eval>`_."
 msgstr ""
+"尝试运行更复杂的 `CIFAR10-CNN 模型 <https://github.com/areusch/microtvm-blogpost-"
+"eval>`_"
 
 #: ../../_staging/microtvm/index.rst:63
 msgid "How microTVM Works"
-msgstr ""
+msgstr "microTVM 如何工作"
 
 #: ../../_staging/microtvm/index.rst:66
 msgid ""
 "You can read more about the design of these pieces at the :doc:`microTVM "
 "Design Document </dev/microtvm_design>`."
-msgstr ""
+msgstr "您可以在 :doc:`microTVM 设计文档 </dev/microtvm_design>` 中阅读更多有关这方面的内容。"
 
 #: ../../_staging/microtvm/index.rst:70
 msgid "Help and Discussion"
-msgstr ""
+msgstr "帮助和讨论"
 
 #: ../../_staging/microtvm/index.rst:72
 msgid ""
@@ -126,3 +146,4 @@ msgid ""
 "collaborate on microTVM tasks, and maintains a searchable history of past "
 "problems."
 msgstr ""
+"`TVM 论坛 <https://discuss.tvm.ai>`_ 是完成 microTVM 任务协作的好地方，并针对过去的问题保留了搜索历史。"

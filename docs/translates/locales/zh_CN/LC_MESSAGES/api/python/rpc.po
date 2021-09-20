@@ -6,6 +6,7 @@
 # Translators:
 # 长德 司, 2021
 # HLearning, 2021
+# JiaKui Hu, 2021
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:39+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: JiaKui Hu, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -170,7 +171,7 @@ msgstr ""
 #: ../../../python/tvm/rpc/__init__.pydocstring of
 #: tvm.rpc.minrpc.with_minrpc:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:7
 msgid "The host url of the server."
@@ -295,7 +296,7 @@ msgstr ""
 #: ../../../python/tvm/rpc/__init__.pydocstring of
 #: tvm.rpc.minrpc.with_minrpc:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:18
 msgid "**sess** -- The connected session."
@@ -318,7 +319,7 @@ msgstr ""
 #: ../../../python/tvm/rpc/__init__.pydocstring of
 #: tvm.rpc.minrpc.with_minrpc:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:22
 #: ../../../python/tvm/rpc/client.pydocstring of

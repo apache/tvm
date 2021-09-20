@@ -3,14 +3,18 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# baijie xie, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
-"PO-Revision-Date: 2021-09-18 05:24+0000\n"
-"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"PO-Revision-Date: 2021-09-18 07:43+0000\n"
+"Last-Translator: baijie xie, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -35,6 +39,15 @@ msgid ""
 "<https://github.com/apache/tvm/blob/main/src/te/operation/compute_op.cc>`_),"
 " among other uses."
 msgstr ""
+"InferBound在normalize之后、ScheduleOps之前发生 `build_module.py "
+"<https://github.com/apache/tvm/blob/main/python/tvm/driver/build_module.py>`_。"
+" "
+"它的主要作用是创建边界（bound）的映射表，记录程序中每一个循环变量（IterVar）的范围。这些边界在ScheduleOps中，用于设置For循环节点的extent域，"
+" 参考 `MakeLoopNest "
+"<https://github.com/apache/tvm/blob/main/src/te/operation/op_util.cc>`_, "
+"以及用于设置缓存（buffer）的大小 (`BuildRealize "
+"<https://github.com/apache/tvm/blob/main/src/te/operation/compute_op.cc>`_),"
+" 等等。"
 
 #: ../../_staging/dev/inferbound.rst:27
 msgid "The output of InferBound is a map from IterVar to Range:"

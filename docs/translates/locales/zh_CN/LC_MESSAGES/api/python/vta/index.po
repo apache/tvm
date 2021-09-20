@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# JiaKui Hu, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:41+0000\n"
+"Last-Translator: JiaKui Hu, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -60,7 +64,7 @@ msgstr ""
 #: ../../../vta/python/vta/build_module.pydocstring of
 #: vta.build_module.build_config:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../vta/python/vta/environment.pydocstring of
 #: vta.environment.Environment:6
@@ -83,7 +87,7 @@ msgstr ""
 #: vta.environment.get_env:0 ../../../vta/python/vta/build_module.pydocstring
 #: of vta.build_module.build_config:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../vta/python/vta/environment.pydocstring of
 #: vta.environment.get_env:3
@@ -94,7 +98,7 @@ msgstr ""
 #: vta.environment.get_env:0 ../../../vta/python/vta/build_module.pydocstring
 #: of vta.build_module.build_config:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../_staging/api/python/vta/index.rst:32
 msgid "RPC Utilities"

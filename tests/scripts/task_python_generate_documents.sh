@@ -90,12 +90,12 @@ fi
 if $3
 then
     echo "----start to generate html_$LANGUAGE, execute: make -j$MAXPROCESS -e  SPHINXOPTS=\"-D language=\'$LANGUAGE\'\" html  LOCALES=$LOCALES  HTMLFOLD=html_$LANGUAGE"
-
+    mkdir -p $DOCS/html_additions/$LANGUAGE/
     # Multi-threading may cause errors
     make -e  SPHINXOPTS="-D language='$LANGUAGE'" html  LOCALES=$LOCALES  HTMLFOLD=html_$LANGUAGE
     # fix github pages theme error
     touch $DOCS/_build/html_$LANGUAGE/.nojekyll
-
+    cp -r $DOCS/html_additions/$LANGUAGE/* $DOCS/_build/html_$LANGUAGE/
     echo "--finish create the $DOCS/_build/html_$LANGUAGE"
     echo "done."
 fi

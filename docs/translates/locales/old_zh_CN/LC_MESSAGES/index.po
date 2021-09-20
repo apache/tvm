@@ -4,6 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
+# HLearning, 2021
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
 # 
 #, fuzzy
@@ -12,9 +13,9 @@ msgstr ""
 "Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
-"PO-Revision-Date: 2021-09-18 05:20+0000\n"
+"PO-Revision-Date: 2021-09-18 07:38+0000\n"
 "Last-Translator: a_flying_fish <a_flying_fish@outlook.com>, 2021\n"
-"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124870/zh_CN/)\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -31,19 +32,19 @@ msgstr "教程"
 
 #: ../../_staging/index.rst:59
 msgid "References"
-msgstr "引用"
+msgstr "参考"
 
 #: ../../_staging/index.rst:68
 msgid "Deep Dive"
-msgstr ""
+msgstr "深入"
 
 #: ../../_staging/index.rst:75
 msgid "MISC"
-msgstr ""
+msgstr "杂项"
 
 #: ../../_staging/index.rst:19
 msgid "TVM Documentation"
-msgstr ""
+msgstr "TVM 文档"
 
 #: ../../_staging/index.rst:21
 msgid ""
@@ -52,34 +53,37 @@ msgid ""
 " learning frameworks, and the performance- or efficiency-oriented hardware "
 "backends."
 msgstr ""
+"TVM "
+"是一个开源深度学习编译栈，支持CPU、GPU以及特定的加速器。它旨在缩小以生产力为中心的深度学习框架与以性能和效率为中心的硬件后端之间的差距。TVM "
+"与深度学习框架配合使用，为不同的后端提供端到端编译。"
 
 #: ../../_staging/index.rst:25
 msgid "Get Started"
-msgstr ""
+msgstr "开始"
 
 #: ../../_staging/index.rst:27
 msgid "Follow the :doc:`instructions <install/index>` to install TVM."
-msgstr ""
+msgstr "根据 :doc:`介绍 <install/index>`  来安装 TVM"
 
 #: ../../_staging/index.rst:28
 msgid ""
 "Checkout the :doc:`Getting Started with TVM Tutorial <tutorials/index>`."
-msgstr ""
+msgstr "浏览 :doc:`从TVM教程开始 <tutorials/index>`."
 
 #: ../../_staging/index.rst:31
 msgid "For Developers"
-msgstr ""
+msgstr "对于开发人员"
 
 #: ../../_staging/index.rst:33
 msgid ""
 ":doc:`dev/index` is useful for developers who want to understand the "
 "architecture of TVM and/or actively develop on the project."
-msgstr ""
+msgstr ":doc:`dev/index` 对于想要了解 TVM 架构或者想积极参与项目开发的开发者是有用的。"
 
 #: ../../_staging/index.rst:35
 msgid ":doc:`dev/how_to` gives quick development tips on various topics."
-msgstr ""
+msgstr ":doc:`dev/how_to`  给出了针对各种主旨的快速开发技巧。"
 
 #: ../../_staging/index.rst:85
 msgid "Index"
-msgstr ""
+msgstr "索引"
