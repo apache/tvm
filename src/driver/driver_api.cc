@@ -374,9 +374,8 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
     });
 
 // Splits module into one to run on the device and one to run the host. E.g., CUDA, OpenCL etc
-std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
-                                                const Target& target_host_arg,
-                                                const transform::PassContext& pass_ctx) {
+std::pair<IRModule, IRModule> SplitFuncsToDevHostMods(IRModule mod_mixed, const Target& target_arg,
+                                                      const Target& target_host_arg) {
   Target target = target_arg, target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&target, &target_host);
 
@@ -437,7 +436,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
 
   for (const auto& it : inputs) {
     if (it.second.defined()) {
-      auto pair = SplitDevHostFuncs(it.second, it.first, target_host, pass_ctx);
+      auto pair = SplitFuncsToDevHostMods(it.second, it.first, target_host);
       auto& mhost = pair.first;
       auto& mdevice = pair.second;
 
