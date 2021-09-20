@@ -395,19 +395,52 @@ class LogMessageVoidify {
   void operator&(std::ostream&) {}
 };
 
-// The following three methods are helpers for \p DebugLoggingEnabled and \p VerboseLoggingEnabled.
-// They are public for unit testing only.
+/*! \brief Captures the state of the \p TVM_LOG_DEBUG environment flag. */
+class TvmLogDebugSettings {
+ public:
+  /*!
+   * \brief Parses the \p TVM_LOG_DEBUG environment flag as per the specification given by
+   * \p DebugLoggingEnabled and \p VerboseLoggingEnabled, and caches the result.
+   */
+  inline static const TvmLogDebugSettings& FromFlag() {
+    // Parse and cache the verbosity level map.
+    static const auto* settings =
+        new TvmLogDebugSettings(TvmLogDebugSettings::ParseSpec(std::getenv("TVM_LOG_DEBUG")));
+    return *settings;
+  }
 
-// Parses \p opt_spec as per specification for \p TVM_LOG_DEBUG given by \p DebugLoggingEnabled
-// and \p VerboseLoggingEnabled. The map is non-empty iff DLOG is enabled. The map has an
-// entry for a specific file iff that file is mentioned in \p TVM_LOG_DEBUG. Tha map has a
-// '*' wildcard entry iff \p TVM_LOG_DEBUG=1 or \p TVM_LOG_DEBUG has a wildcard entry.
-std::unordered_map<std::string, int> ParseTvmLogDebugSpec(const char* opt_spec);
-// As above, but using the actual \p TVM_LOG_DEBUG environment variable.
-const std::unordered_map<std::string, int>& TvmLogDebugSpec();
-// As for \p VerboseLoggingEnabled, but using given \p map.
-bool VerboseEnabledInMap(const std::string& filename, int level,
-                         const std::unordered_map<std::string, int>& map);
+  /*!
+   * \brief Parses \p opt_spec as per specification for \p TVM_LOG_DEBUG given by
+   * \p DebugLoggingEnabled and \p VerboseLoggingEnabled. Throws if specification is ill-formed.
+   */
+  static TvmLogDebugSettings ParseSpec(const char* opt_spec);
+
+  /*!
+   * \brief Implements \p VerboseLoggingEnabled below w.r.t. the already parsed \p TVM_LOG_DEBUG
+   * environment variable.
+   */
+  inline bool VerboseEnabled(const char* opt_filename, int level) const {
+    if (opt_filename == nullptr || level < 0 || vlog_level_map_.empty()) {
+      return false;
+    }
+    return VerboseEnabledImpl(opt_filename, level);
+  }
+
+  /*! \brief Returns true if \p DLOG statements should be executed. */
+  bool dlog_enabled() const { return dlog_enabled_; }
+
+ private:
+  // Slow path for VerboseEnabled.
+  bool VerboseEnabledImpl(const std::string& filename, int level) const;
+
+  /*! \brief If true, DLOG statements are enabled. */
+  bool dlog_enabled_ = false;
+  /*!
+   * \brief A map from canonicalized filenames to the maximum VLOG verbosity level for that file.
+   * May also contain the 'wildcard' entry \p "DEFAULT" representing the level for all other files.
+   */
+  std::unordered_map<std::string, int> vlog_level_map_;
+};
 
 /*!
  * \brief Returns true if a DLOG statement is enabled by the \p TVM_LOG_DEBUG environment
@@ -421,13 +454,7 @@ bool VerboseEnabledInMap(const std::string& filename, int level,
 inline bool DebugLoggingEnabled() {
   static int state = 0;
   if (state == 0) {
-    if (TvmLogDebugSpec().empty()) {
-      // Not enabled.
-      state = -1;
-    } else {
-      // At least one VLOG entry (possibly just '*'=-1), so DLOG enabled.
-      state = 1;
-    }
+    state = TvmLogDebugSettings::FromFlag().dlog_enabled() ? 1 : -1;
   }
   return state == 1;
 }
@@ -452,7 +479,7 @@ inline bool DebugLoggingEnabled() {
  * Any of these settings will also enable DLOG statements.
  */
 inline bool VerboseLoggingEnabled(const char* opt_filename, int level) {
-  return opt_filename != nullptr && VerboseEnabledInMap(opt_filename, level, TvmLogDebugSpec());
+  return TvmLogDebugSettings::FromFlag().VerboseEnabled(opt_filename, level);
 }
 
 /*!

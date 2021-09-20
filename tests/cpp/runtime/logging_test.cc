@@ -25,44 +25,43 @@ namespace runtime {
 namespace detail {
 namespace {
 
-TEST(ParseTvmLogDebugSpec, Disabled) {
-  EXPECT_TRUE(ParseTvmLogDebugSpec(nullptr).empty());
-  EXPECT_TRUE(ParseTvmLogDebugSpec("").empty());
-  EXPECT_TRUE(ParseTvmLogDebugSpec("0").empty());
+TEST(TvmLogDebugSettings, Disabled) {
+  TvmLogDebugSettings settings = TvmLogDebugSettings::ParseSpec(nullptr);
+  EXPECT_FALSE(settings.dlog_enabled());
+
+  settings = TvmLogDebugSettings::ParseSpec("");
+  EXPECT_FALSE(settings.dlog_enabled());
+
+  settings = TvmLogDebugSettings::ParseSpec("0");
+  EXPECT_FALSE(settings.dlog_enabled());
 }
 
-TEST(ParseTvmLogDebugSpec, DlogOnly) {
-  auto map = ParseTvmLogDebugSpec("1");
-  EXPECT_EQ(map.size(), 1);
-  EXPECT_EQ(map["DEFAULT"], -1);
+TEST(TvmLogDebugSettings, DlogOnly) {
+  TvmLogDebugSettings settings = TvmLogDebugSettings::ParseSpec("1");
+  EXPECT_TRUE(settings.dlog_enabled());
+  EXPECT_FALSE(settings.VerboseEnabled("my/filesytem/src/foo/bar.cc", 0));
 }
 
-TEST(ParseTvmLogDebugSpec, VLogEnabledDefault) {
-  auto map = ParseTvmLogDebugSpec("DEFAULT=3");
-  EXPECT_EQ(map.size(), 1);
-  EXPECT_EQ(map["DEFAULT"], 3);
+TEST(TvmLogDebugSettings, VLogEnabledDefault) {
+  TvmLogDebugSettings settings = TvmLogDebugSettings::ParseSpec("DEFAULT=3");
+  EXPECT_TRUE(settings.dlog_enabled());
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesytem/src/foo/bar.cc", 3));
+  EXPECT_FALSE(settings.VerboseEnabled("my/filesytem/src/foo/bar.cc", 4));
 }
 
-TEST(ParseTvmLogDebugSpec, VLogEnabledComplex) {
-  auto map = ParseTvmLogDebugSpec("foo/bar.cc=3;baz.cc=-1;DEFAULT=2;another/file.cc=4");
-  EXPECT_EQ(map.size(), 4);
-  EXPECT_EQ(map["DEFAULT"], 2);
-  EXPECT_EQ(map["foo/bar.cc"], 3);
-  EXPECT_EQ(map["baz.cc"], -1);
-  EXPECT_EQ(map["another/file.cc"], 4);
+TEST(TvmLogDebugSettings, VLogEnabledComplex) {
+  TvmLogDebugSettings settings =
+      TvmLogDebugSettings::ParseSpec("foo/bar.cc=3;baz.cc=-1;DEFAULT=2;another/file.cc=4");
+  EXPECT_TRUE(settings.dlog_enabled());
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 3));
+  EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/foo/bar.cc", 4));
+  EXPECT_TRUE(settings.VerboseEnabled("my/filesystem/src/foo/other.cc", 2));
+  EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/foo/other.cc", 3));
+  EXPECT_FALSE(settings.VerboseEnabled("my/filesystem/src/baz.cc", 0));
 }
 
-TEST(ParseTvmLogDebugSpec, IllFormed) {
-  EXPECT_THROW(ParseTvmLogDebugSpec("foo/bar.cc=bogus;"), InternalError);
-}
-
-TEST(VerboseEnabledInMap, Lookup) {
-  auto map = ParseTvmLogDebugSpec("foo/bar.cc=3;baz.cc=-1;DEFAULT=2;another/file.cc=4;");
-  EXPECT_TRUE(VerboseEnabledInMap("my/filesystem/src/foo/bar.cc", 3, map));
-  EXPECT_FALSE(VerboseEnabledInMap("my/filesystem/src/foo/bar.cc", 4, map));
-  EXPECT_TRUE(VerboseEnabledInMap("my/filesystem/src/foo/other.cc", 2, map));
-  EXPECT_FALSE(VerboseEnabledInMap("my/filesystem/src/foo/other.cc", 3, map));
-  EXPECT_FALSE(VerboseEnabledInMap("my/filesystem/src/baz.cc", 0, map));
+TEST(TvmLogDebugSettings, IllFormed) {
+  EXPECT_THROW(TvmLogDebugSettings::ParseSpec("foo/bar.cc=bogus;"), InternalError);
 }
 
 }  // namespace
