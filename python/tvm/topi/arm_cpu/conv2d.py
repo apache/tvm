@@ -517,3 +517,7 @@ def conv2d_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype)
 def schedule_conv2d_direct_simd(cfg, outs):
     """Create schedule for conv2d_direct_simd"""
     return direct_simd.conv2d_direct_simd_nhwc_schedule(cfg, outs)
+
+
+def schedule_conv1d_direct_simd(outs):
+    return direct_simd.conv1d_direct_simd_nhwc_schedule(outs)

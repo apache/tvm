@@ -23,6 +23,7 @@ from tvm import topi
 from ....target import arm_isa
 from .generic import *
 from .. import op as _op
+from ....topi.nn import get_pad_tuple1d, simplify, pad
 
 logger = logging.getLogger("strategy")
 
@@ -436,5 +437,97 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             wrap_compute_dense(topi.nn.dense),
             wrap_topi_schedule(topi.generic.schedule_dense),
             name="dense.generic",
+        )
+    return strategy
+
+
+@conv1d_strategy.register("arm_cpu")
+def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """conv1d strategy"""
+    strategy = _op.OpStrategy()
+    layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
+    dilation = get_const_tuple(attrs.dilation)
+    if dilation[0] < 1:
+        raise ValueError("dilation should be a positive value")
+
+    def _conv1d_nwc_woi(data, kernel, strides=1, padding="VALID", dilation=1, out_dtype=None):
+        """1D convolution forward operator for NWC layout.
+
+        Parameters
+        ----------
+        data : tvm.te.Tensor
+            3-D with shape [batch, in_width, in_channel]
+
+        kernel : tvm.te.Tensor
+            3-D with shape [filter_size, num_filter, in_channel]
+
+        strides : int or tuple
+            The spatial stride along width
+
+        padding : int, tuple, or str
+            Padding size can be an integer for equal padding,
+            a tuple of (left, right) or a string in ['VALID', 'SAME'].
+
+        dilation : int or tuple
+            Dilation rate if convolution should be dilated.
+
+        out_dtype : str
+            The output data type. If None then output is same type as input.
+        """
+        if out_dtype is None:
+            out_dtype = data.dtype
+        if isinstance(strides, (tuple, list)):
+            strides = strides[0]
+        if isinstance(dilation, (tuple, list)):
+            dilation = dilation[0]
+
+        batch, data_width, in_channels = data.shape
+        kernel_size, out_channels, _ = kernel.shape
+
+        # Compute the output shape
+        dilated_kernel_size = (kernel_size - 1) * dilation + 1
+        pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size,))
+        out_channels = simplify(out_channels)
+        out_width = simplify((data_width - dilated_kernel_size + pad_left + pad_right) // strides + 1)
+
+        # Apply padding
+        pad_before = [0, pad_left, 0]
+        pad_after = [0, pad_right, 0]
+        temp = pad(data, pad_before, pad_after, name="pad_temp")
+
+        # Compute graph
+        rc = te.reduce_axis((0, in_channels), name="rc")
+        rw = te.reduce_axis((0, kernel_size), name="rw")
+
+        return te.compute(
+            (batch, out_width, out_channels),
+            lambda b, w, c: te.sum(
+                temp[b, w * strides + rw * dilation, rc].astype(out_dtype)
+                * kernel[rw, c, rc].astype(out_dtype),
+                axis=[rw, rc],
+            ),
+            tag="conv1d_nwc",
+        )
+
+    isa = arm_isa.IsaAnalyzer(target)
+
+    if layout == "NWC" and kernel_layout == "WOI" and "SMLAD" in isa:
+        strategy.add_implementation(
+            wrap_compute_conv1d(_conv1d_nwc_woi),
+            wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_direct_simd),
+            name="conv1d_direct_simd.micro_dev",
+        )
+    elif layout == "NCW":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.conv1d_ncw),
+            wrap_topi_schedule(topi.generic.schedule_conv1d_ncw),
+            name="conv1d_ncw.generic",
+        )
+    elif layout == "NWC":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.conv1d_nwc),
+            wrap_topi_schedule(topi.generic.schedule_conv1d_nwc),
+            name="conv1d_nwc.generic",
         )
     return strategy

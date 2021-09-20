@@ -185,3 +185,43 @@ def conv2d_direct_simd_nhwc_schedule(cfg, outs):
 
     traverse_inline(sched, outs[-1].op, _callback)
     return sched
+
+
+def conv1d_direct_simd_nhwc_schedule(outs):
+    """Schedule function for Cortex-M7 SIMD implementation of conv1d."""
+    sched = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if "conv1d_nwc" not in op.tag:
+            return
+
+        # extract tensors
+        output = op.output(0)
+        conv = op
+        data_vec = conv.input_tensors[0]
+        kernel = conv.input_tensors[1]  # pylint: disable=unused-variable
+        last = outs[0]  # pylint: disable=unused-variable
+
+        # tile reduction axes
+        n, ow, co = sched[conv].op.axis
+        ci, kw = sched[conv].op.reduce_axis
+
+        batch_size, in_width, in_channels = data_vec.shape
+        _, out_width, out_channels = output.shape
+
+        M = out_width
+        K = in_channels
+        N = out_channels
+        print(M, K, N)
+        owo, owi = sched[conv].split(ow, factor=out_width)
+        cio, cii = sched[conv].split(ci, factor=in_channels)
+        coo, coi = sched[conv].split(co, factor=out_channels)
+
+        # sched[conv].reorder(n, owo, owi, coo, coi, kw, cio, cii)
+
+        gemm, uniq_id = intrin_gemm_MxKxN(M, K, N, data_vec.dtype, output.dtype)
+        sched[output].tensorize(n, gemm)
+        sched[output].pragma(n, "import_c", gemm_MxKxN_impl(M, K, N, uniq_id))
+
+    traverse_inline(sched, outs[-1].op, _callback)
+    return sched
