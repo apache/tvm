@@ -255,8 +255,12 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
             temp_dir_no_simd, board, west_cmd, lowered_no_simd, build_config, sample, output_shape
         )
 
-    assert result_no_simd == result_simd
-    assert time_no_simd > time_simd
+    assert result_no_simd == result_simd == 2
+
+    if board not in [
+        "mps2_an521",
+    ]:
+        assert time_no_simd > time_simd
 
 
 if __name__ == "__main__":
