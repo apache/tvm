@@ -138,7 +138,6 @@ class Tensor : public DataProducer {
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
-   * \param support_negative_indices
    * \return the result expression representing tensor read.
    */
   TVM_DLL PrimExpr operator()(Array<PrimExpr> indices) const;
