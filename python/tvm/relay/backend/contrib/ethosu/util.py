@@ -167,6 +167,26 @@ def is_named_ethosu_op(expr: tvm.relay.Expr, name: str) -> bool:
     )
 
 
+def is_ethosu_op(expr: tvm.relay.Expr) -> bool:
+    """Checks whether a relay expression is an NPU operator or not.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The expression to check.
+
+    Returns
+    -------
+    bool
+        True if the expression is an EthosU operation, false if not.
+    """
+    return (
+        isinstance(expr, tvm.relay.expr.Call)
+        and isinstance(expr.op, tvm.ir.op.Op)
+        and "contrib.ethosu" in expr.op.name
+    )
+
+
 def get_range_for_dtype_str(dtype: str) -> Tuple[int, int]:
     """
     Produce the min,max for a give data type.
