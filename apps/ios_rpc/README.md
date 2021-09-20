@@ -32,21 +32,23 @@ device. You will need XCode and an iOS device to use this.
 
 ## Building
 ### Building TVM runtime and custom DSO loader plugin
-While iOS platform itself doesn't allow us to run an unsigned binary, where is a partial ability to run JIT code
-on real iOS devices. While application is running under debug session, system allows allocating memory with write
-and execute permissions (requirements of debugger). So we can use this feature to load binary on RPC side. For this
-purpose we use custom version of `dlopen` function which doesn't check signature and permissions for module loading.
-This custom `dlopen` mechanic is integrated into TVM RPC as plugin and registered to execution only inside iOS RPC
-application.
+While iOS platform itself doesn't allow us to run an unsigned binary, there is a
+partial ability to run JIT code on real iOS devices. While application is
+running under debug session, system allows allocating memory with write and
+execute permissions (a debugger requirement). So we can use this feature to
+implement the `tvm.rpc.server.load_module` PackedFunc, used to load code over
+RPC. For this purpose we use custom version of `dlopen` function which doesn't
+check signature and permissions for module loading.  This custom `dlopen`
+mechanic is integrated into TVM RPC as plugin and registered to execution only
+inside iOS RPC application.
 
 The custom implementation of `dlopen` and other functions from `dlfcn.h` header are placed in separate repository,
 and will be downloaded automatically during cmake build for iOS.
 
-Also, it is necessary to build `tvm_runtime.dylib` for our iOS device. The iOS
-TVM RPC application will be linked with this library. Use the following cmake
-flags:
+Also, it is necessary to build `libtvm_runtime.dylib` for our iOS device. The
+iOS TVM RPC application will be linked with this library.
 
-To run cmake build you may use next flags:
+Run the build using the following commands:
 ```shell
 export DEVELOPER_DIR=/Applications/Xcode.app  # iOS SDK is part of Xcode bundle. Have to set it as default Dev Env
 cmake ..
@@ -71,11 +73,11 @@ python3 init_proj.py --team_id XXXXXXXXXX --tvm_build_dir "/path/to/tvm/ios/buil
 You can get value of your `team_id` in the following ways:
 - **You have registered Apple Developer Profile**. In this case you developer
   Team ID available at https://developer.apple.com/account/#/membership
-- You are using your local developer profile. In this case run the command above
-  with `XXXXXXXXXX` instead of Team ID. Then open `tvmrpc.xcodeproj` by using
-  XCode, click on the project name (`tvmrpc`) on the left panel. Then select
-  target `tvmrpc`. At the bottom of this panel go to `Signing & Capabilities`
-  tab and in the field `Team` select your local developer profile
+- You are using your local developer profile. In this case, leave `XXXXXXXXXX`
+  in the command instead of substituting a Team ID. Then open `tvmrpc.xcodeproj`
+  by using XCode, click on the project name (`tvmrpc`) on the left panel. Then
+  select target `tvmrpc`. At the bottom of this panel go to `Signing &
+  Capabilities` tab and in the field `Team` select your local developer profile
   (`Your Name (Personal Team)`).
   
   On the first run of the application you may see message `Could not launch
@@ -92,8 +94,8 @@ install the App on the phone.
 Due to security restriction of iOS10. We cannot upload dynamic libraries to the
 App and load it from sandbox.  Instead, we need to build a list of libraries,
 pack them into the app bundle, launch the RPC server and connect to test the
-bundled libraries.  We use one approach to workaround this limitation, for more
-details please take a look into section
+bundled libraries.  For more on the approach we use to work around this
+limitation, please take a look into section
 [Building TVM runtime and custom DSO loader integration](#building-tvm-runtime-and-custom-DSO-loader-plugin).
 
 The test script [tests/ios_rpc_test.py](tests/ios_rpc_test.py) and
@@ -112,7 +114,6 @@ We have three different modes for iOS RPC server:
 
 ### Pure RPC
 Start RPC server on your iOS device:
-- Enable verbose output.
 - Push on the `Connect` button.
 
 After that you supposed to see something like this in the app on the device:
