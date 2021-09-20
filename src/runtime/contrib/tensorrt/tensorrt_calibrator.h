@@ -62,13 +62,13 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     data_sizes_.push_back(binding_sizes);
   }
 
-  int getBatchSize() const override { return batch_size_; }
+  int getBatchSize() const noexcept override { return batch_size_; }
 
   /*!
    * \brief TensorRT will call this method to get next batch of data to
    * calibrate with.
    */
-  bool getBatch(void* bindings[], const char* names[], int nbBindings) override {
+  bool getBatch(void* bindings[], const char* names[], int nbBindings) noexcept override {
     AllocateBuffersIfNotAllocated();
     CHECK_EQ(input_names_.size(), nbBindings);
     for (size_t i = 0; i < input_names_.size(); ++i) {
@@ -83,13 +83,13 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     return (num_batches_calibrated_ < data_.size());
   }
 
-  const void* readCalibrationCache(size_t& length) override {
+  const void* readCalibrationCache(size_t& length) noexcept override {
     if (calibration_cache_.empty()) return nullptr;
     length = calibration_cache_.size();
     return calibration_cache_.data();
   }
 
-  void writeCalibrationCache(const void* cache, size_t length) override {
+  void writeCalibrationCache(const void* cache, size_t length) noexcept override {
     calibration_cache_.assign(static_cast<const char*>(cache), length);
   }
 
