@@ -116,13 +116,14 @@ Array<Integer> GetExcludeAxes(size_t indim, const Array<Integer>& inaxis) {
 }
 
 // Return the modified layout for AlterOpLayout pass.
+template <typename T>
 InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
                                                   const Array<Layout>& new_in_layouts,
                                                   const Array<Layout>& old_in_layouts,
                                                   const Array<tvm::relay::Type>& old_in_types) {
-  const auto* attrs_ptr = attrs.as<ReduceAttrs>();
+  const auto* attrs_ptr = attrs.as<T>();
   ICHECK(attrs_ptr);
-  ObjectPtr<ReduceAttrs> params = make_object<ReduceAttrs>(*attrs_ptr);
+  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
 
   // Get the reduce axes.
   Array<Array<IndexExpr>> old_in_shapes;
@@ -389,6 +390,7 @@ values over a given axis.
     .set_support_level(4)
     .add_type_rel("ArgReduce", GenericReduceRel<ArgReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ArgReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> ArgMinCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -405,6 +407,7 @@ values over a given axis.
     .set_support_level(4)
     .add_type_rel("ArgReduce", GenericReduceRel<ArgReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ArgReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> SumCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -433,7 +436,7 @@ Example::
     .set_attrs_type<ReduceAttrs>()
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", SumCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
@@ -468,6 +471,7 @@ Example::
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", AllCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> AnyCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -516,6 +520,7 @@ RELAY_REGISTER_REDUCE_OP("max")
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", MaxCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> MinCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -531,6 +536,7 @@ RELAY_REGISTER_REDUCE_OP("min")
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", MinCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> ProdCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -551,10 +557,10 @@ Example::
           [[1,4],[4,3],[5,2]],
           [[7,1],[7,2],[7,3]]]
 
-  mean(data, axis=1)
+  prod(data, axis=1)
   [35562240]
 
-  mean(data, axis=[1,2])
+  prod(data, axis=[1,2])
   [ 36  480  2058]
 
 )code" TVM_ADD_FILELINE)
@@ -562,6 +568,7 @@ Example::
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", ProdCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> MeanCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -600,6 +607,7 @@ Example::
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", MeanCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 bool VarianceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -675,6 +683,7 @@ RELAY_REGISTER_OP("variance")
     .add_argument("mean", "Tensor", "The mean tensor.")
     .add_type_rel("Variance", VarianceRel)
     .set_attr<FTVMCompute>("FTVMCompute", VarianceCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 }  // namespace relay
