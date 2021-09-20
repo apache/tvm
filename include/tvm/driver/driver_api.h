@@ -45,6 +45,22 @@
 namespace tvm {
 
 /*!
+ * \brief Returns the optimized IRModule for the device Target after device/host from mixed module.
+ * \param mixed_mod The optimized mixed module.
+ * \param target The device Target.
+ * \return The result optimized device module.
+ */
+IRModule GetDeviceOptimizedModule(IRModule mixed_mod, Target target);
+
+/*!
+ * \brief Returns the optimized IRModule for the host Target after device/host from mixed module.
+ * \param mixed_mod The optimized mixed module.
+ * \param target The host Target.
+ * \return The result optimized host module.
+ */
+IRModule GetOptimizedHostModule(IRModule mixed_mod, Target target_host);
+
+/*!
  * \brief Lower an IRModule (optimize with it with the pass list defined in CreatePassList)
  * \param mod The IRmodule to lower
  * \param simple_mode Disables the loop partition pass. Defaults to false.

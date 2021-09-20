@@ -373,6 +373,7 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
       return LowerSchedule(std::move(sch), args, name, c_binds, simple_mode);
     });
 
+// Splits module into one to run on the device and one to run the host. E.g., CUDA, OpenCL etc
 std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
                                                 const Target& target_host_arg,
                                                 const transform::PassContext& pass_ctx) {
@@ -380,6 +381,8 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   CheckAndUpdateHostConsistency(&target, &target_host);
   Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
                                                  tir::transform::VerifyMemory()};
+
+  printf("calling split for device ********** \n");
 
   mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
   if (pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value()) {
@@ -401,61 +404,27 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   auto opt_mixed = transform::Sequential(mixed_pass_list);
   mod_mixed = opt_mixed(std::move(mod_mixed));
 
-  auto host_pass_list = {
-      Filter([](const tir::PrimFunc& f) {
-        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
-               CallingConv::kDeviceKernelLaunch;
-      }),
-      BindTarget(target_host),
-      tir::transform::LowerTVMBuiltin(),
-      tir::transform::LowerCustomDatatypes(),
-      tir::transform::LowerIntrin(),
-      tir::transform::LowerDeviceStorageAccessInfo(),
-      tir::transform::CombineContextCall(),
-  };
-  auto opt_host = transform::Sequential(host_pass_list);
   ICHECK(mod_mixed.defined()) << "This module must be defined";
-  auto mhost = opt_host(mod_mixed);
 
-  // device pipeline
-  auto device_pass_list = {
-      Filter([](const tir::PrimFunc& f) {
-        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
-               CallingConv::kDeviceKernelLaunch;
-      }),
-      BindTarget(target),
-      tir::transform::LowerWarpMemory(),
-      tir::transform::Simplify(),
-      tir::transform::LowerCustomDatatypes(),
-      tir::transform::LowerIntrin(),
-      tir::transform::LowerDeviceStorageAccessInfo(),
-  };
-  auto opt_device = transform::Sequential(device_pass_list);
-  auto mdevice = opt_device(mod_mixed);
+  auto host_mod = GetOptimizedHostModule(mod_mixed, target_host);
+
+  auto device_mod = GetDeviceOptimizedModule(mod_mixed, target);
 
   // some final misc checks.
   auto keys = target->GetKeys();
   bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
-  if (target_is_gpu && mdevice->functions.size() == 0) {
+  if (target_is_gpu && device_mod->functions.size() == 0) {
     LOG(WARNING) << "Specified target " << target->str()
                  << " but cannot find device code. Did you forget to bind?";
   }
 
-  if (target->kind->device_type == kDLCPU && target_host == target) {
-    // TODO(@jroesch): This check is no longer true we need to figure out if we care about this.
-    // We need to relax this check for just TIR functions.
-    // ICHECK(mdevice->functions.empty()) << "No device code should be generated when target "
-    //                                   << "and host_target are both llvm target."
-    //                                   << "\n";
-  }
-
-  return {mhost, mdevice};
+  return {host_mod, device_mod};
 }
 
 // Can we make this take one annotated IRModule?
 //
 // Build for heterogeneous execution.
-// 
+//
 // It looks like this version of build doesn't lower, unlike the python version....
 runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
@@ -533,7 +502,8 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
 }
 
 // Build for homogeneous execution.
-// Where is this called from?
+// Where is this called from?]
+// called from compile engine and it accepts lowered functions
 runtime::Module build(const IRModule& funcs, const Target& target_arg,
                       const Target& target_host_arg) {
   auto target = target_arg, target_host = target_host_arg;
@@ -546,16 +516,17 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
 // Gets the "mixed_module" from python driver/build_module.py's build function.
 // Honestly not really sure what this actually is.
 IRModule GetModMixed(IRModule mod) {
-
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
   Array<transform::Pass> pass_list;
   pass_list.push_back(tir::transform::VerifyMemory());
   pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
-  // Python annotates all functions in the mod with the Target passed in here; I think we shouldn't have to do that.
+  // Python annotates all functions in the mod with the Target passed in here; I think we shouldn't
+  // have to do that.
 
-  bool detect_global_barrier = pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
+  bool detect_global_barrier =
+      pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
   if (detect_global_barrier) {
     pass_list.push_back(tir::transform::ThreadSync("global"));
   }
@@ -564,26 +535,25 @@ IRModule GetModMixed(IRModule mod) {
   pass_list.push_back(tir::transform::ThreadSync("warp"));
   pass_list.push_back(tir::transform::InferFragment());
   pass_list.push_back(tir::transform::LowerThreadAllreduce());
-  pass_list.push_back(tir::transform::MakePackedAPI(-1)); // -1 is the default input passed in in the python version
+  pass_list.push_back(tir::transform::MakePackedAPI(
+      -1));  // -1 is the default input passed in in the python version
   pass_list.push_back(tir::transform::SplitHostDevice());
 
-
   return transform::Sequential(pass_list)(mod);
-
 }
+
 TVM_REGISTER_GLOBAL("driver.get_mod_mixed").set_body_typed([](IRModule mod) {
   return GetModMixed(mod);
 });
 
 IRModule GetDeviceMod(IRModule mixed_mod) {
   Array<transform::Pass> pass_list;
-    auto check_calling_conv_func = [=] (tir::PrimFunc func) {
+  auto check_calling_conv_func = [=](tir::PrimFunc func) {
     Optional<Integer> calling_conv = func->GetAttr<Integer>(tvm::attr::kCallingConv);
     return (!calling_conv) || (calling_conv.value() != CallingConv::kDeviceKernelLaunch);
-
   };
 
-  pass_list.push_back(Filter(check_calling_conv_func)); // Filter by calling convention
+  pass_list.push_back(Filter(check_calling_conv_func));  // Filter by calling convention
   pass_list.push_back(tir::transform::LowerWarpMemory());
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
@@ -599,13 +569,12 @@ TVM_REGISTER_GLOBAL("driver.get_device_mod").set_body_typed([](IRModule mod) {
 
 IRModule GetHostMod(IRModule mixed_mod) {
   Array<transform::Pass> pass_list;
-    auto check_calling_conv_func = [=] (tir::PrimFunc func) {
+  auto check_calling_conv_func = [=](tir::PrimFunc func) {
     Optional<Integer> calling_conv = func->GetAttr<Integer>(tvm::attr::kCallingConv);
     return (!calling_conv) || (calling_conv.value() != CallingConv::kDeviceKernelLaunch);
-
   };
 
-  pass_list.push_back(Filter(check_calling_conv_func)); // Filter by calling convention
+  pass_list.push_back(Filter(check_calling_conv_func));  // Filter by calling convention
   // Python version added target_host as an attribute to every function here
   pass_list.push_back(tir::transform::LowerTVMBuiltin());
   pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
@@ -618,5 +587,44 @@ IRModule GetHostMod(IRModule mixed_mod) {
 TVM_REGISTER_GLOBAL("driver.get_host_mod").set_body_typed([](IRModule mod) {
   return GetHostMod(mod);
 });
+
+IRModule GetOptimizedHostModule(IRModule mixed_mod, Target target_host) {
+  auto host_pass_list = {
+      Filter([](const tir::PrimFunc& f) {
+        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
+               CallingConv::kDeviceKernelLaunch;
+      }),
+      BindTarget(target_host),
+      tir::transform::LowerTVMBuiltin(),
+      tir::transform::LowerCustomDatatypes(),
+      tir::transform::LowerIntrin(),
+      tir::transform::LowerDeviceStorageAccessInfo(),
+      tir::transform::CombineContextCall(),
+  };
+  auto host_module = transform::Sequential(host_pass_list);
+  ICHECK(mixed_mod.defined()) << "This module must be defined";
+
+  return host_module(mixed_mod);
+}
+
+IRModule GetDeviceOptimizedModule(IRModule mixed_mod, Target target) {
+  // device pipeline
+  auto device_pass_list = {
+      Filter([](const tir::PrimFunc& f) {
+        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+               CallingConv::kDeviceKernelLaunch;
+      }),
+      BindTarget(target),
+      tir::transform::LowerWarpMemory(),
+      tir::transform::Simplify(),
+      tir::transform::LowerCustomDatatypes(),
+      tir::transform::LowerIntrin(),
+      tir::transform::LowerDeviceStorageAccessInfo(),
+  };
+  auto device_opt_mod = transform::Sequential(device_pass_list);
+  auto mdevice = device_opt_mod(mixed_mod);
+
+  return device_opt_mod(mixed_mod);
+}
 
 }  // namespace tvm
