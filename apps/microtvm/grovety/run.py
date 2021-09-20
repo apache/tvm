@@ -117,10 +117,16 @@ if __name__ == "__main__":
 
     # communicate with the board
     with project.transport() as transport:
+        # from tvm.contrib import graph_runtime
+
+        # with relay.build_config(opt_level=3):
+        #     graph, lib, cpu_params = relay.build(relay_mod, 'llvm', params=params)
+
+        # ctx = tvm.cpu(0)
+        # m = graph_runtime.create(graph, lib, ctx)
 
         for label, data in dataset:
-            data = np.reshape(data, -1)
-            data_s = ','.join(str(e) for e in data)
+            data_s = ','.join(str(e) for e in np.reshape(data, -1))
 
             transport.write(bytes(f"#input:{data_s}\n", 'UTF-8'), timeout_sec=30)
             result_line = get_message(transport, "#result", timeout_sec=30)
@@ -138,3 +144,19 @@ if __name__ == "__main__":
             benchmark_str = ' '.join([f"{n}: {float(t)/1000.0}ms" for n, t in zip(op_timers,times)])
 
             logging.info(f"input={label}; max_index={max_index}; {benchmark_str}; output={output_values}")
+
+            # m.set_input(input_tensor, data)
+            # m.set_input(**cpu_params)
+
+            # m.run()
+
+            # # m.get_num_outputs()
+            # tvm_output = np.reshape(m.get_output(0), -1)
+            # tvm_output = list(map(float, tvm_output))
+
+            # print(tvm_output)
+            # if not np.isclose(tvm_output, output_values, atol=0.001):
+            #     print("result is invalid")
+            # else:
+            #     print("result OK")
+
