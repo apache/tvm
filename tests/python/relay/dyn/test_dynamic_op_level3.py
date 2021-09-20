@@ -113,7 +113,7 @@ def test_dyn_expand_dims():
         verify_expand_dims((2, 2), dtype, (2, 1, 2), 1, 1)
         verify_expand_dims((2, 2), dtype, (1, 2, 2), 0, 1)
 
-        # TODO: investigate why runtimes in non-llvm are extremely slow
+        # TODO (AndrewZhaoLuo): investigate why runtimes in non-llvm are extremely slow
         # for multiple new axis
         verify_expand_dims(
             (2, 2),

@@ -1464,14 +1464,16 @@ class Unsqueeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v12(cls, inputs, attr, params):
-        # Unpack scalar
-        result = inputs[0]
         rank_input = len(infer_type(inputs[0]).checked_type.shape)
         num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0])
         axes = relay.split(inputs[1], num_new_axis).astuple()
+
+        result = inputs[0]
+
+        # TODO (AndrewZhaoLuo): investigate performance issues with consecutive
+        # dynamic expand_dims on non-llvm targets.
         for i in range(num_new_axis):
             axis = relay.TupleGetItem(axes, i)
-
             # Unpack scalar
             axis = relay.reshape(axis, [])
             axis = relay.If(

@@ -113,6 +113,8 @@ def expand_dims(data, axis, num_newaxis=1):
     if isinstance(axis, int):
         return _make.expand_dims(data, axis, num_newaxis)
     if isinstance(axis, Expr):
+        # TODO (AndrewZhaoLuo): investigate performance issues with consecutive
+        # dynamic expand_dims on non-llvm targets.
         for _ in range(num_newaxis):
             # Dynamic rank is not well supported so we can only increase rank
             # by a static amount (e.g. 1) so we have to do this

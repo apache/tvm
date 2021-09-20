@@ -114,8 +114,6 @@ def _expand_dims_shape_func_input_data(data, axis, ndims):
 
 @_reg.register_shape_func("dyn.expand_dims", [True, True])
 def dynamic_expand_dims_shape_func(attrs, inputs, out_ndims):
-    # The axis is encoded in the shape of the tensor
-    # e.g. axis 3 would have shape [4] and axis 0 would have shape [1]
     return [_expand_dims_shape_func_input_data(inputs[0], inputs[1], out_ndims[0])]
 
 

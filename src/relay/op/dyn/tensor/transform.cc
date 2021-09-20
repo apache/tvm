@@ -634,7 +634,7 @@ bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> oshape(ndim + 1, Any());
 
   const auto* axis_type = types[1].as<TensorTypeNode>();
-  ICHECK(axis_type->shape.size() == 0) << "Axis should be a scalar got " << axis_type->shape;
+  ICHECK(axis_type->shape.size() == 0) << "Axis should be a scalar got shape " << axis_type->shape;
 
   // Set output shape
   reporter->Assign(types[2], TensorType(oshape, data_type->dtype));
@@ -654,13 +654,9 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
 
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {
-    if (val->IsInstance<tir::AnyNode>()) {
-      // These vars will be populated by the VM executor with the results
-      // of the shape_func for the op.
-      newshape.push_back(val.as<tir::AnyNode>()->ToVar());
-    } else {
-      newshape.push_back(val);
-    }
+    // These vars will be populated by the VM executor with the results
+    // of the shape_func for the op.
+    newshape.push_back(val.as<tir::AnyNode>()->ToVar());
   }
 
   return {topi::reshape(inputs[0], newshape)};
