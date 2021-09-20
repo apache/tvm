@@ -23,6 +23,30 @@ def can_create_connection_without_deadlock(timeout, func, args=(), kwargs=None):
     return ret
 
 
+def test_pure_rpc():
+    """
+    Host  --  RPC server
+    """
+    device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.pure_server.value,
+                                                                   host=host_url,
+                                                                   port=host_port,
+                                                                   key=key)
+    try:
+        results = []
+        for _ in range(2):
+            ret = can_create_connection_without_deadlock(timeout=10, func=rpc.connect,
+                                                         args=(device_server_launcher.host,
+                                                               device_server_launcher.port,
+                                                               key))
+            results.append(ret)
+        if not np.all(np.array(results) == StatusKind.COMPLETE):
+            raise ValueError("One or more sessions ended incorrectly.")
+    except Exception as e:
+        print(e)
+
+    device_server_launcher.terminate()
+
+
 def test_rpc_proxy():
     """
     Host -- Proxy -- RPC server
@@ -107,6 +131,7 @@ if __name__ == '__main__':
     host_port = 9190
     key = "ios_mobile_device"
 
+    test_pure_rpc()
     test_rpc_proxy()
     test_rpc_tracker()
     test_rpc_tracker_via_proxy()

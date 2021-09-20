@@ -134,6 +134,9 @@ class ServerIOSLauncher:
         self.bundle_was_deployed = deploy_bundle_to_simulator(self.udid, self.bundle_path)
         self.server_was_started = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
 
+        self.host = host
+        self.port = port
+
     def terminate(self):
         if self.server_was_started:
             try:
