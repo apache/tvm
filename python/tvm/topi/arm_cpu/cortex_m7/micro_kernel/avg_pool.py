@@ -84,6 +84,8 @@ def intrin_sum(shape, in_dtype, out_dtype):
 def sum_impl(N, uniq_id):
     """Emit C code for sum impl."""
     cc_code = f"""
+#include "cortex_m7_defines.h"
+
 #ifndef __STATIC_FORCEINLINE
   #define __STATIC_FORCEINLINE  static inline
 #endif
@@ -107,7 +109,7 @@ extern "C"
 #endif // __cplusplus
 __STATIC_FORCEINLINE int32_t sum16_{N}_reset_{uniq_id}(
     int16_t *res) {{
-  memset(res, (int16_t)0, {N} * sizeof(*res));  
+  memset(res, (int16_t)0, {N} * sizeof(*res));
   return 0;
 }}
 
@@ -131,7 +133,7 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
     p32 = (int32_t *)(&arr[1]);
     n = {N} - 1;
   }} else {{
-    res = 0
+    res = 0;
     p32 = (int32_t *)arr;
     n = {N};
   }}
@@ -141,7 +143,7 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
     ++ p32;
   }}
 
-  if ( n % 2 != 0 ) 
+  if ( n % 2 != 0 )
     res += *(int16_t *)p32;
 
 #ifdef GROVETY_OP_BENCHMARK

@@ -37,7 +37,7 @@
 #include "posix_board_if.h"
 #endif
 
-#define WORKSPACE_SIZE (216 * 1024)
+#define WORKSPACE_SIZE (192 * 1024)
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 tvm_workspace_t app_workspace;
@@ -152,13 +152,11 @@ float get_input() {
       if (*ptr == ',') {
         *ptr = 0;
         input_data[index] = _strtof(cmd_buf, NULL);
-        // TVMLogf("value %s readed, parsed to %f\n", cmd_buf, input_data[index]);
         ptr = cmd_buf;
         index++;
       } else if (*ptr == '\n') {
         *ptr = 0;
         input_data[index] = _strtof(cmd_buf, NULL);
-        // TVMLogf("final value %s readed, parsed to %f\n", cmd_buf, input_data[index]);
         break;
       } else {
         ptr++;

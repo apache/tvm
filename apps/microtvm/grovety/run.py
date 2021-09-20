@@ -24,7 +24,7 @@ PLATFORMS = {
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run model on the MCU")
-    parser.add_argument("--model", type=str, choices=["cifar10", "mnist8", "sine"], default="cifar10", help="Model type")
+    parser.add_argument("--model", type=str, choices=["cifar10", "mnist8", "sine", "cifar10_2", "synth"], default="cifar10", help="Model type")
     parser.add_argument("--relay", action='store_true', help="print relay for the model and exit")
     parser.add_argument("--platform", type=str, choices=PLATFORMS.keys(), default=list(PLATFORMS.keys())[0], help="Platform")
     parser.add_argument("--log-level", type=str, choices=["DEBUG", "INFO"], default="INFO", help="Log level")
@@ -38,19 +38,29 @@ if __name__ == "__main__":
     logging.basicConfig(level=args.log_level)
     platform = PLATFORMS[args.platform]
 
+    target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
+
     # open model
     if args.model == "mnist8":
-        import mnist8
+        import test_models.mnist8 as mnist8
         relay_mod, params, input, output = mnist8.open_model()
         dataset = mnist8.get_data()
     elif args.model == "cifar10":
-        import cifar10
+        import test_models.cifar10 as cifar10
         relay_mod, params, input, output = cifar10.open_model()
         dataset = cifar10.get_data()
+    elif args.model == "cifar10_2":
+        import test_models.cifar10_2 as cifar10_2
+        relay_mod, params, input, output = cifar10_2.open_model(target_str)
+        dataset = cifar10_2.get_data()
     elif args.model == "sine":
-        import sine
+        import test_models.sine as sine
         relay_mod, params, input, output = sine.open_model()
         dataset = sine.get_data()
+    elif args.model == "synth":
+        import test_models.synth as synth
+        relay_mod, params, input, output = synth.avgpool_1d_relay_mod()
+        dataset = synth.get_data()
     else:
         raise NotImplementedError
 
@@ -65,7 +75,6 @@ if __name__ == "__main__":
         relay_mod = seq(relay_mod)
 
     # build relay for the target
-    target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
     target = tvm.target.target.Target(target_str)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
@@ -108,13 +117,19 @@ if __name__ == "__main__":
 
     # communicate with the board
     with project.transport() as transport:
+        # from tvm.contrib import graph_runtime
+
+        # with relay.build_config(opt_level=3):
+        #     graph, lib, cpu_params = relay.build(relay_mod, 'llvm', params=params)
+
+        # ctx = tvm.cpu(0)
+        # m = graph_runtime.create(graph, lib, ctx)
 
         for label, data in dataset:
-            data = np.reshape(data, -1)
-            data_s = ','.join(str(e) for e in data)
+            data_s = ','.join(str(e) for e in np.reshape(data, -1))
 
-            transport.write(bytes(f"#input:{data_s}\n", 'UTF-8'), timeout_sec=5)
-            result_line = get_message(transport, "#result", timeout_sec=5)
+            transport.write(bytes(f"#input:{data_s}\n", 'UTF-8'), timeout_sec=30)
+            result_line = get_message(transport, "#result", timeout_sec=30)
             r = result_line.strip("\n").split(":")
 
             output_values = list(map(float, r[1].split(',')))
@@ -129,3 +144,19 @@ if __name__ == "__main__":
             benchmark_str = ' '.join([f"{n}: {float(t)/1000.0}ms" for n, t in zip(op_timers,times)])
 
             logging.info(f"input={label}; max_index={max_index}; {benchmark_str}; output={output_values}")
+
+            # m.set_input(input_tensor, data)
+            # m.set_input(**cpu_params)
+
+            # m.run()
+
+            # # m.get_num_outputs()
+            # tvm_output = np.reshape(m.get_output(0), -1)
+            # tvm_output = list(map(float, tvm_output))
+
+            # print(tvm_output)
+            # if not np.isclose(tvm_output, output_values, atol=0.001):
+            #     print("result is invalid")
+            # else:
+            #     print("result OK")
+

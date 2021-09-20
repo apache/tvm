@@ -421,7 +421,6 @@ class Handler(server.ProjectAPIHandler):
         with open('build/CMakeFiles/tvm_model.dir/flags.make', 'r') as file:
             text = file.read()
             text = text.replace('-Os', '')
-            # print(text)
 
         with open('build/CMakeFiles/tvm_model.dir/flags.make', 'w') as file:
             file.write(text)
