@@ -100,6 +100,9 @@ class TensorNode : public DataProducerNode {
  *  or intermediate computation result.
  */
 class Tensor : public DataProducer {
+ private:
+  inline PrimExpr index_tensor(Array<PrimExpr> indices, bool support_negative_indices) const;
+
  public:
   TVM_DLL Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
   /*!
@@ -129,15 +132,39 @@ class Tensor : public DataProducer {
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
+   * \param support_negative_indices
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(Array<PrimExpr> indices, bool support_negative_indices) const;
+  TVM_DLL PrimExpr operator()(Array<PrimExpr> indices) const;
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(Array<Var> indices, bool support_negative_indices) const;
+  TVM_DLL PrimExpr operator()(Array<Var> indices) const;
+  /*!
+   * \brief Take elements from the tensor with support for negative indices.
+   * \param args The indices
+   * \return the result expression representing tensor read.
+   */
+  template <typename... Args>
+  TVM_DLL PrimExpr IndexWithNegativeIndices(Args&&... args) const {
+    Array<PrimExpr> indices{std::forward<Args>(args)...};
+    return IndexWithNegativeIndices(indices);
+  }
+  /*!
+   * \brief Take elements from the tensor with support for negative indices.
+   * \param indices the indices.
+   * \return the result expression representing tensor read.
+   */
+  TVM_DLL PrimExpr IndexWithNegativeIndices(Array<PrimExpr> indices) const;
+  /*!
+   * \brief Take elements from the tensor with support for negative indices.
+   * \param indices the indices.
+   * \return the result expression representing tensor read.
+   */
+  TVM_DLL PrimExpr IndexWithNegativeIndices(Array<Var> indices) const;
+
   /*!
    * \brief data structure to represent a slice that fixes first k coordinates.
    *  This is used to enable syntax sugar of Tensor[x][y][z] to get the element.
