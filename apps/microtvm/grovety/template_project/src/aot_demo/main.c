@@ -37,7 +37,7 @@
 #include "posix_board_if.h"
 #endif
 
-#define WORKSPACE_SIZE (192 * 1024)
+#define WORKSPACE_SIZE (174 * 1024)
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 tvm_workspace_t app_workspace;

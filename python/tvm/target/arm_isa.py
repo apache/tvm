@@ -20,6 +20,7 @@ import argparse
 
 ARM_ISA_MAP = {
     "armv7e-m": ["SMLAD", "SSUB8", "SEL"],
+    "armv8-m": ["SMLAD", "SSUB8", "SEL"]
 }
 
 

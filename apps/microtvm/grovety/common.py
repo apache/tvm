@@ -15,7 +15,8 @@ PLATFORMS = {
     "stm32f746xx_nucleo": ("stm32f746xx", "nucleo_f746zg"),
     "stm32l4r5zi_nucleo": ("stm32l4r5zi", "nucleo_l4r5zi"),
     "zynq_mp_r5": ("zynq_mp_r5", "qemu_cortex_r5"),
-    "LPCXpresso5569": ("nxp_lpc55S6x", "lpcxpresso55s69_ns")
+    "LPCXpresso5569": ("nxp_lpc55S6x", "lpcxpresso55s69_ns"),
+    "stm32l562e_dk": ("stm32l562Xe", "stm32l562e_dk")
 }
 
 
