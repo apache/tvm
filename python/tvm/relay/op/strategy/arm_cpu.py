@@ -470,4 +470,8 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
             wrap_topi_schedule(topi.generic.schedule_conv1d_nwc),
             name="conv1d_nwc.generic",
         )
+    else:
+        raise RuntimeError(
+            "Unsupported layout {} and kernel layout {} for conv1d for arm cpu.".format(layout, kernel_layout)
+        )
     return strategy
