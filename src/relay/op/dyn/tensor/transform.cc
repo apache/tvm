@@ -619,6 +619,8 @@ RELAY_REGISTER_OP("dyn.sparse_to_dense")
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
 
 /* relay.dyn.unsqueeze */
+TVM_REGISTER_NODE_TYPE(DynExpandDimsAttrs);
+
 bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
   ICHECK_EQ(num_inputs, 2);
@@ -629,9 +631,11 @@ bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
+  const auto* param = attrs.as<DynExpandDimsAttrs>();
+
   // We don't know the output shape until we see the value of the axis input
   int ndim = data_type->shape.size();
-  Array<IndexExpr> oshape(ndim + 1, Any());
+  Array<IndexExpr> oshape(ndim + param->num_newaxis, Any());
 
   const auto* axis_type = types[1].as<TensorTypeNode>();
   ICHECK(axis_type->shape.size() == 0) << "Axis should be a scalar got shape " << axis_type->shape;
@@ -662,9 +666,11 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeExpandDims(Expr data, Expr axis_tensor) {
+Expr MakeExpandDims(Expr data, Expr axis_tensor, int num_newaxis) {
+  auto attrs = make_object<DynExpandDimsAttrs>();
+  attrs->num_newaxis = num_newaxis;
   static const Op& op = Op::Get("dyn.expand_dims");
-  return Call(op, {data, axis_tensor}, Attrs(), {});
+  return Call(op, {data, axis_tensor}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.dyn._make.expand_dims").set_body_typed(MakeExpandDims);
