@@ -19,7 +19,10 @@
 #ifndef TVM_META_SCHEDULE_UTILS_H_
 #define TVM_META_SCHEDULE_UTILS_H_
 
+#include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/builder.h>
+
+#include "../src/support/array.h"
 
 namespace tvm {
 namespace meta_schedule {}  // namespace meta_schedule
