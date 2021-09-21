@@ -125,7 +125,7 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
     for (auto&& thread : threads) {
       thread.join();
     }
-    LOG(FATAL) << "Parallel_for error with " << e.what();
+    LOG(FATAL) << "RuntimeError: parallel_for_dynamic error with " << e.what();
   }
   // Step 3. Join threads and check exceptions
   for (auto&& thread : threads) {
@@ -136,7 +136,7 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
       future.get();
     }
   } catch (const std::exception& e) {
-    LOG(FATAL) << "Parallel_for error with " << e.what();
+    LOG(FATAL) << "RuntimeError: parallel_for_dynamic error with " << e.what();
   }
 }
 
