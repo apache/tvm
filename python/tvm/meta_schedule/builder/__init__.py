@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,19 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-set -o pipefail
-
-echo "Checking MyPy Type defs in the TensorIR schedule package."
-mypy  --check-untyped-defs python/tvm/tir/schedule
-
-echo "Checking MyPy Type defs in the meta schedule package."
-mypy  --check-untyped-defs python/tvm/meta_schedule
-
-echo "Checking MyPy Type defs in the analysis package."
-mypy  --check-untyped-defs python/tvm/tir/analysis/
-
-echo "Checking MyPy Type defs in the transform package."
-mypy  --check-untyped-defs python/tvm/tir/transform/
-
-echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."
-mypy  --check-untyped-defs python/tvm/relay/backend/contrib/ethosu/
+"""
+The tvm.meta_schedule.builder package.
+Meta Schedule builders that translate IRModule to runtime.Module,
+and then export
+"""
+from .builder import Builder, BuilderInput, BuilderResult, PyBuilder
+from .local_builder import LocalBuilder
