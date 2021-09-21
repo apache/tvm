@@ -650,11 +650,13 @@ Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>&
   // inputs = [Input tensor, axis to expand]
   ICHECK_EQ(inputs.size(), 2);
 
+  const auto* param = attrs.as<DynExpandDimsAttrs>();
+
   Array<IndexExpr> ishape = inputs[0]->shape;
   const TensorTypeNode* out_ttype = out_type.as<TensorTypeNode>();
   int ndim_out = out_ttype->shape.size();
   int ndim_in = ishape.size();
-  ICHECK_EQ(ndim_in + 1, ndim_out);
+  ICHECK_EQ(ndim_in + param->num_newaxis, ndim_out);
 
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {

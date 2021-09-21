@@ -115,14 +115,10 @@ def test_dyn_expand_dims():
 
         # TODO (AndrewZhaoLuo): investigate why runtimes in non-llvm are extremely slow
         # for multiple new axis
-        verify_expand_dims(
-            (2, 2),
-            dtype,
-            (2, 1, 1, 2),
-            1,
-            2,
-            target_device=[x for x in tvm.testing.enabled_targets() if "llvm" in x],
-        )
+        llvm_target_only = [x for x in tvm.testing.enabled_targets() if "llvm" in x]
+        verify_expand_dims((2, 2), dtype, (2, 2, 1, 1), 2, 2, target_device=llvm_target_only)
+        verify_expand_dims((2, 2), dtype, (2, 1, 1, 1, 2), 1, 3, target_device=llvm_target_only)
+        verify_expand_dims((2, 2), dtype, (1, 1, 1, 1, 2, 2), 0, 4, target_device=llvm_target_only)
 
 
 @tvm.testing.uses_gpu
