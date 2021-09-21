@@ -244,7 +244,7 @@ class TaskTemplate(object):
     def _default_func(self, *args, **kwargs):
         assert callable(self.fcompute) and callable(self.fschedule)
         out = self.fcompute(*args, **kwargs)
-        arg_bufs = [out] + self._get_inputs(out)
+        arg_bufs = self._get_inputs(out) + [out]
         s = self.fschedule([out])
         return s, arg_bufs
 
@@ -259,8 +259,10 @@ class TaskTemplate(object):
                 inputs.append(t)
             else:
                 input_tensors = [t for t in t.op.input_tensors if t not in hash_set]
+                input_tensors.reverse()
                 queue.extend(input_tensors)
                 hash_set.update(input_tensors)
+        inputs.reverse()
         return inputs
 
 
