@@ -25,6 +25,7 @@ import tvm
 from tvm import relay
 from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
+from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from aot_test_utils import (
     AOTTestModel,
@@ -353,6 +354,65 @@ def test_byoc_microtvm(merge_compiler_regions):
 
     map_inputs = OrderedDict(x_data + w_data)
     output_list = generate_ref_data(mod, map_inputs)
+    compile_and_run(
+        AOTTestModel(name="my_mod", module=mod, inputs=map_inputs, outputs=output_list),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@pytest.mark.parametrize("merge_compiler_regions", [False, True])
+def test_byoc_microtvm_multiple_subgraphs(merge_compiler_regions):
+    """This is a test case to check BYOC capabilities of AOT with multiple sub graphs"""
+    use_unpacked_api = False
+    interface_api = "packed"
+    test_runner = AOT_DEFAULT_RUNNER
+
+    x = relay.var("x", shape=(10, 10))
+    w0 = relay.var("w0", shape=(10, 10))
+    w1 = relay.var("w1", shape=(10, 10))
+    w2 = relay.var("w2", shape=(10, 10))
+    w3 = relay.var("w3", shape=(10, 10))
+    w4 = relay.var("w4", shape=(10, 10))
+    w5 = relay.var("w5", shape=(10, 10))
+    w6 = relay.var("w6", shape=(10, 10))
+    w7 = relay.var("w7", shape=(10, 10))
+
+    # C compiler
+    z0 = relay.add(x, w0)
+    p0 = relay.subtract(z0, w1)
+    q0 = relay.multiply(p0, w2)
+
+    z1 = relay.add(x, w3)
+    p1 = relay.subtract(z1, w4)
+    q1 = relay.multiply(p1, w5)
+
+    # Other parts on TVM
+    z2 = relay.add(x, w6)
+    q2 = relay.subtract(z2, w7)
+
+    r = relay.concatenate((q0, q1, q2), axis=0)
+    f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
+    mod = tvm.IRModule()
+    ann = byoc.CcompilerAnnotator()
+    mod["main"] = ann.visit(f)
+
+    if merge_compiler_regions:
+        mod = transform.MergeCompilerRegions()(mod)
+
+    mod = tvm.relay.transform.PartitionGraph("mod_name")(mod)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    x_data = np.random.rand(10, 10).astype("float32")
+    w_data = []
+    for _ in range(8):
+        w_data.append(np.random.rand(10, 10).astype("float32"))
+
+    map_inputs = OrderedDict([("x", x_data)] + [("w{}".format(i), w_data[i]) for i in range(8)])
+    output_list = generate_ref_data(mod, map_inputs)
+    input_list = [map_inputs["x"]]
+    input_list.extend([map_inputs["w{}".format(i)] for i in range(8)])
     compile_and_run(
         AOTTestModel(name="my_mod", module=mod, inputs=map_inputs, outputs=output_list),
         test_runner,
