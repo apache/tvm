@@ -138,3 +138,25 @@ TEST(Pattern, IntImm) {
   // cannot match tx + 1 to v
   ICHECK(!(v * c).Match((tx + 1) * 3));
 }
+
+TEST(Pattern, MatchWithType) {
+  using namespace tvm;
+  // match expr with specified dtype
+  arith::PVarWithDataType<PrimExpr, arith::PConst<DataType>> pat(DataType::Float(32));
+  tir::Var x("x", DataType::Float(32));
+  tir::Var y("y", DataType::Float(32));
+  tir::Var x_int("x", DataType::Int(32));
+  tir::Var y_int("y", DataType::Int(32));
+  ICHECK(pat.Match(x + y * 2.0f));
+  ICHECK(!pat.Match(x_int + y_int * 2));
+
+  // match vectorized expr with specified element dtype
+  arith::PVecDataType vec_ty(DataType::Float(32));
+  arith::PVarWithDataType<PrimExpr, arith::PVecDataType> vpat(vec_ty);
+  tir::Var vx = tir::Var("x", DataType::Float(32, 8));
+  tir::Var vy("y", DataType::Float(32, 8));
+  tir::Var vx_int("x", DataType::Int(32, 8));
+  tir::Var vy_int("y", DataType::Int(32, 8));
+  ICHECK(vpat.Match(vx + vy * tir::Broadcast(2.0f, 8)));
+  ICHECK(!vpat.Match(vx_int + vy_int * tir::Broadcast(2, 8)));
+}

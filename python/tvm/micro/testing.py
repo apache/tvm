@@ -14,5 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""External backend codegen modules for Relay."""
-from . import cmsisnn
+
+"""Defines the test methods used with microTVM."""
+
+import pathlib
+import json
+from typing import Union
+
+
+def check_tune_log(log_path: Union[pathlib.Path, str]):
+    """Read the tuning log and check each result."""
+    with open(log_path, "r") as f:
+        lines = f.readlines()
+
+    for line in lines:
+        if len(line) > 0:
+            tune_result = json.loads(line)
+            assert tune_result["result"][0][0] < 1000000000.0
