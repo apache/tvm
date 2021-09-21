@@ -17,8 +17,9 @@ _LOG = logging.getLogger(__name__)
 TEMPLATE_PROJECT_DIR = tvm_repo_root() + "/apps/microtvm/grovety/template_project"
 
 PLATFORMS = {
-    "stm32f746xx_nucleo": {"model": "stm32f746xx", "board": "nucleo_f746zg", "mcpu": "cortex-m7", "march": "armv7e-m"},
-    "stm32f746xx_disco": {"model": "stm32f746xx", "board": "stm32f746g_disco", "mcpu": "cortex-m7", "march": "armv7e-m"},
+    "f746_nucleo": {"model": "stm32f746xx", "board": "nucleo_f746zg", "mcpu": "cortex-m7", "march": "armv7e-m"},
+    "f746_disco": {"model": "stm32f746xx", "board": "stm32f746g_disco", "mcpu": "cortex-m7", "march": "armv7e-m"},
+    "l562": {"model": "stm32l562Xe", "board": "stm32l562e_dk", "mcpu": "cortex-m33", "march": "armv8-m"}
 }
 
 
@@ -59,7 +60,7 @@ if __name__ == "__main__":
         dataset = sine.get_data()
     elif args.model == "synth":
         import test_models.synth as synth
-        relay_mod, params, input, output = synth.avgpool_1d_relay_mod()
+        relay_mod, params, input, output = synth.avgpool_2d_relay_mod()
         dataset = synth.get_data()
     else:
         raise NotImplementedError
@@ -117,14 +118,6 @@ if __name__ == "__main__":
 
     # communicate with the board
     with project.transport() as transport:
-        # from tvm.contrib import graph_runtime
-
-        # with relay.build_config(opt_level=3):
-        #     graph, lib, cpu_params = relay.build(relay_mod, 'llvm', params=params)
-
-        # ctx = tvm.cpu(0)
-        # m = graph_runtime.create(graph, lib, ctx)
-
         for label, data in dataset:
             data_s = ','.join(str(e) for e in np.reshape(data, -1))
 
@@ -144,19 +137,3 @@ if __name__ == "__main__":
             benchmark_str = ' '.join([f"{n}: {float(t)/1000.0}ms" for n, t in zip(op_timers,times)])
 
             logging.info(f"input={label}; max_index={max_index}; {benchmark_str}; output={output_values}")
-
-            # m.set_input(input_tensor, data)
-            # m.set_input(**cpu_params)
-
-            # m.run()
-
-            # # m.get_num_outputs()
-            # tvm_output = np.reshape(m.get_output(0), -1)
-            # tvm_output = list(map(float, tvm_output))
-
-            # print(tvm_output)
-            # if not np.isclose(tvm_output, output_values, atol=0.001):
-            #     print("result is invalid")
-            # else:
-            #     print("result OK")
-
