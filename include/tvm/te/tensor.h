@@ -107,7 +107,7 @@ class Tensor : public DataProducer {
    * \param support_negative_indices Whether to normalize indices in the case of negative indices.
    * \return the result expression representing tensor read.
    */
-  inline PrimExpr index_tensor(Array<PrimExpr> indices, bool support_negative_indices) const;
+  inline PrimExpr IndexTensor(Array<PrimExpr> indices, bool support_negative_indices) const;
 
  public:
   TVM_DLL Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);

@@ -39,7 +39,7 @@ IterVar reduce_axis(Range dom, std::string name) { return IterVar(dom, Var(name)
 Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 
 // Tensor
-inline PrimExpr Tensor::index_tensor(Array<PrimExpr> indices, bool support_negative_indices) const {
+inline PrimExpr Tensor::IndexTensor(Array<PrimExpr> indices, bool support_negative_indices) const {
   Array<PrimExpr> shape = (*this)->shape;
 
   if (shape.size() != 0) {
@@ -63,7 +63,7 @@ PrimExpr Tensor::operator()(Array<Var> indices) const {
   return operator()(arr);
 }
 
-PrimExpr Tensor::operator()(Array<PrimExpr> indices) const { return index_tensor(indices, false); }
+PrimExpr Tensor::operator()(Array<PrimExpr> indices) const { return IndexTensor(indices, false); }
 
 PrimExpr Tensor::IndexWithNegativeIndices(Array<Var> indices) const {
   Array<PrimExpr> arr(indices.begin(), indices.end());
@@ -71,7 +71,7 @@ PrimExpr Tensor::IndexWithNegativeIndices(Array<Var> indices) const {
 }
 
 PrimExpr Tensor::IndexWithNegativeIndices(Array<PrimExpr> indices) const {
-  return index_tensor(indices, true);
+  return IndexTensor(indices, true);
 }
 
 String TensorNode::GetNameHint() const {
