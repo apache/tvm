@@ -217,7 +217,7 @@ def conv1d_direct_simd_nhwc_schedule(outs):
         cio, cii = sched[conv].split(ci, factor=in_channels)
         coo, coi = sched[conv].split(co, factor=out_channels)
 
-        sched[conv].reorder(n, owo, kw, owi, coo, coi, cio, cii)
+        sched[conv].reorder(n, owo, coo, cio, kw, owi, coi, cii)
 
         gemm, uniq_id = intrin_gemm_MxKxN(M, K, N, data_vec.dtype, output.dtype)
         sched[output].tensorize(owi, gemm)
