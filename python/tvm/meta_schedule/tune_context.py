@@ -49,6 +49,13 @@ class TuneContext(Object):
         Need to be in integer in [1, 2^31-1], -1 means using random number.
     num_threads : int = None
         The number of threads to be used, None means using the logical cpu count.
+
+    Note
+    ----
+    In most cases, mod and target should be available in the tuning context. They are "Optional"
+    because we allow the user to customize the tuning context, along with other classes, sometimes
+    without mod and target. E.g., we can have a stand alone search strategy that generates measure
+    candidates without initializing with the tune context.
     """
 
     mod: Optional[IRModule]
