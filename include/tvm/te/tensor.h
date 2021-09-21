@@ -103,7 +103,7 @@ class Tensor : public DataProducer {
  private:
   /*!
    * \brief Helper for indexing operations into tensors
-   * \param args The indices
+   * \param indices The indices
    * \param support_negative_indices Whether to normalize indices in the case of negative indices.
    * \return the result expression representing tensor read.
    */
