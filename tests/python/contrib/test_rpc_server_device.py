@@ -1,10 +1,29 @@
 import numpy as np
 
+import tvm
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
 from tvm.auto_scheduler.utils import call_func_with_timeout
 from tvm.contrib.popen_pool import PopenWorker, StatusKind
 from tvm.rpc import tracker, proxy, server_ios_launcher
+
+
+HOST_URL = "0.0.0.0"
+HOST_PORT = 9190
+DEVICE_KEY = "ios_mobile_device"
+# TODO: When starting an application in pure_rpc mode, the address and port fields are ignored.
+# The server starts on one of the following ports: 9090-9099.
+# The port on which the server is running is printed in the application log window.
+# This value is not broadcast anywhere else, it cannot be programmatically obtained from outside
+# the application, so there may be connection problems if port 9090 is busy and the server starts
+# on a different port.
+HOST_PORT_PURE_RPC = 9090
+TEST_FUNCTION_NAME = "rpc.test_ios_rpc.add_one"
+
+
+@tvm.register_func(TEST_FUNCTION_NAME)
+def add_one(x):
+    return x + 1
 
 
 def can_create_connection_without_deadlock(timeout, func, args=(), kwargs=None):
@@ -28,16 +47,16 @@ def test_pure_rpc():
     Host  --  RPC server
     """
     device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.pure_server.value,
-                                                                   host=host_url,
-                                                                   port=host_port,
-                                                                   key=key)
+                                                                   host=HOST_URL,
+                                                                   port=HOST_PORT_PURE_RPC,
+                                                                   key=DEVICE_KEY)
     try:
         results = []
         for _ in range(2):
             ret = can_create_connection_without_deadlock(timeout=10, func=rpc.connect,
                                                          args=(device_server_launcher.host,
                                                                device_server_launcher.port,
-                                                               key))
+                                                               DEVICE_KEY))
             results.append(ret)
         if not np.all(np.array(results) == StatusKind.COMPLETE):
             raise ValueError("One or more sessions ended incorrectly.")
@@ -51,16 +70,16 @@ def test_rpc_proxy():
     """
     Host -- Proxy -- RPC server
     """
-    proxy_server = proxy.Proxy(host=host_url, port=host_port)
+    proxy_server = proxy.Proxy(host=HOST_URL, port=HOST_PORT)
     device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.proxy.value,
                                                                    host=proxy_server.host,
                                                                    port=proxy_server.port,
-                                                                   key=key)
+                                                                   key=DEVICE_KEY)
     try:
         results = []
         for _ in range(2):
             ret = can_create_connection_without_deadlock(timeout=10, func=rpc.connect,
-                                                         args=(proxy_server.host, proxy_server.port, key))
+                                                         args=(proxy_server.host, proxy_server.port, DEVICE_KEY))
             results.append(ret)
         if not np.all(np.array(results) == StatusKind.COMPLETE):
             raise ValueError("One or more sessions ended incorrectly.")
@@ -77,16 +96,16 @@ def test_rpc_tracker():
          /     \
     Host   --   RPC server
     """
-    tracker_server = tracker.Tracker(host=host_url, port=host_port, silent=True)
+    tracker_server = tracker.Tracker(host=HOST_URL, port=HOST_PORT, silent=True)
     device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.tracker.value,
                                                                    host=tracker_server.host,
                                                                    port=tracker_server.port,
-                                                                   key=key)
+                                                                   key=DEVICE_KEY)
     try:
         results = []
         for _ in range(2):
             ret = can_create_connection_without_deadlock(timeout=10, func=request_remote,
-                                                         args=(key, tracker_server.host, tracker_server.port))
+                                                         args=(DEVICE_KEY, tracker_server.host, tracker_server.port))
             results.append(ret)
         if not np.all(np.array(results) == StatusKind.COMPLETE):
             raise ValueError("One or more sessions ended incorrectly.")
@@ -103,18 +122,18 @@ def test_rpc_tracker_via_proxy():
          /     \
     Host   --   Proxy -- RPC server
     """
-    tracker_server = tracker.Tracker(host=host_url, port=host_port, silent=True)
-    proxy_server_tracker = proxy.Proxy(host=host_url, port=8888, tracker_addr=(tracker_server.host, tracker_server.port))
+    tracker_server = tracker.Tracker(host=HOST_URL, port=HOST_PORT, silent=True)
+    proxy_server_tracker = proxy.Proxy(host=HOST_URL, port=8888, tracker_addr=(tracker_server.host, tracker_server.port))
     device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.proxy.value,
                                                                    host=proxy_server_tracker.host,
                                                                    port=proxy_server_tracker.port,
-                                                                   key=key)
+                                                                   key=DEVICE_KEY)
 
     try:
         results = []
         for _ in range(2):
             ret = can_create_connection_without_deadlock(timeout=10, func=request_remote,
-                                                         args=(key, tracker_server.host, tracker_server.port))
+                                                         args=(DEVICE_KEY, tracker_server.host, tracker_server.port))
             results.append(ret)
         if not np.all(np.array(results) == StatusKind.COMPLETE):
             raise ValueError("One or more sessions ended incorrectly.")
@@ -126,14 +145,27 @@ def test_rpc_tracker_via_proxy():
     tracker_server.terminate()
 
 
-if __name__ == '__main__':
-    host_url = "0.0.0.0"
-    host_port = 9190
-    key = "ios_mobile_device"
+def test_can_call_remote_function_with_rpc_tracker():
+    tracker_server = tracker.Tracker(host=HOST_URL, port=HOST_PORT, silent=True)
+    device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.tracker.value,
+                                                                   host=tracker_server.host,
+                                                                   port=tracker_server.port,
+                                                                   key=DEVICE_KEY)
 
+    remote_session = request_remote(DEVICE_KEY, tracker_server.host, tracker_server.port)
+    f = remote_session.get_function(TEST_FUNCTION_NAME)
+    assert f(10) == 11
+
+    device_server_launcher.terminate()
+    tracker_server.terminate()
+
+
+if __name__ == '__main__':
     test_pure_rpc()
     test_rpc_proxy()
     test_rpc_tracker()
     test_rpc_tracker_via_proxy()
+
+    test_can_call_remote_function_with_rpc_tracker()
 
     server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
