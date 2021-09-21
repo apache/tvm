@@ -99,7 +99,7 @@ void parallel_for_dynamic(int begin, int end, int num_threads,
   if (begin == end) {
     return;
   }
-  CHECK_LT(begin, end) << "ValueError: The interval [begin, end) requires `begin <= end`";
+  CHECK_LE(begin, end) << "ValueError: The interval [begin, end) requires `begin <= end`";
   CHECK_GT(num_threads, 0) << "ValueError: `num_threads` should be positive";
   // Step 2. Launch threads
   // Step 2.1. Launch worker 1 to worker `num_threads - 1`
