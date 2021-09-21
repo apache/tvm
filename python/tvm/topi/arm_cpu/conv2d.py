@@ -34,6 +34,7 @@ from .conv2d_spatial_pack import (
     schedule_conv2d_spatial_pack_nhwc,
 )
 from .cortex_m7.conv2d import direct_simd
+from .cortex_m7.conv1d import direct_simd
 
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
@@ -517,3 +518,16 @@ def conv2d_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype)
 def schedule_conv2d_direct_simd(cfg, outs):
     """Create schedule for conv2d_direct_simd"""
     return direct_simd.conv2d_direct_simd_nhwc_schedule(cfg, outs)
+
+
+@autotvm.register_topi_compute("conv1d_direct_simd.arm_cpu")
+def conv1d_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv1d with SIMD (v7e-m)."""
+    return direct_simd.conv1d_direct_simd_compute(
+        cfg, data, kernel, strides, padding, dilation, out_dtype
+    )
+
+
+@autotvm.register_topi_schedule("conv1d_direct_simd.arm_cpu")
+def schedule_conv1d_direct_simd(cfg, outs):
+    return direct_simd.conv1d_direct_simd_nwc_schedule(cfg, outs)

@@ -441,3 +441,40 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             name="dense.generic",
         )
     return strategy
+
+
+@conv1d_strategy.register("arm_cpu")
+def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """conv1d strategy"""
+    strategy = _op.OpStrategy()
+    layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
+    dilation = get_const_tuple(attrs.dilation)
+    if dilation[0] < 1:
+        raise ValueError("dilation should be a positive value")
+
+    isa = arm_isa.IsaAnalyzer(target)
+
+    if layout == "NWC" and kernel_layout == "WOI" and "SMLAD" in isa:
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.arm_cpu.conv1d_direct_simd),
+            wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_direct_simd),
+            name="conv1d_direct_simd.micro_dev",
+        )
+    elif layout == "NCW":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.conv1d_ncw),
+            wrap_topi_schedule(topi.generic.schedule_conv1d_ncw),
+            name="conv1d_ncw.generic",
+        )
+    elif layout == "NWC":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.conv1d_nwc),
+            wrap_topi_schedule(topi.generic.schedule_conv1d_nwc),
+            name="conv1d_nwc.generic",
+        )
+    else:
+        raise RuntimeError(
+            "Unsupported layout {} and kernel layout {} for conv1d for arm cpu.".format(layout, kernel_layout)
+        )
+    return strategy
