@@ -1646,6 +1646,18 @@ class GatherND(OnnxOpConverter):
         return cls._impl_common(inputs[0], inputs[1], batch_dims)
 
 
+class Compress(OnnxOpConverter):
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        input_tensor, condition_tensor = inputs
+
+        axis = attr["axis"]
+
+        # Change one hot tensor to indices e.g. [0, 1, 1, 0, 1] -> [1, 2, 4]
+        condition_tensor = _op.reshape(_op.argwhere(condition_tensor), (-1,))
+        return _op.take(input_tensor, condition_tensor, axis=axis)
+
+
 class Scatter(OnnxOpConverter):
     """Operator converter for Scatter."""
 
@@ -4073,6 +4085,7 @@ def _get_convert_map(opset):
         "Gather": Gather.get_converter(opset),
         "GatherElements": GatherElements.get_converter(opset),
         "GatherND": GatherND.get_converter(opset),
+        "Compress": Compress.get_converter(opset),
         "Size": AttrCvt("ndarray_size", extras={"dtype": "int64"}),
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
