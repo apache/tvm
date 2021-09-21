@@ -155,7 +155,7 @@ stage('Sanity Check') {
       ws(per_exec_ws('tvm/sanity')) {
         init_git()
         is_docs_only_build = sh (returnStatus: true, script: '''
-        ./tests/scripts/git_check_tree.sh
+        ./tests/scripts/git_change_docs.sh
         '''
         )
         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
