@@ -115,7 +115,8 @@ class BuiltinLower : public StmtExprMutator {
     int64_t nbytes = GetVectorBytes(op->dtype);
     if (device_type_.defined()) {
       if (const auto* dev_type = device_type_.as<IntImmNode>()) {
-        if (dev_type->value == kDLCPU) {
+        auto storage_scope = Downcast<PointerType>(op->buffer_var->type_annotation)->storage_scope;
+        if (dev_type->value == kDLCPU && storage_scope == "global") {
           int32_t constant_size = op->constant_allocation_size();
           if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
             return stmt;

@@ -33,6 +33,7 @@ from aot_test_utils import (
     generate_ref_data,
     convert_to_relay,
     compile_and_run,
+    compile_models,
     parametrize_aot_options,
 )
 
@@ -641,6 +642,42 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_work
         )
         == sum_workspace_size
     )
+
+
+def test_aot_codegen_backend_alloc_workspace_calls():
+    dtype = "float32"
+
+    # These shapes should create small tensors that would
+    # get lowered to stack allocations in the CPU PrimFuncs.
+    # However, the AoT executor codegen should retain them
+    # as TVMBAW calls
+    ishape = (1, 4, 4, 4)
+    wshape = (4, 4, 3, 3)
+
+    data0 = relay.var("data", shape=ishape, dtype=dtype)
+    weight0 = relay.var("weight", shape=wshape, dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=1)
+    main_f = relay.Function([data0, weight0], out)
+    mod = tvm.IRModule()
+    mod["main"] = main_f
+    mod = transform.InferType()(mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1_data = np.random.uniform(0, 1, wshape).astype(dtype)
+
+    inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
+    output_list = generate_ref_data(mod, inputs)
+
+    compiled_runtime_modules = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        "c",
+        True,
+    )
+
+    source = compiled_runtime_modules[0].lib.imported_modules[0].get_source()
+    # There should be three TVMBackendAllocWorkspace calls generated
+    # for the above snippet of code
+    assert source.count("TVMBackendAllocWorkspace") == 3
 
 
 if __name__ == "__main__":
