@@ -96,6 +96,10 @@ BOARD_PROPERTIES = {
         "board": "qemu_cortex_r5",
         "model": "zynq_mp_r5",
     },
+    "mimxrt1050_evk": {
+        "board": "mimxrt1050_evk",
+        "model": "imxrt10xx",
+    },
 }
 
 
@@ -180,6 +184,9 @@ def _get_device_args(options):
     if flash_runner == "openocd":
         return _get_openocd_device_args(options)
 
+    if flash_runner == "jlink":
+        return []
+
     raise BoardError(
         f"Don't know how to find serial terminal for board {CMAKE_CACHE['BOARD']} with flash "
         f"runner {flash_runner}"
@@ -191,6 +198,7 @@ BOARD_USB_FIND_KW = {
     "nucleo_l4r5zi": {"idVendor": 0x0483, "idProduct": 0x374B},
     "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
     "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
+    "mimxrt1050_evk": {"idVendor": 0x1366, "idProduct": 0x0105},
 }
 
 
@@ -587,6 +595,10 @@ class ZephyrSerialTransport:
         return ports[0].device
 
     @classmethod
+    def _find_jlink_serial_port(cls, options):
+        return cls._find_openocd_serial_port(options)
+
+    @classmethod
     def _find_serial_port(cls, options):
         flash_runner = _get_flash_runner()
 
@@ -596,9 +608,10 @@ class ZephyrSerialTransport:
         if flash_runner == "openocd":
             return cls._find_openocd_serial_port(options)
 
-        raise FlashRunnerNotSupported(
-            f"Don't know how to deduce serial port for flash runner {flash_runner}"
-        )
+        if flash_runner == "jlink":
+            return cls._find_jlink_serial_port(options)
+
+        raise RuntimeError(f"Don't know how to deduce serial port for flash runner {flash_runner}")
 
     def __init__(self, options):
         self._options = options
