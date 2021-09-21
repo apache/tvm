@@ -1453,6 +1453,8 @@ class Cast(OnnxOpConverter):
 
 
 class Squeeze(OnnxOpConverter):
+    """Operator converter for Squeeze."""
+
     @classmethod
     def run_calculation(cls, tensor, axes):
         return _op.squeeze(tensor, axis=axes)
