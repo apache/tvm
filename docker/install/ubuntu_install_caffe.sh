@@ -22,13 +22,40 @@ set -o pipefail
 
 apt-get update --fix-missing
 
-# The precompiled caffe dependents on tzdata.
-# While installing tzdata in docker, we need set the time zone manually,
-# which will cause the container to hang during installation.
-# So in order to avoid manually selecting the time zone, set as following:
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y tzdata
+# Install dependencies
+apt-get install -y --no-install-recommends libboost-filesystem-dev libboost-python-dev \
+    libboost-system-dev libboost-thread-dev libboost-regex-dev protobuf-compiler \
+    libprotobuf-dev libhdf5-serial-dev libopenblas-dev libgflags-dev libgoogle-glog-dev
+rm -rf /var/lib/apt/lists/*
 
-apt-get install caffe-cpu -y
+# install python packages
+pip install "numpy>=1.7.1"
+pip install "protobuf>=2.5.0"
+pip install "scikit-image>=0.9.3"
+pip install "six>=1.1.0"
 
-pip3 install --upgrade scikit-image
+# Build the Caffe and the python wrapper
+echo "Downloading Caffe"
+CAFFE_HOME="/opt/caffe"
+git clone --branch=ssd --depth 1 https://github.com/weiliu89/caffe /caffe_src
+cd /caffe_src
+
+echo "Building Caffe"
+mkdir /caffe_src/build && cd /caffe_src/build
+cmake .. -DCMAKE_INSTALL_PREFIX=${CAFFE_HOME} -DCMAKE_BUILD_TYPE=Release -DCPU_ONLY=1 \
+    -Dpython_version=3 -DUSE_OPENCV=OFF -DUSE_LEVELDB=OFF -DUSE_LMDB=OFF -DBUILD_docs=OFF -DBLAS=open
+make all -j`nproc`
+make pycaffe -j`nproc`
+make test -j`nproc`
+make runtest -j`nproc`
+make pytest -j`nproc`
+
+echo "Installing Caffe to /opt/caffe"
+make install
+
+echo "Removing build directory"
+cd / && rm -rf /caffe_src
+
+PYCAFFE_ROOT=${CAFFE_HOME}/python
+echo "${CAFFE_HOME}/lib" >> /etc/ld.so.conf.d/caffe.conf && ldconfig
+ln -s ${PYCAFFE_ROOT}/caffe /usr/local/lib/python3.6/dist-packages/caffe
