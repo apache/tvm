@@ -26,22 +26,6 @@ def add_one(x):
     return x + 1
 
 
-def can_create_connection_without_deadlock(timeout, func, args=(), kwargs=None):
-    def wrapper(*_args, **_kwargs):
-        """
-            This wrapper is needed because the cloudpicle
-            cannot serialize objects that contain pointers (RPCSession)
-        """
-        func(*_args, **_kwargs)
-        return StatusKind.COMPLETE
-
-    worker = PopenWorker()
-    ret = call_func_with_timeout(worker, timeout=timeout, func=wrapper, args=args, kwargs=kwargs)
-    if isinstance(ret, Exception):
-        raise ret
-    return ret
-
-
 def infra_pure_rpc(f):
     """
     Host  --  RPC server
@@ -110,60 +94,53 @@ def infra_rpc_tracker_via_proxy(f):
     return wrapper
 
 
-@infra_pure_rpc
-def test_pure_rpc(host, port):
+def can_create_connection_without_deadlock(timeout, func, args=(), kwargs=None):
+    def wrapper(*_args, **_kwargs):
+        """
+            This wrapper is needed because the cloudpicle
+            cannot serialize objects that contain pointers (RPCSession)
+        """
+        func(*_args, **_kwargs)
+        return StatusKind.COMPLETE
+
+    worker = PopenWorker()
+    ret = call_func_with_timeout(worker, timeout=timeout, func=wrapper, args=args, kwargs=kwargs)
+    if isinstance(ret, Exception):
+        raise ret
+    return ret
+
+
+def try_create_remote_session(session_factory, args=(), kwargs=None):
     try:
         results = []
         for _ in range(2):
-            ret = can_create_connection_without_deadlock(timeout=10, func=rpc.connect,
-                                                         args=(host, port, DEVICE_KEY))
+            ret = can_create_connection_without_deadlock(timeout=10, func=session_factory,
+                                                         args=args, kwargs=kwargs)
             results.append(ret)
         if not np.all(np.array(results) == StatusKind.COMPLETE):
             raise ValueError("One or more sessions ended incorrectly.")
     except Exception as e:
         print(e)
+
+
+@infra_pure_rpc
+def test_pure_rpc(host, port):
+    try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
 
 
 @infra_rpc_proxy
 def test_rpc_proxy(host, port):
-    try:
-        results = []
-        for _ in range(2):
-            ret = can_create_connection_without_deadlock(timeout=10, func=rpc.connect,
-                                                         args=(host, port, DEVICE_KEY))
-            results.append(ret)
-        if not np.all(np.array(results) == StatusKind.COMPLETE):
-            raise ValueError("One or more sessions ended incorrectly.")
-    except Exception as e:
-        print(e)
+    try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
 
 
 @infra_rpc_tracker
 def test_rpc_tracker(host, port):
-    try:
-        results = []
-        for _ in range(2):
-            ret = can_create_connection_without_deadlock(timeout=10, func=request_remote,
-                                                         args=(DEVICE_KEY, host, port))
-            results.append(ret)
-        if not np.all(np.array(results) == StatusKind.COMPLETE):
-            raise ValueError("One or more sessions ended incorrectly.")
-    except Exception as e:
-        print(e)
+    try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
 
 
 @infra_rpc_tracker_via_proxy
 def test_rpc_tracker_via_proxy(host, port):
-    try:
-        results = []
-        for _ in range(2):
-            ret = can_create_connection_without_deadlock(timeout=10, func=request_remote,
-                                                         args=(DEVICE_KEY, host, port))
-            results.append(ret)
-        if not np.all(np.array(results) == StatusKind.COMPLETE):
-            raise ValueError("One or more sessions ended incorrectly.")
-    except Exception as e:
-        print(e)
+    try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
 
 
 @infra_rpc_tracker
