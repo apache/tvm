@@ -71,6 +71,7 @@ function run_pytest() {
         exit 2
     fi
     TVM_FFI=${ffi_type} python3 -m pytest \
+           --timeout=480 \
            -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
            "--junit-prefix=${ffi_type}" \
