@@ -139,11 +139,22 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type);
  */
 struct LoweredOutput {
   std::string graph_json;
-  Map<String, IRModule> lowered_funcs;
+  Map<Target, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
   runtime::Metadata metadata;
+};
+
+/*!
+ * \brief This class is needed to avoid a GCC 5 bug that prevents maps containing enums from being
+ compiled. If i386 GCC version is increased, we can remove it.
+ */
+struct EnumClassHash {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
 };
 
 /*!
@@ -426,6 +437,60 @@ inline bool IsCompileEngineCacheDisabled() {
  * \return An array of passes.
  */
 Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
+
+/*! \brief Target hash function */
+struct TargetStrHash {
+  /*!
+   * \brief Calculate the hash code of a Target based on the string value of the Target.
+   Note that this hash should NOT be used in new usecases, equality of targets based on their
+   value is not well-defined.
+   This will be removed when maps from Targets to IRModules are removed from the codebase.
+   * \param target The Target to hash
+   * \return String hash of the target
+   */
+  size_t operator()(const Target& target) const {
+    return String::HashBytes(target->str().c_str(), target->str().size());
+  }
+};
+
+/*! \brief Target equality function based on the string value of Target
+Note that this equality function should NOT be used in new usecases, equality of targets based on
+their value is not well-defined. This will be removed when maps from Targets to IRModules are
+removed from the codebase.*/
+struct TargetStrEqual {
+  /*!
+   * \brief Check if the two Targets are equal
+   * \param target One Target
+   * \param other_target The other Target
+   * \return String equality of the targets
+   */
+  const bool operator()(const Target& target, const Target& other_target) const {
+    TargetStrHash target_hash = TargetStrHash();
+    return target_hash(target) == target_hash(other_target);
+  }
+};
+
+/*!
+ * \brief Convert a Map<Target, IRModule> to std::unordered_map<Target, IRmodule, TargetStrHash,
+ * TargetStrEqual> Target equality is currently based on pointer equality, which is a problem since
+ * we have a lot of Map<Target, IRModule> in the codebase. This function converts the map to a
+ * version that is keyed based on string value of the Target instead. Note that once we remove
+ * Map<Target, IRModule>, this function will be removed.
+ * \param input_map The map to convert
+ * \return The converted map
+ */
+std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual>
+TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
+
+/*!
+ * \brief Convert a std::unordered_map<Target, IRmodule, TargetStrHash, TargetStrEqual> to
+ * Map<Target, IRModule> This function is a helper that undoes TargetModuleMapToTargetStr. Note that
+ * once we remove Map<Target, IRModule>, this function will be removed.
+ * \param input_map The map to convert
+ * \return The converted map
+ */
+Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
+    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
 
 }  // namespace backend
 }  // namespace relay

@@ -23,6 +23,7 @@
 #include "TVMRuntime.h"
 // Runtime API
 #include "../../../src/runtime/c_runtime_api.cc"
+#include "../../../src/runtime/contrib/random/random.cc"
 #include "../../../src/runtime/cpu_device_api.cc"
 #include "../../../src/runtime/dso_library.cc"
 #include "../../../src/runtime/file_utils.cc"
@@ -34,6 +35,7 @@
 #include "../../../src/runtime/object.cc"
 #include "../../../src/runtime/profiling.cc"
 #include "../../../src/runtime/registry.cc"
+#include "../../../src/runtime/source_utils.cc"
 #include "../../../src/runtime/system_library.cc"
 #include "../../../src/runtime/thread_pool.cc"
 #include "../../../src/runtime/threading_backend.cc"

@@ -103,7 +103,14 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Bind(const LoopRV& loop_rv, const String& thread_axis) override;
   void Unroll(const LoopRV& loop_rv) override;
   /******** Schedule: Insert cache stages ********/
+  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
+                    const String& storage_scope) override;
+  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                     const String& storage_scope) override;
   /******** Schedule: Compute location ********/
+  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops) override;
+  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                        bool preserve_unit_loops) override;
   void ComputeInline(const BlockRV& block) override;
   void ReverseComputeInline(const BlockRV& block) override;
   /******** Schedule: Reduction ********/

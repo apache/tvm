@@ -17,11 +17,18 @@
 # under the License.
 set -o pipefail
 
-echo "Checking MyPy Type defs in the schedule package."
+echo "Checking MyPy Type defs in the TensorIR schedule package."
 mypy  --check-untyped-defs python/tvm/tir/schedule
+
+echo "Checking MyPy Type defs in the meta schedule package."
+mypy  --check-untyped-defs python/tvm/meta_schedule
 
 echo "Checking MyPy Type defs in the analysis package."
 mypy  --check-untyped-defs python/tvm/tir/analysis/
 
-echo "Checking MyPy Type defs in the transofrm package."
+echo "Checking MyPy Type defs in the transform package."
 mypy  --check-untyped-defs python/tvm/tir/transform/
+
+#TODO(@mikepapadim): This is failing atm
+# echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."
+# mypy  --check-untyped-defs python/tvm/relay/backend/contrib/ethosu/

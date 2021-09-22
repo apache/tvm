@@ -17,12 +17,11 @@
 
 import datetime
 import pathlib
+import re
 import shutil
 import sys
 
 import pytest
-import tvm
-from tvm import micro, relay
 
 import conftest
 
@@ -30,7 +29,7 @@ import conftest
 This unit test simulates a simple user workflow, where we:
 1. Generate a base sketch using a simple audio model
 2. Modify the .ino file, much like a user would
-3. Compile the sketch for the target platform
+3. Compile the sketch for the target board
 -- If physical hardware is present --
 4. Upload the sketch to a connected board
 5. Open a serial connection to the board
@@ -38,10 +37,11 @@ This unit test simulates a simple user workflow, where we:
 """
 
 
-# Since these tests are sequential, we'll use the same project for all tests
+# Since these tests are sequential, we'll use the same project/workspace
+# directory for all tests in this file
 @pytest.fixture(scope="module")
-def workspace_dir(request, platform):
-    return conftest.make_workspace_dir("arduino_workflow", platform)
+def workspace_dir(request, board):
+    return conftest.make_workspace_dir("arduino_workflow", board)
 
 
 @pytest.fixture(scope="module")
@@ -49,49 +49,10 @@ def project_dir(workspace_dir):
     return workspace_dir / "project"
 
 
-def _generate_project(arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config):
-    return tvm.micro.generate_project(
-        str(conftest.TEMPLATE_PROJECT_DIR),
-        mod,
-        workspace_dir / "project",
-        {
-            "arduino_board": arduino_board,
-            "arduino_cli_cmd": arduino_cli_cmd,
-            "project_type": "example_project",
-            "verbose": bool(build_config.get("debug")),
-        },
-    )
-
-
 # We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
 @pytest.fixture(scope="module")
-def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
-    this_dir = pathlib.Path(__file__).parent
-    model, arduino_board = conftest.PLATFORMS[platform]
-    build_config = {"debug": tvm_debug}
-
-    with open(this_dir.parent / "testdata" / "kws" / "yes_no.tflite", "rb") as f:
-        tflite_model_buf = f.read()
-
-    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
-    try:
-        import tflite.Model
-
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
-    except AttributeError:
-        import tflite
-
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-
-    mod, params = relay.frontend.from_tflite(tflite_model)
-    target = tvm.target.target.micro(
-        model, options=["--link-params=1", "--unpacked-api=1", "--executor=aot"]
-    )
-
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = relay.build(mod, target, params=params)
-
-    return _generate_project(arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config)
+def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+    return conftest.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
 
 
 def _get_directory_elements(directory):
@@ -120,7 +81,16 @@ def test_model_header_templating(project_dir, project):
     # Ensure model.h was templated with correct WORKSPACE_SIZE
     with (project_dir / "src" / "model.h").open() as f:
         model_h = f.read()
-        assert "#define WORKSPACE_SIZE 21312" in model_h
+        workspace_size_defs = re.findall(r"\#define WORKSPACE_SIZE ([0-9]*)", model_h)
+        assert workspace_size_defs
+        assert len(workspace_size_defs) == 1
+
+        # Make sure the WORKSPACE_SIZE we define is a reasonable size. We don't want
+        # to set an exact value, as this test shouldn't break if an improvement to
+        # TVM causes the amount of memory needed to decrease.
+        workspace_size = int(workspace_size_defs[0])
+        assert workspace_size < 30000
+        assert workspace_size > 10000
 
 
 def test_import_rerouting(project_dir, project):

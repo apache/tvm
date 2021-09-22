@@ -78,14 +78,14 @@ $ ./base-box-tool.py --provider virtualbox build zephyr
 
    B. Run tests:
    ```bash
-   $ ./base-box-tool.py [--provider=PROVIDER] test --microtvm-platform=MICROTVM_PLATFORM [--test-device-serial=SERIAL] PLATFORM
+   $ ./base-box-tool.py [--provider=PROVIDER] test --microtvm-board=MICROTVM_BOARD [--test-device-serial=SERIAL] PLATFORM
    ```
-   where MICROTVM_PLATFORM is one of the options listed in the
+   where MICROTVM_BOARD is one of the options listed in the
    PLATFORM/base-box/test-config.json file.
 
    For example:
    ```base
-   $ ./base-box-tool.py --provider virtualbox test --microtvm-platform=stm32f746xx_disco zephyr
+   $ ./base-box-tool.py --provider virtualbox test --microtvm-board=stm32f746g_disco zephyr
    ```
 
    This command does the following for the specified provider:
