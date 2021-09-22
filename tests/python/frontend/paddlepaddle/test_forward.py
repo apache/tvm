@@ -1199,6 +1199,38 @@ def test_forward_gru():
 
 
 @tvm.testing.uses_gpu
+def test_forward_simplernn():
+    class SimpleRNN1(nn.Layer):
+        def __init__(self):
+            super(SimpleRNN1, self).__init__()
+            self.simplernn = nn.SimpleRNN(288, 48, 2, direction="bidirect", time_major=True)
+
+        @paddle.jit.to_static
+        def forward(self, inputs, prev_h):
+            y, h = self.simplernn(inputs, prev_h)
+            return y
+
+    class SimpleRNN2(nn.Layer):
+        def __init__(self):
+            super(SimpleRNN2, self).__init__()
+            self.simplernn = nn.SimpleRNNCell(16, 32)
+
+        @paddle.jit.to_static
+        def forward(self, inputs, prev_h):
+            y, h = self.simplernn(inputs, prev_h)
+            return y
+
+    gru_input_shape = [25, 1, 288]
+    gru_input_data = paddle.rand(gru_input_shape, dtype="float32")
+    prev_h = paddle.rand([4, 1, 48], dtype="float32")
+    verify_model(SimpleRNN1(), input_data=[gru_input_data, prev_h])
+    gru_input_shape = [4, 16]
+    gru_input_data = paddle.rand(gru_input_shape, dtype="float32")
+    prev_h = paddle.rand([4, 32], dtype="float32")
+    verify_model(SimpleRNN2(), input_data=[gru_input_data, prev_h])
+
+
+@tvm.testing.uses_gpu
 def test_forward_multiply():
     @paddle.jit.to_static
     def multiply1(inputs):
@@ -2149,6 +2181,7 @@ if __name__ == "__main__":
     test_forward_look_up()
     test_forward_lstm()
     test_forward_gru()
+    test_forward_simplernn()
     test_forward_masked_select()
     test_forward_matmul()
     test_forward_meshgrid()
