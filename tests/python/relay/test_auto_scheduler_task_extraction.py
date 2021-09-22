@@ -102,13 +102,13 @@ def get_network(name, batch_size=1, layout="NHWC"):
 @pytest.mark.parametrize(
     "params",
     [
-        ("mlp", "NHWC", 1, 2),
-        ("resnet-18", "NHWC", 24, 25),
-        ("resnet-18", "NCHW", 24, 25),
-        ("mobilenet", "NHWC", 22, 30),
-        ("mobilenet", "NCHW", 22, 30),
-        ("resnet3d-18", "NCDHW", 23, 24),
-        ("resnet3d-18", "NDHWC", 23, 24),
+        ("mlp", "NHWC", 1, 1),
+        ("resnet-18", "NHWC", 24, 24),
+        ("resnet-18", "NCHW", 24, 24),
+        ("mobilenet", "NHWC", 22, 22),
+        ("mobilenet", "NCHW", 22, 22),
+        ("resnet3d-18", "NCDHW", 23, 23),
+        ("resnet3d-18", "NDHWC", 23, 23),
     ],
 )
 def test_task_extraction_cuda(params):
