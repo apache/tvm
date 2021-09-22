@@ -920,7 +920,7 @@ def _timed_eval_func(
                     random_fill(empty_array)
                     loc_args.append(empty_array)
                 else:
-                    loc_args.append(ndarray.array(arg))
+                    loc_args.append(ndarray.array(args[idx], dev))
             dev.sync()
             costs = time_f(*loc_args).results
         # pylint: disable=broad-except
