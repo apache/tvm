@@ -320,7 +320,8 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
         else:
             shape_imm.append(int(s))
     arr = np.array(shape_imm, "int64")
-    shape_ptr = ctypes.cast(arr.__array_interface__["data"][0], ctypes.c_void_p)
+    ptr = ctypes.cast(arr.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_int64))
+    shape_ptr = ctypes.cast(ptr, ctypes.c_void_p)
     ndim = len(shape_imm)
     dtype = DataType(dtype)
     arr = _ffi_api.TVMArrayAllocWithScope(shape_ptr, ndim, dtype, device, mem_scope)
