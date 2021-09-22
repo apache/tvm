@@ -1482,7 +1482,18 @@ class Unsqueeze(OnnxOpConverter):
             result = _op.expand_dims(result, axis)
         return result
 
+class Squeeze(OnnxOpConverter):
+    """Operator converter for Squeeze."""
 
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        rank = _op.shape_of(_op.shape_of(inputs[0]))
+        axis = inputs[1]
+        axis = _op.where(axis < _op.const(0, *axis dtype*), axis + rank, axis)
+        return _op.squeeze(inputs[1], axis)
 class Split(OnnxOpConverter):
     """Operator converter for Split."""
 

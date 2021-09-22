@@ -26,6 +26,7 @@ from .. import op as _reg
 _reg.register_broadcast_schedule("dyn.broadcast_to")
 _reg.register_injective_schedule("dyn.reshape")
 _reg.register_injective_schedule("dyn.expand_dims")
+_reg.register_injective_schedule("dyn.squeeze")
 _reg.register_broadcast_schedule("dyn.tile")
 _reg.register_injective_schedule("dyn.one_hot")
 _reg.register_injective_schedule("dyn.full")
@@ -258,3 +259,32 @@ def _sparse_to_dense_shape_func(output_shape, ndim):
 @_reg.register_shape_func("dyn.sparse_to_dense", True)
 def sparse_to_dense_shape_func(attrs, inputs, out_ndims):
     return [_sparse_to_dense_shape_func(inputs[3], out_ndims[0])]
+
+
+@script
+def _squeeze_shape_func_input_data(data, axis, ndims):
+    out = output_tensor((ndims,), "int64")
+    out_i = 0
+    for i in const_range(data.shape[0]):
+        not_in_axis = True
+        for j in const_range(axis.shape[0]):
+            if i == axis[j]:
+                not_in_axis = False
+        if not_in_axis:
+            out[out_i] = int64(data[i])
+            out_i += 1
+
+    return out
+
+
+# def _squeeze_shape_func_input_data(data, axis, ndims):
+#     out = []
+#     for i in range(len(data)):
+#         if not i in axis:
+#             out.append(data[i])
+#     return out
+
+
+@_reg.register_shape_func("dyn.squeeze", [False, True])
+def dynamic_squeeze_shape_func(attrs, inputs, out_ndims):
+    return [_squeeze_shape_func_input_data(inputs[0], inputs[1], out_ndims[0])]
