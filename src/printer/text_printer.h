@@ -77,6 +77,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   // numbers to be reused and prevents hoisted vars from escaping too far
   Doc PrintScope(const ObjectRef& node);
   Doc PrintFinal(const ObjectRef& node);
+  Doc PrintAttrs(const Attrs& attrs);
   std::vector<Doc> PrintCallAttrs(const Attrs& attrs, const Expr& op);
   std::vector<Doc> PrintFuncAttrs(const Attrs& attrs);
   Doc PrintSpan(const Span& span);
