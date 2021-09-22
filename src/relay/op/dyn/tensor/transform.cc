@@ -618,6 +618,80 @@ RELAY_REGISTER_OP("dyn.sparse_to_dense")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
 
+/* relay.dyn.unsqueeze */
+TVM_REGISTER_NODE_TYPE(DynExpandDimsAttrs);
+
+bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  ICHECK_EQ(num_inputs, 2);
+  const auto* data_type = types[0].as<TensorTypeNode>();
+  if (data_type == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "expand_dims: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  const auto* param = attrs.as<DynExpandDimsAttrs>();
+
+  // We don't know the output shape until we see the value of the axis input
+  int ndim = data_type->shape.size();
+  Array<IndexExpr> oshape(ndim + param->num_newaxis, Any());
+
+  const auto* axis_type = types[1].as<TensorTypeNode>();
+  ICHECK(axis_type->shape.size() == 0) << "Axis should be a scalar got shape " << axis_type->shape;
+
+  // Set output shape
+  reporter->Assign(types[2], TensorType(oshape, data_type->dtype));
+  return true;
+}
+
+Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                    const Type& out_type) {
+  // inputs = [Input tensor, axis to expand]
+  ICHECK_EQ(inputs.size(), 2);
+
+  const auto* param = attrs.as<DynExpandDimsAttrs>();
+
+  Array<IndexExpr> ishape = inputs[0]->shape;
+  const TensorTypeNode* out_ttype = out_type.as<TensorTypeNode>();
+  int ndim_out = out_ttype->shape.size();
+  int ndim_in = ishape.size();
+  ICHECK_EQ(ndim_in + param->num_newaxis, ndim_out);
+
+  Array<IndexExpr> newshape;
+  for (auto val : out_ttype->shape) {
+    // These vars will be populated by the VM executor with the results
+    // of the shape_func for the op.
+    newshape.push_back(val.as<tir::AnyNode>()->ToVar());
+  }
+
+  return {topi::reshape(inputs[0], newshape)};
+}
+
+Expr MakeExpandDims(Expr data, Expr axis_tensor, int num_newaxis) {
+  auto attrs = make_object<DynExpandDimsAttrs>();
+  attrs->num_newaxis = num_newaxis;
+  static const Op& op = Op::Get("dyn.expand_dims");
+  return Call(op, {data, axis_tensor}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.expand_dims").set_body_typed(MakeExpandDims);
+
+RELAY_REGISTER_OP("dyn.expand_dims")
+    .describe(R"code(Insert one new axis at the position given by `axis`
+
+- **data**: The input data to the operator.
+- **axis**: The axis to insert a new dimension
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("axis", "Tensor", "The axis to insert at a dimension.")
+    .set_support_level(3)
+    .add_type_rel("DynamicExpandDims", ExpandDimsRel)
+    .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm

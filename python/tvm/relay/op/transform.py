@@ -96,7 +96,7 @@ def expand_dims(data, axis, num_newaxis=1):
     data : relay.Expr
         The input data to the operator.
 
-    axis : int
+    axis : Union[int, Expr]
         The axis at which the input array is expanded.
         Should lie in range `[-data.ndim - 1, data.ndim]`.
         If `axis < 0`, it is the first axis inserted;
@@ -110,7 +110,13 @@ def expand_dims(data, axis, num_newaxis=1):
     result : relay.Expr
         The reshaped result.
     """
-    return _make.expand_dims(data, axis, num_newaxis)
+    if isinstance(axis, int):
+        return _make.expand_dims(data, axis, num_newaxis)
+    if isinstance(axis, Expr):
+        # TODO (AndrewZhaoLuo): investigate performance issues with consecutive
+        # dynamic expand_dims on non-llvm targets.
+        return _dyn_make.expand_dims(data, axis, num_newaxis)
+    raise ValueError(f"Unknown type for axis: {type(axis)}")
 
 
 def transpose(data, axes=None):
