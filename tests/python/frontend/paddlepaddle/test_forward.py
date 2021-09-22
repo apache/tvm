@@ -24,7 +24,6 @@ from paddle.framework import dtype
 import paddle.nn as nn
 
 import tvm
-from tvm.contrib.sparse import array
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
@@ -266,10 +265,15 @@ def test_forward_arange():
     def arange2(inputs):
         return paddle.arange(0, 10.0, paddle.shape(inputs)[1], dtype="float32")
 
+    @paddle.jit.to_static
+    def arange3(inputs):
+        return paddle.arange(0, inputs, 2.0, dtype="float32")
+
     input_shape = [2, 2]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(arange, input_data)
     verify_model(arange2, input_data=input_data)
+    verify_model(arange3, paddle.to_tensor(np.array([10], dtype="int32")), input_shape=[[1]])
 
 
 @tvm.testing.uses_gpu
@@ -362,7 +366,7 @@ def test_forward_assign():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(Assign(), [input_data])
     input_data2 = np.random.randint(100, size=input_shape)
-    verify_model(Assign(), [input_data2])
+    verify_model(Assign(), [input_data2], input_shape=[[-1, -1]])
 
 
 @tvm.testing.uses_gpu
@@ -472,8 +476,7 @@ def test_forward_crop():
         return paddle.crop(inputs, shape=[2, 2])
 
     @paddle.jit.to_static
-    def crop2(inputs):
-        shape = paddle.to_tensor(np.array([3, 3]).astype("int32"))
+    def crop2(inputs, shape):
         return paddle.crop(inputs, shape=shape, offsets=[0, 1])
 
     @paddle.jit.to_static
@@ -490,7 +493,8 @@ def test_forward_crop():
     input_shape = [10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(crop1, input_data=[input_data])
-    verify_model(crop2, input_data=[input_data])
+    shape = paddle.to_tensor(np.array([3, 3], "int32"))
+    # verify_model(crop2, [input_data, shape], input_shape=[[-1, -1], [2]])
     verify_model(crop3, input_data=[input_data])
     verify_model(crop4, input_data=[input_data])
 
@@ -567,6 +571,7 @@ def test_forward_conv():
     verify_model(Conv2D2(), input_data=conv2d_input_data)
     verify_model(Conv2D3(), input_data=conv2d_input_data)
     verify_model(Conv2D4(), input_data=conv2d_input_data)
+    verify_model(Conv2D1(), conv2d_input_data, input_shape=[[-1, 3, 112, 112]])
 
 
 @tvm.testing.uses_gpu
@@ -679,14 +684,14 @@ def test_forward_expand():
         return paddle.expand(inputs, shape=[2, 3])
 
     @paddle.jit.to_static
-    def expand2(inputs):
-        shape = paddle.to_tensor(np.array([2, 3]).astype("int32"))
+    def expand2(inputs, shape):
         return paddle.expand(inputs, shape=shape)
 
     x_shape = [3]
     x_data = paddle.rand(x_shape, dtype="float32")
     verify_model(expand1, input_data=[x_data])
-    verify_model(expand2, input_data=[x_data])
+    shape = paddle.to_tensor(np.array([2, 3]).astype("int32"))
+    # verify_model(expand2, [x_data, shape], input_shape=[[3], [2]])
 
 
 @tvm.testing.uses_gpu
@@ -721,7 +726,7 @@ def test_forward_flatten():
 def test_forward_shape_full():
     @paddle.jit.to_static
     def full1(inputs):
-        return paddle.full(paddle.shape(inputs), 3.14)
+        return paddle.full(inputs, 3.14)
 
     @paddle.jit.to_static
     def full2(inputs):
@@ -734,7 +739,8 @@ def test_forward_shape_full():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(shape1, input_data=[input_data])
-    verify_model(full1, input_data=[input_data])
+    shape = paddle.to_tensor(np.array(input_shape, "int32"))
+    verify_model(full1, input_data=[shape], input_shape=[[4]])
     verify_model(full2, input_data=[input_data])
 
 
@@ -751,7 +757,7 @@ def test_forward_ones_like():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(ones_like1, input_data=input_data)
-    verify_model(ones_like2, input_data=input_data)
+    verify_model(ones_like2, input_data, input_shape=[[-1, -1, -1, -1]])
 
 
 @tvm.testing.uses_gpu
@@ -821,8 +827,7 @@ def test_forward_elemwise():
 @tvm.testing.uses_gpu
 def test_forward_gather_assign_value():
     @paddle.jit.to_static
-    def gather1(x):
-        index = paddle.to_tensor(np.array([1, 3, 5, 7, 9]).astype("int64"))
+    def gather1(x, index):
         return paddle.gather(x, index, axis=None)
 
     @paddle.jit.to_static
@@ -832,15 +837,15 @@ def test_forward_gather_assign_value():
 
     x_shape = [30, 40]
     x_data = paddle.rand(x_shape, dtype="float32")
-    verify_model(gather1, input_data=[x_data])
+    index = paddle.to_tensor(np.array([1, 3, 5, 7, 9]).astype("int64"))
+    verify_model(gather1, [x_data, index], input_shape=[[30, 40], [5]])
     verify_model(gather2, input_data=[x_data])
 
 
 @tvm.testing.uses_gpu
 def test_forward_gather_nd():
     @paddle.jit.to_static
-    def gather_nd1(x):
-        index = paddle.to_tensor(np.array([[0, 1]]).astype("int64"))
+    def gather_nd1(x, index):
         return paddle.gather_nd(x, index)
 
     @paddle.jit.to_static
@@ -850,7 +855,8 @@ def test_forward_gather_nd():
 
     x_shape = [30, 40, 20]
     x_data = paddle.rand(x_shape, dtype="float32")
-    verify_model(gather_nd1, input_data=[x_data])
+    index = paddle.to_tensor(np.array([[0, 1]]).astype("int64"))
+    verify_model(gather_nd1, [x_data, index], input_shape=[[-1, 40, 20], [1, 2]])
     verify_model(gather_nd2, input_data=[x_data])
 
 
@@ -992,10 +998,9 @@ def test_forward_interpolate():
             super(TestBilinear, self).__init__()
             self.conv = nn.Conv2D(3, 5, 3, stride=2)
 
-        def forward(self, x):
-            shape = paddle.shape(x)[2:]
+        def forward(self, x, size):
             y = self.conv(x)
-            return nn.functional.interpolate(y, size=shape, mode="nearest")
+            return nn.functional.interpolate(y, size=size, mode="nearest")
 
     def bilinear_interp1(inputs):
         return nn.functional.interpolate(inputs, size=[12, 12], mode="bilinear")
@@ -1018,7 +1023,8 @@ def test_forward_interpolate():
 
     input_shape = [2, 3, 6, 12]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(TestBilinear(), input_data=input_data)
+    size = paddle.to_tensor(np.array([15, 15], "int32"))
+    verify_model(TestBilinear(), [input_data, size], input_shape=[input_shape, [2]])
     verify_model(bilinear_interp1, input_data=input_data)
     verify_model(bilinear_interp2, input_data=input_data)
     verify_model(bilinear_interp3, input_data=input_data)
@@ -1123,7 +1129,7 @@ def test_forward_look_up():
     input_data = paddle.randint(0, 10, input_shape, dtype="int32")
     weight = paddle.rand([10, 4], dtype="float32")
     verify_model(look_up, input_data=[input_data, weight])
-    verify_model(LookUp(), input_data=input_data)
+    verify_model(LookUp(), input_data, input_shape=[[-1, -1, -1, -1]])
 
 
 @tvm.testing.uses_gpu
@@ -1427,7 +1433,7 @@ def test_forward_pool2d():
         return output
 
     input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
-    verify_model(pool2d1, input_data=input_data)
+    verify_model(pool2d1, input_data, input_shape=[[-1, 2, 32, 32]])
     verify_model(pool2d2, input_data=input_data)
     # need op max_pool2d_with_index
     verify_model(pool2d3, input_data=input_data)
@@ -1629,8 +1635,7 @@ def test_forward_reduce_op():
 @tvm.testing.uses_gpu
 def test_forward_reshape():
     @paddle.jit.to_static
-    def reshape1(inputs, x):
-        new_shape = paddle.shape(x)
+    def reshape1(inputs, new_shape):
         return paddle.reshape(inputs, new_shape)
 
     @paddle.jit.to_static
@@ -1650,7 +1655,8 @@ def test_forward_reshape():
     input_shape = [2, 1, 10, 1, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     input_data2 = paddle.randn([2, 1, 10, 10])
-    verify_model(reshape1, input_data=[input_data, input_data2])
+    new_shape = paddle.shape(input_data2)
+    verify_model(reshape1, [input_data, new_shape], input_shape=[[2, 1, 10, 1, 10], [4]])
     verify_model(reshape2, input_data=input_data)
     verify_model(reshape3, input_data=paddle.randn((2, 3, 4)))
     verify_model(reshape4, input_data=[input_data, input_data2])
@@ -1696,7 +1702,7 @@ def test_forward_scatter():
         ]
     )
     updates = paddle.rand([4, 8, 5], dtype="float32")
-    verify_model(scatter, [x, index, updates])
+    verify_model(scatter, [x, index, updates], input_shape=[[-1, 8, 5], [4], [4, 8, 5]])
     verify_model(scatter2, [x, index, updates])
 
 
@@ -1716,15 +1722,15 @@ def test_forward_scatter_nd():
     verify_model(scatter_nd, [index, updates])
     x = paddle.rand(shape=[3, 5, 4, 9, 10], dtype="float32")
     updates = paddle.rand(shape=[3, 2, 9, 10], dtype="float32")
-    index = paddle.randint(0, 4, shape=[3, 2, 3])
+    index = paddle.randint(0, 3, shape=[3, 2, 3])
     verify_model(scatter_nd_add, [x, index, updates])
 
 
 @tvm.testing.uses_gpu
 def test_forward_slice():
     @paddle.jit.to_static
-    def slice1(inputs):
-        return inputs[:, :, :, :3]
+    def slice1(inputs, end):
+        return inputs[:, :, :, :end]
 
     @paddle.jit.to_static
     def slice2(inputs):
@@ -1747,7 +1753,8 @@ def test_forward_slice():
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(slice1, input_data=input_data)
+    end = paddle.to_tensor(np.array([3]))
+    verify_model(slice1, [input_data, end], input_shape=[[1, 3, 10, 10], [1]])
     verify_model(slice2, input_data=input_data)
     verify_model(slice3, input_data=paddle.randn((4, 4)))
     verify_model(slice4, input_data=input_data)
@@ -1954,8 +1961,8 @@ def test_forward_topk():
 @tvm.testing.uses_gpu
 def test_forward_tile():
     @paddle.jit.to_static
-    def tile(inputs):
-        return paddle.tile(inputs, [3, 2])
+    def tile(inputs, shape):
+        return paddle.tile(inputs, shape)
 
     @paddle.jit.to_static
     def tile2(inputs, inputs2):
@@ -1971,13 +1978,9 @@ def test_forward_tile():
 
     input_shape = [2, 2]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(
-        tile,
-        input_data=[
-            input_data,
-        ],
-    )
     input_data2 = paddle.rand([1, 2], dtype="float32")
+    shape = paddle.to_tensor(np.array([3, 2], "int32"))
+    verify_model(tile, [input_data, shape], input_shape=[[2, 2], [2]])
     verify_model(tile2, input_data=[input_data, input_data2])
     verify_model(tile3, input_data=[input_data, input_data2])
 
