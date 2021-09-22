@@ -409,8 +409,9 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   const PassInfo& pass_info = Info();
   ICHECK(mod.defined()) << "The input module must be set.";
 
-  DLOG(INFO) << "Executing module pass : " << pass_info->name
-             << " with opt level: " << pass_info->opt_level;
+  VLOG_CONTEXT << pass_info->name;
+  VLOG(0) << "Executing module pass with opt level: " << pass_info->opt_level;
+  VLOG(1) << "Input module:" << std::endl << PrettyPrint(mod);
 
   mod = pass_func(std::move(mod), pass_ctx);
 
@@ -421,6 +422,8 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
+
+  VLOG(1) << "Result module:" << std::endl << PrettyPrint(mod);
 
   return mod;
 }
@@ -473,7 +476,10 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   for (const Pass& pass : passes) {
     ICHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
-    if (!pass_ctx.PassEnabled(pass_info)) continue;
+    if (!pass_ctx.PassEnabled(pass_info)) {
+      VLOG(0) << "skipping disabled pass '" << pass_info->name << "'";
+      continue;
+    }
     // resolve dependencies
     for (const auto& it : pass_info->required) {
       mod = GetPass(it)(std::move(mod), pass_ctx);
