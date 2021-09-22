@@ -64,28 +64,11 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         },
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
-        try:
-            # TODO(jwfromm) Remove this once AlterOpLayout bug that mutates
-            # source module is fixed. Until then, create a clone.
-            mod_clone = deepcopy(mod)
-            opt_mod, _ = relay.optimize(mod_clone, target, params)
-            grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
-            grc.codegen(opt_mod["main"])
-        except tvm.TVMError:
-            print(
-                "Get errors with GraphExecutorCodegen for task extraction. "
-                "Fallback to VMCompiler."
-            )
-            mod_clone = deepcopy(mod)
-            compiler = relay.vm.VMCompiler()
-            if params:
-                compiler.set_params(params)
-            mod_clone = (
-                tvm.IRModule.from_expr(mod_clone)
-                if isinstance(mod_clone, relay.Function)
-                else mod_clone
-            )
-            compiler.lower(mod_clone, target)
+        compiler = relay.vm.VMCompiler()
+        if params:
+            compiler.set_params(params)
+        mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
+        compiler.lower(mod, target)
 
     autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
