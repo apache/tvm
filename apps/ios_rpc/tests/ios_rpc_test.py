@@ -28,25 +28,14 @@ import sys
 from tvm import rpc
 from tvm.contrib import utils, xcode
 import numpy as np
-
-# Set to be address of tvm proxy.
-proxy_host = os.environ["TVM_IOS_RPC_PROXY_HOST"]
-# Set your destination via env variable.
-# Should in format "platform=iOS,id=<the test device uuid>"
-destination = os.environ["TVM_IOS_RPC_DESTINATION"]
-
-if not re.match(r"^platform=.*,id=.*$", destination):
-    print("Bad format: {}".format(destination))
-    print("Example of expected string: platform=iOS,id=1234567890abcabcabcabc1234567890abcabcab")
-    sys.exit(1)
-
-proxy_port = 9090
-key = "iphone"
+import argparse
 
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
 sdk = "iphoneos"
 target = "llvm -mtriple=%s-apple-darwin" % arch
+
+MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc.connect}
 
 # override metal compiler to compile to iphone
 @tvm.register_func("tvm_callback_metal_compile")
@@ -54,7 +43,7 @@ def compile_metal(src):
     return xcode.compile_metal(src, sdk=sdk)
 
 
-def test_rpc_module():
+def test_rpc_module(host, port, key, mode):
     # graph
     n = tvm.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
@@ -69,7 +58,6 @@ def test_rpc_module():
     f = tvm.build(s, [A, B], "metal", target_host=target, name="myadd")
     path_dso1 = temp.relpath("dev_lib.dylib")
     f.export_library(path_dso1, xcode.create_dylib, arch=arch, sdk=sdk)
-    xcode.codesign(path_dso1)
 
     s = te.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=64)
@@ -79,15 +67,13 @@ def test_rpc_module():
     f = tvm.build(s, [A, B], target, name="myadd_cpu")
     path_dso2 = temp.relpath("cpu_lib.dylib")
     f.export_library(path_dso2, xcode.create_dylib, arch=arch, sdk=sdk)
-    xcode.codesign(path_dso2)
-
-    # Start RPC test server that contains the compiled library.
-    server = xcode.popen_test_rpc(
-        proxy_host, proxy_port, key, destination=destination, libs=[path_dso1, path_dso2]
-    )
 
     # connect to the proxy
-    remote = rpc.connect(proxy_host, proxy_port, key=key)
+    if mode == "tracker":
+        remote = MODES[mode](host, port).request(key)
+    else:
+        remote = MODES[mode](host, port, key=key)
+    remote.upload(path_dso1)
     dev = remote.metal(0)
     f1 = remote.load_module("dev_lib.dylib")
     a_np = np.random.uniform(size=1024).astype(A.dtype)
@@ -95,56 +81,35 @@ def test_rpc_module():
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
-    print("%g secs/op" % cost)
+    print("Metal: %g secs/op" % cost)
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
     # CPU
     dev = remote.cpu(0)
+    remote.upload(path_dso2)
     f2 = remote.load_module("cpu_lib.dylib")
     a_np = np.random.uniform(size=1024).astype(A.dtype)
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f2.time_evaluator(f2.entry_name, dev, number=10)
     cost = time_f(a, b).mean
-    print("%g secs/op" % cost)
-    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-
-
-def test_rpc_module_with_upload():
-    server = xcode.popen_test_rpc(proxy_host, proxy_port, key, destination=destination)
-
-    remote = rpc.connect(proxy_host, proxy_port, key=key)
-    try:
-        remote.get_function("runtime.module.loadfile_dylib_custom")
-    except AttributeError as e:
-        print(e)
-        print("Skip test. You are using iOS RPC without custom DSO loader enabled.")
-        return
-
-    n = tvm.runtime.convert(1024)
-    A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    temp = utils.tempdir()
-    s = te.create_schedule(B.op)
-    xo, xi = s[B].split(B.op.axis[0], factor=64)
-    s[B].parallel(xi)
-    s[B].pragma(xo, "parallel_launch_point")
-    s[B].pragma(xi, "parallel_barrier_when_finish")
-    f = tvm.build(s, [A, B], target, name="myadd_cpu")
-    path_dso = temp.relpath("cpu_lib.dylib")
-    f.export_library(path_dso, xcode.create_dylib, arch=arch, sdk=sdk)
-
-    dev = remote.cpu(0)
-    remote.upload(path_dso)
-    f = remote.load_module("cpu_lib.dylib")
-    a_np = np.random.uniform(size=1024).astype(A.dtype)
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
-    time_f = f.time_evaluator(f.entry_name, dev, number=10)
-    cost = time_f(a, b).mean
-    print("%g secs/op" % cost)
+    print("CPU: %g secs/op" % cost)
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 
 if __name__ == "__main__":
-    test_rpc_module()
-    test_rpc_module_with_upload()
+    parser = argparse.ArgumentParser(description="Demo app demonstrates how ios_rpc works.")
+    parser.add_argument("--host", required=True, type=str, help="Adress of rpc server")
+    parser.add_argument("--port", type=int, default=9090, help="rpc port (default: 9090)")
+    parser.add_argument("--key", type=str, default="iphone", help="device key (default: iphone)")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="tracker",
+        help="type of RPC connection (default: tracker), possible values: {}".format(
+            ", ".join(MODES.keys())
+        ),
+    )
+
+    args = parser.parse_args()
+    assert args.mode in MODES.keys()
+    test_rpc_module(args.host, args.port, args.key, args.mode)

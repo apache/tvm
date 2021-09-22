@@ -68,6 +68,7 @@ ALLOW_EXTENSION = {
     "plist",
     "xcworkspacedata",
     "storyboard",
+    "xcscheme",
     # hw/chisel
     "sbt",
     "properties",
