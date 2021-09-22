@@ -87,6 +87,8 @@ def schedule_to_module(
     """
     return ffi.schedule_to_module(sch, args, name, binds)
 
+# cpp duck typing ?
+
 
 def lower(
     inp: Union[schedule.Schedule, PrimFunc, IRModule],
@@ -123,13 +125,15 @@ def lower(
     m : IRModule
        The result IRModule
     """
+    # ffi.relay.lower_te_pass()
     if isinstance(inp, IRModule):
         return ffi.lower_module(inp, simple_mode)
     if isinstance(inp, PrimFunc):
         return ffi.lower_primfunc(inp, name, simple_mode)
     if isinstance(inp, schedule.Schedule):
         return ffi.lower_schedule(inp, args, name, binds, simple_mode)
-    raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
+    raise ValueError(
+        "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
 # TODO(@electriclilies): This should be moved into C++.
@@ -162,7 +166,7 @@ def _build_for_device(input_mod, target, target_host):
     from tvm.driver import _ffi_api as _driver_ffi
     mod_mixed = _driver_ffi.get_mod_mixed(input_mod)
     device_mod = _driver_ffi.get_device_mod(mod_mixed)
-    host_mod = _driver_ffi.get_device_mod(mod_mixed)
+    host_mod = _driver_ffi.get_host_mod(mod_mixed)
 
     device_type = ndarray.device(target.kind.name, 0).device_type
     if device_type == ndarray.cpu(0).device_type and target_host == target:
@@ -173,10 +177,10 @@ def _build_for_device(input_mod, target, target_host):
         )
 
     # rt_mod_dev is runtime::Module so this can be moved out maybe?
-    rt_mod_dev = codegen.build_module(device_mod, target) if len(device_mod.functions) != 0 else None
+    rt_mod_dev = codegen.build_module(device_mod, target) if len(
+        device_mod.functions) != 0 else None
     # TIR module for the host, runtime module for devices?
     return host_mod, rt_mod_dev
-
 
 
 def build(
@@ -192,7 +196,8 @@ def build(
 
     Parameters
     ----------
-    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule,
+        tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
@@ -257,7 +262,7 @@ def build(
     ----
     See the note on :any:`tvm.target` on target string format.
     """
-    
+
     # Lowering
     if isinstance(inputs, (schedule.Schedule, tvm.IRModule, PrimFunc)):
         # should this be te_lower instead?
@@ -272,7 +277,9 @@ def build(
             f"Inputs must be Schedule, PrimFunc, IRModule or dict of target to IRModule, "
             f"but got {type(inputs)}."
         )
-    
+
+    # move to cpp from this point
+
     # rest is codegen?
     # More target maps here... is inputs ever a map?
     # prepping and cutting module into chunks
@@ -281,39 +288,49 @@ def build(
     # 2. Remove everywhere that takes map<string, IRModule>
     # after talking to xiyou he said a lot of difficulty was trying to maintain
     # map<target, irmodule> correctly so I may just remove that.
-        
-    if not isinstance(inputs, (dict, container.Map)):
-        target = Target.current() if target is None else target
-        target = target if target else "llvm"
-        target_input_mod = {target: input_mod}
-    else:
-        target_input_mod = inputs
 
-    for tar, mod in target_input_mod.items():
-        if not isinstance(tar, (str, Target)):
-            raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
-        if not isinstance(mod, tvm.IRModule):
-            raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
-    
-    target_input_mod, target_host = Target.check_and_update_host_consist(
-        target_input_mod, target_host
-    )
+    # if not isinstance(inputs, (dict, container.Map)):
+    #     target = Target.current() if target is None else target
+    #     target = target if target else "llvm"
+    #     target_input_mod = {target: input_mod}
+    # else:
+    #     target_input_mod = inputs
 
-    if not target_host:
-        for tar, mod in target_input_mod.items():
-            tar = Target(tar)
-            device_type = ndarray.device(tar.kind.name, 0).device_type
-            if device_type == ndarray.cpu(0).device_type:
-                target_host = tar
-                break
-    # Why is this here?
-    if not target_host:
-        target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
-    
-    # why do we need to call chcek_and_update_host_consist again?
-    target_input_mod, target_host = Target.check_and_update_host_consist(
-        target_input_mod, target_host
-    )
+    # # reshape tensor tests are failing without this one vm_reshape_tensor
+
+    # for tar, mod in target_input_mod.items():
+    #     if not isinstance(tar, (str, Target)):
+    #         raise ValueError(
+    #             "The key of inputs must be str or " "Target when inputs is dict.")
+    #     if not isinstance(mod, tvm.IRModule):
+    #         raise ValueError(
+    #             "inputs must be Schedule, IRModule," "or dict of str to IRModule.")
+
+    # target_input_mod, target_host = Target.check_and_update_host_consist(
+    #     target_input_mod, target_host
+    # )
+
+    # if not target_host:
+    #     for tar, mod in target_input_mod.items():
+    #         tar = Target(tar)
+    #         device_type = ndarray.device(tar.kind.name, 0).device_type
+    #         if device_type == ndarray.cpu(0).device_type:
+    #             target_host = tar
+    #             break
+    # # Why is this here?
+    # # if not target_host:
+    # #     target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
+
+    # # why do we need to call chcek_and_update_host_consist again?
+    # target_input_mod, target_host = Target.check_and_update_host_consist(
+    #     target_input_mod, target_host
+    # )
+    from tvm.driver import _ffi_api as _driver_ffi
+
+    target_input_mod = _driver_ffi.driver.target_mangling(
+        input_mod, target, target_host)
+    target_host = _driver_ffi.driver.host_target_mangling(
+        input_mod, target, target_host)
 
     mod_host_all = tvm.IRModule({})
 
@@ -347,13 +364,15 @@ def build(
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateCSourceCrtMetadataModule"
             )
-            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_csource_crt_metadata_module(
+                [rt_mod_host], target_host)
 
         elif target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
-            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_llvm_crt_metadata_module(
+                [rt_mod_host], target_host)
     else:
         to_return = rt_mod_host
 

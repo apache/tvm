@@ -398,6 +398,53 @@ std::pair<IRModule, IRModule> SplitFuncsToDevHostMods(IRModule mod_mixed, const 
   return {host_mod, device_mod};
 }
 
+std::pair<Target, Target> TargetTypeMangling(const Map<Target, IRModule>& inputs_arg, Target target,
+                                             Target target_host_arg) {
+  Target target_input_mod, target_host;
+
+  target = !target.defined() ? target.Current() : target;
+
+  std::vector<runtime::Module> device_modules;
+  Map<Target, IRModule> inputs = inputs_arg;
+  target_host = target_host_arg;
+
+  CheckAndUpdateHostConsistency(&inputs, &target_host);
+
+  if (!target_host.defined()) {
+    for (const auto& it : inputs) {
+      if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
+        target_host = it.first;
+        break;
+      }
+    }
+  }
+
+  if (!target_host.defined()) {
+    target_host = DefaultTargetHost(target_host);
+  }
+  CheckAndUpdateHostConsistency(&inputs, &target_host);
+
+  return {target_input_mod, target_host};
+}
+
+// TVM_REGISTER_GLOBAL("driver.target_mangling")
+//     .set_body_typed([](const Map<Target, IRModule>& inputs_arg, IRModule mod, Target target,
+//                        Target target_host_arg) {
+//       return TargetTypeMangling(inputs_arg, mod, target, target_host_arg);
+//     });
+
+TVM_REGISTER_GLOBAL("driver.target_mangling")
+    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target target,
+                       Target target_host_arg) {
+      return TargetTypeMangling(inputs_arg, target, target_host_arg).first;
+    });
+
+TVM_REGISTER_GLOBAL("driver.host_target_mangling")
+    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target target,
+                       Target target_host_arg) {
+      return TargetTypeMangling(inputs_arg, target, target_host_arg).second;
+    });
+
 // Can we make this take one annotated IRModule?
 //
 // Build for heterogeneous execution.
@@ -437,17 +484,17 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   for (const auto& it : inputs) {
     if (it.second.defined()) {
       auto pair = SplitFuncsToDevHostMods(it.second, it.first, target_host);
-      auto& mhost = pair.first;
-      auto& mdevice = pair.second;
+      auto& host_mod = pair.first;
+      auto& device_mod = pair.second;
 
-      ICHECK(mhost.defined()) << "The split host module must be defined";
+      ICHECK(host_mod.defined()) << "The split host module must be defined";
 
       ICHECK(mhost_all.defined()) << "The host module must be defined";
 
-      mhost_all->Update(mhost);
+      mhost_all->Update(host_mod);
 
-      if (mdevice->functions.size() != 0) {
-        device_modules.push_back(codegen::Build(mdevice, it.first));
+      if (device_mod->functions.size() != 0) {
+        device_modules.push_back(codegen::Build(device_mod, it.first));
       }
     }
   }
@@ -503,8 +550,8 @@ IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
   mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
-  // Python annotates all functions in the mod with the Target passed in here; I think we shouldn't
-  // have to do that.
+  // Python annotates all functions in the mod with the Target passed in here; I think we
+  // shouldn't have to do that.
 
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
@@ -528,19 +575,16 @@ IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
   return opt_mixed(std::move(mixed_mod));
 }
 
-TVM_REGISTER_GLOBAL("driver.get_mod_mixed").set_body_typed([](IRModule mod) {
-  Target empty_target;
-  return OptimizeMixedModule(mod, empty_target);
+TVM_REGISTER_GLOBAL("driver.get_mod_mixed").set_body_typed([](IRModule mod, Target target) {
+  return OptimizeMixedModule(mod, target);
 });
 
-TVM_REGISTER_GLOBAL("driver.get_device_mod").set_body_typed([](IRModule mod) {
-  Target empty_target;
-  return OptimizeDeviceModule(mod, empty_target);
+TVM_REGISTER_GLOBAL("driver.get_device_mod").set_body_typed([](IRModule mod, Target target) {
+  return OptimizeDeviceModule(mod, target);
 });
 
-TVM_REGISTER_GLOBAL("driver.get_host_mod").set_body_typed([](IRModule mod) {
-  Target empty_target;
-  return OptimizeHostModule(mod, empty_target);
+TVM_REGISTER_GLOBAL("driver.get_host_mod").set_body_typed([](IRModule mod, Target target_host) {
+  return OptimizeHostModule(mod, target_host);
 });
 
 IRModule OptimizeHostModule(IRModule mixed_mod, Target target_host) {
