@@ -1487,13 +1487,16 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        return _op.squeeze(*inputs, axis=attr["axes"])
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
-        rank = _op.shape_of(_op.shape_of(inputs[0]))
         axis = inputs[1]
-        axis = _op.where(axis < _op.const(0, *axis dtype*), axis + rank, axis)
-        return _op.squeeze(inputs[1], axis)
+        dtype = infer_type(axis).checked_type.dtype
+        rank = _op.shape_of(_op.shape_of(inputs[0], dtype), dtype)
+        axis = _op.where(axis < _op.const(0, dtype), axis + rank, axis)
+        return _op.squeeze(inputs[0], fold_constant(axis))
+
 class Split(OnnxOpConverter):
     """Operator converter for Split."""
 
@@ -2817,7 +2820,9 @@ class Celu(OnnxOpConverter):
         alpha = _op.const(attr.get("alpha", 1.0), dtype)
         zero = _op.const(0, dtype)
         one = _op.const(1, dtype)
-        return _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+        out = _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+        print(out)
+        return out
 
 
 class MaxRoiPool(OnnxOpConverter):
@@ -4147,7 +4152,7 @@ def _get_convert_map(opset):
         "ScatterElements": Scatter.get_converter(opset),
         "ScatterND": ScatterND.get_converter(opset),
         "EyeLike": EyeLike.get_converter(opset),
-        "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
+        "Squeeze": Squeeze.get_converter(opset),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),
         "Shape": Shape.get_converter(opset),
