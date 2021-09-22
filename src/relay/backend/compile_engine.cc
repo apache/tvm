@@ -19,7 +19,7 @@
 
 /*!
  * \file relay/backend/compile_engine.cc
- * \brief Internal compialtion engine.
+ * \brief Internal compilation engine.
  */
 #include "compile_engine.h"
 
