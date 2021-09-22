@@ -16,8 +16,9 @@
 # under the License.
 
 import os
-import sys
+import shutil
 import struct
+import sys
 
 #
 # Disable GPU usage information:
@@ -27,7 +28,8 @@ import struct
 # 1 = INFO messages are not printed
 # 2 = INFO and WARNING messages are not printed
 # 3 = INFO, WARNING, and ERROR messages are not printed
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+if "TF_CPP_MIN_LOG_LEVEL" not in os.environ:
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import numpy as np
 
@@ -331,16 +333,21 @@ def check_network(build_dir, target_name, model_path, image_path):
     # Build a TVM C module for the ARM CPU (without compiling the kernels
     # library to the object code form):
     #
-    target = "c -device=arm_cpu"
-    opt_level = 3
-
-    with tvm.transform.PassContext(opt_level=opt_level, config={"tir.disable_vectorize": True}):
-        rt_module = relay.build(mod, target=target, params=params)
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        rt_module = relay.build(mod, target="c -device=arm_cpu", params=params)
 
     #
     # Export model library format
     #
     target_dir = os.path.join(build_dir, target_name + "_gen")
+
+    if os.path.exists(target_dir):
+        print(f'Removing existing "{target_dir}" directory')
+        try:
+            shutil.rmtree(target_dir)
+        except OSError as err:
+            raise ValueError(f"emit_code.Error: {target_dir} : {err.strerror}")
+
     mlf_tar_path = os.path.join(build_dir, target_name + "_lib.tar")
     import tvm.micro as micro
 

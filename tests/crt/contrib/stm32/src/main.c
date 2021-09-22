@@ -60,7 +60,7 @@ static float Convert_Fixed_To_Float(uint8_t data, int8_t fl) {
   if (fl >= 0) {
     x = ((float)val) / (float)(1 << fl);  // NOLINT
   } else {
-    x = ((float)val) / (float)(1 >> fl);  // NOLINT
+    x = ((float)val) / (1 / (float)(1 << fl));  // NOLINT
   }
   return x;
 }

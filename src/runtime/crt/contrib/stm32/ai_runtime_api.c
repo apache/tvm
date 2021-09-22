@@ -45,8 +45,8 @@ typedef struct {
 //
 // .nn_models_info section
 //
-extern uint32_t __models_section_start__;
-extern uint32_t __models_section_end__;
+extern uintptr_t __models_section_start__;
+extern uintptr_t __models_section_end__;
 
 uint32_t _modelsSection_start = (uint32_t)(&__models_section_start__);
 uint32_t _modelsSection_end = (uint32_t)(&__models_section_end__);
@@ -66,38 +66,6 @@ ai_model_iterator ai_model_iterator_next(ai_model_iterator idx) {
 
 ai_model_info* ai_model_iterator_value(ai_model_iterator idx) { return (ai_model_info*)idx; }
 
-#if 0
-// =======================================================
-//   ai_network_find
-// =======================================================
-AI_STATIC
-ai_handle ai_network_find(const char * model_name) {
-  uint32_t i;
-
-  uint32_t n_models = (_modelsSection_end-_modelsSection_start+1)/sizeof(ai_network_t);
-
-  printf(" == models_section: 0x%08lx - 0x%08lx\r\n", _modelsSection_start, _modelsSection_end);
-
-  // printf (" == Looking among %lu models.\r\n", n_models);
-
-  for (i = 0; i < n_models; i++) {
-    ai_network_t * network = (ai_network_t *)(_modelsSection_start+i*sizeof(ai_network_t));
-
-    printf(" == [%ld]: network = 0x%08x\r\n", i, (unsigned int)network);
-
-    const char * name = network->name;
-
-    // printf (" == [%ld]: network->name = %s\r\n", i, name);
-
-    if (!strcmp(name, model_name)) {
-      return (ai_handle)network;
-    }
-  }
-
-  return NULL;
-}
-#endif  // 0
-
 // =======================================================
 //   ai_create
 // =======================================================
@@ -106,20 +74,6 @@ AI_API_ENTRY ai_status ai_create(ai_model_info* nn, ai_ptr activations, ai_handl
   uint32_t n_outputs = AI_MODEL_n_outputs(nn);
 
   ai_status status = AI_STATUS_OK;
-
-#if 0
-  //
-  // Find the model from name.
-  //
-  ai_network_t * network = ai_network_find(model_name);
-  if (network == NULL) {
-    network->error = "Model not found";
-    *handle = NULL;
-    return AI_STATUS_ERROR;
-  }
-#endif  // 0
-
-  // printf (" == Initializing the network ...\r\n");
 
   //
   // Create internal network representation

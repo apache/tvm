@@ -21,9 +21,10 @@
 
 import json
 import os
+import re
 import shutil
 import tarfile
-import re
+import textwrap
 
 from datetime import datetime
 
@@ -31,10 +32,6 @@ import numpy as np
 
 import tvm
 from tvm.contrib import utils
-
-AI_TOOLS_VERSION_MAJOR = 1
-AI_TOOLS_VERSION_MINOR = 8
-AI_TOOLS_VERSION_MICRO = 0
 
 AI_API_VERSION_MAJOR = 1
 AI_API_VERSION_MINOR = 0
@@ -44,59 +41,29 @@ AI_TOOLS_REVISION = "v1"
 
 DBAR = "=" * 60
 
-# ==========================================================
-#   _fix_name
-# ==========================================================
-
 
 def _fix_name(node_name):
     """ Replace ':' with '_' in names like 'InputImg:0' """
     return node_name.replace(":", "_")
 
 
-# ==========================================================
-#   get_input_tensor_name
-# ==========================================================
-
-
 def get_input_tensor_name(node_name):
     return _fix_name(node_name)
-
-
-# ==========================================================
-#   get_output_tensor_name
-# ==========================================================
 
 
 def get_output_tensor_name(node_name, idx):
     return _fix_name(node_name) + "_" + str(idx)
 
 
-# ==========================================================
-#   _get_node_args_name
-# ==========================================================
-
-
 def _get_node_args_name(node_name):
     return _fix_name(node_name) + "_args"
-
-
-# ==========================================================
-#   _get_node_arg_types_name
-# ==========================================================
 
 
 def _get_node_arg_types_name(node_name):
     return _fix_name(node_name) + "_arg_type_ids"
 
 
-# ==========================================================
-#   _get_type_size
-# ==========================================================
-
-
 def _get_type_size(dltype):
-
     if dltype in ("uint64", "int64"):
         return 8
     if dltype in ("uint32", "int32", "float32"):
@@ -105,13 +72,8 @@ def _get_type_size(dltype):
         return 2
     if dltype in ("uint8", "int8"):
         return 1
-
     raise ValueError(f"Data type {dltype} is not supported")
 
-
-# ==========================================================
-#   _get_type_data
-# ==========================================================
 
 C_TYPE_TO_DLTYPE = {
     "uint64": "kDLUInt, 64, 1",
@@ -133,57 +95,30 @@ def _get_type_data(dltype):
         raise ValueError(f"Data type {dltype} is not supported")
 
 
-# ==========================================================
-#   _get_aligned_offset
-# ==========================================================
-
-
 def _get_aligned_offset(offset, dltype):
-
     align = _get_type_size(dltype)
-
     if offset % align != 0:
         offset = offset + (align - offset % align)
-
     return offset
 
 
-# ==========================================================
-#   _get_tensor_elts
-# ==========================================================
-
-
-def _get_tensor_elts(dims):
+def _get_num_tensor_elts(shape):
     size = 1
-    for dim in dims:
+    for dim in shape:
         size = size * dim
     return size
 
 
-# ==========================================================
-#   _get_tensor_size
-# ==========================================================
-
-
-def _get_tensor_size(dims, dltype):
-    size = _get_tensor_elts(dims)
+def _get_tensor_size_bytes(dims, dltype):
+    size = _get_num_tensor_elts(dims)
     return size * _get_type_size(dltype)
-
-
-# ==================================================================
-#   _preprocess_code
-# ==================================================================
 
 
 def _preprocess_code(src):
     """ Hack the C code implementing the model. """
 
-    dst = "#include <stdio.h>\n" "#include <math.h>\n"
-    #
-    # The 'magic option is not contributed yet
-    #
-    # dst = dst + '#include "stm32lib.h"\n\n'
-    dst = dst + "\n"
+    # TODO: '#include "stm32lib.h"\n\n' - the 'magic option is not contributed yet
+    dst = "#include <stdio.h>\n" "#include <math.h>\n\n"
     for line in src.splitlines():
         #
         # This is sort of hacking - when AoT is available, we will be
@@ -194,13 +129,13 @@ def _preprocess_code(src):
     return dst
 
 
-# ==========================================================
-#                       CodeEmitter
-# ==========================================================
-
-
 class CodeEmitter(object):
-    """Code emitter class/utility."""
+    """Code emitter class."""
+
+    #
+    # Constants:
+    #
+    DATA_ALIGNMENT_BYTES = 8
 
     def __init__(self, include_activations=True, include_inputs=True, include_outputs=True):
         """Initialize the Emitter instance.
@@ -227,19 +162,11 @@ class CodeEmitter(object):
         """
 
         #
-        # Constants:
-        #
-        self.data_alignment = 8
-
-        #
         # Static model: activations placed into a nn_data_act section
         # Dynamic model: activations need to be malloc'ed by the
         #   applications.
         #
-        if include_activations is True:
-            self.activations_static = 1
-        else:
-            self.activations_static = 0
+        self.activations_static = include_activations
 
         #
         # Inputs/outputs may be allocated within the activations or
@@ -248,19 +175,15 @@ class CodeEmitter(object):
         #
         if include_inputs is True:
             assert (
-                self.activations_static == 1
+                self.activations_static == True
             ), "###Error: Static inputs are not allowed without activations."
-            self.inputs_static = 1
-        else:
-            self.inputs_static = 0
+        self.inputs_static = include_inputs
 
         if include_outputs is True:
             assert (
-                self.activations_static == 1
+                self.activations_static == True
             ), "###Error: Static outputs are not allowed without activations."
-            self.outputs_static = 1
-        else:
-            self.outputs_static = 0
+        self.outputs_static = include_outputs
 
         #
         # Parsed graph
@@ -287,10 +210,6 @@ class CodeEmitter(object):
 
         self.quantization_ = {}
 
-    # ==================================================================
-    #   __extract_quantization_info
-    # ==================================================================
-
     def __extract_quantization_info(self, quantization):
         """ Build dictionary with quantization infos."""
 
@@ -311,10 +230,6 @@ class CodeEmitter(object):
                     self.quantization_["output"] = quantization[name]
                     break
 
-    # ==========================================================
-    #   _get_node_arg_name
-    # ==========================================================
-
     def __get_node_arg_name(self, arg):
         arg_nid = arg[0]
         arg_idx = arg[1]
@@ -332,12 +247,7 @@ class CodeEmitter(object):
             dl_tensor_name = get_output_tensor_name(arg_name, arg_idx)
         return dl_tensor_name
 
-    # ==========================================================
-    #   __tensor_is_output
-    # ==========================================================
-
     def __tensor_is_output(self, nid, idx):
-
         for out in self.outputs_:
             out_nid = out[0]
             out_idx = out[1]
@@ -345,16 +255,9 @@ class CodeEmitter(object):
                 return True
         return False
 
-    # ==========================================================
-    #   __get_tensor_from_node
-    # ==========================================================
-
     def __get_tensor_from_node(self, nid, idx):
-        #
         # 'eid' is index into the dltype', 'shape', etc.
-        #
         eid = self.node_row_ptr_[nid] + idx
-
         dltype = self.attrs_["dltype"][1][eid]
         dims = self.attrs_["shape"][1][eid]
         storage_id = self.attrs_["storage_id"][1][eid]
@@ -362,7 +265,7 @@ class CodeEmitter(object):
         #
         # Get tensor size
         #
-        size = _get_tensor_size(dims, dltype)
+        size = _get_tensor_size_bytes(dims, dltype)
 
         tensor = {
             "dltype": dltype,
@@ -380,10 +283,6 @@ class CodeEmitter(object):
 
         return tensor
 
-    # ==================================================================
-    #   __compute_data_placement
-    # ==================================================================
-
     def __compute_data_placement(self):
         """ Compute inputs, outputs, weight, activation sizes"""
 
@@ -392,7 +291,6 @@ class CodeEmitter(object):
         #
         # weights:
         #
-
         offset = 0
 
         for key in self.params_:
@@ -432,11 +330,9 @@ class CodeEmitter(object):
         #
         # activations:
         #
-
         buffer_list_ = {}
 
         nid = 0
-
         for node in self.nodes_:
 
             if node["op"] == "null":
@@ -486,7 +382,6 @@ class CodeEmitter(object):
         # Compute 'input_data_'
         #
         offset = 0
-
         for nid in self.inputs_:
             node = self.nodes_[nid]
             node_name = node["name"]
@@ -502,7 +397,7 @@ class CodeEmitter(object):
             #
             tensor = self.__get_tensor_from_node(nid, 0)
 
-            if self.inputs_static == 1:
+            if self.inputs_static == True:
                 #
                 # Remember this tensor with the storage id
                 #
@@ -530,9 +425,7 @@ class CodeEmitter(object):
         # Compute 'output_data_'
         #
         offset = 0
-
         for output in self.outputs_:
-
             nid = output[0]
             idx = output[1]
 
@@ -543,7 +436,7 @@ class CodeEmitter(object):
 
             tensor = self.__get_tensor_from_node(nid, idx)
 
-            if self.outputs_static == 1:
+            if self.outputs_static == True:
                 #
                 # Remember this tensor with the storage id
                 #
@@ -571,7 +464,6 @@ class CodeEmitter(object):
         # Go over all storage IDs and compute offsets and activations_size_
         #
         offset = 0
-
         for storage_id in buffer_list_:
             buffer_entry = buffer_list_[storage_id]
 
@@ -587,10 +479,6 @@ class CodeEmitter(object):
             offset = new_offset
 
         self.activations_size_ = offset
-
-    # ==========================================================
-    #   _parse_model
-    # ==========================================================
 
     def _parse_model(self, quantization=None):
         """Parse the module. Build internal data structures.
@@ -632,17 +520,13 @@ class CodeEmitter(object):
         if quantization is not None:
             self.__extract_quantization_info(quantization)
 
-    # ==========================================================
-    #   parse_library_format
-    # ==========================================================
-
     def parse_library_format(self, model_library_format_path, quantization=None):
         """Parse the module. Build internal data structures.
 
         Parameters
         ----------
         model_library_format_path :
-           The module to parse
+           The ModuleLibraryFormat object to parse
 
         quantization: Dictionary
            The quantization information for model inputs/outputs.
@@ -693,17 +577,13 @@ class CodeEmitter(object):
 
         self._parse_model(quantization)
 
-    # ==========================================================
-    #   parse_module
-    # ==========================================================
-
     def parse_module(self, module, quantization=None):
         """Parse the module. Build internal data structures.
 
         Parameters
         ----------
-        module : TVM module
-           The module to parse
+        module : TVM Runtime Module
+           The module to parse.
 
         quantization: Dictionary
            The quantization information for model inputs/outputs.
@@ -730,46 +610,48 @@ class CodeEmitter(object):
 
         self._parse_model(quantization)
 
-    # ==========================================================
-    #   __emit_params_data
-    # ==========================================================
-
     def __emit_params_data(self, name, out_h, out_c):
         """ Emits the network_data[c,h] files with parameters."""
+
         name_upper = name.upper()
 
         #
         # XXX_data.h
         #
-        out_h.write(f"#ifndef __{name_upper}_DATA_H_ \n")
-        out_h.write(f"#define __{name_upper}_DATA_H_ \n")
-        out_h.write(f"\n")
-        out_h.write(f'#include "ai_runtime_api.h" \n')
-        out_h.write(f"\n")
+        out_h.write(
+            textwrap.dedent(
+                f"""\
+        #ifndef __{name_upper}_DATA_H_
+        #define __{name_upper}_DATA_H_
+        
+        #include \"ai_runtime_api.h\"
 
-        out_h.write(f"AI_API_ENTRY \n")
-        out_h.write(f"const ai_ptr ai_{name}_data_weights_get (void); \n")
-        out_h.write(f"\n")
-
-        out_h.write(f"#endif /* __{name_upper}_DATA_H_ */ \n")
-        out_h.write(f"\n")
+        AI_API_ENTRY
+        const ai_ptr ai_{name}_data_weights_get (void);
+        
+        #endif /* __{name_upper}_DATA_H_ */
+        """
+            )
+        )
 
         #
         # XXX_data.cc
         #
-        out_c.write(f'#include "{name}_data.h" \n')
-        out_c.write(f"\n")
-
-        out_c.write(f"const ai_ptr ai_{name}_data_weights_get (void) \n")
-        out_c.write(f"{{\n")
         out_c.write(
-            f'  AI_ALIGNED({self.data_alignment}) static const __attribute__ ((section(".nn_weights"))) uint8_t s_{name}_weights[] = {{ \n'
+            textwrap.dedent(
+                f"""
+        #include \"{name}_data.h\"
+
+        const ai_ptr ai_{name}_data_weights_get (void)
+        {{
+          AI_ALIGNED({self.DATA_ALIGNMENT_BYTES}) static const __attribute__ ((section(\".nn_weights\"))) uint8_t s_{name}_weights[] = {{
+        """
+            )
         )
 
         #
         # Weights are arranged in the order of 'params_'
         #
-
         offset = 0
 
         for key in self.params_:
@@ -809,55 +691,62 @@ class CodeEmitter(object):
 
             out_c.write(f"\n")
 
-        out_c.write(f"  }}; \n")
-        out_c.write(f"  return (const ai_ptr)s_{name}_weights; \n")
-        out_c.write(f"}} \n")
-        out_c.write(f"\n")
-
-    # ==========================================================
-    #   __emit_open
-    # ==========================================================
+        out_c.write(
+            textwrap.dedent(
+                f"""\
+          }};
+          return (const ai_ptr)s_{name}_weights;
+        }}
+        """
+            )
+        )
 
     def __emit_open(self, name, out_h, out_c):
         """Emits the network.h file with a few network defines and
         writes the header part of the network.c file."""
+
         name_upper = name.upper()
+
+        input_size = len(self.input_data_)
+        output_size = len(self.output_data_)
 
         #
         # XXX.h
         #
-        out_h.write(f"#ifndef __AI_{name_upper}_H__ \n")
-        out_h.write(f"#define __AI_{name_upper}_H__ \n")
-        out_h.write(f"\n")
+        out_h.write(
+            textwrap.dedent(
+                f"""\
+        #ifndef __AI_{name_upper}_H__
+        #define __AI_{name_upper}_H__
+        
+        #include \"ai_runtime_api.h\"
 
-        out_h.write(f'#include "ai_runtime_api.h" \n')
-        out_h.write(f"\n")
-
-        input_size = len(self.input_data_)
-        output_size = len(self.output_data_)
-        out_h.write(f"#define _{name_upper}_INPUTS_COUNT_ ({input_size})\n")
-        out_h.write(f"#define _{name_upper}_OUTPUTS_COUNT_ ({output_size})\n")
-        out_h.write(f"#define _{name_upper}_ACTIVATION_BYTES_ ({self.activations_size_})\n")
-        out_h.write(f"\n")
+        #define _{name_upper}_INPUTS_COUNT_ ({input_size})
+        #define _{name_upper}_OUTPUTS_COUNT_ ({output_size})
+        #define _{name_upper}_ACTIVATION_BYTES_ ({self.activations_size_})
+        """
+            )
+        )
 
         #
         # XXX.c
         #
-        out_c.write(f"#include <stdio.h> \n")
-        out_c.write(f"\n")
-
-        out_c.write(f'#include "dlpack/dlpack.h" \n')
-        out_c.write(f'#include "tvm/runtime/c_runtime_api.h" \n')
-        out_c.write(f'#include "{name}.h" \n')
-        out_c.write(f'#include "{name}_data.h" \n')
-        out_c.write(f"\n")
-
-    # ==========================================================
-    #   __emit_close
-    # ==========================================================
+        out_c.write(
+            textwrap.dedent(
+                f"""\
+        #include <stdio.h>
+        
+        #include \"dlpack/dlpack.h\"
+        #include \"tvm/runtime/c_runtime_api.h\"
+        #include \"{name}.h\"
+        #include \"{name}_data.h\"
+        """
+            )
+        )
 
     def __emit_close(self, name, out_h, out_c):
         """ Emits the ai_model_info structure. """
+
         name_upper = name.upper()
 
         # datetime object containing current date and time
@@ -874,13 +763,12 @@ class CodeEmitter(object):
         # XXX.c
         #
 
-        if self.activations_static == 1:
+        if self.activations_static == True:
             out_c.write(
-                f'AI_ALIGNED({self.data_alignment}) __attribute__ ((section(".{name}.nn_data_act"))) uint8_t {name}_activations[{self.activations_size_}];\n'
+                f'AI_ALIGNED({self.DATA_ALIGNMENT_BYTES}) __attribute__ ((section(".{name}.nn_data_act"))) uint8_t {name}_activations[{self.activations_size_}];\n'
             )
         else:
             out_c.write(f"AI_STATIC ai_ptr {name}_activations = NULL;")
-        out_c.write(f"\n")
 
         #
         # Emit network structure
@@ -888,41 +776,39 @@ class CodeEmitter(object):
         num_inputs = len(self.input_data_)
         num_outputs = len(self.output_data_)
 
-        tv_string = f"{AI_TOOLS_VERSION_MAJOR}.{AI_TOOLS_VERSION_MINOR}.{AI_TOOLS_VERSION_MICRO}.0"
-        av_string = f"{AI_API_VERSION_MAJOR}.{AI_API_VERSION_MINOR}.{AI_API_VERSION_MICRO}.0"
+        tool_version = tvm.__version__
+        api_version = f"{AI_API_VERSION_MAJOR}.{AI_API_VERSION_MINOR}.{AI_API_VERSION_MICRO}.0"
 
         out_c.write(
-            f'AI_API_ENTRY  __attribute__ ((section(".nn_models"))) ai_model_info {name}_network = {{\n'
-        )
-        out_c.write(
-            MODEL_TEMPLATE.format(
-                name=name,
-                dt_string=dt_string,
-                revision=AI_TOOLS_REVISION,
-                tool_version=tv_string,
-                api_version=av_string,
-                n_nodes=self.nodes_size_,
-                n_inputs=num_inputs,
-                n_outputs=num_outputs,
-                activations_size=self.activations_size_,
-                params_size=self.weights_size_,
+            textwrap.dedent(
+                f"""
+        AI_API_ENTRY  __attribute__ ((section(".nn_models"))) ai_model_info {name}_network = {{
+          .name = \"{name}\",
+          .datetime = \"{dt_string}\",
+          .revision = \"{AI_TOOLS_REVISION}\",
+          .tool_version = \"{tool_version}\",
+          .api_version = \"{api_version}\",
+          .n_nodes = {self.nodes_size_},
+          .n_inputs = {num_inputs},
+          .n_outputs = {num_outputs},
+          .activations_size = {self.activations_size_},
+          .params_size = {self.weights_size_},
+          .activations = {name}_activations,
+          .inputs = _InputsList,
+          .outputs = _OutputsList,
+          .ai_get_params = &ai_{name}_data_weights_get,
+          .ai_create = &ai_{name}_create,
+          .ai_destroy = &ai_{name}_destroy,
+          .ai_run = &ai_{name}_run
+        }};
+        """
             )
         )
-        out_c.write(f"}};\n")
-        out_c.write(f"\n")
-
-    # ==========================================================
-    #   __emit_tensor_shape
-    # ==========================================================
 
     def __emit_tensor_shape(self, dl_tensor_name, ndim, shape, strides, out_c):
         out_c.write(f"AI_STATIC int64_t {dl_tensor_name}_shape[{ndim}] = {{{shape[1:-1]}}}; \n")
         assert strides is None, f"###Error: non-compact tensors are not handled yet."
         out_c.write(f"AI_STATIC int64_t {dl_tensor_name}_strides[{ndim}] = {{}}; \n")
-
-    # ==========================================================
-    #   __emit_tensor_quant
-    # ==========================================================
 
     def __emit_tensor_quant(self, dl_tensor_name, out_c):
 
@@ -940,7 +826,6 @@ class CodeEmitter(object):
         if quantization is not None:
             scale = quantization["scale"]
             zero_point = quantization["zero_point"]
-            # dim = quantization['dim']
 
             #
             # Sometimes we get a scalar with ScaleAsNumpy.
@@ -970,23 +855,26 @@ class CodeEmitter(object):
                 out_c.write(f"AI_STATIC int32_t {quant_name}_zero_point[{zero_point_size}] = {{ ")
                 for val in zero_point:
                     out_c.write(f"{val}, ")
-                out_c.write(f"}};\n")
-                out_c.write(f"AI_STATIC ai_quantization_info {quant_name} = {{\n")
-                out_c.write(f"  .scale = {quant_name}_scale,\n")
-                out_c.write(f"  .zero_point = {quant_name}_zero_point,\n")
-                out_c.write(f"  .dim = -1\n")
-                out_c.write(f"}}; \n")
+                out_c.write(f"}};")
+                out_c.write(
+                    textwrap.dedent(
+                        f"""
+                AI_STATIC ai_quantization_info {quant_name} = {{
+                  .scale = {quant_name}_scale,
+                  .zero_point = {quant_name}_zero_point,
+                  .dim = -1
+                }};
+                """
+                    )
+                )
 
                 return quant_name
 
         return None
 
-    # ==========================================================
-    #   __emit_tensor_init
-    # ==========================================================
-
     def __emit_tensor_init(self, dl_tensor_name, tensor, out_c):
         """ Emits the tensor instantiation code. """
+
         dltype = tensor["dltype"]
         dims = tensor["dims"]
         strides = tensor["strides"]
@@ -1004,14 +892,26 @@ class CodeEmitter(object):
         #
         # Contents
         #
+        # TODO: use the 'storage_id':
+        #   "    .ctx = {{ {} }}, \n".format(str(storage_id)[1:-1])
+        #
         out_c.write(
-            f"AI_ALIGNED({self.data_alignment}) AI_STATIC ai_tensor {dl_tensor_name} = {{ \n"
-        )
-        out_c.write(
-            DLTENSOR_TEMPLATE.format(
-                name=dl_tensor_name, device="kDLCPU,0", ndim=ndim, dtype=dtype, offset=byte_offset
+            textwrap.dedent(
+                f"""
+        AI_ALIGNED({self.DATA_ALIGNMENT_BYTES}) AI_STATIC ai_tensor {dl_tensor_name} = {{
+          .dltensor = {{
+            .data = (ai_ptr)(NULL),
+            .device = {{kDLCPU,0}},
+            .ndim = {ndim},
+            .dtype = {{{dtype}}},
+            .shape = {dl_tensor_name}_shape,
+            .strides = {dl_tensor_name}_strides,
+            .byte_offset = {byte_offset}
+          }},
+        """
             )
         )
+
         #
         # Figure out quantization, if exists
         #
@@ -1021,19 +921,19 @@ class CodeEmitter(object):
             out_c.write(f"  .quant = NULL \n")
         out_c.write(f"}}; \n")
 
-    # ==========================================================
-    #   __emit_activation_buffers
-    # ==========================================================
-
     def __emit_activation_buffers(self, name, out_c):
         # pylint: disable=unused-argument
         """ Emits activation tensors, including inputs/outputs."""
-        #
-        # Inputs:
-        #
-        out_c.write(f"// \n")
-        out_c.write(f"// Inputs:\n")
-        out_c.write(f"// \n")
+
+        out_c.write(
+            textwrap.dedent(
+                f"""\
+        //
+        // Inputs:
+        //
+        """
+            )
+        )
         #
         # shape/buffer
         #
@@ -1054,12 +954,15 @@ class CodeEmitter(object):
         out_c.write(f"}}; \n")
         out_c.write(f"\n")
 
-        #
-        # Activations:
-        #
-        out_c.write(f"// \n")
-        out_c.write(f"// Activations: \n")
-        out_c.write(f"// \n")
+        out_c.write(
+            textwrap.dedent(
+                f"""\
+        //
+        // Activations:
+        //
+        """
+            )
+        )
         for dl_tensor_name in self.activations_:
             tensor = self.activations_[dl_tensor_name]
             self.__emit_tensor_init(dl_tensor_name, tensor, out_c)
@@ -1068,9 +971,15 @@ class CodeEmitter(object):
         #
         # Outputs:
         #
-        out_c.write(f"// \n")
-        out_c.write(f"// Outputs:\n")
-        out_c.write(f"// \n")
+        out_c.write(
+            textwrap.dedent(
+                f"""\
+        //
+        // Outputs:
+        //
+        """
+            )
+        )
         for dl_tensor_name in self.output_data_:
             tensor = self.output_data_[dl_tensor_name]
             self.__emit_tensor_init(dl_tensor_name, tensor, out_c)
@@ -1085,32 +994,35 @@ class CodeEmitter(object):
         out_c.write(f"}}; \n")
         out_c.write(f"\n")
 
-    # ==========================================================
-    #   __emit_params_buffers
-    # ==========================================================
-
     def __emit_params_buffers(self, name, out_c):
         """ Emits all parameter tensors."""
-        out_c.write(f"// \n")
-        out_c.write(f"// Weights: {name}\n")
-        out_c.write(f"// \n")
+
+        out_c.write(
+            textwrap.dedent(
+                f"""
+        //
+        // Weights: {name}
+        //
+        """
+            )
+        )
         for dl_tensor_name in self.weights_:
             tensor = self.weights_[dl_tensor_name]
             self.__emit_tensor_init(dl_tensor_name, tensor, out_c)
         out_c.write(f"\n")
 
-    # ==========================================================
-    #   __emit_network
-    # ==========================================================
-
     def __emit_network(self, name, out_c):
         """ Emits prototypes for the network operator functions."""
-        out_c.write(f"// \n")
-        out_c.write(f"// Network: {name}\n")
-        out_c.write(f"// \n")
-        #
-        # Emit prototypes for the TVM library functions
-        #
+
+        out_c.write(
+            textwrap.dedent(
+                f"""
+        //
+        // Network: {name}
+        //
+        """
+            )
+        )
         for node in self.nodes_:
             if node["op"] == "null":
                 continue
@@ -1126,46 +1038,50 @@ class CodeEmitter(object):
             )
         out_c.write(f"\n")
 
-    # ==========================================================
-    #   __emit_tensor_activation
-    # ==========================================================
-
     def __emit_tensor_activation(self, dl_tensor_name, tensor, out_c):
 
         storage_id = tensor["storage_id"]
         offset = tensor["offset"]
-        out_c.write(f"  // \n")
-        out_c.write(f"  // {dl_tensor_name}: storage_id:{storage_id}\n")
-        out_c.write(f"  // \n")
-        out_c.write(f"  {dl_tensor_name}.dltensor.data = (ai_ptr)(activations + {offset}); \n")
-        out_c.write(f"\n")
-
-    # ==========================================================
-    #   __emit_activation_init
-    # ==========================================================
+        out_c.write(
+            textwrap.indent(
+                textwrap.dedent(
+                    f"""
+        //
+        // {dl_tensor_name}: storage_id:{storage_id}
+        //
+        {dl_tensor_name}.dltensor.data = (ai_ptr)(activations + {offset});
+        """
+                ),
+                "  ",
+            )
+        )
 
     def __emit_activation_init(self, name, out_c):
         """ Emits buffer initialization code for activation tensors."""
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"//   {name}_configure_activations \n")
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"AI_STATIC AI_INLINE\n")
-        out_c.write(f"ai_status {name}_configure_activations ( \n")
-        out_c.write(f"  const ai_ptr activations \n")
-        out_c.write(f") \n")
-        out_c.write(f"{{ \n")
-        out_c.write(f"  if (activations == NULL) {{\n")
+
         out_c.write(
-            f'    TVMAPISetLastError ("Non-null activations arena is required for this model.");\n'
+            textwrap.dedent(
+                f"""
+        // {DBAR}
+        //   {name}_configure_activations
+        // {DBAR}
+        AI_STATIC AI_INLINE
+        ai_status {name}_configure_activations (
+          const ai_ptr activations
         )
-        out_c.write(f"    return AI_STATUS_ERROR;\n")
-        out_c.write(f"  }}\n")
-        out_c.write(f"\n")
+        {{
+          if (activations == NULL) {{
+            TVMAPISetLastError (\"Non-null activations arena is required for this model.\");
+            return AI_STATUS_ERROR;
+          }}
+        """
+            )
+        )
 
         #
         # Allocate inputs with the static model
         #
-        if self.inputs_static:
+        if self.inputs_static == True:
             for dl_tensor_name in self.input_data_:
                 tensor = self.input_data_[dl_tensor_name]
                 self.__emit_tensor_activation(dl_tensor_name, tensor, out_c)
@@ -1180,56 +1096,71 @@ class CodeEmitter(object):
         #
         # Allocate outputs with the static model
         #
-        if self.outputs_static:
+        if self.outputs_static == True:
             for dl_tensor_name in self.output_data_:
                 tensor = self.output_data_[dl_tensor_name]
                 self.__emit_tensor_activation(dl_tensor_name, tensor, out_c)
 
-        out_c.write(f"  return AI_STATUS_OK; \n")
-        out_c.write(f"}} \n")
-        out_c.write(f"\n")
-
-    # ==========================================================
-    #   __emit_params_init
-    # ==========================================================
+        out_c.write(
+            textwrap.dedent(
+                f"""
+          return AI_STATUS_OK;
+        }}
+        """
+            )
+        )
 
     def __emit_params_init(self, name, out_c):
         """ Emits buffer initialization code for params tensors."""
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"//   {name}_configure_weights \n")
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"AI_STATIC AI_INLINE\n")
-        out_c.write(f"ai_status {name}_configure_weights ( \n")
-        out_c.write(f"  const ai_ptr weights \n")
-        out_c.write(f") \n")
-        out_c.write(f"{{ \n")
-        out_c.write(f"  if (weights == NULL) {{\n")
+
         out_c.write(
-            f'    TVMAPISetLastError ("Non-null weights arena is required for this model.");\n'
+            textwrap.dedent(
+                f"""
+        // {DBAR}
+        //   {name}_configure_weights
+        // {DBAR}
+        AI_STATIC AI_INLINE
+        ai_status {name}_configure_weights (
+          const ai_ptr weights
         )
-        out_c.write(f"    return AI_STATUS_ERROR;\n")
-        out_c.write(f"  }}\n")
-        out_c.write(f"\n")
+        {{
+          if (weights == NULL) {{
+            TVMAPISetLastError(\"Non-null weights arena is required for this model.\");
+            return AI_STATUS_ERROR;
+          }}
+        """
+            )
+        )
 
         for dl_tensor_name in self.weights_:
             tensor = self.weights_[dl_tensor_name]
             offset = tensor["offset"]
-            out_c.write(f"  // \n")
-            out_c.write(f"  // {dl_tensor_name}\n")
-            out_c.write(f"  // \n")
-            out_c.write(f"  {dl_tensor_name}.dltensor.data = (ai_ptr)(weights + {offset}); \n")
-            out_c.write(f"\n")
+            out_c.write(
+                textwrap.indent(
+                    textwrap.dedent(
+                        f"""\
+            //
+            //  {dl_tensor_name}
+            //
+            {dl_tensor_name}.dltensor.data = (ai_ptr)(weights + {offset});
+            """
+                    ),
+                    "  ",
+                )
+            )
 
-        out_c.write(f"  return AI_STATUS_OK; \n")
-        out_c.write(f"}} \n")
-        out_c.write(f"\n")
-
-    # ==========================================================
-    #   __emit_init
-    # ==========================================================
+        out_c.write(
+            textwrap.dedent(
+                f"""
+          return AI_STATUS_OK;
+        }}
+        """
+            )
+        )
 
     def __emit_init(self, name, out_c):
         """ Emits buffer initialization code."""
+
         #
         # {name}_configure_activations
         #
@@ -1239,28 +1170,36 @@ class CodeEmitter(object):
         #
         self.__emit_params_init(name, out_c)
 
-    # ==========================================================
-    #   __emit_run
-    # ==========================================================
-
     def __emit_run(self, name, out_h, out_c):
         """ Emits the run function code."""
-        out_h.write(f"AI_API_ENTRY \n")
-        out_h.write(f"ai_status ai_{name}_run ( \n")
-        out_h.write(f"  ai_tensor *inputs[], \n")
-        out_h.write(f"  ai_tensor *outputs[] \n")
-        out_h.write(f"); \n")
-        out_h.write(f"\n")
 
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"//   ai_{name}_run \n")
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"AI_API_ENTRY \n")
-        out_c.write(f"ai_status ai_{name}_run ( \n")
-        out_c.write(f"  ai_tensor *inputs[], \n")
-        out_c.write(f"  ai_tensor *outputs[] \n")
-        out_c.write(f") \n")
-        out_c.write(f"{{ \n")
+        out_h.write(
+            textwrap.dedent(
+                f"""
+        AI_API_ENTRY
+        ai_status ai_{name}_run (
+          ai_tensor *inputs[],
+          ai_tensor *outputs[]
+        );
+        """
+            )
+        )
+
+        out_c.write(
+            textwrap.dedent(
+                f"""
+        // {DBAR}
+        //   ai_{name}_run
+        // {DBAR}
+        AI_API_ENTRY
+        ai_status ai_{name}_run (
+          ai_tensor *inputs[],
+          ai_tensor *outputs[]
+        )
+        {{
+        """
+            )
+        )
 
         out_c.write(f"#if defined(_DUMP_INPUTS_) ")
         for node in self.nodes_:
@@ -1404,21 +1343,22 @@ class CodeEmitter(object):
             #
             # call this function
             #
-            out_c.write(f"#if (_VERBOSE_ > 0) \n")
-            out_c.write(f'  printf ("  {func_name}  ... \\r\\n"); \n')
-            out_c.write(f"#endif \n")
-
             out_c.write(
-                f"  if ({func_name} ({dl_args_name}, {dl_arg_types_name}, {num_args})) {{ \n"
+                textwrap.dedent(
+                    f"""
+            #if (_VERBOSE_ > 0)
+              printf (\"  {func_name}  ... \\r\\n\");
+            #endif
+              if ({func_name} ({dl_args_name}, {dl_arg_types_name}, {num_args})) {{
+                TVMAPISetLastError("Invalid handle");
+                return AI_STATUS_ERROR;
+              }}
+            #if (_VERBOSE_ > 0)
+              printf (\"  {func_name}  Done.\\r\\n\");
+            #endif
+            """
+                )
             )
-            out_c.write(f'    TVMAPISetLastError("Invalid handle");\n')
-            out_c.write(f"    return AI_STATUS_ERROR; \n")
-
-            out_c.write(f"  }} \n")
-            out_c.write(f"#if (_VERBOSE_ > 0) \n")
-            out_c.write(f'  printf ("  {func_name}  Done.\\r\\n"); \n')
-            out_c.write(f"#endif \n")
-            out_c.write(f"\n")
 
             out_c.write(f"#ifdef _DUMP_{node_name_upper}_ \n")
             for idx in range(num_outputs):
@@ -1449,63 +1389,81 @@ class CodeEmitter(object):
         out_c.write(f"\n")
         out_c.write(f"  fclose(DumpFile_p); \n")
         out_c.write(f"#endif \n")
-        out_c.write(f"\n")
 
-        out_c.write(f"  return AI_STATUS_OK; \n")
-        out_c.write(f"}} \n")
-        out_c.write(f"\n")
-
-    # ==========================================================
-    #   __emit_create_destroy
-    # ==========================================================
+        out_c.write(
+            textwrap.dedent(
+                f"""
+          return AI_STATUS_OK;
+        }}
+        """
+            )
+        )
 
     def __emit_create_destroy(self, name, out_h, out_c):
         """ Emits the create/destroy functions."""
-        out_h.write(f"AI_API_ENTRY \n")
-        out_h.write(f"ai_status ai_{name}_create ( \n")
-        out_h.write(f"  const ai_ptr weights, \n")
-        out_h.write(f"  const ai_ptr activations \n")
-        out_h.write(f"); \n")
-        out_h.write(f"\n")
 
-        out_h.write(f"AI_API_ENTRY \n")
-        out_h.write(f"ai_status ai_{name}_destroy (); \n")
-        out_h.write(f"\n")
+        out_h.write(
+            textwrap.dedent(
+                f"""
+        AI_API_ENTRY
+        ai_status ai_{name}_create (
+          const ai_ptr weights,
+          const ai_ptr activations
+        );
+        """
+            )
+        )
 
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"//   ai_{name}_create \n")
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"AI_API_ENTRY \n")
-        out_c.write(f"ai_status ai_{name}_create( \n")
-        out_c.write(f"  const ai_ptr weights, \n")
-        out_c.write(f"  const ai_ptr activations \n")
-        out_c.write(f") \n")
-        out_c.write(f"{{ \n")
-        out_c.write(f"  ai_status status = AI_STATUS_OK;\n")
-        out_c.write(f"  status = {name}_configure_weights (weights); \n")
-        out_c.write(f"  if (status != AI_STATUS_OK) {{\n")
-        out_c.write(f"    return status;\n")
-        out_c.write(f"  }}\n")
-        out_c.write(f"  status = {name}_configure_activations (activations); \n")
-        out_c.write(f"  if (status != AI_STATUS_OK) {{\n")
-        out_c.write(f"    return status;\n")
-        out_c.write(f"  }}\n")
-        out_c.write(f"  return AI_STATUS_OK; \n")
-        out_c.write(f"}} \n")
-        out_c.write(f"\n")
+        out_h.write(
+            textwrap.dedent(
+                f"""
+        AI_API_ENTRY
+        ai_status ai_{name}_destroy ();
+        """
+            )
+        )
 
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"//   ai_{name}_destroy \n")
-        out_c.write(f"// {DBAR} \n")
-        out_c.write(f"AI_API_ENTRY \n")
-        out_c.write(f"ai_status ai_{name}_destroy () \n")
-        out_c.write(f"{{ \n")
-        out_c.write(f"  return AI_STATUS_OK; \n")
-        out_c.write(f"}} \n")
+        out_c.write(
+            textwrap.dedent(
+                f"""
+        // {DBAR}
+        //   ai_{name}_create
+        // {DBAR}
+        AI_API_ENTRY
+        ai_status ai_{name}_create(
+          const ai_ptr weights,
+          const ai_ptr activations
+        )
+        {{
+          ai_status status = AI_STATUS_OK;
+          status = {name}_configure_weights (weights);
+          if (status != AI_STATUS_OK) {{
+            return status;
+          }}
+          status = {name}_configure_activations (activations);
+          if (status != AI_STATUS_OK) {{
+            return status;
+          }}
+          return AI_STATUS_OK;
+        }}
+        """
+            )
+        )
 
-    # ==================================================================
-    #   emit_code
-    # ==================================================================
+        out_c.write(
+            textwrap.dedent(
+                f"""
+        // {DBAR}
+        //   ai_{name}_destroy
+        // {DBAR}
+        AI_API_ENTRY
+        ai_status ai_{name}_destroy ()
+        {{
+          return AI_STATUS_OK;
+        }}
+        """
+            )
+        )
 
     def emit_code(self, dest_dir, model_name):
         """ Emits the C code implementing the model. """
@@ -1514,14 +1472,10 @@ class CodeEmitter(object):
         # Build the directory structure
         #
         if os.path.exists(dest_dir):
-            print(f'Removing existing "{dest_dir}" directory')
-            try:
-                shutil.rmtree(dest_dir)
-            except OSError as err:
-                raise ValueError(f"emit_code.Error: {dest_dir} : {err.strerror}")
+            raise ValueError(f"emit_code.Error: {dest_dir} exists.")
 
         # Make a new one
-        os.mkdir(dest_dir)
+        os.makedirs(dest_dir)
 
         #
         # Fix the model name
@@ -1548,7 +1502,7 @@ class CodeEmitter(object):
                 fout.write(code)
 
         #
-        # Save params as bynary data
+        # Save params as binary data
         #
         saved_params = tvm.runtime.save_param_dict(self.params_)
         params_name = os.path.join(dest_dir, model_name + ".params")
@@ -1601,43 +1555,3 @@ class CodeEmitter(object):
         out_h.close()
         data_c.close()
         data_h.close()
-
-
-#
-# TODO: use the 'storage_id':
-#   "    .ctx = {{ {} }}, \n".format(str(storage_id)[1:-1])
-#
-#
-# TODO: systematically generate strides
-#
-DLTENSOR_TEMPLATE = """\
-  .dltensor = {{
-    .data = (ai_ptr)(NULL),
-    .device = {{{device}}},
-    .ndim = {ndim},
-    .dtype = {{{dtype}}},
-    .shape = {name}_shape,
-    .strides = {name}_strides,
-    .byte_offset = {offset}
-  }},
-"""
-
-MODEL_TEMPLATE = """\
-  .name = \"{name}\",
-  .datetime = \"{dt_string}\",
-  .revision = \"{revision}\",
-  .tool_version = \"{tool_version}\",
-  .api_version = \"{api_version}\",
-  .n_nodes = {n_nodes},
-  .n_inputs = {n_inputs},
-  .n_outputs = {n_outputs},
-  .activations_size = {activations_size},
-  .params_size = {params_size},
-  .activations = {name}_activations,
-  .inputs = _InputsList,
-  .outputs = _OutputsList,
-  .ai_get_params = &ai_{name}_data_weights_get,
-  .ai_create = &ai_{name}_create,
-  .ai_destroy = &ai_{name}_destroy,
-  .ai_run = &ai_{name}_run\
-"""

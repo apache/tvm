@@ -58,12 +58,15 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
 // ====================================================
 //   TVMFuncRegisterGlobal
 // ====================================================
-int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) { return 0; }
+int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) { return -1; }
 
 // ====================================================
 //   TVMPlatformAbort
 // ====================================================
-void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t code) {}
+void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t code) {
+  for (;;) {
+  }
+}
 
 // ====================================================
 //   TVMLogf
