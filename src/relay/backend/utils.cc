@@ -26,6 +26,8 @@
 
 #include <tvm/relay/qnn/transform.h>
 
+#include "te_compiler.h"
+
 namespace tvm {
 namespace relay {
 namespace backend {
@@ -225,6 +227,23 @@ Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
     tvm_map.Set(kv.first, kv.second);
   }
   return tvm_map;
+}
+
+void UpdateAutoSchedulerOpWeights(tec::TECompiler compiler) {
+  if (IsAutoSchedulerEnabled()) {
+    const auto* te_compiler_update_weights =
+        runtime::Registry::Get("auto_scheduler.relay_integration.te_compiler_update_weights");
+
+    ICHECK(te_compiler_update_weights != nullptr)
+        << "auto_scheduler.relay_integration.te_compiler_update_weights";
+
+    Map<String, tvm::Integer> weight_map;
+
+    for (auto pair : compiler->GetOpWeights()) {
+      weight_map.Set(pair.first, pair.second);
+    }
+    (*te_compiler_update_weights)(weight_map);
+  }
 }
 
 }  // namespace backend
