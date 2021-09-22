@@ -1840,7 +1840,16 @@ def test_all_reduce_funcs(target, dev):
 
         model = helper.make_model(graph, producer_name="reduce_test")
 
-        verify_with_ort_with_inputs(model, [data], [outshape], opset=11, target=target, dev=dev)
+        verify_with_ort_with_inputs(
+            model,
+            [data],
+            [outshape],
+            opset=11,
+            target=target,
+            dev=dev,
+            rtol=1e-4,
+            atol=1e-4,
+        )
 
     funcs = [
         "ReduceMax",
