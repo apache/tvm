@@ -47,7 +47,7 @@ class SpaceGenerator(Object):
         tune_context : TuneContext
             The tuning context for initializing the design space generator.
         """
-        _ffi_api.SpaceGeneratorInitializeWithTuneContext(  # pylint: disable=no-member
+        _ffi_api.SpaceGeneratorInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
             self, tune_context
         )
 
@@ -64,7 +64,7 @@ class SpaceGenerator(Object):
         design_spaces : List[Schedule]
             The generated design spaces, i.e., schedules.
         """
-        return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # pylint: disable=no-member
+        return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # type: ignore # pylint: disable=no-member
 
 
 @register_object("meta_schedule.PySpaceGenerator")
@@ -81,7 +81,7 @@ class PySpaceGenerator(SpaceGenerator):
             return self.generate_design_space(mod)
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorPySpaceGenerator,  # pylint: disable=no-member
+            _ffi_api.SpaceGeneratorPySpaceGenerator,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_generate_design_space,
         )

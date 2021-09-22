@@ -36,6 +36,6 @@ class SpaceGeneratorUnion(SpaceGenerator):
             The list of design space generators to be unioned.
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorSpaceGeneratorUnion,  # pylint: disable=no-member
+            _ffi_api.SpaceGeneratorSpaceGeneratorUnion,  # type: ignore # pylint: disable=no-member
             space_generators,
         )
