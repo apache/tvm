@@ -460,6 +460,150 @@ class BufferStrideLegalize : public StmtExprMutator {
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
 
+/* Use the scope of IterVar to determine storage scope.
+ *
+ * For buffers that do not have an explicit storage scope defined, a
+ * reasonable storage scope may be defined based on the thread scope
+ * that contains the buffer's allocation.
+ */
+class ThreadScopePropagate : public StmtExprMutator {
+ public:
+  explicit ThreadScopePropagate(const Map<Var, Buffer>& extern_buffer_map) {
+    // External buffers shouldn't be overwritten, even if they have a
+    // BufferRealizeNode.
+    for (auto kv : extern_buffer_map) {
+      external_buffers_.insert(kv.second);
+    }
+  }
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    auto it = buf_remap_.find(GetRef<Var>(op));
+    if (it != buf_remap_.end()) {
+      return it->second->data;
+    } else {
+      return GetRef<PrimExpr>(op);
+    }
+  }
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    ICHECK_NE(op->attr_key, attr::buffer_dim_align)
+        << "StorageFlattener assumes that all buffers have accurate strides, "
+        << "and all buffer_dim_align annotations are removed.  "
+        << "Please run BufferStrideLegalize first.";
+
+    if (op->attr_key == attr::thread_extent) {
+      IterVar iv = Downcast<IterVar>(op->node);
+      ThreadScope ts = ThreadScope::Create(iv->thread_tag);
+      curr_thread_scope_.push_back(ts);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
+      curr_thread_scope_.pop_back();
+      return stmt;
+    } else if (op->attr_key == attr::buffer_bind_scope) {
+      return HandleBufferBindScope(op);
+    } else {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+  }
+
+  Stmt VisitStmt_(const BufferRealizeNode* op) final {
+    Var old_var = op->buffer->data;
+
+    // Don't remap buffers that already have an explicit scope,
+    // external buffers, or buffers outside of a thread scope.
+    std::string str_scope = GetPtrStorageScope(old_var);
+    if ((str_scope.length() > 0) || external_buffers_.count(op->buffer) ||
+        (curr_thread_scope_.size() == 0)) {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+
+    ICHECK_EQ(buf_remap_.count(old_var), 0)
+        << "Buffer var " << op->buffer->data << " appears in multiple BufferRealize nodes";
+
+    StorageScope skey;
+    skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
+
+    auto ptr_type = old_var->type_annotation.as<PointerTypeNode>();
+    ICHECK(ptr_type);
+    Var new_var(old_var->name_hint, PointerType(ptr_type->element_type, skey.to_string()),
+                old_var->span);
+
+    Buffer buf = op->buffer;
+    buf.CopyOnWrite()->data = new_var;
+
+    buf_remap_[old_var] = buf;
+
+    Stmt body = this->VisitStmt(op->body);
+    return BufferRealize(buf, op->bounds, op->condition, body, op->span);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<BufferLoadNode>();
+    ICHECK(op);
+
+    auto it = buf_remap_.find(op->buffer->data);
+    if (it != buf_remap_.end()) {
+      return BufferLoad(it->second, op->indices, op->span);
+    } else {
+      return expr;
+    }
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<BufferStoreNode>();
+    ICHECK(op);
+
+    auto it = buf_remap_.find(op->buffer->data);
+    if (it != buf_remap_.end()) {
+      return BufferStore(it->second, op->value, op->indices, op->span);
+    } else {
+      return stmt;
+    }
+  }
+
+ private:
+  Stmt HandleBufferBindScope(const AttrStmtNode* op) {
+    Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
+    ICHECK_EQ(arr.size(), 2U);
+    Buffer buffer = Downcast<Buffer>(arr[0]);
+    ICHECK(buffer.defined());
+    Buffer target = Downcast<Buffer>(arr[1]);
+    ICHECK(target.defined());
+
+    bool needs_rewrite = false;
+
+    {
+      auto it = buf_remap_.find(buffer->data);
+      if (it != buf_remap_.end()) {
+        needs_rewrite = true;
+        buffer = it->second;
+      }
+    }
+
+    {
+      auto it = buf_remap_.find(target->data);
+      if (it != buf_remap_.end()) {
+        needs_rewrite = true;
+        target = it->second;
+      }
+    }
+
+    if (needs_rewrite) {
+      Stmt body = this->VisitStmt(op->body);
+      return AttrStmt(Array<ObjectRef>{buffer, target}, op->attr_key, op->value, body);
+    } else {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+  }
+
+  std::unordered_map<Var, Buffer, ObjectPtrHash, ObjectPtrEqual> buf_remap_;
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> external_buffers_;
+
+  // The current thread scope.
+  std::vector<ThreadScope> curr_thread_scope_;
+};
+
 class StorageFlattener : public StmtExprMutator {
  public:
   explicit StorageFlattener(const Map<Var, Buffer>& extern_buffer_map, int cache_line_size,
@@ -500,13 +644,6 @@ class StorageFlattener : public StmtExprMutator {
       ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
       body = AttrStmt(it->second.buffer->data, op->attr_key, op->value, std::move(body));
       return body;
-    } else if (op->attr_key == attr::thread_extent) {
-      IterVar iv = Downcast<IterVar>(op->node);
-      ThreadScope ts = ThreadScope::Create(iv->thread_tag);
-      curr_thread_scope_.push_back(ts);
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      curr_thread_scope_.pop_back();
-      return stmt;
     } else if (op->attr_key == attr::buffer_bind_scope) {
       return HandleBufferBindScope(op);
     }
@@ -558,16 +695,8 @@ class StorageFlattener : public StmtExprMutator {
           << "Inconsistent buffer shape and realization shape for " << op->buffer;
 
       Array<PrimExpr> shape = op->buffer->shape;
-      // deduce current storage scope.
-      StorageScope skey;
-      std::string strkey = GetPtrStorageScope(op->buffer->data);
-      if (strkey.length() == 0) {
-        if (curr_thread_scope_.size() != 0) {
-          skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
-        }
-      } else {
-        skey = StorageScope::Create(strkey);
-      }
+      StorageScope skey = StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+
       // use small alignment for small arrays
       auto dtype = op->buffer->dtype;
       int32_t const_size = AllocateNode::constant_allocation_size(shape);
@@ -582,12 +711,8 @@ class StorageFlattener : public StmtExprMutator {
       }
       Array<PrimExpr> strides = op->buffer->strides;
 
-      auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>();
-      ICHECK(ptr_type);
-      auto new_var =
-          Var(op->buffer->data->name_hint, PointerType(ptr_type->element_type, skey.to_string()));
-      e.buffer = Buffer(new_var, op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
-                        align, 0, kDefault);
+      e.buffer = Buffer(op->buffer->data, op->buffer->dtype, shape, strides, PrimExpr(),
+                        op->buffer->name, align, 0, kDefault);
 
       buf_map_[key] = e;
       Stmt body = this->VisitStmt(op->body);
@@ -873,8 +998,6 @@ class StorageFlattener : public StmtExprMutator {
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // Buffer map
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
-  // The current thread scope.
-  std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.
   std::vector<std::pair<Var, Array<PrimExpr>>> shape_collector_;
   // bounds populator. We really need the analyzer from it.
@@ -900,6 +1023,8 @@ PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_at
     auto stride_legalize = BufferStrideLegalize(fptr->buffer_map, &bound_analyzer);
     fptr->body = stride_legalize(std::move(fptr->body));
     fptr->buffer_map = stride_legalize.UpdatedExternBufferMap();
+
+    fptr->body = ThreadScopePropagate(fptr->buffer_map)(std::move(fptr->body));
 
     fptr->body = StorageFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
                                   &bound_analyzer)(std::move(fptr->body));
