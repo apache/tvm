@@ -68,13 +68,17 @@ def pattern_table():
 
     def check_quantized_softmax(extract):
         """Check if softmax is supported by CMSIS-NN."""
+        dequantize_call = extract.args[0].args[0]
+        scale = extract.args[1].data.numpy().item(0)
+        zero_point = extract.args[2].data.numpy().item(0)
 
         # check for dtypes of quantize and dequantize
         return (
-            extract.attrs.out_dtype == "int8"
-            and extract.args[0].args[0].args[0].checked_type.dtype == "int8"
+            (scale == 1.0 / 256 and zero_point == -128)
+            and extract.attrs.out_dtype == "int8"
+            and dequantize_call.args[0].checked_type.dtype == "int8"
         )
 
     return [
-        ("cmsisnn.qnn_softmax", softmax_pattern(), check_quantized_softmax),
+        ("cmsisnn.quantized_softmax", softmax_pattern(), check_quantized_softmax),
     ]

@@ -17,6 +17,7 @@
 
 # pylint: disable=redefined-builtin, wildcard-import
 """Utility Python functions for TVM testing"""
+
 from .utils import *
 
 from ._ffi_api import nop, echo, device_test, run_check_signal, object_use_count
@@ -24,6 +25,8 @@ from ._ffi_api import test_wrap_callback, test_raise_error_callback, test_check_
 from ._ffi_api import ErrorTest, FrontendTestModule, identity_cpp
 
 from .popen_pool import initializer, after_initializer, register_ffi, call_cpp_ffi
-from .popen_pool import call_py_ffi, call_cpp_py_ffi
+from .popen_pool import call_py_ffi, call_cpp_py_ffi, fast_summation, slow_summation
+from .popen_pool import timeout_job
 
 from . import auto_scheduler
+from . import autotvm

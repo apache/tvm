@@ -182,6 +182,7 @@ _reg.register_strategy("unique", strategy.unique_strategy)
 _reg.register_strategy("invert_permutation", strategy.invert_permutation_strategy)
 _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 
+
 #####################
 #  Shape functions  #
 #####################

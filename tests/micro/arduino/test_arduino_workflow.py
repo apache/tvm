@@ -17,6 +17,7 @@
 
 import datetime
 import pathlib
+import re
 import shutil
 import sys
 
@@ -28,7 +29,7 @@ import conftest
 This unit test simulates a simple user workflow, where we:
 1. Generate a base sketch using a simple audio model
 2. Modify the .ino file, much like a user would
-3. Compile the sketch for the target platform
+3. Compile the sketch for the target board
 -- If physical hardware is present --
 4. Upload the sketch to a connected board
 5. Open a serial connection to the board
@@ -39,8 +40,8 @@ This unit test simulates a simple user workflow, where we:
 # Since these tests are sequential, we'll use the same project/workspace
 # directory for all tests in this file
 @pytest.fixture(scope="module")
-def workspace_dir(request, platform):
-    return conftest.make_workspace_dir("arduino_workflow", platform)
+def workspace_dir(request, board):
+    return conftest.make_workspace_dir("arduino_workflow", board)
 
 
 @pytest.fixture(scope="module")
@@ -50,8 +51,8 @@ def project_dir(workspace_dir):
 
 # We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
 @pytest.fixture(scope="module")
-def project(platform, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return conftest.make_kws_project(platform, arduino_cli_cmd, tvm_debug, workspace_dir)
+def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+    return conftest.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
 
 
 def _get_directory_elements(directory):
@@ -80,7 +81,16 @@ def test_model_header_templating(project_dir, project):
     # Ensure model.h was templated with correct WORKSPACE_SIZE
     with (project_dir / "src" / "model.h").open() as f:
         model_h = f.read()
-        assert "#define WORKSPACE_SIZE 21312" in model_h
+        workspace_size_defs = re.findall(r"\#define WORKSPACE_SIZE ([0-9]*)", model_h)
+        assert workspace_size_defs
+        assert len(workspace_size_defs) == 1
+
+        # Make sure the WORKSPACE_SIZE we define is a reasonable size. We don't want
+        # to set an exact value, as this test shouldn't break if an improvement to
+        # TVM causes the amount of memory needed to decrease.
+        workspace_size = int(workspace_size_defs[0])
+        assert workspace_size < 30000
+        assert workspace_size > 10000
 
 
 def test_import_rerouting(project_dir, project):

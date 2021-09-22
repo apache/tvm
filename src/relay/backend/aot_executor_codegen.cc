@@ -38,8 +38,8 @@
 #include <string>
 #include <vector>
 
-#include "te_compiler.h"
-#include "utils.h"
+#include "./te_compiler.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
@@ -583,8 +583,16 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
+    backend::FunctionInfo func_info;
+
+    if (memory_plan.defined()) {
+      // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
+      func_info = tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
+    }
+
     IRModule lowered_mod =
-        LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
+        tec::LowerTEPass(targets_, device_context_map, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -598,12 +606,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         })(mod);
 
-    Optional<backend::FunctionInfo> main_func_info =
-        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
-    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
-    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
     auto lowered_main = lowered_mod->Lookup("main");
-
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
     // Post-lowering storage map for writing main func - this should be the same map as previously
@@ -656,6 +659,20 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     auto storage_rewrite = tir::transform::StorageRewrite();
     mod_run = storage_rewrite(mod_run);
 
+    // The workspace for main function should be calculated after performing storage_rewrite for
+    // the top level TIR function.
+    auto workspace_byte_alignment =
+        target_host_->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Integer main_workspace_size = CalculateWorkspaceBytes(
+        Downcast<tir::PrimFunc>(mod_run->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix)),
+        workspace_byte_alignment);
+
+    Optional<backend::FunctionInfo> main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
+
+    main_func_info.value()->workspace_sizes.Set(target_host_, main_workspace_size);
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
+
     // Legalize AOT if needed. This means that all the packed calls
     // need to be wrapped in TVMValues (unless use_unpacked_api is set)
     if (!use_unpacked_api_) {
@@ -667,7 +684,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     Optional<Array<tvm::runtime::Module>> external_modules =
         lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
-    ICHECK(external_modules) << "Attribute \"external_modules\" should be set at this point.";
+    ICHECK(external_modules) << "Attribute \"external_mods\" should be set at this point.";
 
     // This is the point where we separate the functions in the module by target
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);

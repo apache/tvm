@@ -51,7 +51,11 @@ class Handler(server.ProjectAPIHandler):
             model_library_format_path=""
             if IS_TEMPLATE
             else PROJECT_DIR / MODEL_LIBRARY_FORMAT_RELPATH,
-            project_options=[server.ProjectOption("verbose", help="Run make with verbose output")],
+            project_options=[
+                server.ProjectOption(
+                    "verbose", help="Run make with verbose output", choices=(True, False)
+                )
+            ],
         )
 
     # These files and directories will be recursively copied into generated projects from the CRT.
@@ -111,7 +115,7 @@ class Handler(server.ProjectAPIHandler):
     def build(self, options):
         args = ["make"]
         if options.get("verbose"):
-            args.append("QUIET=")
+            args.append("VERBOSE=1")
 
         args.append(self.BUILD_TARGET)
 

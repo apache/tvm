@@ -885,10 +885,12 @@ def test_slice(target, dev):
 
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
+    _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(10, 3), axes=(1, 0))
     _test_slice_iteration_v1(x, x[:, :, 3:4], starts=(0, 0, 3), ends=(20, 10, 4))
     _test_slice_iteration_v1(x, x[:, 1:1000], starts=(1,), ends=(1000,), axes=(1,))
     _test_slice_iteration_v1(x, x[:, 0:-1], starts=(0,), ends=(-1,), axes=(1,))
     _test_slice_iteration_v10(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
+    _test_slice_iteration_v10(x, x[0:3, 0:10], starts=(0, 0), ends=(10, 3), axes=(1, 0))
     _test_slice_iteration_v10(x, x[:, :, 3:4], starts=(0, 0, 3), ends=(20, 10, 4))
     _test_slice_iteration_v10(x, x[:, 1:1000], starts=(1,), ends=(1000,), axes=(1,))
     _test_slice_iteration_v10(x, x[:, 0:-1], starts=(0,), ends=(-1,), axes=(1,))
@@ -3055,6 +3057,152 @@ def test_global_pooling(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_qlinear_average_pool(target, dev):
+    def verify_qlinear_average_pool(
+        x_shape, kernel_shape, strides, pads, out_shape, auto_pad="NOTSET"
+    ):
+        input_nodes = [
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_shape)),
+        ]
+
+        output_nodes = [
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(out_shape)),
+        ]
+
+        input_names = ["X"]
+
+        node = helper.make_node(
+            "AveragePool",
+            inputs=input_names,
+            outputs=["Y"],
+            kernel_shape=kernel_shape,
+            strides=strides,
+        )
+
+        if pads is None:
+            pad_attr = helper.make_attribute("auto_pad", auto_pad)
+        else:
+            pad_attr = helper.make_attribute("pads", pads)
+        node.attribute.append(pad_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "qlinear_average_pool_test",
+            inputs=input_nodes,
+            outputs=output_nodes,
+        )
+
+        model = helper.make_model(graph, producer_name="qlinear_average_pool_Test")
+        quantize_and_verify_with_ort(model, input_names, [x_shape], target, dev)
+
+    # Pool1D
+    verify_qlinear_average_pool(
+        x_shape=[1, 1, 32],
+        kernel_shape=[3],
+        strides=[1],
+        pads=[1, 1],
+        out_shape=[1, 1, 32],
+    )
+    # Pool2D
+    verify_qlinear_average_pool(
+        x_shape=[1, 1, 32, 32],
+        kernel_shape=[3, 3],
+        strides=[1, 1],
+        pads=[1, 1, 1, 1],
+        out_shape=[1, 1, 32, 32],
+    )
+
+    # Pool1D with stride
+    verify_qlinear_average_pool(
+        x_shape=[1, 1, 32],
+        kernel_shape=[3],
+        strides=[2],
+        pads=[1, 1],
+        out_shape=[1, 1, 16],
+    )
+    # Pool2D with stride
+    verify_qlinear_average_pool(
+        x_shape=[1, 1, 32, 32],
+        kernel_shape=[3, 3],
+        strides=[2, 2],
+        pads=[1, 1, 1, 1],
+        out_shape=[1, 1, 16, 16],
+    )
+
+    # Pool1D with stride and autopadding
+    verify_qlinear_average_pool(
+        x_shape=[1, 1, 32],
+        kernel_shape=[3],
+        strides=[2],
+        pads=None,
+        out_shape=[1, 1, 16],
+        auto_pad="SAME_UPPER",
+    )
+    # Pool2D with stride and autopadding
+    verify_qlinear_average_pool(
+        x_shape=[1, 1, 32, 32],
+        kernel_shape=[3, 3],
+        strides=[2, 2],
+        pads=None,
+        out_shape=[1, 1, 16, 16],
+        auto_pad="SAME_UPPER",
+    )
+
+    # Pool3D with stride
+    verify_qlinear_average_pool(
+        x_shape=[1, 1, 32, 32, 32],
+        kernel_shape=[3, 3, 3],
+        strides=[2, 2, 2],
+        pads=[1, 1, 1, 1, 1, 1],
+        out_shape=[1, 1, 16, 16, 16],
+    )
+
+    # Pool3D with stride and autopadding
+    verify_qlinear_average_pool(
+        x_shape=[1, 1, 32, 32, 32],
+        kernel_shape=[3, 3, 3],
+        strides=[2, 2, 2],
+        pads=None,
+        out_shape=[1, 1, 16, 16, 16],
+        auto_pad="SAME_UPPER",
+    )
+
+
+@tvm.testing.parametrize_targets
+def test_qlinear_global_average_pool(target, dev):
+    def verify_qlinear_global_average_pool(x_shape):
+        out_shape = x_shape[:2] + [1] * (len(x_shape) - 2)
+
+        node_type = "GlobalAveragePool"
+
+        input_names = ["X"]
+
+        pool_node = helper.make_node(node_type, inputs=input_names, outputs=["Y"])
+
+        graph = helper.make_graph(
+            [pool_node],
+            "qlinear_global_average_pool_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="qlinear_global_average_pool_test")
+        quantize_and_verify_with_ort(model, input_names, [x_shape], target, dev)
+
+    # 1D Pooling (NCW)
+    verify_qlinear_global_average_pool([1, 8, 8])
+    verify_qlinear_global_average_pool([4, 1, 4])
+
+    # 2D Pooling (NCHW)
+    verify_qlinear_global_average_pool([1, 8, 8, 8])
+    verify_qlinear_global_average_pool([4, 1, 6, 4])
+
+    # 3D Pooling (NCDHW)
+    verify_qlinear_global_average_pool([1, 8, 6, 8, 8])
+    verify_qlinear_global_average_pool([4, 1, 2, 6, 4])
+
+
+@tvm.testing.parametrize_targets
 def test_mod(target, dev):
     def verify_mod(x_shape, y_shape, fmod, out_shape, dtype="float32"):
         x_np = np.random.uniform(-100.0, 100.0, x_shape).astype(dtype)
@@ -3323,6 +3471,8 @@ def verify_rnn(
     use_peep=False,
     linear_before_reset=False,
     directions=1,
+    rtol=1e-5,
+    atol=1e-5,
     target=None,
     dev=None,
 ):
@@ -3445,7 +3595,7 @@ def verify_rnn(
     model = helper.make_model(graph, producer_name="rnn_test")
 
     verify_with_ort_with_inputs(
-        model, input_values, output_shapes, atol=1e-2, rtol=1e-2, target=target, dev=dev
+        model, input_values, output_shapes, atol=atol, rtol=rtol, target=target, dev=dev
     )
 
 
@@ -3601,6 +3751,8 @@ def test_lstm(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_gru(target, dev):
+    # Set seed for test reproduction
+    np.random.seed(137)
     for directions in [1, 2]:
         # No bias.
         verify_rnn(
@@ -3611,10 +3763,12 @@ def test_gru(target, dev):
             use_bias=False,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
-        # large batch.
+        # large batch. linear before reset
         verify_rnn(
             seq_length=4,
             batch_size=8,
@@ -3636,6 +3790,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3648,6 +3804,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3660,6 +3818,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3672,6 +3832,8 @@ def test_gru(target, dev):
             use_bias=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3687,6 +3849,8 @@ def test_gru(target, dev):
             activations=["HardSigmoid", "Softsign"] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -3702,6 +3866,8 @@ def test_gru(target, dev):
             betas=[0.3, 0.0] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-8,
+            atol=1e-8,
             target=target,
             dev=dev,
         )
@@ -3717,6 +3883,8 @@ def test_gru(target, dev):
             betas=[0.3, 0.1] * directions,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-8,
+            atol=1e-8,
             target=target,
             dev=dev,
         )
@@ -3731,6 +3899,8 @@ def test_gru(target, dev):
             use_initial_state=True,
             rnn_type="GRU",
             directions=directions,
+            rtol=1e-6,
+            atol=1e-6,
             target=target,
             dev=dev,
         )
@@ -4121,11 +4291,7 @@ def test_non_max_suppression(target, dev):
     )
 
 
-# @tvm.testing.parametrize_targets
-@pytest.mark.skip(
-    "Test regressed due to not being run in CI"
-    + " tracked here: https://github.com/apache/tvm/pull/8274"
-)
+@tvm.testing.parametrize_targets
 def test_loop(target, dev):
     def verify_cond_loop():
         y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])
@@ -4687,10 +4853,6 @@ onnx_test_folders = sorted(
 )
 
 unsupported_onnx_tests = [
-    "test_adagrad",
-    "test_adagrad_multiple",
-    "test_adam",
-    "test_adam_multiple",
     "test_cast_BFLOAT16_to_FLOAT",
     "test_cast_DOUBLE_to_FLOAT16",
     "test_cast_FLOAT_to_BFLOAT16",
@@ -4715,11 +4877,6 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
-    "test_einsum_batch_diagonal",
-    "test_einsum_batch_matmul",
-    "test_einsum_inner_prod",
-    "test_einsum_sum",
-    "test_einsum_transpose",
     "test_greater_equal",
     "test_greater_equal_bcast",
     "test_if_seq",
@@ -4740,10 +4897,7 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_pads",
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
-    "test_momentum",
-    "test_momentum_multiple",
     "test_mvn",
-    "test_nesterov_momentum",
     # When unsqueeze is fully supported, remaining nllloss tests should work:
     "test_nllloss_NC_expanded",
     "test_nllloss_NCd1_expanded",
@@ -4763,19 +4917,6 @@ unsupported_onnx_tests = [
     "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded",
     "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded",
     "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded",
-    # This nllloss test is flaky and sometimes gives NaNs
-    # Investigate it here: https://github.com/apache/tvm/issues/8918
-    "test_nllloss_NCd1d2d3_none_no_weight_negative_ii",
-    "test_pow_types_float",
-    "test_pow_types_float32_int32",
-    "test_pow_types_float32_int64",
-    "test_pow_types_float32_uint32",
-    "test_pow_types_float32_uint64",
-    "test_pow_types_int",
-    "test_pow_types_int32_float32",
-    "test_pow_types_int32_int32",
-    "test_pow_types_int64_float32",
-    "test_pow_types_int64_int64",
     "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
@@ -4803,73 +4944,40 @@ unsupported_onnx_tests = [
     "test_round",
     "test_scan9_sum",
     "test_scan_sum",
-    "test_sce_NCd1_mean_weight_negative_ii",
+    # With reduce_sum supported fully, these expanded tests should pass
     "test_sce_NCd1_mean_weight_negative_ii_expanded",
-    "test_sce_NCd1_mean_weight_negative_ii_log_prob",
     "test_sce_NCd1_mean_weight_negative_ii_log_prob_expanded",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii",
     "test_sce_NCd1d2d3_none_no_weight_negative_ii_expanded",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii_log_prob",
     "test_sce_NCd1d2d3_none_no_weight_negative_ii_log_prob_expanded",
-    "test_sce_NCd1d2d3_sum_weight_high_ii",
     "test_sce_NCd1d2d3_sum_weight_high_ii_expanded",
-    "test_sce_NCd1d2d3_sum_weight_high_ii_log_prob",
     "test_sce_NCd1d2d3_sum_weight_high_ii_log_prob_expanded",
-    "test_sce_NCd1d2d3d4d5_mean_weight",
     "test_sce_NCd1d2d3d4d5_mean_weight_expanded",
-    "test_sce_NCd1d2d3d4d5_mean_weight_log_prob",
     "test_sce_NCd1d2d3d4d5_mean_weight_log_prob_expanded",
-    "test_sce_NCd1d2d3d4d5_none_no_weight",
     "test_sce_NCd1d2d3d4d5_none_no_weight_expanded",
-    "test_sce_NCd1d2d3d4d5_none_no_weight_log_prob",
     "test_sce_NCd1d2d3d4d5_none_no_weight_log_prob_expanded",
-    "test_sce_mean",
-    "test_sce_mean_3d",
     "test_sce_mean_3d_expanded",
-    "test_sce_mean_3d_log_prob",
     "test_sce_mean_3d_log_prob_expanded",
     "test_sce_mean_expanded",
-    "test_sce_mean_log_prob",
     "test_sce_mean_log_prob_expanded",
-    "test_sce_mean_no_weight_ii",
-    "test_sce_mean_no_weight_ii_3d",
     "test_sce_mean_no_weight_ii_3d_expanded",
-    "test_sce_mean_no_weight_ii_3d_log_prob",
     "test_sce_mean_no_weight_ii_3d_log_prob_expanded",
-    "test_sce_mean_no_weight_ii_4d",
     "test_sce_mean_no_weight_ii_4d_expanded",
-    "test_sce_mean_no_weight_ii_4d_log_prob",
     "test_sce_mean_no_weight_ii_4d_log_prob_expanded",
     "test_sce_mean_no_weight_ii_expanded",
-    "test_sce_mean_no_weight_ii_log_prob",
     "test_sce_mean_no_weight_ii_log_prob_expanded",
-    "test_sce_mean_weight",
     "test_sce_mean_weight_expanded",
-    "test_sce_mean_weight_ii",
-    "test_sce_mean_weight_ii_3d",
     "test_sce_mean_weight_ii_3d_expanded",
-    "test_sce_mean_weight_ii_3d_log_prob",
     "test_sce_mean_weight_ii_3d_log_prob_expanded",
-    "test_sce_mean_weight_ii_4d",
     "test_sce_mean_weight_ii_4d_expanded",
-    "test_sce_mean_weight_ii_4d_log_prob",
     "test_sce_mean_weight_ii_4d_log_prob_expanded",
     "test_sce_mean_weight_ii_expanded",
-    "test_sce_mean_weight_ii_log_prob",
     "test_sce_mean_weight_ii_log_prob_expanded",
-    "test_sce_mean_weight_log_prob",
     "test_sce_mean_weight_log_prob_expanded",
-    "test_sce_none",
     "test_sce_none_expanded",
-    "test_sce_none_log_prob",
     "test_sce_none_log_prob_expanded",
-    "test_sce_none_weights",
     "test_sce_none_weights_expanded",
-    "test_sce_none_weights_log_prob",
     "test_sce_none_weights_log_prob_expanded",
-    "test_sce_sum",
     "test_sce_sum_expanded",
-    "test_sce_sum_log_prob",
     "test_sce_sum_log_prob_expanded",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
@@ -4952,6 +5060,12 @@ def test_onnx_nodes(target, dev, onnx_test):
         # for some reason the ONNX test crops the
         # roialign results to 4 decimal places
         atol = 1e-4
+
+    if "_sce_" in test_dir:
+        # complicated loss functions like SoftmaxCrossEntropy can have minor variations
+        # in accuracy depending on implementation
+        atol = 1e-4
+
     onnx_model = onnx.load(test_dir + "/model.onnx")
     inputs = []
     outputs = []
@@ -5337,6 +5451,39 @@ def test_qlinearconv(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_qlinearconcat(target, dev):
+    def verify_qlinearconcat(shapes, out_shape, axis=None):
+        input_names = []
+        input_values = []
+        input_nodes = []
+        for i in range(len(shapes)):
+            tensor_name = chr(ord("a") + i)
+            shape = shapes[i]
+            node = helper.make_tensor_value_info(tensor_name, TensorProto.FLOAT, list(shape))
+
+            input_names.append(tensor_name)
+            input_values.append(np.random.random(shape).astype("float32"))
+            input_nodes.append(node)
+
+        node = helper.make_node("Concat", input_names, ["C"])
+        if axis is not None:
+            axis_attr = helper.make_attribute("axis", axis)
+            node.attribute.append(axis_attr)
+        graph = helper.make_graph(
+            [node],
+            "qlinearconcat_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("C", TensorProto.FLOAT, list(out_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearconcat_test")
+        quantize_and_verify_with_ort(model, input_names, shapes, target, dev)
+
+    verify_qlinearconcat([[2, 1], [2, 1]], [4, 1], 0)
+    verify_qlinearconcat([[2, 1], [2, 1]], [2, 2], 1)
+    verify_qlinearconcat([[1, 2], [2, 2], [3, 2]], [6, 2], 0)
+
+
+@tvm.testing.parametrize_targets
 def test_qlinearadd(target, dev):
     def verify_qlinearadd(a_shape, b_shape, c_shape):
 
@@ -5395,9 +5542,36 @@ def test_qlinearmul(target, dev):
         model = helper.make_model(graph, producer_name="qlinearmul_test")
         quantize_and_verify_with_ort(model, input_names, [a_shape, b_shape], target, dev)
 
+    verify_qlinearmul([7], [7], [7])
     verify_qlinearmul([4, 2], [4, 2], [4, 2])
     verify_qlinearmul([4, 2], [2], [4, 2])
     verify_qlinearmul([5, 1, 7], [2, 7], [5, 2, 7])
+
+
+@tvm.testing.parametrize_targets
+def test_qlinearsigmoid(target, dev):
+    def verify_qlinearsigmoid(a_shape):
+
+        a_array = np.random.random(a_shape).astype("float32")
+
+        input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape))]
+
+        input_values = [a_array]
+
+        node = helper.make_node("Sigmoid", ["a"], ["B"])
+        graph = helper.make_graph(
+            [node],
+            "qlinearsigmoid_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("B", TensorProto.FLOAT, list(a_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearsigmoid_test")
+        quantize_and_verify_with_ort(model, ["a"], [a_shape], target, dev)
+
+    verify_qlinearsigmoid([4, 2])
+    verify_qlinearsigmoid([5])
+    verify_qlinearsigmoid([3, 4, 5])
+    verify_qlinearsigmoid([])
 
 
 @tvm.testing.parametrize_targets
@@ -5694,6 +5868,7 @@ if __name__ == "__main__":
     test_index_put()
     test_reverse_sequence()
     test_eyelike()
+    test_qlinearconcat()
     test_qlinearconv()
     test_random_uniform()
     test_convinteger()

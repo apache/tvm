@@ -52,24 +52,15 @@
 #include "../transforms/infer_layout_utils.h"
 #include "../transforms/pass_utils.h"
 #include "./te_compiler_cache.h"
-#include "utils.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
 namespace tec {
 
-// This class is needed to avoid a GCC 5 bug that prevents maps containing enums
-// from being compiled. If i386 GCC version is increased, we can remove it.
-struct EnumClassHash {
-  template <typename T>
-  std::size_t operator()(T t) const {
-    return static_cast<std::size_t>(t);
-  }
-};
-
 // TODO(@jroesch, @chrisS) these should be a tvm::Map for uniformity sake
 // we should a version of context which works in Map
-using TargetMap = std::unordered_map<DLDeviceType, Target, EnumClassHash>;
+using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
 using DeviceMap =
     std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 using ProcessFn = std::function<void(Function)>;
@@ -158,19 +149,22 @@ void UpdateFunctionMetadata(Function relay_func,
  */
 Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
 
+/*!
+ * \brief Update the "main" control function's metadata
+ *
+ * \param mod The module
+ * \param targets Map of targets
+ * \return function_infos Function info for each function in the module
+ */
+backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
+                                              Map<Expr, backend::StorageInfo> storage_info_map);
+
 /*! \brief Utility to separate the functions in an IRModule by Target.
  *
  * \param mod The IRModule to extract the per target module from
  * \return The map from Target to IRModule
  */
 Map<Target, IRModule> GetPerTargetModules(IRModule mod);
-
-/*!
- * \brief Utility to extract all the Relay functions from an IRModule, with no PrimFuncs.
- * \param mod The IRModule to extract the Relay functions from
- * \return An IRModule containing only the Relay functions that are in the input mod (no PrimFuncs)
- */
-IRModule GetMainModule(IRModule mod);
 
 /*! \brief Lower an IRModule's primitive functions to TIR.
  *
@@ -199,15 +193,13 @@ IRModule LowerTE(
  *
  * \param targets The mapping for devices to targets.
  * \param device_context_map An analysis result mapping each sub-expression to a device.
- * \param memory_plan The memory plan used during lowering
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
  * \returns The pass which lowers primative functions to TIR
  */
 transform::Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
-                            backend::StaticMemoryPlan memory_plan, const String& module_name,
-                            std::function<void(Function)> process_fn);
+                            const String& module_name, std::function<void(Function)> process_fn);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

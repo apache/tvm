@@ -427,6 +427,13 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Pass SimplifyExpr();
 
 /*!
+ * \brief Run any registered RelayToTIR passes registered on the functions in a module.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RelayToTIRTargetHook();
+
+/*!
  * \brief A pass for manifesting explicit memory allocations and rewriting
  * specific dialects.
  *

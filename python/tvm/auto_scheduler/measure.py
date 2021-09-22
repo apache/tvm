@@ -652,8 +652,8 @@ def local_build_worker(args):
 
     Parameters
     ----------
-    args: Tuple[MeasureInput, str, int, int]
-        inputs, build-func, time, verbose args passed to local_builder_build
+    args: Tuple[MeasureInput, callable, int]
+        inputs, build-func, verbose args passed to local_builder_build
 
     Returns
     -------
@@ -661,10 +661,6 @@ def local_build_worker(args):
         The build result of this Builder thread.
     """
     inp, build_func, verbose = args
-    assert build_func == BuildFunc.name, (
-        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
-    )
-    build_func = BuildFunc.build_func
 
     return _local_build_worker(inp, build_func, verbose)
 
@@ -693,6 +689,9 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
+    assert build_func == BuildFunc.name, (
+        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
+    )
     executor = PopenPoolExecutor(
         n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
     )
@@ -701,7 +700,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
         [
             (
                 i.serialize(),
-                build_func,
+                BuildFunc.build_func,
                 verbose,
             )
             for i in inputs

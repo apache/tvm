@@ -27,13 +27,6 @@ from .. import op as _op
 from .cuda import judge_winograd, naive_schedule
 
 
-@schedule_lrn.register("rocm")
-def schedule_lrn_rocm(attrs, outs, target):
-    """schedule LRN for rocm"""
-    with target:
-        return topi.rocm.schedule_lrn(outs)
-
-
 @conv2d_strategy.register("rocm")
 def conv2d_strategy_rocm(attrs, inputs, out_type, target):
     """conv2d rocm strategy"""
