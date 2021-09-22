@@ -24,39 +24,39 @@ msgstr ""
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:53
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:55
 msgid "Edit on GitHub"
-msgstr ""
+msgstr "在 GitHub 编辑"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:60
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:62
 msgid "Edit on Bitbucket"
-msgstr ""
+msgstr "在 Bitbucket 编辑"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:67
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:69
 msgid "Edit on GitLab"
-msgstr ""
+msgstr "在 GitLab 编辑"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:72
 msgid "View page source"
-msgstr ""
+msgstr "查看页面源代码"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:84
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/footer.html:7
 msgid "Next"
-msgstr ""
+msgstr "下一个"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/breadcrumbs.html:87
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/footer.html:10
 msgid "Previous"
-msgstr ""
+msgstr "上一个"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/layout.html:87
 msgid "Search within %(docstitle)s"
-msgstr ""
+msgstr "内搜索 %(docstitle)s"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/layout.html:96
 msgid "About these documents"
-msgstr ""
+msgstr "关于这些文档"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/layout.html:99
 msgid "Index"
@@ -64,16 +64,16 @@ msgstr "索引"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/layout.html:102
 msgid "Search"
-msgstr ""
+msgstr "搜索"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/layout.html:105
 msgid "Copyright"
-msgstr ""
+msgstr "版权"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/layout.html:131
 msgid "Documentation Home"
-msgstr ""
+msgstr "文档主页"
 
 #: ../../../../../usr/local/lib/python3.6/dist-packages/tlcpack_sphinx_addon/_templates/layout.html:138
 msgid "Logo"
-msgstr ""
+msgstr "Logo"

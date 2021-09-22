@@ -5,8 +5,8 @@
 # 
 # Translators:
 # 长德 司, 2021
-# HLearning, 2021
 # JiaKui Hu, 2021
+# HLearning, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:39+0000\n"
-"Last-Translator: JiaKui Hu, 2021\n"
+"Last-Translator: HLearning, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -3547,7 +3547,7 @@ msgstr ""
 #: of tvm.topi.sparse_reshape.sparse_reshape:15
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.unique.unique:24
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.transform.expand_like:24
@@ -8483,7 +8483,7 @@ msgstr ""
 #: ../../../python/tvm/topi/nn/__init__.pydocstring of
 #: tvm.topi.nn.sparse.try_get_sparse_input:10
 msgid "Notes"
-msgstr ""
+msgstr "特别注意"
 
 #: ../../../python/tvm/topi/nn/__init__.pydocstring of
 #: tvm.topi.nn.sparse.try_get_conv2d_sparse_input:11

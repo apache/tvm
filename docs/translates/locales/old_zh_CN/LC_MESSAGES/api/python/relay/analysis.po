@@ -5,6 +5,7 @@
 # 
 # Translators:
 # 长德 司, 2021
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -455,7 +456,7 @@ msgstr ""
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis.analysis.well_formed:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
 #: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:3
@@ -517,7 +518,7 @@ msgstr ""
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis.analysis.well_formed:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
 #: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:6
@@ -579,7 +580,7 @@ msgstr ""
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis.analysis.well_formed:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
 #: tvm.relay.analysis.call_graph.CallGraph:1
@@ -835,7 +836,7 @@ msgstr ""
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis.analysis.check_kind:14
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis.analysis.collect_device_annotation_ops:6

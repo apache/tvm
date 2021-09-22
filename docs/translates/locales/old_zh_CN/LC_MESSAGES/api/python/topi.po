@@ -5,6 +5,7 @@
 # 
 # Translators:
 # 长德 司, 2021
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -1921,7 +1922,7 @@ msgstr ""
 #: ../../../python/tvm/topi/sparse/__init__.pydocstring of
 #: tvm.topi.sparse.dense.dense:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/tir/stmt.pydocstring of tvm.tir.stmt.AssertStmt:3
 msgid "The assert condition."
@@ -2410,7 +2411,7 @@ msgstr ""
 #: ../../../python/tvm/topi/sparse/__init__.pydocstring of
 #: tvm.topi.sparse.dense.dense:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.math.abs:6
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.math.acos:6
@@ -2842,7 +2843,7 @@ msgstr ""
 #: ../../../python/tvm/topi/sparse/__init__.pydocstring of
 #: tvm.topi.sparse.dense.dense:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.broadcast.add:3
 #: ../../../python/tvm/topi/__init__.pydocstring of
@@ -3546,7 +3547,7 @@ msgstr ""
 #: of tvm.topi.sparse_reshape.sparse_reshape:15
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.unique.unique:24
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.transform.expand_like:24
@@ -8482,7 +8483,7 @@ msgstr ""
 #: ../../../python/tvm/topi/nn/__init__.pydocstring of
 #: tvm.topi.nn.sparse.try_get_sparse_input:10
 msgid "Notes"
-msgstr ""
+msgstr "特别注意"
 
 #: ../../../python/tvm/topi/nn/__init__.pydocstring of
 #: tvm.topi.nn.sparse.try_get_conv2d_sparse_input:11

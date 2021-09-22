@@ -96,6 +96,11 @@ then
     # fix github pages theme error
     touch $DOCS/_build/html_$LANGUAGE/.nojekyll
     cp -r $DOCS/html_additions/$LANGUAGE/* $DOCS/_build/html_$LANGUAGE/
+
+    echo "if you want to flush the contribute pages, please download and replace docs/contribute_translate/translator_data.csv"
+    python3 $DOCS/contribute_translate/build_html.py
+    cp $DOCS/contribute_translate/declaration_zh_CN.html $DOCS/_build/html_$LANGUAGE/
+
     echo "--finish create the $DOCS/_build/html_$LANGUAGE"
     echo "done."
 fi

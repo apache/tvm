@@ -4,6 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
+# Yuchen, 2021
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
 # 
 #, fuzzy
@@ -27,10 +28,7 @@ msgstr "使用 TVM 时遇到 Errors 怎么做"
 
 #: ../../_staging/errors.rst:22
 msgid "When running TVM, you may encounter an error message like:"
-msgstr ""
-"**翻译**: `yutian <https://github.com/oneflyingfish>`_\n"
-"\n"
-"运行 TVM 时，可能会遇到如下错误消息："
+msgstr "运行 TVM 时，可能会遇到如下错误消息："
 
 #: ../../_staging/errors.rst:31
 msgid ""
@@ -77,7 +75,7 @@ msgid ""
 "solution might be. If this error is the result of a bug that has been fixed "
 "in a more recent version of TVM, you may need to update to a newer version."
 msgstr ""
-"最好的行为是搜索 `Apache TVM 论坛 <https://discuss.tvm.apache.org/>`_ "
+"最好的办法是搜索 `Apache TVM 论坛 <https://discuss.tvm.apache.org/>`_ "
 "来了解您遇到的错误是否其他人也遇到过，以及可能存在的解决方案。如果此错误是由于最近某个 TVM 版本中已修复的 bug "
 "导致的，那么您可能需要更新到更新的版本。"
 
@@ -92,25 +90,25 @@ msgstr "如果您在论坛中没有找到有关问题的讨论，欢迎您在论
 msgid ""
 "The version of TVM you are using (e.g., the git commit hash of your source "
 "tree)."
-msgstr "您正在使用的 TVM 版本（例如，代码树中对应的 git commit 哈希值）"
+msgstr "您正在使用的 TVM 版本（例如，代码树中对应的 git commit 哈希值）。"
 
 #: ../../_staging/errors.rst:65
 msgid "Which hardware and operating system version you are running TVM on."
-msgstr "您正在使用的硬件环境以及操作系统版本"
+msgstr "您正在使用的硬件环境以及操作系统版本。"
 
 #: ../../_staging/errors.rst:66
 msgid ""
 "Which hardware device and OS you are targeting for your TVM compilation."
-msgstr "TVM编译的目标硬件设备和操作系统是什么"
+msgstr "TVM编译的目标硬件设备和操作系统是什么。"
 
 #: ../../_staging/errors.rst:67
 msgid ""
 "Details on the model, inputs, or other information about the workload, which"
 " can be used to reproduce your problem."
-msgstr "有关模型、输入或其他有关工作负载的详细信息，这些信息可用于复现您的问题"
+msgstr "有关模型、输入或其他有关工作负载的详细信息，这些信息可用于复现您的问题。"
 
 #: ../../_staging/errors.rst:70
 msgid ""
 "Without these details it is very difficult for the TVM developers to do very"
 " much to help you."
-msgstr "如果没有这些细节，TVM 开发人员很难为您提供很大的帮助"
+msgstr "如果没有这些细节，TVM 开发人员很难为您提供很大的帮助。"

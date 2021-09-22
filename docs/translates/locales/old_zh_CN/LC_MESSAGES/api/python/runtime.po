@@ -5,6 +5,7 @@
 # 
 # Translators:
 # 长德 司, 2021
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -756,7 +757,7 @@ msgstr ""
 #: ../../../python/tvm/runtime/__init__.pydocstring of
 #: tvm.runtime.params.load_param_dict:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
 #: tvm.runtime.Device.exist:7
@@ -843,7 +844,7 @@ msgstr ""
 #: ../../../python/tvm/runtime/__init__.pydocstring of
 #: tvm.runtime.params.load_param_dict:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
 #: tvm.runtime.Device.max_threads_per_block:3
@@ -1033,7 +1034,7 @@ msgstr ""
 #: ../../../python/tvm/runtime/__init__.pydocstring of
 #: tvm.runtime.params.load_param_dict:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
 #: tvm._ffi.runtime_ctypes.Device.free_raw_stream:3
@@ -1535,7 +1536,7 @@ msgstr ""
 #: ../../../python/tvm/runtime/__init__.pydocstring of
 #: tvm.runtime.params.save_param_dict:13
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/runtime/__init__.pydocstring of
 #: tvm.runtime.ndarray.device:13

@@ -5,6 +5,7 @@
 # 
 # Translators:
 # 长德 司, 2021
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -2303,7 +2304,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.param_dict.load_param_dict:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.build_module.build:3
@@ -2598,7 +2599,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.param_dict.load_param_dict:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.build_module.build:22
@@ -2852,7 +2853,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.param_dict.load_param_dict:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.build_module.create_executor:4
@@ -3254,7 +3255,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.param_dict.save_param_dict:16
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of tvm.relay.expr.const:3
 msgid "The constant value."
@@ -5252,7 +5253,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.op.transform.tile:25
 msgid "Notes"
-msgstr ""
+msgstr "特别注意"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.op.transform.tile:26

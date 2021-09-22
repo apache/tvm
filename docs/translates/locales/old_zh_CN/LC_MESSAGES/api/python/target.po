@@ -6,6 +6,7 @@
 # Translators:
 # 长德 司, 2021
 # HLearning, 2021
+# JiaKui Hu, 2021
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:39+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: JiaKui Hu, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -431,7 +432,7 @@ msgstr ""
 #: ../../../python/tvm/target/__init__.pydocstring of
 #: tvm.target.generic_func.override_native_generic_func:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target.current:3
@@ -561,7 +562,7 @@ msgstr ""
 #: ../../../python/tvm/target/__init__.pydocstring of
 #: tvm.target.generic_func.override_native_generic_func:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/target/__init__.pydocstring of
 #: tvm.target.tag.list_tags:3
@@ -578,7 +579,7 @@ msgstr ""
 #: ../../../python/tvm/target/__init__.pydocstring of
 #: tvm.target.generic_func.override_native_generic_func:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/target/generic_func.pydocstring of
 #: tvm.target.generic_func.GenericFunc:1

@@ -64,7 +64,7 @@ then
     mv $SCRIPTFOLD/$LOCALESDIR/$LANGUAGE $SCRIPTFOLD/$LOCALESDIR/old_$LANGUAGE
 
     cd $SCRIPTFOLD/.tx/ && tx pull -l $LANGUAGE
-
+    
     echo "done."
     exit
 fi

@@ -5,6 +5,7 @@
 # 
 # Translators:
 # 长德 司, 2021
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -936,7 +937,7 @@ msgstr ""
 #: ../../../python/tvm/relay/transform/__init__.pydocstring of
 #: tvm.relay.transform.transform.un_cps:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/relay/transform/__init__.pydocstring of
 #: tvm.relay.transform.recast.recast:10
@@ -1083,7 +1084,7 @@ msgstr ""
 #: ../../../python/tvm/relay/transform/__init__.pydocstring of
 #: tvm.relay.transform.transform.un_cps:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/relay/transform/__init__.pydocstring of
 #: tvm.relay.transform.recast.recast:25
@@ -1206,7 +1207,7 @@ msgstr ""
 #: ../../../python/tvm/relay/transform/__init__.pydocstring of
 #: tvm.relay.transform.transform.un_cps:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/relay/transform/__init__.pydocstring of
 #: tvm.relay.transform.transform.AlterOpLayout:1
@@ -1982,7 +1983,7 @@ msgstr ""
 #: ../../../python/tvm/relay/transform/__init__.pydocstring of
 #: tvm.relay.transform.transform.function_pass:25
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/relay/transform/__init__.pydocstring of
 #: tvm.relay.transform.transform.function_pass:26

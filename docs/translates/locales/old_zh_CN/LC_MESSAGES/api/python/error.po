@@ -4,6 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -161,7 +162,7 @@ msgstr ""
 
 #: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:3
 msgid "The name of the error function."
@@ -173,7 +174,7 @@ msgstr ""
 
 #: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:8
 msgid "**fregister** -- Register function if f is not specified."
@@ -181,12 +182,12 @@ msgstr ""
 
 #: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:12
 #: ../../../python/tvm/error.pydocstring of tvm.error.InternalError:4
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/_ffi/base.pydocstring of tvm._ffi.base.TVMError:3
 msgid ""

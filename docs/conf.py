@@ -380,6 +380,7 @@ header_links = [
     ("Docs", "https://tvm.apache.org/docs"),
     ("Conference", "https://tvmconf.org"),
     ("Github", "https://github.com/apache/tvm/"),
+    ("Translate-Contribution", "https://tvmchinese.github.io/declaration_zh_CN.html")
 ]
 
 header_dropdown = {

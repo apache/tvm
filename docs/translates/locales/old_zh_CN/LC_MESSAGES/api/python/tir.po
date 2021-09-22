@@ -5,6 +5,7 @@
 # 
 # Translators:
 # 长德 司, 2021
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -1761,7 +1762,7 @@ msgstr ""
 #: ../../../python/tvm/tir/stmt_functor.pydocstring of
 #: tvm.tir.stmt_functor.substitute:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/tir/buffer.pydocstring of
 #: tvm.tir.buffer.Buffer.access_ptr:6
@@ -1840,7 +1841,7 @@ msgstr ""
 #: ../../../python/tvm/tir/function.pydocstring of
 #: tvm.tir.function.PrimFunc.specialize:7
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/tir/buffer.pydocstring of tvm.tir.buffer.Buffer.vload:3
 #: ../../../python/tvm/tir/buffer.pydocstring of
@@ -2112,7 +2113,7 @@ msgstr ""
 #: ../../../python/tvm/tir/stmt_functor.pydocstring of
 #: tvm.tir.stmt_functor.substitute:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/tir/buffer.pydocstring of tvm.tir.buffer.Buffer.vload:9
 #: ../../../python/tvm/tir/buffer.pydocstring of tvm.tir.buffer.Buffer.vload:9
@@ -2374,7 +2375,7 @@ msgstr ""
 #: ../../../python/tvm/tir/stmt_functor.pydocstring of
 #: tvm.tir.stmt_functor.substitute:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/tir/buffer.pydocstring of
 #: tvm.tir.buffer.Buffer.vstore:5 ../../../python/tvm/tir/stmt.pydocstring of

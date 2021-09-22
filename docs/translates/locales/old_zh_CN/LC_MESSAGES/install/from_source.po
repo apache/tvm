@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:44+0000\n"
+"Last-Translator: HLearning, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,67 +23,69 @@ msgstr ""
 
 #: ../../_staging/install/from_source.rst:21
 msgid "Install from Source"
-msgstr ""
+msgstr "从源码安装"
 
 #: ../../_staging/install/from_source.rst:22
 msgid ""
 "This page gives instructions on how to build and install the TVM package "
 "from scratch on various systems. It consists of two steps:"
-msgstr ""
+msgstr "此页面提供了有关如何在各种系统上从头开始编译和安装 TVM 的说明。 它有两个步骤组成："
 
 #: ../../_staging/install/from_source.rst:25
 msgid ""
 "First build the shared library from the C++ codes (`libtvm.so` for linux, "
 "`libtvm.dylib` for macOS and `libtvm.dll` for windows)."
 msgstr ""
+"首先从 C++ 代码编译共享库 （Linux: `libtvm.so`，macOS: `libtvm.dylib`，windows: "
+"`libtvm.dll`）。"
 
 #: ../../_staging/install/from_source.rst:26
 msgid "Setup for the language packages (e.g. Python Package)."
-msgstr ""
+msgstr "语言包的设置 （例如： Python包）"
 
 #: ../../_staging/install/from_source.rst:28
 msgid ""
 "To get started, download tvm source code from the `Download Page "
 "<https://tvm.apache.org/download>`_."
-msgstr ""
+msgstr "首先, 从 `下载页 <https://tvm.apache.org/download>`_ 下载 TVM 源代码"
 
 #: ../../_staging/install/from_source.rst:31
 msgid "Developers: Get Source from Github"
-msgstr ""
+msgstr "开发者： 从 GitHub 获取源码"
 
 #: ../../_staging/install/from_source.rst:32
 msgid ""
 "You can also choose to clone the source repo from github. It is important to"
 " clone the submodules along, with ``--recursive`` option."
-msgstr ""
+msgstr "您也可以选择从 github 克隆源代码库。 使用 ``--recursive`` 选项克隆子模块很重要"
 
 #: ../../_staging/install/from_source.rst:39
 msgid ""
 "For windows users who use github tools, you can open the git shell, and type"
 " the following command."
-msgstr ""
+msgstr "对于使用github工具的windows用户，可以打开 git shell，输入以下命令。"
 
 #: ../../_staging/install/from_source.rst:50
 msgid "Build the Shared Library"
-msgstr ""
+msgstr "编译共享库"
 
 #: ../../_staging/install/from_source.rst:52
 msgid "Our goal is to build the shared libraries:"
-msgstr ""
+msgstr "我们的目标是编译共享库："
 
 #: ../../_staging/install/from_source.rst:54
 msgid "On Linux the target library are `libtvm.so` and `libtvm_runtime.so`"
-msgstr ""
+msgstr "在 Linux 上，目标库是 `libtvm.so` 和 `libtvm_runtime.so`"
 
 #: ../../_staging/install/from_source.rst:55
 msgid ""
 "On macOS the target library are `libtvm.dylib` and `libtvm_runtime.dylib`"
-msgstr ""
+msgstr "在 macOS 上，目标库是 `libtvm.dylib` 和 `libtvm_runtime.dylib` "
 
 #: ../../_staging/install/from_source.rst:56
 msgid ""
 "On Windows the target library are `libtvm.dll` and `libtvm_runtime.dll`"
-msgstr ""
+msgstr "在 Windows 上，目标库是 `libtvm.dll` 和 `libtvm_runtime.dll`"
 
 #: ../../_staging/install/from_source.rst:58
 msgid ""
@@ -89,32 +95,32 @@ msgstr ""
 
 #: ../../_staging/install/from_source.rst:60
 msgid "The minimal building requirements for the ``TVM`` libraries are:"
-msgstr ""
+msgstr "编译 TVM 库的最低要求是："
 
 #: ../../_staging/install/from_source.rst:62
 msgid "A recent c++ compiler supporting C++ 14 (g++-5 or higher)"
-msgstr ""
+msgstr "支持 C++ 14（g++-5 或更高）的最新 C++ 编译器"
 
 #: ../../_staging/install/from_source.rst:63
 msgid "CMake 3.5 or higher"
-msgstr ""
+msgstr "CMake 3.5 版本或者更高版本"
 
 #: ../../_staging/install/from_source.rst:64
 msgid "We highly recommend to build with LLVM to enable all the features."
-msgstr ""
+msgstr "我们强烈建议使用 LLVM 编译以启用所有功能。"
 
 #: ../../_staging/install/from_source.rst:65
 msgid ""
 "If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are"
 " upgrading from an older version, make sure you purge the older version and "
 "reboot after installation."
-msgstr ""
+msgstr "如果要使用 CUDA，则需要 CUDA 工具包版本 >= 8.0。如果您是从旧版本升级，请确保清除旧版本并在安装后重新启动。"
 
 #: ../../_staging/install/from_source.rst:66
 msgid ""
 "On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily "
 "install and manage dependencies."
-msgstr ""
+msgstr "在 macOS 上，您可能需要安装 `Homebrew <https://brew.sh>` 来轻松安装和管理依赖项。"
 
 #: ../../_staging/install/from_source.rst:67
 msgid ""
@@ -127,7 +133,7 @@ msgstr ""
 msgid ""
 "To install the these minimal pre-requisites on Ubuntu/Debian like linux "
 "operating systems, execute (in a terminal):"
-msgstr ""
+msgstr "要在 Ubuntu/Debian 等 linux 操作系统上安装, 请满足这些最小先决条件，请执行（在终端中）:"
 
 #: ../../_staging/install/from_source.rst:77
 msgid ""
@@ -267,11 +273,11 @@ msgstr ""
 #: ../../_staging/install/from_source.rst:176
 msgid ""
 "If everything goes well, we can go to :ref:`python-package-installation`"
-msgstr ""
+msgstr "如果一切顺利， 我们就可以进入 :ref:`python-package-installation`"
 
 #: ../../_staging/install/from_source.rst:181
 msgid "Building with a Conda Environment"
-msgstr ""
+msgstr "构建一个 Conda 环境"
 
 #: ../../_staging/install/from_source.rst:183
 msgid ""
@@ -281,6 +287,9 @@ msgid ""
 "install miniconda or anaconda if you do not yet have conda in your system. "
 "Run the following command in a conda environment:"
 msgstr ""
+"Conda 是获取运行 TVM 所需依赖项的一种非常方便的方法。首先，如果您的系统中还没有 `conda`，请按照 `conda` "
+"的安装指南<https://docs.conda.io/projects/conda/en/latest/user-guide/install/>`_ "
+"安装 `miniconda` 或 `anaconda`。在 `conda` 环境中运行以下命令："
 
 #: ../../_staging/install/from_source.rst:194
 msgid ""
@@ -377,7 +386,7 @@ msgstr ""
 
 #: ../../_staging/install/from_source.rst:268
 msgid "Method 1"
-msgstr ""
+msgstr "方法 1"
 
 #: ../../_staging/install/from_source.rst:257
 msgid ""
@@ -395,33 +404,33 @@ msgstr ""
 
 #: ../../_staging/install/from_source.rst:280
 msgid "Method 2"
-msgstr ""
+msgstr "方法 2"
 
 #: ../../_staging/install/from_source.rst:271
 msgid "Install TVM python bindings by `setup.py`:"
-msgstr ""
+msgstr "通过 `setup.py` 安装 TVM python bindings "
 
 #: ../../_staging/install/from_source.rst:283
 msgid "Python dependencies"
-msgstr ""
+msgstr "Python 依赖项"
 
 #: ../../_staging/install/from_source.rst:285
 msgid ""
 "Note that the ``--user`` flag is not necessary if you're installing to a "
 "managed local environment, like ``virtualenv``."
-msgstr ""
+msgstr "请注意，如果您要安装到托管本地环境， 如 ``virtualenv``，则不需要  ``--user`` 标志。"
 
 #: ../../_staging/install/from_source.rst:288
 msgid "Necessary dependencies:"
-msgstr ""
+msgstr "必要的依赖："
 
 #: ../../_staging/install/from_source.rst:294
 msgid "If you want to use RPC Tracker"
-msgstr ""
+msgstr "如果你想使用 RPC Tracker"
 
 #: ../../_staging/install/from_source.rst:300
 msgid "If you want to use auto-tuning module"
-msgstr ""
+msgstr "如果要使用 auto-tuning 模块"
 
 #: ../../_staging/install/from_source.rst:306
 msgid ""
@@ -434,17 +443,19 @@ msgstr ""
 
 #: ../../_staging/install/from_source.rst:323
 msgid "Install Contrib Libraries"
-msgstr ""
+msgstr "安装 Contrib 库"
 
 #: ../../_staging/install/from_source.rst:334
 msgid "Enable C++ Tests"
-msgstr ""
+msgstr "使用 C++ 测试"
 
 #: ../../_staging/install/from_source.rst:335
 msgid ""
 "We use `Google Test <https://github.com/google/googletest>`_ to drive the "
 "C++ tests in TVM. The easiest way to install GTest is from source."
 msgstr ""
+"我们使用 `Google Test <https://github.com/google/googletest>`_ 来驱动 TVM 中的 C++ "
+"测试。 安装 GTest 的最简单方法是从源代码。"
 
 #: ../../_staging/install/from_source.rst:349
 msgid ""
@@ -452,3 +463,5 @@ msgid ""
 "``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make "
 "cpptest``."
 msgstr ""
+"安装 GTest 后，可以使用 ``./tests/scripts/task_cpp_unittest.sh`` 或仅使用 ``make "
+"cpptest`` 构建和启动 C++ 测试。"

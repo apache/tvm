@@ -5,6 +5,7 @@
 # 
 # Translators:
 # 长德 司, 2021
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -1125,7 +1126,7 @@ msgstr ""
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.upsampling:0
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.upsampling3d:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/relay/expr.pydocstring of tvm.relay.expr.Constant:3
 msgid "The data content of the constant expression."
@@ -1386,7 +1387,7 @@ msgstr ""
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.upsampling:0
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.upsampling3d:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.adaptive_avg_pool1d:29
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.adaptive_avg_pool2d:32
@@ -1542,7 +1543,7 @@ msgstr ""
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.upsampling:0
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.upsampling3d:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.adaptive_avg_pool2d:1
 msgid "2D adaptive average pooling operator. This operator is experimental."
@@ -3373,7 +3374,7 @@ msgstr ""
 
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.sparse_add:21
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.sparse_dense:9
 msgid "\\if sparse_lhs=False:"

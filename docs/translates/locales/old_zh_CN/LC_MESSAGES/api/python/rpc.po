@@ -5,6 +5,7 @@
 # 
 # Translators:
 # 长德 司, 2021
+# JiaKui Hu, 2021
 # HLearning, 2021
 # 
 #, fuzzy
@@ -170,7 +171,7 @@ msgstr ""
 #: ../../../python/tvm/rpc/__init__.pydocstring of
 #: tvm.rpc.minrpc.with_minrpc:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:7
 msgid "The host url of the server."
@@ -295,7 +296,7 @@ msgstr ""
 #: ../../../python/tvm/rpc/__init__.pydocstring of
 #: tvm.rpc.minrpc.with_minrpc:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:18
 msgid "**sess** -- The connected session."
@@ -318,13 +319,13 @@ msgstr ""
 #: ../../../python/tvm/rpc/__init__.pydocstring of
 #: tvm.rpc.minrpc.with_minrpc:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:22
 #: ../../../python/tvm/rpc/client.pydocstring of
 #: tvm.rpc.client.RPCSession.download_linked_module:15
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:23
 msgid "Normal usage .. code-block:: python"

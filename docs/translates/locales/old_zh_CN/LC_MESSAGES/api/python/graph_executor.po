@@ -3,6 +3,10 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# JiaKui Hu, 2021
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +14,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:38+0000\n"
+"Last-Translator: HLearning, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -56,7 +61,7 @@ msgstr ""
 #: ../../../python/tvm/contrib/graph_executor.pydocstring of
 #: tvm.contrib.graph_executor.GraphModule.benchmark:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
 #: ../../../python/tvm/contrib/graph_executor.pydocstring of
 #: tvm.contrib.graph_executor.create:3
@@ -94,7 +99,7 @@ msgstr ""
 #: ../../../python/tvm/contrib/graph_executor.pydocstring of
 #: tvm.contrib.graph_executor.GraphModule.benchmark:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
 #: ../../../python/tvm/contrib/graph_executor.pydocstring of
 #: tvm.contrib.graph_executor.create:15
@@ -114,7 +119,7 @@ msgstr ""
 #: ../../../python/tvm/contrib/graph_executor.pydocstring of
 #: tvm.contrib.graph_executor.GraphModule.benchmark:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
 #: ../../../python/tvm/contrib/graph_executor.pydocstring of
 #: tvm.contrib.graph_executor.create:20
@@ -182,7 +187,7 @@ msgstr ""
 #: ../../../python/tvm/contrib/graph_executor.pydocstring of
 #: tvm.contrib.graph_executor.GraphModule:17
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/contrib/graph_executor.pydocstring of
 #: tvm.contrib.graph_executor.GraphModule.set_input:1

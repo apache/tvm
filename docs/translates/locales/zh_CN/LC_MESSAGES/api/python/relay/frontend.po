@@ -123,7 +123,7 @@ msgstr ""
 #: ../../../python/tvm/relay/frontend/__init__.pydocstring of
 #: tvm.relay.frontend.tflite.from_tflite:1
 msgid "Convert from tflite model into compatible relay Function."
-msgstr "将tflite的模型转换为对应的relay Function。"
+msgstr "将 tflite 的模型转换为对应的 relay Function。"
 
 #: ../../../python/tvm/relay/frontend/__init__.pydocstring of
 #: tvm.relay.frontend:1:<autosummary>:1

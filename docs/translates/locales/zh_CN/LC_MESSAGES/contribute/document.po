@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# jshmsjh, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:41+0000\n"
+"Last-Translator: jshmsjh, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,7 +23,7 @@ msgstr ""
 
 #: ../../_staging/contribute/document.rst:21
 msgid "Write Document and Tutorials"
-msgstr ""
+msgstr "编写文档与教程"
 
 #: ../../_staging/contribute/document.rst:23
 msgid ""
@@ -28,10 +32,13 @@ msgid ""
 "encourage to use reStructuredText as it has richer features. Note that the "
 "python doc-string and tutorials allow you to embed reStructuredText syntax."
 msgstr ""
+"我们使用 `Sphinx <http://sphinx-doc.org>`_ 来构建主要的文档。Sphinx 支持 reStructuredText 和"
+" markdown。如果可能的话，我们更鼓励使用 reStructuredText，因为它有着更加丰富的特征。请注意 python doc-string"
+" 和教程允许您嵌入reStructuredText语法。"
 
 #: ../../_staging/contribute/document.rst:30
 msgid "Document Python"
-msgstr ""
+msgstr "为 Python 程序写文档"
 
 #: ../../_staging/contribute/document.rst:31
 msgid ""
@@ -40,6 +47,8 @@ msgid ""
 "docstring. We always document all the public functions, when necessary, "
 "provide an usage example of the features we support(as shown below)."
 msgstr ""
+"我们使用 `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ "
+"的格式为方程和类写文档。下面的代码片段给出了一个示例文档。我们总是注释所有公共函数，必要时，我们也会提供支持的特性的用法示例（如下所示）。"
 
 #: ../../_staging/contribute/document.rst:67
 msgid ""
@@ -54,7 +63,7 @@ msgstr ""
 
 #: ../../_staging/contribute/document.rst:76
 msgid "Document C++"
-msgstr ""
+msgstr "为 C++ 程序写文档"
 
 #: ../../_staging/contribute/document.rst:77
 msgid ""

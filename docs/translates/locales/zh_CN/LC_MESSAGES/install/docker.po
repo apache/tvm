@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:44+0000\n"
+"Last-Translator: HLearning, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,7 +23,7 @@ msgstr ""
 
 #: ../../_staging/install/docker.rst:21
 msgid "Docker Images"
-msgstr ""
+msgstr "Docker 镜像"
 
 #: ../../_staging/install/docker.rst:22
 msgid ""
@@ -33,7 +37,7 @@ msgstr ""
 msgid ""
 "Get a tvm source distribution or clone the github repo to get the auxiliary "
 "scripts"
-msgstr ""
+msgstr "获取 tvm 源代码分发或克隆 github 存储库以获取辅助脚本"
 
 #: ../../_staging/install/docker.rst:34
 msgid "We can then use the following command to launch a docker image."
@@ -51,7 +55,7 @@ msgstr ""
 
 #: ../../_staging/install/docker.rst:44
 msgid "Mount current directory to /workspace"
-msgstr ""
+msgstr "将当前目录挂载到 /workspace"
 
 #: ../../_staging/install/docker.rst:45
 msgid ""
@@ -68,7 +72,7 @@ msgstr ""
 
 #: ../../_staging/install/docker.rst:50
 msgid "Then you can start a jupyter notebook by typing"
-msgstr ""
+msgstr "然后你可以通过输入 ```jupyter notebook`` 来启动一个 jupyter notebook"
 
 #: ../../_staging/install/docker.rst:56
 msgid ""
@@ -87,7 +91,7 @@ msgstr ""
 
 #: ../../_staging/install/docker.rst:69
 msgid "Docker Source"
-msgstr ""
+msgstr "Docker 源"
 
 #: ../../_staging/install/docker.rst:70
 msgid ""
@@ -98,14 +102,14 @@ msgstr ""
 
 #: ../../_staging/install/docker.rst:74
 msgid "Run the following command to build the docker image."
-msgstr ""
+msgstr "运行以下命令来构建 docker 镜像。"
 
 #: ../../_staging/install/docker.rst:81
 msgid ""
 "You can find some un-official thirdparty prebuilt images. These images are "
 "used for test purposes and are NOT of the ASF release."
-msgstr ""
+msgstr "您可以找到一些非官方构建的第三方镜像。 这些镜像用于测试目的，不属于 ASF 版本。"
 
 #: ../../_staging/install/docker.rst:85
 msgid "`<https://hub.docker.com/r/tlcpack/>`_."
-msgstr ""
+msgstr "`<https://hub.docker.com/r/tlcpack/>`_."

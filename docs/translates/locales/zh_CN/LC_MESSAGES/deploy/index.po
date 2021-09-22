@@ -4,6 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
+# HLearning, 2021
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
 # 
 #, fuzzy
@@ -29,10 +30,7 @@ msgstr "部署和集成"
 msgid ""
 "This page contains guidelines on how to deploy TVM to various platforms as "
 "well as how to integrate it with your project."
-msgstr ""
-"**翻译**: `yutian <https://github.com/oneflyingfish>`_\n"
-"\n"
-"此页面包含如何将 TVM 部署到各种平台以及如何将其与项目集成的指南。"
+msgstr "此页面包含如何将 TVM 部署到各种平台以及如何将其与项目集成的指南。"
 
 #: ../../_staging/deploy/index.rst:29
 msgid "Build the TVM runtime library"
@@ -72,7 +70,7 @@ msgstr "我们只需要使用可以集成到各种平台的轻量级 runtime API
 msgid ""
 "For example, you can run the following commands to build the runtime API on "
 "a Linux based embedded system such as Raspberry Pi:"
-msgstr "例如，您可以运行以下命令，以便在基于 Linux 的嵌入式系统（如树莓派）上构建runtime API："
+msgstr "例如，您可以运行以下命令，以便在基于 Linux 的嵌入式系统，比如树莓派，上构建runtime API："
 
 #: ../../_staging/deploy/index.rst:57
 msgid "Note that we type ``make runtime`` to only build the runtime library."
@@ -91,7 +89,7 @@ msgid ""
 "``config.cmake`` to enable these options. After you get the TVM runtime "
 "library, you can link the compiled library"
 msgstr ""
-"如果您想包括额外的runtime（如 OpenCL），您可以修改 ``config.cmake`` 来启用这些选项。获得 TVM runtime "
+"如果您想包括额外的runtime，如 OpenCL，您可以修改 ``config.cmake`` 来启用这些选项。获得 TVM runtime "
 "库后，您可以链接编译好的库"
 
 #: ../../_staging/deploy/index.rst:71
