@@ -291,7 +291,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         args.push_back(param_handle);
       } else {
         auto var_arg = FindExpr(arg);
-        args.push_back(var_arg[0]);
+        for (const auto& var : var_arg) {
+          args.push_back(var);
+        }
       }
     }
 
