@@ -30,30 +30,32 @@ table_line_tempate="""
 </tr>
 """
 
-def CreateTableLine(data) ->str:
+
+def CreateTableLine(titles,data) ->str:
     url = ""
     if str(data[0]) in translators.keys():
         url=translators[str(data[0])]["URL"]
     else:
         url="https://www.transifex.com/user/profile/"+data[0]
     
-    return table_line_tempate.replace("$PERSONALPAGE",url).replace("$NAME",data[0]).replace("$LANGUAGE",data[1])\
-                              .replace("$TOTAL",data[12]).replace("$EDIT_TOTAL",data[13]).replace("$REVIEW_TOTAL",data[14]).replace("$IMPACT_1",data[2])\
-                                  .replace("$IMPACT_2", str(int(data[3])+int(data[4])+int(data[5])+int(data[6])+int(data[7])))\
-                                 .replace("$IMPACT_3", str(int(data[8])+int(data[9]))).replace("$IMPACT_4", str(int(data[10])+int(data[11])))
+    return table_line_tempate.replace("$PERSONALPAGE",url).replace("$NAME",data[titles.index("Username")]).replace("$LANGUAGE",data[titles.index("Lang_code")])\
+                              .replace("$TOTAL",data[titles.index("New_total")]).replace("$EDIT_TOTAL",data[titles.index("Edit_total")]).replace("$REVIEW_TOTAL",data[titles.index("Review_total")]).replace("$IMPACT_1",data[titles.index("Match (0-59%)")])\
+                                  .replace("$IMPACT_2", str(int(data[titles.index("Match (60-64%)")])+int(data[titles.index("Match (65-69%)")])+int(data[titles.index("Match (70-74%)")])+int(data[titles.index("Match (75-79%)")])+int(data[titles.index("Match (80-84%)")])))\
+                                 .replace("$IMPACT_3", str(int(data[titles.index("Match (85-89%)")])+int(data[titles.index("Match (90-94%)")]))).replace("$IMPACT_4", str(int(data[titles.index("Match (95-99%)")])+int(data[titles.index("Match (100%)")])))
 
 # 从csdv读取数据
 datas = []
 with open(os.path.join(base_dir,"translator_data.csv"), "r") as f:
     for line in f:
-        line = line.replace("\n", "")  # 每行去掉换行符
-        datas.append(line.split(","))  # 按分隔符分割
+        line = line.replace("\n", "")                   # 每行去掉换行符
+        datas.append(line.split(","))                   # 按分隔符分割
+
+titles=datas.pop(0)                                     # 标题行删除
+datas.sort(key=lambda data: int(data[titles.index("New_total")]),reverse=True)
 
 table_lines=""
 for i in range(len(datas)):
-    if i==0:
-        continue    # 跳过标题
-    table_lines +=CreateTableLine(datas[i])
+    table_lines +=CreateTableLine(titles,datas[i])
 
 with open(os.path.join(base_dir,"declaration_zh_CN.html"), "w",encoding='utf-8') as fw:
     fw.write(html_page.replace("$WEBSITE",website).replace("$MIRROR_WEBSITE",mirror_website).replace("$TABLEDATAS",table_lines))
