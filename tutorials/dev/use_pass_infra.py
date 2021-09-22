@@ -228,7 +228,6 @@ seq = tvm.transform.Sequential(
         tvm.transform.PrintIR(),
         relay.transform.EliminateCommonSubexpr(),
         relay.transform.FuseOps(),
-        relay.transform.AlterOpLayout(),
     ]
 )
 
