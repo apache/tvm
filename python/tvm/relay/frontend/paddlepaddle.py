@@ -1772,16 +1772,15 @@ def convert_rnn(g, op, block):
                 axes=[0],
             )
             return init_h, init_c
-        else:
-            all_init_h = node.input("PreState")[0]
-            bidirect_len = 2 if node.attr("is_bidirec") else 1
-            init_h = _op.strided_slice(
-                g.get_node(all_init_h),
-                [layer * bidirect_len],
-                [layer * bidirect_len + bidirect_len],
-                axes=[0],
-            )
-            return init_h
+        all_init_h = node.input("PreState")[0]
+        bidirect_len = 2 if node.attr("is_bidirec") else 1
+        init_h = _op.strided_slice(
+            g.get_node(all_init_h),
+            [layer * bidirect_len],
+            [layer * bidirect_len + bidirect_len],
+            axes=[0],
+        )
+        return init_h
 
     hidden_size = op.attr("hidden_size")
     num_layers = op.attr("num_layers")
