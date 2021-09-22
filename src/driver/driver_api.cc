@@ -427,12 +427,6 @@ std::pair<Target, Target> TargetTypeMangling(const Map<Target, IRModule>& inputs
   return {target_input_mod, target_host};
 }
 
-// TVM_REGISTER_GLOBAL("driver.target_mangling")
-//     .set_body_typed([](const Map<Target, IRModule>& inputs_arg, IRModule mod, Target target,
-//                        Target target_host_arg) {
-//       return TargetTypeMangling(inputs_arg, mod, target, target_host_arg);
-//     });
-
 TVM_REGISTER_GLOBAL("driver.target_mangling")
     .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target target,
                        Target target_host_arg) {
@@ -443,6 +437,45 @@ TVM_REGISTER_GLOBAL("driver.host_target_mangling")
     .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target target,
                        Target target_host_arg) {
       return TargetTypeMangling(inputs_arg, target, target_host_arg).second;
+    });
+
+runtime::Module finalizeModule(const Map<Target, IRModule>& inputs_arg, Target host_target) {
+  std::vector<runtime::Module> device_modules;
+
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
+
+  ICHECK(mhost_all.defined()) << "The host module must be defined";
+
+  for (const auto& it : inputs_arg) {
+    if (it.second.defined()) {
+      auto pair = SplitFuncsToDevHostMods(it.second, it.first, host_target);
+      auto& host_mod = pair.first;
+      auto& device_mod = pair.second;
+
+      ICHECK(host_mod.defined()) << "The split host module must be defined";
+
+      ICHECK(mhost_all.defined()) << "The host module must be defined";
+
+      mhost_all->Update(host_mod);
+
+      if (device_mod->functions.size() != 0) {
+        device_modules.push_back(codegen::Build(device_mod, it.first));
+      }
+    }
+  }
+  runtime::Module complete_mod = codegen::Build(mhost_all, host_target);
+  // Import all modules
+  for (const auto& it : device_modules) {
+    if (it.operator->()) {
+      complete_mod.Import(it);
+    }
+  }
+  return complete_mod;
+}
+
+TVM_REGISTER_GLOBAL("driver.finalize_module")
+    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target host_target) {
+      return finalizeModule(inputs_arg, host_target);
     });
 
 // Can we make this take one annotated IRModule?

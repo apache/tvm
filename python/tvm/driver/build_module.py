@@ -332,26 +332,29 @@ def build(
     target_host = _driver_ffi.driver.host_target_mangling(
         input_mod, target, target_host)
 
-    mod_host_all = tvm.IRModule({})
+    # mod_host_all = tvm.IRModule({})
 
-    # This is building for target not device though..
-    # From here through importing the device modules could probably be consolidated into one C++ function.
-    device_modules = []
-    for tar, input_mod in target_input_mod.items():
-        # mod_host is the module of the host.. bad name.
-        # Start with moving _build_for_device into c++
-        mod_host, mdev = _build_for_device(input_mod, tar, target_host)
-        # what are we updating here?
-        mod_host_all.update(mod_host)
-        device_modules.append(mdev)
+    # # This is building for target not device though..
+    # # From here through importing
+    # # the device modules could probably be consolidated into one C++ function.
+    # device_modules = []
+    # for tar, input_mod in target_input_mod.items():
+    #     # mod_host is the module of the host.. bad name.
+    #     mod_host, mdev = _build_for_device(input_mod, tar, target_host)
+    #     # what are we updating here?
+    #     mod_host_all.update(mod_host)
+    #     device_modules.append(mdev)
 
-    # Generate a unified host module.
-    rt_mod_host = codegen.build_module(mod_host_all, target_host)
+    # # Generate a unified host module.
+    # rt_mod_host = codegen.build_module(mod_host_all, target_host)
 
-    # Import all modules.
-    for mdev in device_modules:
-        if mdev:
-            rt_mod_host.import_module(mdev)
+    # # Import all modules.
+    # for mdev in device_modules:
+    #     if mdev:
+    #         rt_mod_host.import_module(mdev)
+
+    rt_mod_host = _driver_ffi.driver.finalize_module(
+        target_input_mod, target_host)
 
     # stop moving to C++ here.
     if not isinstance(target_host, Target):
