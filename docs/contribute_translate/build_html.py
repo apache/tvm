@@ -20,15 +20,13 @@ table_line_tempate="""
 <tr>
     <td><a href="$PERSONALPAGE">$NAME</a></td>
     <td>$LANGUAGE</td>
-    <td>$YEAR</td>
-    <td>$MONTH</td>
-    <td>$TOTAL</td>
-    <td>$EDIT_TOTAL</td>
-    <td>$REVIEW_TOTAL</td>
-    <td>$IMPACT_1</td>
-    <td>$IMPACT_2</td>
-    <td>$IMPACT_3</td>
-    <td>$IMPACT_4</td>
+    <td align="center">$TOTAL</td>
+    <td align="center">$EDIT_TOTAL</td>
+    <td align="center">$REVIEW_TOTAL</td>
+    <td align="center">$IMPACT_1</td>
+    <td align="center">$IMPACT_2</td>
+    <td align="center">$IMPACT_3</td>
+    <td align="center">$IMPACT_4</td>
 </tr>
 """
 
@@ -39,10 +37,10 @@ def CreateTableLine(data) ->str:
     else:
         url="https://www.transifex.com/user/profile/"+data[0]
     
-    return table_line_tempate.replace("$PERSONALPAGE",url).replace("$NAME",data[0]).replace("$LANGUAGE",data[1]).replace("$YEAR",data[2]).replace("$MONTH",data[3])\
-                              .replace("$TOTAL",data[14]).replace("$EDIT_TOTAL",data[15]).replace("$REVIEW_TOTAL",data[16]).replace("$IMPACT_1",data[4])\
-                                  .replace("$IMPACT_2", str(int(data[5])+int(data[6])+int(data[7])+int(data[8])+int(data[9])))\
-                                 .replace("$IMPACT_3", str(int(data[10])+int(data[11]))).replace("$IMPACT_4", str(int(data[12])+int(data[13])))
+    return table_line_tempate.replace("$PERSONALPAGE",url).replace("$NAME",data[0]).replace("$LANGUAGE",data[1])\
+                              .replace("$TOTAL",data[12]).replace("$EDIT_TOTAL",data[13]).replace("$REVIEW_TOTAL",data[14]).replace("$IMPACT_1",data[2])\
+                                  .replace("$IMPACT_2", str(int(data[3])+int(data[4])+int(data[5])+int(data[6])+int(data[7])))\
+                                 .replace("$IMPACT_3", str(int(data[8])+int(data[9]))).replace("$IMPACT_4", str(int(data[10])+int(data[11])))
 
 # 从csdv读取数据
 datas = []

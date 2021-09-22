@@ -1,6 +1,6 @@
 <h2 align="center">TVM中文手册声明</h2>
 
-<div align= "right"> <a href="https://www.aflyingfish.top">作者主页</a></div><div align= "right"><a href="https://www.transifex.com/TVMChinese/">参与我们的翻译工作</a></div><div align= "right"><a href="$WEBSITE">TVM中文手册</a>&nbsp<a href="$MIRROR_WEBSITE">国内镜像站</a></div>
+<div align= "right"> <a href="https://www.aflyingfish.top">作者主页</a></div><div align= "right"><a href="https://www.transifex.com/TVMChinese/">参与我们的翻译工作</a></div><div align= "right"><a href="$WEBSITE">TVM中文手册</a>&nbsp<a href="$MIRROR_WEBSITE">国内镜像站</a></div><div align="right"><a href="https://join.slack.com/t/tvmchinese/shared_invite/zt-vwekxs1y-q8rFdwCPvlCpr7K90X8tRw">加入slack讨论</a></div>
 
 ### 一、关于作者
 
