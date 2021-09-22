@@ -22,7 +22,17 @@ from . import _make
 from .. import op as reg
 
 
-def on_device(data, device):
+def _device_to_int(device):
+    if isinstance(device, _Device):
+        return device.device_type
+    if isinstance(device, str):
+        return _nd.device(device).device_type
+    raise ValueError(
+        "device is expected to be the type of Device or " "str, but received %s" % (type(device))
+    )
+
+
+def on_device(data, device, is_fixed=False):
     """Annotate an expression with a certain device type.
 
     Parameters
@@ -33,21 +43,26 @@ def on_device(data, device):
     device : Union[:py:class:`Device`, str]
         The device type to annotate.
 
+    is_fixed : bool
+        If true, annotation does not imply a device_copy may be inserted.
+        (This parameter is used internally by the compiler and unit tests and
+        should not need to be set in user programs.)
+
     Returns
     -------
     result : tvm.relay.Expr
         The annotated expression.
     """
-    if isinstance(device, _Device):
-        device = device.device_type
-    elif isinstance(device, str):
-        device = _nd.device(device).device_type
-    else:
-        raise ValueError(
-            "device is expected to be the type of Device or "
-            "str, but received %s" % (type(device))
-        )
-    return _make.on_device(data, device)
+    return _make.on_device(data, _device_to_int(device), is_fixed)
+
+
+# for testing only
+def function_on_device(function, param_devices, result_device):
+    """Attaches attribute to function indicating the devices for its parameters and result."""
+
+    return _make.function_on_device(
+        function, [_device_to_int(d) for d in param_devices], _device_to_int(result_device)
+    )
 
 
 def stop_fusion(data):
