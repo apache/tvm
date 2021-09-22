@@ -626,9 +626,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     for (auto kv : storage_device_map_) {
       for (auto sid : kv.second->storage_ids) {
         // The buffer_var is created with storage_scope to be global.workspace to be serviced by
-        // TVMBAWs, explicitly. The reasoning being the executor allocates should be serviced by
-        // TVMBAWs as the data could be accessed by many devices and should not be lowered to the
-        // stack. For more details please refer to the discussion here:
+        // TVMBackendAllocWorkspace(TVMBAW) calls, explicitly. The reasoning being the executor
+        // allocates should be serviced by TVMBAWs as the data could be accessed by many devices and
+        // should not be lowered to the stack. For more details please refer to the discussion here:
         // https://github.com/apache/tvm/issues/9022
         te::Var buffer_var(MakeString("sid_", sid),
                            PointerType(PrimType(DataType::Int(8)), "global.workspace"));

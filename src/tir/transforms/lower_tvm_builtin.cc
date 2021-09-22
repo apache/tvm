@@ -113,6 +113,10 @@ class BuiltinLower : public StmtExprMutator {
     op = stmt.as<AllocateNode>();
     // Get constant allocation bound.
     int64_t nbytes = GetVectorBytes(op->dtype);
+    // If the buffers are for CPU and have global scope,
+    // and less than runtime::kMaxStackAlloca heuristic
+    // they are not serviced with TVMBackendWorkspaceAlloc calls
+    // to be placed on stack.
     if (device_type_.defined()) {
       if (const auto* dev_type = device_type_.as<IntImmNode>()) {
         auto storage_scope = Downcast<PointerType>(op->buffer_var->type_annotation)->storage_scope;

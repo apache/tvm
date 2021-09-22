@@ -478,6 +478,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     uint64_t bits_offset{0};
   };
 
+  // Checks whether the storage_scope is especially tagged for a specific memory.
   bool IsSpecialTaggedMemory(const StorageScope& scope) {
     return scope.tag.length() != 0 && scope.tag != ".dyn" && scope.tag != ".workspace";
   }
