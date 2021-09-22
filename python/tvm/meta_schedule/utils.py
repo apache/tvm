@@ -17,12 +17,15 @@
 """Utilities for meta schedule"""
 import os
 import shutil
-from typing import Callable, Union
+from typing import Any, Callable, Union
 
 import psutil
 
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError
+from tvm.ir import Array, Map
+from tvm.runtime import String
+from tvm.tir import FloatImm, IntImm
 
 
 @register_func("meta_schedule.cpu_count")
@@ -95,3 +98,31 @@ def get_global_func_with_default_on_worker(
 def remove_build_dir(artifact_path: str) -> None:
     """Clean up the build directory"""
     shutil.rmtree(os.path.dirname(artifact_path))
+
+
+def _json_de_tvm(obj: Any) -> Any:
+    """Unpack a TVM nested container to a JSON object in python.
+
+    Parameters
+    ----------
+    obj : Any
+        The TVM nested container to be unpacked.
+
+    Returns
+    -------
+    result : Any
+        The unpacked json object.
+    """
+    if obj is None:
+        return None
+    if isinstance(obj, (int, float)):
+        return obj
+    if isinstance(obj, (IntImm, FloatImm)):
+        return obj.value
+    if isinstance(obj, (str, String)):
+        return str(obj)
+    if isinstance(obj, Array):
+        return [_json_de_tvm(i) for i in obj]
+    if isinstance(obj, Map):
+        return {_json_de_tvm(k): _json_de_tvm(v) for k, v in obj.items()}
+    raise TypeError("Not supported type: " + str(type(obj)))
