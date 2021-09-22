@@ -522,11 +522,11 @@ typedef enum {
 
 @end
 
-@interface RPCServerPure : RPCServerProxy
+@interface RPCServerStandalone : RPCServerProxy
 @property(readonly) int rpc_port;
 @end
 
-@implementation RPCServerPure {
+@implementation RPCServerStandalone {
   // Socket to listen incoming connections
   CFSocketRef socket_;
   /// Current socket connection handler
@@ -573,7 +573,7 @@ typedef enum {
 
 static void handleConnect(CFSocketRef socket, CFSocketCallBackType type, CFDataRef address,
                           const void* data, void* info) {
-  RPCServerPure* it = (__bridge RPCServerPure*)(info);
+  RPCServerStandalone* it = (__bridge RPCServerStandalone*)(info);
   [it handleConnect:*static_cast<const CFSocketNativeHandle*>(data)];
 }
 
@@ -651,7 +651,7 @@ typedef enum {
 
 @implementation RPCServerTracker {
   RPCServerTrackerState state_;
-  RPCServerPure* rpc_server_;
+  RPCServerStandalone* rpc_server_;
 }
 
 - (void)setState:(RPCServerTrackerState)new_state {
@@ -776,8 +776,8 @@ typedef enum {
 }
 
 - (void)open {
-  // Start internal Pure RPC server at first
-  rpc_server_ = [[RPCServerPure alloc] init];
+  // Start internal Standalone RPC server at first
+  rpc_server_ = [[RPCServerStandalone alloc] init];
   rpc_server_.key = self.key;
   rpc_server_.delegate = self;
   [rpc_server_ open];
@@ -803,7 +803,7 @@ typedef enum {
 @implementation RPCServer
 
 + (instancetype)serverWithMode:(RPCServerMode)mode {
-  if (mode == RPCServerMode_PureServer) return [[RPCServerPure alloc] init];
+  if (mode == RPCServerMode_Standalone) return [[RPCServerStandalone alloc] init];
   if (mode == RPCServerMode_Proxy) return [[RPCServerProxy alloc] init];
   if (mode == RPCServerMode_Tracker) return [[RPCServerTracker alloc] init];
   return nil;

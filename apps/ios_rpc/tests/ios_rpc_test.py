@@ -35,7 +35,7 @@ arch = "arm64"
 sdk = "iphoneos"
 target = "llvm -mtriple=%s-apple-darwin" % arch
 
-MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "pure_server": rpc.connect}
+MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc.connect}
 
 # override metal compiler to compile to iphone
 @tvm.register_func("tvm_callback_metal_compile")

@@ -25,7 +25,7 @@ device. You will need XCode and an iOS device to use this.
     * [Building TVM runtime and custom DSO loader plugin](#building-tvm-runtime-and-custom-dso-loader-plugin)
     * [Building iOS TVM RPC application](#building-ios-tvm-rpc-application)
 * [Workflow](#workflow)
-    * [Pure RPC](#pure-rpc)
+    * [Standalone RPC](#standalone-rpc)
     * [iOS RPC App with proxy](#ios-rpc-app-with-proxy)
     * [iOS RPC App with tracker](#ios-rpc-app-with-tracker)
 * [Communication without Wi-Fi and speed up in case of slow Wi-Fi](#communication-without-wi-fi-and-speed-up-in-case-of-slow-wi-fi)
@@ -103,7 +103,7 @@ The test script [tests/ios_rpc_test.py](tests/ios_rpc_test.py) and
 demonstrating the workflow.
 
 We have three different modes for iOS RPC server:
-- [Pure RPC](#pure-rpc): In this mode RPC server open port on the device and listening. Then
+- [Standalone RPC](#standalone-rpc): In this mode RPC server open port on the device and listening. Then
   client connects to the server directly without any mediators.
 - [iOS RPC application with Proxy](#ios-rpc-app-with-proxy): RPC server and RPC client communicates through
   `rpc_proxy`. The RPC server on iOS device notify `rpc_proxy` which was run on
@@ -112,7 +112,7 @@ We have three different modes for iOS RPC server:
 - [iOS RPC application with Tracker](#ios-rpc-app-with-tracker): RPC server registered in the `rpc_tracker`
   and client connects to the RPC server through `rpc_tracker`.
 
-### Pure RPC
+### Standalone RPC
 Start RPC server on your iOS device:
 - Push on the `Connect` button.
 
@@ -130,7 +130,7 @@ Let's check that direct RPC connection works and we can upload a library with
 model and execute it on the device. For this purpose we will use
 [ios_rpc_test.py](tests/ios_rpc_test.py). Run it:
 ```shell
-python3 tests/ios_rpc_test.py --host <device_ip> --port <rpc_server_port> --mode "pure_server"
+python3 tests/ios_rpc_test.py --host <device_ip> --port <rpc_server_port> --mode "standalone"
 ```
 This will compile TVM IR to shared libraries (CPU and Metal) and run vector
 addition on your iOS device. You are supposed to see something like this:
@@ -211,7 +211,7 @@ model and execute it on the target device. For this purpose we will use
 python3 tests/ios_rpc_test.py --host <host_ip_address> --port 9190 --mode "tracker"
 ```
 The output will be the same as in section 
-[Pure RPC](#pure-rpc).
+[Standalone RPC](#standalone-rpc).
 
 ## Communication without Wi-Fi and speed up in case of slow Wi-Fi
 Connection to the RPC server through `usbmux` can be used then you have slow,
@@ -225,7 +225,8 @@ brew:
 brew install usbmuxd
 ```
 After that you can use `iproxy` program for binding ports. You can use it for
-all described workflows. Let's take a look how it works for [Pure RPC](#pure-rpc).
+all described workflows. Let's take a look how it works for
+[Standalone RPC](#standalone-rpc).
 
 First, start RPC server on your iOS device. You may see something like this in
 the app on the device:
@@ -250,6 +251,6 @@ Now we can check that RPC connection through `usbmux` works and we can upload a
 library with model and execute it on the device. For this purpose we will use
 [ios_rpc_test.py](tests/ios_rpc_test.py). Run it:
 ```shell
-python3 tests/ios_rpc_test.py --host 0.0.0.0 --port <local_port> --mode pure_server
+python3 tests/ios_rpc_test.py --host 0.0.0.0 --port <local_port> --mode standalone
 ```
 The output should be the same as in all previous runs.

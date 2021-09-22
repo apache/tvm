@@ -37,8 +37,8 @@ const char* kUsage =
     "--custom_addr   Custom IP Address to Report to RPC Tracker. Default=\"\"\n"
     "--immediate_connect   No UI interconnection, connect to tracker immediately. Default=False\n"
     "--verbose       Allow to print status info to std out. Default=False\n"
-    "--server_mode   Server mode. Can be \"pure_server\", \"proxy\" or \"tracker\". "
-    "Default=pure_server \n"
+    "--server_mode   Server mode. Can be \"standalone\", \"proxy\" or \"tracker\". "
+    "Default=standalone \n"
     "\n";
 
 struct RPCArgs_cpp {
@@ -142,8 +142,8 @@ void update_rpc_args(int argc, char* argv[]) {
       args.server_mode = RPCServerMode_Tracker;
     } else if (server_mode == "proxy") {
       args.server_mode = RPCServerMode_Proxy;
-    } else if (server_mode == "pure_server") {
-      args.server_mode = RPCServerMode_PureServer;
+    } else if (server_mode == "standalone") {
+      args.server_mode = RPCServerMode_Standalone;
     } else {
       LOG(WARNING) << "Wrong server_mode value.";
       LOG(INFO) << kUsage;

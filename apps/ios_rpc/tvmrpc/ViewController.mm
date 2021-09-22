@@ -149,7 +149,7 @@
   dispatch_sync(dispatch_get_main_queue(), ^{
     switch (status) {
       case RPCServerStatus_Connected:
-        if (self.ModeSelector.selectedSegmentIndex == RPCServerMode_PureServer) {
+        if (self.ModeSelector.selectedSegmentIndex == RPCServerMode_Standalone) {
           self.infoText.text = [NSString
               stringWithFormat:@"IP: %@\nPort: %d", server_.device_addr, server_.actual_port];
         }

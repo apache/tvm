@@ -40,12 +40,12 @@ typedef enum {
  * \brief Enum with modes of servicing supported by RPCServer
  */
 typedef enum {
-  /// Tracker mode. Same as Pure Server plus register it into Tracker.
+  /// Tracker mode. Same as Standalone Server plus register it into Tracker.
   RPCServerMode_Tracker,
   /// Proxy mode. Connect to proxy server and wait response.
   RPCServerMode_Proxy,
-  /// Pure RPC server mode. Open port with RPC server and wait incoming connection.
-  RPCServerMode_PureServer
+  /// Standalone RPC server mode. Open port with RPC server and wait incoming connection.
+  RPCServerMode_Standalone
 } RPCServerMode;
 
 /*!
@@ -68,11 +68,11 @@ typedef enum {
 @property(retain) id<RPCServerEventListener> delegate;
 /// Device key to report during RPC session
 @property(retain) NSString* key;
-/// Host address of Proxy/Tracker server (generally IPv4). Ignored for PureServer mode.
+/// Host address of Proxy/Tracker server (generally IPv4). Ignored for Standalone mode.
 @property(retain) NSString* host;
-/// Port of Proxy/Tracker server. Ignored for PureServer mode.
+/// Port of Proxy/Tracker server. Ignored for Standalone mode.
 @property int port;
-/// Custom address to report into tracker server (optional). Ignored for PureServer/Proxy modes
+/// Custom address to report into tracker server (optional). Ignored for Standalone/Proxy modes
 @property(retain) NSString* custom_addr;
 /// Triger to enable printing of server state info
 @property BOOL verbose;
