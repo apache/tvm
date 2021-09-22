@@ -452,12 +452,17 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
 
     isa = arm_isa.IsaAnalyzer(target)
 
-    if layout == "NWC" and kernel_layout == "WOI" and "SMLAD" in isa:
-        strategy.add_implementation(
-            wrap_compute_conv1d(topi.arm_cpu.conv1d_direct_simd),
-            wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_direct_simd),
-            name="conv1d_direct_simd.micro_dev",
-        )
+    if kernel_layout == "WOI":
+        if layout == "NWC" and "SMLAD" in isa:
+            strategy.add_implementation(
+                wrap_compute_conv1d(topi.arm_cpu.conv1d_direct_simd),
+                wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_direct_simd),
+                name="conv1d_direct_simd.micro_dev",
+            )
+        else:
+            raise RuntimeError(
+                "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(kernel_layout, layout)
+            )
     elif layout == "NCW":
         strategy.add_implementation(
             wrap_compute_conv1d(topi.nn.conv1d_ncw),
@@ -472,6 +477,6 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
         )
     else:
         raise RuntimeError(
-            "Unsupported layout {} and kernel layout {} for conv1d for arm cpu.".format(layout, kernel_layout)
+            "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(kernel_layout, layout)
         )
     return strategy
