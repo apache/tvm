@@ -604,6 +604,364 @@ class ThreadScopePropagate : public StmtExprMutator {
   std::vector<ThreadScope> curr_thread_scope_;
 };
 
+/* Map buffer binds to their source buffer
+ *
+ * Buffers defined using an attr::buffer_bind_scope annotation are
+ * views into some linked buffer, potentially into some restricted
+ * subregion of that buffer.  This pass identifies such buffers, then
+ * rewrites all access of the bound buffers to be access into the
+ * linked buffer.
+ */
+class BufferBindUnwrapper : public StmtExprMutator {
+ public:
+  explicit BufferBindUnwrapper(const Map<Var, Buffer>& extern_buffer_map,
+                               IRVisitorWithAnalyzer* bound_analyzer)
+      : bound_analyzer_(bound_analyzer) {
+    for (auto kv : extern_buffer_map) {
+      BufferEntry e;
+      e.buffer = kv.second;
+      e.external = true;
+      buf_map_[kv.second.get()] = std::move(e);
+    }
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<StoreNode>();
+    auto it = var_remap_.find(op->buffer_var.get());
+    if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
+      // TODO(Lunderberg): Change from warning to error once all mixed
+      // use of physical/logical layouts is removed.
+      DLOG(WARNING) << op->buffer_var << " was declared as buffer (buffer_bind_scope), "
+                    << "but is accessed as a pointer (StoreNode).";
+
+      ICHECK(it->second.as<VarNode>());
+      Var new_buf_var = Downcast<Var>(it->second);
+      return Store(new_buf_var, op->value, op->index, op->predicate);
+    } else {
+      return stmt;
+    }
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<LoadNode>();
+    auto it = var_remap_.find(op->buffer_var.get());
+    if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
+      // TODO(Lunderberg): Change from warning to error once all mixed
+      // use of physical/logical layouts is removed.
+      DLOG(WARNING) << op->buffer_var << " was declared as buffer (buffer_bind_scope), "
+                    << "but is accessed as a pointer (LoadNode).";
+
+      ICHECK(it->second.as<VarNode>());
+      Var new_buf_var = Downcast<Var>(it->second);
+      return Load(op->dtype, new_buf_var, op->index, op->predicate);
+    } else {
+      return expr;
+    }
+  }
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    ICHECK_NE(op->attr_key, attr::buffer_dim_align)
+        << "BufferBindUnwrapper assumes that all buffers have accurate strides, "
+        << "and all buffer_dim_align annotations are removed.  "
+        << "Please run BufferStrideLegalize first.";
+
+    if (op->attr_key == attr::buffer_bind_scope) {
+      return HandleBufferBindScope(op);
+    } else {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+  }
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    auto it = var_remap_.find(op);
+    if (it != var_remap_.end()) {
+      return it->second;
+    } else {
+      return GetRef<PrimExpr>(op);
+    }
+  }
+
+  Array<PrimExpr> remap_indices(Array<PrimExpr> indices, Array<PrimExpr> begins,
+                                Array<PrimExpr> extents) {
+    ICHECK_EQ(begins.size(), extents.size());
+
+    if (begins.size() == 0) {
+      return indices;
+    }
+
+    ICHECK_EQ(begins.size(), indices.size());
+
+    Array<PrimExpr> out;
+    for (size_t i = 0; i < begins.size(); i++) {
+      out.push_back(begins[i] + indices[i]);
+    }
+    return out;
+  }
+
+  Array<Range> remap_bounds(Array<Range> bounds, Array<PrimExpr> begins, Array<PrimExpr> extents) {
+    ICHECK_EQ(begins.size(), extents.size());
+
+    if (begins.size() == 0) {
+      return bounds;
+    }
+
+    ICHECK_EQ(begins.size(), bounds.size());
+
+    Array<Range> out;
+    for (size_t i = 0; i < begins.size(); i++) {
+      out.push_back(Range::FromMinExtent(bounds[i]->min + begins[i], bounds[i]->extent));
+    }
+    return out;
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<BufferLoadNode>();
+
+    auto it = buf_map_.find(op->buffer.get());
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
+    const BufferEntry& e = it->second;
+    ICHECK(e.in_scope) << "Cannot read a buffer that is already out of scope";
+
+    if (e.remap) {
+      return BufferLoad(e.remap->target,
+                        remap_indices(op->indices, e.remap->begins, e.remap->extents), op->span);
+    } else {
+      return expr;
+    }
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<BufferStoreNode>();
+
+    auto it = buf_map_.find(op->buffer.get());
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
+    const BufferEntry& e = it->second;
+    ICHECK(e.in_scope) << "Cannot write to a buffer that is already out of scope";
+
+    if (e.remap) {
+      return BufferStore(e.remap->target, op->value,
+                         remap_indices(op->indices, e.remap->begins, e.remap->extents), op->span);
+    } else {
+      return stmt;
+    }
+  }
+
+  Stmt VisitStmt_(const BufferRealizeNode* op) final {
+    const auto& key = op->buffer.get();
+
+    bool is_external = false;
+
+    if (buf_map_.count(key)) {
+      ICHECK(buf_map_.at(key).external)
+          << "BufferRealize node for internal buffer " << op->buffer << " occurred multiple times.";
+
+      is_external = true;
+    } else {
+      BufferEntry e;
+      e.bounds = op->bounds;
+      e.buffer = op->buffer;
+      buf_map_[key] = std::move(e);
+    }
+
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+
+    if (is_external) {
+      buf_map_[key].in_scope = false;
+    }
+
+    return stmt;
+  }
+
+  Stmt VisitStmt_(const PrefetchNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<PrefetchNode>();
+    ICHECK(op != nullptr);
+
+    const auto& key = op->buffer.get();
+    auto it = buf_map_.find(key);
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
+    const BufferEntry& e = it->second;
+
+    ICHECK(e.in_scope) << "Read a buffer that is already out of scope";
+    ICHECK_EQ(e.buffer->shape.size(), op->bounds.size())
+        << "Prefetch dim should be the same as buffer dim";
+
+    if (e.remap) {
+      return Prefetch(e.remap->target, remap_bounds(op->bounds, e.remap->begins, e.remap->extents),
+                      op->span);
+    } else {
+      return stmt;
+    }
+  }
+
+ private:
+  // The specific tensor data layout is not determined before
+  // StorageFlatten pass. We use buffer_bind_scope
+  // to specify before hand we want to bind a subregion
+  // of tensor to a symbolic buffer, which get used in extern.
+  //
+  // Example:
+  //
+  // realize A in range [i*4, extent=10) {
+  //   bind Ab to A in [i*4+1, extent=4) {
+  //     call_func(Ab.ptr, Ab.shape[0])
+  //   }
+  // }
+  //
+  // After StorageFlatten
+  //
+  // alloc A[10]
+  //   call(A + 1,  4)
+  //
+  // Buffer is a protocol to declare specific
+  // data layout and shape we expect.
+  // So this function need to check:
+  // - If the bind range is within the realize range
+  // - If we can match the requirement of buffer
+  // - Remap variables such as Ab.ptr to the actual value.
+  //
+  // Here are a few possible failure cases:
+  // - Buffer is declared to have constant shape,
+  //   but we try to bind it to a different one.
+  // - Buffer is declared to be compact(no strides)
+  //   but this binded region is a subregion of
+  //   a matrix(tensor), which means it requires strides.
+  //
+  // We do support a few relaxed case, such as bindingx
+  // region with shape [1, 1, n, m] to buffer with shape [n, m]
+  Stmt HandleBufferBindScope(const AttrStmtNode* op) {
+    // Unpack information from Attribute node
+    RemapInfo remap;
+
+    Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
+    ICHECK_EQ(arr.size(), 2U);
+    const Buffer source = Downcast<Buffer>(arr[0]);
+    ICHECK(source.defined());
+    remap.target = Downcast<Buffer>(arr[1]);
+    ICHECK(remap.target.defined());
+    const CallNode* tuple = op->value.as<CallNode>();
+    ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
+
+    for (size_t i = 0; i < tuple->args.size(); i += 2) {
+      remap.begins.push_back(tuple->args[i]);
+      remap.extents.push_back(tuple->args[i + 1]);
+    }
+
+    // Determine bounds in the target buffer
+    auto it = buf_map_.find(remap.target.get());
+    ICHECK(it != buf_map_.end()) << "Cannot find buffer " << remap.target << " @ "
+                                 << remap.target.get();
+    const BufferEntry& target_info = it->second;
+    ICHECK(target_info.in_scope) << "Cannot bind to a buffer that is out of scope";
+    ICHECK_EQ(remap.begins.size(), target_info.buffer->shape.size())
+        << "Incorrect number of arguments in buffer_bind_scope attribute.  "
+        << "Expected (min_0, extent_0, min_1, extent_0, ..., min_N, extent_N).";
+
+    if (target_info.bounds.size() > 0) {
+      Array<PrimExpr> mapped_begins;
+      for (size_t i = 0; i < target_info.buffer->shape.size(); ++i) {
+        mapped_begins.push_back(remap.begins[i] - target_info.bounds[i]->min);
+      }
+      remap.begins = std::move(mapped_begins);
+    }
+
+    ICHECK(target_info.remap == nullptr) << "Indirect remapping not handled";
+
+    for (size_t i = 0; i < remap.begins.size(); i++) {
+      remap.begins.Set(i, bound_analyzer_->Simplify(remap.begins[i]));
+      remap.extents.Set(i, bound_analyzer_->Simplify(remap.extents[i]));
+    }
+
+    // Add a buffer remap entry
+    {
+      BufferEntry source_info;
+      source_info.buffer = source;
+      source_info.remap = std::make_unique<RemapInfo>(remap);
+
+      buf_map_[source.get()] = std::move(source_info);
+    }
+
+    // Generate slice that represents the source's view into the
+    // target buffer.
+    ICHECK_EQ(source->strides.size(), 0) << "Buffer view cannot have strides defined.";
+
+    // Define remappings of any remaining Variables (e.g. Store/Load nodes).
+    ArgBinder binder(&var_remap_);
+
+    binder.Bind(source->data, remap.target->data, source->name + ".data");
+    binder.Bind(source->elem_offset, remap.target->ElemOffset(remap.begins),
+                source->name + ".elem_offset");
+
+    // Apply the remaps
+    Stmt body = op->body;
+    body = MergeNest(binder.asserts(), body);
+    body = MergeNest(binder.init_nest(), body);
+    body = this->VisitStmt(body);
+    // remove the binds
+    for (const Var& v : binder.defs()) {
+      var_remap_.erase(v.get());
+    }
+    return body;
+  }
+
+  struct RemapInfo {
+    Buffer target;
+    Array<PrimExpr> begins;
+    Array<PrimExpr> extents;
+  };
+
+  // The buffer entry in the flatten map
+  struct BufferEntry {
+    // The storage buffer
+    Buffer buffer;
+    // the bounds of realization, can be null, means everything
+    Region bounds;
+    // Whether the buffer is external
+    bool external{false};
+    // Whether we are within the allocation scope of the buffer.
+    bool in_scope{true};
+
+    // The buffer to which the storage buffer should be remapped.
+    std::unique_ptr<RemapInfo> remap{nullptr};
+
+    PrimExpr ElemOffset() const {
+      ICHECK(remap);
+
+      Buffer copy = remap->target;
+      {
+        Array<PrimExpr> shape;
+        for (auto r : bounds) {
+          shape.push_back(r->extent);
+        }
+        copy.CopyOnWrite()->shape = std::move(shape);
+      }
+
+      Buffer target_slice = copy.MakeSlice(remap->begins, remap->extents);
+      if (buffer->strides.size() == 0) {
+        ICHECK_EQ(target_slice->strides.size(), 0U)
+            << "Trying to bind compact buffer to strided one strides=" << target_slice->strides;
+      } else {
+        target_slice = target_slice.MakeStrideView();
+      }
+
+      return copy->ElemOffset(remap->begins);
+    }
+  };
+
+  // The buffer assignment map
+  // Variable remap
+  std::unordered_map<const VarNode*, PrimExpr> var_remap_;
+  // Buffer map
+  std::unordered_map<const BufferNode*, BufferEntry> buf_map_;
+  // Analyzer for the variable bounds, used to simplify the bounds populator. We really need the
+  // analyzer from it. However
+  IRVisitorWithAnalyzer* bound_analyzer_;
+};
+
 class StorageFlattener : public StmtExprMutator {
  public:
   explicit StorageFlattener(const Map<Var, Buffer>& extern_buffer_map, int cache_line_size,
@@ -637,6 +995,10 @@ class StorageFlattener : public StmtExprMutator {
         << "and all buffer_dim_align annotations are removed.  "
         << "Please run BufferStrideLegalize first.";
 
+    ICHECK_NE(op->attr_key, attr::buffer_bind_scope)
+        << "StorageFlattener assumes that all buffer binds have already been applied.  "
+        << "Please run BufferBindUnwrapper first.";
+
     if (op->attr_key == attr::double_buffer_scope && op->node->IsInstance<tir::BufferNode>()) {
       auto buffer = Downcast<tir::Buffer>(op->node);
       Stmt body = this->VisitStmt(op->body);
@@ -644,8 +1006,6 @@ class StorageFlattener : public StmtExprMutator {
       ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
       body = AttrStmt(it->second.buffer->data, op->attr_key, op->value, std::move(body));
       return body;
-    } else if (op->attr_key == attr::buffer_bind_scope) {
-      return HandleBufferBindScope(op);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -841,107 +1201,24 @@ class StorageFlattener : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
-    LOG(FATAL) << "ProducerLoad cannot appear in a valid TIR PrimFunc.";
+    LOG(FATAL) << "ProducerLoad cannot appear in a valid TIR PrimFunc.  "
+               << "Please run SchedulePostProcToPrimFunc first.";
     return PrimExpr();
   }
 
   Stmt VisitStmt_(const ProducerStoreNode* op) final {
-    LOG(FATAL) << "Cannot handle Provide "
-               << " please run SchedulePostProcToPrimFunc first";
+    LOG(FATAL) << "ProducerStore cannot appear in a valid TIR PrimFunc.  "
+               << "Please run SchedulePostProcToPrimFunc first.";
     return Stmt();
   }
 
   Stmt VisitStmt_(const ProducerRealizeNode* op) final {
-    LOG(FATAL) << "Cannot handle Realize "
-               << " please run SchedulePostProcToPrimFunc first";
+    LOG(FATAL) << "ProducerRealize cannot appear in a valid TIR PrimFunc.  "
+               << "Please run SchedulePostProcToPrimFunc first.";
     return Stmt();
   }
 
  private:
-  // The specific tensor data layout is not determined before
-  // StorageFlatten pass. We use buffer_bind_scope
-  // to specify before hand we want to bind a subregion
-  // of tensor to a symbolic buffer, which get used in extern.
-  //
-  // Example:
-  //
-  // realize A in range [i*4, extent=10) {
-  //   bind Ab to A in [i*4+1, extent=4) {
-  //     call_func(Ab.ptr, Ab.shape[0])
-  //   }
-  // }
-  //
-  // After StorageFlatten
-  //
-  // alloc A[10]
-  //   call(A + 1,  4)
-  //
-  // Buffer is a protocol to declare specific
-  // data layout and shape we expect.
-  // So this function need to check:
-  // - If the bind range is within the realize range
-  // - If we can match the requirement of buffer
-  // - Remap variables such as Ab.ptr to the actual value.
-  //
-  // Here are a few possible failure cases:
-  // - Buffer is declared to have constant shape,
-  //   but we try to bind it to a different one.
-  // - Buffer is declared to be compact(no strides)
-  //   but this binded region is a subregion of
-  //   a matrix(tensor), which means it requires strides.
-  //
-  // We do support a few relaxed case, such as bindingx
-  // region with shape [1, 1, n, m] to buffer with shape [n, m]
-  Stmt HandleBufferBindScope(const AttrStmtNode* op) {
-    Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
-    ICHECK_EQ(arr.size(), 2U);
-    const BufferNode* buffer = arr[0].as<BufferNode>();
-    const BufferNode* target = arr[1].as<BufferNode>();
-    const CallNode* tuple = op->value.as<CallNode>();
-    ICHECK(buffer && target);
-    ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
-    auto key = GetRef<Buffer>(target);
-
-    auto it = buf_map_.find(key);
-    ICHECK(it != buf_map_.end()) << "Cannot find buffer of " << key;
-    const BufferEntry& be = it->second;
-    ICHECK(!be.released);
-    ICHECK_EQ(tuple->args.size(), be.buffer->shape.size() * 2);
-    Array<PrimExpr> begins, extents;
-    if (be.bounds.size() != 0) {
-      ICHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
-      for (size_t i = 0; i < be.buffer->shape.size(); ++i) {
-        begins.push_back(tuple->args[2 * i] - be.bounds[i]->min);
-        extents.push_back(tuple->args[2 * i + 1]);
-      }
-    } else {
-      for (size_t i = 0; i < tuple->args.size(); i += 2) {
-        begins.push_back(tuple->args[i]);
-        auto new_extent = bound_analyzer_->Simplify(tuple->args[i + 1]);
-        extents.push_back(new_extent);
-      }
-    }
-    Buffer slice = be.buffer.MakeSlice(begins, extents);
-    if (buffer->strides.size() == 0) {
-      ICHECK_EQ(slice->strides.size(), 0U)
-          << "Trying to bind compact buffer to strided one strides=" << slice->strides;
-    } else {
-      slice = slice.MakeStrideView();
-    }
-    // start binding
-    ArgBinder binder(&var_remap_);
-    binder.BindBuffer(Downcast<Buffer>(arr[0]), slice, buffer->name, true);
-    // Apply the remaps
-    Stmt body = MergeNest(binder.asserts(), op->body);
-    body = MergeNest(binder.init_nest(), body);
-    body = this->VisitStmt(body);
-    // remove the binds
-    for (const Var& v : binder.defs()) {
-      var_remap_.erase(v.get());
-    }
-    return body;
-  }
-
   // The buffer entry in the flatten map
   struct DimAlignInfo {
     int align_factor{0};
@@ -1009,6 +1286,40 @@ class StorageFlattener : public StmtExprMutator {
   bool create_bound_attributes_{false};
 };
 
+// The specific tensor data layout is not determined before
+// StorageFlatten pass. We use buffer_bind_scope
+// to specify before hand we want to bind a subregion
+// of tensor to a symbolic buffer, which get used in extern.
+//
+// Example:
+//
+// realize A in range [i*4, extent=10) {
+//   bind Ab to A in [i*4+1, extent=4) {
+//     call_func(Ab.ptr, Ab.shape[0])
+//   }
+// }
+//
+// After StorageFlatten
+//
+// alloc A[10]
+//   call(A + 1,  4)
+//
+// Buffer is a protocol to declare specific
+// data layout and shape we expect.
+// So this function need to check:
+// - If the bind range is within the realize range
+// - If we can match the requirement of buffer
+// - Remap variables such as Ab.ptr to the actual value.
+//
+// Here are a few possible failure cases:
+// - Buffer is declared to have constant shape,
+//   but we try to bind it to a different one.
+// - Buffer is declared to be compact(no strides)
+//   but this binded region is a subregion of
+//   a matrix(tensor), which means it requires strides.
+//
+// We do support a few relaxed case, such as bindingx
+// region with shape [1, 1, n, m] to buffer with shape [n, m]
 PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_attributes) {
   // Only apply this pass to TIR from TE schedules
   Optional<Bool> from_legacy_te_schedule = func->GetAttr("from_legacy_te_schedule", Bool(false));
@@ -1025,6 +1336,8 @@ PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_at
     fptr->buffer_map = stride_legalize.UpdatedExternBufferMap();
 
     fptr->body = ThreadScopePropagate(fptr->buffer_map)(std::move(fptr->body));
+
+    fptr->body = BufferBindUnwrapper(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
 
     fptr->body = StorageFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
                                   &bound_analyzer)(std::move(fptr->body));
