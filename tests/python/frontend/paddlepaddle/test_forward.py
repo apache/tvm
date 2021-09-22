@@ -856,7 +856,7 @@ def test_forward_gather_nd():
     x_shape = [30, 40, 20]
     x_data = paddle.rand(x_shape, dtype="float32")
     index = paddle.to_tensor(np.array([[0, 1]]).astype("int64"))
-    verify_model(gather_nd1, [x_data, index])
+    verify_model(gather_nd1, [x_data, index], input_shape=[[-1, 40, 20], [1, 2]])
     verify_model(gather_nd2, input_data=[x_data])
 
 
