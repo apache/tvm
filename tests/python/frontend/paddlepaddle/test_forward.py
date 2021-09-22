@@ -485,18 +485,17 @@ def test_forward_crop():
         return paddle.crop(inputs, shape=[3, 3], offsets=offsets)
 
     @paddle.jit.to_static
-    def crop4(inputs):
-        shape = paddle.to_tensor(np.array([3, 3]).astype("int32"))
-        offsets = paddle.to_tensor(np.array([1, 1]).astype("int32"))
+    def crop4(inputs, shape, offsets):
         return paddle.crop(inputs, shape=shape, offsets=offsets)
 
     input_shape = [10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(crop1, input_data=[input_data])
     shape = paddle.to_tensor(np.array([3, 3], "int32"))
-    # verify_model(crop2, [input_data, shape], input_shape=[[-1, -1], [2]])
+    verify_model(crop2, [input_data, shape], input_shape=[[-1, -1], [2]])
     verify_model(crop3, input_data=[input_data])
-    verify_model(crop4, input_data=[input_data])
+    offsets = paddle.to_tensor(np.array([1, 1]).astype("int32"))
+    verify_model(crop4, input_data=[input_data, shape, offsets], input_shape=[[-1, -1], [2], [2]])
 
 
 @tvm.testing.uses_gpu
@@ -691,7 +690,7 @@ def test_forward_expand():
     x_data = paddle.rand(x_shape, dtype="float32")
     verify_model(expand1, input_data=[x_data])
     shape = paddle.to_tensor(np.array([2, 3]).astype("int32"))
-    # verify_model(expand2, [x_data, shape], input_shape=[[3], [2]])
+    verify_model(expand2, [x_data, shape], input_shape=[[3], [2]])
 
 
 @tvm.testing.uses_gpu

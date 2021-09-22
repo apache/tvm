@@ -602,6 +602,7 @@ def convert_crop(g, op, block):
     """Operator converter for crop."""
 
     x = g.get_node(op.input("X")[0])
+    dims = len(infer_shape(x))
     input_shape = op.input("Shape")
     input_offsets = op.input("Offsets")
     if input_shape:
@@ -616,13 +617,15 @@ def convert_crop(g, op, block):
     else:
         offsets = op.attr("offsets")
 
-    crop_len = len(shape)
-    slice_start = [0] * crop_len
-    slice_end = shape
-    for i in range(crop_len):
-        slice_start[i] += offsets[i]
-        slice_end[i] += offsets[i]
-    out = _op.strided_slice(x, slice_start, slice_end)
+    if not isinstance(shape, _expr.Expr):
+        shape = _op.const(shape, "int32")
+    if not isinstance(offsets, _expr.Expr):
+        offsets = _op.const(offsets, "int32")
+    slice_start = offsets
+    slice_end = _op.add(shape, offsets)
+    strides = _op.const([1] * dims, dtype="int32")
+
+    out = _op.strided_slice(x, slice_start, slice_end, strides)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -739,28 +742,13 @@ def convert_expand(g, op, block):
     """Operator converter for expand."""
 
     x = g.get_node(op.input("X")[0])
-    input_shape = list(infer_shape(x))
-
-    ndims = len(input_shape)
     if op.input("Shape"):
         sizes = g.get_node(op.input("Shape")[0])
         sizes = _infer_value(sizes, g.get_params())
     else:
         sizes = op.attr("shape")
 
-    out = x
-    out_dims = len(sizes)
-    if ndims < out_dims:
-        num_newaxis = out_dims - ndims
-        out = _op.expand_dims(out, axis=0, num_newaxis=num_newaxis)
-        input_shape = [1] * num_newaxis + input_shape
-
-    for i in range(out_dims):
-        if sizes[i] != -1 and input_shape[i] == 1:
-            if not isinstance(sizes[i], int):
-                sizes[i] = int(infer_value(sizes[i], {}).numpy())
-            out = _op.repeat(out, sizes[i], axis=i)
-
+    out = _op.broadcast_to(x, sizes)
     g.add_node(op.output("Out")[0], out)
 
 
