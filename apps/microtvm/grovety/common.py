@@ -98,8 +98,11 @@ def create_header_file(output_path, input, output):
 
     c_types = {
         'int8': 'int8_t',
-        'int32': 'int32_t',
         'uint8': 'uint8_t',
+        'int16': 'int16_t',
+        'uint16': 'uint16_t',
+        'int32': 'int32_t',
+        'uint32': 'uint32_t',
         'float32': 'float'
     }
 
