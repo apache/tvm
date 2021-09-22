@@ -594,6 +594,19 @@ class TVMScriptParser(Transformer):
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
         return res
 
+    def transform_While(self, node):
+        """While visitor
+        AST abstract grammar:
+            While(expr condition, stmt* body)
+        """
+        condition = self.transform(node.condition)
+        # body
+        self.context.enter_scope(nodes=node.body.stmts)
+        body = self.parse_body(node)
+        self.context.exit_scope()
+
+        return tvm.tir.While(condition, body, span=tvm_span_from_synr(node.span))
+
     def transform_With(self, node):
         """With visitor
         AST abstract grammar:

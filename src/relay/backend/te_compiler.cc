@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "te_compiler.h"
+#include "./te_compiler.h"
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/attrs.h>
@@ -42,8 +42,8 @@
 #include <utility>
 #include <vector>
 
-#include "te_compiler_cache.h"
-#include "utils.h"
+#include "./te_compiler_cache.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
@@ -131,6 +131,7 @@ class TECompilerImpl : public TECompilerNode {
     Array<tvm::runtime::Module> ret;
     std::unordered_map<std::string, std::string> cached_symbol;
     std::vector<CCacheKey> cached_ext_funcs;
+
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       ICHECK(src_func.defined());
@@ -383,10 +384,12 @@ class LowerTensorExprMutator : public ExprMutator {
    *  \brief Returns the primitive function associated with \p expr, or
    *  nullptr if none.
    */
-  Function ResolveToPrimitive(Expr expr) {
+  BaseFunc ResolveToPrimitive(Expr expr) {
     if (const GlobalVarNode* gvn = expr.as<GlobalVarNode>()) {
       BaseFunc base_func = module_->Lookup(GetRef<GlobalVar>(gvn));
       return ResolveToPrimitive(base_func);
+    } else if (const tir::PrimFuncNode* prim_func = expr.as<tir::PrimFuncNode>()) {
+      return GetRef<tir::PrimFunc>(prim_func);
     } else if (const VarNode* vn = expr.as<VarNode>()) {
       auto itr = primitive_functions_.find(GetRef<Var>(vn));
       return itr == primitive_functions_.end() ? Function() : itr->second;
@@ -516,10 +519,17 @@ class LowerTensorExprMutator : public ExprMutator {
   Expr VisitExpr_(const LetNode* let) override {
     Var var = Downcast<Var>(Mutate(let->var));
     Expr value = Mutate(let->value);
-    Function prim_func = ResolveToPrimitive(value);
+    BaseFunc prim_func = ResolveToPrimitive(value);
+
     if (prim_func.defined()) {
+      // Already lowered by other means, no need to mutate the Let node
+      if (prim_func->IsInstance<tir::PrimFuncNode>()) {
+        return GetRef<Let>(let);
+      }
+
       // Remember let var is bound to (possibly indirectly) to a primitive.
-      primitive_functions_.emplace(let->var, prim_func);
+      Function func = Downcast<Function>(prim_func);
+      primitive_functions_.emplace(let->var, func);
     }
     Expr body = Mutate(let->body);
     if (prim_func.defined()) {
@@ -537,13 +547,19 @@ class LowerTensorExprMutator : public ExprMutator {
     Call expr = GetRef<Call>(call);
 
     // Look for (indirect) calls to primitives.
-    Function prim_func = ResolveToPrimitive(call->op);
+    BaseFunc prim_func = ResolveToPrimitive(call->op);
     if (!prim_func.defined()) {
       // Not a call to a primitive function.
       if (const FunctionNode* fn = call->op.as<FunctionNode>()) {
         this->process_fn_(GetRef<Function>(fn));
       }
       return ExprMutator::VisitExpr_(call);
+    }
+
+    // Already lowered by other means so we don't need to mutate
+    // the call
+    if (prim_func->IsInstance<tir::PrimFuncNode>()) {
+      return expr;
     }
 
     // Find the desired target device.
@@ -565,7 +581,8 @@ class LowerTensorExprMutator : public ExprMutator {
     }
 
     // Lower the primitive function for that target.
-    std::pair<GlobalVar, Attrs> pair = LowerFunction(prim_func, target);
+    Function func = Downcast<Function>(prim_func);
+    std::pair<GlobalVar, Attrs> pair = LowerFunction(func, target);
 
     // Similarly transform arguments.
     Array<Expr> args;
@@ -596,19 +613,7 @@ class LowerTensorExprMutator : public ExprMutator {
   const Op& debug_op_;
 };
 
-Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map,
-                     backend::StaticMemoryPlan memory_plan, const String& module_name,
-                     TECompiler compiler, std::function<void(Function)> process_fn) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function func, IRModule module, PassContext ctx) {
-        LowerTensorExprMutator lower_te(module, targets, device_context_map, process_fn,
-                                        module_name, compiler);
-        return Downcast<Function>(lower_te.Mutate(func));
-      };
-  return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
-}
-
-Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets) {
+Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
   if (targets.size() == 1) {
     // The homogeneous execution case, return the only target.
     const auto& it = targets.begin();
@@ -638,26 +643,28 @@ Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets) {
   }
 }
 
-/*!
- * \brief Update the "main" control function's metadata
- *
- * \param mod The module
- * \param targets Map of targets
- * \return function_infos Function info for each function in the module
- */
+Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map, const String& module_name,
+                     TECompiler compiler, std::function<void(Function)> process_fn) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function func, IRModule module, PassContext ctx) {
+        LowerTensorExprMutator lower_te(module, targets, device_context_map, process_fn,
+                                        module_name, compiler);
+        return Downcast<Function>(lower_te.Mutate(func));
+      };
+  return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
+}
 
-backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, TargetMap targets,
+backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
                                               Map<Expr, backend::StorageInfo> storage_info_map) {
-  CHECK_EQ(mod->functions.size(), 1)
-      << "There should only be one function in the module passed to UpdateMainWorkspaceSize";
   Function func = Downcast<Function>(mod->Lookup("main"));
 
   // This is a Map<device,Map<storage_id, size>>
-  std::unordered_map<DLDeviceType, std::unordered_map<int, int>, EnumClassHash> sid_workspace;
+  std::unordered_map<DLDeviceType, std::unordered_map<int, int>, backend::EnumClassHash>
+      sid_workspace;
   // This is a Map<device, size_of_inputs_and_outputs>
-  std::unordered_map<DLDeviceType, int, EnumClassHash> device_io;
+  std::unordered_map<DLDeviceType, int, backend::EnumClassHash> device_io;
   // This is a Map<device, size_of_constants>
-  std::unordered_map<DLDeviceType, int, EnumClassHash> device_consts;
+  std::unordered_map<DLDeviceType, int, backend::EnumClassHash> device_consts;
 
   // Initialize the mapping from all storage identifiers to workspace sizes,
   // the amount of device io, and the device constants.
@@ -723,7 +730,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, TargetMap tar
   }
 
   // This is a Map<device, workspace_size>
-  std::unordered_map<DLDeviceType, int, EnumClassHash> device_workspace;
+  std::unordered_map<DLDeviceType, int, backend::EnumClassHash> device_workspace;
   // Once we know the sizes of sids, we need to accumulate per device
   for (const auto& dev_sid_size : sid_workspace) {
     auto dev = dev_sid_size.first;
@@ -746,17 +753,17 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, TargetMap tar
   }
 
   for (const auto& dev_and_size : device_workspace) {
-    auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
+    auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
     workspace_sizes.Set(tgt, dev_and_size.second);
     relay_primfuncs.Set(tgt, func);
   }
   for (const auto& dev_and_size : device_io) {
-    auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
+    auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
     io_sizes.Set(tgt, dev_and_size.second);
   }
 
   for (const auto& dev_and_size : device_consts) {
-    auto tgt = GetTargetFromInteger(dev_and_size.first, targets);
+    auto tgt = tec::GetTargetFromInteger(dev_and_size.first, targets);
     constant_sizes.Set(tgt, dev_and_size.second);
   }
 
@@ -800,7 +807,7 @@ void UpdateFunctionMetadata(Function relay_func,
     CHECK(prim_fn.defined()) << "the primitive function must be defined";
 
     auto workspace_byte_alignment =
-        relay_target.value()->GetAttr<Integer>("workspace_byte_alignment").value_or(16);
+        relay_target.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
 
     Integer workspace_size = CalculateWorkspaceBytes(prim_fn, workspace_byte_alignment);
 
@@ -844,20 +851,13 @@ void UpdateFunctionMetadata(Function relay_func,
 }
 
 IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_context_map,
-                 backend::StaticMemoryPlan memory_plan, const String& module_name,
-                 std::function<void(Function)> process_fn) {
+                 const String& module_name, std::function<void(Function)> process_fn) {
   DLOG(INFO) << "lowering module:\n" << PrettyPrint(module);
 
   TECompiler compiler;
 
-  backend::FunctionInfo func_info;
-  if (memory_plan.defined()) {
-    // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
-    func_info = UpdateMainWorkspaceSize(module, targets, memory_plan->expr_to_storage_info);
-  }
-
-  auto updated_module = LowerTensorExpr(targets, device_context_map, memory_plan, module_name,
-                                        compiler, process_fn)(module);
+  auto updated_module =
+      LowerTensorExpr(targets, device_context_map, module_name, compiler, process_fn)(module);
 
   // A temporary solution until we can rewrite the auto-scheduler task extraction code to work
   // in a more reasonable way.
@@ -882,7 +882,6 @@ IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_con
 
   // Annotate the module with the external modules and function info
   updated_module = WithAttr(updated_module, "external_mods", compiler->LowerExternalFunctions());
-  updated_module = WithAttr(updated_module, "main_func_info", func_info);
 
   return updated_module;
 }
@@ -900,8 +899,9 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
 
       // Put the function in per_target_modules
       if (!per_target_modules.count(target.value())) {
-        // Initialize the IRModule for this target and add the function
-        IRModule target_module;
+        // Initialize the IRModule for this target with the attributes from the input IRModule
+        IRModule target_module = IRModule({}, {}, {}, {}, mod->attrs);
+        // Add the function to the IRModule
         target_module->Add(var, func);
         per_target_modules[target.value()] = target_module;
       } else {
@@ -918,33 +918,16 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-IRModule GetMainModule(IRModule mod) {
-  IRModule main_module;
-  // Copy the type defs
-  for (const auto& kv : mod->type_definitions) {
-    main_module->AddTypeDef(kv.first, kv.second);
-  }
-  // Copy all Relay functions (we don't include PrimFuncs)
-  for (auto kv : mod->functions) {
-    const GlobalVar& var = kv.first;
-    const BaseFunc& func = kv.second;
-    if (func->IsInstance<tvm::relay::FunctionNode>()) {
-      main_module->Add(var, func);
-    }
-  }
-  return main_module;
-}
-
-Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
-                 backend::StaticMemoryPlan memory_plan, const String& module_name,
+Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map, const String& module_name,
                  std::function<void(Function)> process_fn) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
                                                                             PassContext ctx) {
-    return LowerTE(module, targets, device_context_map, memory_plan, module_name, process_fn);
+    return LowerTE(module, targets, device_context_map, module_name, process_fn);
   };
-  // TODO(@electriclilies, mbs): Fold InferType() pass into LowerTEPass since it will always need to
-  // be called afterwards
-  return tvm::transform::CreateModulePass(pass_func, 1, "LowerTE", {});
+
+  return tvm::transform::Sequential({tvm::relay::transform::RelayToTIRTargetHook(),
+                                     tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {}),
+                                     InferType()});
 }
 }  // namespace tec
 }  // namespace relay

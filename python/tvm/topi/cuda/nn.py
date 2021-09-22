@@ -18,7 +18,9 @@
 """scheduler functions for cuda backend"""
 from __future__ import absolute_import as _abs
 
-from .. import cpp
+import tvm
+from tvm import te
+from ..utils import traverse_inline
 
 
 def schedule_lrn(outs):
@@ -35,4 +37,19 @@ def schedule_lrn(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    return cpp.cuda.schedule_lrn(outs)
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+
+    def _callback(op):
+        if "sqr_sum" in op.tag:
+            pad = op.input_tensors[0]
+            s[pad].compute_inline()
+            fused_axis = s[outs[0]].fuse(*s[outs[0]].op.axis)
+            bx, tx = s[outs[0]].split(fused_axis, factor=max_threads)
+            s[outs[0]].bind(bx, te.thread_axis("blockIdx.x"))
+            s[outs[0]].bind(tx, te.thread_axis("threadIdx.x"))
+            s[op].compute_at(s[outs[0]], tx)
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s

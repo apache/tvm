@@ -14,11 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""scheduler for normalization functions on rocm backend"""
-from __future__ import absolute_import as _abs
+"Relay operators for the Arm(R) Ethos(TM)-U NPU"
 
-from .. import cpp
-
-
-def schedule_lrn(outs):
-    return cpp.rocm.schedule_lrn(outs)
+from .convolution import ethosu_conv2d
