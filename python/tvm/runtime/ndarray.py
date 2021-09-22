@@ -172,7 +172,7 @@ class NDArray(NDArrayBase):
             else str(source_array.dtype)
         )
         if (not source_array.flags["C_CONTIGUOUS"]) or (
-                dtype == "bfloat16" or dtype != np_dtype_str
+            dtype == "bfloat16" or dtype != np_dtype_str
         ):
             source_array = np.ascontiguousarray(
                 source_array, dtype="uint16" if dtype == "bfloat16" else dtype
