@@ -273,6 +273,193 @@ class BufferShapeLegalize : public StmtExprMutator {
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
 
+/* Apply dimension alignment restrictions
+ *
+ * Buffers annotated with attr::buffer_dim_align may need to have
+ * strides defined such that they are no longer in a compact shape.
+ * After this pass, buffers have stride definitions to include these
+ * alignment restrictions, and attr::buffer_dim_align annotations have
+ * been removed.
+ */
+class BufferStrideLegalize : public StmtExprMutator {
+ public:
+  explicit BufferStrideLegalize(const Map<Var, Buffer>& extern_buffer_map,
+                                IRVisitorWithAnalyzer* bound_analyzer)
+      : bound_analyzer_(bound_analyzer) {
+    for (auto kv : extern_buffer_map) {
+      Buffer buf = kv.second;
+      Buffer with_strides = WithStrides(buf, true);
+      {
+        BufferEntry entry;
+        entry.remap_to = with_strides;
+        entry.in_scope = true;
+        entry.is_external = true;
+        buf_map_[buf] = entry;
+      }
+      updated_extern_buffer_map_.Set(kv.first, with_strides);
+    }
+  }
+
+  Map<Var, Buffer> UpdatedExternBufferMap() const { return updated_extern_buffer_map_; }
+
+  Buffer WithStrides(Buffer buf, bool allow_scalar = false) {
+    auto it = buf_map_.find(buf);
+    if (it != buf_map_.end()) {
+      const BufferEntry& entry = it->second;
+      ICHECK(entry.in_scope) << "Cannot annotate an out-of-scope buffer";
+      return entry.remap_to;
+    }
+
+    if (buf->strides.size()) {
+      ICHECK_EQ(buf->strides.size(), buf->shape.size());
+      return buf;
+    }
+
+    Array<PrimExpr> shape = buf->shape;
+
+    if (shape.size() == 0) {
+      // This is only allowed for buffers that point to external
+      // buffers.  These are treated as 1-d pointers of unknown size,
+      // with stride of 1.
+      ICHECK(allow_scalar)
+          << "Buffer " << buf << " does not have a valid shape.  "
+          << "BufferStrideLegalize requires all internal buffers to have a valid shape.  "
+          << "Please run BufferShapeLegalize first";
+      return buf;
+    }
+
+    // Keeping this to have matched behavior to previous version.
+    // There are many parts of the codebase that assume that a strided
+    // array cannot be compact.
+    if (dim_align_.count(buf) == 0) {
+      return buf;
+    }
+
+    std::vector<PrimExpr> rstrides;
+    const std::vector<DimAlignInfo>& avec = dim_align_[buf];
+    int first_dim = 0;
+    PrimExpr stride = make_const(shape[first_dim].dtype(), 1);
+    for (size_t i = shape.size(); i != 0; --i) {
+      size_t dim = i - 1;
+      if (dim < avec.size() && avec[dim].align_factor != 0) {
+        PrimExpr factor = make_const(stride.dtype(), avec[dim].align_factor);
+        PrimExpr offset = make_const(stride.dtype(), avec[dim].align_offset);
+        stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
+        stride = bound_analyzer_->Simplify(stride);
+      }
+      rstrides.push_back(stride);
+      stride = stride * shape[dim];
+    }
+
+    auto ptr = buf.CopyOnWrite();
+    ptr->strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
+
+    return buf;
+  }
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == attr::buffer_dim_align) {
+      auto buffer = Downcast<tir::Buffer>(op->node);
+      const CallNode* tuple = op->value.as<CallNode>();
+      ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
+      auto& vinfo = dim_align_[buffer];
+      int dim = tuple->args[0].as<IntImmNode>()->value;
+      if (static_cast<size_t>(dim) >= vinfo.size()) {
+        vinfo.resize(dim + 1);
+      }
+      vinfo[dim].align_factor = tuple->args[1].as<IntImmNode>()->value;
+      vinfo[dim].align_offset = tuple->args[2].as<IntImmNode>()->value;
+      return this->VisitStmt(op->body);
+    } else if (op->attr_key == attr::buffer_bind_scope) {
+      Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
+      ICHECK_EQ(arr.size(), 2U);
+      Buffer source = Downcast<Buffer>(arr[0]);
+      Buffer target_with_strides = WithStrides(Downcast<Buffer>(arr[1]));
+      Buffer source_with_strides = WithStrides(source);
+
+      {
+        BufferEntry entry;
+        entry.remap_to = source_with_strides;
+        entry.in_scope = true;
+        entry.is_external = false;
+        buf_map_[source] = entry;
+      }
+
+      Stmt body = this->VisitStmt(op->body);
+
+      return AttrStmt(Array<ObjectRef>{source_with_strides, target_with_strides}, op->attr_key,
+                      op->value, body, op->span);
+    } else {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+  }
+
+  Stmt VisitStmt_(const BufferRealizeNode* op) final {
+    Buffer key = op->buffer;
+    Buffer with_strides = WithStrides(op->buffer);
+    {
+      BufferEntry entry;
+      entry.remap_to = with_strides;
+      entry.in_scope = true;
+      entry.is_external = false;
+      buf_map_[key] = entry;
+    }
+
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+
+    buf_map_[key].in_scope = false;
+    op = stmt.as<BufferRealizeNode>();
+    ICHECK(op);
+
+    return BufferRealize(with_strides, op->bounds, op->condition, op->body, op->span);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<BufferLoadNode>();
+
+    auto it = buf_map_.find(op->buffer);
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
+    const BufferEntry& e = it->second;
+    ICHECK(e.in_scope) << "Cannot read a buffer that is already out of scope";
+
+    return BufferLoad(e.remap_to, op->indices, op->span);
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<BufferStoreNode>();
+
+    auto it = buf_map_.find(op->buffer);
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
+    const BufferEntry& e = it->second;
+    ICHECK(e.in_scope) << "Cannot write to a buffer that is already out of scope";
+
+    return BufferStore(e.remap_to, op->value, op->indices, op->span);
+  }
+
+ private:
+  Map<Var, Buffer> updated_extern_buffer_map_;
+
+  struct DimAlignInfo {
+    int align_factor{0};
+    int align_offset{0};
+  };
+
+  // Dimension alignment
+  std::unordered_map<Buffer, std::vector<DimAlignInfo>, ObjectPtrHash, ObjectPtrEqual> dim_align_;
+
+  struct BufferEntry {
+    Buffer remap_to;
+    bool in_scope;
+    bool is_external;
+  };
+
+  std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
+
+  IRVisitorWithAnalyzer* bound_analyzer_;
+};
+
 class StorageFlattener : public StmtExprMutator {
  public:
   explicit StorageFlattener(const Map<Var, Buffer>& extern_buffer_map, int cache_line_size,
@@ -301,6 +488,11 @@ class StorageFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
+    ICHECK_NE(op->attr_key, attr::buffer_dim_align)
+        << "StorageFlattener assumes that all buffers have accurate strides, "
+        << "and all buffer_dim_align annotations are removed.  "
+        << "Please run BufferStrideLegalize first.";
+
     if (op->attr_key == attr::double_buffer_scope && op->node->IsInstance<tir::BufferNode>()) {
       auto buffer = Downcast<tir::Buffer>(op->node);
       Stmt body = this->VisitStmt(op->body);
@@ -317,18 +509,6 @@ class StorageFlattener : public StmtExprMutator {
       return stmt;
     } else if (op->attr_key == attr::buffer_bind_scope) {
       return HandleBufferBindScope(op);
-    } else if (op->attr_key == attr::buffer_dim_align) {
-      auto buffer = Downcast<tir::Buffer>(op->node);
-      const CallNode* tuple = op->value.as<CallNode>();
-      ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
-      auto& vinfo = dim_align_[buffer];
-      int dim = tuple->args[0].as<IntImmNode>()->value;
-      if (static_cast<size_t>(dim) >= vinfo.size()) {
-        vinfo.resize(dim + 1);
-      }
-      vinfo[dim].align_factor = tuple->args[1].as<IntImmNode>()->value;
-      vinfo[dim].align_offset = tuple->args[2].as<IntImmNode>()->value;
-      return this->VisitStmt(op->body);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -400,25 +580,7 @@ class StorageFlattener : public StmtExprMutator {
               << "Allocation exceed bound of memory tag " << skey.to_string();
         }
       }
-      Array<PrimExpr> strides;
-      if (dim_align_.count(key) != 0 && shape.size() != 0) {
-        std::vector<PrimExpr> rstrides;
-        const std::vector<DimAlignInfo>& avec = dim_align_[key];
-        int first_dim = 0;
-        PrimExpr stride = make_const(shape[first_dim].dtype(), 1);
-        for (size_t i = shape.size(); i != 0; --i) {
-          size_t dim = i - 1;
-          if (dim < avec.size() && avec[dim].align_factor != 0) {
-            PrimExpr factor = make_const(stride.dtype(), avec[dim].align_factor);
-            PrimExpr offset = make_const(stride.dtype(), avec[dim].align_offset);
-            stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
-            stride = bound_analyzer_->Simplify(stride);
-          }
-          rstrides.push_back(stride);
-          stride = stride * shape[dim];
-        }
-        strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
-      }
+      Array<PrimExpr> strides = op->buffer->strides;
 
       auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>();
       ICHECK(ptr_type);
@@ -711,8 +873,6 @@ class StorageFlattener : public StmtExprMutator {
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // Buffer map
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
-  // Dimension alignment
-  std::unordered_map<Buffer, std::vector<DimAlignInfo>, ObjectPtrHash, ObjectPtrEqual> dim_align_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.
@@ -734,9 +894,16 @@ PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_at
 
     IRVisitorWithAnalyzer bound_analyzer;
     bound_analyzer(fptr->body);
+
     fptr->body = BufferShapeLegalize(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
+
+    auto stride_legalize = BufferStrideLegalize(fptr->buffer_map, &bound_analyzer);
+    fptr->body = stride_legalize(std::move(fptr->body));
+    fptr->buffer_map = stride_legalize.UpdatedExternBufferMap();
+
     fptr->body = StorageFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
                                   &bound_analyzer)(std::move(fptr->body));
+
     return func;
   } else {
     return func;
