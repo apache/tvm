@@ -60,8 +60,9 @@ if __name__ == "__main__":
         dataset = sine.get_data()
     elif args.model == "synth":
         import test_models.synth as synth
-        relay_mod, params, input, output = synth.avgpool_2d_relay_mod()
-        dataset = synth.get_data()
+        relay_mod, params, input, output = synth.conv_1d_relay_mod()
+        _, input_shape, input_dtype = input
+        dataset = synth.get_data(input_shape, input_dtype=input_dtype)
     else:
         raise NotImplementedError
 
