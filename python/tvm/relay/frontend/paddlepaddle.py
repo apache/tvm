@@ -1711,6 +1711,38 @@ def convert_rnn(g, op, block):
 
         return output, hidden_state
 
+    def generate_simplernn(
+        input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, n_act, backwards=False
+    ):
+        """Implementation of SimpleRNN cell for paddlepaddle of TVM"""
+
+        h_list = []
+        seq_length = len(input_seqs)
+        for i in range(seq_length):
+            step = input_seqs[i] if not backwards else input_seqs[seq_length - (i + 1)]
+            step = _op.squeeze(step, axis=[0])
+            xwt = _op.nn.dense(step, w_inp)
+            hwt = _op.nn.dense(hidden_state, w_hid)
+            if b_inp is not None:
+                xwt += b_inp
+            if b_hid is not None:
+                hwt += b_hid
+
+            n_gate = n_act(xwt + hwt)
+
+            hidden_state = n_gate
+            h_list.append(_op.expand_dims(hidden_state, axis=0))
+
+        if backwards:
+            h_list = h_list[::-1]
+
+        # Concatenate outputs and add back in direction axis.
+        concatenated = _op.concatenate(h_list, 0)
+        output = _op.expand_dims(concatenated, axis=1)
+        hidden_state = _op.expand_dims(hidden_state, axis=0)
+
+        return output, hidden_state
+
     def make_param_inputs(g, node, layer, hidden_size, num_layers):
         """Param for weight and bias."""
 
@@ -1833,6 +1865,31 @@ def convert_rnn(g, op, block):
                     b_inp=WB,
                     b_hid=RB,
                     rz_act=_op.sigmoid,
+                    n_act=_op.tanh,
+                    backwards=i == 1,
+                )
+                result_output.append(output)
+                result_H.append(H)
+            output = _op.concatenate(result_output, axis=1)
+            H = _op.concatenate(result_H, axis=0)
+        elif mode == "RNN_TANH":
+            init_h = make_init_param_inputs(g, op, layer)
+            init_hs = _op.split(init_h, num_directions)
+            result_output = []
+            result_H = []
+            for i in range(num_directions):
+                H_t = _op.squeeze(init_hs[i], axis=[0])
+                W = g.get_node(input_weights[i])
+                R = g.get_node(hidden_weights[i])
+                WB = g.get_node(input_bias[i])
+                RB = g.get_node(hidden_bias[i])
+                output, H = generate_simplernn(
+                    input_seqs=x_steps,
+                    hidden_state=H_t,
+                    w_inp=W,
+                    w_hid=R,
+                    b_inp=WB,
+                    b_hid=RB,
                     n_act=_op.tanh,
                     backwards=i == 1,
                 )
