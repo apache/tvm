@@ -169,7 +169,7 @@ class NDArray(NDArrayBase):
             source_array, dtype="uint16" if dtype == "bfloat16" else dtype
         )
         assert source_array.flags["C_CONTIGUOUS"]
-        data = ctypes.cast(source_array.__array_interface__['data'][0], ctypes.c_void_p)
+        data = ctypes.cast(source_array.__array_interface__["data"][0], ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
         return self
@@ -211,7 +211,7 @@ class NDArray(NDArrayBase):
             dtype = "int8"
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
-        data = ctypes.cast(np_arr.__array_interface__['data'][0], ctypes.c_void_p)
+        data = ctypes.cast(np_arr.__array_interface__["data"][0], ctypes.c_void_p)
         nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
         if old_dtype == "int4":
@@ -281,7 +281,7 @@ def numpyasarray(np_data):
     assert data.flags["C_CONTIGUOUS"]
     arr = TVMArray()
     shape = c_array(tvm_shape_index_t, data.shape)
-    arr.data = ctypes.cast(data.__array_interface__['data'][0], ctypes.c_void_p)
+    arr.data = ctypes.cast(data.__array_interface__["data"][0], ctypes.c_void_p)
     arr.shape = shape
     arr.strides = None
     arr.dtype = DataType(np.dtype(data.dtype).name)
@@ -320,7 +320,7 @@ def empty(shape, dtype="float32", device=device(1, 0), mem_scope=None):
         else:
             shape_imm.append(int(s))
     arr = np.array(shape_imm, "int64")
-    shape_ptr = ctypes.cast(arr.__array_interface__['data'][0], ctypes.c_void_p)
+    shape_ptr = ctypes.cast(arr.__array_interface__["data"][0], ctypes.c_void_p)
     ndim = len(shape_imm)
     dtype = DataType(dtype)
     arr = _ffi_api.TVMArrayAllocWithScope(shape_ptr, ndim, dtype, device, mem_scope)

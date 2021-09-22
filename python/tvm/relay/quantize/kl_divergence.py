@@ -40,7 +40,7 @@ def _find_scale_by_kl(arr, quantized_dtype="int8", num_bins=8001, num_quantized_
         num_quantized_bins = num_quantized_bins * 2 + 1
 
     def get_pointer(arr):
-        return ctypes.cast(arr.__array_interface__['data'][0], ctypes.c_void_p)
+        return ctypes.cast(arr.__array_interface__["data"][0], ctypes.c_void_p)
 
     hist, hist_edges = np.histogram(arr, bins=num_bins, range=(-thres, thres))
     hist_ptr = get_pointer(hist.astype(np.int32))
