@@ -39,13 +39,12 @@ def _find_scale_by_kl(arr, quantized_dtype="int8", num_bins=8001, num_quantized_
         # We need to move negative bins to positive bins to fit uint8 range.
         num_quantized_bins = num_quantized_bins * 2 + 1
 
-    def get_pointer(arr, ctypes_type):
-        ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes_type))
-        return ctypes.cast(ptr, ctypes.c_void_p)
+    def get_pointer(arr):
+        return ctypes.cast(arr.__array_interface__['data'][0], ctypes.c_void_p)
 
     hist, hist_edges = np.histogram(arr, bins=num_bins, range=(-thres, thres))
-    hist_ptr = get_pointer(hist.astype(np.int32), ctypes.c_int)
-    hist_edges_ptr = get_pointer(hist_edges, ctypes.c_float)
+    hist_ptr = get_pointer(hist.astype(np.int32))
+    hist_edges_ptr = get_pointer(hist_edges)
 
     return _quantize.FindScaleByKLMinimization(
         hist_ptr, hist_edges_ptr, num_bins, num_quantized_bins

@@ -159,8 +159,7 @@ def _get_np_int32_array_handle(arr):
         pointer to the data
     """
     assert arr.dtype == np.int32
-    ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
-    return ctypes.cast(ptr, ctypes.c_void_p)
+    return ctypes.cast(arr.__array_interface__['data'][0], ctypes.c_void_p)
 
 
 def _prepare_global_func_params(dims, pad, stride, dilation, x_shape=None, w_shape=None):
