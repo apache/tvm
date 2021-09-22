@@ -559,7 +559,7 @@ class LowerTensorExprMutator : public ExprMutator {
     // Already lowered by other means so we don't need to mutate
     // the call
     if (prim_func->IsInstance<tir::PrimFuncNode>()) {
-      return expr;
+      return std::move(expr);
     }
 
     // Find the desired target device.
@@ -859,23 +859,7 @@ IRModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_con
   auto updated_module =
       LowerTensorExpr(targets, device_context_map, module_name, compiler, process_fn)(module);
 
-  // A temporary solution until we can rewrite the auto-scheduler task extraction code to work
-  // in a more reasonable way.
-  if (backend::IsAutoSchedulerEnabled()) {
-    const auto* te_compiler_update_weights =
-        runtime::Registry::Get("auto_scheduler.relay_integration.te_compiler_update_weights");
-
-    ICHECK(te_compiler_update_weights != nullptr)
-        << "auto_scheduler.relay_integration.te_compiler_update_weights";
-
-    Map<String, tvm::Integer> weight_map;
-
-    for (auto pair : compiler->GetOpWeights()) {
-      weight_map.Set(pair.first, pair.second);
-    }
-
-    (*te_compiler_update_weights)(weight_map);
-  }
+  backend::UpdateAutoSchedulerOpWeights(compiler);
 
   // Copy the lowered functions into the return module
   updated_module->Update(compiler->GetLoweredFunctions());

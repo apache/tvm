@@ -44,6 +44,11 @@
 
 namespace tvm {
 namespace relay {
+
+namespace tec {
+class TECompiler;
+}
+
 namespace transform {
 Pass InlinePrimitives();
 }
@@ -491,6 +496,11 @@ TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
  */
 Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
     std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
+
+/*
+TODO
+*/
+void UpdateAutoSchedulerOpWeights(tec::TECompiler compiler);
 
 }  // namespace backend
 }  // namespace relay
