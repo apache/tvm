@@ -120,6 +120,18 @@ inline Array<For> LoopSRefs2Loops(const Array<StmtSRef>& loop_srefs) {
   return loops;
 }
 
+/**************** Loop extents ****************/
+
+inline int64_t GetLoopIntExtent(const ForNode* loop) {
+  const auto* int_extent = loop->extent.as<IntImmNode>();
+  return int_extent ? int_extent->value : -1;
+}
+
+inline int64_t GetLoopIntExtent(const StmtSRef& loop_sref) {
+  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  return GetLoopIntExtent(loop);
+}
+
 /******** Storage scope ********/
 
 /*!

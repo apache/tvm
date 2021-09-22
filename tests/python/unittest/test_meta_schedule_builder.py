@@ -95,6 +95,7 @@ def _check_build_results(builder_results: List[BuilderResult]):
     for result in builder_results:
         artifact_path = result.artifact_path
         error_msg = result.error_msg
+        print(error_msg)
         assert artifact_path is not None
         assert error_msg is None
         os.remove(artifact_path)
