@@ -24,8 +24,6 @@ from paddle.framework import dtype
 import paddle.nn as nn
 
 import tvm
-from tvm.contrib.sparse import array
-from tvm.relay.frontend.paddlepaddle import shape_of
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
@@ -496,7 +494,7 @@ def test_forward_crop():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(crop1, input_data=[input_data])
     shape = paddle.to_tensor(np.array([3, 3], "int32"))
-    verify_model(crop2, [input_data, shape], input_shape=[[-1, -1], [-1, -1]])
+    # verify_model(crop2, [input_data, shape], input_shape=[[-1, -1], [2]])
     verify_model(crop3, input_data=[input_data])
     verify_model(crop4, input_data=[input_data])
 
@@ -693,7 +691,7 @@ def test_forward_expand():
     x_data = paddle.rand(x_shape, dtype="float32")
     verify_model(expand1, input_data=[x_data])
     shape = paddle.to_tensor(np.array([2, 3]).astype("int32"))
-    verify_model(expand2, [x_data, shape], input_shape=[[3], [2]])
+    # verify_model(expand2, [x_data, shape], input_shape=[[3], [2]])
 
 
 @tvm.testing.uses_gpu
@@ -706,7 +704,7 @@ def test_forward_expand_as():
 
     data_x = paddle.to_tensor([1, 2, 3], dtype="int32")
     data_y = paddle.to_tensor([[1, 2, 3], [4, 5, 6]], dtype="float32")
-    verify_model(expand_as, [data_x, data_y], input_shape=[[-1], [-1, -1]])
+    verify_model(expand_as, [data_x, data_y])
 
 
 @tvm.testing.uses_gpu
@@ -858,7 +856,7 @@ def test_forward_gather_nd():
     x_shape = [30, 40, 20]
     x_data = paddle.rand(x_shape, dtype="float32")
     index = paddle.to_tensor(np.array([[0, 1]]).astype("int64"))
-    verify_model(gather_nd1, [x_data, index], input_shape=[[30, 40, 20], [2]])
+    verify_model(gather_nd1, [x_data, index])
     verify_model(gather_nd2, input_data=[x_data])
 
 
@@ -1933,14 +1931,8 @@ def test_forward_tile():
 
     input_shape = [2, 2]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(
-        tile,
-        input_data=[
-            input_data,
-        ],
-    )
     input_data2 = paddle.rand([1, 2], dtype="float32")
-    shape = paddle.to_tensor(np.array([3, 2]))
+    shape = paddle.to_tensor(np.array([3, 2], "int32"))
     verify_model(tile, [input_data, shape], input_shape=[[2, 2], [2]])
     verify_model(tile2, input_data=[input_data, input_data2])
     verify_model(tile3, input_data=[input_data, input_data2])
