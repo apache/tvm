@@ -1647,6 +1647,8 @@ class GatherND(OnnxOpConverter):
 
 
 class Compress(OnnxOpConverter):
+    """Operator converter for compress"""
+
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
         input_tensor, condition_tensor = inputs
