@@ -25,7 +25,6 @@ Integrate auto_scheduler into relay. It implements the following items:
 import json
 import logging
 import threading
-from copy import deepcopy
 
 import tvm
 from tvm import autotvm, transform
@@ -50,7 +49,6 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    from tvm.relay.backend import graph_executor_codegen
 
     # Turn off AutoTVM config not found warnings
     old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent

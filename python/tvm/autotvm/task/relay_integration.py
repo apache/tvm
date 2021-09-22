@@ -22,7 +22,6 @@ Decorator and utilities for the integration with TOPI and Relay
 """
 import threading
 import logging
-from copy import deepcopy
 
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
