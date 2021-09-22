@@ -1,6 +1,6 @@
+import time
 import numpy as np
 
-import tvm
 from tvm import rpc
 from tvm.autotvm.measure import request_remote
 from tvm.auto_scheduler.utils import call_func_with_timeout
@@ -29,6 +29,7 @@ def setup_pure_rpc_configuration(f):
                                                                        host=HOST_URL,
                                                                        port=HOST_PORT_PURE_RPC,
                                                                        key=DEVICE_KEY)
+        time.sleep(5)   # Need to make sure that the server start
         f(host=device_server_launcher.host, port=device_server_launcher.port)
         device_server_launcher.terminate()
     return wrapper
@@ -106,6 +107,7 @@ def can_create_connection_without_deadlock(timeout, func, args=(), kwargs=None):
 
 def try_create_remote_session(session_factory, args=(), kwargs=None):
     try:
+        successful_attempt = True
         results = []
         for _ in range(2):
             ret = can_create_connection_without_deadlock(timeout=10, func=session_factory,
@@ -114,32 +116,38 @@ def try_create_remote_session(session_factory, args=(), kwargs=None):
         if not np.all(np.array(results) == StatusKind.COMPLETE):
             raise ValueError("One or more sessions ended incorrectly.")
     except Exception as e:
+        successful_attempt = False
         print(e)
+    return successful_attempt
 
 
 @setup_pure_rpc_configuration
 def test_pure_rpc(host, port):
-    try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
+    status_ok = try_create_remote_session(session_factory=rpc.connect, args=(host, port))
+    assert status_ok
 
 
 @setup_rpc_proxy_configuration
 def test_rpc_proxy(host, port):
-    try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
+    status_ok = try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
+    assert status_ok
 
 
 @setup_rpc_tracker_configuration
 def test_rpc_tracker(host, port):
-    try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
+    status_ok = try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
+    assert status_ok
 
 
 @setup_rpc_tracker_via_proxy_configuration
 def test_rpc_tracker_via_proxy(host, port):
-    try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
+    status_ok = try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
+    assert status_ok
 
 
 @setup_pure_rpc_configuration
 def test_can_call_remote_function_with_pure_rpc(host, port):
-    remote_session = rpc.connect(host, port, key=DEVICE_KEY)
+    remote_session = rpc.connect(host, port)
     f = remote_session.get_function("runtime.GetFFIString")
     assert f("hello") == "hello"
 
