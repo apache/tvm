@@ -18,15 +18,9 @@ DEVICE_KEY = "ios_mobile_device"
 # the application, so there may be connection problems if port 9090 is busy and the server starts
 # on a different port.
 HOST_PORT_PURE_RPC = 9090
-TEST_FUNCTION_NAME = "rpc.test_ios_rpc.add_one"
 
 
-@tvm.register_func(TEST_FUNCTION_NAME)
-def add_one(x):
-    return x + 1
-
-
-def infra_pure_rpc(f):
+def setup_pure_rpc_configuration(f):
     """
     Host  --  RPC server
     """
@@ -40,7 +34,7 @@ def infra_pure_rpc(f):
     return wrapper
 
 
-def infra_rpc_proxy(f):
+def setup_rpc_proxy_configuration(f):
     """
     Host -- Proxy -- RPC server
     """
@@ -56,7 +50,7 @@ def infra_rpc_proxy(f):
     return wrapper
 
 
-def infra_rpc_tracker(f):
+def setup_rpc_tracker_configuration(f):
     """
          tracker
          /     \
@@ -74,7 +68,7 @@ def infra_rpc_tracker(f):
     return wrapper
 
 
-def infra_rpc_tracker_via_proxy(f):
+def setup_rpc_tracker_via_proxy_configuration(f):
     """
          tracker
          /     \
@@ -123,31 +117,52 @@ def try_create_remote_session(session_factory, args=(), kwargs=None):
         print(e)
 
 
-@infra_pure_rpc
+@setup_pure_rpc_configuration
 def test_pure_rpc(host, port):
     try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
 
 
-@infra_rpc_proxy
+@setup_rpc_proxy_configuration
 def test_rpc_proxy(host, port):
     try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
 
 
-@infra_rpc_tracker
+@setup_rpc_tracker_configuration
 def test_rpc_tracker(host, port):
     try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
 
 
-@infra_rpc_tracker_via_proxy
+@setup_rpc_tracker_via_proxy_configuration
 def test_rpc_tracker_via_proxy(host, port):
     try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
 
 
-@infra_rpc_tracker
+@setup_pure_rpc_configuration
+def test_can_call_remote_function_with_pure_rpc(host, port):
+    remote_session = rpc.connect(host, port, key=DEVICE_KEY)
+    f = remote_session.get_function("runtime.GetFFIString")
+    assert f("hello") == "hello"
+
+
+@setup_rpc_proxy_configuration
+def test_can_call_remote_function_with_rpc_proxy(host, port):
+    remote_session = rpc.connect(host, port, key=DEVICE_KEY)
+    f = remote_session.get_function("runtime.GetFFIString")
+    assert f("hello") == "hello"
+
+
+@setup_rpc_tracker_configuration
 def test_can_call_remote_function_with_rpc_tracker(host, port):
     remote_session = request_remote(DEVICE_KEY, host, port)
-    f = remote_session.get_function(TEST_FUNCTION_NAME)
-    assert f(10) == 11
+    f = remote_session.get_function("runtime.GetFFIString")
+    assert f("hello") == "hello"
+
+
+@setup_rpc_tracker_via_proxy_configuration
+def test_can_call_remote_function_with_rpc_tracker_via_proxy(host, port):
+    remote_session = request_remote(DEVICE_KEY, host, port)
+    f = remote_session.get_function("runtime.GetFFIString")
+    assert f("hello") == "hello"
 
 
 if __name__ == '__main__':
@@ -156,6 +171,9 @@ if __name__ == '__main__':
     test_rpc_tracker()
     test_rpc_tracker_via_proxy()
 
+    test_can_call_remote_function_with_pure_rpc()
+    test_can_call_remote_function_with_rpc_proxy()
     test_can_call_remote_function_with_rpc_tracker()
+    test_can_call_remote_function_with_rpc_tracker_via_proxy()
 
     server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
