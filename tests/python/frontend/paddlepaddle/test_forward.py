@@ -1675,7 +1675,7 @@ def test_forward_scatter_nd():
     verify_model(scatter_nd, [index, updates])
     x = paddle.rand(shape=[3, 5, 4, 9, 10], dtype="float32")
     updates = paddle.rand(shape=[3, 2, 9, 10], dtype="float32")
-    index = paddle.randint(0, 4, shape=[3, 2, 3])
+    index = paddle.randint(0, 3, shape=[3, 2, 3])
     verify_model(scatter_nd_add, [x, index, updates])
 
 
