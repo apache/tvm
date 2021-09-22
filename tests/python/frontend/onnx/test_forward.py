@@ -1840,7 +1840,16 @@ def test_all_reduce_funcs(target, dev):
 
         model = helper.make_model(graph, producer_name="reduce_test")
 
-        verify_with_ort_with_inputs(model, [data], [outshape], opset=11, target=target, dev=dev)
+        verify_with_ort_with_inputs(
+            model,
+            [data],
+            [outshape],
+            opset=11,
+            target=target,
+            dev=dev,
+            rtol=1e-4,
+            atol=1e-4,
+        )
 
     funcs = [
         "ReduceMax",
@@ -1998,8 +2007,12 @@ def test_binary_ops(target, dev):
     verify_binary_ops("Sum", x, z)
     verify_binary_ops("Greater", x, y, "bool")
     verify_binary_ops("Greater", x, z, "bool")
+    verify_binary_ops("GreaterOrEqual", x, y, "bool")
+    verify_binary_ops("GreaterOrEqual", x, z, "bool")
     verify_binary_ops("Less", x, y, "bool")
     verify_binary_ops("Less", x, z, "bool")
+    verify_binary_ops("LessOrEqual", x, y, "bool")
+    verify_binary_ops("LessOrEqual", x, z, "bool")
     verify_binary_ops("Equal", x, y, "bool")
     verify_binary_ops("Equal", x, z, "bool")
 
@@ -4877,11 +4890,7 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
-    "test_greater_equal",
-    "test_greater_equal_bcast",
     "test_if_seq",
-    "test_less_equal",
-    "test_less_equal_bcast",
     "test_logsoftmax_axis_0_expanded",
     "test_logsoftmax_axis_1_expanded",
     "test_logsoftmax_axis_2_expanded",
