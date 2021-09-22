@@ -51,6 +51,9 @@ function run_lint_step() {
         cpplint)
             cmd=( tests/lint/cpplint.sh )
             ;;
+        flake8)
+            cmd=( tests/lint/flake8.sh )
+            ;;
         pylint)
             cmd=( tests/lint/pylint.sh )
             ;;
