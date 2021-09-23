@@ -529,7 +529,12 @@ def convert_conv2d(g, op, block):
             pad_h = _get_pad_size(0, (k_h - 1) * dilations[0] + 1, strides[0])
             pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
         else:
-            in_h, in_w = infer_shape(input_x)[2:]
+            input_shape = shape_of(input_x)
+            try:
+                _, _, in_h, in_w = infer_value(input_shape, g.get_params()).numpy().tolist()
+            except Exception:
+                msg = "The SAME padding algorithm of Conv not support dynamic shape"
+                raise tvm.error.OpAttributeInvalid(msg)
             pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
             pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -787,6 +792,9 @@ def convert_feed(g, op, block):
         ipt_name = op.name
     if g.shape_dict is not None:
         ipt_shape = g.shape_dict[ipt_name]
+
+    if isinstance(ipt_shape, tuple):
+        ipt_shape = list(ipt_shape)
     for i, s in enumerate(ipt_shape):
         if s < 0:
             ipt_shape[i] = _ty.Any()
@@ -1396,6 +1404,7 @@ def convert_pool2d(g, op, block):
     else:
         msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+
 
     if not adaptive:
         out = getattr(_op.nn, op_map[pooling_type])(
