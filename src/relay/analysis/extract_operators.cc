@@ -40,6 +40,8 @@ class OperatorExtractorWrapper : private MixedModeVisitor {
   }
 
  private:
+  using MixedModeVisitor::VisitExpr_;
+
   const IRModule mod_;
   /*! \brief Map of operator to frequency. */
   Map<String, tvm::Integer> operator_freqs_;
