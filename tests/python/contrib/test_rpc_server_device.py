@@ -1,7 +1,10 @@
 import time
 import numpy as np
 
+import tvm.testing
+from tvm import te
 from tvm import rpc
+from tvm.contrib import utils, xcode
 from tvm.autotvm.measure import request_remote
 from tvm.auto_scheduler.utils import call_func_with_timeout
 from tvm.contrib.popen_pool import PopenWorker, StatusKind
@@ -18,6 +21,37 @@ DEVICE_KEY = "ios_mobile_device"
 # the application, so there may be connection problems if port 9090 is busy and the server starts
 # on a different port.
 HOST_PORT_PURE_RPC = 9090
+
+
+TEMPORARY_DIRECTORY = utils.tempdir()
+ARCH = "x86_64"
+SDK = "iphonesimulator"
+DSO_NAME = "lib.dylib"
+
+
+def get_simple_add_lib(target):
+    n = te.var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
+    return tvm.build(s, [A, B, C], target=target, target_host=target, name="simple_add")
+
+
+def export_lib(lib):
+    path_dso = TEMPORARY_DIRECTORY.relpath(DSO_NAME)
+    lib.export_library(path_dso, xcode.create_dylib, arch=ARCH, sdk=SDK)
+    return path_dso
+
+
+def assert_correct_compute(lib, device):
+    dtype = "float32"
+    n = 10
+    a = tvm.nd.array(np.random.uniform(size=n).astype(dtype), device)
+    b = tvm.nd.array(np.random.uniform(size=n).astype(dtype), device)
+    c = tvm.nd.array(np.zeros(n, dtype=dtype), device)
+    lib(a, b, c)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
 def setup_pure_rpc_configuration(f):
@@ -173,6 +207,53 @@ def test_can_call_remote_function_with_rpc_tracker_via_proxy(host, port):
     assert f("hello") == "hello"
 
 
+@setup_pure_rpc_configuration
+def test_basic_functionality_of_rpc_session(host, port):
+    remote_session = rpc.connect(host, port)
+    device = remote_session.cpu(0)
+
+    target = tvm.target.Target(target=f"llvm -mtriple={ARCH}-apple-darwin")
+    lib = get_simple_add_lib(target)
+    path_dso = export_lib(lib)
+
+    # Check correct upload
+    remote_session.upload(path_dso)
+
+    # Check correct download
+    downloaded_lib = remote_session.download(DSO_NAME)
+    assert downloaded_lib == bytearray(open(path_dso, "rb").read()),\
+        "The downloaded module does not match the loaded module"
+
+    # Check correct remote computing
+    lib = remote_session.load_module(DSO_NAME)
+    assert_correct_compute(lib, device)
+
+    # Check correct remove
+    remote_session.remove(DSO_NAME)
+
+
+@setup_pure_rpc_configuration
+def test_cleanup_workspace_after_session_end(host, port):
+    # Arrange
+    remote_session = rpc.connect(host, port)
+    target = tvm.target.Target(target=f"llvm -mtriple={ARCH}-apple-darwin")
+    lib = get_simple_add_lib(target)
+    path_dso = export_lib(lib)
+    remote_session.upload(path_dso)
+
+    # Act
+    del remote_session
+    remote_session = rpc.connect(host, port)
+    try:
+        remote_session.download(DSO_NAME)
+        status_ok = False
+    except Exception as _:
+        status_ok = True
+
+    # Assert
+    assert status_ok, "Workspace not cleared after RPC Session termination."
+
+
 if __name__ == '__main__':
     test_pure_rpc()
     test_rpc_proxy()
@@ -183,5 +264,8 @@ if __name__ == '__main__':
     test_can_call_remote_function_with_rpc_proxy()
     test_can_call_remote_function_with_rpc_tracker()
     test_can_call_remote_function_with_rpc_tracker_via_proxy()
+
+    test_basic_functionality_of_rpc_session()
+    test_cleanup_workspace_after_session_end()
 
     server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
