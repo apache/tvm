@@ -38,7 +38,7 @@ def _get_np_int32_array_handle(arr):
         pointer to the data
     """
     assert arr.dtype == np.int32
-    ptr = ctypes.cast(arr.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_int32))
+    ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
     return ctypes.cast(ptr, ctypes.c_void_p)
 
 
