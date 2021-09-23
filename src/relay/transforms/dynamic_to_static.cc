@@ -45,6 +45,15 @@ class DynamicToStaticMutator : public MixedModeMutator {
            }
            return Expr(nullptr);
          }},
+         {Op::Get("dyn.squeeze"),
+         [this](const CallNode* call_node) {
+           auto args = PrepareArgs(call_node);
+           if (const ConstantNode* axis = args[1].as<ConstantNode>()) {
+             ICHECK_EQ(axis->data->ndim, 1);
+             return MakeSqueeze(call_node->args[0], ToVector(axis->data));
+           }
+           return Expr(nullptr);
+         }},
         {Op::Get("dyn.tile"),
          [this](const CallNode* call_node) {
            auto args = PrepareArgs(call_node);
