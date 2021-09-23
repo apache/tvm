@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip install paddlepaddle==2.1.2
+pip install paddlepaddle==2.1.3
