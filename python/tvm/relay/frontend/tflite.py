@@ -2919,8 +2919,9 @@ class OperatorConverter(object):
         ), "Output channel in the filter should match to channel in the output_shape"
 
         if padding == Padding.SAME:
-            pad_top, pad_bottom = get_pad_value(input_h, kernel_h, stride_h)
-            pad_left, pad_right = get_pad_value(input_w, kernel_w, stride_w)
+            output_h, output_w = output_shape_value[1], output_shape_value[2]
+            pad_top, pad_bottom = get_pad_value(output_h, kernel_h, stride_h)
+            pad_left, pad_right = get_pad_value(output_w, kernel_w, stride_w)
             padding = (pad_top, pad_left, pad_bottom, pad_right)
         else:
             padding = (0, 0, 0, 0)
