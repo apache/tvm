@@ -86,14 +86,14 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
 
     # Schedule for output
     ni, hi, wi, fi = s[output].op.axis
-    bz = s[output].fuse(hi, wi)
+    bx = s[output].fuse(hi, wi)
     tx, fi = s[output].split(fi, factor=tile_c)
     txz, tx = s[output].split(tx, factor=num_thread_c)
-    bx, txz = s[output].split(txz, factor=vthread_c)
+    bz, txz = s[output].split(txz, factor=vthread_c)
     ty, ni = s[output].split(ni, factor=tile_n)
     tyz, ty = s[output].split(ty, factor=num_thread_n)
     by, tyz = s[output].split(tyz, factor=vthread_n)
-    s[output].reorder(bz, by, bx, tyz, txz, ty, tx, ni, fi)
+    s[output].reorder(bx, by, bz, tyz, txz, ty, tx, ni, fi)
     s[output].bind(bz, block_z)
     s[output].bind(by, block_y)
     s[output].bind(bx, block_x)
