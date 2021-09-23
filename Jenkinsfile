@@ -209,7 +209,7 @@ stage('Build') {
         make(ci_gpu, 'build', '-j2')
         pack_lib('gpu', tvm_multilib)
         // compiler test
-        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_vulkan.sh"
+        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_rocm.sh"
         make(ci_gpu, 'build2', '-j2')
       }
     }
