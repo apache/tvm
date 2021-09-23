@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# DH Luo, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:50+0000\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,36 +23,36 @@ msgstr ""
 
 #: ../../_staging/vta/install.rst:19
 msgid "VTA Installation Guide"
-msgstr ""
+msgstr "VTA安装指南"
 
 #: ../../_staging/vta/install.rst:21
 msgid ""
 "We present three installation guides, each extending on the previous one:"
-msgstr ""
+msgstr "我们提供了三种安装指南，后者依次由前者扩展而来："
 
 #: ../../_staging/vta/install.rst:23
 msgid "`VTA Simulator Installation`_"
-msgstr ""
+msgstr "`VTA模拟器的安装`_"
 
 #: ../../_staging/vta/install.rst:24
 msgid "`Xilinx Pynq FPGA Setup`_"
-msgstr ""
+msgstr "`基于Xilinx Pynq的FPGA开发配置`_"
 
 #: ../../_staging/vta/install.rst:25
 msgid "`Intel DE10 FPGA Setup`_"
-msgstr ""
+msgstr "`基于Intel DE10的FPGA开发配置`_"
 
 #: ../../_staging/vta/install.rst:26
 msgid "`Bitstream Generation with Xilinx Toolchains`_"
-msgstr ""
+msgstr "`使用Xilinx工具链生成位流`_"
 
 #: ../../_staging/vta/install.rst:27
 msgid "`Bitstream Generation with Intel Toolchains`_"
-msgstr ""
+msgstr "`使用Intel工具链生成位流`_"
 
 #: ../../_staging/vta/install.rst:31
 msgid "VTA Simulator Installation"
-msgstr ""
+msgstr "VTA模拟器的安装"
 
 #: ../../_staging/vta/install.rst:33
 msgid ""
@@ -56,36 +60,40 @@ msgid ""
 "on your machine. For a quick and easy start, checkout the `Docker Guide "
 "<https://tvm.apache.org/docs/install/docker.html>`_."
 msgstr ""
+"在此之前，您需要在设备中`安装TVM <https://tvm.apache.org/docs/install/index.html>`_。您可以参考 "
+"`Docker指南 <https://tvm.apache.org/docs/install/docker.html>`_以进行快速安装。"
 
 #: ../../_staging/vta/install.rst:36
 msgid "You'll need to set the following paths to use VTA:"
-msgstr ""
+msgstr "若要使用VTA，您需要进行以下操作："
 
 #: ../../_staging/vta/install.rst:43
 msgid ""
 "The VTA functional simulation library needs to be enabled when building TVM."
-msgstr ""
+msgstr "在构建TVM时，需要确认VTA功能仿真库处在可用状态。"
 
 #: ../../_staging/vta/install.rst:53
 msgid ""
 "Add the VTA python library to your python path to run the VTA examples."
-msgstr ""
+msgstr "为了运行VTA的示例程序，您需要将VTA的python库添加到您的python路径中。"
 
 #: ../../_staging/vta/install.rst:60
 msgid "Testing your VTA Simulation Setup"
-msgstr ""
+msgstr "测试您的VTA仿真配置"
 
 #: ../../_staging/vta/install.rst:62
 msgid ""
 "To ensure that you've properly installed the VTA python package, run the "
 "following 2D convolution testbench."
-msgstr ""
+msgstr "为了确保您正确地安装了VTA的python包，请运行以下的2D卷积测试平台。"
 
 #: ../../_staging/vta/install.rst:68
 msgid ""
 "You are invited to try out our `VTA programming tutorials "
 "<https://tvm.apache.org/docs/vta/tutorials/index.html>`_."
 msgstr ""
+"我们也欢迎您借助`VTA 编程教程 "
+"<https://tvm.apache.org/docs/vta/tutorials/index.html>`_进行尝试。"
 
 #: ../../_staging/vta/install.rst:70
 msgid ""
@@ -94,10 +102,11 @@ msgid ""
 "throughput that the simulator achieves, by evaluating the convolutions in "
 "software."
 msgstr ""
+"**注**：您会注意到，每个卷积层的吞吐量都会以GOPS为单位进行报告。这些数字是通过对软件中的卷积进行估计后，所得出的模拟器实际可以达到的计算吞吐量。"
 
 #: ../../_staging/vta/install.rst:73
 msgid "Advanced Configuration (optional)"
-msgstr ""
+msgstr "高级配置（可选）"
 
 #: ../../_staging/vta/install.rst:75
 msgid ""
@@ -106,6 +115,8 @@ msgid ""
 "file provides an architectural specification of the VTA accelerator to "
 "parameterize the TVM compiler stack and the VTA hardware stack."
 msgstr ""
+"VTA是一种通用可配置的深度学习加速器。在``3rdparty/vta-"
+"hw/config``目录下的``vta_config.json``记录了VTA的相关配置。该文档通过提供VTA加速器的结构规范，以对TVM编译堆栈与VTA硬件堆栈进行参数化处理。"
 
 #: ../../_staging/vta/install.rst:79
 msgid ""
@@ -114,6 +125,7 @@ msgid ""
 "simulator. You can modify the content of the configuration file to rebuild "
 "VTA to a different parameterization. To do so,"
 msgstr ""
+"VTA的配置文件也指定了TVM的编译目标。当设置``TARGET``为``sim``时，将执行VTA仿真器上的所有TVM工作负载。您也可以修改配置文件的内容，以使用不同的参数重新构建VTA。"
 
 #: ../../_staging/vta/install.rst:94
 msgid "Xilinx Pynq FPGA Setup"

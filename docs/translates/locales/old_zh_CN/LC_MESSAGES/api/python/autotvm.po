@@ -6,6 +6,7 @@
 # Translators:
 # JiaKui Hu, 2021
 # HLearning, 2021
+# 长德 司, 2021
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:38+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: 长德 司, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -288,7 +289,7 @@ msgstr ""
 #: ../../../python/tvm/autotvm/measure/measure.pydocstring of
 #: tvm.autotvm.measure.measure.MeasureResult:6
 msgid "Denote error type, defined by MeasureErrorNo"
-msgstr ""
+msgstr "表示错误类型， 由MeasureErrorNo定义"
 
 #: ../../../python/tvm/autotvm/measure/measure.pydocstring of
 #: tvm.autotvm.measure.measure.MeasureResult:8
@@ -298,7 +299,7 @@ msgstr ""
 #: ../../../python/tvm/autotvm/measure/measure.pydocstring of
 #: tvm.autotvm.measure.measure.MeasureResult:10
 msgid "The absolute time stamp when we finish measurement."
-msgstr ""
+msgstr "完成测量时的绝对时间戳"
 
 #: ../../../python/tvm/autotvm/measure/measure.pydocstring of
 #: tvm.autotvm.measure.measure.measure_option:1
@@ -363,11 +364,15 @@ msgid ""
 "performance power state. Using `min_repeat_ms` can dynamically adjusts "
 "`number`, so it is recommended. The typical value for NVIDIA GPU is 150 ms."
 msgstr ""
+"为了使测量结果准确，您应该为 Runner() 中的参数 `number` 和 `repeat` "
+"选择正确的值。某些设备需要一定的最短运行时间来“预热”，例如 GPU "
+"需要时间才能达到性能最佳状态。推荐使用`min_repeat_ms`，因为它可以动态调 `number`。 NVIDIA GPU 的典型值为 150 "
+"毫秒"
 
 #: ../../../python/tvm/autotvm/measure/measure.pydocstring of
 #: tvm.autotvm.measure.measure.create_measure_batch:1
 msgid "Get a standard measure_batch function."
-msgstr ""
+msgstr "获取标准的 measure_batch 函数"
 
 #: ../../../python/tvm/autotvm/measure/measure.pydocstring of
 #: tvm.autotvm.measure.measure.create_measure_batch:3
@@ -381,7 +386,7 @@ msgstr ""
 msgid ""
 "The option for measuring generated code. You should use the return value of "
 "function :any:`measure_option` for this argument."
-msgstr ""
+msgstr "测量生成代码的选项。您应该使用 function:any:`measure_option` 的返回值。"
 
 #: ../../../python/tvm/autotvm/measure/measure.pydocstring of
 #: tvm.autotvm.measure.measure.create_measure_batch:0
@@ -561,28 +566,28 @@ msgstr "返回的数据类型"
 #: ../../../python/tvm/autotvm/measure/measure_methods.pydocstring of
 #: tvm.autotvm.measure.measure_methods.LocalBuilder:1
 msgid "Run compilation on local machine"
-msgstr ""
+msgstr "在本地机器上运行编译"
 
 #: ../../../python/tvm/autotvm/measure/measure_methods.pydocstring of
 #: tvm.autotvm.measure.measure_methods.LocalBuilder:3
 #: ../../../python/tvm/autotvm/measure/measure_methods.pydocstring of
 #: tvm.autotvm.measure.measure_methods.LocalRunner:3
 msgid "The timeout of a compilation"
-msgstr ""
+msgstr "编译超时"
 
 #: ../../../python/tvm/autotvm/measure/measure_methods.pydocstring of
 #: tvm.autotvm.measure.measure_methods.LocalBuilder:5
 #: ../../../python/tvm/autotvm/measure/measure_methods.pydocstring of
 #: tvm.autotvm.measure.measure_methods.RPCRunner:6
 msgid "The number of tasks run in parallel. \"None\" will use all cpu cores"
-msgstr ""
+msgstr "多个任务并行运行。 “None”将使用所有 CPU 内核"
 
 #: ../../../python/tvm/autotvm/measure/measure_methods.pydocstring of
 #: tvm.autotvm.measure.measure_methods.LocalBuilder:7
 msgid ""
 "If supplied, additional kwargs passed to build_func. Overrides any "
 "build_kwargs supplied by the Runner."
-msgstr ""
+msgstr "如果提供额外的 kwargs 传递给 build_func。覆盖 Runner 提供的任何 build_kwargs"
 
 #: ../../../python/tvm/autotvm/measure/measure_methods.pydocstring of
 #: tvm.autotvm.measure.measure_methods.LocalBuilder:10

@@ -5,6 +5,8 @@
 # 
 # Translators:
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
+# 长德 司, 2021
 # 
 #, fuzzy
 msgid ""
@@ -13,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:42+0000\n"
-"Last-Translator: a_flying_fish <a_flying_fish@outlook.com>, 2021\n"
+"Last-Translator: 长德 司, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -428,7 +430,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:221
 msgid "tvm/support"
-msgstr ""
+msgstr "tvm/support"
 
 #: ../../_staging/dev/index.rst:222
 msgid ""
@@ -438,7 +440,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:226
 msgid "tvm/runtime"
-msgstr ""
+msgstr "tvm/runtime"
 
 #: ../../_staging/dev/index.rst:228
 msgid ""
@@ -484,7 +486,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:264
 msgid "tvm/node"
-msgstr ""
+msgstr "tvm/node"
 
 #: ../../_staging/dev/index.rst:265
 msgid ""
@@ -523,7 +525,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:289
 msgid "Type"
-msgstr ""
+msgstr "类型"
 
 #: ../../_staging/dev/index.rst:290
 msgid "PassContext and Pass"
@@ -561,7 +563,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:319
 msgid "tvm/target"
-msgstr ""
+msgstr "tvm/target"
 
 #: ../../_staging/dev/index.rst:320
 msgid ""
@@ -579,7 +581,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:335
 msgid "tvm/tir"
-msgstr ""
+msgstr "tvm/tir"
 
 #: ../../_staging/dev/index.rst:337
 msgid ""
@@ -592,7 +594,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:341
 msgid "tvm/arith"
-msgstr ""
+msgstr "tvm/arith"
 
 #: ../../_staging/dev/index.rst:343
 msgid ""
@@ -606,7 +608,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:348
 msgid "tvm/te"
-msgstr ""
+msgstr "tvm/te"
 
 #: ../../_staging/dev/index.rst:350
 msgid ""
@@ -626,7 +628,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:363
 msgid "tvm/topi"
-msgstr ""
+msgstr "tvm/topi"
 
 #: ../../_staging/dev/index.rst:364
 msgid ""
@@ -640,7 +642,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:370
 msgid "tvm/relay"
-msgstr ""
+msgstr "tvm/relay"
 
 #: ../../_staging/dev/index.rst:371
 msgid ""
@@ -654,7 +656,7 @@ msgstr ""
 
 #: ../../_staging/dev/index.rst:384
 msgid "tvm/autotvm"
-msgstr ""
+msgstr "tvm/autotvm"
 
 #: ../../_staging/dev/index.rst:386
 msgid ""
@@ -701,4 +703,4 @@ msgstr "安全"
 
 #: ../../_staging/dev/index.rst:421
 msgid "microTVM"
-msgstr ""
+msgstr "microTVM"

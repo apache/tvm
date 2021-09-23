@@ -91,7 +91,7 @@ msgstr "在 Windows 上，目标库是 `libtvm.dll` 和 `libtvm_runtime.dll`"
 msgid ""
 "It is also possible to :ref:`build the runtime <deploy-and-integration>` "
 "library only."
-msgstr ""
+msgstr "也可以只 :ref:`构建 runtime <deploy-and-integration>` 库。 "
 
 #: ../../_staging/install/from_source.rst:60
 msgid "The minimal building requirements for the ``TVM`` libraries are:"
@@ -128,12 +128,14 @@ msgid ""
 "<https://github.com/apache/tvm/issues/8577>`_. 3.7.X+ and 3.8.X+ should be "
 "well supported however."
 msgstr ""
+"还需要 Python。 避免使用不受 `支持 <https://github.com/apache/tvm/issues/8577>`_ 的 "
+"Python 3.9.X+，3.7.X+ 和 3.8.X+ 应该得到很好的支持。 "
 
 #: ../../_staging/install/from_source.rst:69
 msgid ""
 "To install the these minimal pre-requisites on Ubuntu/Debian like linux "
 "operating systems, execute (in a terminal):"
-msgstr "要在 Ubuntu/Debian 等 linux 操作系统上安装, 请满足这些最小先决条件，请执行（在终端中）:"
+msgstr "要在 Ubuntu/Debian 等 linux 操作系统上安装, 请满足这些最小先决条件，请执行（在终端中）:"
 
 #: ../../_staging/install/from_source.rst:77
 msgid ""
@@ -142,12 +144,15 @@ msgid ""
 "specified by Homebrew to ensure the dependencies are correctly installed and"
 " configured:"
 msgstr ""
+"使用 Homebrew 为运行 Intel 或 M1 处理器的 macOS 安装所需的依赖项。 您必须遵循 Homebrew "
+"指定的安装后步骤以确保正确安装和配置依赖项： "
 
 #: ../../_staging/install/from_source.rst:87
 msgid ""
 "We use cmake to build the library. The configuration of TVM can be modified "
 "by editing `config.cmake` and/or by passing cmake flags to the command line:"
 msgstr ""
+"我们用 cmake 来建造 library。TVM 的配置可以通过编辑 `config.cmake` 或将 cmake 标志传递到命令行进行修改："
 
 #: ../../_staging/install/from_source.rst:91
 msgid ""
@@ -440,6 +445,9 @@ msgid ""
 "and xgboost with the required dependencies and configuration. A workaround "
 "for this is to do the following commands:"
 msgstr ""
+"请注意，在 M1 macs 上，您可能在安装 xgboost / scipy 时遇到问题。 scipy 和 xgboost "
+"需要安装一些额外的依赖项，包括 openblas 及其依赖项。 使用以下命令安装具有所需依赖项和配置的 scipy 和 xgboost。 "
+"解决方法是执行以下命令： "
 
 #: ../../_staging/install/from_source.rst:323
 msgid "Install Contrib Libraries"
