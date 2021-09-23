@@ -163,16 +163,16 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dim N = input_shape[0],       // batch size
         IC = input_shape[1],                    // input channels
         IH = input_shape[2],                    // input height
-        IW = input_shape[2],                    // input width
+        IW = input_shape[3],                    // input width
         OC = weight_shape[0],                   // output channels
         KH = weight_shape[2],                   // weight height
         KW = weight_shape[3],                   // weight width
-        PH_L = std::stoi(str_padding[1]),       // height padding: left
-        PH_R = std::stoi(str_padding[3]),       // height padding: right
-        PW_L = std::stoi(str_padding[0]),       // width padding: left
-        PW_R = std::stoi(str_padding[2]),       // width padding: right
+        PW_L = std::stoi(str_padding[1]),       // width padding: left
+        PW_R = std::stoi(str_padding[3]),       // width padding: right
+        PH_L = std::stoi(str_padding[0]),       // height padding: top
+        PH_R = std::stoi(str_padding[2]),       // height padding: bottom
         SH = std::stoi(str_strides[0]),         // height-wise stride
-        SW = std::stoi(str_strides[0]),         // weight-wise stride
+        SW = std::stoi(str_strides[1]),         // weight-wise stride
         OH = (IH - KH + PH_L + PH_R) / SH + 1,  // output height
         OW = (IW - KW + PW_L + PW_R) / SW + 1;  // output width
 
