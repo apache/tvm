@@ -724,14 +724,7 @@ Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& in
       newshape.push_back(val);
     }
   }
-  // newshape = {1, shape_var0}
   return {topi::reshape(inputs[0], newshape)};
-  // def dyn_reshape(x, shape_var0):
-  //     out = zeros((1 * shape_var0,))
-  //     for j in range(1):
-  //         for k in range(shape_var0):
-  //             out[j*shape_var0 + k] = x[j * shape_var0 + k]
-  //     return out
 }
 
 Expr MakeDynSqueeze(Expr data, Expr axes) {
@@ -759,6 +752,6 @@ RELAY_REGISTER_OP("dyn.squeeze")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<TReshapeOp>("TReshapeOp", true);
 
-}  // namespace dyn
-}  // namespace relay
-}  // namespace tvm
+}
+}
+}

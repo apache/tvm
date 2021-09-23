@@ -277,14 +277,6 @@ def _squeeze_shape_func_input_data(data, axis, ndims):
     return out
 
 
-# def _squeeze_shape_func_input_data(data, axis, ndims):
-#     out = []
-#     for i in range(len(data)):
-#         if not i in axis:
-#             out.append(data[i])
-#     return out
-
-
 @_reg.register_shape_func("dyn.squeeze", [False, True])
 def dynamic_squeeze_shape_func(attrs, inputs, out_ndims):
     return [_squeeze_shape_func_input_data(inputs[0], inputs[1], out_ndims[0])]
