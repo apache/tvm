@@ -96,12 +96,14 @@ def test_conv2d():
 
     def conv2d_direct():
         dtype = "float32"
-        ishape = (1, 32, 14, 14)
-        w1shape = (32, 32, 3, 3)
+        ishape = (1, 1, 99, 12)
+        w1shape = (54, 1, 3, 3)
 
         data0 = relay.var("data", shape=ishape, dtype=dtype)
         weight0 = relay.var("weight", shape=w1shape, dtype=dtype)
-        out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1))
+        out = relay.nn.conv2d(
+            data0, weight0, kernel_size=(3, 3), strides=(2, 2), padding=(1, 0, 1, 1)
+        )
 
         func = relay.Function([data0, weight0], out)
         func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
@@ -118,7 +120,9 @@ def test_conv2d():
 
         data0 = relay.var("data", shape=ishape, dtype=dtype)
         weight0 = relay.var("weight", shape=w1shape, dtype=dtype)
-        out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1))
+        out = relay.nn.conv2d(
+            data0, weight0, kernel_size=(3, 3), strides=(2, 2), padding=(1, 0, 1, 1)
+        )
         main_f = relay.Function([data0, weight0], out)
         ref_mod = tvm.IRModule()
         ref_mod["main"] = main_f
@@ -127,7 +131,7 @@ def test_conv2d():
         i_data = np.random.uniform(0, 1, ishape).astype(dtype)
         w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-        return mod, ref_mod, {"data": i_data, "weight": w1_data}, (1, 32, 14, 14)
+        return mod, ref_mod, {"data": i_data, "weight": w1_data}, (1, 54, 50, 6)
 
     def group_conv2d():
         dtype = "float32"
