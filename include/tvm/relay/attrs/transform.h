@@ -60,6 +60,18 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   }
 };  // struct ExpandDimsAttrs
 
+/*! \brief Attributes used in dynamic expand_dims operators */
+struct DynExpandDimsAttrs : public tvm::AttrsNode<DynExpandDimsAttrs> {
+  int num_newaxis;
+
+  TVM_DECLARE_ATTRS(DynExpandDimsAttrs, "relay.attrs.DynExpandDimsAttrs") {
+    TVM_ATTR_FIELD(num_newaxis)
+        .describe("Number of axes to be inserted. Should be >= 0.")
+        .set_lower_bound(0)
+        .set_default(1);
+  }
+};  // struct ExpandDimsAttrs
+
 /*! \brief Attributes used in concatenate operators */
 struct ConcatenateAttrs : public tvm::AttrsNode<ConcatenateAttrs> {
   int axis;
