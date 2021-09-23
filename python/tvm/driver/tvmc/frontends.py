@@ -279,6 +279,7 @@ class PaddleFrontend(Frontend):
     def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0415
         import paddle
+
         paddle.enable_static()
         paddle.disable_signal_handler()
 
@@ -287,6 +288,7 @@ class PaddleFrontend(Frontend):
         [prog, inputs, outputs] = paddle.static.load_inference_model(path, exe)
 
         return relay.frontend.from_paddle(prog, shape_dict=shape_dict, **kwargs)
+
 
 ALL_FRONTENDS = [
     KerasFrontend,
