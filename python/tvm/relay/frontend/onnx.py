@@ -1801,14 +1801,31 @@ class Reduce(OnnxOpConverter):
     name = ""
 
     @classmethod
+    def run_calculation(cls, inputs, axis, keepdims):
+        attr = {"axis": axis, "keepdims": keepdims}
+        return AttrCvt(cls.name)(inputs, attr)
+
+    @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
-        return AttrCvt(cls.name)(inputs, attr)
+
+        return cls.run_calculation(inputs, axis, attr.get("keepdims", True))
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        if len(inputs) == 2:
+            if isinstance(inputs[1], _expr.Constant):
+                # Get axis and unpack scalar
+                constant_axis = int(inputs[1].data.numpy()[0])
+                return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
+
+            raise ValueError("Dynamic Reduce is not supported yet!")
+
+        return cls._impl_v1(inputs, attr, params)
 
 
 class ReduceMax(Reduce):
