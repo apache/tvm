@@ -131,6 +131,55 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   Map<Var, Range> loop_var2extent_;
 };
 
+class BlockPropertyError : public ScheduleError {
+ public:
+  /*!
+   * \brief Check that all the blocks under the specific stmt have affine bindings and only have
+   *     data-parallel or reduction block iters
+   * \param self The state of the schedule
+   * \param sref The sref to the specific stmt
+   */
+  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self,
+                                                 const StmtSRefNode* sref) {
+    class BlockIterTypeAndAffineBindingChecker : public StmtVisitor {
+     public:
+      explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state) : state_(state) {}
+
+     private:
+      void VisitStmt_(const BlockNode* op) final {
+        for (const IterVar& iter_var : op->iter_vars) {
+          if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
+            throw BlockPropertyError(state_->mod, GetRef<Block>(op));
+          }
+          CheckAffineBinding(state_, GetRef<Block>(op));
+        }
+      }
+      const ScheduleState& state_;
+    };
+
+    BlockIterTypeAndAffineBindingChecker checker(self);
+    checker(GetRef<Stmt>(sref->stmt));
+  }
+
+  explicit BlockPropertyError(IRModule mod, Block block) : mod_(mod), block_(std::move(block)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: The block under the loops to be reordered have block iter type other "
+           "than data-parallel or reduction";
+  }
+
+  String DetailRenderTemplate() const final {
+    return "The block {0} under the loops to be reordered have block iter type other than "
+           "data-parallel or reduction";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+  IRModule mod_;
+  Block block_;
+};
+
 class HasAnnotationOrThreadBindingError : public ScheduleError {
  public:
   explicit HasAnnotationOrThreadBindingError(IRModule mod, For loop)
@@ -251,6 +300,83 @@ class WrongFactorProductError : public ScheduleError {
 
   IRModule mod_;
   For loop_;
+};
+
+class LoopMultiAppearanceError : public ScheduleError {
+ public:
+  explicit LoopMultiAppearanceError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: Some loop appears in the input array for multiple times.";
+  }
+
+  String DetailRenderTemplate() const final {
+    return "Loop {0} appears in the input array for multiple times.";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+
+  IRModule mod_;
+  For loop_;
+};
+
+class LoopsNotAChainError : public ScheduleError {
+ public:
+  enum class ProblemKind { kNotUnderAScope, kHaveNonSingleBranchStmt };
+
+  explicit LoopsNotAChainError(IRModule mod, Optional<Stmt> problematic_loop, ProblemKind kind)
+      : mod_(mod), problematic_loop_(std::move(problematic_loop)), kind_(kind) {}
+
+  String FastErrorString() const final { return "ScheduleError: the loops are not in a chain"; }
+
+  String DetailRenderTemplate() const final {
+    std::stringstream ss;
+    ss << "The loops are not in a chain because";
+    if (kind_ == ProblemKind::kNotUnderAScope) {
+      ss << " they are not under the same scope.";
+    } else {
+      ss << " there is a non-single-branch stmt in between. Problematic stmt: {0}";
+    }
+    return ss.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final {
+    if (kind_ == ProblemKind::kNotUnderAScope) {
+      return {};
+    } else {
+      ICHECK(problematic_loop_.defined());
+      return {problematic_loop_.value()};
+    }
+  }
+
+  IRModule mod_;
+  Optional<Stmt> problematic_loop_;
+  ProblemKind kind_;
+};
+
+class DependentLoopError : public ScheduleError {
+ public:
+  explicit DependentLoopError(IRModule mod, For loop, String inner_var)
+      : mod_(mod), loop_(std::move(loop)), inner_var_(std::move(inner_var)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: An outer loop's `min` or `extent` is dependent on an inner loop "
+           "in the new order";
+  }
+
+  String DetailRenderTemplate() const final {
+    return "Outer Loop {0}'s `min` or `extent` is dependent on an inner loop " + inner_var_ +
+           " in the new order";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+
+  IRModule mod_;
+  For loop_;
+  String inner_var_;
 };
 
 Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
@@ -384,8 +510,184 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
   return self->stmt2ref.at(new_stmt.get());
 }
+/*!
+ * \brief Collect an array of loop srefs into a set
+ * \param self The schedule state
+ * \param ordered_loop_srefs The array of loop srefs
+ * \return A set containing all loops in the array
+ * \throws ScheduleError If there are duplicate loops in the array
+ */
+std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
+    const ScheduleState& self, const Array<StmtSRef>& ordered_loop_srefs) {
+  std::unordered_set<const StmtSRefNode*> loop_srefs;
+  loop_srefs.reserve(ordered_loop_srefs.size());
+  for (const StmtSRef& loop_sref : ordered_loop_srefs) {
+    auto inserted = loop_srefs.insert(loop_sref.get());
+    if (!inserted.second) {
+      const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+      throw LoopMultiAppearanceError(self->mod, GetRef<For>(loop));
+    }
+  }
+  return loop_srefs;
+}
 
-/******** Instruction Registration ********/
+/*!
+ * \brief Get the top and bottom boundary of reorder range (which should be a chain)
+ * \param self The schedule state
+ * \param loop_srefs The set containing the srefs to the loops to be reordered
+ * \return A pair containing the top and bottom boundary of the reorder range
+ * \throws ScheduleError If the loops to be reordered is not in a chain
+ */
+std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
+    const ScheduleState& self, const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
+  const StmtSRefNode* top = nullptr;
+  const StmtSRefNode* bottom = *loop_srefs.begin();
+  std::unordered_set<const StmtSRefNode*> visited;
+  bool scope_block_visited = false;
+  bool first_traversal = true;
+  for (const StmtSRefNode* loop_sref : loop_srefs) {
+    if (visited.count(loop_sref)) {
+      continue;
+    }
+    for (const StmtSRefNode* v = loop_sref;; v = v->parent) {
+      // Case 1. If `v` corresponds to a block, stop traversal.
+      if (v->stmt->IsInstance<BlockNode>()) {
+        if (scope_block_visited) {
+          throw LoopsNotAChainError(self->mod, NullOpt,
+                                    LoopsNotAChainError::ProblemKind::kNotUnderAScope);
+        }
+        scope_block_visited = true;
+        break;
+      }
+      // Case 2. If `v` corresponds to a previously-visited loop, stop traversal and update
+      // `bottom`.
+      if (visited.count(v)) {
+        if (v != bottom) {
+          throw LoopsNotAChainError(self->mod, GetRef<Stmt>(v->stmt),
+                                    LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
+        }
+        bottom = loop_sref;
+        break;
+      }
+      // Case 3. Add `v` into `visited`
+      visited.insert(v);
+      // If it's the first traversal and the loop corresponding to `v` is in the input array,
+      // update `top`.
+      if (first_traversal && loop_srefs.count(v)) {
+        top = v;
+      }
+    }
+    first_traversal = false;
+  }
+  return std::make_pair(top, bottom);
+}
+
+/*!
+ * \brief Get all the loops in the reorder range
+ * \param self The schedule state
+ * \param top The top boundary of the reorder range
+ * \param bottom The bottom boundary of the reorder range
+ * \return An array containing all the loops in the reorder range
+ * \throws ScheduleError If some loop in the reorder range is not single-branch
+ */
+std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& self,
+                                                        const StmtSRefNode* top,
+                                                        const StmtSRefNode* bottom) {
+  std::vector<const StmtSRefNode*> chain;
+  for (const StmtSRefNode* loop_sref = bottom; loop_sref != top;) {
+    const StmtSRefNode* parent_loop_sref = loop_sref->parent;
+    const ForNode* outer = parent_loop_sref->StmtAs<ForNode>();
+    const ForNode* inner = loop_sref->StmtAs<ForNode>();
+    ICHECK(outer != nullptr && inner != nullptr);
+    if (outer->body.get() != inner) {
+      throw LoopsNotAChainError(self->mod, GetRef<For>(outer),
+                                LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
+    }
+    chain.push_back(loop_sref);
+    loop_sref = parent_loop_sref;
+  }
+  chain.push_back(top);
+  return chain;
+}
+
+/*!
+ * \brief Construct a loop chain in the new order
+ * \param self The schedule state
+ * \param chain The loops in the reorder range
+ * \param ordered_loop_srefs The loop srefs to be reordered
+ * \param loop_srefs The set containing loop srefs to be reordered
+ * \return The new loop chain
+ * \throws ScheduleError If the domain of an outer loop depends on any of the inner loops after
+ * reordering
+ */
+For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefNode*> chain,
+                          const Array<StmtSRef>& ordered_loop_srefs,
+                          const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
+  std::unordered_set<const VarNode*> inner_vars;
+  inner_vars.reserve(chain.size());
+  For new_loop{nullptr};
+  int index = static_cast<int>(ordered_loop_srefs.size()) - 1;
+  for (const StmtSRefNode* loop_sref : chain) {
+    const ForNode* copy = nullptr;
+    if (loop_srefs.count(loop_sref)) {
+      copy = ordered_loop_srefs[index]->StmtAs<ForNode>();
+      --index;
+    } else {
+      copy = loop_sref->StmtAs<ForNode>();
+    }
+    ICHECK(copy != nullptr);
+    ObjectPtr<ForNode> n = make_object<ForNode>(*copy);
+    if (new_loop.defined()) {
+      n->body = new_loop;
+    } else {
+      n->body = loop_sref->StmtAs<ForNode>()->body;
+    }
+    const VarNode* used_var = nullptr;
+    auto f_contain = [&inner_vars, &used_var](const VarNode* var) {
+      if (inner_vars.count(var)) {
+        used_var = var;
+        return true;
+      }
+      return false;
+    };
+    if (UsesVar(copy->min, f_contain) || UsesVar(copy->extent, f_contain)) {
+      throw DependentLoopError(self->mod, GetRef<For>(copy), used_var->name_hint);
+    }
+    inner_vars.insert(copy->loop_var.get());
+    new_loop = For(std::move(n));
+  }
+  return new_loop;
+}
+
+void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
+  if (ordered_loop_srefs.size() <= 1) {
+    return;
+  }
+  // Step 1. Check uniqueness and collect the input loop srefs into a set
+  std::unordered_set<const StmtSRefNode*> loop_srefs =
+      CollectLoopsIntoSet(self, ordered_loop_srefs);
+  // Step 2. Gather loops to be reordered
+  // For each loop sref in the input sref array, traverse upwards along its parent pointer in the
+  // sref tree, and stop on either a block, or a previously-visited loop
+  // - the top of the reorder range is the last loop visited in the first traversal which exists in
+  //   the input array
+  // - the bottom of the reorder range is the last loop in the input array which is not visited in
+  // the previous traversals
+  const StmtSRefNode* top = nullptr;
+  const StmtSRefNode* bottom = nullptr;
+  std::tie(top, bottom) = GetBoundaryOfReorderRange(self, loop_srefs);
+  // Step 3. Collect all loops in the chain and check the loops are single-branch
+  std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
+  // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
+  // and the block has an affine binding.
+  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, bottom);
+  // Step 5. Replace the original loops with the reordered loops and check that outer loop is
+  // not dependent on inner loop
+  For new_loop = ConstructNewLoopChain(self, std::move(chain), ordered_loop_srefs, loop_srefs);
+  self->Replace(GetRef<StmtSRef>(top), new_loop, {});
+}
+
+/******** InstructionKind Registration ********/
 
 struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   static constexpr const char* kName = "Split";
@@ -456,8 +758,40 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct ReorderTraits : public UnpackedInstTraits<ReorderTraits> {
+  static constexpr const char* kName = "Reorder";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  template <size_t delta>
+  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+                                           const Array<ObjectRef>& inputs) {
+    setter(delta, inputs);
+  }
+
+  static void UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {
+    return sch->Reorder(loop_rvs);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, Array<String> loop_rvs) {
+    PythonAPICall py("reorder");
+    for (const String& loop_rv : loop_rvs) {
+      py.Input("", loop_rv);
+    }
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(SplitTraits);
 TVM_REGISTER_INST_KIND_TRAITS(FuseTraits);
+TVM_REGISTER_INST_KIND_TRAITS(ReorderTraits);
 
 }  // namespace tir
 }  // namespace tvm

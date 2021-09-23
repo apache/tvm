@@ -384,6 +384,23 @@ def extract_fused_functions(mod):
     return ret
 
 
+def list_op_freqs(mod):
+    """Pass to extract unique operator names and how frequently they appear
+    in an IRModule. Fused functions are traversed to count the operators
+    that compose them.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+
+    Returns
+    -------
+    ret : Dict[str, int]
+        Dict of unique operator names to frequency
+    """
+    return _ffi_api.ExtractOperators(mod)
+
+
 def search_fc_transpose(expr):
     """Search fc weight name in the patten: y = nn.dense(x, transpose(w, [1, 0]))
 
@@ -433,8 +450,7 @@ def get_calibration_data(mod, data):
     mod = _ffi_api.get_calibrate_module(mod)
     mod = transform.Inline()(mod)
 
-    ref_ex = build_module.create_executor("graph", mod=mod, device=cpu(0))
-    ref_res = ref_ex.evaluate()(**data)
+    ref_res = build_module.create_executor("graph", mod=mod, device=cpu(0)).evaluate()(**data)
 
     calib_data = {}
     for gvar, indices in output_map.items():

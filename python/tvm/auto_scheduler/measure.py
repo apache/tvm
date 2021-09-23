@@ -43,6 +43,7 @@ from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
 from tvm.contrib import tar, ndk
 from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor, StatusKind
 from tvm.target import Target
@@ -375,7 +376,7 @@ class LocalRunner(ProgramRunner):
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -446,7 +447,7 @@ class RPCRunner(ProgramRunner):
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -525,7 +526,7 @@ class LocalRPCMeasureContext:
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -651,29 +652,17 @@ def local_build_worker(args):
 
     Parameters
     ----------
-    args: Tuple[MeasureInput, str, int, int]
-        inputs, build-func, time, verbose args passed to local_builder_build
+    args: Tuple[MeasureInput, callable, int]
+        inputs, build-func, verbose args passed to local_builder_build
 
     Returns
     -------
     res : BuildResult
         The build result of this Builder thread.
     """
-    inp, build_func, timeout, verbose = args
-    assert build_func == BuildFunc.name, (
-        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
-    )
-    build_func = BuildFunc.build_func
+    inp, build_func, verbose = args
 
-    try:
-        res = _local_build_worker(inp, build_func, verbose)
-    # pylint: disable=broad-except
-    except Exception:
-        if verbose >= 1:
-            print(".E", end="", flush=True)  # Build error
-        res = None, [], MeasureErrorNo.COMPILE_HOST, make_traceback_info(), timeout
-
-    return res
+    return _local_build_worker(inp, build_func, verbose)
 
 
 @tvm._ffi.register_func("auto_scheduler.local_builder.build")
@@ -700,14 +689,18 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
-    executor = PopenPoolExecutor(n_parallel, timeout)
+    assert build_func == BuildFunc.name, (
+        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
+    )
+    executor = PopenPoolExecutor(
+        n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
+    )
     tuple_res = executor.map_with_error_catching(
         local_build_worker,
         [
             (
                 i.serialize(),
-                build_func,
-                timeout,
+                BuildFunc.build_func,
                 verbose,
             )
             for i in inputs
@@ -718,11 +711,18 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     for res in tuple_res:
         if res.status == StatusKind.COMPLETE:
             results.append(BuildResult(*res.value))
-        else:
-            assert res.status == StatusKind.TIMEOUT
+        elif res.status == StatusKind.TIMEOUT:
             if verbose >= 1:
                 print(".T", end="", flush=True)  # Build timeout
             results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
+        elif res.status == StatusKind.EXCEPTION:
+            if verbose >= 1:
+                print(".E", end="", flush=True)  # Build error
+            results.append(
+                BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, repr(res.value), timeout)
+            )
+        else:
+            raise ValueError("Result status is not expected. Unreachable branch")
 
     return results
 
@@ -981,7 +981,7 @@ def local_run(
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -1251,7 +1251,7 @@ def rpc_runner_run(
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to

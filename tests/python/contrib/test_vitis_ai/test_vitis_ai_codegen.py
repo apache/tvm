@@ -97,19 +97,6 @@ def test_bias_add():
     verify_codegen(mod, params=params, dpu_target="DPUCZDX8G-zcu104")
 
 
-def test_relu():
-    """Test relu operator for Vitis-AI DPUCADX8G and DPUCZDX8G-zcu104 targets"""
-
-    shape = (10, 10)
-    x = relay.var("x", shape=shape)
-    y = relay.nn.relu(x)
-    func = relay.Function([x], y)
-    mod = tvm.IRModule()
-    mod["main"] = func
-    verify_codegen(mod, dpu_target="DPUCADX8G")
-    verify_codegen(mod, dpu_target="DPUCZDX8G-zcu104")
-
-
 def test_batchnorm():
     """Test batchnorm operator for Vitis-AI DPUCADX8G and DPUCZDX8G-zcu104 targets"""
 
@@ -323,7 +310,6 @@ if __name__ == "__main__":
     test_conv2d()
     test_depthwise_conv()
     test_bias_add()
-    test_relu()
     test_add()
     test_max_pool2d()
     test_global_max_pool2d()

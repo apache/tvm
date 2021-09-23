@@ -57,7 +57,10 @@ class TestTargetAutoParametrization:
         self.targets_with_explicit_list.append(target)
 
     def test_no_repeats_in_explicit_list(self):
-        assert self.targets_with_explicit_list == ["llvm"]
+        if tvm.testing.device_enabled("llvm"):
+            assert self.targets_with_explicit_list == ["llvm"]
+        else:
+            assert self.targets_with_explicit_list == []
 
     targets_with_exclusion = []
 
@@ -84,6 +87,11 @@ class TestTargetAutoParametrization:
     def test_all_targets_ran(self):
         assert self.run_targets_with_known_failure == self.enabled_targets
 
+    @tvm.testing.known_failing_targets("llvm")
+    @tvm.testing.parametrize_targets("llvm")
+    def test_known_failing_explicit_list(self, target):
+        assert target != "llvm"
+
 
 class TestJointParameter:
     param1_vals = [1, 2, 3]
@@ -95,7 +103,8 @@ class TestJointParameter:
 
     joint_usages = 0
     joint_param_vals = list(zip(param1_vals, param2_vals))
-    joint_param1, joint_param2 = tvm.testing.parameters(*joint_param_vals)
+    joint_param_ids = ["apple", "pear", "banana"]
+    joint_param1, joint_param2 = tvm.testing.parameters(*joint_param_vals, ids=joint_param_ids)
 
     def test_using_independent(self, param1, param2):
         type(self).independent_usages += 1
@@ -109,6 +118,14 @@ class TestJointParameter:
 
     def test_joint(self):
         assert self.joint_usages == len(self.joint_param_vals)
+
+    def test_joint_test_id(self, joint_param1, joint_param2, request):
+        param_string = (
+            request.node.name.replace(request.node.originalname, "")
+            .replace("[", "")
+            .replace("]", "")
+        )
+        assert param_string in self.joint_param_ids
 
 
 class TestFixtureCaching:
@@ -148,6 +165,22 @@ class TestFixtureCaching:
             assert self.cached_calls == len(self.param1_vals)
 
 
+class TestCachedFixtureIsCopy:
+    param = tvm.testing.parameter(1, 2, 3, 4)
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def cached_mutable_fixture(self):
+        return {"val": 0}
+
+    def test_modifies_fixture(self, param, cached_mutable_fixture):
+        assert cached_mutable_fixture["val"] == 0
+
+        # The tests should receive a copy of the fixture value.  If
+        # the test receives the original and not a copy, then this
+        # will cause the next parametrization to fail.
+        cached_mutable_fixture["val"] = param
+
+
 class TestBrokenFixture:
     # Tests that use a fixture that throws an exception fail, and are
     # marked as setup failures.  The tests themselves are never run.
@@ -183,8 +216,8 @@ class TestBrokenFixture:
 class TestAutomaticMarks:
     @staticmethod
     def check_marks(request, target):
-        parameter = tvm.testing._pytest_target_params([target])[0]
-        required_marks = [decorator.mark for decorator in parameter.marks]
+        decorators = tvm.testing.plugin._target_to_requirement(target)
+        required_marks = [decorator.mark for decorator in decorators]
         applied_marks = list(request.node.iter_markers())
 
         for required_mark in required_marks:
@@ -208,6 +241,50 @@ class TestAutomaticMarks:
     @pytest.mark.parametrize("target,other_param", [("llvm", 0), ("cuda", 1), ("vulkan", 2)])
     def test_pytest_mark_covariant(self, request, target, other_param):
         self.check_marks(request, target)
+
+
+@pytest.mark.skipif(
+    bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0"))),
+    reason="Cannot test cache behavior while caching is disabled",
+)
+class TestCacheableTypes:
+    class EmptyClass:
+        pass
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def uncacheable_fixture(self):
+        return self.EmptyClass()
+
+    def test_uses_uncacheable(self, request):
+        # Normally the num_tests_use_this_fixture would be set before
+        # anything runs.  For this test case only, because we are
+        # delaying the use of the fixture, we need to manually
+        # increment it.
+        self.uncacheable_fixture.num_tests_use_this_fixture[0] += 1
+        with pytest.raises(TypeError):
+            request.getfixturevalue("uncacheable_fixture")
+
+    class ImplementsReduce:
+        def __reduce__(self):
+            return super().__reduce__()
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def fixture_with_reduce(self):
+        return self.ImplementsReduce()
+
+    def test_uses_reduce(self, fixture_with_reduce):
+        pass
+
+    class ImplementsDeepcopy:
+        def __deepcopy__(self, memo):
+            return type(self)()
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def fixture_with_deepcopy(self):
+        return self.ImplementsDeepcopy()
+
+    def test_uses_deepcopy(self, fixture_with_deepcopy):
+        pass
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@
 #
 # Start a bash, mount REPO_MOUNT_POINT to be current directory.
 #
-# Usage: docker/bash.sh [-i|--interactive] [--net=host]
+# Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 #          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
 #          [--dry-run]
 #          <DOCKER_IMAGE_NAME> [--] [COMMAND]
@@ -35,9 +35,10 @@
 
 set -euo pipefail
 
+
 function show_usage() {
     cat <<EOF
-Usage: docker/bash.sh [-i|--interactive] [--net=host]
+Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
          [--dry-run]
          <DOCKER_IMAGE_NAME> [--] [COMMAND]
@@ -49,6 +50,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host]
 -i, --interactive
 
     Start the docker session in interactive mode.
+
+-t, --tty
+
+    Start the docker session with a pseudo terminal (tty).
 
 --net=host
 
@@ -90,7 +95,7 @@ DOCKER_IMAGE_NAME
 COMMAND
 
     The command to be run inside the docker container.  If this is set
-    to "bash", both the --interactive and --net=host flags are set.
+    to "bash", the --interactive, --tty and --net=host flags are set.
     If no command is specified, defaults to "bash".  If the command
     contains dash-prefixed arguments, the command should be preceded
     by -- to indicate arguments that are not intended for bash.sh.
@@ -108,6 +113,7 @@ REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
 DRY_RUN=false
 INTERACTIVE=false
+TTY=false
 USE_NET_HOST=false
 DOCKER_IMAGE_NAME=
 COMMAND=bash
@@ -147,6 +153,11 @@ while (( $# )); do
 
         -i*|--interactive)
             INTERACTIVE=true
+            eval $break_joined_flag
+            ;;
+
+        -t*|--tty)
+            TTY=true
             eval $break_joined_flag
             ;;
 
@@ -224,6 +235,7 @@ fi
 
 if [[ ${COMMAND[@]+"${COMMAND[@]}"} = bash ]]; then
     INTERACTIVE=true
+    TTY=true
     USE_NET_HOST=true
 fi
 
@@ -293,7 +305,11 @@ fi
 
 # Set up interactive sessions
 if ${INTERACTIVE}; then
-    DOCKER_FLAGS+=( --interactive --tty )
+    DOCKER_FLAGS+=( --interactive )
+fi
+
+if ${TTY}; then
+    DOCKER_FLAGS+=( --tty )
 fi
 
 # Expose external directories to the docker container
@@ -311,9 +327,33 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]
         DOCKER_BINARY=docker
         DOCKER_FLAGS+=( --gpus all )
     fi
+
+    # nvidia-docker treats Vulkan as a graphics API, so we need to
+    # request passthrough of graphics APIs.  This could also be set in
+    # the Dockerfile.
+    DOCKER_ENV+=( --env NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility )
+
+    # But as of nvidia-docker version 2.6.0-1, we still need to pass
+    # through the nvidia icd files ourselves.
+    ICD_SEARCH_LOCATIONS=(
+        # https://github.com/KhronosGroup/Vulkan-Loader/blob/master/loader/LoaderAndLayerInterface.md#icd-discovery-on-linux
+        /usr/local/etc/vulkan/icd.d
+        /usr/local/share/vulkan/icd.d
+        /etc/vulkan/icd.d
+        /usr/share/vulkan/icd.d
+        # https://github.com/NVIDIA/libglvnd/blob/master/src/EGL/icd_enumeration.md#icd-installation
+        /etc/glvnd/egl_vendor.d
+        /usr/share/glvnd/egl_vendor.d
+    )
+    for filename in $(find "${ICD_SEARCH_LOCATIONS[@]}" -name "*nvidia*.json" 2> /dev/null); do
+        DOCKER_MOUNT+=( --volume "${filename}":"${filename}":ro )
+    done
+
 else
     DOCKER_BINARY=docker
 fi
+
+
 
 # Pass any restrictions of allowed CUDA devices from the host to the
 # docker container.
@@ -370,6 +410,7 @@ echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
 echo ""
 
 echo Running \'${COMMAND[@]+"${COMMAND[@]}"}\' inside ${DOCKER_IMAGE_NAME}...
+
 
 DOCKER_CMD=(${DOCKER_BINARY} run
             ${DOCKER_FLAGS[@]+"${DOCKER_FLAGS[@]}"}

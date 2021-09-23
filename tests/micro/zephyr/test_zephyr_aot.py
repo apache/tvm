@@ -42,8 +42,6 @@ import conftest
 
 _LOG = logging.getLogger(__name__)
 
-PLATFORMS = conftest.PLATFORMS
-
 
 def _build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     template_project_dir = (
@@ -135,13 +133,19 @@ def _get_message(fd, expr: str, timeout_sec: int):
 
 
 @tvm.testing.requires_micro
-def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
+def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     """Testing a TFLite model."""
 
-    if platform not in ["host", "mps2_an521", "nrf5340dk", "stm32l4r5zi_nucleo", "zynq_mp_r5"]:
+    if board not in [
+        "qemu_x86",
+        "mps2_an521",
+        "nrf5340dk_nrf5340_cpuapp",
+        "nucleo_l4r5zi",
+        "qemu_cortex_r5",
+    ]:
         pytest.skip(msg="Model does not fit.")
 
-    model, zephyr_board = PLATFORMS[platform]
+    model = conftest.ZEPHYR_BOARDS[board]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
     build_config = {"debug": tvm_debug}
@@ -195,7 +199,7 @@ def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
 
         project, _ = _build_project(
             temp_dir,
-            zephyr_board,
+            board,
             west_cmd,
             lowered,
             build_config,
@@ -218,12 +222,12 @@ def test_tflite(temp_dir, platform, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
+def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     """Testing QEMU make fail."""
-    if platform not in ["host", "mps2_an521"]:
+    if board not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
-    model, zephyr_board = PLATFORMS[platform]
+    model = conftest.ZEPHYR_BOARDS[board]
     build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "float32"
@@ -233,10 +237,11 @@ def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
     xx = relay.multiply(x, x)
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(func, target)
+        lowered = relay.build(ir_mod, target)
 
     # Generate input/output header files
     with tempfile.NamedTemporaryFile() as tar_temp_file:
@@ -253,7 +258,7 @@ def test_qemu_make_fail(temp_dir, platform, west_cmd, tvm_debug):
 
         project, project_dir = _build_project(
             temp_dir,
-            zephyr_board,
+            board,
             west_cmd,
             lowered,
             build_config,

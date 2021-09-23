@@ -545,11 +545,12 @@ def infer_value(input_val, params, mod=None):
             mod["main"] = _function.Function(analysis.free_vars(input_val), input_val)
         else:
             mod = IRModule.from_expr(input_val)
-        exc = tvm.relay.create_executor("debug", mod=mod, device=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod["main"].params:
             inputs.append(params[param.name_hint])
-        result = exc.evaluate()(*inputs)
+        result = tvm.relay.create_executor(
+            "debug", mod=mod, device=tvm.cpu(), target="llvm"
+        ).evaluate()(*inputs)
         return result
 
 
@@ -655,6 +656,91 @@ def unbind(data, axis=0):
     for i in range(selections):
         ret.append(_op.squeeze(res_split[i], axis=[axis]))
     return _expr.TupleWrapper(_expr.Tuple(ret), selections)
+
+
+def gru_cell(
+    input_seqs,
+    hidden_state,
+    w_inp,
+    w_hid,
+    b_inp=None,
+    b_hid=None,
+    rz_act=_op.sigmoid,
+    n_act=_op.tanh,
+    backwards=False,
+    linear_before_reset=True,
+):
+    """
+    Common implementation of GRU cell for all frontends of TVM
+    TODO(vvchernov): currently it is used by pytorch and ONNX. Extend for other frontends
+
+    Parameters
+    ----------
+    input_seqs : List[relay.Expr]
+        The sequence of input tensors
+        Input tensor should be 2d while issue #8412 is not resolved
+        Shape = (batch, feature_size)
+    hidden_state : relay.Expr
+        Hidden state. shape = (batch_size, hidden_size)
+    w_inp, w_hid : relay.Expr
+        weight matrices. wi shape = (3 * hidden_size, feature_size)
+        wh shape = (3 * hidden_size, hidden_size)
+        NOTE: wi = (w_ir|w_iz|w_in) for reset, update and new gates.
+        The order is important for correct GRU calculation!
+    b_inp, b_hid : relay.Expr
+        bias matrices. The same order of internal parts as for weights. shape = (3 * hidden_size)
+    r_act : relay.op
+        activation funtion for reset gate. it is sigmoid by default
+    z_act : relay.op
+        activation funtion for update gate. it is sigmoid by default
+    n_act : relay.op
+        activation funtion for new gate. it is tanh by default
+    backwards : bool
+        Flag for reverse pass of GRU
+
+    Returns
+    -------
+    result : List[relay.Expr], relay.Expr, relay.Expr
+        The sequence of computed result, final hidden and cell state
+    """
+
+    outputs_list = []
+    for x_t in input_seqs if not backwards else reversed(input_seqs):
+        xwt = _op.nn.dense(x_t, w_inp)
+        if linear_before_reset:
+            hwt = _op.nn.dense(hidden_state, w_hid)
+            if b_inp is not None and b_hid is not None:
+                xwt += b_inp
+                hwt += b_hid
+            i_r, i_z, i_n = _op.split(xwt, 3, axis=-1)
+            h_r, h_z, h_n = _op.split(hwt, 3, axis=-1)
+            r_gate = rz_act(i_r + h_r)
+            z_gate = rz_act(i_z + h_z)
+            n_gate = n_act(i_n + r_gate * h_n)
+        else:
+            i_r, i_z, i_n = _op.split(xwt, 3, axis=1)
+            w_hr, w_hz, w_hn = _op.split(w_hid, 3, axis=0)
+            r_gate = i_r + _op.nn.dense(hidden_state, w_hr)
+            z_gate = i_z + _op.nn.dense(hidden_state, w_hz)
+            if b_inp is not None and b_hid is not None:
+                b_ir, b_iz, b_in = _op.split(b_inp, 3, axis=-1)
+                b_hr, b_hz, b_hn = _op.split(b_hid, 3, axis=-1)
+                r_gate += b_ir + b_hr
+                r_gate = rz_act(r_gate)
+                z_gate += b_iz + b_hz
+                i_n += b_in
+                h_n = _op.nn.dense((r_gate * hidden_state), w_hn) + b_hn
+            else:
+                r_gate = rz_act(r_gate)
+                h_n = _op.nn.dense((r_gate * hidden_state), w_hn)
+            z_gate = rz_act(z_gate)
+            n_gate = n_act(i_n + h_n)
+
+        hidden_state = (hidden_state - n_gate) * z_gate + n_gate
+
+        outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
+
+    return outputs_list, hidden_state
 
 
 def lstm_cell(

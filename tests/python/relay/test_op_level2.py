@@ -16,10 +16,15 @@
 # under the License.
 """ Support level2 operator test cases.
 """
+import sys
+
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
 import tvm.topi.testing
+
 from tvm import autotvm, relay, te
 from tvm.contrib import utils
 from tvm.relay import transform
@@ -98,8 +103,9 @@ def test_conv1d_run():
             if target in except_targets:
                 continue
             dev = tvm.device(target, 0)
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(data, kernel)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                data, kernel
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv1d
@@ -190,173 +196,213 @@ def test_conv2d_infer_type():
     assert yy.checked_type == relay.TensorType((n, h, w, 16), "int32")
 
 
-@tvm.testing.uses_gpu
-def test_conv2d_run():
-    def run_test_conv2d(
+class TestConv2D:
+    config = {
+        "group1": dict(
+            dtype="float32",
+            out_dtype="float32",
+            scale=1,
+            dshape=(1, 32, 18, 18),
+            kshape=(32, 4, 3, 3),
+            padding=(1, 1),
+            channels=32,
+            groups=8,
+            kernel_size=(3, 3),
+            dilation=(1, 1),
+        ),
+        "group2": dict(
+            dtype="float32",
+            out_dtype="float32",
+            scale=1,
+            dshape=(1, 32, 18, 18),
+            kshape=(64, 1, 3, 3),
+            padding=(1, 1),
+            channels=64,
+            groups=32,
+            kernel_size=(3, 3),
+            dilation=(1, 1),
+        ),
+        "normal": dict(
+            dtype="float32",
+            out_dtype="float32",
+            scale=1,
+            dshape=(1, 3, 224, 224),
+            kshape=(10, 3, 3, 3),
+            padding=(1, 1),
+            channels=10,
+            groups=1,
+            kernel_size=(3, 3),
+            dilation=(1, 1),
+        ),
+        "mixed_precision_int8_int32_case1": dict(
+            dtype="int8",
+            out_dtype="int32",
+            scale=1,
+            dshape=(1, 3, 224, 224),
+            kshape=(10, 3, 3, 3),
+            padding=(1, 1),
+            channels=10,
+            groups=1,
+            kernel_size=(3, 3),
+            dilation=(1, 1),
+        ),
+        "mixed_precision_int8_int32_case2": dict(
+            dtype="int8",
+            out_dtype="int32",
+            scale=1,
+            dshape=(1, 3, 224, 224),
+            kshape=(10, 3, 1, 3),
+            padding=(0, 1),
+            channels=10,
+            groups=1,
+            kernel_size=(1, 3),
+            dilation=(1, 1),
+        ),
+        "dilated": dict(
+            dtype="float32",
+            out_dtype="float32",
+            scale=1,
+            dshape=(1, 3, 18, 18),
+            kshape=(10, 3, 3, 3),
+            padding=(1, 1),
+            channels=10,
+            groups=1,
+            kernel_size=(3, 3),
+            dilation=(3, 3),
+        ),
+    }
+
+    # TODO(Lunderberg): Make a cleaner utility for this type of
+    # parametrization.  It would be much nicer to have the fixture
+    # name come from the dictionaries themselves, rather than needing
+    # to be re-packed into tuples.
+    (
         dtype,
         out_dtype,
         scale,
         dshape,
         kshape,
-        padding=(1, 1),
-        fref=None,
-        groups=1,
-        dilation=(1, 1),
-        except_targets=None,
-        **attrs,
+        padding,
+        channels,
+        groups,
+        kernel_size,
+        dilation,
+    ) = tvm.testing.parameters(
+        *[
+            [
+                d[p]
+                for p in [
+                    "dtype",
+                    "out_dtype",
+                    "scale",
+                    "dshape",
+                    "kshape",
+                    "padding",
+                    "channels",
+                    "groups",
+                    "kernel_size",
+                    "dilation",
+                ]
+            ]
+            for d in config.values()
+        ],
+        ids=config.keys(),
+    )
+
+    def test_run(
+        self,
+        target,
+        dev,
+        dtype,
+        out_dtype,
+        scale,
+        dshape,
+        kshape,
+        padding,
+        groups,
+        dilation,
+        channels,
+        kernel_size,
     ):
-        if except_targets is None:
-            except_targets = []
+        target = tvm.target.Target(target)
 
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", shape=kshape, dtype=dtype)
-        y = relay.nn.conv2d(x, w, padding=padding, dilation=dilation, groups=groups, **attrs)
+        y = relay.nn.conv2d(
+            x,
+            w,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            channels=channels,
+            kernel_size=kernel_size,
+        )
         func = relay.Function([x, w], y)
-        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
         dkernel = tvm.topi.testing.dilate_python(kernel, (1, 1) + dilation)
-        if fref is None:
-            ref_res = tvm.topi.testing.conv2d_nchw_python(
-                data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding, groups=groups
-            )
-        else:
-            ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
 
-        for target, dev in tvm.testing.enabled_targets():
-            if target in except_targets:
-                continue
-            dev = tvm.device(target, 0)
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(data, kernel)
-            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4, atol=1e-4)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        ref_res = tvm.topi.testing.conv2d_nchw_python(
+            data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding, groups=groups
+        )
 
-    def compile_test_conv2d_arm_cpu(
-        dtype, out_dtype, scale, dshape, kshape, padding=(1, 1), groups=1, dilation=(1, 1), **attrs
-    ):
-        x = relay.var("x", shape=dshape, dtype=dtype)
-        w = relay.var("w", shape=kshape, dtype=dtype)
-        y = relay.nn.conv2d(x, w, padding=padding, dilation=dilation, groups=groups, **attrs)
-        func = relay.Function([x, w], y)
-        mod = tvm.IRModule()
-        mod["main"] = func
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            data, kernel
+        )
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4, atol=1e-4)
 
-        test_schedule = '{"i": ["llvm -device=arm_cpu", "depthwise_conv2d_nchw_spatial_pack.arm_cpu", \
-                        [["TENSOR", [1, 512, 32, 32], "float32"], \
-                        ["TENSOR", [512, 1, 3, 3], "float32"], \
-                        [1, 1], [1, 1], [1, 1], "float32"], {}, \
-                        ["depthwise_conv2d_nchw_spatial_pack.arm_cpu", [1, 512, 32, 32, "float32"], \
-                        [512, 1, 3, 3, "float32"], [1, 1], [1, 1], [1, 1], "float32"], \
-                        {"i": 743640, "t": "", "c": null, \
-                        "e": [["tile_co", "sp", [32, 16]], ["tile_oh", "sp", [8, 1]], \
-                        ["tile_ow", "sp", [1, 8]], \
-                        ["reorder_0", "re", [0, 1, 2, 3, 4, 5, 8, 6, 7]], \
-                        ["reorder_1", "re", [0, 1, 2, 3, 6, 4, 5]], \
-                        ["ann_reduce", "an", ["unroll", "none"]], \
-                        ["ann_spatial", "an", ["unroll", "unroll", "vec"]], \
-                        ["data_pad_inline", "ot", 4], ["data_vec_inline", "ot", 1], \
-                        ["conv_inline", "ot", 0]]}], "r": [[0.0002933163], \
-                        0, 3.1976189613342285, 1570811630.6058347], "v": 0.1}'
-        temp = utils.tempdir()
-        with open(temp.relpath("temp.log"), "w") as log_file:
-            log_file.write(test_schedule)
-        with autotvm.apply_history_best(temp.relpath("temp.log")):
-            with tvm.transform.PassContext(opt_level=3):
-                print("Compiling...")
-                graph_json, mod, params = tvm.relay.build(mod, target="llvm -device=arm_cpu")
 
-    # depthwise conv2d
-    dshape = (1, 32, 18, 18)
-    kshape = (32, 1, 3, 3)
-    run_test_conv2d(
-        "float32",
-        "float32",
-        1,
-        dshape,
-        kshape,
-        padding=(1, 1),
-        channels=32,
-        groups=32,
-        kernel_size=(3, 3),
-        fref=lambda x, w: tvm.topi.testing.depthwise_conv2d_python_nchw(x, w, (1, 1), "SAME"),
-    )
-
-    # depthwise conv2d for arm_cpu
+def test_compile_depthwise_conv2d_arm_cpu():
+    dtype = "float32"
+    out_dtype = "float32"
+    scale = 1
     dshape = (1, 512, 32, 32)
     kshape = (512, 1, 3, 3)
-    compile_test_conv2d_arm_cpu(
-        "float32",
-        "float32",
-        1,
-        dshape,
-        kshape,
-        padding=(1, 1),
-        channels=512,
-        groups=512,
-        kernel_size=(3, 3),
-    )
+    padding = (1, 1)
+    channels = 512
+    groups = 512
+    kernel_size = (3, 3)
+    dilation = (1, 1)
 
-    # CUDA is disabled for 'direct' schedule:
-    # https://github.com/apache/tvm/pull/3070#issuecomment-486597553
-    # group conv2d
-    dshape = (1, 32, 18, 18)
-    kshape = (32, 4, 3, 3)
-    run_test_conv2d(
-        "float32",
-        "float32",
-        1,
-        dshape,
-        kshape,
-        padding=(1, 1),
-        channels=32,
-        groups=8,
-        kernel_size=(3, 3),
-        except_targets=["cuda"],
+    x = relay.var("x", shape=dshape, dtype=dtype)
+    w = relay.var("w", shape=kshape, dtype=dtype)
+    y = relay.nn.conv2d(
+        x,
+        w,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+        channels=channels,
+        kernel_size=kernel_size,
     )
-    # also group conv2d
-    dshape = (1, 32, 18, 18)
-    kshape = (64, 1, 3, 3)
-    run_test_conv2d(
-        "float32",
-        "float32",
-        1,
-        dshape,
-        kshape,
-        padding=(1, 1),
-        channels=64,
-        groups=32,
-        kernel_size=(3, 3),
-        except_targets=["cuda"],
-    )
+    func = relay.Function([x, w], y)
+    mod = tvm.IRModule()
+    mod["main"] = func
 
-    # normal conv2d
-    dshape = (1, 3, 224, 224)
-    kshape = (10, 3, 3, 3)
-    run_test_conv2d(
-        "float32", "float32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(3, 3)
-    )
-    # mixed precision
-    run_test_conv2d(
-        "int8", "int32", 1, dshape, kshape, padding=(1, 1), channels=10, kernel_size=(3, 3)
-    )
-    kshape = (10, 3, 1, 3)
-    # mixed precision.
-    run_test_conv2d(
-        "int8", "int32", 1, dshape, kshape, padding=(0, 1), channels=10, kernel_size=(1, 3)
-    )
-    # dilated conv2d
-    dshape = (1, 3, 18, 18)
-    kshape = (10, 3, 3, 3)
-    run_test_conv2d(
-        "float32",
-        "float32",
-        1,
-        dshape,
-        kshape,
-        padding=(1, 1),
-        channels=10,
-        kernel_size=(3, 3),
-        dilation=(3, 3),
-    )
+    test_schedule = '{"i": ["llvm -device=arm_cpu", "depthwise_conv2d_nchw_spatial_pack.arm_cpu", \
+                    [["TENSOR", [1, 512, 32, 32], "float32"], \
+                    ["TENSOR", [512, 1, 3, 3], "float32"], \
+                    [1, 1], [1, 1], [1, 1], "float32"], {}, \
+                    ["depthwise_conv2d_nchw_spatial_pack.arm_cpu", [1, 512, 32, 32, "float32"], \
+                    [512, 1, 3, 3, "float32"], [1, 1], [1, 1], [1, 1], "float32"], \
+                    {"i": 743640, "t": "", "c": null, \
+                    "e": [["tile_co", "sp", [32, 16]], ["tile_oh", "sp", [8, 1]], \
+                    ["tile_ow", "sp", [1, 8]], \
+                    ["reorder_0", "re", [0, 1, 2, 3, 4, 5, 8, 6, 7]], \
+                    ["reorder_1", "re", [0, 1, 2, 3, 6, 4, 5]], \
+                    ["ann_reduce", "an", ["unroll", "none"]], \
+                    ["ann_spatial", "an", ["unroll", "unroll", "vec"]], \
+                    ["data_pad_inline", "ot", 4], ["data_vec_inline", "ot", 1], \
+                    ["conv_inline", "ot", 0]]}], "r": [[0.0002933163], \
+                    0, 3.1976189613342285, 1570811630.6058347], "v": 0.1}'
+    temp = utils.tempdir()
+    with open(temp.relpath("temp.log"), "w") as log_file:
+        log_file.write(test_schedule)
+    with autotvm.apply_history_best(temp.relpath("temp.log")):
+        with tvm.transform.PassContext(opt_level=3):
+            print("Compiling...")
+            graph_json, mod, params = tvm.relay.build(mod, target="llvm -device=arm_cpu")
 
 
 @tvm.testing.uses_gpu
@@ -513,8 +559,9 @@ def test_conv3d_run():
                 continue
             dev = tvm.device(target, 0)
 
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(data, kernel)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                data, kernel
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv3d
@@ -578,8 +625,9 @@ def test_conv3d_ndhwc_run():
                 continue
             dev = tvm.device(target, 0)
 
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(data, kernel)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                data, kernel
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     # normal conv3d
@@ -761,8 +809,9 @@ def test_conv3d_transpose_ncdhw_run():
     ref_res = tvm.topi.testing.conv3d_transpose_ncdhw_python(data, kernel, 1, 1, 0)
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(data, kernel)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            data, kernel
+        )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -804,8 +853,9 @@ def test_conv2d_transpose_nchw_run():
     ref_res = tvm.topi.testing.conv2d_transpose_nchw_python(data, kernel, 2, 1, (1, 1))
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(data, kernel)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            data, kernel
+        )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -840,8 +890,9 @@ def test_conv2d_transpose_nhwc_run():
     )
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(data, kernel)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            data, kernel
+        )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -862,8 +913,9 @@ def test_conv1d_transpose_ncw_run():
     ref_res = tvm.topi.testing.conv1d_transpose_ncw_python(data, kernel, 2, 1, output_padding=(1,))
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(data, kernel)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            data, kernel
+        )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -947,8 +999,7 @@ def _test_global_pool2d(opfunc, reffunc):
     data = np.random.uniform(size=dshape).astype(dtype)
     ref_res = reffunc(data, axis=(2, 3), keepdims=True)
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -980,8 +1031,7 @@ def test_pool2d():
             ceil_mode=False,
         )
         for target, dev in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(data)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     def _test_pool2d_int(opfunc, reffunc, dtype):
@@ -1001,8 +1051,9 @@ def test_pool2d():
             data = np.random.randint(low=-128, high=128, size=dshape)
             ref_res = reffunc(data.reshape(1, 3, 14, 2, 14, 2), axis=(3, 5)).astype(dtype)
             for target, dev in tvm.testing.enabled_targets():
-                intrp1 = relay.create_executor("graph", device=dev, target=target)
-                op_res1 = intrp1.evaluate(func)(data)
+                op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    data
+                )
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool2d(relay.nn.max_pool2d, "max")
@@ -1039,8 +1090,7 @@ def _test_global_pool1d(opfunc, reffunc):
     data = np.random.uniform(size=dshape).astype(dtype)
     ref_res = reffunc(data, axis=(2,), keepdims=True)
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -1075,8 +1125,9 @@ def test_pool1d():
                 ceil_mode=False,
             )
             for target, dev in tvm.testing.enabled_targets():
-                intrp1 = relay.create_executor("graph", device=dev, target=target)
-                op_res1 = intrp1.evaluate(func)(data)
+                op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    data
+                )
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool1d(relay.nn.max_pool1d, "max")
@@ -1135,8 +1186,9 @@ def test_pool3d():
                 ceil_mode=False,
             )
             for target, dev in tvm.testing.enabled_targets():
-                intrp1 = relay.create_executor("graph", device=dev, target=target)
-                op_res1 = intrp1.evaluate(func)(data)
+                op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    data
+                )
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool3d(relay.nn.max_pool3d, "max")
@@ -1187,8 +1239,7 @@ def test_avg_pool2d_no_count_pad():
     data = a_np
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -1222,11 +1273,9 @@ def test_flatten_infer_type():
     ref_res = x_data.flatten().reshape(o_shape)
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        intrp2 = relay.create_executor("debug", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data)
+        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -1296,8 +1345,9 @@ def test_pad_run():
             data = np.random.uniform(size=dshape).astype(dtype)
             ref_res = _get_numpy_pad(dshape, data, pad)
             for target, dev in tvm.testing.enabled_targets():
-                intrp1 = relay.create_executor("graph", device=dev, target=target)
-                op_res1 = intrp1.evaluate(func)(data)
+                op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    data
+                )
                 tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_run("float32")
@@ -1320,8 +1370,9 @@ def test_pad_run_dynamic_pad_value():
         ref_res = _get_numpy_pad(dshape, data_arr, pad, pad_value=pad_value_arr)
 
         for target, dev in tvm.testing.enabled_targets():
-            intrp = relay.create_executor(kind="graph", device=dev, target=target)
-            result = intrp.evaluate(f)(data_arr, pad_value_arr)
+            result = relay.create_executor(kind="graph", device=dev, target=target).evaluate(f)(
+                data_arr, pad_value_arr
+            )
             tvm.testing.assert_allclose(result.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_run("float32")
@@ -1353,11 +1404,9 @@ def test_lrn():
     ref_res = tvm.topi.testing.lrn_python(x_data, size, axis, bias, alpha, beta)
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        intrp2 = relay.create_executor("debug", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data)
+        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -1383,11 +1432,9 @@ def test_l2_normalize():
     ref_res = tvm.topi.testing.l2_normalize_python(x_data, eps, axis)
 
     for target, dev in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", device=dev, target=target)
-        intrp2 = relay.create_executor("debug", device=dev, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data)
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data)
+        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
@@ -1408,8 +1455,7 @@ def test_batch_flatten():
     data = np.random.rand(5, 10, 5).astype(t1.dtype)
     ref_res = batch_flatten(data)
     for target, dev in tvm.testing.enabled_targets():
-        intrp = relay.create_executor("graph", device=dev, target=target)
-        op_res = intrp.evaluate(func)(data)
+        op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
         np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
@@ -1458,8 +1504,7 @@ def _test_upsampling(layout, method, align_corners=False):
         "align_corners" if align_corners else "asymmetric",
     )
     for target, dev in tvm.testing.enabled_targets():
-        executor = relay.create_executor("graph", device=dev, target=target)
-        out = executor.evaluate(func)(data)
+        out = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
         tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-5, atol=1e-5)
 
 
@@ -1530,8 +1575,7 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
         coordinate_transformation_mode,
     )
     for target, dev in tvm.testing.enabled_targets():
-        executor = relay.create_executor("graph", device=dev, target=target)
-        out = executor.evaluate(func)(data)
+        out = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
         tvm.testing.assert_allclose(out.numpy(), ref, rtol=1e-5, atol=1e-5)
 
 
@@ -1588,7 +1632,7 @@ def test_conv2d_int8_intrinsics():
         return assembly
 
     def _has_fast_int8_instructions(asm, target):
-        if "skylake-avx512" in target:
+        if "nehalem" in target or "core-avx2" in target or "skylake-avx512" in target:
             return "pmaddubs" in asm
         elif "cascadelake" in target:
             return "vpdpbusd" in asm
@@ -1598,11 +1642,16 @@ def test_conv2d_int8_intrinsics():
     # TODO(@anijain2305, @icemelon9): disable conv2d_int8 for NHWC data layout.
     #   Re-enable this after adding conv2d_NCHWc_int8 support for NHWC.
 
-    # compile conv2d for x86 (skylake, cascadelake) and test assembly contains *pmadd* instructions
-    targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
+    # compile conv2d for x86 (SSE3/AVX2/AVX512/VNNI capable) and test assembly contains *pmadd* instructions
+    targets = [
+        "llvm -mcpu=nehalem",
+        "llvm -mcpu=core-avx2",
+        "llvm -mcpu=skylake-avx512",
+        "llvm -mcpu=cascadelake",
+    ]
     llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
-        if llvm_version >= 8:
+        if tvm.testing.device_enabled(target) and llvm_version >= 8:
             dtypes = ("uint8", "int8", "int32")
             # Sweep the input channels to check int8 robustness
             # Input channels should be a multiple of 4 internally.
@@ -1654,7 +1703,7 @@ def test_conv2d_int8_intrinsics():
 
     # Check that int8 x int8 goes through legalization so that fast instructions can be picked up.
     for target in targets:
-        if llvm_version >= 8:
+        if tvm.testing.device_enabled(target) and llvm_version >= 8:
             dtypes = ("int8", "int8", "int32")
             # Check that both non-divisible oc and ic work
             asm = _compile(
@@ -1675,18 +1724,19 @@ def test_conv2d_int8_intrinsics():
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
-    target = "llvm -mcpu=core-avx2"
-    fast_int8_dtypes = ("uint8", "int8", "int32")
-    asm = _compile(
-        ic=16,
-        oc=32,
-        target=target,
-        data_layout="NCHW",
-        kernel_layout="OIHW",
-        dtypes=fast_int8_dtypes,
-    )
-    # Check that vector int mult and add instructions are generated.
-    assert "vpmulld" in asm and "vpadd" in asm
+    target = "llvm -mcpu=x86-64"
+    if tvm.testing.device_enabled(target):
+        fast_int8_dtypes = ("uint8", "int8", "int32")
+        asm = _compile(
+            ic=16,
+            oc=32,
+            target=target,
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+            dtypes=fast_int8_dtypes,
+        )
+        # Check that vector int mult and add instructions are generated.
+        assert "pmulhw" in asm and "paddd" in asm
 
 
 @tvm.testing.uses_gpu
@@ -1797,8 +1847,9 @@ def test_correlation():
         )
 
         for target, dev in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", device=dev, target=target)
-            op_res1 = intrp1.evaluate(func)(data1_np, data2_np)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                data1_np, data2_np
+            )
             tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_correlation(
@@ -1849,38 +1900,4 @@ def test_correlation():
 
 
 if __name__ == "__main__":
-    test_pool1d()
-    test_pool2d()
-    test_pool3d()
-    test_avg_pool2d_no_count_pad()
-    test_lrn()
-    test_l2_normalize()
-    test_conv1d_infer_type()
-    test_conv2d_infer_type()
-    test_conv3d_infer_type()
-    test_bitpack_infer_type()
-    test_upsampling_infer_type()
-    test_upsampling3d_infer_type()
-    test_flatten_infer_type()
-    test_pad_infer_type()
-    test_pad_run()
-    test_pad_run_dynamic_pad_value()
-    test_conv3d_transpose_infer_type()
-    test_conv3d_transpose_ncdhw_run()
-    test_conv2d_transpose_infer_type()
-    test_conv2d_transpose_nchw_run()
-    test_conv2d_transpose_nhwc_run()
-    test_conv1d_transpose_ncw_run()
-    test_conv1d_run()
-    test_conv2d_run()
-    test_conv2d_winograd()
-    test_conv3d_run()
-    test_conv3d_ndhwc_run()
-    test_conv3d_winograd()
-    test_bitserial_conv2d_infer_type()
-    test_batch_flatten()
-    test_upsampling()
-    test_upsampling3d()
-    test_conv2d_int8_intrinsics()
-    test_depthwise_conv2d_int8()
-    test_correlation()
+    sys.exit(pytest.main(sys.argv))

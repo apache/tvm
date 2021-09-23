@@ -24,8 +24,8 @@ from tvm import relay, te
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
 
-from utils.assert_diagnostic import DiagnosticTesting
 from utils import ref_funcs
+from utils.assert_diagnostic import DiagnosticTesting
 
 
 def int32(val):
@@ -58,8 +58,7 @@ def check_result(
                 continue
             if kind == "debug" and (only_vm or dev.device_type != tvm.cpu().device_type):
                 continue
-            ex = relay.create_executor(kind, mod=mod, device=dev, target=tgt)
-            result = ex.evaluate()(*args)
+            result = relay.create_executor(kind, mod=mod, device=dev, target=tgt).evaluate()(*args)
             if isinstance(result, tvm.runtime.container.ADT):
                 result = [r.numpy() for r in result]
             else:
@@ -373,28 +372,51 @@ def test_any_shape_of():
     check_result([data], mod, np.array(3).astype("int64"))
 
 
-def verify_any_reduce(
-    reduce_op, data_shape, axis, exclude, keepdims, static_data_shape, ref_out_shape
-):
-    mod = tvm.IRModule()
-    dtype = "bool" if reduce_op == relay.all else "float32"
-    data = relay.var("data", shape=data_shape, dtype=dtype)
-    y = reduce_op(data, axis, keepdims, exclude)
-    mod["main"] = relay.Function([data], y)
-    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+class TestAnyReduce:
+    config = {
+        "argmax": (relay.argmax, any_dims(3), None, False, False, (3, 4, 5), ()),
+        "argmin": (relay.argmin, any_dims(4), 1, False, True, (3, 4, 5, 6), (3, 1, 5, 6)),
+        "all": (relay.all, any_dims(3), (1, 2), True, False, (3, 4, 5), (4, 5)),
+        "max": (relay.max, any_dims(4), -1, True, True, (3, 4, 5, 6), (1, 1, 1, 6)),
+        "min": (relay.min, any_dims(3), (0, 1), False, False, (4, 5, 6), (6,)),
+        "prod": (relay.prod, any_dims(4), 2, True, True, (3, 4, 5, 6), (1, 1, 5, 1)),
+        "mean": (relay.mean, any_dims(2), 0, False, False, (1, 2), (2,)),
+        "variance": (relay.variance, any_dims(5), (2, 4), False, False, (3, 4, 5, 6, 7), (3, 4, 6)),
+    }
 
+    (
+        reduce_op,
+        data_shape,
+        axis,
+        exclude,
+        keepdims,
+        static_data_shape,
+        ref_out_shape,
+    ) = tvm.testing.parameters(*config.values(), ids=config.keys())
 
-@tvm.testing.uses_gpu
-def test_any_reduce():
-    verify_any_reduce(relay.argmax, any_dims(3), None, False, False, (3, 4, 5), ())
-    verify_any_reduce(relay.argmin, any_dims(4), 1, False, True, (3, 4, 5, 6), (3, 1, 5, 6))
-    verify_any_reduce(relay.all, any_dims(3), (1, 2), True, False, (3, 4, 5), (4, 5))
-    verify_any_reduce(relay.max, any_dims(4), -1, True, True, (3, 4, 5, 6), (1, 1, 1, 6))
-    verify_any_reduce(relay.min, any_dims(3), (0, 1), False, False, (4, 5, 6), (6,))
-    verify_any_reduce(relay.prod, any_dims(4), 2, True, True, (3, 4, 5, 6), (1, 1, 5, 1))
-    verify_any_reduce(relay.mean, any_dims(2), 0, False, False, (1, 2), (2,))
-    verify_any_reduce(relay.variance, any_dims(5), (2, 4), False, False, (3, 4, 5, 6, 7), (3, 4, 6))
+    def test_any_reduce(
+        self,
+        target,
+        dev,
+        reduce_op,
+        data_shape,
+        axis,
+        exclude,
+        keepdims,
+        static_data_shape,
+        ref_out_shape,
+    ):
+        target = tvm.target.Target(target)
+        if target.kind.name == "vulkan" and reduce_op == relay.all:
+            pytest.xfail("Known failing test case for vulkan runtime")
+
+        mod = tvm.IRModule()
+        dtype = "bool" if reduce_op == relay.all else "float32"
+        data = relay.var("data", shape=data_shape, dtype=dtype)
+        y = reduce_op(data, axis, keepdims, exclude)
+        mod["main"] = relay.Function([data], y)
+        data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+        check_result([data_np], mod, ref_out_shape, assert_shape=True, targets=[(target, dev)])
 
 
 def verify_any_layout_transform(
@@ -580,66 +602,58 @@ def test_any_conv2d():
     )
 
 
-def verify_any_conv2d_NCHWc(
-    data_shape,
-    kernel_shape,
-    strides,
-    padding,
-    dilation,
-    data_layout,
-    kernel_layout,
-    out_layout,
-    static_data_shape,
-    ref_out_shape,
-):
-    mod = tvm.IRModule()
-    dtype = "float32"
-    data = relay.var("data", shape=data_shape, dtype=dtype)
-    kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
-    y = relay.nn.contrib_conv2d_nchwc(
-        data,
-        kernel,
+class TestAnyConv2dNCHWc:
+    data_shape = tvm.testing.parameter((relay.Any(), 8, 224, 224, 8))
+    kernel_shape = tvm.testing.parameter((8, 8, 3, 3, 8, 8))
+    strides = tvm.testing.parameter((1, 1))
+    padding = tvm.testing.parameter((1, 1))
+    data_layout = tvm.testing.parameter("NCHW8c")
+    kernel_layout = tvm.testing.parameter("OIHW8i8o")
+    out_layout = tvm.testing.parameter("NCHW8c")
+
+    dilation, static_data_shape, ref_out_shape = tvm.testing.parameters(
+        ((1, 1), (1, 8, 224, 224, 8), (1, 8, 224, 224, 8)),
+        ((2, 2), (2, 8, 224, 224, 8), (2, 8, 222, 222, 8)),
+    )
+
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    def test_any_conv2d_NCHWc(
+        self,
+        target,
+        dev,
+        data_shape,
+        kernel_shape,
         strides,
         padding,
         dilation,
-        kernel_size=kernel_shape[2:4],
-        channels=kernel_shape[0] * kernel_shape[-1],
-        data_layout=data_layout,
-        kernel_layout=kernel_layout,
-        out_layout=out_layout,
-    )
-    mod["main"] = relay.Function([data, kernel], y)
-    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
-
-
-# TODO(@kevinthesun): Support dynamic input height and width.
-def test_any_conv2d_NCHWc():
-    verify_any_conv2d_NCHWc(
-        (relay.Any(), 8, 224, 224, 8),
-        (8, 8, 3, 3, 8, 8),
-        (1, 1),
-        (1, 1),
-        (1, 1),
-        "NCHW8c",
-        "OIHW8i8o",
-        "NCHW8c",
-        (1, 8, 224, 224, 8),
-        (1, 8, 224, 224, 8),
-    )
-    verify_any_conv2d_NCHWc(
-        (relay.Any(), 8, 224, 224, 8),
-        (8, 8, 3, 3, 8, 8),
-        (1, 1),
-        (1, 1),
-        (2, 2),
-        "NCHW8c",
-        "OIHW8i8o",
-        "NCHW8c",
-        (2, 8, 224, 224, 8),
-        (2, 8, 222, 222, 8),
-    )
+        data_layout,
+        kernel_layout,
+        out_layout,
+        static_data_shape,
+        ref_out_shape,
+    ):
+        mod = tvm.IRModule()
+        dtype = "float32"
+        data = relay.var("data", shape=data_shape, dtype=dtype)
+        kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
+        y = relay.nn.contrib_conv2d_nchwc(
+            data,
+            kernel,
+            strides,
+            padding,
+            dilation,
+            kernel_size=kernel_shape[2:4],
+            channels=kernel_shape[0] * kernel_shape[-1],
+            data_layout=data_layout,
+            kernel_layout=kernel_layout,
+            out_layout=out_layout,
+        )
+        mod["main"] = relay.Function([data, kernel], y)
+        data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+        kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+        check_result(
+            [data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=[(target, dev)]
+        )
 
 
 def verify_any_conv1d_transpose_ncw(
@@ -851,8 +865,9 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
     mod["main"] = relay.Function([data], y.astuple())
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     for kind in ["vm"]:
-        ex = relay.create_executor(kind, mod=mod, device=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
+        result = relay.create_executor(kind, mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+            data_np
+        )
         for ret, ref_ret in zip(result, ref_out_shape):
             assert ret.numpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
                 str(ref_ret),
@@ -867,6 +882,8 @@ def test_any_split():
     verify_any_split((relay.Any(), relay.Any()), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
     verify_any_split((relay.Any(), relay.Any()), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
+    verify_any_split((relay.Any(), 12), (8,), 1, (7, 12), [(7, 8), (7, 4)])
+    verify_any_split((relay.Any(), relay.Any()), (8,), 1, (7, 12), [(7, 8), (7, 4)])
 
 
 @tvm.testing.uses_gpu
@@ -881,134 +898,149 @@ def test_any_batch_flatten():
     check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
 
-def verify_any_dense(
-    data_shape,
-    weight_shape,
-    units,
-    static_data_shape,
-    static_weight_shape,
-    ref_out_shape,
-    use_cublas=False,
-):
-    mod = tvm.IRModule()
-    dtype = "float32"
-    data = relay.var("data", shape=data_shape, dtype=dtype)
-    weight = relay.var("weight", shape=weight_shape, dtype=dtype)
-    y = relay.nn.dense(data, weight, units)
-    mod["main"] = relay.Function([data, weight], y)
-    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    weight_np = np.random.uniform(size=static_weight_shape).astype(dtype)
-
-    targets = None
-    if use_cublas and tvm.get_global_func("tvm.contrib.cublas.matmul", True):
-        targets = [("cuda -libs=cublas", tvm.cuda(0))]
-
-    check_result([data_np, weight_np], mod, ref_out_shape, assert_shape=True, targets=targets)
-
-
 # TODO(tvm-team) Fix dense schedule
-# @tvm.testing.uses_gpu
-def test_any_dense():
-    verify_any_dense(any_dims(2), any_dims(2), None, (4, 16), (8, 16), (4, 8))
-    verify_any_dense(any_dims(2), (50, relay.Any()), 50, (4, 40), (50, 40), (4, 50))
-
-
-@tvm.testing.uses_gpu
-def test_any_dense_dynamic_batch():
-    verify_any_dense((relay.Any(), 40), (50, 40), 50, (4, 40), (50, 40), (4, 50))
-    verify_any_dense((relay.Any(), 40), (50, 40), 50, (4, 40), (50, 40), (4, 50), use_cublas=True)
-
-
-def verify_any_batch_matmul(
-    x_shape,
-    y_shape,
-    out_shape,
-    x_var_shape,
-    y_var_shape,
-    dtype="float32",
-    trans_x=False,
-    trans_y=True,
-):
-    x = relay.var("x", relay.TensorType(x_var_shape, dtype))
-    y = relay.var("y", relay.TensorType(y_var_shape, dtype))
-    z = relay.nn.batch_matmul(x, y, transpose_a=trans_x, transpose_b=trans_y)
-
-    func = relay.Function([x, y], z)
-    x_np = np.random.uniform(size=x_shape).astype(dtype)
-    y_np = np.random.uniform(size=y_shape).astype(dtype)
-    z_np = tvm.topi.testing.batch_matmul(x_np, y_np, trans_x=trans_x, trans_y=trans_y)
-
-    for target, dev in tvm.testing.enabled_targets():
-        for kind in ["vm", "debug"]:
-            mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, device=dev, target=target)
-            z = intrp.evaluate()(x_np, y_np)
-            tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5)
-
-
-# TODO(mbrookhart): enable once VM supports heterogenous execution
-# @tvm.testing.uses_gpu
-def test_any_batch_matmul():
-    verify_any_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16), (1, 16, 32), (relay.Any(),) * 3)
-    verify_any_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3)
-    verify_any_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20), (5, 16, 32), (relay.Any(),) * 3)
-    verify_any_batch_matmul(
-        (30, 16, 32), (30, 20, 32), (30, 16, 20), (30, 16, 32), (relay.Any(),) * 3
+@tvm.testing.known_failing_targets("cuda", "vulkan")
+class TestAnyDense:
+    (
+        data_shape,
+        weight_shape,
+        units,
+        static_data_shape,
+        static_weight_shape,
+        ref_out_shape,
+    ) = tvm.testing.parameters(
+        (any_dims(2), any_dims(2), None, (4, 16), (8, 16), (4, 8)),
+        (any_dims(2), (50, relay.Any()), 50, (4, 40), (50, 40), (4, 50)),
     )
 
-    verify_any_batch_matmul(
-        (1, 16, 32), (1, 16, 32), (1, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
-    )
-    verify_any_batch_matmul(
-        (5, 16, 32), (5, 16, 32), (5, 16, 16), (relay.Any(), 16, 32), (relay.Any(), 16, 32)
-    )
-    verify_any_batch_matmul(
-        (5, 16, 32), (5, 20, 32), (5, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
-    )
-    verify_any_batch_matmul(
-        (30, 16, 32), (30, 20, 32), (30, 16, 20), (relay.Any(), 16, 32), (relay.Any(), 20, 32)
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    def test_any_dense(
+        self,
+        target,
+        dev,
+        data_shape,
+        weight_shape,
+        units,
+        static_data_shape,
+        static_weight_shape,
+        ref_out_shape,
+    ):
+        mod = tvm.IRModule()
+        dtype = "float32"
+        data = relay.var("data", shape=data_shape, dtype=dtype)
+        weight = relay.var("weight", shape=weight_shape, dtype=dtype)
+        y = relay.nn.dense(data, weight, units)
+        mod["main"] = relay.Function([data, weight], y)
+        data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+        weight_np = np.random.uniform(size=static_weight_shape).astype(dtype)
+
+        check_result(
+            [data_np, weight_np], mod, ref_out_shape, assert_shape=True, targets=[(target, dev)]
+        )
+
+    @tvm.testing.parametrize_targets("cuda -libs=cublas")
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    def test_any_dense_cublas(
+        self,
+        target,
+        dev,
+        data_shape,
+        weight_shape,
+        units,
+        static_data_shape,
+        static_weight_shape,
+        ref_out_shape,
+    ):
+
+        self.test_any_dense(
+            target,
+            dev,
+            data_shape,
+            weight_shape,
+            units,
+            static_data_shape,
+            static_weight_shape,
+            ref_out_shape,
+        )
+
+
+class TestAnyBatchMatmul:
+    dtype = tvm.testing.parameter("float32")
+    executor_kind = tvm.testing.parameter("vm", "debug")
+
+    (x_shape, y_shape) = tvm.testing.parameters(
+        ((1, 16, 32), (1, 32, 16)),
+        ((5, 16, 32), (5, 32, 16)),
+        ((5, 16, 32), (5, 32, 20)),
+        ((30, 16, 32), (30, 32, 20)),
     )
 
-    verify_any_batch_matmul(
-        (1, 32, 16), (1, 16, 32), (1, 16, 16), (1, 32, 16), (relay.Any(),) * 3, trans_x=True
+    # any_x = tvm.testing.parameter("none", "batch")
+    # any_y = tvm.testing.parameter("none", "batch", "all")
+
+    any_x, any_y = tvm.testing.parameters(
+        ("none", "batch"), ("none", "all"), ("batch", "none"), ("batch", "batch"), ("batch", "all")
     )
-    verify_any_batch_matmul(
-        (5, 16, 32), (5, 32, 16), (5, 16, 16), (5, 16, 32), (relay.Any(),) * 3, trans_y=False
-    )
-    verify_any_batch_matmul(
-        (5, 32, 16),
-        (5, 32, 20),
-        (5, 16, 20),
-        (5, 32, 16),
-        (relay.Any(),) * 3,
-        trans_x=True,
-        trans_y=False,
-    )
-    verify_any_batch_matmul(
-        (1, 32, 16),
-        (1, 16, 32),
-        (1, 16, 16),
-        (relay.Any(), 32, 16),
-        (relay.Any(), 16, 32),
-        trans_x=True,
-    )
-    verify_any_batch_matmul(
-        (5, 16, 32),
-        (5, 32, 16),
-        (5, 16, 16),
-        (relay.Any(), 16, 32),
-        (relay.Any(), 32, 16),
-        trans_y=False,
-    )
-    verify_any_batch_matmul(
-        (5, 32, 16),
-        (5, 32, 20),
-        (5, 16, 20),
-        (relay.Any(), 32, 16),
-        (relay.Any(), 32, 20),
-        trans_x=True,
-        trans_y=False,
-    )
+
+    transpose_x = tvm.testing.parameter(True, False)
+    transpose_y = tvm.testing.parameter(True, False)
+
+    @tvm.testing.fixture
+    def x_var_shape(self, x_shape, any_x):
+        if any_x == "none":
+            return x_shape
+        elif any_x == "batch":
+            return tuple(relay.Any() if i == 0 else size for i, size in enumerate(x_shape))
+        elif any_x == "all":
+            return tuple(relay.Any() for _ in x_shape)
+
+    @tvm.testing.fixture
+    def y_var_shape(self, y_shape, any_y):
+        if any_y == "none":
+            return y_shape
+        elif any_y == "batch":
+            return tuple(relay.Any() if i == 0 else size for i, size in enumerate(y_shape))
+        elif any_y == "all":
+            return tuple(relay.Any() for _ in y_shape)
+
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    def test_any_batch_matmul(
+        self,
+        target,
+        dev,
+        x_shape,
+        y_shape,
+        any_x,
+        any_y,
+        x_var_shape,
+        y_var_shape,
+        transpose_x,
+        transpose_y,
+        executor_kind,
+        dtype,
+    ):
+        if transpose_x:
+            x_shape = (x_shape[0], x_shape[2], x_shape[1])
+            x_var_shape = (x_var_shape[0], x_var_shape[2], x_var_shape[1])
+
+        if transpose_y:
+            y_shape = (y_shape[0], y_shape[2], y_shape[1])
+            y_var_shape = (y_var_shape[0], y_var_shape[2], y_var_shape[1])
+
+        x = relay.var("x", relay.TensorType(x_var_shape, dtype))
+        y = relay.var("y", relay.TensorType(y_var_shape, dtype))
+        z = relay.nn.batch_matmul(x, y, transpose_a=transpose_x, transpose_b=transpose_y)
+
+        func = relay.Function([x, y], z)
+        x_np = np.random.uniform(size=x_shape).astype(dtype)
+        y_np = np.random.uniform(size=y_shape).astype(dtype)
+        z_np = tvm.topi.testing.batch_matmul(x_np, y_np, trans_x=transpose_x, trans_y=transpose_y)
+
+        mod = tvm.ir.IRModule.from_expr(func)
+        z = relay.create_executor(executor_kind, mod=mod, device=dev, target=target).evaluate()(
+            x_np, y_np
+        )
+        tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1990,7 +2022,7 @@ def test_gather_nd():
     def verify_gather_nd(data_shape, indices_shape, data_shape_np, indices_shape_np, batch_dims=0):
         x = relay.var("x", relay.TensorType(data_shape, "float32"))
         y = relay.var("y", relay.TensorType(indices_shape, "int32"))
-        z = relay.gather_nd(x, y, batch_dims, indices_shape[0])
+        z = relay.gather_nd(x, y, batch_dims=batch_dims, index_rank=indices_shape[0])
 
         mod = tvm.IRModule()
         mod["main"] = relay.Function([x, y], z)

@@ -427,7 +427,7 @@ class BaseBlockCreator {
     CreateReadWriteRegions();
 
     String new_block_name = old_block_realize_->block->name_hint;
-    PrimExpr predicate = Bool(true);
+    PrimExpr predicate = const_true();
     if (is_rf_block_) {
       new_block_name = new_block_name + "_rf";
       predicate = old_block_realize_->predicate;
@@ -860,7 +860,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, rf_loop_sref);
   const StmtSRef& block_sref = self->stmt2ref.at(block_realize->block.get());
   const Block& block = block_realize->block;
-  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
+                                     /*require_stage_pipeline=*/true,
+                                     /*require_subtree_compact_dataflow=*/false);
   CheckReductionBlock(self, block_sref, scope_root);
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop, rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {
@@ -938,7 +940,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   Block new_scope_root_block = BlockReplacer::Replace(
       old_scope_root_block, rf_body, loops[0], wb_block_creator.new_block_realize_, block_realize,
       GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_buffer);
-  self->Replace(scope_root, new_scope_root_block, {{old_scope_root_block, new_scope_root_block}});
+  self->Replace(
+      scope_root, new_scope_root_block,
+      {{old_scope_root_block, new_scope_root_block}, {block, wb_block_creator.new_block_}});
 
   // Step 2. Update scope information.
   std::vector<StmtSRef> new_block_srefs{self->stmt2ref.at(rf_block_creator.new_block_.get()),
@@ -952,7 +956,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   return new_block_srefs[0];
 }
 
-/******** Instruction Registration ********/
+/******** InstructionKind Registration ********/
 
 struct RFactorTraits : public UnpackedInstTraits<RFactorTraits> {
   static constexpr const char* kName = "RFactor";

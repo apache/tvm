@@ -47,6 +47,7 @@ tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
 tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
 tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
+tvm_option(USE_CMSISNN "Build with Arm CMSIS-NN" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
@@ -239,6 +240,7 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 # Source file lists
 file(GLOB_RECURSE COMPILER_SRCS
     src/auto_scheduler/*.cc
+    src/meta_schedule/*.cc
     src/node/*.cc
     src/ir/*.cc
     src/arith/*.cc
@@ -304,9 +306,12 @@ if(BUILD_FOR_HEXAGON)
   # static one.
   if(NOT BUILD_STATIC_RUNTIME)
     list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+    # Allow undefined symbols (there will be some from libc).
+    set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
 
   add_definitions(-D_MACH_I32=int)
+  add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
 endif()
 
 # Package runtime rules
@@ -342,11 +347,11 @@ if(USE_GRAPH_RUNTIME AND NOT DEFINED USE_GRAPH_EXECUTOR)
 endif(USE_GRAPH_RUNTIME AND NOT DEFINED USE_GRAPH_EXECUTOR)
 
 # NOTE(areusch): USE_GRAPH_RUNTIME_DEBUG will be deleted in a future release
-if(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_GRAPH_EXECUTOR_DEBUG)
-  message(WARNING "USE_GRAPH_RUNTIME_DEBUG renamed to USE_GRAPH_EXECUTOR_DEBUG. Please update your config.cmake")
-  set(USE_GRAPH_EXECUTOR_DEBUG ${USE_GRAPH_RUNTIME_DEBUG})
+if(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_PROFILER)
+  message(WARNING "USE_GRAPH_RUNTIME_DEBUG renamed to USE_PROFILER. Please update your config.cmake")
+  set(USE_PROFILER ${USE_GRAPH_RUNTIME_DEBUG})
   unset(USE_GRAPH_RUNTIME_DEBUG CACHE)
-endif(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_GRAPH_EXECUTOR_DEBUG)
+endif(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_PROFILER)
 
 if(USE_GRAPH_EXECUTOR)
   message(STATUS "Build with Graph Executor support...")
@@ -357,10 +362,12 @@ endif(USE_GRAPH_EXECUTOR)
 
 # convert old options for profiler
 if(USE_GRAPH_EXECUTOR_DEBUG)
+  message(WARNING "USE_GRAPH_EXECUTOR_DEBUG renamed to USE_PROFILER. Please update your config.cmake")
   unset(USE_GRAPH_EXECUTOR_DEBUG CACHE)
   set(USE_PROFILER ON)
 endif()
 if(USE_VM_PROFILER)
+  message(WARNING "USE_VM_PROFILER renamed to USE_PROFILER. Please update your config.cmake")
   unset(USE_VM_PROFILER CACHE)
   set(USE_PROFILER ON)
 endif()
@@ -377,6 +384,21 @@ if(USE_PROFILER)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
 
+# Enable ctest if gtest is available
+find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
+find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
+if(GTEST_INCLUDE_DIR AND GTEST_LIB)
+  enable_testing()
+  include(CTest)
+  include(GoogleTest)
+endif()
+
+if(USE_PIPELINE_EXECUTOR)
+  message(STATUS "Build with Pipeline Executor support...")
+  file(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
+endif(USE_PIPELINE_EXECUTOR)
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
@@ -390,9 +412,12 @@ include(cmake/modules/ROCM.cmake)
 include(cmake/modules/LLVM.cmake)
 include(cmake/modules/Micro.cmake)
 include(cmake/modules/contrib/EthosN.cmake)
+include(cmake/modules/contrib/CMSISNN.cmake)
+include(cmake/modules/contrib/EthosU.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
+include(cmake/modules/contrib/ExampleTargetHooks.cmake)
 include(cmake/modules/contrib/Random.cmake)
 include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
@@ -558,26 +583,16 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_compile_definitions(tvm_allvisible PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 endif()
 
-# Tests
-set(TEST_EXECS "")
-file(GLOB TEST_SRCS tests/cpp/*.cc)
-find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
-find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
-
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
 if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-  foreach(__srcpath ${TEST_SRCS})
-    get_filename_component(__srcname ${__srcpath} NAME)
-    string(REPLACE ".cc" "" __execname ${__srcname})
-    add_executable(${__execname} ${__srcpath})
-    list(APPEND TEST_EXECS ${__execname})
-    target_include_directories(${__execname} SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
-    target_link_libraries(${__execname} PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-  endforeach()
-  add_custom_target(cpptest DEPENDS ${TEST_EXECS})
+  file(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
+  add_executable(cpptest ${TEST_SRCS})
+  target_include_directories(cpptest SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
+  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} gtest_main pthread dl)
+  set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
+  set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  gtest_discover_tests(cpptest)
 elseif(NOT GTEST_INCLUDE_DIR)
   add_custom_target(cpptest
       COMMAND echo "Missing Google Test headers in include path"

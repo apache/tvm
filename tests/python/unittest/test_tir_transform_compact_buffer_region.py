@@ -438,3 +438,4 @@ if __name__ == "__main__":
     test_complex()
     test_match_buffer()
     test_storage_align()
+    test_lower_te()

@@ -671,11 +671,9 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     }
     return vec;
   };
-  std::string llvm_options_str;
-  if (const Optional<String> llvm_options = target->GetAttr<String>("llvm-options")) {
-    llvm_options_str = "llvm," + llvm_options.value();
-  } else {
-    llvm_options_str = "llvm";
+  std::string llvm_options_str = "llvm";
+  if (const auto& llvm_options = target->GetAttr<Array<String>>("llvm-options")) {
+    for (const String& s : llvm_options.value()) llvm_options_str += "," + s;
   }
   // Postprocess the LLVM options string: replace '@' with '=', and ',' with ' '.
   for (int i = 0, e = llvm_options_str.size(); i != e; ++i) {
@@ -704,14 +702,39 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   (void)CallOnce;
 
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
-  std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
+  std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
+
+  std::vector<PrimFunc> funcs;
+  Map<String, LinkedParam> linked_params;
+  bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
+    if (could_have_linked_params &&
+        kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
+      // If `f` is the linked-params function, extract the parameters from the
+      // attribute dictionary, and skip the codegen.
+      auto attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
+      CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
+          << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
+
+      CHECK(linked_params.empty()) << "Multiple linked-param functions";
+      linked_params =
+          Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
+      continue;
+    }
     auto f = Downcast<PrimFunc>(kv.second);
-    cg->AddFunction(f);
+    funcs.emplace_back(f);
   }
+
+  cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
+  cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+
+  if (!linked_params.empty()) {
+    cg->LinkParameters(linked_params);
+  }
+
   // Uncomment to get the LLVM module right out of codegen, before optimizations.
   // std::cerr << "HexagonModule.0 {\n" << *cg->GetModulePtr() << "}\n";
   std::unique_ptr<llvm::Module> module = cg->Finish();

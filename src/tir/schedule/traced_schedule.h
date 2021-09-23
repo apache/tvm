@@ -47,6 +47,16 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
+  /*!
+   * \brief Sample an integer given the probability distribution
+   * \param candidates The candidates
+   * \param probs The probability distribution of the candidates
+   * \param decision The sampling decision, if it's given we would validate the decision, otherwise
+   *  we would sample a decision from the distribution and set the decision accordingly.
+   * \return The random variable sampled from candidates
+   */
+  ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                           Optional<Integer> decision = NullOpt) final;
 
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") final;
@@ -54,9 +64,21 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) final;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs) final;
+  void Reorder(const Array<LoopRV>& ordered_loop_rvs) final;
   /******** Schedule: Manipulate ForKind ********/
+  void Parallel(const LoopRV& loop_rv) final;
+  void Vectorize(const LoopRV& loop_rv) final;
+  void Bind(const LoopRV& loop_rv, const String& thread_axis) final;
+  void Unroll(const LoopRV& loop_rv) final;
   /******** Schedule: Insert cache stages ********/
+  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
+                    const String& storage_scope) final;
+  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                     const String& storage_scope) final;
   /******** Schedule: Compute location ********/
+  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops) final;
+  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                        bool preserve_unit_loops) final;
   void ComputeInline(const BlockRV& block_rv) final;
   void ReverseComputeInline(const BlockRV& block_rv) final;
   /******** Schedule: Reduction ********/

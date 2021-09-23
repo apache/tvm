@@ -1093,7 +1093,7 @@ def DenseToSparse(weight_name, weight_shape):
     return _ffi_api.DenseToSparse(weight_name, weight_shape)
 
 
-def Conv2dToSparse(weight_name, weight_shape, layout):
+def Conv2dToSparse(weight_name, weight_shape, layout, kernel_size):
     """
     Rewrite qualified ```nn.conv2d operation``` to ```nn.sparse_conv2d```
 
@@ -1113,7 +1113,27 @@ def Conv2dToSparse(weight_name, weight_shape, layout):
     ret : tvm.transform.Pass
         The registered DenseToSparse pass.
     """
-    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout)
+    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout, kernel_size)
+
+
+def Conv2dToSparse2(layout, kernel_size, blocksize, sparsity_threshold):
+    """
+    Rewrite freezed ```nn.conv2d``` operation to ```nn.sparse_conv2d```
+
+    Parameters
+    ----------
+    layout : str
+        layout of data
+
+    kernel_size : int
+        kernel size of conv2d
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered DenseToSparse pass.
+    """
+    return _ffi_api.Conv2dToSparse2(layout, kernel_size, *blocksize, sparsity_threshold)
 
 
 def SimplifyFCTranspose(target_weight_name):
@@ -1184,7 +1204,7 @@ def FakeQuantizationToInteger():
         x    w
         |    |
         dq   dq
-         \   /
+         \\   /
           op1
            |
           op2

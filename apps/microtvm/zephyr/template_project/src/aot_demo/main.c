@@ -24,7 +24,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/internal/aot_executor/aot_executor.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/stack_allocator.h>
 #include <unistd.h>
@@ -42,7 +41,6 @@
 #define WORKSPACE_SIZE (270 * 1024)
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
-extern tvm_model_t tvmgen_default_network;
 tvm_workspace_t app_workspace;
 
 // Wakeup sequence used to wake up QEMU on the host.
