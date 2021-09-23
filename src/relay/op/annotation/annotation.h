@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file relay/attrs/annotation.h
+ * \file relay/op/annotation/annotation.h
  * \brief Helpers for working with various 'annotation' attributes.
  */
 #ifndef TVM_RELAY_OP_ANNOTATION_ANNOTATION_H_

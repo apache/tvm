@@ -40,18 +40,21 @@ namespace relay {
  * \endcode
  * denotes that the result of \p expr should be stored on the device with \p DLDeviceType 2
  * (i.e. \p kDLCuda). Semantically the operator is the identity function.
+ *
+ * See also FunctionOnDeviceAttrs in include/relay/attrs/function.h for the function-level
+ * companion.
  */
 struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
   // TODO(mbs): Replace device types with TargetDevice.
   /*! \brief Device type on which argument expression should be evaluated. */
-  int device_type;
+  int device_type = kInvalidDeviceType;
   /*!
    * \brief If true, the result device must also be \p device_type and device planning should
    * not insert any "device_copy" calls to respect this annotation.
    *
    * This is used by the device planning pass itself when annotating the planned program.
    */
-  bool is_fixed;
+  bool is_fixed = false;
 
   TVM_DECLARE_ATTRS(OnDeviceAttrs, "relay.attrs.OnDeviceAttrs") {
     TVM_ATTR_FIELD(device_type)
@@ -60,28 +63,6 @@ struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
     TVM_ATTR_FIELD(is_fixed)
         .describe("If true, do not insert a \"device_copy\" call to respect this annotation.")
         .set_default(false);
-  }
-};
-
-/*!
- * \brief Attributes for Relay function definitions which capture the devices for the
- * function parameters and result.
- */
-struct FunctionOnDeviceAttrs : public tvm::AttrsNode<FunctionOnDeviceAttrs> {
-  constexpr static const char* kFunctionAttrsKey = "on_device";
-
-  /*! \brief Device type on which each of the function's arguments already resides. */
-  Array<Integer> param_device_types;
-  // TODO(mbs): Replace device types with TargetDevice.
-  /*! \brief Device type on which function body should be evaluated. */
-  int result_device_type;
-
-  TVM_DECLARE_ATTRS(FunctionOnDeviceAttrs, "relay.attrs.FunctionOnDeviceAttrs") {
-    TVM_ATTR_FIELD(param_device_types)
-        .describe("The type of the virtual device which holds each function parameters.");
-    TVM_ATTR_FIELD(result_device_type)
-        .describe("The type of the virtual device which will hold the function's result.")
-        .set_default(0);
   }
 };
 

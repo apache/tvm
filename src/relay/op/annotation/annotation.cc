@@ -26,6 +26,7 @@
 #include "./annotation.h"
 
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/function.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
@@ -55,14 +56,25 @@ Expr OnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
 
 Expr OptOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
   if (device_type == kInvalidDeviceType) {
+    // Undefined signals no annotation is required.
     return expr;
   }
-  if (expr->IsInstance<OpNode>() || expr->IsInstance<GlobalVarNode>() ||
-      expr->IsInstance<VarNode>() || expr->IsInstance<ConstructorNode>()) {
+  if (expr->IsInstance<OpNode>() || expr->IsInstance<ConstructorNode>()) {
+    // These operators are device polymorphic so no annotation is required.
+    // TODO(mbs): The device planning pass does NOT currently support device polymorphism for
+    // constructors, so we could remove them from this condition. However most constructors
+    // accept type parameters, and it is not well-formed Relay to simply wrap such a
+    // constructor in an "on_device" call. So we'll pretend they are device polymorphic to
+    // avoid that difficultly. Overall ADTs need more work to be fully supported.
+    return expr;
+  }
+  if (expr->IsInstance<GlobalVarNode>() || expr->IsInstance<VarNode>()) {
+    // The device can be recovered from the binding site of the global or local variable.
     return expr;
   }
   if (const auto* function_node = expr.as<FunctionNode>()) {
     if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+      // Primitive functions are device polymorphic, matching our interpretation for OpNode above.
       return expr;
     }
   }
@@ -123,8 +135,7 @@ Function FunctionOnDevice(Function function, Array<Integer> param_device_types,
   auto attrs = make_object<FunctionOnDeviceAttrs>();
   attrs->param_device_types = std::move(param_device_types);
   attrs->result_device_type = result_device_type;
-  return WithAttr(std::move(function), FunctionOnDeviceAttrs::kFunctionAttrsKey,
-                  Attrs(std::move(attrs)));
+  return WithAttr(std::move(function), attr::kFunctionAttrsKey, Attrs(std::move(attrs)));
 }
 
 Function FunctionOnDevice(Function function, const std::vector<DLDeviceType>& param_device_types,
@@ -145,15 +156,14 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.function_on_device")
     });
 
 DLDeviceType GetFunctionResultDeviceType(const FunctionNode* function_node) {
-  auto opt_attrs = function_node->GetAttr<Attrs>(FunctionOnDeviceAttrs::kFunctionAttrsKey);
+  auto opt_attrs = function_node->GetAttr<Attrs>(attr::kFunctionAttrsKey);
   if (!opt_attrs) {
     // No annotation.
     return kInvalidDeviceType;
   }
   const auto* opt_function_on_device_attrs = opt_attrs.value().as<FunctionOnDeviceAttrs>();
   ICHECK(opt_function_on_device_attrs != nullptr)
-      << "function '" << FunctionOnDeviceAttrs::kFunctionAttrsKey
-      << "' annotation must be a FunctionOnDeviceAttrs";
+      << "function '" << attr::kFunctionAttrsKey << "' annotation must be a FunctionOnDeviceAttrs";
   return static_cast<DLDeviceType>(opt_function_on_device_attrs->result_device_type);
 }
 
@@ -161,15 +171,14 @@ DLDeviceType GetFunctionParamDeviceType(const FunctionNode* function_node, size_
   ICHECK_LT(i, function_node->params.size())
       << "param index " << i << " out of range for function of arity "
       << function_node->params.size();
-  auto opt_attrs = function_node->GetAttr<Attrs>(FunctionOnDeviceAttrs::kFunctionAttrsKey);
+  auto opt_attrs = function_node->GetAttr<Attrs>(attr::kFunctionAttrsKey);
   if (!opt_attrs) {
     // No annotation.
     return kInvalidDeviceType;
   }
   const auto* opt_function_on_device_attrs = opt_attrs.value().as<FunctionOnDeviceAttrs>();
   ICHECK(opt_function_on_device_attrs != nullptr)
-      << "function '" << FunctionOnDeviceAttrs::kFunctionAttrsKey
-      << "' annotation must be a FunctionOnDeviceAttrs";
+      << "function '" << attr::kFunctionAttrsKey << "' annotation must be a FunctionOnDeviceAttrs";
   ICHECK_EQ(opt_function_on_device_attrs->param_device_types.size(), function_node->params.size())
       << "annotation parameters do not match function arity";
   return static_cast<DLDeviceType>(opt_function_on_device_attrs->param_device_types[i]->value);

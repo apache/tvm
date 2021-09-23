@@ -27,13 +27,11 @@ def _device_to_int(device):
         return device.device_type
     if isinstance(device, str):
         return _nd.device(device).device_type
-    raise ValueError(
-        "device is expected to be the type of Device or " "str, but received %s" % (type(device))
-    )
+    raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 
 def on_device(data, device, is_fixed=False):
-    """Annotate an expression with a certain device type.
+    """Annotates an expression with the device type on which its result should be stored.
 
     Parameters
     ----------
@@ -41,12 +39,13 @@ def on_device(data, device, is_fixed=False):
         The expression to be annotated.
 
     device : Union[:py:class:`Device`, str]
-        The device type to annotate.
+        The device to annotate with. Only the device's type is significant.
 
     is_fixed : bool
-        If true, annotation does not imply a device_copy may be inserted.
-        (This parameter is used internally by the compiler and unit tests and
-        should not need to be set in user programs.)
+        If false (the default), a device_copy
+        If true, the annotation does not imply a device_copy may be inserted to
+        reconcile the device of the data argument with the device for the context of the
+        annotated expression.
 
     Returns
     -------
@@ -56,10 +55,26 @@ def on_device(data, device, is_fixed=False):
     return _make.on_device(data, _device_to_int(device), is_fixed)
 
 
-# for testing only
 def function_on_device(function, param_devices, result_device):
-    """Attaches attribute to function indicating the devices for its parameters and result."""
+    """Annotates a Relay function with the device types on which its parameters and result should
+    be stored.
 
+    Parameters
+    ----------
+    function : tvm.relay.Function
+        The function to be annotated.
+
+    param_devices : Array[Union[:py:class:`Device`, str]]
+        The devices for each parameter. Only the device types are significant.
+
+    result_device: Union[:py:class:`Device`, str]
+        The device for the function result. Only the device type is significant.
+
+    Returns
+    -------
+    result : tvm.rleay.Function
+        The annotated function.
+    """
     return _make.function_on_device(
         function, [_device_to_int(d) for d in param_devices], _device_to_int(result_device)
     )

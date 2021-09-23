@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file relay/attrs/device_copy.h
+ * \file relay/op/memory/device_copy.h
  * \brief Helpers for working with "device_copy" attributes.
  */
 
