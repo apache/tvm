@@ -288,7 +288,7 @@ class BufferStrideLegalize : public StmtExprMutator {
       : bound_analyzer_(bound_analyzer) {
     for (auto kv : extern_buffer_map) {
       Buffer buf = kv.second;
-      Buffer with_strides = WithStrides(buf, true);
+      Buffer with_strides = WithStrides(buf);
       {
         BufferEntry entry;
         entry.remap_to = with_strides;
@@ -302,7 +302,7 @@ class BufferStrideLegalize : public StmtExprMutator {
 
   Map<Var, Buffer> UpdatedExternBufferMap() const { return updated_extern_buffer_map_; }
 
-  Buffer WithStrides(Buffer buf, bool allow_scalar = false) {
+  Buffer WithStrides(Buffer buf) {
     auto it = buf_map_.find(buf);
     if (it != buf_map_.end()) {
       const BufferEntry& entry = it->second;
@@ -316,17 +316,6 @@ class BufferStrideLegalize : public StmtExprMutator {
     }
 
     Array<PrimExpr> shape = buf->shape;
-
-    if (shape.size() == 0) {
-      // This is only allowed for buffers that point to external
-      // buffers.  These are treated as 1-d pointers of unknown size,
-      // with stride of 1.
-      ICHECK(allow_scalar)
-          << "Buffer " << buf << " does not have a valid shape.  "
-          << "BufferStrideLegalize requires all internal buffers to have a valid shape.  "
-          << "Please run BufferShapeLegalize first";
-      return buf;
-    }
 
     // Keeping this to have matched behavior to previous version.
     // There are many parts of the codebase that assume that a strided
@@ -1047,9 +1036,6 @@ class StorageFlattener : public StmtExprMutator {
       // create a buffer entry
       BufferEntry e;
       e.bounds = op->bounds;
-
-      ICHECK(op->buffer->shape.size()) << "StorageFlattener expects buffer shapes to be defined.  "
-                                       << "Please run through BufferShapeLegalize first.";
 
       ICHECK_EQ(op->buffer->shape.size(), op->bounds.size())
           << "Inconsistent buffer shape and realization shape for " << op->buffer;
