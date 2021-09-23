@@ -179,30 +179,29 @@ class BufferShapeLegalize : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::double_buffer_scope && op->node->IsInstance<tir::BufferNode>()) {
-      return HandleDoubleBuffer(op);
+    if (op->node->IsInstance<tir::BufferNode>()) {
+      // Visit body before checking internal_buf_map_, because we
+      // don't know if the BufferNode needs to be changed until we
+      // look in the body for a BufferRealizeNode with different
+      // extents.
+      Stmt body = this->VisitStmt(op->body);
+
+      Buffer buffer = Downcast<tir::Buffer>(op->node);
+      auto it = internal_buf_map_.find(buffer);
+      if (it != internal_buf_map_.end()) {
+        buffer = it->second.remap_to;
+        return AttrStmt(it->second.remap_to, op->attr_key, op->value, body);
+      }
+      return AttrStmt(buffer, op->attr_key, op->value, body);
+
     } else if (op->attr_key == attr::buffer_bind_scope) {
       return HandleBufferBindScope(op);
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
     }
+
+    return StmtExprMutator::VisitStmt_(op);
   }
 
  private:
-  Stmt HandleDoubleBuffer(const AttrStmtNode* op) {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AttrStmtNode>();
-    ICHECK(op);
-
-    Buffer buffer = Downcast<tir::Buffer>(op->node);
-    auto it = internal_buf_map_.find(buffer);
-    if (it != internal_buf_map_.end()) {
-      return AttrStmt(it->second.remap_to->data, op->attr_key, op->value, op->body);
-    } else {
-      return stmt;
-    }
-  }
-
   Stmt HandleBufferBindScope(const AttrStmtNode* op) {
     Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
     ICHECK_EQ(arr.size(), 2U);
@@ -358,6 +357,7 @@ class BufferStrideLegalize : public StmtExprMutator {
       }
       vinfo[dim].align_factor = tuple->args[1].as<IntImmNode>()->value;
       vinfo[dim].align_offset = tuple->args[2].as<IntImmNode>()->value;
+
       return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::buffer_bind_scope) {
       Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
