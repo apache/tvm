@@ -1356,6 +1356,7 @@ def convert_pool2d(g, op, block):
         ksize = [1, 1]
 
     input_x = g.get_node(op.input("X")[0])
+    input_shape = infer_shape(input_x)
 
     op_map = {
         "avg": "avg_pool2d",
@@ -1372,7 +1373,7 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        in_h, in_w = infer_shape(input_x)[2:]
+        in_h, in_w = input_shape[2:]
         pad_h = _get_pad_size(in_h, ksize[0], strides[0])
         pad_w = _get_pad_size(in_w, ksize[1], strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -1384,6 +1385,11 @@ def convert_pool2d(g, op, block):
     else:
         msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+
+    if input_shape[2] < ksize[0]:
+        ksize[0] = input_shape[2]
+    if input_shape[3] < ksize[1]:
+        ksize[1] = input_shape[3]
 
     if not adaptive:
         out = getattr(_op.nn, op_map[pooling_type])(
