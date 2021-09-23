@@ -1461,7 +1461,8 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        axes = sorted(attr["axes"])
+        shape = infer_shape(inputs[0])
+        axes = sorted(attr.get("axes", [i for i, size in enumerate(shape) if size == 1]))
         return cls.run_calculation(inputs[0], axes)
 
     @classmethod
