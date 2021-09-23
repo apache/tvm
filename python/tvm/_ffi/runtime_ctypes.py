@@ -72,21 +72,6 @@ class DataType(ctypes.Structure):
         DataTypeCode.HANDLE: "handle",
         DataTypeCode.BFLOAT: "bfloat",
     }
-    NUMPY2STR = {
-        np.dtype(np.bool_): "bool",
-        np.dtype(np.int8): "int8",
-        np.dtype(np.int16): "int16",
-        np.dtype(np.int32): "int32",
-        np.dtype(np.int64): "int64",
-        np.dtype(np.uint8): "uint8",
-        np.dtype(np.uint16): "uint16",
-        np.dtype(np.uint32): "uint32",
-        np.dtype(np.uint64): "uint64",
-        np.dtype(np.float16): "float16",
-        np.dtype(np.float32): "float32",
-        np.dtype(np.float64): "float64",
-        np.dtype(np.float_): "float64",
-    }
 
     def __init__(self, type_str):
         super(DataType, self).__init__()
