@@ -874,16 +874,22 @@ class BufferBindUnwrapper : public StmtExprMutator {
       buf_map_[source.get()] = std::move(source_info);
     }
 
-    // Generate slice that represents the source's view into the
-    // target buffer.
-    ICHECK_EQ(source->strides.size(), 0) << "Buffer view cannot have strides defined.";
-
     // Define remappings of any remaining Variables (e.g. Store/Load nodes).
     ArgBinder binder(&var_remap_);
 
-    binder.Bind(source->data, remap.target->data, source->name + ".data");
-    binder.Bind(source->elem_offset, remap.target->ElemOffset(remap.begins),
-                source->name + ".elem_offset");
+    // Define a view that represents the source's view into the target
+    // buffer.  This Buffer object is only used to define the mapping
+    // to the target buffer, and never actually appears in the TIR
+    // graph.
+    Buffer view = remap.target.MakeSlice(remap.begins, remap.extents);
+    if (source->strides.size() == 0) {
+      ICHECK_EQ(view->strides.size(), 0U)
+          << "Cannot bind a compact buffer to a strided buffer" << view->strides;
+    } else {
+      // Add explicit strides to the view, in order to bind to source.strides[i].
+      view = view.MakeStrideView();
+    }
+    binder.BindBuffer(source, view, source->name, true);
 
     // Apply the remaps
     Stmt body = op->body;
