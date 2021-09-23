@@ -262,13 +262,13 @@ def conv2d_packed_filter(
 
     # Perform scheduling
     n, hid, wid, cid, hoff, woff, coff = s[Y].op.axis
-    slice = s[Y].fuse(wid, cid)
+    hid1, hid2 = s[Y].split(hid, factor=2)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
-    Yl = s.cache_write(Y, storage_scope)
+    # Yl = s.cache_write(Y, storage_scope)
 
-    s[Yl].compute_at(s[Y], hid)
-    n, hid, slice, hoff, woff, coff = s[Yl].op.axis
-    s[Xl].compute_at(s[Yl], slice)
+    # s[Yl].compute_at(s[Y], hid)
+    # n, hid, wid, cid, hoff, woff, coff = s[Yl].op.axis
+    s[Xl].compute_at(s[Y], hid1)
 
     binds = {}
     if storage_scope and storage_scope != "global":
@@ -397,12 +397,12 @@ def conv2d_packed_filter_nhwhwc(
 
 class BaseConv2d:
     batch = tvm.testing.parameter(1)
-    in_size = tvm.testing.parameter(8, 56)
+    in_size = tvm.testing.parameter(8, 56, 64)
     in_channel = tvm.testing.parameter(64)
     out_channel = tvm.testing.parameter(64)
-    kernel = tvm.testing.parameter(3)
+    kernel = tvm.testing.parameter(1, 3)
     stride = tvm.testing.parameter(1)
-    pad = tvm.testing.parameter(1)
+    pad = tvm.testing.parameter(0, 1)
     dtype = tvm.testing.parameter("float32")
 
 
