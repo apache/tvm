@@ -532,9 +532,9 @@ def convert_conv2d(g, op, block):
             input_shape = shape_of(input_x)
             try:
                 _, _, in_h, in_w = infer_value(input_shape, g.get_params()).numpy().tolist()
-            except Exception:
+            except Exception as e:
                 msg = "The SAME padding algorithm of Conv not support dynamic shape"
-                raise tvm.error.OpAttributeInvalid(msg)
+                raise tvm.error.OpAttributeInvalid(msg) from e
             pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
             pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -607,6 +607,7 @@ def convert_crop(g, op, block):
     """Operator converter for crop."""
 
     x = g.get_node(op.input("X")[0])
+    dims = len(infer_shape(x))
     input_shape = op.input("Shape")
     input_offsets = op.input("Offsets")
     if input_shape:
@@ -621,13 +622,15 @@ def convert_crop(g, op, block):
     else:
         offsets = op.attr("offsets")
 
-    crop_len = len(shape)
-    slice_start = [0] * crop_len
-    slice_end = shape
-    for i in range(crop_len):
-        slice_start[i] += offsets[i]
-        slice_end[i] += offsets[i]
-    out = _op.strided_slice(x, slice_start, slice_end)
+    if not isinstance(shape, _expr.Expr):
+        shape = _op.const(shape, "int32")
+    if not isinstance(offsets, _expr.Expr):
+        offsets = _op.const(offsets, "int32")
+    slice_start = offsets
+    slice_end = _op.add(shape, offsets)
+    strides = _op.const([1] * dims, dtype="int32")
+
+    out = _op.strided_slice(x, slice_start, slice_end, strides)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -744,28 +747,13 @@ def convert_expand(g, op, block):
     """Operator converter for expand."""
 
     x = g.get_node(op.input("X")[0])
-    input_shape = list(infer_shape(x))
-
-    ndims = len(input_shape)
     if op.input("Shape"):
         sizes = g.get_node(op.input("Shape")[0])
         sizes = _infer_value(sizes, g.get_params())
     else:
         sizes = op.attr("shape")
 
-    out = x
-    out_dims = len(sizes)
-    if ndims < out_dims:
-        num_newaxis = out_dims - ndims
-        out = _op.expand_dims(out, axis=0, num_newaxis=num_newaxis)
-        input_shape = [1] * num_newaxis + input_shape
-
-    for i in range(out_dims):
-        if sizes[i] != -1 and input_shape[i] == 1:
-            if not isinstance(sizes[i], int):
-                sizes[i] = int(infer_value(sizes[i], {}).numpy())
-            out = _op.repeat(out, sizes[i], axis=i)
-
+    out = _op.broadcast_to(x, sizes)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1376,6 +1364,7 @@ def convert_pool2d(g, op, block):
         ksize = [1, 1]
 
     input_x = g.get_node(op.input("X")[0])
+    _, _, in_h, in_w = infer_shape(input_x)
 
     op_map = {
         "avg": "avg_pool2d",
@@ -1392,7 +1381,6 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        in_h, in_w = infer_shape(input_x)[2:]
         pad_h = _get_pad_size(in_h, ksize[0], strides[0])
         pad_w = _get_pad_size(in_w, ksize[1], strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -1405,6 +1393,10 @@ def convert_pool2d(g, op, block):
         msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
+    if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
+        ksize[0] = in_h
+    if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
+        ksize[1] = in_w
 
     if not adaptive:
         out = getattr(_op.nn, op_map[pooling_type])(

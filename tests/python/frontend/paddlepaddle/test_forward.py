@@ -485,18 +485,17 @@ def test_forward_crop():
         return paddle.crop(inputs, shape=[3, 3], offsets=offsets)
 
     @paddle.jit.to_static
-    def crop4(inputs):
-        shape = paddle.to_tensor(np.array([3, 3]).astype("int32"))
-        offsets = paddle.to_tensor(np.array([1, 1]).astype("int32"))
+    def crop4(inputs, shape, offsets):
         return paddle.crop(inputs, shape=shape, offsets=offsets)
 
     input_shape = [10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(crop1, input_data=[input_data])
     shape = paddle.to_tensor(np.array([3, 3], "int32"))
-    # verify_model(crop2, [input_data, shape], input_shape=[[-1, -1], [2]])
+    verify_model(crop2, [input_data, shape], input_shape=[[-1, -1], [2]])
     verify_model(crop3, input_data=[input_data])
-    verify_model(crop4, input_data=[input_data])
+    offsets = paddle.to_tensor(np.array([1, 1]).astype("int32"))
+    verify_model(crop4, input_data=[input_data, shape, offsets], input_shape=[[-1, -1], [2], [2]])
 
 
 @tvm.testing.uses_gpu
@@ -691,7 +690,7 @@ def test_forward_expand():
     x_data = paddle.rand(x_shape, dtype="float32")
     verify_model(expand1, input_data=[x_data])
     shape = paddle.to_tensor(np.array([2, 3]).astype("int32"))
-    # verify_model(expand2, [x_data, shape], input_shape=[[3], [2]])
+    verify_model(expand2, [x_data, shape], input_shape=[[3], [2]])
 
 
 @tvm.testing.uses_gpu
@@ -1459,6 +1458,13 @@ def test_forward_pool2d():
 
     @paddle.jit.to_static
     def pool2d3(inputs):
+        output = nn.functional.max_pool2d(
+            inputs, kernel_size=2, stride=2, padding=0
+        )
+        return output
+
+    @paddle.jit.to_static
+    def pool2d4(inputs):
         output, max_indices = nn.functional.max_pool2d(
             inputs, kernel_size=2, stride=2, padding=0, return_mask=True
         )
@@ -1467,8 +1473,10 @@ def test_forward_pool2d():
     input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
     verify_model(pool2d1, input_data, input_shape=[[-1, 2, 32, 32]])
     verify_model(pool2d2, input_data=input_data)
+    input_data1 = paddle.uniform(shape=[1, 2, 1, 50], dtype="float32", min=-1, max=1)
+    verify_model(pool2d3, input_data=input_data1)
     # need op max_pool2d_with_index
-    verify_model(pool2d3, input_data=input_data)
+    verify_model(pool2d4, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
