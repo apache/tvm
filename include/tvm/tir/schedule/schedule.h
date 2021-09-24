@@ -367,12 +367,12 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Reduction ********/
   /*!
    * \brief Decompose a reduction block into init block and update block, where the newly generated
-     init block will be before the specified loop.
-     1) The block is a reduction block.
-     2) The loop is the ancestor of the block.
-     3) The loop is not lower than all the loops related to reduce block var.
+     init block will be before the specified loop. It requires that
+     1) The input block is a reduction block.
+     2) The input loop is the ancestor of the block.
+     3) The input loop is not lower than all the loops related to reduce block var.
    * \param block_rv The reduction block to be decomposed
-   * \param loop_rv The position where init block is inserted
+   * \param loop_rv The loop above which the init block is inserted before.
    * \return The init block
    */
   virtual BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;

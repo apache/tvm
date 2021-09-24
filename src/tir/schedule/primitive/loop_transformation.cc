@@ -506,7 +506,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr tot = fused_var;
-  for (int i = loops.size() - 1; i >= 0; i--) {
+  for (int i = static_cast<int>(loops.size()) - 1; i >= 0; i--) {
     substitute_value.Set(i, floormod(tot, loops[i]->extent));
     tot = floordiv(tot, loops[i]->extent);
   }
