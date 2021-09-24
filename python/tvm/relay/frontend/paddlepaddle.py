@@ -167,7 +167,7 @@ def _infer_value(x, params):
     try:
         value = infer_value(x, params)
         return value.numpy().tolist()
-    except Exception:
+    except Exception: # pylint: disable=broad-except
         return x
 
 
