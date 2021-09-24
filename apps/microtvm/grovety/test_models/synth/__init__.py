@@ -207,11 +207,21 @@ def conv_1d_relay_mod_2():
     return (relay_mod, _generate_params(relay_mod), input, output)
 
 
-def complex_test_relay_mod():
+def complex_test_relay_mod(direct_simd: bool = True):
     import numpy as np
     import tvm
     import tvm.relay as relay
 
+    def rand_data(shape, range, dtype):
+        return np.random.randint(*range, size=shape, dtype=dtype)
+
+    def conv1d_kernel_shape(w: int, o: int, i: int):
+        return (w, o, i) if direct_simd else (w, i, o)
+
+    def conv2d_kernel_shape(h: int, w: int, o: int, i: int):
+        return (h, w, o, i) if direct_simd else (h, w, i, o)
+
+    conv1d_kernel_layout, conv2d_kernel_layout = ("WOI", "HWOI") if direct_simd else ("WIO", "HWIO")
     in_C = 1
     in_N = 1
     conv2d_1_C = 12
@@ -219,53 +229,50 @@ def complex_test_relay_mod():
     conv1d_1_C = 12
     conv1d_2_C = 24
 
-    def rand_data(shape, range, dtype):
-        return np.random.randint(*range, size=shape, dtype=dtype)
-
     input = relay.var("input", relay.TensorType((in_N, 28, 28, in_C), "int8"))
 
     # conv2d int16
     conv2d_1_f = relay.cast(input, dtype="int16")
-    conv2d_1_w = relay.const(rand_data((3, 3, conv2d_1_C, in_C), dtype="int16", range=(-10, 10)))
-    conv2d_1 = relay.op.nn.conv2d(conv2d_1_f, conv2d_1_w, kernel_size=(3, 3), data_layout="NHWC", kernel_layout="HWOI",
-                               out_dtype="int32", channels=conv2d_1_C, out_layout="NCHW")
-
+    conv2d_1_w = relay.const(rand_data(conv2d_kernel_shape(3, 3, conv2d_1_C, in_C), dtype="int16", range=(-10, 10)))
+    conv2d_1 = relay.op.nn.conv2d(conv2d_1_f, conv2d_1_w, kernel_size=(3, 3), data_layout="NHWC",
+                                  kernel_layout=conv2d_kernel_layout,
+                                  out_dtype="int32", channels=conv2d_1_C, out_layout="NCHW")
     # avgpool_2d
     ap2d_f = relay.cast(conv2d_1, dtype="int16")
     ap2d = relay.op.nn.avg_pool2d(ap2d_f, (3, 3), layout="NCHW", strides=(2, 2))
     ap2d = relay.op.transpose(ap2d, (0, 2, 3, 1))
-
     # conv2d int8
     conv2d_2_f = relay.cast(ap2d, dtype="int8")
-    conv2d_2_w = relay.const(rand_data((3, 3, conv2d_2_C, conv2d_1_C), dtype="int8", range=(-10, 10)))
-    conv2d_2 = relay.op.nn.conv2d(conv2d_2_f, conv2d_2_w, kernel_size=(3, 3), data_layout="NHWC", kernel_layout="HWOI",
-                               out_dtype="int32", channels=conv2d_2_C)
-
+    conv2d_2_w = relay.const(rand_data(conv2d_kernel_shape(3, 3, conv2d_2_C, conv2d_1_C), dtype="int8", range=(-10, 10)))
+    conv2d_2 = relay.op.nn.conv2d(conv2d_2_f, conv2d_2_w, kernel_size=(3, 3), data_layout="NHWC",
+                                  kernel_layout=conv2d_kernel_layout,
+                                  out_dtype="int32", channels=conv2d_2_C)
     # maxpool_2d
     mp2d_f = relay.cast(conv2d_2, dtype="int8")
     mp2d = relay.op.nn.max_pool2d(mp2d_f, (3, 3), layout="NHWC")
-
     # conv1d int8
     conv1d_1_f = relay.cast(relay.reshape(mp2d, (in_N, -1, conv2d_2_C)), dtype="int8")
-    conv1d_1_w = relay.const(rand_data((3, conv1d_1_C, conv2d_2_C), dtype="int8", range=(-10, 10)))
-    conv1d_1 = relay.op.nn.conv1d(conv1d_1_f, conv1d_1_w, kernel_size=3, data_layout="NWC", kernel_layout="WOI",
-                               out_dtype="int32",
-                               channels=conv1d_1_C)
-
+    conv1d_1_w = relay.const(rand_data(conv1d_kernel_shape(3, conv1d_1_C, conv2d_2_C), dtype="int8", range=(-10, 10)))
+    conv1d_1 = relay.op.nn.conv1d(conv1d_1_f, conv1d_1_w, kernel_size=3, data_layout="NWC",
+                                  kernel_layout=conv1d_kernel_layout,
+                                  out_dtype="int32",
+                                  channels=conv1d_1_C)
     # maxpool_1d
     mp1d_f = relay.cast(conv1d_1, dtype="int8")
     mp1d = relay.op.nn.max_pool1d(mp1d_f, (3,), layout="NWC", strides=2)
 
     # conv1d int16
     conv1d_2_f = relay.cast(mp1d, dtype="int16")
-    conv1d_2_w = relay.const(rand_data((3, conv1d_2_C, conv1d_1_C), dtype="int16", range=(-10, 10)))
-    conv1d_2 = relay.op.nn.conv1d(conv1d_2_f, conv1d_2_w, kernel_size=3, data_layout="NWC", kernel_layout="WOI",
-                               out_dtype="int32",
-                               channels=conv1d_2_C, out_layout="NCW")
+    conv1d_2_w = relay.const(rand_data(conv1d_kernel_shape(3, conv1d_2_C, conv1d_1_C), dtype="int16", range=(-10, 10)))
+    conv1d_2 = relay.op.nn.conv1d(conv1d_2_f, conv1d_2_w, kernel_size=3, data_layout="NWC",
+                                  kernel_layout=conv1d_kernel_layout,
+                                  out_dtype="int32",
+                                  channels=conv1d_2_C, out_layout="NCW")
 
     # avgpool_1d
     ap1d_f = relay.cast(conv1d_2, dtype="int16")
     ap1d = relay.op.nn.avg_pool1d(ap1d_f, (3,), layout="NCW", strides=2)
+    ap1d = relay.op.transpose(ap1d, (0, 2, 1))
 
     # dense
     dense_f = relay.op.nn.batch_flatten(ap1d)
