@@ -165,14 +165,10 @@ def _infer_value(x, params):
     Otherwise, return input"""
 
     try:
-        if isinstance(x, _expr.Constant):
-            return x.data.numpy().tolist()
-        return params[x.name_hint].numpy().tolist()
-    except (IndexError, KeyError, AttributeError):
-        try:
-            return infer_value(x, params).numpy().tolist()
-        except Exception:
-            return x
+        value = infer_value(x, params)
+        return value.numpy().tolist()
+    except Exception:
+        return x
 
 
 def _convert_dtype_value(val):
