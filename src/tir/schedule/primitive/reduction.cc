@@ -203,9 +203,9 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block));
   }
   // Cond 1. Check block is reduction
-  const StmtSRef& scope_root_sref = GetScopeRoot(self, block_sref,
-                                                 /*require_stage_pipeline=*/false,
-                                                 /*require_subtree_compact_dataflow=*/false);
+  StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
+                                          /*require_stage_pipeline=*/false,
+                                          /*require_subtree_compact_dataflow=*/false);
   CheckReductionBlock(self, block_sref, scope_root_sref);
   // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
   LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
@@ -292,8 +292,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
                 {{GetRef<Block>(old_scope_root), new_scope_root},
                  {GetRef<Block>(block), new_reduction_block}});
   self->UpdateBlockInfo(new_scope_root);
-  StmtSRef init_block_sref = self->stmt2ref.at(init_block.get());
-  return init_block_sref;
+  return self->stmt2ref.at(init_block.get());
 }
 
 /******** Commutative Reducer ********/
