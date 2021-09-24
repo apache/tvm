@@ -67,11 +67,13 @@ std::vector<std::string> Conv2d(const CallNode* call) {
     args.push_back(std::to_string(s));
   }
 
-  // Args: O, G, Ph, Pw, Kh, Kw, Sh, Sw
+  // Args: O, G, Ph0, Pw0, Ph1, Pw1, Kh, Kw, Sh, Sw
   args.push_back(std::to_string(wshape[0]));
   args.push_back(std::to_string(conv2d_attr->groups));
   args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImmNode>()->value));
   args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImmNode>()->value));
+  args.push_back(std::to_string(conv2d_attr->padding[2].as<IntImmNode>()->value));
+  args.push_back(std::to_string(conv2d_attr->padding[3].as<IntImmNode>()->value));
   args.push_back(std::to_string(wshape[2]));
   args.push_back(std::to_string(wshape[3]));
   args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImmNode>()->value));

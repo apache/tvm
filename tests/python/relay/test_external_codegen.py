@@ -218,6 +218,39 @@ def test_extern_gcc_consts():
     reason="skip because DNNL codegen is not available",
 )
 @parametrize_external_json_codegen_checks
+def test_extern_dnnl_padding(check_result):
+    dtype = "float32"
+    ishape = (1, 1, 99, 12)
+    w1shape = (54, 1, 3, 3)
+    data0 = relay.var("data0", shape=(ishape), dtype=dtype)
+    weight0 = relay.var("weight0", shape=(w1shape), dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), strides=(2, 2), padding=(1, 0, 1, 1))
+    f = relay.Function([data0, weight0], out)
+    ref_mod = tvm.IRModule()
+    ref_mod["main"] = f
+
+    data1 = relay.var("data0", shape=(ishape), dtype=dtype)
+    weight1 = relay.var("weight0", shape=(w1shape), dtype=dtype)
+    f = set_external_func_attr(f, "dnnl", "dnnl_0")
+    call = relay.Call(f, [data1, weight1])
+    mod = tvm.IRModule.from_expr(call)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+        i_data, w_data
+    )
+    check_result(
+        mod, {"data0": i_data, "weight0": w_data}, (1, 54, 50, 6), ref_res.numpy(), tol=1e-5
+    )
+
+
+@pytest.mark.skipif(
+    not tvm.get_global_func("relay.ext.dnnl", True),
+    reason="skip because DNNL codegen is not available",
+)
+@parametrize_external_json_codegen_checks
 def test_extern_dnnl(check_result):
     dtype = "float32"
     ishape = (1, 32, 14, 14)
