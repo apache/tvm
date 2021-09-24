@@ -25,7 +25,7 @@ from tvm.topi.utils import traverse_inline
 
 from ..micro_kernel.max_pool import (
     intrin_max,
-    max_pool_impl,
+    max_impl,
 )
 
 from ..micro_kernel.avg_pool import (
@@ -50,7 +50,7 @@ def schedule_maxpool_1d_nwc(s, op):
     s[op].reorder(n, w, k, c)
     max, uniq_id = intrin_max((1, 1, channels), data_vec.dtype, output.dtype)
     s[op].tensorize(c, max)
-    s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
+    s[output].pragma(n, "import_c", max_impl(uniq_id))
 
 
 def schedule_maxpool_2d_nhwc(s, op):
@@ -67,7 +67,7 @@ def schedule_maxpool_2d_nhwc(s, op):
     s[op].reorder(n, h, w, ko, ki, c)
     max, uniq_id = intrin_max((1, 1, 1, channels), data_vec.dtype, output.dtype)
     s[op].tensorize(c, max)
-    s[output].pragma(n, "import_c", max_pool_impl(uniq_id))
+    s[output].pragma(n, "import_c", max_impl(uniq_id))
 
 
 def schedule_avgpool_1d_ncw(s, op):
