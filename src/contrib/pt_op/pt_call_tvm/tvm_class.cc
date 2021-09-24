@@ -241,10 +241,6 @@ class BaseTvmClass : public torch::jit::CustomClassHolder {
     auto torch_device = torch::Device(device);
     device_type_ = torch_device.is_cuda() ? kDLCUDA : kDLCPU;
     device_id_ = torch_device.index();
-    if (device_type_ == kDLCPU) {
-      // device_id_ = -1 can make tvm core dump
-      device_id_ = 0;
-    }
   }
 
   /*! \brief Virtual destructor. */
@@ -326,6 +322,16 @@ class BaseTvmClass : public torch::jit::CustomClassHolder {
    * \return outputs with type List[Tensor].
    */
   virtual c10::List<at::Tensor> forward(const c10::List<at::Tensor>& inputs) = 0;
+
+  /*!
+   * \brief Serialize TVM Modules to Dict<string, string>
+   */
+  virtual c10::Dict<std::string, std::string> SerializeTvmModules() const = 0;
+
+  /*!
+   * \brief deserialize TVM Modules from Dict<string, string>
+   */
+  virtual void DeserializeTvmModules(const c10::Dict<std::string, std::string>& shape_path_map) = 0;
 
  protected:
   const int64_t num_inputs_;
@@ -432,7 +438,7 @@ class TvmGraphRuntimeClass : public BaseTvmClass {
    *
    * \return shape_path_map Dict of shape_repr to path.
    */
-  c10::Dict<std::string, std::string> SerializeTvmModules() const {
+  virtual c10::Dict<std::string, std::string> SerializeTvmModules() const override {
     c10::Dict<std::string, std::string> shape_path_map;
     for (const auto& entry : tvm_modules()) {
       shape_path_map.insert(entry.first, entry.second.path());
@@ -445,7 +451,8 @@ class TvmGraphRuntimeClass : public BaseTvmClass {
    *
    * \param shape_path_map Dict of shape_repr to path.
    */
-  void DeserializeTvmModules(const c10::Dict<std::string, std::string>& shape_path_map) {
+  virtual void DeserializeTvmModules(
+      const c10::Dict<std::string, std::string>& shape_path_map) override {
     tvm_modules_.clear();
     for (const auto& entry : shape_path_map) {
       const auto& shape_repr = entry.key();
@@ -591,7 +598,7 @@ class TvmVMRuntimeClass : public BaseTvmClass {
    *
    * \return shape_path_map Dict of shape_repr to path.
    */
-  c10::Dict<std::string, std::string> SerializeTvmModules() const {
+  virtual c10::Dict<std::string, std::string> SerializeTvmModules() const override {
     c10::Dict<std::string, std::string> shape_path_map;
     for (const auto& entry : tvm_modules()) {
       shape_path_map.insert(entry.first, entry.second.path());
@@ -604,7 +611,8 @@ class TvmVMRuntimeClass : public BaseTvmClass {
    *
    * \param shape_path_map Dict of shape_repr to path.
    */
-  void DeserializeTvmModules(const c10::Dict<std::string, std::string>& shape_path_map) {
+  virtual void DeserializeTvmModules(
+      const c10::Dict<std::string, std::string>& shape_path_map) override {
     tvm_modules_.clear();
     for (const auto& entry : shape_path_map) {
       const auto& shape_repr = entry.key();
