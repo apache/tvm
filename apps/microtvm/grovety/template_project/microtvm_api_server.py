@@ -312,7 +312,7 @@ class Handler(server.ProjectAPIHandler):
             if self._has_fpu(options["zephyr_board"]):
                 f.write("# For models with floating point.\n" "CONFIG_FPU=y\n" "\n")
 
-            main_stack_size = None
+            main_stack_size = 4096
             if self._is_qemu(options) and options["project_type"] == "host_driven":
                 main_stack_size = 1536
 

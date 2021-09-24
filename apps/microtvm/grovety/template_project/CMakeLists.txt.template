@@ -46,7 +46,7 @@ target_include_directories(tvm_model PRIVATE ${CMAKE_SOURCE_DIR}/include crt_con
 
 set(CMAKE_BUILD_TYPE "Release")
 
-target_compile_options(tvm_model PRIVATE -Wno-unused-variable)  # TVM-generated code tends to include lots of these.
+target_compile_options(tvm_model PRIVATE -Wno-unused-variable -fstack-check)  # TVM-generated code tends to include lots of these.
 
 target_link_libraries(app PRIVATE tvm_model m)
 file(GLOB_RECURSE app_srcs src/**.c)
