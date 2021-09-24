@@ -272,7 +272,7 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   dtype.code = static_cast<uint8_t>(dtype_code);
   dtype.bits = static_cast<uint8_t>(dtype_bits);
   dtype.lanes = static_cast<uint16_t>(dtype_lanes);
-  Device dev;
+  tvm::Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
   auto ndarray = NDArray::Empty(ShapeTuple(shape, shape + ndim), dtype, dev);
@@ -286,7 +286,7 @@ TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, 
   int ndim = args[1];
   ShapeTuple shape(shape_ptr, shape_ptr + ndim);
   DataType dtype = args[2];
-  Device dev = args[3];
+  tvm::Device dev = args[3];
   Optional<String> mem_scope = args[4];
   auto ndarray = NDArray::Empty(shape, dtype, dev, mem_scope);
   *ret = ndarray;
