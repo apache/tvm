@@ -130,8 +130,7 @@ def lower(
         return ffi.lower_primfunc(inp, name, simple_mode)
     if isinstance(inp, schedule.Schedule):
         return ffi.lower_schedule(inp, args, name, binds, simple_mode)
-    raise ValueError(
-        "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
+    raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
 def _build_for_device(input_mod, target, target_host):
@@ -158,6 +157,7 @@ def _build_for_device(input_mod, target, target_host):
         A module that contains device code.
     """
     from tvm.driver import _ffi_api as _driver_ffi
+
     mod_mixed = _driver_ffi.get_mod_mixed(input_mod, target)
     device_mod = _driver_ffi.get_device_mod(mod_mixed, target)
     host_mod = _driver_ffi.get_host_mod(mod_mixed, target_host)
@@ -171,8 +171,9 @@ def _build_for_device(input_mod, target, target_host):
         )
 
     # rt_mod_dev is runtime::Module so this can be moved out maybe?
-    rt_mod_dev = codegen.build_module(device_mod, target) if len(
-        device_mod.functions) != 0 else None
+    rt_mod_dev = (
+        codegen.build_module(device_mod, target) if len(device_mod.functions) != 0 else None
+    )
     # TIR module for the host, runtime module for devices?
     return host_mod, rt_mod_dev
 
@@ -266,11 +267,9 @@ def build(
 
     for tar, mod in target_input_mod.items():
         if not isinstance(tar, (str, Target)):
-            raise ValueError(
-                "The key of inputs must be str or " "Target when inputs is dict.")
+            raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
-            raise ValueError(
-                "inputs must be Schedule, IRModule," "or dict of str to IRModule.")
+            raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
@@ -323,21 +322,20 @@ def build(
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateCSourceCrtMetadataModule"
             )
-            to_return = create_csource_crt_metadata_module(
-                [rt_mod_host], target_host)
+            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host)
 
         elif target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
-            to_return = create_llvm_crt_metadata_module(
-                [rt_mod_host], target_host)
+            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
     else:
         to_return = rt_mod_host
     print(target)
     print("END OF BUILD")
 
     return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
+
 
 # What is OperatorModule and how is it different from runtime::Module
 

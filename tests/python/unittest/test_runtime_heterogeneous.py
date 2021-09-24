@@ -152,8 +152,7 @@ def test_simplex_data_transferring():
         )
         target = topi.cpp.TEST_create_target(device)
         schedule_add = topi.cpp.cuda.schedule_injective(target, [elemwise_add])
-        lower_add = tvm.lower(
-            schedule_add, [tensor_a, tensor_b, elemwise_add], name="elemwise_add")
+        lower_add = tvm.lower(schedule_add, [tensor_a, tensor_b, elemwise_add], name="elemwise_add")
 
         # Insert copy. Neither compute nor schedule is required for the copy
         # node. The compute will be performed at runtime which is just data
@@ -167,8 +166,7 @@ def test_simplex_data_transferring():
         )
         schedule_sub = te.create_schedule(elemwise_sub.op)
         lower_sub = tvm.lower(
-            schedule_sub, [tensor_copy, tensor_c,
-                           elemwise_sub], name="elemwise_sub"
+            schedule_sub, [tensor_copy, tensor_c, elemwise_sub], name="elemwise_sub"
         )
 
         target_flist = {target_device: lower_add, target_host: lower_sub}
@@ -177,12 +175,9 @@ def test_simplex_data_transferring():
         dev = [host_dev, device_dev]
         mod = graph_executor.create(graph, mhost, dev)
         params = {}
-        params["A"] = tensor_a = np.random.uniform(
-            size=shape).astype(tensor_a.dtype)
-        params["B"] = tensor_b = np.random.uniform(
-            size=shape).astype(tensor_b.dtype)
-        params["C"] = tensor_c = np.random.uniform(
-            size=shape).astype(tensor_c.dtype)
+        params["A"] = tensor_a = np.random.uniform(size=shape).astype(tensor_a.dtype)
+        params["B"] = tensor_b = np.random.uniform(size=shape).astype(tensor_b.dtype)
+        params["C"] = tensor_c = np.random.uniform(size=shape).astype(tensor_c.dtype)
         mod.set_input(**params)
         mod.run()
         out = mod.get_output(0, tvm.nd.empty(shape))
@@ -385,17 +380,13 @@ def test_duplex_data_transferring():
             shape, lambda *i: copy_sub_add(*i) + tensor_d(*i), name="elemwise_add1"
         )
         target = topi.cpp.TEST_create_target(device)
-        add_schedule0 = topi.cpp.cuda.schedule_injective(
-            target, [elemwise_add0])
+        add_schedule0 = topi.cpp.cuda.schedule_injective(target, [elemwise_add0])
         lower_add0 = tvm.lower(
-            add_schedule0, [tensor_a, tensor_b,
-                            elemwise_add0], name="elemwise_add0"
+            add_schedule0, [tensor_a, tensor_b, elemwise_add0], name="elemwise_add0"
         )
-        add_schedule1 = topi.cpp.cuda.schedule_injective(
-            target, [elemwise_add1])
+        add_schedule1 = topi.cpp.cuda.schedule_injective(target, [elemwise_add1])
         lower_add1 = tvm.lower(
-            add_schedule1, [tensor_d, copy_sub_add,
-                            elemwise_add1], name="elemwise_add1"
+            add_schedule1, [tensor_d, copy_sub_add, elemwise_add1], name="elemwise_add1"
         )
         # Create module for sub whose target is the host.
         tensor_c = te.placeholder(shape, name="C")
@@ -404,8 +395,7 @@ def test_duplex_data_transferring():
         )
         sub_schedule = te.create_schedule(elemwise_sub.op)
         lower_sub = tvm.lower(
-            sub_schedule, [copy_add_sub, tensor_c,
-                           elemwise_sub], name="elemwise_sub"
+            sub_schedule, [copy_add_sub, tensor_c, elemwise_sub], name="elemwise_sub"
         )
 
         lower_add0.update(lower_add1)
@@ -414,22 +404,17 @@ def test_duplex_data_transferring():
         mhost = tvm.build(target_flist, target=target)
         dev = [host_dev, device_dev]
         params = {}
-        params["A"] = tensor_a = np.random.uniform(
-            size=shape).astype(tensor_a.dtype)
-        params["B"] = tensor_b = np.random.uniform(
-            size=shape).astype(tensor_b.dtype)
-        params["C"] = tensor_c = np.random.uniform(
-            size=shape).astype(tensor_c.dtype)
-        params["D"] = tensor_d = np.random.uniform(
-            size=shape).astype(tensor_d.dtype)
+        params["A"] = tensor_a = np.random.uniform(size=shape).astype(tensor_a.dtype)
+        params["B"] = tensor_b = np.random.uniform(size=shape).astype(tensor_b.dtype)
+        params["C"] = tensor_c = np.random.uniform(size=shape).astype(tensor_c.dtype)
+        params["D"] = tensor_d = np.random.uniform(size=shape).astype(tensor_d.dtype)
 
         def check_verify():
             mod = graph_executor.create(graph, mhost, dev)
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))
-            np.testing.assert_equal(
-                out.numpy(), tensor_a + tensor_b - tensor_c + tensor_d)
+            np.testing.assert_equal(out.numpy(), tensor_a + tensor_b - tensor_c + tensor_d)
 
         def check_load_module():
             temp = utils.tempdir()
@@ -443,8 +428,7 @@ def test_duplex_data_transferring():
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))
-            np.testing.assert_equal(
-                out.numpy(), tensor_a + tensor_b - tensor_c + tensor_d)
+            np.testing.assert_equal(out.numpy(), tensor_a + tensor_b - tensor_c + tensor_d)
 
         check_verify()
         check_load_module()

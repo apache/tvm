@@ -195,7 +195,6 @@ class RelayBuildModule : public runtime::ModuleNode {
         }
       });
     } else if (name == "get_irmodule") {
-      // GetIRModule just calls the GetFunction of the executor, ends up in a DIFFERENT ModuleNode's GetFunction (oof)
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->executor_codegen_->GetIRModule();
       });
