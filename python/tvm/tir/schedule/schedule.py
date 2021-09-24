@@ -1248,6 +1248,11 @@ class Schedule(Object):
         loop : LoopRV
             The loop above which the init block is inserted before.
 
+        Returns
+        -------
+        init_block : BlockRV
+            The init block
+
         Examples
         --------
         Before decompose-reduction, in TensorIR, the IR is:
