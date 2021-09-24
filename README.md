@@ -33,10 +33,11 @@ License
 -------
 © Contributors Licensed under an [Apache-2.0](LICENSE) license.
 
-## 如何使用TVM编译PaddlePaddle模型
+## 如何使用TVM编译PaddlePaddle模型(PaddlePaddle >= 2.1.3)
 
 ```
 import paddle
+paddle.disable_signal_handle()
 from tvm import relay
 import tvm
 import numpy as np
