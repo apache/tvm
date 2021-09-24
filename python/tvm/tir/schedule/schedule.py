@@ -1234,7 +1234,7 @@ class Schedule(Object):
         The init block is inserted right before the given loop.
 
         The schedule primitive requires:
-        
+
         1) The input block is a reduction block.
 
         2) The input loop is the ancestor of the block.
