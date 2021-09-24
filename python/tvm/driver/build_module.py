@@ -87,8 +87,6 @@ def schedule_to_module(
     """
     return ffi.schedule_to_module(sch, args, name, binds)
 
-# cpp duck typing ?
-
 
 def lower(
     inp: Union[schedule.Schedule, PrimFunc, IRModule],
@@ -259,15 +257,6 @@ def build(
             f"but got {type(inputs)}."
         )
 
-    # rest is codegen?
-    # More target maps here... is inputs ever a map?
-    # prepping and cutting module into chunks
-
-    # 1. get into c++
-    # 2. Remove everywhere that takes map<string, IRModule>
-    # after talking to xiyou he said a lot of difficulty was trying to maintain
-    # map<target, irmodule> correctly so I may just remove that.
-
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
         target = target if target else "llvm"
@@ -294,11 +283,9 @@ def build(
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
                 break
-    # Why is this here?
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    # why do we need to call chcek_and_update_host_consist again?
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
     )

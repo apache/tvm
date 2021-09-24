@@ -522,7 +522,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IRModuleNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const IRModuleNode*>(ref.get());
       p->stream << "IRModule(" << node->functions << ")";
-      // << "attrs = " << node->attrs;
     });
 
 }  // namespace tvm

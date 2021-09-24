@@ -40,27 +40,7 @@
 namespace tvm {
 namespace codegen {
 
-/*
-runtime::Module BuildSchedule(Schedule sch, Target target) {
-  // call lower schedule to module
-  // call build??
-}
-
-runtime::Module BuildFunc(PrimFunc func, Target target) {
-
-}
-
-// Maybe don't need this here...
-runtime::Module BuildTargetMap(Map<String, IRModule>, Target Target) {
-
-}
-*/
-// Leave this -- why not called codegen?
-// TODO(@electriclilies): Rename this to Codegen (dont get consensus just try to put it in)
-// i agree
 runtime::Module Codegen(IRModule mod, Target target) {
-  printf("IN CODE Gen build !!!\n");
-
   if (transform::PassContext::Current()
           ->GetConfig<Bool>("tir.disable_assert", Bool(false))
           .value()) {
@@ -331,7 +311,6 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   return (*codegen_f)(blob_byte_array, system_lib, target_triple);
 }
 
-// Where build is registered
 TVM_REGISTER_GLOBAL("target.Codegen").set_body_typed(Codegen);
 
 // Export two auxiliary function to the runtime namespace.

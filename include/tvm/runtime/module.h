@@ -134,7 +134,6 @@ class TVM_DLL ModuleNode : public Object {
    *   If the function need resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  // This is pure virtual which means its only instantiated by subclasses of ModuleNode. 
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self) = 0;
   /*!
@@ -241,7 +240,6 @@ constexpr const char* tvm_entrypoint_suffix = "run";
 
 inline void Module::Import(Module other) { return (*this)->Import(other); }
 
-// seems questionable to provide a mutable pointer into the runtime module?
 inline ModuleNode* Module::operator->() { return static_cast<ModuleNode*>(get_mutable()); }
 
 inline const ModuleNode* Module::operator->() const {
