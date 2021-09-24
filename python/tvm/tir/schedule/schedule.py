@@ -1293,7 +1293,7 @@ class Schedule(Object):
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
         """
-        _ffi_api.ScheduleDecomposeReduction(self, block, loop)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleDecomposeReduction(self, block, loop)  # type: ignore # pylint: disable=no-member
 
     def rfactor(self, loop: LoopRV, factor_axis: int) -> LoopRV:
         """Factorize an associative reduction block by the specified loop.
