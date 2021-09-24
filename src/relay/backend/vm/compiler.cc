@@ -977,6 +977,8 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   for (const auto& cfunc : context_.cached_funcs) {
     exec_->primitive_map.insert({cfunc->prim_fn_var->name_hint, primitive_index++});
   }
+
+  backend::UpdateAutoSchedulerOpWeights(context_.compiler);
 }
 
 transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
