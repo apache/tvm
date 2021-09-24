@@ -231,8 +231,18 @@ def test_pipeline():
             with tvm.transform.PassContext(opt_level=3):
                 pipeline_mod_factory = pipeline_executor.build(pipe_config)
 
+            # Export parameter configuration to file.
+            config_file_name = pipeline_mod_factory.export_library()
+
+            # The test is to create and initialized class PipelineModule using build return.
             pipeline_module = pipeline_executor.PipelineModule(pipeline_mod_factory)
             assert pipeline_module
+
+            # The test is to initialized class PipelineModule using import function.
+            pipeline_module_test = pipeline_executor.PipelineModule()
+            pipeline_module_test.import_from_library(config_file_name)
+            # Check whether the number of outputs is two.
+            assert pipeline_module_test.get_num_outputs() == 2
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@
 # under the License.
 """Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
+import os
 import tvm._ffi
 from tvm import relay
 from tvm.relay.transform import InferType
@@ -47,13 +48,13 @@ def build(pipe_configs):
     ret: PipelineExecutorFactoryModule
         Common interface for pipeline executor factory modules.
     """
-    mods = {}
+    libs = {}
     mod_n_configs = pipe_configs.get_config()
     config_len = len(mod_n_configs)
     string_config = [{} for _ in range(config_len)]
     for ir_mod, mod_config in mod_n_configs.items():
         mconf = mod_config["pipeline"].copy()
-        mod_idx = mconf["mod_idx"] - 1
+        mod_idx = mconf["mod_idx"]
         dev = mod_config["dev"]
         target = mod_config["target"]
         build_func = relay.build
@@ -61,7 +62,7 @@ def build(pipe_configs):
         if "build" in mod_config and mod_config["build"]:
             build_func = mod_config["build"]
 
-        mod = build_func(
+        lib = build_func(
             ir_mod,
             target,
             params=mod_config["params"],
@@ -71,10 +72,10 @@ def build(pipe_configs):
 
         mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
         # Create a pipeline configuration.
-        string_config[mod_idx] = mconf
-        mods[mod] = {"dev": dev}
+        string_config[mod_idx - 1] = mconf
+        libs[mod_idx] = {"lib": lib, "dev": dev}
 
-    return PipelineExecutorFactoryModule(mods, string_config)
+    return PipelineExecutorFactoryModule(libs, string_config)
 
 
 class PipelineModule(object):
@@ -86,8 +87,43 @@ class PipelineModule(object):
         Common interface for pipeline executor factory modules.
     """
 
-    def __init__(self, module):
-        self.module = module.module
+    def __init__(self, module=None):
+        self.module = module.module if module else None
+        self._get_num_outputs = None
+        # Get pack functions from pipeline executor.
+        self.load_functions()
+
+    def import_from_library(self, config_file_name):
+        """Create pipeline executor from files.
+
+        Parameters
+        ----------
+        config_file_name : str
+            The configuration file path, the configuration file contains the
+            disk path of the parameter file, library file and JSON file。
+        """
+        # Create empty PipelineExecutorFactoryModule.
+        pipeline_factory = PipelineExecutorFactoryModule()
+        # Load configuration file to initialize PipelineExecutorFactoryModule.
+        pipeline_factory.import_from_library(config_file_name)
+        self.module = pipeline_factory.module
+        # Get pack functions from pipeline executor.
+        self.load_functions()
+
+    def load_functions(self):
+        # Get functions from pipeline executor C++ modules
+        self._get_num_outputs = self.module["get_num_outputs"] if self.module else None
+
+    def get_num_outputs(self):
+        """Get the number of outputs.
+        Returns
+        -------
+        count : int
+            The number of outputs.
+        """
+        if self._get_num_outputs:
+            return self._get_num_outputs()
+        return 0
 
 
 class PipelineConfig(object):
@@ -501,17 +537,18 @@ class PipelineExecutorFactoryModule(object):
 
     """
 
-    def __init__(self, pipeline_mods, mods_config):
-        mods, config = self.graph_executor_create(pipeline_mods, mods_config)
-        assert (
-            pipeline_executor_enabled()
-        ), "Pipeline executor is not enabled. Please \
-              re-build TVM with USE_PIPELINE_EXECUTOR=ON"
-        pipeline_create = tvm._ffi.get_global_func(
+    def __init__(self, pipeline_libs=None, mods_config=None):
+        self.pipeline_libs = pipeline_libs
+        self.mods_config = mods_config
+        self.pipeline_create = tvm._ffi.get_global_func(
             "tvm.pipeline_executor.create", allow_missing=False
         )
-        assert pipeline_create
-        self.module = pipeline_create(mods, config)
+        self.module = None
+        # Only create pipeline executor when pipeline_libs, mods_config and
+        # self.pipeline_create are not None.
+        if pipeline_libs and mods_config and self.pipeline_create:
+            graph_executors, config = self.graph_executor_create(pipeline_libs, mods_config)
+            self.module = self.pipeline_create(graph_executors, config)
 
     def graph_executor_create(self, pipeline_mods, mod_config):
         """Create graph_executor list and return configuration as a json string.
@@ -533,11 +570,92 @@ class PipelineExecutorFactoryModule(object):
             The Modudle configuration.
         """
 
-        mods = []
-        for pipeline_mod in pipeline_mods:
-            mod = graph_executor.GraphModule(
-                pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"])
-            )
-            mods.append(mod.module)
+        # The module in pipeline_mods has a index information to identify the modules order
+        # in pipe line, the pipe line executor follow such asend order to run each module,
+        # but asend order of module is not guaranteed in pipeline_mod, here need to pre-allocate
+        # module list then put module in correct place follow the index value.
+        mods = [None for _ in range(len(pipeline_mods))]
+        for lib_index in pipeline_mods:
+            pipeline_lib = pipeline_mods[lib_index]["lib"]
+            dev = pipeline_mods[lib_index]["dev"]
+            lib = graph_executor.GraphModule(pipeline_lib["default"](dev))
+            # Return a module list sorted by lib_index.
+            mods[lib_index - 1] = lib.module
 
         return mods, json.dumps(mod_config)
+
+    def export_library(self, directory_path=None):
+        """Export pipeline runtime into disk.
+
+        Parameters
+        ----------
+        directory_path : str
+            The directory to which these files are exported.
+        """
+        if not self.pipeline_libs:
+            raise RuntimeError(f"The pipeline executor has not been initialized.")
+
+        # If directory_path is not set, use the temporary path as the file storage directory_path.
+        if not directory_path:
+            directory_path = tvm.contrib.utils.tempdir().temp_dir
+
+        # Create if the directory does not exist.
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
+        # Get the initial version of the configuration for export.
+        export_conf = self.mods_config.copy()
+        # Export library, JSON file and parameter file, and export the corresponding
+        # relationship between the files and the pipeline modules.
+        for lib_index in self.pipeline_libs:
+            mconf = export_conf[lib_index - 1]
+            mconf["lib_name"] = "{}/lib{}.so".format(directory_path, lib_index)
+            mconf["json_name"] = "{}/json{}".format(directory_path, lib_index)
+            mconf["params_name"] = "{}/params{}".format(directory_path, lib_index)
+            mconf["dev"] = "{},{}".format(
+                self.pipeline_libs[lib_index]["dev"].device_type,
+                self.pipeline_libs[lib_index]["dev"].device_id,
+            )
+
+            # Get graph, lib and parameters from GraphExecutorFactoryModule.
+            graph, lib, params = self.pipeline_libs[lib_index]["lib"]
+            # Export lib, graph and parameters to disk.
+            lib.export_library(mconf["lib_name"])
+            with open(mconf["json_name"], "w") as file_handle:
+                file_handle.write(graph)
+            with open(mconf["params_name"], "wb") as file_handle:
+                file_handle.write(relay.save_param_dict(params))
+
+            # Check whether the output is successful.
+            if not os.path.exists(mconf["json_name"]):
+                raise RuntimeError("File {} export failure.".format(mconf["json_name"]))
+            if not os.path.exists(mconf["lib_name"]):
+                raise RuntimeError("File {} export failure.".format(mconf["lib_name"]))
+            if not os.path.exists(mconf["params_name"]):
+                raise RuntimeError("File {} export failure.".format(mconf["params_name"]))
+
+        # Export configuration file to disk.
+        conf_file_name = "{}/config".format(directory_path)
+        with open(conf_file_name, "w") as file_handle:
+            file_handle.write(json.dumps(export_conf))
+        if not os.path.exists(conf_file_name):
+            raise RuntimeError(f"File {conf_file_name} export failure.")
+
+        return conf_file_name
+
+    def import_from_library(self, configure_file_name):
+        """Load configuration file to create and initialize pipeline executor.
+
+        Parameters
+        ----------
+        configure_file_name : str
+            The configuration file path, the configuration file contains the
+            disk path of the parameter file, library file and JSON file。
+        """
+        if self.module:
+            raise RuntimeError(f"The pipeline executor has already been initialized.")
+
+        self.pipe_configure = ""
+        with open(configure_file_name, "r") as file_handle:
+            self.pipe_configure = file_handle.read()
+
+        self.module = self.pipeline_create([], self.pipe_configure)

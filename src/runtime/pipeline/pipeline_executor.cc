@@ -21,31 +21,48 @@
  * \file pipeline_executor.cc
  */
 #include "pipeline_executor.h"
-
 namespace tvm {
 namespace runtime {
-
-void PipelineRuntime::Init(const Array<tvm::runtime::Module>& modules,
-                           const std::string& pipeline_json) {
+/*!
+ * \brief Give frontends an access to packed functions.
+ * \param name The name of the function.
+ * \param sptr_to_self The pointer to the module node.
+ * \return The corresponding packed function.
+ */
+PackedFunc PipelineExecutor::GetFunction(const std::string& name,
+                                         const ObjectPtr<Object>& sptr_to_self) {
+  if (name == "get_num_outputs") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumOutputs(); });
+  } else {
+    return PackedFunc();
+  }
+  return nullptr;
+}
+/*!
+ * \brief Initialize the pipeline executor with module array and json text.
+ * \param modules The module list used for building pipeline.
+ * \param pipeline_json The configuration of modules dependencies.
+ */
+void PipelineExecutor::Init(const Array<Module>& modules, const std::string& pipeline_json) {
+  // Use JSONReader to load pipe line configuration from file.
+  std::istringstream is(pipeline_json);
+  dmlc::JSONReader reader(&is);
+  this->Load(&reader);
+  // Initialize the pipeline function class used for pipeline thread pool management
+  // and schedule etc. This function return output number of whole pipeline.
+  output_number_ = pipeline_function_.PipelineInit(modules, pipeline_configure_, mod_configure_);
   return;
 }
 
-/* GetFunction can not be pure abstract function, implement an empty function for now.
- */
-PackedFunc PipelineRuntime::GetFunction(const std::string& name,
-                                        const ObjectPtr<Object>& sptr_to_self) {
-  return nullptr;
-}
-
-Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m,
-                             const std::string& pipeline_json) {
-  auto exec = make_object<PipelineRuntime>();
+Module PipelineExecutorCreate(const Array<Module>& m, const std::string& pipeline_json) {
+  auto exec = make_object<PipelineExecutor>();
   exec->Init(m, pipeline_json);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.pipeline_executor.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = PipelineRuntimeCreate(args[0], args[1]);
+  *rv = PipelineExecutorCreate(args[0], args[1]);
 });
 }  // namespace runtime
 }  // namespace tvm
