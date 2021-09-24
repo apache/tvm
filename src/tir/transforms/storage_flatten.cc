@@ -321,12 +321,17 @@ class BufferStrideLegalize : public StmtExprMutator {
       return buf;
     }
 
-    Array<PrimExpr> shape = buf->shape;
-
     // Keeping this to have matched behavior to previous version.
     // There are many parts of the codebase that assume that a strided
-    // array cannot be compact.
+    // array cannot be compact.  For example, ArgBinder::BindBuffer
+    // and tir.Specialize.
     if (dim_align_.count(buf) == 0) {
+      return buf;
+    }
+
+    // Can't define the strides for a buffer without a known shape.
+    Array<PrimExpr> shape = buf->shape;
+    if (shape.size() == 0) {
       return buf;
     }
 
