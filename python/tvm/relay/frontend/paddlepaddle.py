@@ -521,7 +521,7 @@ def convert_conv2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        if strides[0] == 0 and strides[1] == 0:
+        if strides[0] == 1 and strides[1] == 1:
             pad_h = _get_pad_size(0, (k_h - 1) * dilations[0] + 1, strides[0])
             pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
         else:
