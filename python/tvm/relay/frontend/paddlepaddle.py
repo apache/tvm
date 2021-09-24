@@ -530,8 +530,9 @@ def convert_conv2d(g, op, block):
             pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
         else:
             input_shape = shape_of(input_x)
+            h_w = _op.strided_slice(input_shape, [2], [4])
             try:
-                _, _, in_h, in_w = infer_value(input_shape, g.get_params()).numpy().tolist()
+                in_h, in_w = infer_value(h_w, g.get_params()).numpy().tolist()
             except Exception as e:
                 msg = "The SAME padding algorithm of Conv not support dynamic shape"
                 raise tvm.error.OpAttributeInvalid(msg) from e
@@ -576,9 +577,19 @@ def convert_conv2d_transpose(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        in_h, in_w = infer_shape(input_x)[2:]
-        pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-        pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
+        if strides[0] == 1 and strides[1] == 1:
+            pad_h = _get_pad_size(0, (k_h - 1) * dilations[0] + 1, strides[0])
+            pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
+        else:
+            input_shape = shape_of(input_x)
+            h_w = _op.strided_slice(input_shape, [2], [4])
+            try:
+                in_h, in_w = infer_value(h_w, g.get_params()).numpy().tolist()
+            except Exception as e:
+                msg = "The SAME padding algorithm of Conv_Transpose not support dynamic shape"
+                raise tvm.error.OpAttributeInvalid(msg) from e
+            pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
+            pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
@@ -1381,8 +1392,19 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        pad_h = _get_pad_size(in_h, ksize[0], strides[0])
-        pad_w = _get_pad_size(in_w, ksize[1], strides[1])
+        if strides[0] == 1 and strides[1] == 1:
+            pad_h = _get_pad_size(0, ksize[0], strides[0])
+            pad_w = _get_pad_size(0, ksize[1], strides[1])
+        else:
+            input_shape = shape_of(input_x)
+            h_w = _op.strided_slice(input_shape, [2], [4])
+            try:
+                in_h, in_w = infer_value(h_w, g.get_params()).numpy().tolist()
+            except Exception as e:
+                msg = "The SAME padding algorithm of Conv not support dynamic shape"
+                raise tvm.error.OpAttributeInvalid(msg) from e
+            pad_h = _get_pad_size(in_h, ksize[0], strides[0])
+            pad_w = _get_pad_size(in_w, ksize[1], strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
