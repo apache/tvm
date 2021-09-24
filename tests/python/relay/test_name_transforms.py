@@ -19,6 +19,7 @@ from tvm import TVMError
 from tvm.relay.backend.name_transforms import (
     to_c_function_style,
     to_c_variable_style,
+    to_c_constant_style,
     prefix_name,
     prefix_generated_name,
     sanitize_name,
@@ -51,6 +52,17 @@ def test_to_c_variable_style():
         to_c_variable_style("")
 
 
+def test_to_c_constant_style():
+    assert to_c_constant_style("TVM_Woof") == "TVM_WOOF"
+    assert to_c_constant_style("TVM_woof") == "TVM_WOOF"
+    assert to_c_constant_style("TVM_woof_Woof") == "TVM_WOOF_WOOF"
+
+    with pytest.raises(TVMError, match="Constant not TVM prefixed"):
+        to_c_constant_style("Cake_Bakery")
+    with pytest.raises(TVMError):
+        to_c_constant_style("")
+
+
 def test_prefix_name():
     assert prefix_name("Woof") == "TVM_Woof"
     assert prefix_name(["Woof"]) == "TVM_Woof"
@@ -81,10 +93,10 @@ def test_prefix_generated_name():
 
 
 def test_sanitize_name():
-    assert sanitize_name("+_+ ") == "_"
+    assert sanitize_name("+_+ ") == "____"
     assert sanitize_name("input+") == "input_"
     assert sanitize_name("input-") == "input_"
-    assert sanitize_name("input++") == "input_"
+    assert sanitize_name("input++") == "input__"
     assert sanitize_name("woof:1") == "woof_1"
 
     with pytest.raises(TVMError, match="Name is empty"):

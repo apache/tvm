@@ -48,6 +48,18 @@ def to_c_variable_style(original_name: str):
     return _backend.ToCVariableStyle(original_name)
 
 
+def to_c_constant_style(original_name: str):
+    """Transform a name to the C constant style assuming it is
+    appropriately constructed using the prefixing functions
+
+    Parameters
+    ----------
+    original_name : str
+        Original name to transform
+    """
+    return _backend.ToCConstantStyle(original_name)
+
+
 def _preprocess_names(names: Union[List[str], str]):
     """Preprocesses name strings into format for C++ functions
 
