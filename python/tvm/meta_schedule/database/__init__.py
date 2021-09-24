@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import arg_info
-from . import builder
-from . import database
-from . import space_generator
-from .database import TuningRecord
-from .tune_context import TuneContext
+"""
+The tvm.meta_schedule.database package.
+The database that stores serialized tuning records and workloads
+"""
+from .database import Database, PyDatabase, TuningRecord
+from .json_file import JSONFile
