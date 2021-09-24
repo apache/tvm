@@ -71,7 +71,7 @@ class BufferShapeLegalize : public StmtExprMutator {
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     // External buffers should not be changed.
     if (extern_buffers_.count(op->buffer)) {
-      ICHECK_EQ(op->buffer->shape.size(), op->bounds.size())
+      CHECK_EQ(op->buffer->shape.size(), op->bounds.size())
           << "External buffer realize has mismatched dimension";
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<BufferRealizeNode>();
