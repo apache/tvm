@@ -775,7 +775,7 @@ class OperatorConverter(object):
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
 
-        params = {"axis": 1}  # 1 is channel
+        params = {"axis": -1}  # -1 is channel
         in_expr = self.get_expr(input_tensor_idx)
 
         # TODO - Naive softmax int8 implementation leads to bad accuracy. Currently, we can
