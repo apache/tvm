@@ -453,7 +453,8 @@ class BufferStrideLegalize : public StmtExprMutator {
  *
  * For buffers that do not have an explicit storage scope defined, a
  * reasonable storage scope may be defined based on the thread scope
- * that contains the buffer's allocation.
+ * that contains the buffer's allocation.  All other buffers without a
+ * scope are assigned to global scope.
  */
 class ThreadScopePropagate : public StmtExprMutator {
  public:
@@ -498,10 +499,9 @@ class ThreadScopePropagate : public StmtExprMutator {
     Var old_var = op->buffer->data;
 
     // Don't remap buffers that already have an explicit scope,
-    // external buffers, or buffers outside of a thread scope.
+    // or external buffers.
     std::string str_scope = GetPtrStorageScope(old_var);
-    if ((str_scope.length() > 0) || external_buffers_.count(op->buffer) ||
-        (curr_thread_scope_.size() == 0)) {
+    if ((str_scope.length() > 0) || external_buffers_.count(op->buffer)) {
       return StmtExprMutator::VisitStmt_(op);
     }
 
@@ -509,7 +509,11 @@ class ThreadScopePropagate : public StmtExprMutator {
         << "Buffer var " << op->buffer->data << " appears in multiple BufferRealize nodes";
 
     StorageScope skey;
-    skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
+    if (curr_thread_scope_.size() == 0) {
+      skey.rank = StorageRank::kGlobal;
+    } else {
+      skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
+    }
 
     auto ptr_type = old_var->type_annotation.as<PointerTypeNode>();
     ICHECK(ptr_type);
