@@ -42,6 +42,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.detect_global_barrier", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_bound_checkers", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
 
 using runtime::PackedFunc;
@@ -153,6 +154,13 @@ transform::Pass BindTarget(Target target) {
     return WithAttr(std::move(f), tvm::attr::kTarget, target);
   };
   return tir::transform::CreatePrimFuncPass(fpass, 0, "BindTarget", {});
+}
+
+transform::Pass AnnotateEntryFunc(bool b) {
+  auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+    return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
+  };
+  return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
 }
 
 template <typename FCond>
@@ -459,11 +467,11 @@ runtime::Module finalizeModule(const Map<Target, IRModule>& inputs_arg, Target h
       mhost_all->Update(host_mod);
 
       if (device_mod->functions.size() != 0) {
-        device_modules.push_back(codegen::Build(device_mod, it.first));
+        device_modules.push_back(codegen::Codegen(device_mod, it.first));
       }
     }
   }
-  runtime::Module complete_mod = codegen::Build(mhost_all, host_target);
+  runtime::Module complete_mod = codegen::Codegen(mhost_all, host_target);
   // Import all modules
   for (const auto& it : device_modules) {
     if (it.operator->()) {
@@ -527,12 +535,12 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
       mhost_all->Update(host_mod);
 
       if (device_mod->functions.size() != 0) {
-        device_modules.push_back(codegen::Build(device_mod, it.first));
+        device_modules.push_back(codegen::Codegen(device_mod, it.first));
       }
     }
   }
 
-  runtime::Module mhost = codegen::Build(mhost_all, target_host);
+  runtime::Module mhost = codegen::Codegen(mhost_all, target_host);
   // Import all modules
   for (const auto& it : device_modules) {
     if (it.operator->()) {
@@ -576,8 +584,13 @@ IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
   Array<transform::Pass> mixed_pass_list;
-  if (target.defined()) {
-    mixed_pass_list.push_back(BindTarget(target));
+
+  mixed_pass_list.push_back(BindTarget(target));
+
+  bool is_entry_func = false;
+  if (mixed_mod->functions.size() == 1) {
+    is_entry_func = pass_ctx->GetConfig<Bool>("tir.is_entry_func", Bool(true)).value();
+    mixed_pass_list.push_back(AnnotateEntryFunc(is_entry_func));
   }
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
@@ -586,11 +599,22 @@ IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
   // Python annotates all functions in the mod with the Target passed in here; I think we
   // shouldn't have to do that.
 
+  printf("\n");
+  printf("***************************** \n");
+  printf("%d\n", is_entry_func);
+  printf("***************************** \n");
+
+  // if (is_entry_func) {
+  //   mixed_mod = WithAttr(std::move(mixed_mod), "tir.is_entry_func", Bool(true));
+  // }
+
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
   if (detect_global_barrier) {
     mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
   }
+
+  // mixed_mod->GetAttr<functions>
 
   mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
@@ -627,9 +651,7 @@ IRModule OptimizeHostModule(IRModule mixed_mod, Target target_host) {
            CallingConv::kDeviceKernelLaunch;
   }));
 
-  if (target_host.defined()) {
-    host_pass_list.push_back(BindTarget(target_host));
-  }
+  host_pass_list.push_back(BindTarget(target_host));
 
   host_pass_list.push_back(tir::transform::LowerTVMBuiltin());
   host_pass_list.push_back(tir::transform::LowerCustomDatatypes());
@@ -650,9 +672,7 @@ IRModule OptimizeDeviceModule(IRModule mixed_mod, Target target) {
            CallingConv::kDeviceKernelLaunch;
   }));
 
-  if (target.defined()) {
-    device_pass_list.push_back(BindTarget(target));
-  }
+  device_pass_list.push_back(BindTarget(target));
 
   device_pass_list.push_back(tir::transform::LowerWarpMemory());
   device_pass_list.push_back(tir::transform::Simplify());

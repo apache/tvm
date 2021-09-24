@@ -63,7 +63,8 @@ def build_target_by_device_type_map(target):
 
     tgts = {}
     if isinstance(target, (str, Target)):
-        dev_type = tvm_expr.IntImm("int32", _nd.device(str(target)).device_type)
+        dev_type = tvm_expr.IntImm(
+            "int32", _nd.device(str(target)).device_type)
         tgts[dev_type] = Target(target)
     elif isinstance(target, dict):
         for dev, tgt in target.items():
@@ -93,8 +94,6 @@ class BuildModule(object):
     """
 
     def __init__(self):
-        # This is implicitly calling GetFunction in RelayBuildModuleNode which then calls the correct
-        # executor's version of that function.
         self.mod = _build_module._BuildModule()
         self._get_graph_json = self.mod["get_graph_json"]
         self._get_module = self.mod["get_module"]
@@ -125,7 +124,7 @@ class BuildModule(object):
             to setup the dimensions and parameters correctly.
             target_host is used to specify the host side codegen target.
             By default, llvm is used if it is enabled,
-            otherwise a stackvm intepreter is used.
+            otherwise a stackvm interpreter is used.
 
         params : dict of str to NDArray
             Input parameters to the graph that do not change
@@ -253,7 +252,8 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     This wrapper is suitable to be used from other programming languages as
     the runtime::Module can be freely passed between language boundaries.
     """
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.check_and_update_host_consist(
+        target, target_host)
     return build(mod, target, params=params, mod_name=mod_name).module
 
 
@@ -284,6 +284,8 @@ def get_executor_from_target(target, target_host):
     return executor
 
 
+# Which build is this one... Relay --> graph executor
+# can params being parsed during run-time?
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
     # fmt: off
     # pylint: disable=line-too-long
@@ -305,7 +307,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
         setup the dimensions and parameters correctly.
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
+        otherwise a stackvm interpreter is used.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
@@ -338,7 +340,8 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
-        raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
+        raise ValueError(
+            "target host must be the type of str, " + "tvm.target.Target, or None")
 
     target, target_host = Target.check_and_update_host_consist(
         target, target_host, target_is_dict_key=False
@@ -454,7 +457,7 @@ def bind_params_by_name(func, params):
 class GraphExecutor(_interpreter.Executor):
     """Wrapper around Executor interface.
 
-    This executor is used for debug and testing purpoes.
+    This executor is used for debug and testing purposes.
 
     Parameters
     ----------
@@ -495,7 +498,8 @@ class GraphExecutor(_interpreter.Executor):
                     field = _unflatten(flat_iter, field_type)
                     fields.append(field)
                 return fields
-            raise ValueError("Return type", ret_type, "contains unsupported type", cur_type)
+            raise ValueError("Return type", ret_type,
+                             "contains unsupported type", cur_type)
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(self.mod["main"], args, kwargs)

@@ -50,14 +50,17 @@ runtime::Module BuildFunc(PrimFunc func, Target target) {
 
 }
 
-// Maybe don't need this here... 
+// Maybe don't need this here...
 runtime::Module BuildTargetMap(Map<String, IRModule>, Target Target) {
 
 }
 */
 // Leave this -- why not called codegen?
 // TODO(@electriclilies): Rename this to Codegen (dont get consensus just try to put it in)
-runtime::Module Build(IRModule mod, Target target) {
+// i agree
+runtime::Module Codegen(IRModule mod, Target target) {
+  printf("IN CODE Gen build !!!\n");
+
   if (transform::PassContext::Current()
           ->GetConfig<Bool>("tir.disable_assert", Bool(false))
           .value()) {
@@ -329,7 +332,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
 }
 
 // Where build is registered
-TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
+TVM_REGISTER_GLOBAL("target.Codegen").set_body_typed(Codegen);
 
 // Export two auxiliary function to the runtime namespace.
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);

@@ -136,7 +136,6 @@ def lower(
         "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
-# TODO(@electriclilies): This should be moved into C++.
 def _build_for_device(input_mod, target, target_host):
     """Build the lowered functions for a device with the given compilation
     target.
@@ -154,19 +153,16 @@ def _build_for_device(input_mod, target, target_host):
 
     Returns
     -------
-    fhost : IRModule
+    host_mod : IRModule
         The host IRModule.
 
-    mdev : tvm.module
+    device_mod : tvm.module
         A module that contains device code.
     """
-    # Ideally delete check_and_update_host_consist from here
-    # target, target_host = Target.check_and_update_host_consist(target, target_host)
-    # Point 1
     from tvm.driver import _ffi_api as _driver_ffi
-    mod_mixed = _driver_ffi.get_mod_mixed(input_mod)
-    device_mod = _driver_ffi.get_device_mod(mod_mixed)
-    host_mod = _driver_ffi.get_host_mod(mod_mixed)
+    mod_mixed = _driver_ffi.get_mod_mixed(input_mod, target)
+    device_mod = _driver_ffi.get_device_mod(mod_mixed, target)
+    host_mod = _driver_ffi.get_host_mod(mod_mixed, target_host)
 
     device_type = ndarray.device(target.kind.name, 0).device_type
     if device_type == ndarray.cpu(0).device_type and target_host == target:
@@ -193,19 +189,14 @@ def build(
 ):
     """Build a function with arguments as signature. Code will be generated
     for devices coupled with target information.
-
     Parameters
     ----------
-    inputs : Union[tvm.te.schedule.Schedule,
-        tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
-
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function.
-
     target : Optional[Union[str, Target]]
         The target and option of the compilation.
-
     target_host : Optional[Union[str, Target]]
         Host compilation target, if target is device.
         When TVM compiles device specific program such as CUDA,
@@ -214,27 +205,21 @@ def build(
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
         otherwise a stackvm intepreter is used.
-
     name : Optional[str]
         The name of result function.
-
     binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
-
     Returns
     -------
     ret : tvm.module
         A module that combines both host and device code.
-
     Examples
     ________
     There are two typical example uses of this function depending on the type
     of the argument `inputs`:
     1. it is an IRModule.
-
     .. code-block:: python
-
         n = 2
         A = te.placeholder((n,), name='A')
         B = te.placeholder((n,), name='B')
@@ -242,11 +227,8 @@ def build(
         s = tvm.te.create_schedule(C.op)
         m = tvm.lower(s, [A, B, C], name="test_add")
         rt_mod = tvm.build(m, target="llvm")
-
     2. it is a dict of compilation target to IRModule.
-
     .. code-block:: python
-
         n = 2
         A = te.placeholder((n,), name='A')
         B = te.placeholder((n,), name='B')
@@ -257,7 +239,6 @@ def build(
           m1 = tvm.lower(s1, [A, B, C], name="test_add1")
           m2 = tvm.lower(s2, [A, B, C], name="test_add2")
           rt_mod = tvm.build({"llvm": m1, "cuda": m2}, target_host="llvm")
-
     Note
     ----
     See the note on :any:`tvm.target` on target string format.
@@ -278,8 +259,6 @@ def build(
             f"but got {type(inputs)}."
         )
 
-    # move to cpp from this point
-
     # rest is codegen?
     # More target maps here... is inputs ever a map?
     # prepping and cutting module into chunks
@@ -289,72 +268,62 @@ def build(
     # after talking to xiyou he said a lot of difficulty was trying to maintain
     # map<target, irmodule> correctly so I may just remove that.
 
-    # if not isinstance(inputs, (dict, container.Map)):
-    #     target = Target.current() if target is None else target
-    #     target = target if target else "llvm"
-    #     target_input_mod = {target: input_mod}
-    # else:
-    #     target_input_mod = inputs
+    if not isinstance(inputs, (dict, container.Map)):
+        target = Target.current() if target is None else target
+        target = target if target else "llvm"
+        target_input_mod = {target: input_mod}
+    else:
+        target_input_mod = inputs
 
-    # # reshape tensor tests are failing without this one vm_reshape_tensor
+    for tar, mod in target_input_mod.items():
+        if not isinstance(tar, (str, Target)):
+            raise ValueError(
+                "The key of inputs must be str or " "Target when inputs is dict.")
+        if not isinstance(mod, tvm.IRModule):
+            raise ValueError(
+                "inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
-    # for tar, mod in target_input_mod.items():
-    #     if not isinstance(tar, (str, Target)):
-    #         raise ValueError(
-    #             "The key of inputs must be str or " "Target when inputs is dict.")
-    #     if not isinstance(mod, tvm.IRModule):
-    #         raise ValueError(
-    #             "inputs must be Schedule, IRModule," "or dict of str to IRModule.")
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
 
-    # target_input_mod, target_host = Target.check_and_update_host_consist(
-    #     target_input_mod, target_host
-    # )
+    if not target_host:
+        for tar, mod in target_input_mod.items():
+            tar = Target(tar)
+            device_type = ndarray.device(tar.kind.name, 0).device_type
+            if device_type == ndarray.cpu(0).device_type:
+                target_host = tar
+                break
+    # Why is this here?
+    if not target_host:
+        target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    # if not target_host:
-    #     for tar, mod in target_input_mod.items():
-    #         tar = Target(tar)
-    #         device_type = ndarray.device(tar.kind.name, 0).device_type
-    #         if device_type == ndarray.cpu(0).device_type:
-    #             target_host = tar
-    #             break
-    # # Why is this here?
-    # # if not target_host:
-    # #     target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
+    # why do we need to call chcek_and_update_host_consist again?
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
 
-    # # why do we need to call chcek_and_update_host_consist again?
-    # target_input_mod, target_host = Target.check_and_update_host_consist(
-    #     target_input_mod, target_host
-    # )
-    from tvm.driver import _ffi_api as _driver_ffi
+    mod_host_all = tvm.IRModule({})
 
-    target_input_mod = _driver_ffi.driver.target_mangling(
-        input_mod, target, target_host)
-    target_host = _driver_ffi.driver.host_target_mangling(
-        input_mod, target, target_host)
+    # This is building for target not device though..
+    # From here through importing the device modules could probably be consolidated into one C++ function.
+    device_modules = []
+    for tar, input_mod in target_input_mod.items():
+        # mod_host is the module of the host.. bad name.
+        # Start with moving _build_for_device into c++
+        mod_host, mdev = _build_for_device(input_mod, tar, target_host)
+        # what are we updating here?
+        mod_host_all.update(mod_host)
+        device_modules.append(mdev)
 
-    # mod_host_all = tvm.IRModule({})
+    print(mod_host_all)
+    # Generate a unified host module.
+    rt_mod_host = codegen.build_module(mod_host_all, target_host)
 
-    # # This is building for target not device though..
-    # # From here through importing
-    # # the device modules could probably be consolidated into one C++ function.
-    # device_modules = []
-    # for tar, input_mod in target_input_mod.items():
-    #     # mod_host is the module of the host.. bad name.
-    #     mod_host, mdev = _build_for_device(input_mod, tar, target_host)
-    #     # what are we updating here?
-    #     mod_host_all.update(mod_host)
-    #     device_modules.append(mdev)
-
-    # # Generate a unified host module.
-    # rt_mod_host = codegen.build_module(mod_host_all, target_host)
-
-    # # Import all modules.
-    # for mdev in device_modules:
-    #     if mdev:
-    #         rt_mod_host.import_module(mdev)
-
-    rt_mod_host = _driver_ffi.driver.finalize_module(
-        target_input_mod, target_host)
+    # Import all modules.
+    for mdev in device_modules:
+        if mdev:
+            rt_mod_host.import_module(mdev)
 
     # stop moving to C++ here.
     if not isinstance(target_host, Target):
@@ -378,11 +347,14 @@ def build(
                 [rt_mod_host], target_host)
     else:
         to_return = rt_mod_host
+    print(target)
+    print("END OF BUILD")
 
     return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
 
-
 # What is OperatorModule and how is it different from runtime::Module
+
+
 class OperatorModule(Module):
     """Wraps the Module returned by tvm.build() and captures additional outputs of that function."""
 
@@ -391,11 +363,14 @@ class OperatorModule(Module):
         # NOTE(areusch): It is generally unsafe to continue using `mod` from this point forward.
         # If an exception occurs in cls.__init__, handle will be deleted. For this reason,
         # set mod.handle to None.
+        print("from module conv")
         handle = mod.handle
+        print(mod.handle)
         mod.handle = None
         return cls(handle, **kwargs)
 
     def __init__(self, handle, ir_module_by_target=None, name=None):
         super(OperatorModule, self).__init__(handle)
         self.ir_module_by_target = ir_module_by_target
+        print(name)
         self.name = name
