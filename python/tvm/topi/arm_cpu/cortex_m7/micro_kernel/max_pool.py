@@ -76,7 +76,7 @@ def intrin_max(shape, in_dtype, out_dtype):
     return intrin_decl, uniq_id
 
 
-def max_pool_impl(uniq_id):
+def max_impl(uniq_id):
     """Emit C code for pool impl."""
     cc_code = f"""
 #include "cortex_m7_defines.h"
@@ -99,7 +99,7 @@ void perf_timer_stop(uint32_t op_id);
 #ifdef __cplusplus
 extern "C"
 #endif
-__STATIC_FORCEINLINE int32_t max_pool8_reset_{uniq_id}(
+__STATIC_FORCEINLINE int32_t max8_reset_{uniq_id}(
     int8_t *res,
     int N) {{
   memset(res, (int8_t)-128, N * sizeof(*res));
@@ -109,7 +109,7 @@ __STATIC_FORCEINLINE int32_t max_pool8_reset_{uniq_id}(
 #ifdef __cplusplus
 extern "C"
 #endif
-__STATIC_FORCEINLINE int32_t max_pool8_loop_{uniq_id}(
+__STATIC_FORCEINLINE int32_t max8_loop_{uniq_id}(
     int8_t *arg,
     int8_t *res,
     int N) {{
@@ -122,7 +122,7 @@ __STATIC_FORCEINLINE int32_t max_pool8_loop_{uniq_id}(
 #ifdef __cplusplus
 extern "C"
 #endif
-__STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
+__STATIC_FORCEINLINE int32_t max8_{uniq_id}(
     int8_t *arg,
     int8_t *res,
     int N) {{
@@ -135,14 +135,14 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
 #endif
 
   if ( N < 4 || ((una_arg || una_res) && una_arg != una_res) ) {{
-    retcode = max_pool8_loop_{uniq_id}(arg, res, N);
+    retcode = max8_loop_{uniq_id}(arg, res, N);
     goto out;
   }}
   if ( una_arg ) {{
     int n = (4 - una_arg);
     if ( n > N || (N - n) < 4 )
       n = N;
-    retcode = max_pool8_loop_{uniq_id}(arg, res, n);
+    retcode = max8_loop_{uniq_id}(arg, res, n);
     if ( (N -= n) == 0 )
       goto out;
     arg += n; res += n;
@@ -160,7 +160,7 @@ __STATIC_FORCEINLINE int32_t max_pool8_{uniq_id}(
   }}
 
   if ( N % 4 != 0 ) {{
-    retcode = max_pool8_loop_{uniq_id}((int8_t *)parg32, (int8_t *)pres32, N % 4);
+    retcode = max8_loop_{uniq_id}((int8_t *)parg32, (int8_t *)pres32, N % 4);
     goto out;
   }}
 
