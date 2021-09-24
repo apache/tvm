@@ -116,6 +116,10 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
         ),
     ),
     (
+        "importer-paddle",
+        ("Requirements for the PaddlePaddle importer", ["paddlepaddle"]),
+    ),
+    (
         "importer-pytorch",
         (
             "Requirements for the PyTorch importer",
@@ -235,6 +239,7 @@ CONSTRAINTS = [
     ("onnx", None),
     ("onnxruntime", None),
     ("opencv-python", None),
+    ("paddlepaddle", None),
     ("pillow", None),
     ("progressbar", None),
     ("psutil", None),
