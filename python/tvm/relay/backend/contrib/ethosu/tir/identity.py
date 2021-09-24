@@ -57,12 +57,14 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
         assert loops[0].extent == 1
         loops = loops[1:]
 
-    stride_vars = [l.loop_var for l in loops]
-    strides = get_strides(inner.value.index, stride_vars)
+    fm_inner = inner.value if fm_type == "ifm" else inner
 
-    base_address = get_base_address(inner.value.index)
+    stride_vars = [l.loop_var for l in loops]
+    strides = get_strides(fm_inner.index, stride_vars)
+
+    base_address = get_base_address(fm_inner.index)
     data_type = inner.buffer_var.type_annotation.element_type.dtype
-    pointer = inner.value.buffer_var if fm_type == "ifm" else inner.buffer_var
+    pointer = fm_inner.buffer_var
 
     serial_feature_map = SerialFeatureMap(
         data_type=data_type,
@@ -116,6 +118,8 @@ def get_identity_params(
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the pooling output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
 
     """
     attrs, _ = get_op_attrs(stmt)
@@ -137,6 +141,12 @@ def get_identity_params(
 
     replace_pointer = write_output_pointer
 
+    is_allocator = True
+    if write_output_pointer not in producers:
+        is_allocator = False
+    elif producers[write_output_pointer] != write:
+        is_allocator = False
+
     # TODO: We might want to support stand alone ReLU in the future by adding clip_min and
     # clip max attributes to the identity operator
     serial_activation = SerialActivation(op=attrs["activation"], clip_min=0, clip_max=0)
@@ -155,4 +165,5 @@ def get_identity_params(
         ),
         output_pointer,
         replace_pointer,
+        is_allocator,
     )

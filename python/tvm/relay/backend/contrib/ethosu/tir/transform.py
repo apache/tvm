@@ -58,4 +58,5 @@ def get_copy_params(stmt, producers, consumers):
         ),
         write_store.buffer_var,
         None,
+        True,
     )
