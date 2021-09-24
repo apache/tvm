@@ -366,8 +366,13 @@ class ScheduleNode : public runtime::Object {
   virtual void ReverseComputeInline(const BlockRV& block) = 0;
   /******** Schedule: Reduction ********/
   /*!
-   * \brief Decompose a reduction block into init block and update block, where the newly generated
-     init block will be before the specified loop. It requires that
+   * \brief Decompose a reduction block into two separate blocks.
+   * a) The init block, which is translated from the init statement of the reduction block;
+   * b) The update block, which is the original block without init statement.
+   * 
+   * The init block is inserted right before the given loop.
+   * 
+   * The schedule primitive requires:
      1) The input block is a reduction block.
      2) The input loop is the ancestor of the block.
      3) The input loop is not lower than all the loops related to reduce block var.
