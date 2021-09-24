@@ -113,9 +113,14 @@ class BuiltinLower : public StmtExprMutator {
     op = stmt.as<AllocateNode>();
     // Get constant allocation bound.
     int64_t nbytes = GetVectorBytes(op->dtype);
+    // If the buffers are for CPU and have global scope,
+    // and less than runtime::kMaxStackAlloca heuristic
+    // they are not serviced with TVMBackendWorkspaceAlloc calls
+    // to be placed on stack.
     if (device_type_.defined()) {
       if (const auto* dev_type = device_type_.as<IntImmNode>()) {
-        if (dev_type->value == kDLCPU) {
+        auto storage_scope = Downcast<PointerType>(op->buffer_var->type_annotation)->storage_scope;
+        if (dev_type->value == kDLCPU && storage_scope == "global") {
           int32_t constant_size = op->constant_allocation_size();
           if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
             return stmt;
