@@ -46,7 +46,9 @@ namespace tvm {
 
 /*!
  * \brief Returns the optimized IRModule for original fused module (pre split) that contains device
- * and host code. \param mixed_mod The original mixed module. \param target The device Target.
+ * and host code.
+ * \param mixed_mod The original mixed module.
+ * \param target The device Target.
  * \return The result optimized mixed module.
  */
 IRModule OptimizeMixedModule(IRModule mixed_mod, Target target);
@@ -62,7 +64,7 @@ IRModule OptimizeDeviceModule(IRModule mixed_mod, Target target);
 /*!
  * \brief Returns the optimized IRModule for the host Target after device/host from mixed module.
  * \param mixed_mod The optimized mixed module.
- * \param target The host Target.
+ * \param target_host The host Target.
  * \return The result optimized host module.
  */
 IRModule OptimizeHostModule(IRModule mixed_mod, Target target_host);

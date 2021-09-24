@@ -27,16 +27,15 @@ import tvm.tir
 from tvm.runtime import Module
 from tvm.runtime import ndarray
 from tvm.ir import container
-from tvm.ir import CallingConv
 from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
 from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
 from tvm.tir.buffer import Buffer
 from tvm.tir.expr import Var
+from tvm.driver import _ffi_api as _driver_ffi
 
 from . import _ffi_api as ffi
 
@@ -156,8 +155,6 @@ def _build_for_device(input_mod, target, target_host):
     device_mod : tvm.module
         A module that contains device code.
     """
-    from tvm.driver import _ffi_api as _driver_ffi
-
     mod_mixed = _driver_ffi.get_mod_mixed(input_mod, target)
     device_mod = _driver_ffi.get_device_mod(mod_mixed, target)
     host_mod = _driver_ffi.get_host_mod(mod_mixed, target_host)
@@ -291,18 +288,12 @@ def build(
 
     mod_host_all = tvm.IRModule({})
 
-    # This is building for target not device though..
-    # From here through importing the device modules could probably be consolidated into one C++ function.
     device_modules = []
     for tar, input_mod in target_input_mod.items():
-        # mod_host is the module of the host.. bad name.
-        # Start with moving _build_for_device into c++
         mod_host, mdev = _build_for_device(input_mod, tar, target_host)
-        # what are we updating here?
         mod_host_all.update(mod_host)
         device_modules.append(mdev)
 
-    print(mod_host_all)
     # Generate a unified host module.
     rt_mod_host = codegen.build_module(mod_host_all, target_host)
 
@@ -331,8 +322,6 @@ def build(
             to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
     else:
         to_return = rt_mod_host
-    print(target)
-    print("END OF BUILD")
 
     return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
 
@@ -348,14 +337,11 @@ class OperatorModule(Module):
         # NOTE(areusch): It is generally unsafe to continue using `mod` from this point forward.
         # If an exception occurs in cls.__init__, handle will be deleted. For this reason,
         # set mod.handle to None.
-        print("from module conv")
         handle = mod.handle
-        print(mod.handle)
         mod.handle = None
         return cls(handle, **kwargs)
 
     def __init__(self, handle, ir_module_by_target=None, name=None):
         super(OperatorModule, self).__init__(handle)
         self.ir_module_by_target = ir_module_by_target
-        print(name)
         self.name = name
