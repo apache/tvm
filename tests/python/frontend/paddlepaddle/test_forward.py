@@ -1458,9 +1458,7 @@ def test_forward_pool2d():
 
     @paddle.jit.to_static
     def pool2d3(inputs):
-        output = nn.functional.max_pool2d(
-            inputs, kernel_size=2, stride=2, padding=0
-        )
+        output = nn.functional.max_pool2d(inputs, kernel_size=2, stride=2, padding=0)
         return output
 
     @paddle.jit.to_static
