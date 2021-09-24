@@ -280,7 +280,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
                /*min=*/old_loop->min,
                /*extent=*/old_loop->extent,
                /*kind=*/ForKind::kSerial,
-               /*body=body*/ Substitute(body, {{old_loop_var, new_loop_var}}));
+               /*body=body*/Substitute(body, {{old_loop_var, new_loop_var}}));
   }
   // Step 6. Mutate IR
   const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(old_scope_root, scope_root_sref);
@@ -291,7 +291,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   self->Replace(scope_root_sref, new_scope_root,
                 {{GetRef<Block>(old_scope_root), new_scope_root},
                  {GetRef<Block>(block), new_reduction_block}});
-  self->UpdateBlockInfo(new_scope_root);
+  self->UpdateSubtreeBlockInfo(new_scope_root);
   return self->stmt2ref.at(init_block.get());
 }
 
