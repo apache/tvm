@@ -37,6 +37,7 @@ License
 
 ```
 import paddle
+# disable signal capturing in PaddlePaddle
 paddle.disable_signal_handle()
 from tvm import relay
 import tvm
