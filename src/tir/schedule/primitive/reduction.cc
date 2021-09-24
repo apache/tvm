@@ -270,18 +270,21 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   //         We discard predicate that is related to discarded loops
   init_realize->predicate = RemakePredicate(init_realize->predicate, discarded_loops);
   // Step 5. Create new loops above init block
+  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> loop_var_map;
   Stmt body = BlockRealize(init_realize);
   for (const int& i : chosen_loops) {
     const ForNode* old_loop = TVM_SREF_TO_FOR(old_loop, loops[i]);
     // Create a new equivalent to the chosen loop
     Var old_loop_var = old_loop->loop_var;
     Var new_loop_var = old_loop_var.copy_with_suffix("_init");
+    loop_var_map[old_loop_var] = new_loop_var;
     body = For(/*loop_var=*/new_loop_var,
                /*min=*/old_loop->min,
                /*extent=*/old_loop->extent,
                /*kind=*/ForKind::kSerial,
-               /*body=body*/Substitute(body, {{old_loop_var, new_loop_var}}));
+               /*body=*/body);
   }
+  body = Substitute(body, loop_var_map);
   // Step 6. Mutate IR
   const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(old_scope_root, scope_root_sref);
   Block new_scope_root;
