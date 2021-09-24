@@ -471,36 +471,66 @@ def extract_main_workspace_size_bytes(extract_dir):
         return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
 
-def compile_and_run(
+def compile_models(
     models: Union[List[AOTTestModel], AOTTestModel],
-    runner: AOTTestRunner,
     interface_api,
     use_unpacked_api,
-    debug_calculated_workspaces=False,
     workspace_byte_alignment=8,
     enable_op_fusion=True,
 ):
     """
-    This method verifies the generated source
+    This method generates runtime.Modules for the tests
     """
+
     base_target = "c -runtime=c --link-params --executor=aot"
     extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
     target = f"{base_target} {extra_target}"
-    cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
 
     if not isinstance(models, list):
         models = [models]
-
-    # The calculated workspaces will not account for stack allocator tags used for debugging
-    if debug_calculated_workspaces:
-        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
     config = {"tir.disable_vectorize": True}
     if not enable_op_fusion:
         config["relay.FuseOps.max_depth"] = 1
 
+    compiled_runtime_mods = list()
+    for model in models:
+        with tvm.transform.PassContext(opt_level=3, config=config):
+            compiled_runtime_mods.append(
+                tvm.relay.build(
+                    model.module,
+                    target,
+                    target_host=target,
+                    params=model.params,
+                    mod_name=model.name,
+                )
+            )
+    return compiled_runtime_mods
+
+
+def run_and_check(
+    models: Union[List[AOTTestModel], AOTTestModel],
+    runner: AOTTestRunner,
+    interface_api,
+    compiled_runtime_mods: List[tvm.runtime.Module],
+    debug_calculated_workspaces=False,
+    workspace_byte_alignment=8,
+):
+    """
+    This method uses the original test data and compiled runtime.Modules
+    to run in the test runner to verify the results.
+    """
+
+    if not isinstance(models, list):
+        models = [models]
+
     tmp_path = utils.tempdir()
     tmp_dir = tmp_path.temp_dir
+
+    cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+    # The calculated workspaces will not account for stack allocator tags used for debugging
+    if debug_calculated_workspaces:
+        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
     base_path = os.path.join(tmp_dir, "test")
     build_path = os.path.join(base_path, "build")
@@ -515,18 +545,9 @@ def compile_and_run(
     )
 
     workspace_bytes = 0
-    for model in models:
-        with tvm.transform.PassContext(opt_level=3, config=config):
-            lib = tvm.relay.build(
-                model.module,
-                target,
-                target_host=target,
-                params=model.params,
-                mod_name=model.name,
-            )
-
+    for runtime_module, model in zip(compiled_runtime_mods, models):
         tar_file = os.path.join(base_path, f"{model.name}.tar")
-        export_model_library_format(lib, tar_file)
+        export_model_library_format(runtime_module, tar_file)
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
@@ -590,6 +611,29 @@ def compile_and_run(
 
     with open(run_log_path) as run_log:
         assert AOT_SUCCESS_TOKEN in run_log.read()
+
+
+def compile_and_run(
+    models: Union[List[AOTTestModel], AOTTestModel],
+    runner: AOTTestRunner,
+    interface_api,
+    use_unpacked_api,
+    debug_calculated_workspaces=False,
+    workspace_byte_alignment=8,
+    enable_op_fusion=True,
+):
+    """This is a wrapper API to compile and run models as test for AoT"""
+    compiled_runtime_mods = compile_models(
+        models, interface_api, use_unpacked_api, workspace_byte_alignment, enable_op_fusion
+    )
+    run_and_check(
+        models,
+        runner,
+        interface_api,
+        compiled_runtime_mods,
+        debug_calculated_workspaces,
+        workspace_byte_alignment,
+    )
 
 
 def generate_ref_data(mod, input_data, params=None, target="llvm"):

@@ -33,6 +33,7 @@ from aot_test_utils import (
     generate_ref_data,
     convert_to_relay,
     compile_and_run,
+    compile_models,
     parametrize_aot_options,
 )
 
@@ -641,6 +642,46 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_work
         )
         == sum_workspace_size
     )
+
+
+def test_aot_codegen_backend_alloc_workspace_calls():
+    """This test checks whether AoT lowering creates TVMBackendAllocWorkspace calls"""
+
+    # The %data and %weight shapes in the following primitive Relay should create
+    # small tensors that would get lowered to stack allocations in the CPU PrimFuncs.
+    # However, the AoT executor codegen should retain them as TVMBAW calls
+    relay_mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%data: Tensor[(1, 4, 4, 4), float32], %weight: Tensor[(4, 4, 3, 3), float32], src_layout="OIHW", dst_layout="OIHW4i4o") -> Tensor[(1, 4, 4, 4), float32] {
+        %0 = fn (%p02: Tensor[(1, 4, 4, 4), float32], Primitive=1, hash="9332b3872fb5292c", src_layout="NCHW", dst_layout="NCHW4c") -> Tensor[(1, 1, 4, 4, 4), float32] {
+            layout_transform(%p02, src_layout="NCHW", dst_layout="NCHW4c") /* ty=Tensor[(1, 1, 4, 4, 4), float32] */
+        };
+        %1 = fn (%p03: Tensor[(4, 4, 3, 3), float32], Primitive=1, hash="9f0b2b8a24a4dab3", src_layout="OIHW", dst_layout="OIHW4i4o") -> Tensor[(1, 1, 3, 3, 4, 4), float32] {
+            layout_transform(%p03, src_layout="OIHW", dst_layout="OIHW4i4o") /* ty=Tensor[(1, 1, 3, 3, 4, 4), float32] */
+        };
+        %2 = %0(%data) /* ty=Tensor[(1, 1, 4, 4, 4), float32] */;
+        %3 = %1(%weight) /* ty=Tensor[(1, 1, 3, 3, 4, 4), float32] */;
+        %4 = fn (%p01: Tensor[(1, 1, 4, 4, 4), float32], %p1: Tensor[(1, 1, 3, 3, 4, 4), float32], out_layout="NCHW4c", kernel_layout="OIHW4i4o", Primitive=1, data_layout="NCHW4c") -> Tensor[(1, 1, 4, 4, 4), float32] {
+                                                                                                                                                                                                                                                      nn.contrib_conv2d_NCHWc(%p01, %p1, padding=[1, 1, 1, 1], channels=4, kernel_size=[3, 3], data_layout="NCHW4c", kernel_layout="OIHW4i4o", out_layout="NCHW4c") /* ty=Tensor[(1, 1, 4, 4, 4), float32] */
+        };
+        %5 = %4(%2, %3) /* ty=Tensor[(1, 1, 4, 4, 4), float32] */;
+        %6 = fn (%p0: Tensor[(1, 1, 4, 4, 4), float32], Primitive=1, src_layout="NCHW4c", dst_layout="NCHW") -> Tensor[(1, 4, 4, 4), float32] {
+            layout_transform(%p0, src_layout="NCHW4c", dst_layout="NCHW") /* ty=Tensor[(1, 4, 4, 4), float32] */
+        };
+        %6(%5) /* ty=Tensor[(1, 4, 4, 4), float32] */
+        }
+        """
+    )
+    compiled_runtime_modules = compile_models(
+        AOTTestModel(module=relay_mod, inputs=None, outputs=None),
+        "c",
+        True,
+    )
+    source = compiled_runtime_modules[0].lib.imported_modules[0].get_source()
+    # There should be three allocates created for three primitive relay function
+    # calls in the main for the above relay snippet.
+    assert source.count("TVMBackendAllocWorkspace") == 3
 
 
 if __name__ == "__main__":
