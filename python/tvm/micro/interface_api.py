@@ -57,9 +57,12 @@ def generate_c_interface_header(module_name, inputs, outputs, output_path):
     metadata_header = os.path.join(output_path, f"{mangled_name}.h")
     with open(metadata_header, "w") as header_file:
         header_file.write(
-            "#include <stdint.h>\n"
             f"#ifndef {mangled_name.upper()}_H_\n"
-            f"#define {mangled_name.upper()}_H_\n"
+            f"#define {mangled_name.upper()}_H_\n\n"
+            "#include <stdint.h>\n\n"
+            "#ifdef __cplusplus\n"
+            'extern "C" {\n'
+            "#endif\n\n"
         )
 
         _emit_brief(header_file, module_name, "Input tensor pointers")
@@ -91,6 +94,8 @@ def generate_c_interface_header(module_name, inputs, outputs, output_path):
             ");\n"
         )
 
-        header_file.write(f"#endif // {mangled_name.upper()}_H_\n")
+        header_file.write(
+            "\n#ifdef __cplusplus\n}\n#endif\n\n" f"#endif // {mangled_name.upper()}_H_\n"
+        )
 
     return metadata_header
