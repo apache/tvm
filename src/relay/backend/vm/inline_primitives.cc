@@ -136,13 +136,13 @@ struct PrimitiveInliner : ExprMutator {
         if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
 
-        DLOG(INFO) << "Before inlining primitives: " << global << std::endl << AsText(func, false);
+        VLOG(1) << "Before inlining primitives: " << global << std::endl << PrettyPrint(func);
 
         func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
                         func->attrs);
         module_->Add(global, func, true);
 
-        DLOG(INFO) << "After inlining primitives: " << global << std::endl << AsText(func, false);
+        VLOG(1) << "After inlining primitives: " << global << std::endl << PrettyPrint(func);
       }
     }
     return module_;

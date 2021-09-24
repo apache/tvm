@@ -43,14 +43,15 @@
 
 #include "../backend/te_compiler.h"
 #include "../backend/te_compiler_cache.h"
+#include "../op/annotation/annotation.h"
+#include "../op/memory/device_copy.h"
 #include "../op/memory/memory.h"
 #include "../op/vm/vm.h"
+#include "./let_list.h"
 #include "./pass_utils.h"
-#include "let_list.h"
-#include "pattern_utils.h"
+#include "./pattern_utils.h"
 
 using namespace tvm::runtime;
-using namespace tvm::relay::tec;
 
 namespace tvm {
 namespace relay {
@@ -193,7 +194,8 @@ class DialectRewriter : public ExprMutator {
  private:
   // Insert a device copy node.
   Expr DeviceCopy(const Expr& inp, int src_dev, int dst_dev) {
-    return ExprMutator::Mutate(relay::DeviceCopy(inp, src_dev, dst_dev));
+    return ExprMutator::Mutate(relay::DeviceCopy(inp, static_cast<DLDeviceType>(src_dev),
+                                                 static_cast<DLDeviceType>(dst_dev)));
   }
 
   // Check if a call invokes a primitive function.
@@ -274,9 +276,9 @@ class DialectRewriter : public ExprMutator {
                             const std::vector<Expr>& new_args) {
     Array<Expr> shape_func_ins;
 
-    TECompiler compiler;
+    tec::TECompiler compiler;
 
-    CCacheKey key(func, target_host_);
+    tec::CCacheKey key(func, target_host_);
     auto cfunc = compiler->LowerShapeFunc(key);
     auto input_states = cfunc->shape_func_param_states;
 

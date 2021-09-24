@@ -32,15 +32,37 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief Options for the device annotation operators.
+ * \brief Attributes for the "on_device" operator.
+ *
+ * The relay call
+ * \code
+ *   on_device(expr, device_type=2)
+ * \endcode
+ * denotes that the result of \p expr should be stored on the device with \p DLDeviceType 2
+ * (i.e. \p kDLCuda). Semantically the operator is the identity function.
+ *
+ * See also FunctionOnDeviceAttrs in include/relay/attrs/function.h for the function-level
+ * companion.
  */
 struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
-  int device_type;
+  // TODO(mbs): Replace device types with TargetDevice.
+  /*! \brief Device type on which argument expression should be evaluated. */
+  int device_type = kInvalidDeviceType;
+  /*!
+   * \brief If true, the result device must also be \p device_type and device planning should
+   * not insert any "device_copy" calls to respect this annotation.
+   *
+   * This is used by the device planning pass itself when annotating the planned program.
+   */
+  bool is_fixed = false;
 
   TVM_DECLARE_ATTRS(OnDeviceAttrs, "relay.attrs.OnDeviceAttrs") {
     TVM_ATTR_FIELD(device_type)
-        .describe("The virutal device/context type that an expression is annotated with.")
+        .describe("The type of the virtual device which should hold the expression result.")
         .set_default(0);
+    TVM_ATTR_FIELD(is_fixed)
+        .describe("If true, do not insert a \"device_copy\" call to respect this annotation.")
+        .set_default(false);
   }
 };
 

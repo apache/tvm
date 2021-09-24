@@ -29,8 +29,8 @@
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/transform.h>
 
+#include "../op/annotation/annotation.h"
 #include "../qnn/utils.h"
-#include "../transforms/pattern_utils.h"
 #include "./quantize.h"
 
 namespace tvm {

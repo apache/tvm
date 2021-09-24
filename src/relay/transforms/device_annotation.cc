@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file deivce_annotation.cc
+ * \file device_annotation.cc
  * \brief Passes to rewrite annotated program and retrieve the device allocation
  * of expression.
  *

@@ -33,7 +33,6 @@ namespace tvm {
 namespace relay {
 
 Expr AllocStorage(Expr size, Expr alignment, Device dev, DataType dtype_hint);
-Expr DeviceCopy(Expr data, int src_dev_type, int dst_dev_type);
 Expr AllocTensor(Expr storage, Expr offset, tvm::relay::Expr shape, DataType dtype,
                  Array<IndexExpr> assert_shape);
 Expr ToTupleType(const Type& ty, const std::vector<Expr>& exprs);
