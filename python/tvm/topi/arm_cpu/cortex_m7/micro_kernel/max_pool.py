@@ -27,7 +27,7 @@ from tvm import te
 def intrin_max(shape, in_dtype, out_dtype):
     UNIQ_ID_LEN = 8
     uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
-    func_prefix = "max_pool8"
+    func_prefix = "max8"
 
     assert in_dtype == "int8"
     assert out_dtype == "int8"

@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, no-value-for-parameter
 """Direct implementation of pool."""
+import logging
+
 import tvm
 
-from tvm import te
+from tvm import te, topi
 from tvm.topi.utils import traverse_inline
 
 from ..micro_kernel.max_pool import (
@@ -30,6 +32,8 @@ from ..micro_kernel.avg_pool import (
     intrin_sum,
     sum_impl,
 )
+
+logger = logging.getLogger("topi")
 
 
 def schedule_maxpool_1d_nwc(s, op):
@@ -97,13 +101,18 @@ def pool_direct_simd_schedule(outs, layout):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
+        in_dtype = op.input_tensors[0].dtype
         if "pool_max" in op.tag:
-            if layout == "NWC":
+            if in_dtype != "int8":
+                logger.warning(f"Does not have micro-kernel for {in_dtype} maxpool.")
+            elif layout == "NWC":
                 schedule_maxpool_1d_nwc(s, op)
             elif layout == "NHWC":
                 schedule_maxpool_2d_nhwc(s, op)
         elif "pool_sum" in op.tag:
-            if layout == "NCW":
+            if in_dtype != "int16":
+                logger.warning(f"Does not have micro-kernel for {in_dtype} avgpool.")
+            elif layout == "NCW":
                 schedule_avgpool_1d_ncw(s, op)
             elif layout == "NCHW":
                 schedule_avgpool_2d_nchw(s, op)
