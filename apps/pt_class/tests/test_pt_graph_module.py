@@ -16,7 +16,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test script for tf op module"""
+"""Test script for pt custom class module"""
 import tempfile
 import os
 import logging
@@ -46,7 +46,7 @@ def test_use_pt_graph_module():
         pt_device = torch.device(device)
         if pt_device.type == 'cuda':
             target = 'cuda'
-            ctx = tvm.gpu(pt_device.index)
+            ctx = tvm.cuda(pt_device.index)
         else:
             target = 'llvm'
             ctx = tvm.cpu(0)
@@ -71,9 +71,9 @@ def test_use_pt_graph_module():
 
         return export_dir
 
-    def test_pt_run(device, trace=True, to_device=None):
+    def test_pt_run(device, trace=True, to_device=None, inp_on_cuda=False):
         """test add lib with Pytorch wrapper"""
-        print('############## Test on device:', device, '#################')
+        print('\n############## Test on device:', device, '#################')
         export_dir = build_export_graph(device)
         engine = pt_op.module.GraphModule(num_inputs=2, num_outputs=1).to(device)
 
@@ -81,23 +81,24 @@ def test_use_pt_graph_module():
         y = np.random.rand(1, 5).astype("float32")
 
         expect = np.exp(y + x)
+        def get_inputs_by_device(device):
+            inps = [torch.Tensor(x), torch.Tensor(y)]
+            if device == 'cpu':
+                return inps
+            else:
+                device_type, device_id = device.split(':')
+                assert device_type == 'cuda'
+                return [inp.cuda(int(device_id)) for inp in inps]
 
         tvm_assets = ["mod.so", "graph.json", "params"]
         assets = [os.path.join(export_dir, i) for i in tvm_assets]
         engine.init((x.shape, y.shape), *assets)
 
-        def get_inputs_by_device(device):
-            if device == 'cpu':
-                inputs = [torch.Tensor(x), torch.Tensor(y)]
-            else:
-                inputs = [torch.Tensor(x).cuda(), torch.Tensor(y).cuda()]
-            return inputs
-
         outputs = engine.forward(get_inputs_by_device(device))
         tvm.testing.assert_allclose(outputs[0].cpu(), expect, atol=1e-5, rtol=1e-5)
 
         if trace:
-            print('################ Test trace and load #################')
+            print('\n################ Test trace and load #################')
             scripted = torch.jit.script(engine)
             scripted_dir = tempfile.mkdtemp("scripted")
             scripted_path = os.path.join(scripted_dir, 'model.pt')
@@ -109,14 +110,14 @@ def test_use_pt_graph_module():
             del loaded
 
         if to_device:
-            print('################ Test move from [{}] to [{}] #################'.format(device, to_device))
+            print('\n################ Test move from [{}] to [{}] #################'.format(device, to_device))
             engine = engine.to(to_device)
             outputs = engine.forward(get_inputs_by_device(to_device))
             tvm.testing.assert_allclose(outputs[0].cpu(), expect, atol=1e-5, rtol=1e-5)
         del engine
 
-    test_pt_run(device='cuda:0', trace=True, to_device='cuda:1')
-    test_pt_run(device='cpu', trace=True)
+    test_pt_run(device='cuda:0', trace=True, to_device='cuda:1', inp_on_cuda=True)
+    test_pt_run(device='cpu', trace=True, inp_on_cuda=False)
 
 
 if __name__ == "__main__":

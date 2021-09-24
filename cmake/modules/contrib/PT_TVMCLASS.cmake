@@ -34,7 +34,10 @@ if(NOT USE_PT_TVMCLASS STREQUAL "OFF")
   # set(PTTVM_LINK_FLAGS -ltvm -ltvm_runtime -L${CMAKE_CURRENT_BINARY_DIR})
   set(PTTVM_LINK_FLAGS -ltvm -L${CMAKE_CURRENT_BINARY_DIR})
 
-  add_dependencies(${LIBRARY_NAME} tvm)
+  if (NOT BUILD_PTCLASS_ONLY STREQUAL "ON")
+    add_dependencies(${LIBRARY_NAME} tvm) 
+  endif()
+  # add_dependencies(${LIBRARY_NAME} tvm)
 
   target_compile_options(${LIBRARY_NAME} PUBLIC ${PTTVM_COMPILE_FLAGS} ${PT_COMPILE_FLAGS})
   target_link_libraries(${LIBRARY_NAME} PUBLIC ${PTTVM_LINK_FLAGS} ${PT_LINK_FLAGS})

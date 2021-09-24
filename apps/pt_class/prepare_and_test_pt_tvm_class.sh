@@ -21,11 +21,21 @@ echo "TVM_ROOT=${TVM_ROOT}"
 
 export PYTHONPATH=${TVM_ROOT}/python
 
+if [ ! -f $TVM_ROOT/build/libtvm.so ]; then
+    echo "$TVM_ROOT/build/libtvm.so missing" 
+    exit 1
+fi
+
+if [ ! -f $TVM_ROOT/build/libtvm_runtime.so ]; then
+    echo "$TVM_ROOT/build/libtvm_runtime.so missing" 
+    exit 1
+fi
+
 python3 -c "import tvm; print(tvm.runtime.enabled('gpu'))" | grep -e 1
+
 if [ "$?" -eq 0 ]; then
     echo "Build PT_TVMCLASS with gpu support and execute tests"
-    CMAKE_OPTIONS="-DUSE_CUDA=/data00/liuxin.ai/cuda_111 -DPython3_EXECUTABLE=python3 -DTVM_ROOT=${TVM_ROOT}"
-
+    CMAKE_OPTIONS="-DUSE_CUDA=ON -DUSE_CUDNN=ON -DPython3_EXECUTABLE=python3 -DTVM_ROOT=${TVM_ROOT}"
     mkdir -p build
     cd build; cmake .. ${CMAKE_OPTIONS} && make
     cd ..

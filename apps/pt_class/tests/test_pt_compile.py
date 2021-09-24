@@ -16,7 +16,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test script for tf op module"""
+"""Test script for pt custom class module"""
 import torch
 import time
 from torchvision.models import resnet50
@@ -24,7 +24,7 @@ from tvm.contrib.pt_op import compile
 
 
 model = resnet50().half().cuda()
-x = torch.rand([1, 3, 244, 244]).half().cuda()
+x = torch.rand([1, 3, 224, 224]).half().cuda()
 model_jit = torch.jit.trace(model, x)
 print(model_jit.graph)
 
@@ -38,7 +38,7 @@ for i in range(20):
 
 option = {
     "input_infos": [
-        ("x", (1, 3, 244, 244)),
+        ("x", (1, 3, 224, 224)),
     ],
     "default_dtype": "float16",
     "export_dir": "pytorch_compiled",
