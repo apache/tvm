@@ -3286,6 +3286,7 @@ def _test_softmax(data):
 def test_forward_softmax():
     """Softmax"""
     _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+    _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 2, 3)))
 
 
 ######################################################################
