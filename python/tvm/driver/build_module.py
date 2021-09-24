@@ -20,7 +20,6 @@
 """
 
 from typing import Union, Optional, List, Mapping
-import warnings
 
 import tvm.tir
 
@@ -29,7 +28,6 @@ from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
-from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
@@ -132,49 +130,6 @@ def lower(
     raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
-def _build_for_device(input_mod, target, target_host):
-    """Build the lowered functions for a device with the given compilation
-    target.
-
-    Parameters
-    ----------
-    input_mod : IRModule
-        The schedule to be built.
-
-    target : str or :any:`tvm.target.Target`
-        The target and option of the compilation.
-
-    target_host : str or :any:`tvm.target.Target`
-        The host compilation target.
-
-    Returns
-    -------
-    host_mod : IRModule
-        The host IRModule.
-
-    device_mod : tvm.module
-        A module that contains device code.
-    """
-    mod_mixed = _driver_ffi.get_mod_mixed(input_mod, target)
-    device_mod = _driver_ffi.get_device_mod(mod_mixed, target)
-    host_mod = _driver_ffi.get_host_mod(mod_mixed, target_host)
-
-    device_type = ndarray.device(target.kind.name, 0).device_type
-    if device_type == ndarray.cpu(0).device_type and target_host == target:
-        assert len(device_mod.functions) == 0
-    if "gpu" in target.keys and len(device_mod.functions) == 0:
-        warnings.warn(
-            "Specified target %s, but cannot find device code, did you do " "bind?" % target
-        )
-
-    # rt_mod_dev is runtime::Module so this can be moved out maybe?
-    rt_mod_dev = (
-        codegen.build_module(device_mod, target) if len(device_mod.functions) != 0 else None
-    )
-    # TIR module for the host, runtime module for devices?
-    return host_mod, rt_mod_dev
-
-
 def build(
     inputs: Union[schedule.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
@@ -200,7 +155,7 @@ def build(
         setup the dimensions and parameters correctly.
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
+        otherwise a stackvm i   nterpreter is used.
     name : Optional[str]
         The name of result function.
     binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
@@ -306,9 +261,6 @@ def build(
         to_return = rt_mod_host
 
     return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
-
-
-# What is OperatorModule and how is it different from runtime::Module
 
 
 class OperatorModule(Module):
