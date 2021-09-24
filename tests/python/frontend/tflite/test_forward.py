@@ -1263,6 +1263,26 @@ def _test_transpose_conv(
 def test_forward_transpose_conv():
     for quantized in [True, False]:
         for fp16_quantized in [True, False]:
+            # odd size input, padding VALID
+            _test_transpose_conv(
+                [1, 5, 6, 16],
+                [2, 2, 16, 16],
+                [1, 10, 12, 16],
+                [2, 2],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            # odd size input, padding SAME
+            _test_transpose_conv(
+                [1, 5, 6, 16],
+                [2, 2, 16, 16],
+                [1, 10, 12, 16],
+                [2, 2],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
             # kernel 3x3, padding VALID
             _test_transpose_conv(
                 [4, 32, 32, 16],
