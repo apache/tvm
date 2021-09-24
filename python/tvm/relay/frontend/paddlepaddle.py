@@ -529,7 +529,12 @@ def convert_conv2d(g, op, block):
             pad_h = _get_pad_size(0, (k_h - 1) * dilations[0] + 1, strides[0])
             pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
         else:
-            in_h, in_w = infer_shape(input_x)[2:]
+            input_shape = shape_of(input_x)
+            try:
+                _, _, in_h, in_w = infer_value(input_shape, g.get_params()).numpy().tolist()
+            except Exception as e:
+                msg = "The SAME padding algorithm of Conv not support dynamic shape"
+                raise tvm.error.OpAttributeInvalid(msg) from e
             pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
             pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -775,6 +780,9 @@ def convert_feed(g, op, block):
         ipt_name = op.name
     if g.shape_dict is not None:
         ipt_shape = g.shape_dict[ipt_name]
+
+    if isinstance(ipt_shape, tuple):
+        ipt_shape = list(ipt_shape)
     for i, s in enumerate(ipt_shape):
         if s < 0:
             ipt_shape[i] = _ty.Any()
@@ -1356,7 +1364,7 @@ def convert_pool2d(g, op, block):
         ksize = [1, 1]
 
     input_x = g.get_node(op.input("X")[0])
-    input_shape = infer_shape(input_x)
+    _, _, in_h, in_w = infer_shape(input_x)
 
     op_map = {
         "avg": "avg_pool2d",
@@ -1373,7 +1381,6 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        in_h, in_w = input_shape[2:]
         pad_h = _get_pad_size(in_h, ksize[0], strides[0])
         pad_w = _get_pad_size(in_w, ksize[1], strides[1])
         paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
@@ -1386,10 +1393,10 @@ def convert_pool2d(g, op, block):
         msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
-    if input_shape[2] < ksize[0]:
-        ksize[0] = input_shape[2]
-    if input_shape[3] < ksize[1]:
-        ksize[1] = input_shape[3]
+    if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
+        ksize[0] = in_h
+    if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
+        ksize[1] = in_w
 
     if not adaptive:
         out = getattr(_op.nn, op_map[pooling_type])(
