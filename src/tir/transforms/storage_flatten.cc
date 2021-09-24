@@ -202,6 +202,13 @@ class BufferShapeLegalize : public StmtExprMutator {
   }
 
  private:
+  // Any buffers that give views into a resized buffer should be
+  // updated, both to refer to the resized buffer and to have the view
+  // window updated.  For example, suppose B1 is a 1-D buffer of size
+  // 100 which is only realized on the range (10,50), and buffer V1 is
+  // a view into B1[25:35].  When B1 is replaced with B2, a buffer of
+  // size 40 realized on the range (0,40), V1 must be replaced to be a
+  // view into B2[15:25].
   Stmt HandleBufferBindScope(const AttrStmtNode* op) {
     Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
     ICHECK_EQ(arr.size(), 2U);
@@ -556,6 +563,10 @@ class ThreadScopePropagate : public StmtExprMutator {
   }
 
  private:
+  // If the rewritten buffers are part of a buffer_bind_scope, either
+  // as the buffer view or as the the buffer being viewed, then the
+  // buffer_bind_scope must be rewritten to refer to the updated
+  // buffers.
   Stmt HandleBufferBindScope(const AttrStmtNode* op) {
     Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
     ICHECK_EQ(arr.size(), 2U);
