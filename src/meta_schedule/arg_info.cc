@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/utils.h>
+#include "./utils.h"
 
 namespace tvm {
 namespace meta_schedule {

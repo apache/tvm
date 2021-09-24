@@ -24,7 +24,7 @@
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/meta_schedule/tune_context.h>
 
-#include "../../../src/support/array.h"
+#include "../support/array.h"
 
 namespace tvm {
 namespace meta_schedule {}  // namespace meta_schedule
