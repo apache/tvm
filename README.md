@@ -37,18 +37,15 @@ License
 
 ```
 import paddle
-paddle.enable_static()
 from tvm import relay
 import tvm
 import numpy as np
 
 # 加载Paddle模型
-place = paddle.CPUPlace()
-exe = paddle.static.Executor(place)
-[prog, feeds, outs] = paddle.static.load_inference_model('model/inference', exe)
+model = paddle.jit.load('mobilenet/infer')
 
 # 将Paddle模型转为TVM Relay IR(Function and Parameters)
-mod, params = relay.frontend.from_paddle(prog)
+mod, params = relay.frontend.from_paddle(model, shape_dict={'image': [1, 3, 224, 224]})
 
 with tvm.transform.PassContext(opt_level=1):
     intrp = relay.build_module.create_executor("graph", mod, tvm.cpu(0), 'llvm')
