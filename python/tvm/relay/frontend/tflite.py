@@ -2858,7 +2858,7 @@ class OperatorConverter(object):
 
         # Input (data) Tensor. NHWC layout
         input_tensor = input_tensors[2]
-        _, input_h, input_w, input_c = to_int_list(self.get_tensor_shape(input_tensor))
+        _, _, _, input_c = to_int_list(self.get_tensor_shape(input_tensor))
         # Weights tensor. TFLite uses OHWI layout
         weights_tensor = input_tensors[1]
         out_channels, kernel_h, kernel_w, in_channels = to_int_list(
@@ -2919,8 +2919,9 @@ class OperatorConverter(object):
         ), "Output channel in the filter should match to channel in the output_shape"
 
         if padding == Padding.SAME:
-            pad_top, pad_bottom = get_pad_value(input_h, kernel_h, stride_h)
-            pad_left, pad_right = get_pad_value(input_w, kernel_w, stride_w)
+            output_h, output_w = output_shape_value[1], output_shape_value[2]
+            pad_top, pad_bottom = get_pad_value(output_h, kernel_h, stride_h)
+            pad_left, pad_right = get_pad_value(output_w, kernel_w, stride_w)
             padding = (pad_top, pad_left, pad_bottom, pad_right)
         else:
             padding = (0, 0, 0, 0)
