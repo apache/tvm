@@ -447,16 +447,20 @@ TVM_REGISTER_GLOBAL("driver.host_target_mangling")
       return TargetTypeMangling(inputs_arg, target, target_host_arg).second;
     });
 
-runtime::Module finalizeModule(const Map<Target, IRModule>& inputs_arg, Target host_target) {
+runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Target& host_target) {
   std::vector<runtime::Module> device_modules;
+  Map<Target, IRModule> inputs = inputs_arg;
+  Target target_host = host_target;
+
+  CheckAndUpdateHostConsistency(&inputs, &target_host);
 
   IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
-  for (const auto& it : inputs_arg) {
+  for (const auto& it : inputs) {
     if (it.second.defined()) {
-      auto pair = SplitFuncsToDevHostMods(it.second, it.first, host_target);
+      auto pair = SplitFuncsToDevHostMods(it.second, it.first, target_host);
       auto& host_mod = pair.first;
       auto& device_mod = pair.second;
 
@@ -471,7 +475,7 @@ runtime::Module finalizeModule(const Map<Target, IRModule>& inputs_arg, Target h
       }
     }
   }
-  runtime::Module complete_mod = codegen::Codegen(mhost_all, host_target);
+  runtime::Module complete_mod = codegen::Codegen(mhost_all, target_host);
   // Import all modules
   for (const auto& it : device_modules) {
     if (it.operator->()) {
@@ -483,7 +487,7 @@ runtime::Module finalizeModule(const Map<Target, IRModule>& inputs_arg, Target h
 
 TVM_REGISTER_GLOBAL("driver.finalize_module")
     .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target host_target) {
-      return finalizeModule(inputs_arg, host_target);
+      return FinalizeModule(inputs_arg, host_target);
     });
 
 // Can we make this take one annotated IRModule?
@@ -598,15 +602,6 @@ IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
 
   // Python annotates all functions in the mod with the Target passed in here; I think we
   // shouldn't have to do that.
-
-  printf("\n");
-  printf("***************************** \n");
-  printf("%d\n", is_entry_func);
-  printf("***************************** \n");
-
-  // if (is_entry_func) {
-  //   mixed_mod = WithAttr(std::move(mixed_mod), "tir.is_entry_func", Bool(true));
-  // }
 
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();

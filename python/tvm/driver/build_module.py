@@ -255,6 +255,7 @@ def build(
             f"but got {type(inputs)}."
         )
 
+    # starts here
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
         target = target if target else "llvm"
@@ -282,27 +283,8 @@ def build(
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    target_input_mod, target_host = Target.check_and_update_host_consist(
-        target_input_mod, target_host
-    )
+    rt_mod_host = _driver_ffi.finalize_module(target_input_mod, target_host)
 
-    mod_host_all = tvm.IRModule({})
-
-    device_modules = []
-    for tar, input_mod in target_input_mod.items():
-        mod_host, mdev = _build_for_device(input_mod, tar, target_host)
-        mod_host_all.update(mod_host)
-        device_modules.append(mdev)
-
-    # Generate a unified host module.
-    rt_mod_host = codegen.build_module(mod_host_all, target_host)
-
-    # Import all modules.
-    for mdev in device_modules:
-        if mdev:
-            rt_mod_host.import_module(mdev)
-
-    # stop moving to C++ here.
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
     if (
