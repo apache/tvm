@@ -112,10 +112,16 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       }
       return std::move(realize);
     }
-    Array<PrimExpr> v = arith::IterMapSimplify(/*indices=*/op->iter_values,
-                                               /*input_iters=*/loop_var2extent_,
-                                               /*input_pred=*/op->predicate,
-                                               /*require_bijective=*/false);
+    Array<PrimExpr> v;
+    try {
+      v = arith::IterMapSimplify(/*indices=*/op->iter_values,
+                                                 /*input_iters=*/loop_var2extent_,
+                                                 /*input_pred=*/op->predicate,
+                                                 /*require_bijective=*/false);
+    } catch (const tvm::Error& error) {
+      v = op->iter_values;
+    }
+
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
     } else {
