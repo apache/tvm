@@ -427,6 +427,9 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     goto out;
   }}
 
+  assert(((uint32_t)aa & 0x3) == 0);
+  assert(((uint32_t)bb & 0x3) == 0);
+
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
