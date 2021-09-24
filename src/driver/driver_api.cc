@@ -454,6 +454,10 @@ runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Ta
 
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
+  if (!target_host.defined()) {
+    target_host = DefaultTargetHost(target_host);
+  }
+
   IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
@@ -490,11 +494,6 @@ TVM_REGISTER_GLOBAL("driver.finalize_module")
       return FinalizeModule(inputs_arg, host_target);
     });
 
-// Can we make this take one annotated IRModule?
-//
-// Build for heterogeneous execution.
-//
-// It looks like this version of build doesn't lower, unlike the python version....
 runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
 
@@ -582,8 +581,6 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   return build(inputs, target_host);
 }
 
-// Gets the "mixed_module" from python driver/build_module.py's build function.
-// Honestly not really sure what this actually is.
 IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
@@ -600,16 +597,11 @@ IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
   mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
-  // Python annotates all functions in the mod with the Target passed in here; I think we
-  // shouldn't have to do that.
-
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
   if (detect_global_barrier) {
     mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
   }
-
-  // mixed_mod->GetAttr<functions>
 
   mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
