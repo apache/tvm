@@ -99,11 +99,7 @@ def test_squeeze():
         np_axis = tuple(axis)
         axis = relay.var("axis", relay.TensorType([len(axis)], "int64"))
         squeeze = relay.squeeze(x, axis=axis)
-
-        print(squeeze)
         func = relay.Function([x, axis], squeeze)
-        print(func)
-        
         x_data = np.random.random_sample(shape).astype(dtype)
         ref_res = np.squeeze(x_data, axis=np_axis)
         verify_func(func, [x_data, np.array(np_axis).astype("int64")], ref_res)

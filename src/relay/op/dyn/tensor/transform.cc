@@ -694,6 +694,7 @@ RELAY_REGISTER_OP("dyn.expand_dims")
 
 bool DynSqueezeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
+  // [data, axes, output]
   ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
@@ -703,7 +704,8 @@ bool DynSqueezeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (axes == nullptr) {
     return false;
   }
-  ICHECK_EQ(axes->shape.size(), 1);
+
+  ICHECK_EQ(axes->shape.size(), 1) << "Got" << axes->shape.size() << "expected 1";
   ICHECK(axes->shape[0].as<IntImmNode>());
   size_t output_rank = data->shape.size() - axes->shape[0].as<IntImmNode>()->value;
   std::vector<IndexExpr> result_shape(output_rank, Any());
@@ -718,11 +720,7 @@ Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   ICHECK(out_ttype != nullptr);
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {
-    if (val->IsInstance<tir::AnyNode>()) {
       newshape.push_back(val.as<tir::AnyNode>()->ToVar());
-    } else {
-      newshape.push_back(val);
-    }
   }
   return {topi::reshape(inputs[0], newshape)};
 }
@@ -736,7 +734,7 @@ Expr MakeDynSqueeze(Expr data, Expr axes) {
 TVM_REGISTER_GLOBAL("relay.op.dyn._make.squeeze").set_body_typed(MakeDynSqueeze);
 
 RELAY_REGISTER_OP("dyn.squeeze")
-    .describe(R"code(Squeeze the input tensor at the dimensions given by axes
+    .describe(R"code(Remove axes of value 1 in input tensor at the dimensions given by axes
 
 - **data**: The input data to the operator.
 - **axes**: The axes to squeeze.
@@ -752,6 +750,6 @@ RELAY_REGISTER_OP("dyn.squeeze")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<TReshapeOp>("TReshapeOp", true);
 
-}
-}
-}
+}  // namespace dyn
+}  // namespace dyn
+}  // namespace tvm

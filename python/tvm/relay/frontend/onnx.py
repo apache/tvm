@@ -1487,7 +1487,8 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _op.squeeze(*inputs, axis=attr["axes"])
+        axis = attr.get("axes", None)
+        return _op.squeeze(*inputs, axis)
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
@@ -2821,7 +2822,6 @@ class Celu(OnnxOpConverter):
         zero = _op.const(0, dtype)
         one = _op.const(1, dtype)
         out = _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
-        print(out)
         return out
 
 
