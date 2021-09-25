@@ -35,6 +35,16 @@ def elementwise(a: ty.handle, b: ty.handle) -> None:
 
 
 @tvm.script.tir
+def elementwise_dependent_loops(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (128, 128, 128))
+    B = tir.match_buffer(b, (128, 128, 128))
+    for i in tir.serial(0, 128):
+        for j, k in tir.grid(i, 128):
+            with tir.block([128, i, 128], "B") as [vi, vj, vk]:
+                B[vi, vj, vk] = A[vi, vj, vk] * 2.0
+
+
+@tvm.script.tir
 def elementwise_symbolic(a: ty.handle, b: ty.handle, n: ty.int32) -> None:
     A = tir.match_buffer(a, (128, 128, n))
     B = tir.match_buffer(b, (128, 128, n))
@@ -460,6 +470,14 @@ def test_split_symbolic():
     sch.split(k, factors=[10, None])
     tvm.ir.assert_structural_equal(elementwise_symbolic_split, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_symbolic)
+
+
+def test_fuse_fail_with_dependent_loops():
+    sch = tir.Schedule(elementwise_dependent_loops, debug_mask="all")
+    block_b = sch.get_block("B")
+    i, j, _ = sch.get_loops(block_b)
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.fuse(i, j)
 
 
 if __name__ == "__main__":

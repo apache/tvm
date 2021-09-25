@@ -72,6 +72,7 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  * 1) The loops can't have annotations or thread bindings.
  * 2) The inner loop must be the only child of the outer loop.
  * 3) All loops must start with 0.
+ * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
  * \param self The state of the schedule
  * \param loop_srefs An array of srefs to the loops to be fused
  * \return The sref to the fused loop
