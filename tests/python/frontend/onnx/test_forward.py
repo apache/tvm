@@ -3298,7 +3298,7 @@ def test_lppool(target, dev):
     )
 
 
-def verify_global_lppool(x_shape, p, out_shape):
+def verify_global_lppool(x_shape, p, out_shape, target, dev):
     pool_node = helper.make_node(
         "GlobalLpPool",
         inputs=["x"],
@@ -3314,31 +3314,28 @@ def verify_global_lppool(x_shape, p, out_shape):
     )
 
     model = helper.make_model(graph, producer_name="global_lppool_test")
-    verify_with_ort(model, [x_shape], out_shape)
+    verify_with_ort(model, [x_shape], out_shape, target=target, dev=dev)
 
 
-@tvm.testing.uses_gpu
-def test_global_lppool():
+@tvm.testing.parametrize_targets
+def test_global_lppool(target, dev):
 
-    # Pool2D
+    # LpPool1D
+    verify_global_lppool(x_shape=[1, 15, 16], p=2, out_shape=[1, 15, 1], target=target, dev=dev)
+
+    # LpPool2D
     verify_global_lppool(
-        x_shape=[1, 15, 32, 32],
-        p=2,
-        out_shape=[1, 15, 1, 1],
+        x_shape=[1, 15, 32, 32], p=2, out_shape=[1, 15, 1, 1], target=target, dev=dev
     )
 
-    # Pool2D
+    # LpPool2D
     verify_global_lppool(
-        x_shape=[1, 15, 32, 32],
-        p=3,
-        out_shape=[1, 15, 1, 1],
+        x_shape=[1, 15, 32, 32], p=3, out_shape=[1, 15, 1, 1], target=target, dev=dev
     )
 
-    # Pool3D
+    # LpPool3D
     verify_global_lppool(
-        x_shape=[1, 15, 3, 32, 32],
-        p=2,
-        out_shape=[1, 15, 1, 1, 1],
+        x_shape=[1, 15, 3, 32, 32], p=2, out_shape=[1, 15, 1, 1, 1], target=target, dev=dev
     )
 
 

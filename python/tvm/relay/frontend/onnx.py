@@ -966,8 +966,8 @@ class GlobalLpPool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        # TODO: GlobalLpPool does not yet support dynamic shapes
         in_shape = infer_shape(inputs[0])
-        assert len(in_shape) >= 4, "input shape support NCHW or NCDHW"
         attr["kernel_shape"] = in_shape[2:]
 
         return LpPool._impl_v1(inputs, attr, params)
