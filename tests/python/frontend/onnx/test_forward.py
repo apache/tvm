@@ -5737,6 +5737,51 @@ def test_convinteger(target, dev):
     )
 
 
+@tvm.testing.parametrize_targets
+def test_concat_from_sequence(target, dev):
+    def verify_concat_from_sequence(in_shapes, axis, new_axis):
+        np_inputs = [np.random.rand(*shape).astype("float32") for shape in in_shapes]
+        if new_axis:
+            out_np = np.stack(np_inputs, axis=axis)
+        else:
+            out_np = np.concatenate(np_inputs, axis=axis)
+        output_dims = list(out_np.shape)
+
+        input_names = ["input_" + str(i) for i, _ in enumerate(np_inputs)]
+
+        seq_construct_node = onnx.helper.make_node("SequenceConstruct", input_names, ["seq_1"])
+        seq_concat_node = onnx.helper.make_node("ConcatFromSequence", ["seq_1"], ["out"], axis=1)
+
+        graph = onnx.helper.make_graph(
+            nodes=[seq_construct_node, seq_concat_node],
+            name="concat_from_sequence",
+            inputs=[
+                onnx.helper.make_tensor_value_info(name, onnx.TensorProto.FLOAT, input_shape)
+                for name, input_shape in zip(input_names, in_shapes)
+            ],
+            outputs=[
+                onnx.helper.make_tensor_value_info("out", onnx.TensorProto.FLOAT, output_dims)
+            ],
+        )
+        model = helper.make_model(graph, producer_name="concat_from_sequence_test")
+        verify_with_ort_with_inputs(model, np_inputs, output_dims, target=target, dev=dev)
+
+    verify_concat_from_sequence([[3, 3, 3]] * 3, 0, 0)
+    verify_concat_from_sequence([[3, 3, 3]] * 3, 1, 0)
+    verify_concat_from_sequence([[3, 3, 3]] * 3, 2, 0)
+    verify_concat_from_sequence([[3, 3, 3]] * 3, 0, 1)
+    verify_concat_from_sequence([[3, 3, 3]] * 3, 1, 1)
+    verify_concat_from_sequence([[3, 3, 3]] * 3, 2, 1)
+    verify_concat_from_sequence([[4, 3, 5, 6]] * 3, 0, 0)
+    verify_concat_from_sequence([[4, 3, 5, 6]] * 3, 1, 0)
+    verify_concat_from_sequence([[4, 3, 5, 6]] * 3, 2, 0)
+    verify_concat_from_sequence([[4, 3, 5, 6]] * 3, 3, 0)
+    verify_concat_from_sequence([[4, 3, 5, 6]] * 3, 0, 1)
+    verify_concat_from_sequence([[4, 3, 5, 6]] * 3, 1, 1)
+    verify_concat_from_sequence([[4, 3, 5, 6]] * 3, 2, 1)
+    verify_concat_from_sequence([[4, 3, 5, 6]] * 3, 3, 1)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -5826,3 +5871,4 @@ if __name__ == "__main__":
     test_random_uniform()
     test_convinteger()
     test_batch_matmul()
+    test_concat_from_sequence()
