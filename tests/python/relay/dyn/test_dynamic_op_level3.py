@@ -107,6 +107,7 @@ def test_squeeze():
     verify_squeeze((1, 3, 1), "float32", [0])
     verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
 
+
 @tvm.testing.uses_gpu
 def test_dyn_expand_dims():
     def verify_expand_dims(

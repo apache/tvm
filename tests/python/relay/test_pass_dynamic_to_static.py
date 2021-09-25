@@ -71,6 +71,7 @@ def test_dynamic_to_static_reshape():
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
+
 @tvm.testing.uses_gpu
 def test_dynamic_to_static_squeeze():
     def verify_squeeze(shape, axis, oshape):
@@ -94,6 +95,7 @@ def test_dynamic_to_static_squeeze():
     verify_squeeze((1, 3, 4, 1), (0,), (3, 4, 1))
     verify_squeeze((1, 3, 4, 1), (3,), (1, 3, 4))
     verify_squeeze((1, 3, 4, 1), (0, 3), (3, 4))
+
 
 @tvm.testing.uses_gpu
 def test_dynamic_to_static_double_reshape():

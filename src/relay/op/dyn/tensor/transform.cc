@@ -751,5 +751,5 @@ RELAY_REGISTER_OP("dyn.squeeze")
     .set_attr<TReshapeOp>("TReshapeOp", true);
 
 }  // namespace dyn
-}  // namespace dyn
+}  // namespace relay
 }  // namespace tvm
