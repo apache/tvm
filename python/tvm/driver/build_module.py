@@ -120,14 +120,15 @@ def lower(
     m : IRModule
        The result IRModule
     """
-    # ffi.relay.lower_te_pass()
+    # TODO(@mikepapadim) introduce ffi.relay.lower_te_pass()
     if isinstance(inp, IRModule):
         return ffi.lower_module(inp, simple_mode)
     if isinstance(inp, PrimFunc):
         return ffi.lower_primfunc(inp, name, simple_mode)
     if isinstance(inp, schedule.Schedule):
         return ffi.lower_schedule(inp, args, name, binds, simple_mode)
-    raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
+    raise ValueError(
+        "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
 def build(
@@ -155,7 +156,7 @@ def build(
         setup the dimensions and parameters correctly.
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
-        otherwise a stackvm i   nterpreter is used.
+        otherwise a stackvm interpreter is used.
     name : Optional[str]
         The name of result function.
     binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
@@ -195,9 +196,8 @@ def build(
     See the note on :any:`tvm.target` on target string format.
     """
 
-    # Lowering
     if isinstance(inputs, (schedule.Schedule, tvm.IRModule, PrimFunc)):
-        # should this be te_lower instead?
+        # TODO(@mikepapadim) replace with te_lower
         input_mod = lower(inputs, args, name=name, binds=binds)
     elif isinstance(inputs, (list, tuple, container.Array)):
         merged_mod = tvm.IRModule({})
@@ -220,9 +220,11 @@ def build(
 
     for tar, mod in target_input_mod.items():
         if not isinstance(tar, (str, Target)):
-            raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
+            raise ValueError(
+                "The key of inputs must be str or " "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
-            raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
+            raise ValueError(
+                "inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
@@ -250,13 +252,15 @@ def build(
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateCSourceCrtMetadataModule"
             )
-            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_csource_crt_metadata_module(
+                [rt_mod_host], target_host)
 
         elif target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
-            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_llvm_crt_metadata_module(
+                [rt_mod_host], target_host)
     else:
         to_return = rt_mod_host
 

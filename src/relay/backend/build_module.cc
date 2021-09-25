@@ -176,7 +176,6 @@ class RelayBuildModule : public runtime::ModuleNode {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
-      // OH this must be where the self.build = mod["build"] comes from!
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 5);
         this->Build(args[0], args[1], args[2], args[3], args[4]);
@@ -489,11 +488,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();
 
-    // Another Map<Target, IRModule>
     auto lowered_funcs = executor_codegen_->GetIRModule();
 
     // No need to build for external functions.
-    // TODO(Ext_dev shouldn't be passed in in this module I think so eventually so we can nuke it)
     Target ext_dev("ext_dev");
     if (lowered_funcs.find(ext_dev) != lowered_funcs.end()) {
       lowered_funcs.Set(ext_dev, IRModule());

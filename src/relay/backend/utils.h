@@ -138,7 +138,6 @@ class FunctionInfo : public ObjectRef {
  */
 int64_t CalculateRelayExprSizeBytes(const Type& expr_type);
 
-// LoweredOutput definition -- why is this redefined in python???
 /*!
  *  \brief Executor generator artifacts. Those artifacts  are subsequently
  *  used by the relay build process.

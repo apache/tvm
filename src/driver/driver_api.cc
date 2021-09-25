@@ -381,7 +381,6 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
       return LowerSchedule(std::move(sch), args, name, c_binds, simple_mode);
     });
 
-// Splits module into one to run on the device and one to run the host. E.g., CUDA, OpenCL etc
 std::pair<IRModule, IRModule> SplitFuncsToDevHostMods(IRModule mod_mixed, const Target& target_arg,
                                                       const Target& target_host_arg) {
   Target target = target_arg, target_host = target_host_arg;

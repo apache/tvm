@@ -740,7 +740,6 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
         *rv = get_param_id(key);
       });
     } else if (name == "get_irmodule") {
-      // OK here is one get_irmodule!
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = get_irmodule(); });
     } else if (name == "get_external_modules") {

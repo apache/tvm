@@ -42,7 +42,8 @@ class LoweredOutput(Object):
     """Lowered output"""
 
     def __init__(self, outputs, implement):
-        self.__init_handle_by_constructor__(_backend._make_LoweredOutput, outputs, implement)
+        self.__init_handle_by_constructor__(
+            _backend._make_LoweredOutput, outputs, implement)
 
 
 @tvm._ffi.register_object("relay.CCacheKey")
@@ -59,7 +60,8 @@ class CCacheKey(Object):
     """
 
     def __init__(self, source_func, target):
-        self.__init_handle_by_constructor__(_backend._make_CCacheKey, source_func, target)
+        self.__init_handle_by_constructor__(
+            _backend._make_CCacheKey, source_func, target)
 
 
 @tvm._ffi.register_object("relay.CCacheValue")
@@ -228,7 +230,8 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         if cfg.is_fallback:
             # Skip fallback config
             continue
-        logger.info("Implementation %s for %s has cost %.2e", impl.name, op.name, cfg.cost)
+        logger.info("Implementation %s for %s has cost %.2e",
+                    impl.name, op.name, cfg.cost)
         if best_cfg is None or best_cfg.cost > cfg.cost:
             best_autotvm_impl = impl
             best_cfg = cfg
@@ -275,9 +278,6 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     return best_plevel_impl, outputs[best_plevel_impl]
 
 
-# Returns LoweredOutput
-
-
 @tvm._ffi.register_func("relay.backend.lower_call")
 def lower_call(call, inputs, target):
     """Lower the call expression to op implementation and tensor outputs."""
@@ -294,7 +294,8 @@ def lower_call(call, inputs, target):
         new_fields = []
         for field in ret_type.fields:
             if isinstance(field, _ty.TensorType):
-                new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
+                new_fields.append(_ty.TensorType(
+                    get_shape(field.shape), field.dtype))
             else:
                 new_fields.append(field)
         ret_type = _ty.TupleType(new_fields)
@@ -312,7 +313,8 @@ def lower_call(call, inputs, target):
             reenable_tracing = True
 
     if not is_dyn:
-        best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
+        best_impl, outputs = select_implementation(
+            op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
         best_impl, outputs = select_implementation(

@@ -54,7 +54,6 @@ TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
 
-// LoweredOutput constructor!
 LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl) {
   auto n = make_object<LoweredOutputNode>();
   n->outputs = std::move(outputs);
@@ -225,7 +224,6 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
     static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
-    // So this is the PYTHON version not the C++ version defined in relay_build_module_test.cc
     static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
     ICHECK(flower_call) << "relay.backend.lower_call is not registered.";
 
@@ -256,7 +254,6 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
       const auto* copy_input = inputs[0].operator->();
       outputs.push_back(te::Tensor(copy_input->shape, copy_input->dtype, te::Operation(), 0));
     } else {
-      // Right so we need to change lower_call
       LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
       outputs = lowered_out->outputs;
       impl = lowered_out->implementation;
