@@ -14,8 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import builder
-from . import arg_info
-from . import space_generator
-from .tune_context import TuneContext
+"""
+The tvm.meta_schedule.space_generator package.
+Meta Schedule design space generators that generates design
+space for generation of measure candidates.
+"""
+
+from .space_generator import SpaceGenerator, PySpaceGenerator
+from .space_generator_union import SpaceGeneratorUnion
+from .schedule_fn import ScheduleFn
