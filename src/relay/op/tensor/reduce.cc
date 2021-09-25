@@ -153,11 +153,14 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
     for (auto iter_var : layout->axes) {
       const auto& layout_axis = LayoutAxis::Get(iter_var);
       const std::string& layout_dim = layout_axis.name();
-      if (old_r_dims.count(layout_dim)) {
-        new_r_axes.push_back(tvm::Integer(axis_index));
-      }
       // Collect only the primal axis.
       if (layout_axis.IsPrimal()) {
+        if (old_r_dims.count(layout_dim) && !params->exclude) {
+          new_r_axes.push_back(tvm::Integer(axis_index));
+        }
+        if (!old_r_dims.count(layout_dim) && params->exclude) {
+          new_r_axes.push_back(tvm::Integer(axis_index));
+        }
         if (!old_r_dims.count(layout_dim) || params->keepdims) {
           inferred_out_string += layout_dim;
         }
