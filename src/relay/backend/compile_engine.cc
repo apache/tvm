@@ -282,7 +282,6 @@ CompileEngine& CompileEngine::Global() {
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.disable_compile_engine_cache", Bool);
 
-// Make LoweredOutput
 TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
     .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
       return LoweredOutput(outputs, impl);
