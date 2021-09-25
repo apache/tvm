@@ -1300,7 +1300,7 @@ class SequenceConstruct(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         if len(inputs) == 1:
             raise ValueError("Expect 2 or more inputs")
-        return _op.Tuple([x for x in inputs])
+        return _op.Tuple(inputs)
 
 
 class Affine(OnnxOpConverter):
