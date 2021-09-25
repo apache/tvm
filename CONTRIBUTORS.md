@@ -136,6 +136,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
+- [Jorn Tuyls](https://github.com/jtuyls): @jtuyls
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
