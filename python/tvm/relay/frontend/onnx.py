@@ -1506,6 +1506,51 @@ class Split(OnnxOpConverter):
         return output
 
 
+class SplitToSequence(OnnxOpConverter):
+    """Operator converter for SplitToSequence"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+
+        # TODO: Split operator requires an explicit list,
+        # so SplitToSequence does not support dynamic shapes yet.
+        in_shape = infer_shape(inputs[0])
+        if len(inputs) == 1:
+            indices_or_sections = in_shape[attr["axis"]]
+            attr["split"] = [1 for x in range(indices_or_sections)]
+        else:
+            try:
+                indices_or_sections = infer_value(inputs[1], params).asnumpy().tolist()
+                if isinstance(indices_or_sections, int):
+                    target_dim = in_shape[attr["axis"]]
+                    cnt = (
+                        int(target_dim / indices_or_sections)
+                        if int(target_dim / indices_or_sections) == target_dim / indices_or_sections
+                        else int(target_dim / indices_or_sections) + 1
+                    )
+                    attr["split"] = [indices_or_sections] * cnt
+            except:
+                raise ValueError("Can't find indice or sections.")
+        if isinstance(indices_or_sections, list):
+            attr["split"] = indices_or_sections
+        out = Split._impl_v1(inputs, attr, params)
+        return _expr.Tuple(list(out))
+
+
+class SequenceAt(OnnxOpConverter):
+    """Operator converter for SequenceAt"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        assert isinstance(inputs[0], _expr.Tuple)
+        try:
+            # TODO: SequenceAt does not yet support dynamic shapes
+            position = infer_value(inputs[1], params).asnumpy().tolist()
+        except:
+            raise ValueError("Can't find position.")
+        return inputs[0][position]
+
+
 class Slice(OnnxOpConverter):
     """Operator converter for Slice."""
 
@@ -4123,6 +4168,8 @@ def _get_convert_map(opset):
         "Expand": Expand.get_converter(opset),
         "Concat": Concat.get_converter(opset),
         "Split": Split.get_converter(opset),
+        "SplitToSequence": SplitToSequence.get_converter(opset),
+        "SequenceAt": SequenceAt.get_converter(opset),
         "Slice": Slice.get_converter(opset),
         "Transpose": AttrCvt("transpose", {"perm": "axes"}),
         "DepthToSpace": DepthToSpace.get_converter(opset),

@@ -1969,6 +1969,79 @@ def test_split(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_split_to_sequence(target, dev):
+    def verify_split_to_sequence(in_shape, axis, indices_or_sections=None):
+        if isinstance(indices_or_sections, list):
+            len_out = len(indices_or_sections)
+        elif isinstance(indices_or_sections, int):
+            len_out = (
+                int(in_shape[axis] / indices_or_sections)
+                if in_shape[axis] / indices_or_sections == int(in_shape[axis] / indices_or_sections)
+                else int(in_shape[axis] / indices_or_sections) + 1
+            )
+        else:
+            len_out = in_shape[axis]
+
+        input_nodes = list()
+        pos_val = np.random.randint(0, len_out)
+        pos_tensor = helper.make_tensor(f"pos_data", TensorProto.INT32, [], vals=[pos_val])
+        pos_node = helper.make_node("Constant", inputs=[], outputs=[f"pos"], value=pos_tensor)
+        input_nodes.append(pos_node)
+
+        if indices_or_sections:
+            if isinstance(indices_or_sections, int):
+                split_tensor = helper.make_tensor(
+                    "split_data", TensorProto.INT32, [], vals=[indices_or_sections]
+                )
+                split_node = helper.make_node(
+                    "Constant", inputs=[], outputs=["indices_or_sections"], value=split_tensor
+                )
+            else:
+                split_tensor = helper.make_tensor(
+                    "split_data",
+                    TensorProto.INT32,
+                    [len(indices_or_sections)],
+                    vals=indices_or_sections,
+                )
+                split_node = helper.make_node(
+                    "Constant", inputs=[], outputs=["indices_or_sections"], value=split_tensor
+                )
+
+            node = helper.make_node(
+                "SplitToSequence", ["x", "indices_or_sections"], ["seq_1"], axis=axis
+            )
+            input_nodes.append(split_node)
+        else:
+            node = helper.make_node("SplitToSequence", ["x"], ["seq_1"], axis=axis, keepdims=1)
+        input_nodes.append(node)
+
+        out_node = helper.make_node("SequenceAt", ["seq_1", f"pos"], [f"out"])
+        input_nodes.append(out_node)
+
+        graph = helper.make_graph(
+            input_nodes,
+            "split_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(in_shape))],
+            outputs=[onnx.helper.make_tensor_value_info(f"out", onnx.TensorProto.FLOAT, [])],
+        )
+        model = helper.make_model(graph, producer_name="split_test")
+
+        onnx.checker.check_model(model)
+        verify_with_ort(model, [in_shape], target=target, dev=dev)
+
+    # SplitToSequence and SequenceAt
+    verify_split_to_sequence([10, 3, 4], -1)
+    verify_split_to_sequence([10, 3, 4], 0)
+    verify_split_to_sequence([10, 3, 4], 1)
+    verify_split_to_sequence([10, 3, 4], -1, 2)
+    verify_split_to_sequence([10, 3, 4], 0, 2)
+    verify_split_to_sequence([10, 3, 4], 1, 2)
+    verify_split_to_sequence([10, 3, 4], 0, [1, 3, 6])
+    verify_split_to_sequence([10, 3, 4], 1, [1, 2])
+    verify_split_to_sequence([10, 3, 4], 2, [1, 3])
+
+
+@tvm.testing.parametrize_targets
 def test_binary_ops(target, dev):
     in_shape = (1, 2, 3, 3)
     dtype = "float32"
@@ -5826,3 +5899,4 @@ if __name__ == "__main__":
     test_random_uniform()
     test_convinteger()
     test_batch_matmul()
+    test_split_to_sequence()
