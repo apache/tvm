@@ -35,6 +35,36 @@ def elementwise(a: ty.handle, b: ty.handle) -> None:
 
 
 @tvm.script.tir
+def elementwise_not_affine(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, (127, 128))
+    B = tir.match_buffer(b, (127, 128))
+    for i in tir.serial(0, 4):
+        for j, k in tir.grid(tir.min(31, 126 - i * 32) + 1, 128):
+            with tir.block([127, 128], "B") as [vi, vj]:
+                tir.bind(vi, i * 32 + j)
+                tir.bind(vj, k)
+                B[vi, vj] = A[vi, vj]
+
+
+@tvm.script.tir
+def elementwise_not_affine_fused(a: ty.handle, b: ty.handle) -> None:
+    A = tir.match_buffer(a, [127, 128])
+    B = tir.match_buffer(b, [127, 128])
+    for i in tir.grid(4):
+        for j_k_fused in tir.serial(0, tir.min(31, 126 - i * 32) * 128 + 128):
+            with tir.block([127, 128], "B") as [vi, vj]:
+                tir.bind(
+                    vi,
+                    i * 32
+                    + tir.floormod(tir.floordiv(j_k_fused, 128), tir.min(31, 126 - i * 32) + 1),
+                )
+                tir.bind(vj, tir.floormod(j_k_fused, 128))
+                tir.reads([A[vi, vj]])
+                tir.writes([B[vi, vj]])
+                B[vi, vj] = A[vi, vj]
+
+
+@tvm.script.tir
 def elementwise_symbolic(a: ty.handle, b: ty.handle, n: ty.int32) -> None:
     A = tir.match_buffer(a, (128, 128, n))
     B = tir.match_buffer(b, (128, 128, n))
@@ -329,6 +359,15 @@ def test_fuse():
     sch.fuse(i, j, k)
     tvm.ir.assert_structural_equal(elementwise_fused, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
+
+
+def test_fuse_not_affine():
+    sch = tir.Schedule(elementwise_not_affine, debug_mask="all")
+    block_b = sch.get_block("B")
+    _, j, k = sch.get_loops(block_b)
+    sch.fuse(j, k)
+    tvm.ir.assert_structural_equal(elementwise_not_affine_fused, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise_not_affine)
 
 
 def test_split():
