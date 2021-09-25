@@ -46,7 +46,7 @@ class Matmul:
 
 def test_tune_context_create():
     mod = Matmul()
-    context = TuneContext(mod, Target("llvm"), "Test Task")
+    context = TuneContext(mod=mod, target=Target("llvm"), task_name="Test Task")
     assert context.num_threads > 0
     assert context.rand_state != -1
     assert context.task_name == "Test Task"
