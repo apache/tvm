@@ -706,7 +706,7 @@ bool DynSqueezeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
 
   ICHECK_EQ(axes->shape.size(), 1) << "Got" << axes->shape.size() << "expected 1";
-  ICHECK(axes->shape[0].as<IntImmNode>());
+  ICHECK(axes->shape[0].as<IntImmNode>()) << "axes expected to be static";
   size_t output_rank = data->shape.size() - axes->shape[0].as<IntImmNode>()->value;
   std::vector<IndexExpr> result_shape(output_rank, Any());
   reporter->Assign(types[2], TensorType(result_shape, data->dtype));
