@@ -479,7 +479,6 @@ runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Ta
     }
   }
   runtime::Module complete_mod = codegen::Codegen(mhost_all, target_host);
-  // Import all modules
   for (const auto& it : device_modules) {
     if (it.operator->()) {
       complete_mod.Import(it);
@@ -501,7 +500,6 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   Target target_host = target_host_arg;
 
   // Fetch previous defined target host in targets
-  // this is redefined in python ahh
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
   if (!target_host.defined()) {
@@ -543,7 +541,6 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   }
 
   runtime::Module mhost = codegen::Codegen(mhost_all, target_host);
-  // Import all modules
   for (const auto& it : device_modules) {
     if (it.operator->()) {
       mhost.Import(it);
@@ -569,8 +566,6 @@ runtime::Module build(const Map<String, IRModule>& inputs_arg, const Target& tar
 }
 
 // Build for homogeneous execution.
-// Where is this called from?]
-// called from compile engine and it accepts lowered functions
 runtime::Module build(const IRModule& funcs, const Target& target_arg,
                       const Target& target_host_arg) {
   auto target = target_arg, target_host = target_host_arg;
