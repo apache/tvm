@@ -3314,7 +3314,9 @@ def verify_global_lppool(x_shape, p, out_shape, target, dev):
     )
 
     model = helper.make_model(graph, producer_name="global_lppool_test")
-    verify_with_ort(model, [x_shape], out_shape, target=target, dev=dev)
+    verify_with_ort(
+        model, [x_shape], out_shape, use_vm=True, convert_to_static=True, target=target, dev=dev
+    )
 
 
 @tvm.testing.parametrize_targets
