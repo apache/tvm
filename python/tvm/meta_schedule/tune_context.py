@@ -19,10 +19,10 @@
 from typing import Optional, TYPE_CHECKING
 
 from tvm import IRModule
+from tvm._ffi import register_object
+from tvm.meta_schedule.utils import cpu_count
 from tvm.runtime import Object
 from tvm.target import Target
-from tvm.meta_schedule.utils import cpu_count
-from tvm._ffi import register_object
 
 from . import _ffi_api
 
