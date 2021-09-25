@@ -36,7 +36,6 @@ def build_module(mod, target):
         The corressponding module.
     """
     target = Target(target) if isinstance(target, str) else target
-
     return _ffi_api.Codegen(mod, target)
 
 

@@ -43,7 +43,6 @@
 #include <tvm/relay/op_strategy.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/module.h>
-#include <tvm/tir/transform.h>
 #include <tvm/topi/elemwise.h>
 
 #include <functional>

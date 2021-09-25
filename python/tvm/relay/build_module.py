@@ -282,8 +282,6 @@ def get_executor_from_target(target, target_host):
     return executor
 
 
-# Which build is this one... Relay --> graph executor
-# can params being parsed during run-time?
 def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
     # fmt: off
     # pylint: disable=line-too-long
