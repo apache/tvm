@@ -14,8 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import builder
-from . import arg_info
-from . import space_generator
-from .tune_context import TuneContext
+"""Union of meta Schedule design space generators."""
+from typing import List
+
+from tvm._ffi import register_object
+
+from .. import _ffi_api
+from .space_generator import SpaceGenerator
+
+
+@register_object("meta_schedule.SpaceGeneratorUnion")
+class SpaceGeneratorUnion(SpaceGenerator):
+    """Union of design space generators."""
+
+    def __init__(self, space_generators: List[SpaceGenerator]):
+        """Constructor.
+
+        Parameters
+        ----------
+        space_generators : List[SpaceGenerator]
+            The list of design space generators to be unioned.
+        """
+        self.__init_handle_by_constructor__(
+            _ffi_api.SpaceGeneratorSpaceGeneratorUnion,  # type: ignore # pylint: disable=no-member
+            space_generators,
+        )

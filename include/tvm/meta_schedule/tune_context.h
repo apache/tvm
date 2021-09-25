@@ -20,6 +20,7 @@
 #define TVM_META_SCHEDULE_TUNE_CONTEXT_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/meta_schedule/space_generator.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/target/target.h>
 
@@ -33,6 +34,8 @@ class TuneContextNode : public runtime::Object {
   Optional<IRModule> mod;
   /*! \brief The target to be tuned for. */
   Optional<Target> target;
+  /*! \brief The design space generator. */
+  Optional<SpaceGenerator> space_generator;
   /*! \brief The name of the tuning task. */
   Optional<String> task_name;
   /*! \brief The random state. */
@@ -43,6 +46,7 @@ class TuneContextNode : public runtime::Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("mod", &mod);
     v->Visit("target", &target);
+    v->Visit("space_generator", &space_generator);
     v->Visit("task_name", &task_name);
     v->Visit("rand_state", &rand_state);
     v->Visit("num_threads", &num_threads);
@@ -62,12 +66,14 @@ class TuneContext : public runtime::ObjectRef {
    * \brief Constructor.
    * \param mod The workload to be tuned.
    * \param target The target to be tuned for.
+   * \param space_generator The design space generator.
    * \param task_name The name of the tuning task.
    * \param rand_state The random state.
    * \param num_threads The number of threads to be used.
    */
   TVM_DLL explicit TuneContext(Optional<IRModule> mod,                                    //
                                Optional<Target> target,                                   //
+                               Optional<SpaceGenerator> space_generator,                  //
                                Optional<String> task_name,                                //
                                support::LinearCongruentialEngine::TRandState rand_state,  //
                                int num_threads);
