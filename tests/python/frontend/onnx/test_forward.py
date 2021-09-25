@@ -5764,7 +5764,7 @@ def test_concat_from_sequence(target, dev):
             ],
         )
         model = helper.make_model(graph, producer_name="concat_from_sequence_test")
-        verify_with_ort_with_inputs(model, np_inputs, output_dims, target=target, dev=dev)
+        verify_with_ort_with_inputs(model, np_inputs, target=target, dev=dev)
 
     verify_concat_from_sequence([[3, 3, 3]] * 3, 0, 0)
     verify_concat_from_sequence([[3, 3, 3]] * 3, 1, 0)
