@@ -432,17 +432,6 @@ def convert_feed(g, op, block):
     g.add_node(ipt_name, out)
 
 
-def convert_fill_any_like(g, op, block):
-    """Operator converter for fill_any_like."""
-
-    dtype = op.attr("dtype")
-    dtype = _convert_dtype_value(dtype)
-    x = g.get_node(op.input("X")[0])
-    value = _expr.const(op.attr("value"), dtype=dtype)
-    out = _op.transform.full_like(x, value)
-    g.add_node(op.output("Out")[0], out)
-
-
 def convert_fill_constant(g, op, block):
     """Operator converter for fill_constant."""
 
@@ -459,6 +448,17 @@ def convert_fill_constant(g, op, block):
         shape = _infer_value(shape, g.get_params())
 
     out = _op.full(value, shape=shape, dtype=dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_fill_any_like(g, op, block):
+    """Operator converter for fill_any_like."""
+
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+    x = g.get_node(op.input("X")[0])
+    value = _expr.const(op.attr("value"), dtype=dtype)
+    out = _op.transform.full_like(x, value).astype(dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1109,8 +1109,8 @@ _convert_map = {
     "logical_xor": convert_binary_logical_op,
     "logsigmoid": convert_logsigmoid,
     "log_softmax": convert_logsoftmax,
-	"lookup_table": convert_lookup_table,
-	"lookup_table_v2": convert_lookup_table,
+    "lookup_table": convert_lookup_table,
+    "lookup_table_v2": convert_lookup_table,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "meshgrid": convert_meshgrid,
