@@ -14,15 +14,46 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Default render callback rules"""
+"""RenderCallback interface"""
+import abc
+from typing import (
+    Dict,
+    Callable,
+    Union,
+    List,
+)
 import tvm
 from tvm import relay
+from tvm.relay.expr import Tuple
 
 UNKNOWN_TYPE = "unknown"
 
+class RenderCallbackInterface(abc.ABC):
 
-class RenderCallback:
-    """This is the default callback rules, which is also the _bokeh backend drawing way"""
+    @abc.abstractmethod
+    def get_rules(self) -> Dict[
+            tvm.ir.op.Op,
+            Callable[
+                [
+                    tvm.ir.op.Op,
+                    Dict[str, tvm.runtime.NDArray],
+                    Dict[tvm.ir.op.Op, Union[int, str]]
+                ],
+                Tuple[List, List],
+            ]
+        ]:
+        """Retrun a dictionary. Relay node type as key and a callable as valeu.
+        The callable object should return Tuple[List, List],
+        where the first List is [node_id, node_type, node_detail] used by Plotter interface.
+        The second one is for edges, with the form [[e0_start, e0_end], [e1_start, e1_end], ...]
+        """
+        pass
+
+class RenderCallback(RenderCallbackInterface):
+    """RenderCallback generate nodes and edges information for each Relay type.
+    This class is a default implementation for common relay types, heavily based on
+    `visualize` function in https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
+    """
 
     def __init__(self):
         self.render_rules = {}
@@ -43,15 +74,15 @@ class RenderCallback:
                 node_detail = "name_hint: {}\ntype_annotation: {}".format(
                     name_hint, node.type_annotation
                 )
-        graph_info = [node_id, node_type, node_detail]
+        node_info = [node_id, node_type, node_detail]
         edge_info = []
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def function_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
         node_id = node_to_id[node]
-        graph_info = [node_id, "Func", str(node.params)]
+        node_info = [node_id, "Func", str(node.params)]
         edge_info = [[node_to_id[node.body], node_id]]
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def call_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
         """Render rule for a relay call node"""
@@ -76,51 +107,51 @@ class RenderCallback:
         else:
             op_name = str(type(node.op)).split(".")[-1].split("'")[0]
 
-        graph_info = [node_id, f"Call {op_name}", "\n".join(node_detail)]
+        node_info = [node_id, f"Call {op_name}", "\n".join(node_detail)]
         args = [node_to_id[arg] for arg in node.args]
         edge_info = [[arg, node_id] for arg in args]
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def let_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
         node_id = node_to_id[node]
-        graph_info = [node_id, "Let", ""]
+        node_info = [node_id, "Let", ""]
         edge_info = [[node_to_id[node.value], node_id]]
         edge_info.append([node_id, node_to_id[node.var]])
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def global_var_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
-        graph_info = []
+        node_info = []
         edge_info = []
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def if_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
-        graph_info = []
+        node_info = []
         edge_info = []
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def tuple_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
         node_id = node_to_id[node]
-        graph_info = [node_id, "Tuple", ""]
+        node_info = [node_id, "Tuple", ""]
         edge_info = [[node_to_id[field], node_id] for field in node.fields]
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def tuple_get_item_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
         node_id = node_to_id[node]
-        graph_info = [node_id, "TupleGetItem", "idx: {}".format(node.index)]
+        node_info = [node_id, "TupleGetItem", "idx: {}".format(node.index)]
         edge_info = [[node_to_id[node.tuple_value], node_id]]
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def constant_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
         node_id = node_to_id[node]
         node_detail = "shape: {}, dtype: {}".format(node.data.shape, node.data.dtype)
-        graph_info = [node_id, "Const", "\n".join(node_detail)]
+        node_info = [node_id, "Const", "\n".join(node_detail)]
         edge_info = []
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def op_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
-        graph_info = []
+        node_info = []
         edge_info = []
-        return graph_info, edge_info
+        return node_info, edge_info
 
     def build_rules(self):
         self.render_rules = {

@@ -16,12 +16,19 @@
 # under the License.
 """Relay IR Visualizer"""
 import logging
-import copy
+from typing import (
+    Dict,
+    Tuple,
+    Union,
+)
 from enum import Enum
+import tvm
 from tvm import relay
 from .plotter import Plotter
-from .render_callback import RenderCallback
-
+from .render_callback import (
+    RenderCallbackInterface,
+    RenderCallback,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +43,10 @@ class PlotterBackend(Enum):
 class RelayVisualizer:
     """Relay IR Visualizer"""
 
-    def __init__(self, relay_mod, relay_param=None, backend=PlotterBackend.BOKEH):
+    def __init__(self,
+                 relay_mod: tvm.IRModule,
+                 relay_param: Dict = None,
+                 backend: Union[PlotterBackend, Tuple[Plotter, RenderCallbackInterface]] = PlotterBackend.TERMINAL):
         """Visualize Relay IR.
 
         Parameters
@@ -46,19 +56,18 @@ class RelayVisualizer:
         relay_param: dict
                         Relay parameter dictionary
         backend: PlotterBackend or a tuple
-                        PlotterBackend: The backend of plotting. Default "bokeh"
-                        Tuple: A tuple with two arguments. First is user-defined Plotter, \
+                        PlotterBackend: The backend of plotting. Default "terminal"
+                        Tuple: A tuple with two arguments. First is user-defined Plotter,
                                the second is user-defined RenderCallback
         """
 
         self._plotter, self._render_rules = get_plotter_and_render_rules(backend)
         self._relay_param = relay_param if relay_param is not None else {}
-        # This field is used for book-keeping for each graph.
-        self._node_to_id = {}
 
         global_vars = relay_mod.get_global_vars()
         graph_names = []
         # If we have main function, put it to the first.
+        # Then main function can be shown at the top.
         for gv_name in global_vars:
             if gv_name.name_hint == "main":
                 graph_names.insert(0, gv_name.name_hint)
@@ -66,21 +75,16 @@ class RelayVisualizer:
                 graph_names.append(gv_name.name_hint)
 
         for name in graph_names:
-            # clear previous graph
-            self._node_to_id = {}
-            relay.analysis.post_order_visit(
-                relay_mod[name],
-                lambda node: self._traverse_expr(node),  # pylint: disable=unnecessary-lambda
-            )
-            graph = self._plotter.create_graph(name)
-            # shallow copy to prevent callback modify self._node_to_id
-            self._render_cb(graph, copy.copy(self._node_to_id), self._relay_param)
+            node_to_id = {}
+            def traverse_expr(node):
+                if node in node_to_id:
+                    return
+                node_to_id[node] = len(node_to_id)
 
-    def _traverse_expr(self, node):
-        # based on https://github.com/apache/tvm/pull/4370
-        if node in self._node_to_id:
-            return
-        self._node_to_id[node] = len(self._node_to_id)
+            relay.analysis.post_order_visit(relay_mod[name], traverse_expr)
+            graph = self._plotter.create_graph(name)
+            # shallow copy to prevent callback modify node_to_id
+            self._render_cb(graph, node_to_id.copy(), self._relay_param)
 
     def _render_cb(self, graph, node_to_id, relay_param):
         """a callback to Add nodes and edges to the graph.
@@ -93,10 +97,8 @@ class RelayVisualizer:
 
         relay_param : Dict[string, NDarray]
         """
-        # Based on https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
-        unknown_type = "unknown"
         for node, node_id in node_to_id.items():
-            if type(node) in self._render_rules:  # pylint: disable=unidiomatic-typecheck
+            try:
                 graph_info, edge_info = self._render_rules[type(node)](
                     node, relay_param, node_to_id
                 )
@@ -104,13 +106,18 @@ class RelayVisualizer:
                     graph.node(*graph_info)
                 for edge in edge_info:
                     graph.edge(*edge)
-            else:
-                unknown_info = "Unknown node: {}".format(type(node))
-                _LOGGER.warning(unknown_info)
+            except KeyError as excp:
+                unknown_type = "unknown"
+                unknown_info = f"Failed to render node: {type(node)}"
+                _LOGGER.warning("When invoking render rule for %s, "
+                                "KeyError with args=%s is raised.",
+                                type(node),
+                                excp.args,
+                )
                 graph.node(node_id, unknown_type, unknown_info)
 
-    def render(self, filename):
-        return self._plotter.render(filename=filename)
+    def render(self, filename: str) -> None:
+        self._plotter.render(filename=filename)
 
 
 def get_plotter_and_render_rules(backend):
@@ -123,17 +130,20 @@ def get_plotter_and_render_rules(backend):
                         Tuple: A tuple with two arguments. First is user-defined Plotter, \
                                the second is user-defined RenderCallback
     """
-    if type(backend) is tuple and len(backend) == 2:  # pylint: disable=unidiomatic-typecheck
+    if isinstance(backend, (tuple, list)) and len(backend) == 2:
         if not isinstance(backend[0], Plotter):
-            raise ValueError("First elemnet of the backend should be a plotter")
+            raise ValueError(f"First elemnet of backend argument should be derived from {type(Plotter)}")
         plotter = backend[0]
         if not isinstance(backend[1], RenderCallback):
-            raise ValueError("Second elemnet of the backend should be a callback")
+            raise ValueError(f"Second elemnet of backend argument should be derived from {type(RenderCallbackInterface)}")
         render = backend[1]
         render_rules = render.get_rules()
         return plotter, render_rules
 
     if backend in PlotterBackend:
+        # Plotter modules are Lazy-imported to avoid they become a requirement of TVM.
+        # Basically we want to keep them as optional -- users can choose which plotter they want,
+        # and just install libraries required by that plotter.
         if backend == PlotterBackend.BOKEH:
             # pylint: disable=import-outside-toplevel
             from ._bokeh import (
@@ -157,4 +167,4 @@ def get_plotter_and_render_rules(backend):
         render_rules = render.get_rules()
         return plotter, render_rules
 
-    raise ValueError("Unknown plotter backend {}".format(backend))
+    raise ValueError(f"Unknown plotter backend {backend}")

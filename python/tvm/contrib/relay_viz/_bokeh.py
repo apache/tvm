@@ -80,10 +80,19 @@ class NodeDescriptor:
 
 
 class GraphShaper:
-    """Provide the bounding-box, and node location, height, width given by pygraphviz."""
+    """Provide the bounding-box, and node location, height, width given by pydot.
+    To access node attributes, refer to
+    https://github.com/pydot/pydot/blob/90936e75462c7b0e4bb16d97c1ae7efdf04e895c/src/pydot/core.py#L537
+
+    To access edge attributes, refer to
+    https://github.com/pydot/pydot/blob/90936e75462c7b0e4bb16d97c1ae7efdf04e895c/src/pydot/core.py#L645
+
+    The string format `pos` in an edge follows DOT language spec:
+    https://graphviz.org/docs/attr-types/splineType/
+    """
 
     # defined by graphviz.
-    _px_per_inch = 72
+    _PX_PER_INCH = 72
 
     def __init__(self, pydot_graph, prog="dot", args=None):
         if args is None:
@@ -106,7 +115,13 @@ class GraphShaper:
 
     @functools.lru_cache()
     def get_edge_path(self, start_node_id, end_node_id):
-        """Get explicit path points for MultiLine."""
+        """Get explicit path points for MultiLine.
+        Parse points formating an edge. The format of points in an edge is either:
+        1. e,x_point,y_point
+        2. s,x_point,y_point
+        3. x_point,y_point
+        We don't care about `e` or `s` here, so simplt parse out x_point and y_point.
+        """
         edge = self._pydot_graph.get_edge(str(start_node_id), str(end_node_id))
         if len(edge) != 1:
             _LOGGER.warning(
@@ -150,11 +165,11 @@ class GraphShaper:
 
     def get_node_height(self, node_name):
         height_str = self._get_node_attr(node_name, "height", "20")
-        return float(height_str) * self._px_per_inch
+        return float(height_str) * self._PX_PER_INCH
 
     def get_node_width(self, node_name):
         width_str = self._get_node_attr(node_name, "width", "20")
-        return float(width_str) * self._px_per_inch
+        return float(width_str) * self._PX_PER_INCH
 
     def _get_node_attr(self, node_name, attr_name, default_val):
 
@@ -443,14 +458,14 @@ class BokehPlotter(Plotter):
 
     def create_graph(self, name):
         if name in self._name_to_graph:
-            _LOGGER.warning("Graph name %s exists. ")
+            _LOGGER.warning("Graph name %s already exists.", name)
         else:
             self._name_to_graph[name] = BokehGraph()
         return self._name_to_graph[name]
 
     def render(self, filename):
         if not filename.endswith(".html"):
-            filename = "{}.html".format(filename)
+            filename = f"{filename}.html"
 
         dom_list = []
         for name, graph in self._name_to_graph.items():

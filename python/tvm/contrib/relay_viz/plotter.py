@@ -16,7 +16,7 @@
 # under the License.
 """Abstract class for plotters."""
 import abc
-
+from typing import Union
 
 class Graph(abc.ABC):
     """Abstract class for graph.
@@ -25,31 +25,31 @@ class Graph(abc.ABC):
     """
 
     @abc.abstractmethod
-    def node(self, node_id, node_type, node_detail):
+    def node(self, node_id: Union[int, str], node_type: str, node_detail: str) -> None:
         """Add a node to the underlying graph.
 
         Parameters
         ----------
-        node_id : object
+        node_id : Union[int, str]
                         Serve as the ID to the node.
 
-        node_type : string
+        node_type : str
                         the type of the node.
 
-        node_detail : string
+        node_detail : str
                         the description of the node.
         """
 
     @abc.abstractmethod
-    def edge(self, id_start, id_end):
+    def edge(self, id_start: Union[int, str], id_end: Union[int, str]):
         """Add an edge to the underlying graph.
 
         Parameters
         ----------
-        id_start : object
+        id_start : Union[int, str]
                         the ID to the starting node.
 
-        id_end : object
+        id_end : Union[int, str]
                         the ID to the ending node.
         """
 
@@ -61,7 +61,7 @@ class Plotter(abc.ABC):
     """
 
     @abc.abstractmethod
-    def create_graph(self, name):
+    def create_graph(self, name: str) -> Graph:
         """Create a graph
 
         Parameters
@@ -74,7 +74,7 @@ class Plotter(abc.ABC):
         """
 
     @abc.abstractmethod
-    def render(self, filename):
+    def render(self, filename:str) -> None:
         """Render the graph as a file.
 
         Parameters
