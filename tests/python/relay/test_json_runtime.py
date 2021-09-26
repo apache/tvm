@@ -225,7 +225,7 @@ def test_relu():
     dtype = "float32"
     shape = (1, 32, 14, 14)
 
-    def gen_relu():
+    def gen_relu(shape):
         data0 = relay.var("data0", shape=shape, dtype=dtype)
         out = relay.nn.relu(data0)
 
@@ -250,18 +250,22 @@ def test_relu():
 
         return mod, ref_mod
 
-    mod, ref_mod = gen_relu()
+    def check(shape):
+        mod, ref_mod = gen_relu(shape)
 
-    data0 = np.random.uniform(-1, 1, shape).astype(dtype)
-    check_result(
-        mod,
-        ref_mod,
-        {
-            "data0": data0,
-        },
-        (1, 32, 14, 14),
-        tol=1e-5,
-    )
+        data0 = np.random.uniform(-1, 1, shape).astype(dtype)
+        check_result(
+            mod,
+            ref_mod,
+            {
+                "data0": data0,
+            },
+            shape,
+            tol=1e-5,
+        )
+
+    check(shape=(1, 32, 14, 14))
+    check(shape=(1, 32))
 
 
 def test_dense():

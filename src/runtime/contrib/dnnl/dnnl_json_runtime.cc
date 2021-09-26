@@ -338,7 +338,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     auto data_entry = node.GetInputs()[0];
     dnnl::memory::dims shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
-    auto data_md = dnnl::memory::desc{{shape}, dt::f32, tag::abcd};
+    dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dt::f32);
 
     auto relu_desc = dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference,
                                                  dnnl::algorithm::eltwise_relu, data_md, 0);
@@ -349,9 +349,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     net_.push_back(relu);
 
     auto data_memory = BindDNNLMemory(data_entry, data_md);
-    auto out_md = dnnl::memory::desc(shape, dt::f32, tag::abcd);
     JSONGraphNodeEntry out_entry(nid, 0);
-    auto out_memory = BindDNNLMemory(out_entry, out_md);
+    auto out_memory = BindDNNLMemory(out_entry, data_md);
 
     net_args_.push_back({{DNNL_ARG_SRC, data_memory}, {DNNL_ARG_DST, out_memory}});
   }
