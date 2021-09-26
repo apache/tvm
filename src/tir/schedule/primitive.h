@@ -27,6 +27,14 @@ namespace tir {
 
 /******** Schedule: Sampling ********/
 /*!
+ * \brief Sample a random integer from a given range.
+ * \param min_inclusive The minimum value of the range, inclusive.
+ * \param max_exclusive The maximum value of the range, exclusive.
+ * \return The random integer sampled in the given range.
+ */
+TVM_DLL int SampleInt(support::LinearCongruentialEngine::TRandState* rand_state, int min_inclusive,
+                      int max_exclusive);
+/*!
  * \brief Sample once category from candidates according to the probability weights.
  * \param self The schedule to update
  * \param rand_state The pointer to schedule's random state
