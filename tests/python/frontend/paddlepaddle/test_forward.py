@@ -650,7 +650,6 @@ if __name__ == "__main__":
     test_forward_hard_swish()
     test_forward_layer_norm()
     test_forward_leaky_relu()
-    test_forward_look_up()
     test_forward_multiply()
     test_forward_matmul()
     test_forward_pool2d()
