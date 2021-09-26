@@ -20,7 +20,7 @@ import shutil
 import numpy as np
 
 import paddle
-from paddle.framework import dtype
+
 import paddle.nn as nn
 
 import tvm
@@ -81,7 +81,7 @@ def get_tvm_output(mod, params, target, device, input_data, compiled_names, num)
 
 
 def verify_model(func, input_data, rtol=1e-5, atol=1e-5, input_shape=None):
-    if not (isinstance(input_data, (tuple, list))):
+    if not isinstance(input_data, (tuple, list)):
         input_data = [input_data]
 
     input_spec = []
@@ -1131,61 +1131,42 @@ def test_forward_subtract():
     verify_model(Subtract(), input_data=[input_data1, input_data2])
 
 
-@tvm.testing.uses_gpu
-@tvm.testing.uses_gpu
-def test_forward_while():
-    class While(nn.Layer):
-        def __init__(self):
-            super(While, self).__init__()
-
-        def forward(self, x):
-            s = paddle.shape(x)
-            i = paddle.slice(s, axes=[0], starts=[0], ends=[1])
-            y = paddle.to_tensor(np.array([5]).astype("int32"))
-            while i < y:
-                i *= np.array([3], dtype="int32")
-            return i
-
-    input_data1 = paddle.rand([1, 3, 224, 224], dtype="float32")
-    verify_model(While(), input_data=[input_data1], input_shape=[[-1, 3, -1, -1]])
-
-
 if __name__ == "__main__":
-    #test_forward_add_subtract()
-    #test_forward_addmm()
-    #test_forward_argmax()
-    #test_forward_argmin()
-    #test_forward_argsort()
-    #test_forward_assign()
-    #test_forward_batch_norm()
-    #test_forward_cast()
-    #test_forward_clip()
-    #test_forward_concat_unsqueeze()
-    #test_forward_conv()
-    #test_forward_crop()
-    #test_forward_cumsum()
-    #test_forward_dist()
-    #test_forward_dot()
-    #test_forward_dropout()
-    #test_forward_elemwise()
-    #test_forward_expand()
-    #test_forward_expand_as()
-    #test_forward_ones()
-    #test_forward_gelu()
-    #test_forward_math()
-    #test_forward_activation()
-    #test_forward_isinf()
-    #test_forward_layer_norm()
-    #test_forward_leaky_relu()
-    #test_forward_logical_op()
-    #test_forward_lstm()
-    #test_forward_gru()
-    #test_forward_matmul()
-    #test_forward_meshgrid()
-    #test_forward_mm()
-    #test_forward_mv()
-    #test_forward_multiply()
-    #test_forward_pool2d()
+    test_forward_add_subtract()
+    test_forward_addmm()
+    test_forward_argmax()
+    test_forward_argmin()
+    test_forward_argsort()
+    test_forward_assign()
+    test_forward_batch_norm()
+    test_forward_cast()
+    test_forward_clip()
+    test_forward_concat_unsqueeze()
+    test_forward_conv()
+    test_forward_crop()
+    test_forward_cumsum()
+    test_forward_dist()
+    test_forward_dot()
+    test_forward_dropout()
+    test_forward_elemwise()
+    test_forward_expand()
+    test_forward_expand_as()
+    test_forward_ones()
+    test_forward_gelu()
+    test_forward_math()
+    test_forward_activation()
+    test_forward_isinf()
+    test_forward_layer_norm()
+    test_forward_leaky_relu()
+    test_forward_logical_op()
+    test_forward_lstm()
+    test_forward_gru()
+    test_forward_matmul()
+    test_forward_meshgrid()
+    test_forward_mm()
+    test_forward_mv()
+    test_forward_multiply()
+    test_forward_pool2d()
     test_forward_rank()
     test_forward_reshape()
     test_forward_scale()
