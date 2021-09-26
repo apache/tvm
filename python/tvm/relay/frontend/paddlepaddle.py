@@ -800,12 +800,11 @@ def convert_feed(g, op, block):
 def convert_fill_any_like(g, op, block):
     """Operator converter for fill_any_like."""
 
-    out_name = op.output("Out")[0]
-    out_dtype = block.var(out_name).dtype
-    out_dtype = str(out_dtype).strip().split(".")[1]
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
     x = g.get_node(op.input("X")[0])
-    value = _expr.const(op.attr("value"))
-    out = _op.transform.full_like(x, value).astype(out_dtype)
+    value = _expr.const(op.attr("value"), dtype=dtype)
+    out = _op.transform.full_like(x, value)
     g.add_node(op.output("Out")[0], out)
 
 
