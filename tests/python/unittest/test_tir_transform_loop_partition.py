@@ -538,6 +538,27 @@ def test_simple_rfactor():
     assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
 
 
+def test_explicit_partition_hint():
+    A = te.placeholder((16,), name="A")
+    B = te.placeholder((16,), name="B")
+    C = te.compute((32,), lambda i: te.if_then_else(i < 16, A[i], B[i]), name="C")
+    s = te.create_schedule(C.op)
+    s.normalize()
+    s[C].pragma(s[C].op.axis[0], "loop_partition_hint")
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt1 = tvm.te.schedule.ScheduleOps(s, bounds)
+
+    mod1 = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt1))
+    stmt1 = tvm.tir.transform.Simplify()(mod1)["main"].body
+
+    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+        mod2 = tvm.tir.transform.LoopPartition()(mod1)
+        stmt2 = tvm.tir.transform.Simplify()(mod2)["main"].body
+
+    # make sure loop partition actually did something
+    assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
+
+
 if __name__ == "__main__":
     test_basic()
     test_const_loop()
@@ -559,3 +580,4 @@ if __name__ == "__main__":
     test_double_splitting_with_indivisible_factors()
     test_multilevel_splitting_with_indivisble_factors()
     test_simple_rfactor()
+    test_explicit_partition_hint()
