@@ -542,7 +542,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
    *
    * @param prim_fn_var Global bound to lowered primitive.
    * @param all_prim_fn_vars  All globals references by lowered primitive, plus prim_fn_var itself.
-   * @param prim_shape_fn_var Global bound to lowered shape function for primitive, if neeeded.
+   * @param prim_shape_fn_var Global bound to lowered shape function for primitive, if needed.
    * @param all_prim_shape_fn_vars All globals references by lowered shape function, plus
    * prim_shape_fn_var itself.
    * @param prim_shape_fn_states Records whether shape and/or data is needed by the dynamic
@@ -763,7 +763,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   ObjectRef VisitExpr_(const TupleGetItemNode* op) final {
     ObjectRef val = Eval(op->tuple);
     const auto* adt_obj = val.as<ADTObj>();
-    ICHECK(adt_obj) << "interal error: when evaluating TupleGetItem expected an ADT value";
+    ICHECK(adt_obj) << "internal error: when evaluating TupleGetItem expected an ADT value";
     auto adt = GetRef<ADT>(adt_obj);
     ICHECK_LT(static_cast<size_t>(op->index), adt.size()) << "internal error: index out of bounds";
     return adt[op->index];
@@ -902,21 +902,17 @@ IRModule Prepare(IRModule mod, Device device, Target target) {
   // All calls to primitives will use the unique target.
   tec::DeviceMap device_map;
 
-  // No need for a memory plan.
-  backend::StaticMemoryPlan memory_plan; /*=nullptr*/
-
   // Run minimal transforms on module to establish invariants needed by interpreter.
-  transform::Sequential seq(
-      {transform::SimplifyInference(),
-       // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
-       // attribute.
-       transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
-       // eta expand to support constructors in argument position
-       transform::EtaExpand(
-           /*expand_constructor=*/true, /*expand_global_var=*/false),
-       transform::InferType(),
-       tec::LowerTEPass(targets, device_map, memory_plan, /*module_name=*/"intrp",
-                        [](Function func) { /* no-op */ })});
+  transform::Sequential seq({transform::SimplifyInference(),
+                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
+                             // attribute.
+                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
+                             // eta expand to support constructors in argument position
+                             transform::EtaExpand(
+                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
+                             transform::InferType(),
+                             tec::LowerTEPass(targets, device_map, /*module_name=*/"intrp",
+                                              [](Function func) { /* no-op */ })});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);

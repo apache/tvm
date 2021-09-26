@@ -14,5 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""CMSIS-NN codegen modules for relay."""
-from . import codegen
+
+""" Hexagon testing fixtures used to deduce testing argument
+    values from testing parameters """
+
+import tvm
+from .infrastructure import get_packed_filter_layout
+
+
+@tvm.testing.fixture
+def shape_nhwc(batch, in_channel, in_size):
+    return (batch, in_size, in_size, in_channel)
+
+
+@tvm.testing.fixture
+def shape_oihw(out_channel, in_channel, kernel):
+    return (out_channel, in_channel, kernel, kernel)
+
+
+@tvm.testing.fixture
+def shape_oihw8i32o4i(out_channel, in_channel, kernel):
+    return get_packed_filter_layout(out_channel, in_channel, kernel, kernel)

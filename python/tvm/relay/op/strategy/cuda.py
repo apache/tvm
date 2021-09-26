@@ -144,7 +144,11 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            if data.dtype in ("int8", "uint8") and kernel.dtype in ("int8", "uint8"):
+            if (
+                target.kind.name == "cuda"
+                and data.dtype in ("int8", "uint8")
+                and kernel.dtype in ("int8", "uint8")
+            ):
                 assert data.dtype == kernel.dtype
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.cuda.conv2d_nchw_int8),
@@ -293,7 +297,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     "Unsupported shape for conv2d HWNC.\
                                     Need to satisfy tensor core schedule."
                 )
-        elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
+        elif target.kind.name == "cuda" and layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.cuda.conv2d_NCHWc_int8, True),
@@ -353,7 +357,8 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             ic_chunk = in_channels // 4
 
             if (
-                data.dtype in ["int8", "uint8"]
+                target.kind.name == "cuda"
+                and data.dtype in ["int8", "uint8"]
                 and kernel.dtype in ["int8", "uint8"]
                 and channels % groups == 0
                 and out_channels % groups == 0
@@ -1208,5 +1213,18 @@ def invert_permutation_strategy_cuda(attrs, inputs, out_type, target):
         wrap_compute_invert_permutation(topi.cuda.invert_permutation),
         wrap_topi_schedule(topi.cuda.vision._default_schedule),
         name="invert_permutation.cuda",
+    )
+    return strategy
+
+
+@einsum_strategy.register(["cuda", "gpu"])
+def einsum_strategy_cuda(attrs, inputs, out_type, target):
+    """einsum cuda strategy"""
+    strategy = _op.OpStrategy()
+    # TODO: Add cuda-specific op implementation for einsum
+    strategy.add_implementation(
+        wrap_compute_einsum(topi.einsum),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="einsum.cuda",
     )
     return strategy

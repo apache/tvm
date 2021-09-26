@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 import io
 import logging
 import os
@@ -28,35 +27,19 @@ import pytest
 import numpy as np
 
 import tvm
-import tvm.rpc
-import tvm.micro
 from tvm.micro.project_api import server
-import tvm.testing
 import tvm.relay as relay
 
-from tvm.contrib import utils
 from tvm.contrib.download import download_testdata
 from tvm.micro.interface_api import generate_c_interface_header
 
-import conftest
-
-_LOG = logging.getLogger(__name__)
+import test_utils
 
 
 def _build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
-    template_project_dir = (
-        pathlib.Path(__file__).parent
-        / ".."
-        / ".."
-        / ".."
-        / "apps"
-        / "microtvm"
-        / "zephyr"
-        / "template_project"
-    ).resolve()
     project_dir = temp_dir / "project"
     project = tvm.micro.generate_project(
-        str(template_project_dir),
+        str(test_utils.TEMPLATE_PROJECT_DIR),
         mod,
         project_dir,
         {
@@ -140,12 +123,12 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
         "qemu_x86",
         "mps2_an521",
         "nrf5340dk_nrf5340_cpuapp",
-        "stm32l4r5zi_nucleo",
-        "zynq_mp_r5",
+        "nucleo_l4r5zi",
+        "qemu_cortex_r5",
     ]:
         pytest.skip(msg="Model does not fit.")
 
-    model = conftest.ZEPHYR_BOARDS[board]
+    model = test_utils.ZEPHYR_BOARDS[board]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
     build_config = {"debug": tvm_debug}
@@ -227,7 +210,7 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     if board not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
-    model = conftest.ZEPHYR_BOARDS[board]
+    model = test_utils.ZEPHYR_BOARDS[board]
     build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "float32"

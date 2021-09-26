@@ -17,30 +17,18 @@
  * under the License.
  */
 
-/*!
- * \brief A hook to launch RPC server via xcodebuild test
- * \file tvmrpcLauncher.mm
- */
+#ifndef TVM_RUNTIME_HEXAGON_LAUNCHER_LAUNCHER_UTIL_H_
+#define TVM_RUNTIME_HEXAGON_LAUNCHER_LAUNCHER_UTIL_H_
 
-#import <XCTest/XCTest.h>
-#import "TVMRuntime.h"
+#include <cstddef>
+#include <fstream>
+#include <string>
 
-@interface tvmrpcLauncher : XCTestCase
+size_t get_file_size(std::ifstream& in_file);
+size_t get_file_size(std::ifstream&& in_file);
 
-@end
+std::string load_text_file(const std::string& file_name);
+void* load_binary_file(const std::string& file_name, void* buffer, size_t buffer_size);
+void write_binary_file(const std::string& file_name, void* buffer, size_t buffer_size);
 
-@implementation tvmrpcLauncher
-
-- (void)setUp {
-  [super setUp];
-}
-
-- (void)tearDown {
-  [super tearDown];
-}
-
-- (void)testRPC {
-  [TVMRuntime launchSyncServer];
-}
-
-@end
+#endif  // TVM_RUNTIME_HEXAGON_LAUNCHER_LAUNCHER_UTIL_H_
