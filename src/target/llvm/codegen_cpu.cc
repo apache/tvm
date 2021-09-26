@@ -941,7 +941,9 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 
 void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::coproc_uop_scope) {
-    this->CreateStaticInit(op->value.as<StringImmNode>()->value, op->body);
+    const StringImmNode* value = op->value.as<StringImmNode>();
+    ICHECK(value != nullptr);
+    this->CreateStaticInit(value->value, op->body);
   } else if (op->attr_key == tir::attr::compute_scope) {
     this->CreateComputeScope(op);
   } else if (tir::attr::IsPragmaKey(op->attr_key)) {
