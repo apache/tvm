@@ -20,17 +20,6 @@ import shutil
 import struct
 import sys
 
-#
-# Disable GPU usage information:
-#
-#
-# 0 = all messages are logged (default behavior)
-# 1 = INFO messages are not printed
-# 2 = INFO and WARNING messages are not printed
-# 3 = INFO, WARNING, and ERROR messages are not printed
-if "TF_CPP_MIN_LOG_LEVEL" not in os.environ:
-    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-
 import numpy as np
 
 import tensorflow as tf
