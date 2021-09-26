@@ -138,7 +138,7 @@ class CandidateSelector final : public StmtExprVisitor {
         return;
       }
     } else if (op->attr_key == attr::pragma_loop_partition_hint) {
-      const VarNode* var;
+      const VarNode* var = nullptr;
       if (op->node->IsInstance<VarNode>()) {
         var = op->node.as<VarNode>();
       } else if (op->node->IsInstance<IterVarNode>()) {
