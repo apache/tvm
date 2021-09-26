@@ -201,7 +201,7 @@ extern "C" void dnnl_dense(float* data, float* weight, float* out, int p_B_, int
   read_from_dnnl_memory(out, dst_memory);
 }
 
-extern "C" void dnnl_relu(float* data, float* out, std::vector<long int> shape) {
+extern "C" void dnnl_relu(float* data, float* out, std::vector<int64_t> shape) {
   using dt = memory::data_type;
 
   engine eng(engine::kind::cpu, 0);
@@ -265,7 +265,7 @@ extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean, flo
 }
 
 extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_type,
-                            std::vector<long int> shape) {
+                               std::vector<int64_t> shape) {
   using dt = memory::data_type;
 
   engine eng(engine::kind::cpu, 0);
@@ -287,7 +287,7 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
     default:
       assert(true);
       break;
-  };
+  }
 
   auto add_desc = binary::desc(algo, data_md, data_md, data_md);
   auto add_prim_desc = binary::primitive_desc(add_desc, eng);

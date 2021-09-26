@@ -247,12 +247,9 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
     using ArgFunType = std::function<std::vector<std::string>(const CallNode*)>;
     static const std::map<std::string, std::pair<std::string, ArgFunType>> op_map = {
-        {"nn.conv2d", {"dnnl_conv2d", Conv2d}},
-        {"nn.dense", {"dnnl_dense", Dense}},
-        {"nn.relu", {"dnnl_relu", Relu}},
-        {"nn.batch_norm", {"dnnl_bn", BatchNorm}},
-        {"add", {"dnnl_binary_op", Add}},
-        {"multiply", {"dnnl_binary_op", Multiply}},
+        {"nn.conv2d", {"dnnl_conv2d", Conv2d}}, {"nn.dense", {"dnnl_dense", Dense}},
+        {"nn.relu", {"dnnl_relu", Relu}},       {"nn.batch_norm", {"dnnl_bn", BatchNorm}},
+        {"add", {"dnnl_binary_op", Add}},       {"multiply", {"dnnl_binary_op", Multiply}},
     };
 
     const auto op_name = GetRef<Op>(op_node)->name;
