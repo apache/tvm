@@ -392,12 +392,12 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_fuse(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_fuse(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do fuse:
@@ -407,21 +407,21 @@ class Schedule(Object):
             sch = tir.Schedule(before_fuse)
             i, j = sch.get_loops(sch.get_block("B"))
             sch.fuse(i, j)
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying fuse, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_fuse(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
+            @T.prim_func
+            def after_fuse(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
                 # the 2 loops are fused into 1
-                for i_j_fused in tir.serial(0, 16384):
-                    with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, tir.floordiv(i_j_fused, 128))
-                        tir.bind(vj, tir.floormod(i_j_fused, 128))
+                for i_j_fused in T.serial(0, 16384):
+                    with T.block([128, 128], "B") as [vi, vj]:
+                        T.bind(vi, tir.floordiv(i_j_fused, 128))
+                        T.bind(vj, T.floormod(i_j_fused, 128))
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -463,12 +463,12 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_split(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_split(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do split:
@@ -478,21 +478,21 @@ class Schedule(Object):
             sch = tir.Schedule(before_split)
             i, j = sch.get_loops(sch.get_block("B"))
             sch.split(i, factors=[2, 64])
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying split, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_split(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
+            @T.prim_func
+            def after_split(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
                 # the original loop is split into 2 loops
-                for i0, i1, j in tir.grid(2, 64, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, ((i0*64) + i1))
-                        tir.bind(vj, j)
+                for i0, i1, j in T.grid(2, 64, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
+                        T.bind(vi, ((i0*64) + i1))
+                        T.bind(vj, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -524,12 +524,12 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_reorder(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_reorder(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do reorder:
@@ -539,21 +539,21 @@ class Schedule(Object):
             sch = tir.Schedule(before_reorder)
             i, j = sch.get_loops(sch.get_block("B"))
             sch.reorder(j, i)
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying reorder, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_reorder(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
+            @T.prim_func
+            def after_reorder(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
                 # Here j and i are reordered
-                for j, i in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, i)
-                        tir.bind(vj, j)
+                for j, i in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
+                        T.bind(vi, i)
+                        T.bind(vj, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -581,14 +581,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_parallel(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, i)
-                        tir.bind(vj, j)
+            @T.prim_func
+            def before_parallel(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
+                        T.bind(vi, i)
+                        T.bind(vj, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do parallel:
@@ -603,15 +603,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_parallel(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i in tir.parallel(0, 128):
-                    for j in tir.serial(0, 128):
-                        with tir.block([128, 128], "B") as [vi, vj]:
-                            tir.bind(vi, i)
-                            tir.bind(vj, j)
+            @T.prim_func
+            def after_parallel(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i in T.parallel(0, 128):
+                    for j in T.serial(0, 128):
+                        with T.block([128, 128], "B") as [vi, vj]:
+                            T.bind(vi, i)
+                            T.bind(vj, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -637,14 +637,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_vectorize(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, i)
-                        tir.bind(vj, j)
+            @T.prim_func
+            def before_vectorize(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
+                        T.bind(vi, i)
+                        T.bind(vj, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do vectorize:
@@ -659,15 +659,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_vectorize(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i in tir.serial(0, 128):
-                    for j in tir.vectorized(0, 128):
-                        with tir.block([128, 128], "B") as [vi, vj]:
-                            tir.bind(vi, i)
-                            tir.bind(vj, j)
+            @T.prim_func
+            def after_vectorize(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i in T.serial(0, 128):
+                    for j in T.vectorized(0, 128):
+                        with T.block([128, 128], "B") as [vi, vj]:
+                            T.bind(vi, i)
+                            T.bind(vj, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -701,14 +701,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_bind(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, i)
-                        tir.bind(vj, j)
+            @T.prim_func
+            def before_bind(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
+                        T.bind(vi, i)
+                        T.bind(vj, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do bind:
@@ -724,15 +724,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_bind(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i in tir.thread_binding(0, 128, thread = "blockIdx.x"):
-                    for j in tir.thread_binding(0, 128, thread = "threadIdx.x"):
-                        with tir.block([128, 128], "B") as [vi, vj]:
-                            tir.bind(vi, i)
-                            tir.bind(vj, j)
+            @T.prim_func
+            def after_bind(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i in T.thread_binding(0, 128, thread = "blockIdx.x"):
+                    for j in T.thread_binding(0, 128, thread = "threadIdx.x"):
+                        with T.block([128, 128], "B") as [vi, vj]:
+                            T.bind(vi, i)
+                            T.bind(vj, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -753,14 +753,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_unroll(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
-                        tir.bind(vi, i)
-                        tir.bind(vj, j)
+            @T.prim_func
+            def before_unroll(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
+                        T.bind(vi, i)
+                        T.bind(vj, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do unroll:
@@ -775,15 +775,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_unroll(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i in tir.unroll(0, 128):
-                    for j in tir.serial(0, 128):
-                        with tir.block([128, 128], "B") as [vi, vj]:
-                            tir.bind(vi, i)
-                            tir.bind(vj, j)
+            @T.prim_func
+            def after_unroll(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i in T.unroll(0, 128):
+                    for j in T.serial(0, 128):
+                        with T.block([128, 128], "B") as [vi, vj]:
+                            T.bind(vi, i)
+                            T.bind(vj, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -820,12 +820,12 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_cache_read(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_cache_read(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and cache_read:
@@ -835,22 +835,22 @@ class Schedule(Object):
             sch = tir.Schedule(before_cache_read)
             block_b = sch.get_block("B")
             sch.cache_read(block_b, 0, "local")
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying cache_read, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_cache_read(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                A_local = tir.alloc_buffer((128, 128), scope="local")
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "A_local") as [vi, vj]:
+            @T.prim_func
+            def after_cache_read(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                A_local = T.alloc_buffer((128, 128), scope="local")
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "A_local") as [vi, vj]:
                         A_local[vi, vj] = A[vi, vj]
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
@@ -888,12 +888,12 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_cache_write(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_cache_write(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and cache_write:
@@ -903,22 +903,22 @@ class Schedule(Object):
             sch = tir.Schedule(before_cache_write)
             block_b = sch.get_block("B")
             sch.cache_write(block_b, 0, "local")
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying cache_write, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_cache_write(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.match_buffer(b, (128, 128))
-                B_local = tir.alloc_buffer((128, 128), scope="local")
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "A_local") as [vi, vj]:
+            @T.prim_func
+            def after_cache_write(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                B_local = T.alloc_buffer((128, 128), scope="local")
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "A_local") as [vi, vj]:
                         B_local[vi, vj] = A[vi, vj] * 2.0
-                for i, j in tir.grid(128, 128):
-                    with tir.block([128, 128], "B") as [vi, vj]:
+                for i, j in T.grid(128, 128):
+                    with T.block([128, 128], "B") as [vi, vj]:
                         B[vi, vj] = B_local[vi, vj]
 
         """
@@ -969,14 +969,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_compute_at(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128), "float32")
-                B = tir.alloc_buffer((128, 128), "float32")
-                C = tir.match_buffer(c, (128, 128), "float32")
-                with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_compute_at(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128), "float32")
+                B = T.alloc_buffer((128, 128), "float32")
+                C = T.match_buffer(c, (128, 128), "float32")
+                with T.block([128, 128], "B") as [vi, vj]:
                     B[vi, vj] = A[vi, vj] * 2.0
-                with tir.block([128, 128], "C") as [vi, vj]:
+                with T.block([128, 128], "C") as [vi, vj]:
                     C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do compute-at:
@@ -987,27 +987,27 @@ class Schedule(Object):
             block = sch.get_block("B")
             loop, _ = sch.get_loops(sch.get_block("C"))
             sch.compute_at(block, loop, preserve_unit_loops=False)
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying compute-at, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_compute_at(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128), "float32")
-                B = tir.alloc_buffer((128, 128), "float32")
-                C = tir.match_buffer(c, (128, 128), "float32")
-                for i in tir.serial(0, 128):
-                    for j in tir.serial(0, 128):
-                        with tir.block([128, 128], "B") as [vi, vj]:
-                            tir.bind(vi, i)
-                            tir.bind(vj, j)
+            @T.prim_func
+            def after_compute_at(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128), "float32")
+                B = T.alloc_buffer((128, 128), "float32")
+                C = T.match_buffer(c, (128, 128), "float32")
+                for i in T.serial(0, 128):
+                    for j in T.serial(0, 128):
+                        with T.block([128, 128], "B") as [vi, vj]:
+                            T.bind(vi, i)
+                            T.bind(vj, j)
                             B[vi, vj] = A[vi, vj] * 2.0
-                    for j in tir.serial(0, 128):
-                        with tir.block([128, 128], "C") as [vi, vj]:
-                            tir.bind(vi, i)
-                            tir.bind(vj, j)
+                    for j in T.serial(0, 128):
+                        with T.block([128, 128], "C") as [vi, vj]:
+                            T.bind(vi, i)
+                            T.bind(vj, j)
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
@@ -1056,14 +1056,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_reverse_compute_at(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128), "float32")
-                B = tir.alloc_buffer((128, 128), "float32")
-                C = tir.match_buffer(c, (128, 128), "float32")
-                with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_reverse_compute_at(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128), "float32")
+                B = T.alloc_buffer((128, 128), "float32")
+                C = T.match_buffer(c, (128, 128), "float32")
+                with T.block([128, 128], "B") as [vi, vj]:
                     B[vi, vj] = A[vi, vj] * 2.0
-                with tir.block([128, 128], "C") as [vi, vj]:
+                with T.block([128, 128], "C") as [vi, vj]:
                     C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do reverse-compute-at:
@@ -1074,27 +1074,27 @@ class Schedule(Object):
             block = sch.get_block("C")
             loop, _ = sch.get_loops(sch.get_block("B"))
             sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying reverse-compute-at, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_reverse_compute_at(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128), "float32")
-                B = tir.alloc_buffer((128, 128), "float32")
-                C = tir.match_buffer(c, (128, 128), "float32")
-                for i in tir.serial(0, 128):
-                    for j in tir.serial(0, 128):
-                        with tir.block([128, 128], "B") as [vi, vj]:
-                            tir.bind(vi, i)
-                            tir.bind(vj, j)
+            @T.prim_func
+            def after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128), "float32")
+                B = T.alloc_buffer((128, 128), "float32")
+                C = T.match_buffer(c, (128, 128), "float32")
+                for i in T.serial(0, 128):
+                    for j in T.serial(0, 128):
+                        with T.block([128, 128], "B") as [vi, vj]:
+                            T.bind(vi, i)
+                            T.bind(vj, j)
                             B[vi, vj] = A[vi, vj] * 2.0
-                    for j in tir.serial(0, 128):
-                        with tir.block([128, 128], "C") as [vi, vj]:
-                            tir.bind(vi, i)
-                            tir.bind(vj, j)
+                    for j in T.serial(0, 128):
+                        with T.block([128, 128], "C") as [vi, vj]:
+                            T.bind(vi, i)
+                            T.bind(vj, j)
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
@@ -1130,14 +1130,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_inline(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.alloc_buffer((128, 128))
-                C = tir.match_buffer(c, (128, 128))
-                with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_inline(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.alloc_buffer((128, 128))
+                C = T.match_buffer(c, (128, 128))
+                with T.block([128, 128], "B") as [vi, vj]:
                     B[vi, vj] = A[vi, vj] * 2.0
-                with tir.block([128, 128], "C") as [vi, vj]:
+                with T.block([128, 128], "C") as [vi, vj]:
                     C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do compute-inline:
@@ -1146,17 +1146,17 @@ class Schedule(Object):
 
             sch = tir.Schedule(before_inline)
             sch.compute_inline(sch.get_block("B"))
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying compute-inline, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_inline(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                C = tir.match_buffer(c, (128, 128))
-                with tir.block([128, 128], "C") as [vi, vj]:
+            @T.prim_func
+            def after_inline(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                C = T.match_buffer(c, (128, 128))
+                with T.block([128, 128], "C") as [vi, vj]:
                     C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
@@ -1190,14 +1190,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_inline(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.alloc_buffer((128, 128))
-                C = tir.match_buffer(c, (128, 128))
-                with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_inline(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.alloc_buffer((128, 128))
+                C = T.match_buffer(c, (128, 128))
+                with T.block([128, 128], "B") as [vi, vj]:
                     B[vi, vj] = A[vi, vj] * 2.0
-                with tir.block([128, 128], "C") as [vi, vj]:
+                with T.block([128, 128], "C") as [vi, vj]:
                     C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do reverse-compute-inline:
@@ -1206,17 +1206,17 @@ class Schedule(Object):
 
             sch = tir.Schedule(before_inline)
             sch.reverse_compute_inline(sch.get_block("C"))
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying reverse-compute-inline, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_inline(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                C = tir.match_buffer(c, (128, 128))
-                with tir.block([128, 128], "C") as [vi, vj]:
+            @T.prim_func
+            def after_inline(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                C = T.match_buffer(c, (128, 128))
+                with T.block([128, 128], "C") as [vi, vj]:
                     C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
@@ -1304,13 +1304,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_rfactor(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128, 128))
-                B = tir.match_buffer(b, (128,))
-                with tir.block([128, tir.reduce_axis(0, 128),
-                                tir.reduce_axis(0, 128)], "B") as [vii, vi, vj]:
-                    with tir.init():
+            @T.prim_func
+            def before_rfactor(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128, 128))
+                B = T.match_buffer(b, (128,))
+                with T.block([128, T.reduce_axis(0, 128),
+                                T.reduce_axis(0, 128)], "B") as [vii, vi, vj]:
+                    with T.init():
                         B[vii] = 0.0
                     B[vii] = B[vii] + A[vii, vi, vj]
 
@@ -1321,23 +1321,23 @@ class Schedule(Object):
             sch = tir.Schedule(before_rfactor)
             _, _, k = sch.get_loops(sch.get_block("B"))
             sch.rfactor(k, 0)
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying rfactor, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_rfactor(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, [128, 128, 128])
-                B = tir.match_buffer(b, [128])
-                B_rf = tir.alloc_buffer([128, 128])
-                with tir.block([128, 128, tir.reduce_axis(0, 128)], "B_rf") as [vi2, vii, vi]:
-                    with tir.init():
+            @T.prim_func
+            def after_rfactor(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, [128, 128, 128])
+                B = T.match_buffer(b, [128])
+                B_rf = T.alloc_buffer([128, 128])
+                with T.block([128, 128, T.reduce_axis(0, 128)], "B_rf") as [vi2, vii, vi]:
+                    with T.init():
                         B_rf[vi2, vii] = 0.0
                     B_rf[vi2, vii] = (B_rf[vi2, vii] + A[vii, vi, vi2])
-                with tir.block([128, tir.reduce_axis(0, 128)], "B") as [vii_1, vi2_1]:
-                    with tir.init():
+                with T.block([128, T.reduce_axis(0, 128)], "B") as [vii_1, vi2_1]:
+                    with T.init():
                         B[vii_1] = 0.0
                     B[vii_1] = (B[vii_1] + B_rf[vi2_1, vii_1])
 
@@ -1402,14 +1402,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def before_storage_align(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.alloc_buffer((128, 128))
-                C = tir.match_buffer(c, (128, 128))
-                with tir.block([128, 128], "B") as [vi, vj]:
+            @T.prim_func
+            def before_storage_align(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.alloc_buffer((128, 128))
+                C = T.match_buffer(c, (128, 128))
+                with T.block([128, 128], "B") as [vi, vj]:
                     B[vi, vj] = A[vi, vj] * 2.0
-                with tir.block([128, 128], "C") as [vi, vj]:
+                with T.block([128, 128], "C") as [vi, vj]:
                     C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do storage_align:
@@ -1418,21 +1418,21 @@ class Schedule(Object):
 
             sch = tir.Schedule(before_storage_align)
             sch.storage_align(sch.get_block("B"), buffer_index=0, axis=0, factor=128, offset=1)
-            print(tvm.script.asscript(sch.mod["main"]))
+            print(sch.mod["main"].script())
 
         After applying rfactor, the IR becomes:
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def after_storage_align(a: ty.handle, c: ty.handle) -> None:
-                A = tir.match_buffer(a, (128, 128))
-                B = tir.alloc_buffer((128, 128))
-                C = tir.match_buffer(c, (128, 128))
-                with tir.block([128, 128], "B") as [vi, vj]:
-                    tir.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+            @T.prim_func
+            def after_storage_align(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.alloc_buffer((128, 128))
+                C = T.match_buffer(c, (128, 128))
+                with T.block([128, 128], "B") as [vi, vj]:
+                    T.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
                     B[vi, vj] = A[vi, vj] * 2.0
-                with tir.block([128, 128], "C") as [vi, vj]:
+                with T.block([128, 128], "C") as [vi, vj]:
                     C[vi, vj] = B[vi, vj] + 1.0
 
         After lowering passes, buffer B will have strides as [129, 1].

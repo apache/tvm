@@ -1068,17 +1068,17 @@ class MatchBufferRegion : public ObjectRef {
  * \note Block's body is parameterized by iter vars.
  * \code
  *
- *  with tir.block([extent0, extent1, ...], name) as [v0, v1, ...]:
- *      tir.bind(v0, value0)
- *      tir.bind(v1, value1)
+ *  with T.block([extent0, extent1, ...], name) as [v0, v1, ...]:
+ *      T.bind(v0, value0)
+ *      T.bind(v1, value1)
  *      ...
- *      tir.reads([buffer0[start:end, ...], ...])
- *      tir.writes([buffer1[start:end, ...], ...])
- *      tir.where(predicate)
- *      buffer2 = tir.alloc_buffer(shape, dtype)
- *      buffer3 = tir.match_buffer(source_buffer[start:end, ...])
- *      tir.attr({attr_key: attr_value, ...})
- *      with tir.init():
+ *      T.reads([buffer0[start:end, ...], ...])
+ *      T.writes([buffer1[start:end, ...], ...])
+ *      T.where(predicate)
+ *      buffer2 = T.alloc_buffer(shape, dtype)
+ *      buffer3 = T.match_buffer(source_buffer[start:end, ...])
+ *      T.attr({attr_key: attr_value, ...})
+ *      with T.init():
  *          // init body
  *      // body
  *

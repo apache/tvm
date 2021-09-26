@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
+"""TVMScript for TIR"""
 
-from . import tir
+# Type system
+from .ty import int8, int16, int32, int64, float16, float32, float64
+from .ty import boolean, handle, Ptr, Tuple
 
-from .parser import ir_module, from_source
+from .prim_func import prim_func

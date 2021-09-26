@@ -16,8 +16,8 @@
 # under the License.
 import pytest
 import tvm
-from tvm import tir, te
-from tvm.script import ty
+from tvm import te
+from tvm.script import tir as T
 
 
 def _check(original, transformed):
@@ -33,159 +33,159 @@ def _check_fail(original):
         tvm.tir.transform.UnifyThreadBinding()(mod)
 
 
-@tvm.script.tir
-def element_wise_thread_x(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    j1_0 = tir.env_thread("threadIdx.x")
-    j0_0 = tir.env_thread("threadIdx.x")
-    i = tir.env_thread("blockIdx.x")
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    tir.launch_thread(i, 128)
-    with tir.launch_thread(j0_0, 4):
-        for j0_1 in tir.serial(0, 32):
-            tir.store(
+@T.prim_func
+def element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
+    j1_0 = T.env_thread("threadIdx.x")
+    j0_0 = T.env_thread("threadIdx.x")
+    i = T.env_thread("blockIdx.x")
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    T.launch_thread(i, 128)
+    with T.launch_thread(j0_0, 4):
+        for j0_1 in T.serial(0, 32):
+            T.store(
                 B.data,
                 i * 128 + j0_0 * 32 + j0_1,
-                tir.load("float32", A.data, i * 128 + j0_0 * 32 + j0_1) * 2.0,
+                T.load("float32", A.data, i * 128 + j0_0 * 32 + j0_1) * 2.0,
                 True,
             )
-    tir.launch_thread(j1_0, 4)
-    for j1_1 in tir.serial(0, 32):
-        tir.store(
+    T.launch_thread(j1_0, 4)
+    for j1_1 in T.serial(0, 32):
+        T.store(
             C.data,
             i * 128 + j1_0 * 32 + j1_1,
-            tir.load("float32", A.data, i * 128 + j1_0 * 32 + j1_1) + 1.0,
+            T.load("float32", A.data, i * 128 + j1_0 * 32 + j1_1) + 1.0,
             True,
         )
 
 
-@tvm.script.tir
-def unified_element_wise_thread_x(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    thread_x = tir.env_thread("threadIdx.x")
-    block_x = tir.env_thread("blockIdx.x")
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    tir.launch_thread(block_x, 128)
-    with tir.launch_thread(thread_x, 4):
-        for j0_1 in tir.serial(0, 32):
-            tir.store(
+@T.prim_func
+def unified_element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
+    thread_x = T.env_thread("threadIdx.x")
+    block_x = T.env_thread("blockIdx.x")
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    T.launch_thread(block_x, 128)
+    with T.launch_thread(thread_x, 4):
+        for j0_1 in T.serial(0, 32):
+            T.store(
                 B.data,
                 block_x * 128 + thread_x * 32 + j0_1,
-                tir.load("float32", A.data, block_x * 128 + thread_x * 32 + j0_1) * 2.0,
+                T.load("float32", A.data, block_x * 128 + thread_x * 32 + j0_1) * 2.0,
                 True,
             )
-    tir.launch_thread(thread_x, 4)
-    for j1_1 in tir.serial(0, 32):
-        tir.store(
+    T.launch_thread(thread_x, 4)
+    for j1_1 in T.serial(0, 32):
+        T.store(
             C.data,
             block_x * 128 + thread_x * 32 + j1_1,
-            tir.load("float32", A.data, block_x * 128 + thread_x * 32 + j1_1) + 1.0,
+            T.load("float32", A.data, block_x * 128 + thread_x * 32 + j1_1) + 1.0,
             True,
         )
 
 
-@tvm.script.tir
-def element_wise_vthread_x(a: ty.handle, b: ty.handle) -> None:
-    i_0 = tir.env_thread("vthread.x")
-    i_1 = tir.env_thread("threadIdx.x")
-    j_0 = tir.env_thread("vthread.x")
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    tir.launch_thread(i_0, 2)
-    tir.launch_thread(i_1, 64)
-    tir.launch_thread(j_0, 2)
-    for j_1 in tir.serial(0, 64):
-        tir.store(
+@T.prim_func
+def element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
+    i_0 = T.env_thread("vthread.x")
+    i_1 = T.env_thread("threadIdx.x")
+    j_0 = T.env_thread("vthread.x")
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    T.launch_thread(i_0, 2)
+    T.launch_thread(i_1, 64)
+    T.launch_thread(j_0, 2)
+    for j_1 in T.serial(0, 64):
+        T.store(
             B.data,
             i_0 * 8192 + i_1 * 128 + j_0 * 64 + j_1,
-            tir.load("float32", A.data, i_0 * 8192 + i_1 * 128 + j_0 * 64 + j_1) * 2.0,
+            T.load("float32", A.data, i_0 * 8192 + i_1 * 128 + j_0 * 64 + j_1) * 2.0,
             True,
         )
 
 
-@tvm.script.tir
-def unified_element_wise_vthread_x(a: ty.handle, b: ty.handle) -> None:
-    vthread_x = tir.env_thread("vthread.x")
-    thread_x = tir.env_thread("threadIdx.x")
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    tir.launch_thread(vthread_x, 2)
-    tir.launch_thread(thread_x, 64)
-    tir.launch_thread(vthread_x, 2)
-    for j_1 in tir.serial(0, 64):
-        tir.store(
+@T.prim_func
+def unified_element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
+    vthread_x = T.env_thread("vthread.x")
+    thread_x = T.env_thread("threadIdx.x")
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    T.launch_thread(vthread_x, 2)
+    T.launch_thread(thread_x, 64)
+    T.launch_thread(vthread_x, 2)
+    for j_1 in T.serial(0, 64):
+        T.store(
             B.data,
             vthread_x * 8256 + thread_x * 128 + j_1,
-            tir.load("float32", A.data, vthread_x * 8256 + thread_x * 128 + j_1) * 2.0,
+            T.load("float32", A.data, vthread_x * 8256 + thread_x * 128 + j_1) * 2.0,
             True,
         )
 
 
-@tvm.script.tir
+@T.prim_func
 def element_wise_two_thread_x_in_same_kernel_not_equal(
-    a: ty.handle, b: ty.handle, c: ty.handle
+    a: T.handle, b: T.handle, c: T.handle
 ) -> None:
-    i = tir.env_thread("blockIdx.x")
-    j0 = tir.env_thread("threadIdx.x")
-    j1 = tir.env_thread("threadIdx.x")
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 64])
-    tir.launch_thread(i, 128)
-    with tir.launch_thread(j0, 128):
-        tir.store(B.data, i * 64 + j0, tir.load("float32", A.data, i * 128 + j0) * 2.0, True)
-    tir.launch_thread(j1, 64)
-    tir.store(C.data, i * 64 + j1, tir.load("float32", A.data, i * 128 + j1) + 1.0, True)
+    i = T.env_thread("blockIdx.x")
+    j0 = T.env_thread("threadIdx.x")
+    j1 = T.env_thread("threadIdx.x")
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 64])
+    T.launch_thread(i, 128)
+    with T.launch_thread(j0, 128):
+        T.store(B.data, i * 64 + j0, T.load("float32", A.data, i * 128 + j0) * 2.0, True)
+    T.launch_thread(j1, 64)
+    T.store(C.data, i * 64 + j1, T.load("float32", A.data, i * 128 + j1) + 1.0, True)
 
 
-@tvm.script.tir
+@T.prim_func
 def element_wise_kernels_with_different_size(
-    a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle
+    a: T.handle, b: T.handle, c: T.handle, d: T.handle
 ) -> None:
-    i0 = tir.env_thread("blockIdx.x")
-    j0 = tir.env_thread("threadIdx.x")
-    i1 = tir.env_thread("blockIdx.x")
-    j1 = tir.env_thread("threadIdx.x")
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [256, 256])
-    D = tir.match_buffer(d, [256, 256])
-    with tir.launch_thread(i0, 128):
-        tir.launch_thread(j0, 128)
-        tir.store(B.data, i0 * 128 + j0, tir.load("float32", A.data, i0 * 128 + j0) * 2.0, True)
-    tir.launch_thread(i1, 256)
-    tir.launch_thread(j1, 256)
-    tir.store(D.data, i1 * 256 + j1, tir.load("float32", C.data, i1 * 256 + j1) + 1.0, True)
+    i0 = T.env_thread("blockIdx.x")
+    j0 = T.env_thread("threadIdx.x")
+    i1 = T.env_thread("blockIdx.x")
+    j1 = T.env_thread("threadIdx.x")
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [256, 256])
+    D = T.match_buffer(d, [256, 256])
+    with T.launch_thread(i0, 128):
+        T.launch_thread(j0, 128)
+        T.store(B.data, i0 * 128 + j0, T.load("float32", A.data, i0 * 128 + j0) * 2.0, True)
+    T.launch_thread(i1, 256)
+    T.launch_thread(j1, 256)
+    T.store(D.data, i1 * 256 + j1, T.load("float32", C.data, i1 * 256 + j1) + 1.0, True)
 
 
-@tvm.script.tir
+@T.prim_func
 def unified_element_wise_kernels_with_different_size(
-    a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle
+    a: T.handle, b: T.handle, c: T.handle, d: T.handle
 ) -> None:
-    block_x = tir.env_thread("blockIdx.x")
-    thread_x = tir.env_thread("threadIdx.x")
-    block_x_1 = tir.env_thread("blockIdx.x")
-    thread_x_1 = tir.env_thread("threadIdx.x")
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [256, 256])
-    D = tir.match_buffer(d, [256, 256])
-    with tir.launch_thread(block_x, 128):
-        tir.launch_thread(thread_x, 128)
-        tir.store(
+    block_x = T.env_thread("blockIdx.x")
+    thread_x = T.env_thread("threadIdx.x")
+    block_x_1 = T.env_thread("blockIdx.x")
+    thread_x_1 = T.env_thread("threadIdx.x")
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [256, 256])
+    D = T.match_buffer(d, [256, 256])
+    with T.launch_thread(block_x, 128):
+        T.launch_thread(thread_x, 128)
+        T.store(
             B.data,
             block_x * 128 + thread_x,
-            tir.load("float32", A.data, block_x * 128 + thread_x) * 2.0,
+            T.load("float32", A.data, block_x * 128 + thread_x) * 2.0,
             True,
         )
-    tir.launch_thread(block_x_1, 256)
-    tir.launch_thread(thread_x_1, 256)
-    tir.store(
+    T.launch_thread(block_x_1, 256)
+    T.launch_thread(thread_x_1, 256)
+    T.store(
         D.data,
         block_x_1 * 256 + thread_x_1,
-        tir.load("float32", C.data, block_x_1 * 256 + thread_x_1) + 1.0,
+        T.load("float32", C.data, block_x_1 * 256 + thread_x_1) + 1.0,
         True,
     )
 

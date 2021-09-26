@@ -28,39 +28,40 @@ from tvm import tir
 from tvm.ir.module import IRModule
 from tvm.meta_schedule.arg_info import ArgInfo
 from tvm.meta_schedule.database import JSONDatabase, TuningRecord
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir import Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
-
-@tvm.script.tir
+@tvm.script.ir_module
 class Matmul:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-        tir.func_attr({"global_symbol": "main"})
-        A = tir.match_buffer(a, (1024, 1024), "float32")
-        B = tir.match_buffer(b, (1024, 1024), "float32")
-        C = tir.match_buffer(c, (1024, 1024), "float32")
-        with tir.block([1024, 1024, tir.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with tir.init():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"global_symbol": "main"})
+        A = T.match_buffer(a, (1024, 1024), "float32")
+        B = T.match_buffer(b, (1024, 1024), "float32")
+        C = T.match_buffer(c, (1024, 1024), "float32")
+        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
+            with T.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class MatmulRelu:
-    def main(a: ty.handle, b: ty.handle, d: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, (16, 16), "float32")
-        B = tir.match_buffer(b, (16, 16), "float32")
-        D = tir.match_buffer(d, (16, 16), "float32")
-        C = tir.alloc_buffer((16, 16), "float32")
-        with tir.block([16, 16, tir.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
-            with tir.init():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, (16, 16), "float32")
+        B = T.match_buffer(b, (16, 16), "float32")
+        D = T.match_buffer(d, (16, 16), "float32")
+        C = T.alloc_buffer((16, 16), "float32")
+        with T.block([16, 16, T.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
+            with T.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-        with tir.block([16, 16], "relu") as [vi, vj]:
-            D[vi, vj] = tir.max(C[vi, vj], 0.0)
+        with T.block([16, 16], "relu") as [vi, vj]:
+            D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
 # fmt: on
@@ -102,7 +103,7 @@ def _equal_record(a: TuningRecord, b: TuningRecord):
 
 
 def test_meta_schedule_tuning_record_round_trip():
-    mod: IRModule = Matmul()
+    mod: IRModule = Matmul
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         workload = database.commit_workload(mod)
@@ -126,7 +127,7 @@ def test_meta_schedule_database_create():
 
 
 def test_meta_schedule_database_add_entry():
-    mod: IRModule = Matmul()
+    mod: IRModule = Matmul
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         workload = database.commit_workload(mod)
@@ -144,8 +145,8 @@ def test_meta_schedule_database_add_entry():
 
 
 def test_meta_schedule_database_missing():
-    mod: IRModule = Matmul()
-    mod_2: IRModule = MatmulRelu()
+    mod: IRModule = Matmul
+    mod_2: IRModule = MatmulRelu
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         workload = database.commit_workload(mod)
@@ -163,7 +164,7 @@ def test_meta_schedule_database_missing():
 
 
 def test_meta_schedule_database_sorting():
-    mod: IRModule = Matmul()
+    mod: IRModule = Matmul
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         token = database.commit_workload(mod)
@@ -225,7 +226,7 @@ def test_meta_schedule_database_sorting():
 
 
 def test_meta_schedule_database_reload():
-    mod: IRModule = Matmul()
+    mod: IRModule = Matmul
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         token = database.commit_workload(mod)
