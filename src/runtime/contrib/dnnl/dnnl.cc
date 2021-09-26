@@ -44,6 +44,32 @@ typedef struct {
   void** data;
 } DnnlPackedArgs;
 
+inline dnnl::memory::desc GenDNNLMemDescByShape(const dnnl::memory::dims& shape,
+                                                memory::data_type dtype) {
+  using tag = memory::format_tag;
+
+  dnnl::memory::desc data_md;
+
+  switch (shape.size()) {
+    case 2:
+      data_md = dnnl::memory::desc({shape, dtype, tag::ab});
+      break;
+    case 3:
+      data_md = dnnl::memory::desc({shape, dtype, tag::abc});
+      break;
+    case 4:
+      data_md = dnnl::memory::desc({shape, dtype, tag::abcd});
+      break;
+    case 5:
+      data_md = dnnl::memory::desc({shape, dtype, tag::abcde});
+      break;
+    default:
+      assert(true);
+      break;
+  }
+  return data_md;
+}
+
 // Read from memory, write to handle
 inline void read_from_dnnl_memory(void* handle, const memory& mem) {
   size_t bytes = mem.get_desc().get_size();
@@ -175,16 +201,13 @@ extern "C" void dnnl_dense(float* data, float* weight, float* out, int p_B_, int
   read_from_dnnl_memory(out, dst_memory);
 }
 
-extern "C" void dnnl_relu(float* data, float* out, int p_N_, int p_C_, int p_H_, int p_W_) {
-  using tag = memory::format_tag;
+extern "C" void dnnl_relu(float* data, float* out, std::vector<long int> shape) {
   using dt = memory::data_type;
 
   engine eng(engine::kind::cpu, 0);
   stream s(eng);
 
-  memory::dims data_tz = {p_N_, p_C_, p_H_, p_W_};
-
-  auto data_md = memory::desc{{data_tz}, dt::f32, tag::nchw};
+  auto data_md = GenDNNLMemDescByShape(shape, dt::f32);
 
   auto data_memory = memory(data_md, eng, data);
   auto dst_memory = memory(data_md, eng);
@@ -241,27 +264,34 @@ extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean, flo
   free(weight);
 }
 
-extern "C" void dnnl_add(float* data, float* weight, float* out, int p_N_, int p_C_, int p_H_,
-                         int p_W_) {
-  using tag = memory::format_tag;
+extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_type,
+                            std::vector<long int> shape) {
   using dt = memory::data_type;
 
   engine eng(engine::kind::cpu, 0);
   stream s(eng);
 
-  memory::dims data_tz = {p_N_, p_C_, p_H_, p_W_};
-
-  auto data_md = memory::desc{{data_tz}, dt::f32, tag::nchw};
-  auto weight_md = memory::desc({{data_tz}, dt::f32, tag::nchw});
-  auto dst_md = memory::desc({{data_tz}, dt::f32, tag::nchw});
+  auto data_md = GenDNNLMemDescByShape(shape, dt::f32);
 
   auto data_memory = memory(data_md, eng, data);
-  auto weight_memory = memory(weight_md, eng, weight);
-  auto dst_memory = memory(dst_md, eng);
+  auto weight_memory = memory(data_md, eng, weight);
+  auto dst_memory = memory(data_md, eng);
 
-  auto add_desc = binary::desc(algorithm::binary_add, data_md, weight_md, dst_md);
+  algorithm algo = algorithm::undef;
+  switch (algo_type) {
+    case 0:
+      algo = algorithm::binary_add;
+      break;
+    case 1:
+      algo = algorithm::binary_mul;
+    default:
+      assert(true);
+      break;
+  };
+
+  auto add_desc = binary::desc(algo, data_md, data_md, data_md);
   auto add_prim_desc = binary::primitive_desc(add_desc, eng);
-  assert(dst_md == add_prim_desc.dst_desc());
+  assert(data_md == add_prim_desc.dst_desc());
 
   auto add = binary(add_prim_desc);
   add.execute(

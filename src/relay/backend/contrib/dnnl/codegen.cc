@@ -54,6 +54,15 @@ inline size_t GetShape1DSize(const Type& type) {
   return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
 }
 
+inline std::string GetShapeString(std::vector<int> shape) {
+  std::string v = "std::vector<long int>{";
+  for (auto s : shape) {
+    v += std::to_string(s) + ",";
+  }
+  v += "}";
+  return v;
+}
+
 std::vector<std::string> Conv2d(const CallNode* call) {
   std::vector<std::string> args;
   const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
@@ -98,12 +107,7 @@ std::vector<std::string> Dense(const CallNode* call) {
 std::vector<std::string> Relu(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
-
-  // Args: N, C, H, W
-  for (auto s : ishape) {
-    args.push_back(std::to_string(s));
-  }
-
+  args.push_back(GetShapeString(ishape));
   return args;
 }
 
@@ -126,12 +130,16 @@ std::vector<std::string> BatchNorm(const CallNode* call) {
 std::vector<std::string> Add(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
+  args.push_back("0");
+  args.push_back(GetShapeString(ishape));
+  return args;
+}
 
-  // Args: H, W
-  for (auto s : ishape) {
-    args.push_back(std::to_string(s));
-  }
-
+std::vector<std::string> Multiply(const CallNode* call) {
+  std::vector<std::string> args;
+  auto ishape = GetShape(call->args[0]->checked_type());
+  args.push_back("1");
+  args.push_back(GetShapeString(ishape));
   return args;
 }
 
@@ -243,7 +251,8 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
         {"nn.dense", {"dnnl_dense", Dense}},
         {"nn.relu", {"dnnl_relu", Relu}},
         {"nn.batch_norm", {"dnnl_bn", BatchNorm}},
-        {"add", {"dnnl_add", Add}},
+        {"add", {"dnnl_binary_op", Add}},
+        {"multiply", {"dnnl_binary_op", Multiply}},
     };
 
     const auto op_name = GetRef<Op>(op_node)->name;
