@@ -57,6 +57,21 @@ class TransformMemorizerNode : public Object {
     }
   };
 
+  /*!
+   * \brief Defines the call transformation for derived passes. The new layouts are defined by
+   * used for different targets using a packed func.
+   * \param ref_call The original call.
+   * \param new_attrs Updated attributes consistent with new layouts.
+   * \param new_args The traversed/recursed args to the call.
+   * \return The new Call after calling the packed func.
+   */
+  virtual Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs,
+                                  const std::vector<Expr>& new_args) = 0;
+
+  virtual Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) {
+    return CallWithNewLayouts(ref_call, ref_call->attrs, new_args);
+  }
+
   /*! \brief The memorizer map. */
   std::unordered_map<TransformKey, Expr, key_hash> memo;
 
@@ -69,10 +84,8 @@ class TransformMemorizerNode : public Object {
  */
 class TransformMemorizer : public ObjectRef {
  public:
-  TransformMemorizer() {}
+  TransformMemorizer() = default;
   explicit TransformMemorizer(ObjectPtr<Object> n) : ObjectRef(n) {}
-
-  virtual ~TransformMemorizer() {}
 
   TransformMemorizerNode* operator->() {
     return static_cast<TransformMemorizerNode*>(get_mutable());
@@ -146,19 +159,6 @@ class TransformMemorizer : public ObjectRef {
     return MakeLayoutTransform(input_expr, new_src_layout.name(), dst_layout.name());
   }
 
-  /*!
-   * \brief Defines the call transformation for derived passes. The new layouts are defined by
-   * used for different targets using a packed func.
-   * \param ref_call The original call.
-   * \param new_attrs Updated attributes consistent with new layouts.
-   * \param new_args The traversed/recursed args to the call.
-   * \return The new Call after calling the packed func.
-   */
-  virtual Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs,
-                                  const std::vector<Expr>& new_args) = 0;
-  virtual Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) {
-    return CallWithNewLayouts(ref_call, ref_call->attrs, new_args);
-  }
   using ContainerType = TransformMemorizerNode;
 };
 
@@ -312,7 +312,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     if (ref_call->op.as<OpNode>()) {
       Op op = Downcast<Op>(ref_call->op);
       if (falter_layout.count(op) && !finfer_layout.count(op)) {
-        return memorizer.CallWithNewLayouts(ref_call, normal_new_args);
+        return memorizer->CallWithNewLayouts(ref_call, normal_new_args);
       }
     }
   }
@@ -349,7 +349,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   }
 
   // new_op = alter(op)
-  Call new_call = memorizer.CallWithNewLayouts(ref_call, infer_out->new_attrs, normal_new_args);
+  Call new_call = memorizer->CallWithNewLayouts(ref_call, infer_out->new_attrs, normal_new_args);
 
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->IsInstance<OpNode>()) {

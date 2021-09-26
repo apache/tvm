@@ -22,6 +22,7 @@
  * \brief Runtime profiling including timers.
  */
 
+#include <dmlc/json.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/packed_func.h>
@@ -231,7 +232,9 @@ String ReportNode::AsCSV() const {
 namespace {
 void print_metric(std::ostream& os, ObjectRef o) {
   if (o.as<StringObj>()) {
-    os << "\"" << Downcast<String>(o) << "\"";
+    os << "{\"string\":"
+       << "\"" << Downcast<String>(o) << "\""
+       << "}";
   } else if (const CountNode* n = o.as<CountNode>()) {
     os << "{\"count\":" << std::to_string(n->value) << "}";
   } else if (const DurationNode* n = o.as<DurationNode>()) {
@@ -540,6 +543,72 @@ Report::Report(Array<Map<String, ObjectRef>> calls,
   data_ = std::move(node);
 }
 
+Map<String, ObjectRef> parse_metrics(dmlc::JSONReader* reader) {
+  reader->BeginObject();
+  std::string metric_name, metric_value_name;
+  Map<String, ObjectRef> metrics;
+  while (reader->NextObjectItem(&metric_name)) {
+    ObjectRef o;
+    reader->BeginObject();
+    reader->NextObjectItem(&metric_value_name);
+    if (metric_value_name == "microseconds") {
+      double microseconds;
+      reader->Read(&microseconds);
+      o = ObjectRef(make_object<DurationNode>(microseconds));
+    } else if (metric_value_name == "percent") {
+      double percent;
+      reader->Read(&percent);
+      o = ObjectRef(make_object<PercentNode>(percent));
+    } else if (metric_value_name == "count") {
+      int64_t count;
+      reader->Read(&count);
+      o = ObjectRef(make_object<CountNode>(count));
+    } else if (metric_value_name == "string") {
+      std::string s;
+      reader->Read(&s);
+      o = String(s);
+    } else {
+      LOG(FATAL) << "Cannot parse metric of type " << metric_value_name
+                 << " valid types are microseconds, percent, count.";
+    }
+    metrics.Set(metric_name, o);
+    // Necessary to make sure that the parser hits the end of the object.
+    ICHECK(!reader->NextObjectItem(&metric_value_name));
+    // EndObject does not exist, leaving this here for clarity
+    // reader.EndObject();
+  }
+  // reader.EndObject();
+  return metrics;
+}
+
+Report Report::FromJSON(String json) {
+  std::stringstream input(json.operator std::string());
+  dmlc::JSONReader reader(&input);
+  std::string key;
+  Array<Map<String, ObjectRef>> calls;
+  Map<String, Map<String, ObjectRef>> device_metrics;
+
+  reader.BeginObject();
+  while (reader.NextObjectItem(&key)) {
+    if (key == "calls") {
+      reader.BeginArray();
+      while (reader.NextArrayItem()) {
+        calls.push_back(parse_metrics(&reader));
+      }
+      // reader.EndArray();
+    } else if (key == "device_metrics") {
+      reader.BeginObject();
+      std::string device_name;
+      while (reader.NextObjectItem(&device_name)) {
+        device_metrics.Set(device_name, parse_metrics(&reader));
+      }
+      // reader.EndObject();
+    }
+  }
+
+  return Report(calls, device_metrics);
+}
+
 TVM_REGISTER_OBJECT_TYPE(DurationNode);
 TVM_REGISTER_OBJECT_TYPE(PercentNode);
 TVM_REGISTER_OBJECT_TYPE(CountNode);
@@ -551,6 +620,7 @@ TVM_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) { ret
 TVM_REGISTER_GLOBAL("runtime.profiling.AsJSON").set_body_typed([](Report n) {
   return n->AsJSON();
 });
+TVM_REGISTER_GLOBAL("runtime.profiling.FromJSON").set_body_typed(Report::FromJSON);
 TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device dev) {
   return DeviceWrapper(dev);
 });

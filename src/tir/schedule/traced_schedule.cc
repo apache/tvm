@@ -166,8 +166,53 @@ void TracedScheduleNode::Unroll(const LoopRV& loop_rv) {
 }
 
 /******** Schedule: Insert cache stages ********/
+BlockRV TracedScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                      const String& storage_scope) {
+  BlockRV result = ConcreteScheduleNode::CacheRead(block_rv, read_buffer_index, storage_scope);
+
+  static const InstructionKind& kind = InstructionKind::Get("CacheRead");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{Integer(read_buffer_index), storage_scope},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
+BlockRV TracedScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                       const String& storage_scope) {
+  BlockRV result = ConcreteScheduleNode::CacheWrite(block_rv, write_buffer_index, storage_scope);
+
+  static const InstructionKind& kind = InstructionKind::Get("CacheWrite");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{Integer(write_buffer_index), storage_scope},
+                                      /*outputs=*/{result}));
+  return result;
+}
 
 /******** Schedule: Compute location ********/
+
+void TracedScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                   bool preserve_unit_loops) {
+  ConcreteScheduleNode::ComputeAt(block_rv, loop_rv, preserve_unit_loops);
+
+  static const InstructionKind& kind = InstructionKind::Get("ComputeAt");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv, loop_rv},
+                                      /*attrs=*/{Integer(preserve_unit_loops)},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                          bool preserve_unit_loops) {
+  ConcreteScheduleNode::ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops);
+
+  static const InstructionKind& kind = InstructionKind::Get("ReverseComputeAt");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv, loop_rv},
+                                      /*attrs=*/{Integer(preserve_unit_loops)},
+                                      /*outputs=*/{}));
+}
 
 void TracedScheduleNode::ComputeInline(const BlockRV& block_rv) {
   ConcreteScheduleNode::ComputeInline(block_rv);

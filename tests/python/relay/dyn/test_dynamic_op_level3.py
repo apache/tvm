@@ -19,11 +19,10 @@
 import numpy as np
 import pytest
 import tvm
-from tvm import te
-from tvm import relay
+import tvm.testing
+from tvm import relay, te
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
-import tvm.testing
 
 
 def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()):
@@ -91,6 +90,35 @@ def test_dyn_shape_reshape():
 
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
+
+
+@tvm.testing.uses_gpu
+def test_dyn_expand_dims():
+    def verify_expand_dims(
+        dshape, dtype, oshape, axis, num_newaxis, target_device=tvm.testing.enabled_targets()
+    ):
+        # Use 1 to avoid issues with invalid buffer sizes
+        x = relay.Var("x", relay.TensorType(dshape, dtype))
+        y = relay.var("axis", shape=[], dtype="int64")
+        z = relay.expand_dims(x, axis=y, num_newaxis=num_newaxis)
+        func = relay.Function([x, y], z)
+
+        data_np = np.random.uniform(size=dshape).astype(dtype)
+        axis_np = np.array(axis).astype("int64")
+        ref_res = data_np.reshape(oshape)
+        verify_func(func, [data_np, axis_np], ref_res, target_device=target_device)
+
+    for dtype in ["float16", "float32"]:
+        verify_expand_dims((2, 2), dtype, (2, 2, 1), 2, 1)
+        verify_expand_dims((2, 2), dtype, (2, 1, 2), 1, 1)
+        verify_expand_dims((2, 2), dtype, (1, 2, 2), 0, 1)
+
+        # TODO (AndrewZhaoLuo): investigate why runtimes in non-llvm are extremely slow
+        # for multiple new axis
+        llvm_target_only = [x for x in tvm.testing.enabled_targets() if "llvm" in x]
+        verify_expand_dims((2, 2), dtype, (2, 2, 1, 1), 2, 2, target_device=llvm_target_only)
+        verify_expand_dims((2, 2), dtype, (2, 1, 1, 1, 2), 1, 3, target_device=llvm_target_only)
+        verify_expand_dims((2, 2), dtype, (1, 1, 1, 1, 2, 2), 0, 4, target_device=llvm_target_only)
 
 
 @tvm.testing.uses_gpu

@@ -216,6 +216,7 @@ class ScheduleNode : public runtime::Object {
    * 1) The loops can't have annotations or thread bindings.
    * 2) The (i+1)-th loop must be the only child of the i-th loop.
    * 3) All loops must start with 0.
+   * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
    * \param loop_rvs The loops to be fused
    * \return The new loop after fusion
    */
@@ -282,7 +283,64 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void Unroll(const LoopRV& loop_rv) = 0;
   /******** Schedule: Insert cache stages ********/
+  /*!
+   * \brief Create a block that reads a buffer region into a read cache. It requires:
+   * 1) There is at most one block who writes the buffer in the scope.
+   * 2) The scope block have stage-pipeline property.
+   * \param block_rv The consumer block of the target buffer.
+   * \param read_buffer_index The index of the buffer in block's read region.
+   * \param storage_scope The target storage scope.
+   * \return The cache stage block.
+   */
+  virtual BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
+                            const String& storage_scope) = 0;
+  /*!
+   * \brief Create a block that writes a buffer region into a write cache. It requires:
+   * 1) There is only one block who writes the target buffer.
+   * 2) The scope block have stage-pipeline property.
+   * \param block_rv The producer of the buffer
+   * \param write_buffer_index The index of the buffer in block's write region
+   * \param storage_scope The target storage scope
+   * \return The cache stage block.
+   */
+  virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                             const String& storage_scope) = 0;
   /******** Schedule: Compute location ********/
+  /*!
+   * \brief Move a producer block under the specific loop, and regenerate the
+   * loops induced by the block so that the buffer region produced by the producer block could
+   * cover those regions consumed by its consumer blocks under the given loop. It requires:
+   * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+   * 2) The scope block has stage-pipeline property
+   * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+   * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+   * reduction block
+   * 4) The block is not an output block with regard to the scope block, i.e. the buffers written by
+   * the block are allocated under the scope block
+   * 5) All the consumers of the block are under the given loop
+   * \param block_rv The block to be moved
+   * \param loop_rv The loop where the block to be moved under
+   * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   */
+  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                         bool preserve_unit_loops) = 0;
+  /*!
+   * \brief Move a consumer block under the specific loop, and regenerate the
+   * loops induced by the block so that the buffer region consumed by the consumer block could
+   * cover those regions produced by its producer blocks under the given loop. It requires:
+   * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+   * 2) The scope block has stage-pipeline property
+   * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+   * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+   * reduction block
+   * 4) All the producers of the block are under the given loop
+   *
+   * \param block_rv The block to be moved
+   * \param loop_rv The loop where the block to be moved under
+   * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   */
+  virtual void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                bool preserve_unit_loops) = 0;
   /*!
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer

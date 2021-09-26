@@ -38,8 +38,8 @@
 #include <string>
 #include <vector>
 
-#include "te_compiler.h"
-#include "utils.h"
+#include "./te_compiler.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
@@ -291,7 +291,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         args.push_back(param_handle);
       } else {
         auto var_arg = FindExpr(arg);
-        args.push_back(var_arg[0]);
+        for (const auto& var : var_arg) {
+          args.push_back(var);
+        }
       }
     }
 
@@ -583,8 +585,16 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
-    IRModule new_mod =
-        LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
+    backend::FunctionInfo func_info;
+
+    if (memory_plan.defined()) {
+      // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
+      func_info = tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
+    }
+
+    IRModule lowered_mod =
+        tec::LowerTEPass(targets_, device_context_map, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -598,9 +608,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         })(mod);
 
-    tec::LoweredModule lowered_module = tec::IRModuleToLoweredModule(new_mod);
-    function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
-    auto lowered_main = lowered_module.main_module->Lookup("main");
+    auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
     // Post-lowering storage map for writing main func - this should be the same map as previously
@@ -617,8 +625,13 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Define the storage allocator ids
     for (auto kv : storage_device_map_) {
       for (auto sid : kv.second->storage_ids) {
+        // The buffer_var is created with storage_scope to be global.workspace to be serviced by
+        // TVMBackendAllocWorkspace(TVMBAW) calls, explicitly. The reasoning being the executor
+        // allocates should be serviced by TVMBAWs as the data could be accessed by many devices and
+        // should not be lowered to the stack. For more details please refer to the discussion here:
+        // https://github.com/apache/tvm/issues/9022
         te::Var buffer_var(MakeString("sid_", sid),
-                           PointerType(PrimType(DataType::Int(8)), "global"));
+                           PointerType(PrimType(DataType::Int(8)), "global.workspace"));
         sids_table_[sid] = buffer_var;
       }
     }
@@ -653,6 +666,20 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     auto storage_rewrite = tir::transform::StorageRewrite();
     mod_run = storage_rewrite(mod_run);
 
+    // The workspace for main function should be calculated after performing storage_rewrite for
+    // the top level TIR function.
+    auto workspace_byte_alignment =
+        target_host_->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Integer main_workspace_size = CalculateWorkspaceBytes(
+        Downcast<tir::PrimFunc>(mod_run->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix)),
+        workspace_byte_alignment);
+
+    Optional<backend::FunctionInfo> main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
+
+    main_func_info.value()->workspace_sizes.Set(target_host_, main_workspace_size);
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
+
     // Legalize AOT if needed. This means that all the packed calls
     // need to be wrapped in TVMValues (unless use_unpacked_api is set)
     if (!use_unpacked_api_) {
@@ -662,14 +689,18 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     ret.function_metadata = std::move(function_metadata_);
 
-    ret.lowered_funcs = lowered_module.per_target_module;
-    ret.external_mods = lowered_module.external_mods;
+    Optional<Array<tvm::runtime::Module>> external_modules =
+        lowered_mod->GetAttr<Array<tvm::runtime::Module>>("external_mods");
+    ICHECK(external_modules) << "Attribute \"external_mods\" should be set at this point.";
 
-    auto target_host_str = target_host_->str();
-    if (ret.lowered_funcs.find(target_host_str) != ret.lowered_funcs.end()) {
-      ret.lowered_funcs[target_host_str]->Update(mod_run);
+    // This is the point where we separate the functions in the module by target
+    ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
+    ret.external_mods = external_modules.value();
+
+    if (ret.lowered_funcs.find(target_host_) != ret.lowered_funcs.end()) {
+      ret.lowered_funcs[target_host_]->Update(mod_run);
     } else {
-      ret.lowered_funcs.Set(target_host_str, mod_run);
+      ret.lowered_funcs.Set(target_host_, mod_run);
     }
 
     std::vector<String> input_var_names(input_vars_.size());
@@ -774,7 +805,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     return (*it).second.first;
   }
 
-  Map<String, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
+  Map<Target, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
 
   std::shared_ptr<AOTExecutorCodegen> codegen_;
   LoweredOutput output_;

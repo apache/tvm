@@ -546,7 +546,7 @@ def MergeCompilerRegions():
 
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
-    `on_deivce`, mark which device an expression should be scheduled to.
+    `on_device`, mark which device an expression should be scheduled to.
     This pass helps heterogeneous execution where different operators may need
     to be allocated on various devices.
 
@@ -1204,7 +1204,7 @@ def FakeQuantizationToInteger():
         x    w
         |    |
         dq   dq
-         \   /
+         \\   /
           op1
            |
           op2

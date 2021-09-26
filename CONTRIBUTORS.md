@@ -35,6 +35,7 @@ We do encourage everyone to work anything they are interested in.
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
+- [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm - frontends, quantization, topi
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
@@ -55,6 +56,7 @@ We do encourage everyone to work anything they are interested in.
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
+- [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
@@ -106,6 +108,7 @@ We do encourage everyone to work anything they are interested in.
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Hao Lu](https://github.com/hlu1): @hlu1
 - [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg
+- [Andrew Z. Luo](https://github.com/AndrewZhaoLuo): @AndrewZhaoLuo
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
@@ -133,6 +136,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
+- [Jorn Tuyls](https://github.com/jtuyls): @jtuyls
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun

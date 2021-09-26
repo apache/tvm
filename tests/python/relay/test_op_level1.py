@@ -43,54 +43,67 @@ def rsqrt(x):
     return one / np.sqrt(x)
 
 
-@tvm.testing.uses_gpu
-def test_unary_op():
-    def check_single_op(opfunc, ref, dtype):
+class TestUnaryOp:
+    op_list = {
+        "log": (tvm.relay.log, np.log),
+        "exp": (tvm.relay.exp, np.exp),
+        "erf": (tvm.relay.erf, scipy.special.erf),
+        "sqrt": (tvm.relay.sqrt, np.sqrt),
+        "rqsrt": (tvm.relay.rsqrt, rsqrt),
+        "sigmoid": (tvm.relay.sigmoid, sigmoid),
+        "tanh": (tvm.relay.tanh, np.tanh),
+        "relu": (relay.nn.relu, relu),
+        "cos": (tvm.relay.cos, np.cos),
+        "sin": (tvm.relay.sin, np.sin),
+        "tan": (tvm.relay.tan, np.tan),
+        "atan": (tvm.relay.atan, np.arctan),
+    }
+
+    dtype = tvm.testing.parameter("float16", "float32")
+
+    relay_op, ref_func = tvm.testing.parameters(*op_list.values(), ids=op_list.keys())
+
+    def test_unary_op(self, target, dev, relay_op, ref_func, dtype):
+        target = tvm.target.Target(target)
+        if (
+            dtype == "float16"
+            and target.kind.name == "cuda"
+            and not have_fp16(tvm.cuda(0).compute_version)
+        ):
+            pytest.xfail("No float16 support on local cuda device")
+        elif (
+            dtype == "float16"
+            and target.kind.name == "cuda"
+            and not target.attrs.get("supports_float16", False)
+        ):
+            pytest.xfail("No float16 support on vulkan target")
+
+        if target.kind.name == "vulkan" and relay_op in [
+            tvm.relay.erf,
+            tvm.relay.tan,
+            tvm.relay.atan,
+        ]:
+            pytest.xfail(f"Vulkan runtime doesn't yet support {relay_op}")
+
         shape = (10, 4)
         dtype = dtype
         tp = relay.TensorType(shape)
         x = relay.var("x", tp, dtype=dtype)
-        y = opfunc(x)
+        y = relay_op(x)
         # test printer
         assert ("{}(%x)".format(y.op.name)) in y.astext()
         # test type inference
         yy = run_infer_type(y)
         assert yy.checked_type == tp
 
-        if ref is not None:
+        if ref_func is not None:
             data = np.random.rand(*shape).astype(dtype)
-            ref_res = ref(data)
+            ref_res = ref_func(data)
             func = relay.Function([x], y)
-            for target, dev in tvm.testing.enabled_targets():
-                # use graph by execuor default for testing, as we need
-                # create function explicitly to avoid constant-folding.
-                if (
-                    dtype == "float16"
-                    and target == "cuda"
-                    and not have_fp16(tvm.cuda(0).compute_version)
-                ):
-                    continue
-                op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                    data
-                )
-                np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
-
-    for opfunc, ref in [
-        (tvm.relay.log, np.log),
-        (tvm.relay.exp, np.exp),
-        (tvm.relay.erf, scipy.special.erf),
-        (tvm.relay.sqrt, np.sqrt),
-        (tvm.relay.rsqrt, rsqrt),
-        (tvm.relay.sigmoid, sigmoid),
-        (tvm.relay.tanh, np.tanh),
-        (relay.nn.relu, relu),
-        (tvm.relay.cos, np.cos),
-        (tvm.relay.sin, np.sin),
-        (tvm.relay.tan, np.tan),
-        (tvm.relay.atan, np.arctan),
-    ]:
-        for dtype in ["float16", "float32"]:
-            check_single_op(opfunc, ref, dtype)
+            # use graph by execuor default for testing, as we need
+            # create function explicitly to avoid constant-folding.
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
 @tvm.testing.uses_gpu

@@ -387,7 +387,8 @@ def parse_shape_string(inputs_string):
     ----------
     inputs_string: str
         A string of the form "input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]" that
-        indicates the desired shape for specific model inputs.
+        indicates the desired shape for specific model inputs. Colons and forward slashes
+        within input_names are supported. Spaces are supported inside of dimension arrays.
 
     Returns
     -------
@@ -396,7 +397,11 @@ def parse_shape_string(inputs_string):
     """
 
     # Create a regex pattern that extracts each separate input mapping.
-    pattern = r"(?:\w+\/)?\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
+    # We want to be able to handle:
+    # * Spaces inside arrays
+    # * forward slashes inside names (but not at the beginning or end)
+    # * colons inside names (but not at the beginning or end)
+    pattern = r"(?:\w+\/)?[:\w]+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
     input_mappings = re.findall(pattern, inputs_string)
     if not input_mappings:
         raise argparse.ArgumentTypeError(
@@ -408,7 +413,7 @@ def parse_shape_string(inputs_string):
         # Remove whitespace.
         mapping = mapping.replace(" ", "")
         # Split mapping into name and shape.
-        name, shape_string = mapping.split(":")
+        name, shape_string = mapping.rsplit(":", 1)
         # Convert shape string into a list of integers or Anys if negative.
         shape = [int(x) if int(x) > 0 else relay.Any() for x in shape_string.strip("][").split(",")]
         # Add parsed mapping to shape dictionary.

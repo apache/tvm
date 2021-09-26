@@ -22,6 +22,7 @@ import logging
 import os
 import pathlib
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -154,6 +155,10 @@ def parametrize_aot_options(test):
     skip_i386 = pytest.mark.skipif(
         platform.machine() == "i686", reason="Reference system unavailable in i386 container"
     )
+    requires_arm_eabi = pytest.mark.skipif(
+        shutil.which("arm-none-eabi-gcc") is None, reason="ARM embedded toolchain unavailable"
+    )
+
     interface_api = ["packed", "c"]
     use_unpacked_api = [True, False]
     test_runner = [AOT_DEFAULT_RUNNER, AOT_CORSTONE300_RUNNER]
@@ -177,7 +182,7 @@ def parametrize_aot_options(test):
 
     # Skip reference system tests if running in i386 container
     marked_combinations = map(
-        lambda parameters: pytest.param(*parameters, marks=skip_i386)
+        lambda parameters: pytest.param(*parameters, marks=[skip_i386, requires_arm_eabi])
         if parameters[2] == AOT_CORSTONE300_RUNNER
         else parameters,
         valid_combinations,
@@ -250,7 +255,10 @@ int main(){\n
 
 def emit_main_data(main_file, input_map, output_list, mod_name):
     for key in input_map:
-        main_file.write(f'#include "{mangle_name(mod_name,"input_data")}_{key}.h"\n')
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(
+            f'#include "{mangle_name(mod_name,"input_data")}_{sanitized_tensor_name}.h"\n'
+        )
 
     for i in range(0, len(output_list)):
         main_file.write(f'#include "{mangle_name(mod_name,"expected_output_data")}{i}.h"\n')
@@ -262,7 +270,10 @@ def emit_main_data_structs(main_file, input_map, output_list, mod_name):
         f"struct {mangle_name(mod_name, 'inputs')} {mangle_name(mod_name, 'inputs')} = {{"
     )
     for key in input_map:
-        main_file.write(f"\t.{key} = {mangle_name(mod_name, 'input_data')}_{key},\n")
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(
+            f"\t.{sanitized_tensor_name} = {mangle_name(mod_name, 'input_data')}_{sanitized_tensor_name},\n"
+        )
     main_file.write("};\n")
 
     main_file.write(
@@ -283,7 +294,8 @@ def emit_main_data_setup(main_file, input_map, output_list, mod_name):
 
     main_file.write(f'void* {mangle_name(mod_name,"inputs")}[{num_inputs}] = {{ ')
     for key in input_map:
-        main_file.write(f'{mangle_name(mod_name,"input_data")}_{key}, ')
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(f'{mangle_name(mod_name,"input_data")}_{sanitized_tensor_name}, ')
     main_file.write("};\n")
 
     main_file.write(f'void* {mangle_name(mod_name,"outputs")}[{num_outputs}]  = {{ ')
@@ -459,36 +471,66 @@ def extract_main_workspace_size_bytes(extract_dir):
         return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
 
-def compile_and_run(
+def compile_models(
     models: Union[List[AOTTestModel], AOTTestModel],
-    runner: AOTTestRunner,
     interface_api,
     use_unpacked_api,
-    debug_calculated_workspaces=False,
     workspace_byte_alignment=8,
     enable_op_fusion=True,
 ):
     """
-    This method verifies the generated source
+    This method generates runtime.Modules for the tests
     """
+
     base_target = "c -runtime=c --link-params --executor=aot"
     extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
     target = f"{base_target} {extra_target}"
-    cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
 
     if not isinstance(models, list):
         models = [models]
-
-    # The calculated workspaces will not account for stack allocator tags used for debugging
-    if debug_calculated_workspaces:
-        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
     config = {"tir.disable_vectorize": True}
     if not enable_op_fusion:
         config["relay.FuseOps.max_depth"] = 1
 
+    compiled_runtime_mods = list()
+    for model in models:
+        with tvm.transform.PassContext(opt_level=3, config=config):
+            compiled_runtime_mods.append(
+                tvm.relay.build(
+                    model.module,
+                    target,
+                    target_host=target,
+                    params=model.params,
+                    mod_name=model.name,
+                )
+            )
+    return compiled_runtime_mods
+
+
+def run_and_check(
+    models: Union[List[AOTTestModel], AOTTestModel],
+    runner: AOTTestRunner,
+    interface_api,
+    compiled_runtime_mods: List[tvm.runtime.Module],
+    debug_calculated_workspaces=False,
+    workspace_byte_alignment=8,
+):
+    """
+    This method uses the original test data and compiled runtime.Modules
+    to run in the test runner to verify the results.
+    """
+
+    if not isinstance(models, list):
+        models = [models]
+
     tmp_path = utils.tempdir()
     tmp_dir = tmp_path.temp_dir
+
+    cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+    # The calculated workspaces will not account for stack allocator tags used for debugging
+    if debug_calculated_workspaces:
+        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
     base_path = os.path.join(tmp_dir, "test")
     build_path = os.path.join(base_path, "build")
@@ -503,26 +545,18 @@ def compile_and_run(
     )
 
     workspace_bytes = 0
-    for model in models:
-        with tvm.transform.PassContext(opt_level=3, config=config):
-            lib = tvm.relay.build(
-                model.module,
-                target,
-                target_host=target,
-                params=model.params,
-                mod_name=model.name,
-            )
-
+    for runtime_module, model in zip(compiled_runtime_mods, models):
         tar_file = os.path.join(base_path, f"{model.name}.tar")
-        export_model_library_format(lib, tar_file)
+        export_model_library_format(runtime_module, tar_file)
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
         workspace_bytes += extract_main_workspace_size_bytes(base_path)
 
         for key in model.inputs:
+            sanitized_tensor_name = re.sub(r"\W", "_", key)
             create_header_file(
-                f'{mangle_name(model.name, "input_data")}_{key}',
+                f'{mangle_name(model.name, "input_data")}_{sanitized_tensor_name}',
                 model.inputs[key],
                 include_path,
             )
@@ -577,6 +611,29 @@ def compile_and_run(
 
     with open(run_log_path) as run_log:
         assert AOT_SUCCESS_TOKEN in run_log.read()
+
+
+def compile_and_run(
+    models: Union[List[AOTTestModel], AOTTestModel],
+    runner: AOTTestRunner,
+    interface_api,
+    use_unpacked_api,
+    debug_calculated_workspaces=False,
+    workspace_byte_alignment=8,
+    enable_op_fusion=True,
+):
+    """This is a wrapper API to compile and run models as test for AoT"""
+    compiled_runtime_mods = compile_models(
+        models, interface_api, use_unpacked_api, workspace_byte_alignment, enable_op_fusion
+    )
+    run_and_check(
+        models,
+        runner,
+        interface_api,
+        compiled_runtime_mods,
+        debug_calculated_workspaces,
+        workspace_byte_alignment,
+    )
 
 
 def generate_ref_data(mod, input_data, params=None, target="llvm"):

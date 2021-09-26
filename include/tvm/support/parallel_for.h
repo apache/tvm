@@ -57,7 +57,7 @@ TVM_DLL std::vector<std::vector<int>> rr_partitioner(int begin, int end, int ste
  *   });
  * \param begin The start index of this parallel loop(inclusive).
  * \param end The end index of this parallel loop(exclusive).
- * \param f The task function to be excuted. Assert to take an int index as input with no output.
+ * \param f The task function to be executed. Assert to take an int index as input with no output.
  * \param step The traversal step to the index.
  * \param partitioner A partition function to split tasks to different threads. Use Round-robin
  * partitioner by default.
@@ -67,6 +67,26 @@ TVM_DLL std::vector<std::vector<int>> rr_partitioner(int begin, int end, int ste
 TVM_DLL void parallel_for(int begin, int end, const std::function<void(int)>& f, int step = 1,
                           const PartitionerFuncType partitioner = rr_partitioner);
 
+/*!
+ * \brief An API to launch fix amount of threads to run the specific functor in parallel.
+ * Different from `parallel_for`, the partition is determined dynamically on the fly,
+ * i.e. any time when a thread is idle, it fetches the next task to run.
+ * The behavior is similar to dynamic scheduling in OpenMP:
+ *
+ *   \#pragma omp parallel for schedule(dynamic) num_threads(num_threads)
+ *   for (int i = 0; i < 10; i++) {
+ *     a[i] = i;
+ *   }
+ *
+ * \param begin The start index of this parallel loop (inclusive).
+ * \param end The end index of this parallel loop (exclusive).
+ * \param num_threads The number of threads to be used.
+ * \param f The task function to be executed. Takes the thread index and the task index as
+ * input with no output.
+ * \note `step` support is left for future work.
+ */
+TVM_DLL void parallel_for_dynamic(int begin, int end, int num_threads,
+                                  const std::function<void(int thread_id, int task_id)>& f);
 }  // namespace support
 }  // namespace tvm
 

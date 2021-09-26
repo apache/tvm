@@ -26,7 +26,7 @@ apt-get install -y ca-certificates
 # Install arduino-cli latest version
 wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s
 
-# Install supported cores from those URLS
+# Install the cores we want to test on
 arduino-cli core install arduino:mbed_nano
 arduino-cli core install arduino:sam
 
