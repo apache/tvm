@@ -158,7 +158,7 @@ transform::Pass BindTarget(Target target) {
 
 transform::Pass AnnotateEntryFunc(bool b) {
   auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
-    return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
+    return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(b));
   };
   return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
 }
@@ -381,6 +381,11 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
       return LowerSchedule(std::move(sch), args, name, c_binds, simple_mode);
     });
 
+/**
+ * This function takes the input module that contains both the device and host opts.
+ * Then, it applies transformation on the original module before splitting into separate modules for
+ * device and host. Then it also applies transformations on the new splitted modules.
+ */
 std::pair<IRModule, IRModule> SplitFuncsToDevHostMods(IRModule mod_mixed, const Target& target_arg,
                                                       const Target& target_host_arg) {
   Target target = target_arg, target_host = target_host_arg;
