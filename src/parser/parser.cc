@@ -1088,7 +1088,7 @@ class Parser {
     VLOG(0) << "Parser::ParseFunctionDef";
     return WithSpan<Function>([&]() {
       PushScope();
-      PushTypeScope();
+      PushTypeScope();  // TODO(mbs): BUG?
 
       Array<TypeVar> generics;
       if (Peek()->token_type == TokenType::kLSquare) {
@@ -1444,6 +1444,10 @@ class Parser {
                     ICHECK(attr_obj.defined());
                     attrs = Downcast<Attrs>(attr_obj);
                   }
+                } else {
+                  this->diag_ctx.EmitFatal(Diagnostic::Error(op->span)
+                                           << "unable to determine the 'attrs_type_key' with which "
+                                              "to represent the call attributes for this operator");
                 }
               }
               return true;
@@ -1867,7 +1871,7 @@ class Parser {
 };
 
 Parser InitParser(const std::string& file_name, const std::string& file_content,
-                  Optional<IRModule> init_module) {
+                  const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
   VLOG(0) << "InitParser: file_name: " << file_name << "file_content_size: " << file_content.size();
   SourceName src_name = SourceName::Get(file_name);
   Source source(src_name, file_content);
@@ -1886,19 +1890,33 @@ Parser InitParser(const std::string& file_name, const std::string& file_content,
   auto tokens_and_table = Tokenize(diag_ctx, source);
 
   auto tokens = tokens_and_table.first;
-  auto meta_data_table = tokens_and_table.second;
+  MetaTable meta_data_table = tokens_and_table.second.ToMetadata();
 
-  return Parser(module, diag_ctx, source, tokens, DefaultOpTable(), meta_data_table.ToMetadata());
+  // Merge any entries in init_meta_table into anything captured in the #[metadata] section
+  // of the file_content. Metadata references within file_content must use indexes which account
+  // for this ordering.
+  for (const auto& pair : init_meta_table) {
+    Array<ObjectRef> items;
+    if (meta_data_table.count(pair.first)) {
+      items = meta_data_table[pair.first];
+    }
+    for (const auto& obj : pair.second) {
+      items.push_back(obj);
+    }
+    meta_data_table.Set(pair.first, items);
+  }
+
+  return Parser(module, diag_ctx, source, tokens, DefaultOpTable(), std::move(meta_data_table));
 }
 
-IRModule ParseModule(std::string file_name, std::string file_content,
-                     Optional<IRModule> init_module) {
+IRModule ParseModule(const std::string& file_name, const std::string& file_content,
+                     const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
   VLOG(0) << "ParseModule";
-  auto parser = InitParser(file_name, file_content, init_module);
+  auto parser = InitParser(file_name, file_content, init_module, init_meta_table);
   auto mod = parser.ParseModule();
   ICHECK(mod.defined()) << "The parser must return a non-null module.";
-  // NB(@jroesch): it is very important that we render any errors before we procede
-  // if there were any errors which allow the parser to procede we must render them
+  // NB(@jroesch): it is very important that we render any errors before we proceed
+  // if there were any errors which allow the parser to proceed we must render them
   // here.
   parser.diag_ctx.Render();
   auto infer_type = tvm::relay::transform::InferType();
@@ -1906,23 +1924,24 @@ IRModule ParseModule(std::string file_name, std::string file_content,
   return infer_type(mod);
 }
 
-Expr ParseExpr(std::string file_name, std::string file_content) {
+Expr ParseExpr(const std::string& file_name, const std::string& file_content) {
   VLOG(0) << "ParseExpr";
-  auto parser = InitParser(file_name, file_content, Optional<IRModule>());
+  auto parser = InitParser(file_name, file_content, Optional<IRModule>(), MetaTable());
   parser.ParseSemVer(false);
   parser.PushScope();
   auto expr = parser.ParseExpr();
   parser.Match(TokenType::kEndOfFile);
-  // NB(@jroesch): it is very important that we render any errors before we procede
-  // if there were any errors which allow the parser to procede we must render them
+  // NB(@jroesch): it is very important that we render any errors before we proceed
+  // if there were any errors which allow the parser to proceed we must render them
   // here.
   parser.diag_ctx.Render();
   return expr;
 }
 
 TVM_REGISTER_GLOBAL("parser.ParseModule")
-    .set_body_typed([](tvm::String file_name, tvm::String file_content) {
-      return ParseModule(file_name, file_content);
+    .set_body_typed([](const std::string& file_name, const std::string& file_content,
+                       const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
+      return ParseModule(file_name, file_content, init_module, init_meta_table);
     });
 
 TVM_REGISTER_GLOBAL("parser.ParseExpr")
