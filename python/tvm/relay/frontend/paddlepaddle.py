@@ -118,8 +118,9 @@ def _convert_dtype_value(val):
 
 
 def convert_unary_op(g, op, block):
-    """Operator converter for all the activation."""
+    """Operator converter for all the unary operators."""
 
+    # op_map stores mapping relationship between tvm and relay
     op_map = {
         "isinf_v2": _op.isinf,
         "isfinite_v2": _op.isfinite,
@@ -128,6 +129,7 @@ def convert_unary_op(g, op, block):
     if op.type in op_map:
         unary_func = op_map[op.type]
     else:
+        # while paddle operator's name is same with relay
         unary_func = get_relay_op(op.type)
     out = unary_func(g.get_node(op.input("X")[0]))
     g.add_node(op.output("Out")[0], out)
@@ -275,45 +277,6 @@ def convert_cast(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_clip(g, op, block):
-    """Operator converter for clip."""
-
-    x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
-    is_dynamic = False
-    if op.input("Min"):
-        min_value = g.get_node(op.input("Min")[0])
-        min_value = _infer_value(min_value, g.get_params())
-        if isinstance(min_value, _expr.Expr):
-            is_dynamic = True
-        else:
-            min_value = min_value[0]
-    else:
-        min_value = op.attr("min")
-    if op.input("Max"):
-        max_value = g.get_node(op.input("Max")[0])
-        max_value = _infer_value(max_value, g.get_params())
-        if isinstance(max_value, _expr.Expr):
-            if not is_dynamic:
-                is_dynamic = True
-                min_value = _op.const(min_value, dtype)
-        else:
-            max_value = max_value[0]
-            if is_dynamic:
-                max_value = _op.const(max_value, dtype)
-    else:
-        max_value = op.attr("max")
-        if is_dynamic:
-            max_value = _op.const(max_value, dtype)
-
-    if not is_dynamic:
-        out = _op.clip(x, min_value, max_value)
-    else:
-        out = _op.maximum(x, min_value)
-        out = _op.minimum(out, max_value)
-    g.add_node(op.output("Out")[0], out)
-
-
 def convert_concat(g, op, block):
     """Operator converter for concat."""
 
@@ -375,37 +338,6 @@ def convert_conv2d(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
-def convert_crop(g, op, block):
-    """Operator converter for crop."""
-
-    x = g.get_node(op.input("X")[0])
-    dims = len(infer_shape(x))
-    input_shape = op.input("Shape")
-    input_offsets = op.input("Offsets")
-    if input_shape:
-        shape = g.get_node(input_shape[0])
-        shape = _infer_value(shape, g.get_params())
-    else:
-        shape = op.attr("shape")
-
-    if input_offsets:
-        offsets = g.get_node(input_offsets[0])
-        offsets = _infer_value(offsets, g.get_params())
-    else:
-        offsets = op.attr("offsets")
-
-    if not isinstance(shape, _expr.Expr):
-        shape = _op.const(shape, "int32")
-    if not isinstance(offsets, _expr.Expr):
-        offsets = _op.const(offsets, "int32")
-    slice_start = offsets
-    slice_end = _op.add(shape, offsets)
-    strides = _op.const([1] * dims, dtype="int32")
-
-    out = _op.strided_slice(x, slice_start, slice_end, strides)
-    g.add_node(op.output("Out")[0], out)
-
-
 def convert_cumsum(g, op, block):
     """Operator converter for cumsum."""
 
@@ -431,41 +363,6 @@ def convert_dropout(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     g.add_node(op.output("Out")[0], x)
-
-
-def convert_elu(g, op, block):
-    """Operator converter for elu."""
-
-    x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
-    alpha = op.attr("alpha")
-    alpha = _expr.const(-1.0 * alpha, dtype=dtype)
-    out = alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(x)) + _op.nn.relu(x)
-    g.add_node(op.output("Out")[0], out)
-
-
-def convert_dist(g, op, block):
-    """Operator converter for dist."""
-
-    x = g.get_node(op.input("X")[0])
-    y = g.get_node(op.input("Y")[0])
-    dtype = infer_type(x).checked_type.dtype
-    p = op.attr("p")
-
-    x -= y
-    if p == np.inf:
-        out = _op.reduce.max(_op.abs(x))
-    elif p == np.NINF:
-        out = _op.reduce.min(_op.abs(x))
-    else:
-        reci_order = _expr.const(1.0 / p, dtype=dtype)
-        p = _expr.const(p)
-        out = _op.power(
-            _op.reduce.sum(_op.power(_op.abs(x), p)),
-            reci_order,
-        )
-    out = _op.expand_dims(out, axis=0)
-    g.add_node(op.output("Out")[0], out)
 
 
 def convert_dot(g, op, block):
@@ -908,34 +805,12 @@ def convert_mul(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_mv(g, op, block):
-    """Operator converter for mv."""
-
-    x = g.get_node(op.input("X")[0])
-    y = g.get_node(op.input("Vec")[0])
-    y = _op.expand_dims(y, axis=-1)
-    y = _op.transpose(y)
-    out = _op.nn.dense(x, y)
-    out = _op.squeeze(out, axis=[-1])
-    g.add_node(op.output("Out")[0], out)
-
-
 def convert_numel(g, op, block):
     """Operator converter for numel."""
 
     input_x = g.get_node(op.input("Input")[0])
     out = _op.ndarray_size(input_x, dtype="int64")
     out = _op.expand_dims(out, axis=0)
-    g.add_node(op.output("Out")[0], out)
-
-
-def convert_nonzero(g, op, block):
-    """Operator converter for nonzero."""
-
-    input_x = g.get_node(op.input("Condition")[0])
-    out = _op.transform.argwhere(input_x)
-    # Paddle NonZero always outputs int64
-    out = _op.cast(out, "int64")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1059,40 +934,6 @@ def convert_scale(g, op, block):
                 )
         if x_dtype != "float32":
             out = out.astype(x_dtype)
-    g.add_node(op.output("Out")[0], out)
-
-
-def convert_scatter(g, op, block):
-    """Operator converter for scatter."""
-
-    x = g.get_node(op.input("X")[0])
-    index = g.get_node(op.input("Ids")[0])
-    updates = g.get_node(op.input("Updates")[0])
-    overwrite = op.attr("overwrite")
-
-    shape = infer_shape(updates)
-    ndims = len(shape)
-    index = _op.expand_dims(index, axis=-1, num_newaxis=ndims - 1)
-    index = _op.transform.broadcast_to(index, shape)
-
-    if overwrite:
-        out = _op.scatter(x, index, updates, axis=0)
-    else:
-        out = _op.scatter_add(_op.zeros_like(x), index, updates, axis=0)
-        out += _op.scatter(x, index, _op.zeros_like(updates), axis=0)
-    g.add_node(op.output("Out")[0], out)
-
-
-def convert_scatter_nd_add(g, op, block):
-    """Operator converter for scatter_nd_add."""
-
-    x = g.get_node(op.input("X")[0])
-    index = g.get_node(op.input("Index")[0])
-    updates = g.get_node(op.input("Updates")[0])
-    indices_dim = len(infer_shape(index))
-    axes = list(range(indices_dim))
-    index = _op.transpose(index, axes[-1:] + axes[:-1])
-    out = _op.scatter_nd(x, index, updates, mode="add")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1269,15 +1110,12 @@ _convert_map = {
     "brelu": convert_hard_tanh,
     "cast": convert_cast,
     "ceil": convert_unary_op,
-    "clip": convert_clip,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
     "cos": convert_unary_op,
     "cosh": convert_unary_op,
-    "crop_tensor": convert_crop,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
-    "dist": convert_dist,
     "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
@@ -1289,7 +1127,6 @@ _convert_map = {
     "elementwise_min": convert_elementwise_op,
     "elementwise_pow": convert_elementwise_op,
     "elementwise_floordiv": convert_elementwise_op,
-    "elu": convert_elu,
     "equal": convert_elementwise_op,
     "erf": convert_unary_op,
     "exp": convert_unary_op,
@@ -1329,7 +1166,6 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "meshgrid": convert_meshgrid,
-    "mv": convert_mv,
     "mul": convert_mul,
     "not_equal": convert_elementwise_op,
     "pool2d": convert_pool2d,
@@ -1338,8 +1174,6 @@ _convert_map = {
     "round": convert_unary_op,
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
-    "scatter": convert_scatter,
-    "scatter_nd_add": convert_scatter_nd_add,
     "selu": convert_selu,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
