@@ -135,29 +135,13 @@ def convert_unary_op(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_addmm(g, op, block):
-    """Operator converter for addmm."""
+def convert_binary_logical_op(g, op, block):
+    """Operator converter for logical op."""
 
-    input_x = g.get_node(op.input("Input")[0])
-    x = g.get_node(op.input("X")[0])
-    y = g.get_node(op.input("Y")[0])
-
-    alpha = op.attr("Alpha")
-    beta = op.attr("Beta")
-    dtype = block.var(op.output("Out")[0]).dtype
-    dtype = str(dtype).strip().split(".")[1]
-
-    if not isinstance(alpha, _expr.Expr) and alpha != 1:
-        alpha = _expr.const(alpha, dtype)
-        x *= alpha
-
-    if not isinstance(beta, _expr.Expr) and beta != 1:
-        beta = _expr.const(beta, dtype)
-        input_x *= beta
-
-    transposed_y = _op.transpose(y, axes=[1, 0])
-    dense_out = _op.nn.dense(x, transposed_y)
-    out = dense_out + input_x
+    ipt0 = g.get_node(op.input("X")[0])
+    ipt1 = g.get_node(op.input("Y")[0])
+    op_func = get_relay_op(op.type)
+    out = op_func(ipt0, ipt1)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -255,16 +239,6 @@ def convert_batch_norm(g, op, block):
         epsilon=epsilon,
     )
     g.add_node(op.output("Y")[0], out[0])
-
-
-def convert_bmm(g, op, block):
-    """Operator converter for bmm."""
-
-    x = g.get_node(op.input("X")[0])
-    y = g.get_node(op.input("Y")[0])
-    y = _op.transpose(y, [0, 2, 1])
-    out = _op.nn.batch_matmul(x, y)
-    g.add_node(op.output("Out")[0], out)
 
 
 def convert_cast(g, op, block):
@@ -499,18 +473,6 @@ def convert_gelu(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_hard_shrink(g, op, block):
-    """Operator converter for hard_shrink."""
-
-    x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
-    threshold = op.attr("threshold")
-    threshold = _op.const(threshold, dtype)
-    out = _op.logical_or(x < _op.const(-1.0, dtype) * threshold, x > threshold)
-    out = _op.cast(out, dtype) * x
-    g.add_node(op.output("Out")[0], out)
-
-
 def convert_hard_sigmoid(g, op, block):
     """Operator converter for hard_sigmoid."""
 
@@ -536,16 +498,6 @@ def convert_hard_swish(g, op, block):
     out = _op.clip(x, -1 * offset, offset)
     out = out / _expr.const(threshold, dtype) + _expr.const(0.5, dtype)
     out = x * out
-    g.add_node(op.output("Out")[0], out)
-
-
-def convert_hard_tanh(g, op, block):
-    """Operator converter for hard_tanh."""
-
-    x = g.get_node(op.input("X")[0])
-    t_max = op.attr("t_max")
-    t_min = op.attr("t_min")
-    out = _op.tensor.clip(x, t_min, t_max)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -599,13 +551,27 @@ def convert_log1p(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_binary_logical_op(g, op, block):
-    """Operator converter for logical op."""
+def convert_lookup_table(g, op, block):
+    """Operator converter for lookup_table_v2."""
 
-    ipt0 = g.get_node(op.input("X")[0])
-    ipt1 = g.get_node(op.input("Y")[0])
-    op_func = get_relay_op(op.type)
-    out = op_func(ipt0, ipt1)
+    indices = g.get_node(op.input("Ids")[0])
+    padding_idx = op.attr("padding_idx")
+    weights = g.get_node(op.input("W")[0])
+    if padding_idx != -1:
+        if op.input("W")[0] in g.get_params():
+            weights = g.get_params(op.input("W")[0])
+            weights[padding_idx] = 0.0
+            weights = _expr.const(weights)
+        else:
+            shape = _infer_value(shape_of(weights), g.get_params())
+            assert not isinstance(
+                shape, _expr.Expr
+            ), "Shape of weight has to be fixed for PaddlePaddle's lookup_table"
+            filters = np.ones(shape).astype(infer_type(weights).checked_type.dtype)
+            filters[padding_idx] = 0.0
+            filters = _expr.const(filters)
+            weights = weights * filters
+    out = _op.take(weights, indices.astype("int32"), axis=0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -937,22 +903,6 @@ def convert_scale(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_selu(g, op, block):
-    """Operator converter for selu."""
-
-    x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
-    alpha = _op.const(op.attr("alpha"), dtype)
-    scale = _op.const(op.attr("scale"), dtype)
-    out = (
-        _expr.const(-1.0, dtype=dtype)
-        * alpha
-        * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x))
-    )
-    out = scale * (out + _op.nn.relu(x))
-    g.add_node(op.output("Out")[0], out)
-
-
 def convert_shape(g, op, block):
     """Operator converter for shape."""
 
@@ -1097,7 +1047,6 @@ def convert_unsqueeze(g, op, block):
 _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
-    "addmm": convert_addmm,
     "arg_max": convert_arg_max,
     "arg_min": convert_arg_min,
     "argsort": convert_argsort,
@@ -1106,8 +1055,6 @@ _convert_map = {
     "assign_value": convert_assign_value,
     "atan": convert_unary_op,
     "batch_norm": convert_batch_norm,
-    "bmm": convert_bmm,
-    "brelu": convert_hard_tanh,
     "cast": convert_cast,
     "ceil": convert_unary_op,
     "concat": convert_concat,
@@ -1140,7 +1087,6 @@ _convert_map = {
     "gelu": convert_gelu,
     "greater_equal": convert_elementwise_op,
     "greater_than": convert_elementwise_op,
-    "hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "isfinite": convert_unary_op,
@@ -1163,6 +1109,8 @@ _convert_map = {
     "logical_xor": convert_binary_logical_op,
     "logsigmoid": convert_logsigmoid,
     "log_softmax": convert_logsoftmax,
+	"lookup_table": convert_lookup_table,
+	"lookup_table_v2": convert_lookup_table,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "meshgrid": convert_meshgrid,
@@ -1174,7 +1122,6 @@ _convert_map = {
     "round": convert_unary_op,
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
-    "selu": convert_selu,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
     "sign": convert_unary_op,
