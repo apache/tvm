@@ -205,7 +205,8 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
-    parallel 'BUILD: GPU': {
+    parallel failFast: true,
+    'BUILD: GPU': {
       node('GPUBUILD') {
         ws(per_exec_ws('tvm/build-gpu')) {
           init_git()
@@ -308,7 +309,8 @@ stage('Build') {
 }
 
 stage('Unit Test') {
-    parallel 'python3: GPU': {
+    parallel failFast: true,
+    'python3: GPU': {
       if (is_docs_only_build != 1) {
         node('TensorCore') {
           ws(per_exec_ws('tvm/ut-python-gpu')) {
@@ -401,7 +403,8 @@ stage('Unit Test') {
 }
 
 stage('Integration Test') {
-  parallel 'topi: GPU': {
+  parallel failFast: true,
+  'topi: GPU': {
   if (is_docs_only_build != 1) {
     node('GPU') {
       ws(per_exec_ws('tvm/topi-python-gpu')) {
