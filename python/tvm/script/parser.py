@@ -152,6 +152,7 @@ class TVMScriptParser(Transformer):
     }
 
     def __init__(self, base_lienno):
+        super().__init__(self)
         self.context = None
 
         self.base_lineno = base_lienno
