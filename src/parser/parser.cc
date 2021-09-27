@@ -1938,10 +1938,15 @@ Expr ParseExpr(const std::string& file_name, const std::string& file_content) {
   return expr;
 }
 
-TVM_REGISTER_GLOBAL("parser.ParseModule")
+TVM_REGISTER_GLOBAL("parser.ParseModuleInContext")
     .set_body_typed([](const std::string& file_name, const std::string& file_content,
                        const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
       return ParseModule(file_name, file_content, init_module, init_meta_table);
+    });
+
+TVM_REGISTER_GLOBAL("parser.ParseModule")
+    .set_body_typed([](const std::string& file_name, const std::string& file_content) {
+      return ParseModule(file_name, file_content);
     });
 
 TVM_REGISTER_GLOBAL("parser.ParseExpr")
