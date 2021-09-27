@@ -318,11 +318,11 @@ def test_export_model_library_format_workspace(target):
                 "constants_size_bytes": 0,
                 "device": 1,
                 "io_size_bytes": 1207040,
-                "workspace_size_bytes": 16,
+                "workspace_size_bytes": 2466816,
             }
         ]
         assert metadata["memory"]["functions"]["operator_functions"][0]["workspace"] == [
-            {"device": 1, "workspace_size_bytes": 16}
+            {"device": 1, "workspace_size_bytes": 246166816}
         ]
         assert (
             "fused_nn_conv2d_add_fixed_point_multiply_clip_cast"
