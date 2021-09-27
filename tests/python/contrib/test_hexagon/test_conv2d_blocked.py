@@ -264,11 +264,11 @@ def conv2d_packed_filter(
     n, hid, wid, cid, hoff, woff, coff = s[Y].op.axis
     hid1, hid2 = s[Y].split(hid, factor=2)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
-    # Yl = s.cache_write(Y, storage_scope)
+    Yl = s.cache_write(Y, storage_scope)
 
     # s[Yl].compute_at(s[Y], hid)
-    # n, hid, wid, cid, hoff, woff, coff = s[Yl].op.axis
-    s[Xl].compute_at(s[Y], hid1)
+    n, hid1, hid2, wid, cid, hoff, woff, coff = s[Yl].op.axis
+    s[Xl].compute_at(s[Yl], hid1)
 
     binds = {}
     if storage_scope and storage_scope != "global":
