@@ -162,6 +162,7 @@ def conv2d_packed_filter(
     stride,
     padding,
     dtype,
+    h_loop_split,
     storage_scope="global",
 ):
     """
@@ -265,11 +266,11 @@ def conv2d_packed_filter(
     Yl = s.cache_write(Y, storage_scope)
 
     n, hid, wid, cid, hoff, woff, coff = s[Y].op.axis
-    houter, hinner = s[Y].split(hid, factor=2)
+    houter, hinner = s[Y].split(hid, factor=h_loop_split)
     s[Yl].compute_at(s[Y], houter)
 
     n, hid, wid, cid, hoff, woff, coff = s[Yl].op.axis
-    houter, hinner = s[Yl].split(hid, factor=2)
+    houter, hinner = s[Yl].split(hid, factor=h_loop_split)
     s[Xl].compute_at(s[Yl], houter)
 
     binds = {}
@@ -289,6 +290,7 @@ def conv2d_packed_filter_nhwhwc(
     stride,
     padding,
     dtype,
+    h_loop_split,
     storage_scope="global",
 ):
     """
@@ -406,6 +408,7 @@ class BaseConv2d:
     stride = tvm.testing.parameter(1)
     pad = tvm.testing.parameter(0, 1)
     dtype = tvm.testing.parameter("float32")
+    h_loop_split = tvm.testing.parameter(1, 2)
 
 
 class TestConv2dLogical(BaseConv2d):
@@ -447,6 +450,7 @@ class TestConv2dPackedFilter(BaseConv2d):
         pad,
         dtype,
         target,
+        h_loop_split,
     ):
         inputs = [
             np.random.uniform(0, 255, size=shape_nhwc).astype(dtype),
@@ -467,6 +471,7 @@ class TestConv2dPackedFilter(BaseConv2d):
             stride=(stride, stride),
             padding=(pad, pad, pad, pad),
             dtype=dtype,
+            h_loop_split=h_loop_split,
         )
         return output, ref_output
 
