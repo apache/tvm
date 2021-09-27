@@ -145,8 +145,9 @@ Function FunctionOnDevice(Function function, const std::vector<DLDeviceType>& pa
                           static_cast<int>(result_device_type));
 }
 
-Function OptFunctionOnDevice(Function function, const std::vector<DLDeviceType>& param_device_types,
-                             DLDeviceType result_device_type) {
+Function MaybeFunctionOnDevice(Function function,
+                               const std::vector<DLDeviceType>& param_device_types,
+                               DLDeviceType result_device_type) {
   if (std::all_of(param_device_types.begin(), param_device_types.end(),
                   [](DLDeviceType type) { return type == kInvalidDeviceType; }) &&
       result_device_type == kInvalidDeviceType) {
