@@ -398,9 +398,6 @@ class LoopPartitioner : public StmtMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::pragma_loop_partition_hint) {
-      return VisitStmt(op->body);
-    }
     if (op->attr_key != attr::thread_extent) {
       return StmtMutator::VisitStmt_(op);
     }
@@ -651,7 +648,7 @@ inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt b
   }
 }
 
-class RemoveLikelyTags : public StmtExprMutator {
+class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
@@ -661,12 +658,19 @@ class RemoveLikelyTags : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == attr::pragma_loop_partition_hint) {
+      return VisitStmt(op->body);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
 };
 
 Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll_loop_with_extent_one) {
   stmt = LoopPartitioner(partition_const_loop, no_unroll_loop_with_extent_one)
              .VisitAndMutate(std::move(stmt));
-  stmt = RemoveLikelyTags()(std::move(stmt));
+  stmt = RemoveLikelyTagsAndHints()(std::move(stmt));
   return stmt;
 }
 
