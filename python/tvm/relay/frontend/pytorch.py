@@ -3713,6 +3713,7 @@ def from_pytorch(
     custom_convert_map=None,
     default_dtype="float32",
     use_parser_friendly_name=False,
+    return_int8_weight=False,
 ):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
@@ -3745,6 +3746,9 @@ def from_pytorch(
         so a variable name like "dense.weight" cannot be parsed correctly.
         Use this option when you want to run the AnnotateSpans pass on the imported module.
 
+    return_int8_weight : bool
+        TODO
+
     Returns
     -------
     mod : tvm.IRModule
@@ -3765,6 +3769,7 @@ def from_pytorch(
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
+
 
     op_names = get_all_op_names(graph)
     converter.report_missing_conversion(op_names)
@@ -3790,8 +3795,8 @@ def from_pytorch(
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
     if len(quantized_ops.intersection(set(op_names))) > 0:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
-        qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)
+        input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
+        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params, input_scales_for_bias)
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 

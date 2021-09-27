@@ -141,17 +141,27 @@ def get_weight_quant_params(script_module):
     return quant_params
 
 
-def add_quant_params_to_outputs(outputs, packed_param_map, quant_params):
+def add_quant_params_to_outputs(outputs, packed_param_map, quant_params, input_scales_for_bias):
     """
     Add quant params to outputs so that they can be referenced by other
     ops later. Weights are quantized here.
     """
     for node_name, packed_param_name in packed_param_map.items():
         qparam = quant_params[packed_param_name]
+        requant_input_scale = input_scales_for_bias[node_name] * _get_numpy(qparam.scale)
+
         qweight = relay.qnn.op.quantize(
             qparam.weight_var, qparam.scale, qparam.zero_point, out_dtype="int8", axis=0
         )
-        params = [qweight, qparam.scale, qparam.zero_point, qparam.bias_var]
+        qbias = relay.qnn.op.quantize(
+            qparam.bias_var,
+            _expr.const(requant_input_scale),
+            _expr.const(0, "int32"),
+            out_dtype="int32",
+            axis=0,
+        )
+
+        params = [qweight, qparam.scale, qparam.zero_point, qbias]
 
         if isinstance(quant_params[packed_param_name], ConvPackedParam):
             params += [qparam.stride, qparam.padding, qparam.dilation, qparam.groups]
@@ -367,6 +377,8 @@ def add_input_quant_params_to_op_inputs(graph):
     need_input_quant_param = set(num_quantized_inputs.keys())
     need_input_quant_param.add("quantized::cat")
 
+    input_scales_for_bias = {}
+
     for node in graph.nodes():
         operator = node.kind()
         if operator not in need_input_quant_param:
@@ -400,6 +412,12 @@ def add_input_quant_params_to_op_inputs(graph):
         for scale, zp in zip(input_scales, input_zero_points):
             node.addInput(scale)
             node.addInput(zp)
+
+        if "conv2d" in operator or "linear" in operator:
+            # This is required for quantizing the bias
+            input_scales_for_bias[node.inputsAt(1).debugName()] = scale.node().f("value")
+
+    return input_scales_for_bias
 
 
 def add_quant_params(params, quant_params):
@@ -478,10 +496,7 @@ def _do_bias_and_requantize(
     # Instead, the torch way requires rounding of activation at runtime
 
     if bias is not None:
-        qbias = relay.qnn.op.quantize(
-            bias, requant_input_scale, _expr.const(0, "int32"), out_dtype="int32", axis=0
-        )
-        requantize_input = _op.nn.bias_add(output, qbias)
+        requantize_input = _op.nn.bias_add(output, bias)
     else:
         requantize_input = output
 
