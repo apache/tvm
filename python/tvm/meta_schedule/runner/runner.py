@@ -21,7 +21,6 @@ from tvm._ffi import register_object
 from tvm.runtime import Object
 
 from .. import _ffi_api
-from ..arg_info import ArgInfo
 
 
 @register_object("meta_schedule.RunnerResult")
