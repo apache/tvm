@@ -442,9 +442,9 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
   const StringImmNode* value = op->value.as<StringImmNode>();
   ICHECK(value != nullptr);
-  llvm::Function* fcompute = llvm::Function::Create(
-      ftype, llvm::Function::InternalLinkage,
-      value->value.operator llvm::StringRef(), module_.get());
+  llvm::Function* fcompute =
+      llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
+                             value->value.operator llvm::StringRef(), module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
   // setup compute function.
   std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
