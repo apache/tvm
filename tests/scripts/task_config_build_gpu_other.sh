@@ -16,22 +16,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euo pipefail
+# This file is a compiler test to ensure that runtimes can compile
+# correctly, even if they aren't actively tested in the CI.
 
-export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
+set -e
+set -u
 
-# Test most of the enabled runtimes here.
-export TVM_TEST_TARGETS="cuda;opencl;metal;rocm;nvptx;opencl -device=mali,aocl_sw_emu"
-export TVM_UNITTEST_TESTSUITE_NAME=python-unittest-gpu
+mkdir -p build2
+cd build2
+cp ../cmake/config.cmake .
 
-./tests/scripts/task_python_unittest.sh
-
-# Kept separate to avoid increasing time needed to run CI, testing
-# only minimal functionality of Vulkan runtime.
-export TVM_TEST_TARGETS="vulkan -from_device=0"
-export TVM_UNITTEST_TESTSUITE_NAME=python-unittest-vulkan
-
-source tests/scripts/setup-pytest-env.sh
-
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest/test_target_codegen_vulkan.py
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/unittest/test_target_codegen_vulkan.py
+echo set\(USE_OPENCL ON\) >> config.cmake
+echo set\(USE_ROCM ON\) >> config.cmake
+echo set\(USE_MICRO ON\) >> config.cmake
+echo set\(USE_PROFILER ON\) >> config.cmake
+echo set\(USE_LIBBACKTRACE OFF\) >> config.cmake
+echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
+echo set\(USE_CCACHE OFF\) >> config.cmake
