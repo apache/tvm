@@ -871,10 +871,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
                                                                 : llvm::Type::getVoidTy(*ctx_);
     llvm::Function* f = GetIntrinsicDecl(id, return_type, arg_type);
     ICHECK(f) << "Cannot find intrinsic declaration, possible type mismatch: "
-#if TVM_LLVM_VERSION <= 130
-              << llvm::Intrinsic::getName(id, {});
+#if TVM_LLVM_VERSION >= 130
+              << llvm::Intrinsic::getBaseName(id).str();
 #else
-              << llvm::Intrinsic::getName(id, return_type, {});
+              << llvm::Intrinsic::getName(id, {});
 #endif
     return builder_->CreateCall(f, arg_value);
   } else if (op->op.same_as(builtin::bitwise_and())) {
