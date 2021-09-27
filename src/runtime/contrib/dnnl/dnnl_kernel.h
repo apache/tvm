@@ -36,19 +36,20 @@ namespace contrib {
 using namespace dnnl;
 
 extern "C" TVM_DLL void dnnl_conv2d(float* data, float* weights, float* out, int p_N_, int p_C_,
-                                    int p_H_, int p_W_, int p_O_, int p_G_, int p_Ph_, int p_Pw_,
-                                    int p_Kh_, int p_Kw_, int p_Sh_, int p_Sw_);
+                                    int p_H_, int p_W_, int p_O_, int p_G_, int p_Ph0_, int p_Pw0_,
+                                    int p_Ph1_, int p_Pw1_, int p_Kh_, int p_Kw_, int p_Sh_,
+                                    int p_Sw_);
 
 extern "C" TVM_DLL void dnnl_fused_conv2d_relu(float* data, float* weights, float* out, int p_N_,
                                                int p_C_, int p_H_, int p_W_, int p_O_, int p_G_,
-                                               int p_Ph_, int p_Pw_, int p_Kh_, int p_Kw_,
-                                               int p_Sh_, int p_Sw_);
+                                               int p_Ph0_, int p_Pw0_, int p_Ph1_, int p_Pw1_,
+                                               int p_Kh_, int p_Kw_, int p_Sh_, int p_Sw_);
 
 extern "C" TVM_DLL void dnnl_fused_conv2d_bias_relu(float* data, float* weights, float* bias,
                                                     float* out, int p_N_, int p_C_, int p_H_,
-                                                    int p_W_, int p_O_, int p_G_, int p_Ph_,
-                                                    int p_Pw_, int p_Kh_, int p_Kw_, int p_Sh_,
-                                                    int p_Sw_);
+                                                    int p_W_, int p_O_, int p_G_, int p_Ph0_,
+                                                    int p_Pw0_, int p_Ph1_, int p_Pw1_, int p_Kh_,
+                                                    int p_Kw_, int p_Sh_, int p_Sw_);
 
 extern "C" TVM_DLL void dnnl_dense(float* data, float* weight, float* out, int p_B_, int p_I_,
                                    int p_O_);

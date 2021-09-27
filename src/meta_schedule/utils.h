@@ -16,31 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_META_SCHEDULE_UTILS_H_
+#define TVM_META_SCHEDULE_UTILS_H_
 
-/*!
- * \brief A hook to launch RPC server via xcodebuild test
- * \file tvmrpcLauncher.mm
- */
+#include <tvm/meta_schedule/arg_info.h>
+#include <tvm/meta_schedule/builder.h>
+#include <tvm/meta_schedule/space_generator.h>
+#include <tvm/meta_schedule/tune_context.h>
 
-#import <XCTest/XCTest.h>
-#import "TVMRuntime.h"
+#include "../support/array.h"
 
-@interface tvmrpcLauncher : XCTestCase
+namespace tvm {
+namespace meta_schedule {}  // namespace meta_schedule
+}  // namespace tvm
 
-@end
-
-@implementation tvmrpcLauncher
-
-- (void)setUp {
-  [super setUp];
-}
-
-- (void)tearDown {
-  [super tearDown];
-}
-
-- (void)testRPC {
-  [TVMRuntime launchSyncServer];
-}
-
-@end
+#endif  // TVM_META_SCHEDULE_UTILS_H_

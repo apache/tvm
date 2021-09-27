@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import io
 import logging
 import os
 import sys
+import logging
 import pathlib
 import tarfile
 import tempfile
@@ -26,21 +27,13 @@ import pytest
 import numpy as np
 
 import tvm
-import tvm.rpc
-import tvm.micro
 from tvm.micro.project_api import server
-import tvm.testing
-from tvm import relay
+import tvm.relay as relay
 
 from tvm.contrib.download import download_testdata
 from tvm.micro.interface_api import generate_c_interface_header
 
-import conftest
-from test_utils import create_header_file
-from test_utils import build_project
-from test_utils import get_message
-
-_LOG = logging.getLogger(__name__)
+import test_utils
 
 
 @tvm.testing.requires_micro
@@ -56,7 +49,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     ]:
         pytest.skip(msg="Model does not fit.")
 
-    model = conftest.ZEPHYR_BOARDS[board]
+    model = test_utils.ZEPHYR_BOARDS[board]
     input_shape = (1, 32, 32, 3)
     output_shape = (1, 10)
     build_config = {"debug": tvm_debug}
@@ -138,7 +131,7 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     if board not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
-    model = conftest.ZEPHYR_BOARDS[board]
+    model = test_utils.ZEPHYR_BOARDS[board]
     build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "float32"

@@ -42,11 +42,6 @@ jobs:
     - uses: actions/checkout@v2
     - name: Initialize submodules
       run: git submodule update --recursive --init
-    - name: Lint Python
-      if: startsWith(matrix.os, 'macOS')
-      run: |
-        python3 -m pip install flake8
-        python3 -m flake8 . --count --select=E9,F63,F7 --show-source --statistics
     - uses: actions/cache@v1
       env:
         CACHE_NUMBER: 0

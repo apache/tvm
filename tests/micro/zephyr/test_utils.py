@@ -14,31 +14,57 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import io
-import logging
+import json
 import pathlib
-import tarfile
 
-import numpy as np
 
-import tvm.micro
+TEMPLATE_PROJECT_DIR = (
+    pathlib.Path(__file__).parent
+    / ".."
+    / ".."
+    / ".."
+    / "apps"
+    / "microtvm"
+    / "zephyr"
+    / "template_project"
+).resolve()
 
+BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
+
+
+def zephyr_boards() -> dict:
+    """Returns a dict mapping board to target model"""
+    with open(BOARDS) as f:
+        board_properties = json.load(f)
+
+    boards_model = {board: info["model"] for board, info in board_properties.items()}
+    return boards_model
+
+
+ZEPHYR_BOARDS = zephyr_boards()
+
+
+def qemu_boards(board: str):
+    """Returns True if board is QEMU."""
+    with open(BOARDS) as f:
+        board_properties = json.load(f)
+
+    qemu_boards = [name for name, board in board_properties.items() if board["is_qemu"]]
+    return board in qemu_boards
+
+
+def has_fpu(board: str):
+    """Returns True if board has FPU."""
+    with open(BOARDS) as f:
+        board_properties = json.load(f)
+
+    fpu_boards = [name for name, board in board_properties.items() if board["fpu"]]
+    return board in fpu_boards
 
 def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
-    template_project_dir = (
-        pathlib.Path(__file__).parent
-        / ".."
-        / ".."
-        / ".."
-        / "apps"
-        / "microtvm"
-        / "zephyr"
-        / "template_project"
-    ).resolve()
     project_dir = temp_dir / "project"
     project = tvm.micro.generate_project(
-        str(template_project_dir),
+        str(test_utils.TEMPLATE_PROJECT_DIR),
         mod,
         project_dir,
         {

@@ -70,20 +70,6 @@ def example():
 
 
 ###############################################################################
-# Let us register layout alteration for a conv2d op so that we can apply the
-# layout alteration pass on the example. How alter layout pass works is out
-# the scope of this tutorial.
-
-
-@relay.op.register_alter_op_layout("nn.conv2d", level=101)
-def alter_conv2d(attrs, inputs, tinfos, out_type):
-    data, weight = inputs
-    new_attrs = dict(attrs)
-    new_attrs["data_layout"] = "NCHW16c"
-    return relay.nn.conv2d(data, weight, **new_attrs)
-
-
-###############################################################################
 # Optimize the Program
 # --------------------
 # Now we would like to optimize the program. Relay features a host of
@@ -188,21 +174,6 @@ with tvm.transform.PassContext(opt_level=3, disabled_pass=["EliminateCommonSubex
     mod3 = seq(mod)
 print(mod3)
 
-###############################################################################
-# The passes applied so far are target independent. The pass infra also
-# provides a means to make pass target-aware. For example, the layout
-# alteration pass falls in such category.
-
-with tvm.transform.PassContext(opt_level=3):
-    mod4 = seq(mod)
-print(mod4)
-
-seq1 = tvm.transform.Sequential([relay.transform.AlterOpLayout()])
-with tvm.transform.PassContext(opt_level=3):
-    with tvm.target.Target("llvm"):
-        mod5 = seq1(mod)
-print(mod5)
-
 ##############################################################################
 # Implement a Pass Using Python Decorator
 # ------------------------------------------
@@ -257,7 +228,6 @@ seq = tvm.transform.Sequential(
         tvm.transform.PrintIR(),
         relay.transform.EliminateCommonSubexpr(),
         relay.transform.FuseOps(),
-        relay.transform.AlterOpLayout(),
     ]
 )
 

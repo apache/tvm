@@ -59,7 +59,7 @@ def parametrize_external_json_codegen_checks(test):
 
 def update_lib(lib):
     test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    source_dir = os.path.join(test_dir, "..", "..", "..")
+    source_dir = os.path.join(test_dir, "..", "..", "..", "..")
     contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
 
     kwargs = {}

@@ -240,6 +240,7 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 # Source file lists
 file(GLOB_RECURSE COMPILER_SRCS
     src/auto_scheduler/*.cc
+    src/meta_schedule/*.cc
     src/node/*.cc
     src/ir/*.cc
     src/arith/*.cc
@@ -585,7 +586,7 @@ endif()
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
 if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-  file(GLOB TEST_SRCS tests/cpp/*.cc)
+  file(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
   add_executable(cpptest ${TEST_SRCS})
   target_include_directories(cpptest SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} gtest_main pthread dl)
