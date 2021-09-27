@@ -30,7 +30,7 @@ import tarfile
 import paddle
 import numpy as np
 import tvm
-import tvm.relay as relay
+from tvm import relay
 from tvm.contrib.download import download_testdata
 
 ######################################################################
@@ -108,7 +108,7 @@ synset_name = "imagenet1000_clsid_to_human.txt"
 img_path = download_testdata(img_url, "cat.png", module="data")
 synset_path = download_testdata(synset_url, synset_name, module="data")
 with open(synset_path) as f:
-    synset = eval(f.read())
+    synset = f.readlines()
 
 top1 = np.argmax(tvm_output[0])
 print(f"TVM prediction top-1 id: {top1}, class name: {synset[top1]}")
