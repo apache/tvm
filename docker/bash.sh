@@ -22,7 +22,7 @@
 #
 # Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 #          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
-#          [--dry-run]
+#          [--dry-run] [--name NAME]
 #          <DOCKER_IMAGE_NAME> [--] [COMMAND]
 #
 # Usage: docker/bash.sh <CONTAINER_NAME>
@@ -40,7 +40,7 @@ function show_usage() {
     cat <<EOF
 Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
          [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
-         [--dry-run]
+         [--dry-run] [--name NAME]
          <DOCKER_IMAGE_NAME> [--] [COMMAND]
 
 -h, --help
@@ -85,6 +85,11 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 
     Print the docker command to be run, but do not execute it.
 
+--name
+
+    Set the name of the docker container, and the hostname that will
+    appear inside the container.
+
 DOCKER_IMAGE_NAME
 
     The name of the docker container to be run.  This can be an
@@ -118,6 +123,7 @@ USE_NET_HOST=false
 DOCKER_IMAGE_NAME=
 COMMAND=bash
 MOUNT_DIRS=( )
+CONTAINER_NAME=
 
 # TODO(Lunderberg): Remove this if statement and always set to
 # "${REPO_DIR}".  The consistent directory for Jenkins is currently
@@ -178,6 +184,15 @@ while (( $# )); do
         --mount=?*)
             MOUNT_DIRS+=("${1#*=}")
             shift
+            ;;
+
+        --name)
+            if [[ -n "$2" ]]; then
+                CONTAINER_NAME="$2"
+                shift 2
+            else
+                parse_error 'ERROR: --name requires a non empty argument'
+            fi
             ;;
 
         --dry-run)
@@ -310,6 +325,11 @@ fi
 
 if ${TTY}; then
     DOCKER_FLAGS+=( --tty )
+fi
+
+# Setup the docker name and the hostname inside the container
+if [[ ! -z "${CONTAINER_NAME}" ]]; then
+    DOCKER_FLAGS+=( --name ${CONTAINER_NAME} --hostname ${CONTAINER_NAME})
 fi
 
 # Expose external directories to the docker container
