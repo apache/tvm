@@ -265,8 +265,9 @@ def conv2d_packed_filter(
     hid1, hid2 = s[Y].split(hid, factor=2)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
     Yl = s.cache_write(Y, storage_scope)
+    hid1, hid2 = s[Y].split(hid, factor=2)
 
-    # s[Yl].compute_at(s[Y], hid)
+    s[Yl].compute_at(s[Y], hid1)
     n, hid1, hid2, wid, cid, hoff, woff, coff = s[Yl].op.axis
     s[Xl].compute_at(s[Yl], hid1)
 
