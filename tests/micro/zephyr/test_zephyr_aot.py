@@ -33,7 +33,9 @@ import tvm.relay as relay
 from tvm.contrib.download import download_testdata
 from tvm.micro.interface_api import generate_c_interface_header
 
-import test_utils
+from test_utils import create_header_file
+from test_utils import build_project
+from test_utils import get_message
 
 
 @tvm.testing.requires_micro
