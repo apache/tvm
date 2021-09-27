@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import te
 import numpy as np
@@ -103,6 +104,11 @@ def test_cast():
     assert isinstance(y, tvm.tir.Cast)
     assert isinstance(z, tvm.tir.Broadcast)
     assert z.lanes == 4
+
+    s = tvm.tir.StringImm("s")
+    with pytest.raises(tvm.error.TVMError) as cm:
+        s.astype("int")
+        assert "Can't cast a handle to other types" in str(cm.execption)
 
 
 def test_attr():
@@ -468,28 +474,4 @@ def test_block_blockrealize():
 
 
 if __name__ == "__main__":
-    test_intimm_cond()
-    test_buffer_load_store()
-    test_vars()
-    test_prim_func()
-    test_cast()
-    test_attr()
-    test_const()
-    test_scalar_dtype_inference()
-    test_make()
-    test_ir()
-    test_basic()
-    test_stmt()
-    test_let()
-    test_dir()
-    test_dtype()
-    test_any()
-    test_all()
-    test_bitwise()
-    test_float_bitwise()
-    test_shift_bounds()
-    test_divide_by_zero()
-    test_isnan()
-    test_equality()
-    test_equality_string_imm()
-    test_block_blockrealize()
+    pytest.main([__file__])
