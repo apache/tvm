@@ -473,8 +473,14 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, P
   meta = md_builder_->createTBAAScalarTypeNode(buffer_addr.str(), meta);
 
   // Extract the underlying type of the allocated buffer.
-  Type element_type = Downcast<PointerType>(buffer->type_annotation)->element_type;
-  llvm::Type* buf_type = DTypeToLLVMType(Downcast<PrimType>(element_type)->dtype);
+  DataType dtype = buffer->dtype;
+  if (buffer->type_annotation.defined()) {
+    Type element_type = Downcast<PointerType>(buffer->type_annotation)->element_type;
+    if (auto* ptype = element_type.as<PrimTypeNode>()) {
+      dtype = ptype->dtype;
+    }
+  }
+  llvm::Type* buf_type = DTypeToLLVMType(dtype);
 
   std::string tmp;
   llvm::raw_string_ostream buffer_type(tmp);
