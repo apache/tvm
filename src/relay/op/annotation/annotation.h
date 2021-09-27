@@ -39,6 +39,8 @@ const Op& OnDeviceOp();
 
 /*!
  * \brief Wraps \p expr in an "on_device" CallNode for \p device_type and \p is_fixed.
+ *
+ * See \p OnDeviceAttrs for an overview.
  */
 Expr OnDevice(Expr expr, DLDeviceType device_type, bool is_fixed);
 
@@ -52,7 +54,7 @@ Expr OnDevice(Expr expr, DLDeviceType device_type, bool is_fixed);
  *  - \p expr is a constructor. There should probably be device polymorphic but are in an
  *    in-between state at the moment.
  */
-Expr OptOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed);
+Expr MaybeOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed);
 
 /*! \brief Result of \p GetOnDeviceProps. */
 struct OnDeviceProps {
@@ -95,8 +97,9 @@ Function FunctionOnDevice(Function function, const std::vector<DLDeviceType>& pa
  * \brief As for \p FunctionOnDevice, but returns \p function unchanged if all parameters and
  * result device types are \p kInvalidDeviceType.
  */
-Function OptFunctionOnDevice(Function function, const std::vector<DLDeviceType>& param_device_types,
-                             DLDeviceType result_device_type);
+Function MaybeFunctionOnDevice(Function function,
+                               const std::vector<DLDeviceType>& param_device_types,
+                               DLDeviceType result_device_type);
 
 /*!
  * \brief Returns the device type for the resut of \p function_node, or \p kInvalidDeviceType

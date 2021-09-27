@@ -53,7 +53,7 @@ Expr OnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
   return Call(OnDeviceOp(), {std::move(expr)}, Attrs(std::move(attrs)), /*type_args=*/{}, span);
 }
 
-Expr OptOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
+Expr MaybeOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
   if (device_type == kInvalidDeviceType) {
     // Undefined signals no annotation is required.
     return expr;
