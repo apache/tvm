@@ -14,8 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import io
 import json
 import pathlib
+import logging
+import tarfile
+
+import numpy as np
+
+import tvm.micro
 
 
 TEMPLATE_PROJECT_DIR = (
@@ -65,7 +72,7 @@ def has_fpu(board: str):
 def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     project_dir = temp_dir / "project"
     project = tvm.micro.generate_project(
-        str(test_utils.TEMPLATE_PROJECT_DIR),
+        str(TEMPLATE_PROJECT_DIR),
         mod,
         project_dir,
         {
