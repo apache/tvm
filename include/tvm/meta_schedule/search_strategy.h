@@ -30,9 +30,12 @@ namespace meta_schedule {
 // Forward declaration
 class TuneContext;
 
+/*! \brief The measure candidate class. */
 class MeasureCandidateNode : public runtime::Object {
  public:
+  /*! \brief The schedule for profiling. */
   tir::Schedule sch;
+  /*! \brief The argument information. */
   Array<ArgInfo> args_info;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -44,8 +47,17 @@ class MeasureCandidateNode : public runtime::Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureCandidateNode, Object);
 };
 
+/*!
+ * \brief Managed reference to MeasureCandidateNode.
+ * \sa MeasureCandidateNode
+ */
 class MeasureCandidate : public runtime::ObjectRef {
  public:
+  /*!
+   * \brief Constructor of MeasureCandidate.
+   * \param sch The schedule for profiling.
+   * \param args_info The argument information.
+   */
   TVM_DLL MeasureCandidate(tir::Schedule sch, Array<ArgInfo> args_info);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MeasureCandidate, ObjectRef, MeasureCandidateNode);
 };

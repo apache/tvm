@@ -47,6 +47,11 @@ class RunnerResultNode : public runtime::Object {
  */
 class RunnerResult : public runtime::ObjectRef {
  public:
+  /*!
+   * \brief Constructor for RunnerResult.
+   * \param run_secs The run time in seconds.
+   * \param error_msg The error message, if any.
+   */
   TVM_DLL explicit RunnerResult(Optional<Array<FloatImm>> run_secs, Optional<String> error_msg);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RunnerResult, runtime::ObjectRef, RunnerResultNode);
 };
