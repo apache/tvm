@@ -3747,7 +3747,13 @@ def from_pytorch(
         Use this option when you want to run the AnnotateSpans pass on the imported module.
 
     return_int8_weight : bool
-        TODO
+        Return quantized weights and bias, rather than float ones. PyTorch stores quantized weights
+        in a custom format, so we cannot directly access 8 bit weights as Numpy arrays. We use
+        a PyTorch function to unpack quantized weights into float32 arrays and quantization parameters.
+        By default, we return float32 weights and rely on the QNN lowering and the Relay constant folding pass
+        to quantize weights at compile time. In BYOC use cases, however, we cannot apply the constant folding pass
+        on a QNN graph. If return_int8_weight is True, we quantize weights in the frontend using a function that
+        is equivalent to qnn.op.quantize(...) operating on Numpy arrays.
 
     Returns
     -------
