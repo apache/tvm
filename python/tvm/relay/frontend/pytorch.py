@@ -3770,7 +3770,6 @@ def from_pytorch(
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
 
-
     op_names = get_all_op_names(graph)
     converter.report_missing_conversion(op_names)
 
@@ -3794,9 +3793,17 @@ def from_pytorch(
     # For quantized models
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
     if len(quantized_ops.intersection(set(op_names))) > 0:
-        weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
+        weight_quant_params = qnn_torch.get_weight_quant_params(
+            script_module, packed_param_map.values()
+        )
         input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params, input_scales_for_bias)
+        qnn_torch.add_quant_params_to_outputs(
+            outputs,
+            packed_param_map,
+            weight_quant_params,
+            input_scales_for_bias,
+            return_int8_weight,
+        )
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
