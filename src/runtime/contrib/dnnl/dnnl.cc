@@ -64,7 +64,7 @@ inline dnnl::memory::desc GenDNNLMemDescByShape(const dnnl::memory::dims& shape,
       data_md = dnnl::memory::desc({shape, dtype, tag::abcde});
       break;
     default:
-      assert(true);
+      LOG(FATAL) << "Unsupported data shape dimension: " << shape.size();
       break;
   }
   return data_md;
@@ -264,6 +264,10 @@ extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean, flo
   free(weight);
 }
 
+// should comply with src/relay/backend/contrib/dnnl/codegen.cc
+#define DNNL_BINARY_ADD 0
+#define DNNL_BINARY_MUL 1
+
 extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_type,
                                std::vector<int64_t> shape) {
   using dt = memory::data_type;
@@ -279,13 +283,14 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
 
   algorithm algo = algorithm::undef;
   switch (algo_type) {
-    case 0:
+    case DNNL_BINARY_ADD:
       algo = algorithm::binary_add;
       break;
-    case 1:
+    case DNNL_BINARY_MUL:
       algo = algorithm::binary_mul;
+      break;
     default:
-      assert(true);
+      LOG(FATAL) << "Unsupported dnnl algorithm: " << algo_type;
       break;
   }
 

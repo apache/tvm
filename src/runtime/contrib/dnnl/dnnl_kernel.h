@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_CONTRIB_DNNL_DNNL_KERNEL_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/logging.h>
 
 #include <vector>
 

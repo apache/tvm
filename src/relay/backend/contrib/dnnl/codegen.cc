@@ -107,6 +107,7 @@ std::vector<std::string> Dense(const CallNode* call) {
 std::vector<std::string> Relu(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
+  // Args: N, C, H, W
   args.push_back(GetShapeString(ishape));
   return args;
 }
@@ -127,10 +128,15 @@ std::vector<std::string> BatchNorm(const CallNode* call) {
   return args;
 }
 
+// should comply with src/runtime/contrib/dnnl/dnnl.cc
+#define DNNL_BINARY_ADD 0
+#define DNNL_BINARY_MUL 1
+
 std::vector<std::string> Add(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
-  args.push_back("0");
+  args.push_back(std::to_string(DNNL_BINARY_ADD));
+  // Args: H, W
   args.push_back(GetShapeString(ishape));
   return args;
 }
@@ -138,7 +144,8 @@ std::vector<std::string> Add(const CallNode* call) {
 std::vector<std::string> Multiply(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
-  args.push_back("1");
+  args.push_back(std::to_string(DNNL_BINARY_MUL));
+  // Args: H, W
   args.push_back(GetShapeString(ishape));
   return args;
 }
