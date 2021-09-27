@@ -18,11 +18,15 @@
 Compile PaddlePaddle Models
 ===================
 **Author**: `Ziyuan Ma <https://github.com/ZiyuanMa/>`_
+
 This article is an introductory tutorial to deploy PaddlePaddle models with Relay.
 For us to begin with, PaddlePaddle>=2.3.1 is required to be installed.
 A quick solution is
+
 .. code-block:: bash
+
     pip install paddlepaddle -i https://mirror.baidu.com/pypi/simple
+
 or please refer to official site.
 https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-pip.html
 """
