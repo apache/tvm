@@ -309,7 +309,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
       return TypedPointer(member_type, member_addr);
     }
     case builtin::kArrDeviceId: {
-      llvm::Type* member_type = t_tvm_array_->getStructElementType(1)->getStructElementType(2);
+      llvm::Type* member_type = t_tvm_array_->getStructElementType(1)->getStructElementType(1);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(1), ConstInt32(1)});
       return TypedPointer(member_type, member_addr);
