@@ -804,7 +804,7 @@ def convert_fill_any_like(g, op, block):
     dtype = _convert_dtype_value(dtype)
     x = g.get_node(op.input("X")[0])
     value = _expr.const(op.attr("value"), dtype=dtype)
-    out = _op.transform.full_like(x, value)
+    out = _op.transform.full_like(x, value).astype(dtype)
     g.add_node(op.output("Out")[0], out)
 
 
