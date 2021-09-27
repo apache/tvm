@@ -130,8 +130,8 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
 
 Function FunctionOnDevice(Function function, Array<Integer> param_device_types,
                           Integer result_device_type) {
-  return WithAttr(WithAttr(std::move(function), tvm::attr::kParamDeviceTypes, param_device_types),
-                  tvm::attr::kResultDeviceType, result_device_type);
+  return WithAttrs(std::move(function), {{tvm::attr::kParamDeviceTypes, param_device_types},
+                                         {tvm::attr::kResultDeviceType, result_device_type}});
 }
 
 Function FunctionOnDevice(Function function, const std::vector<DLDeviceType>& param_device_types,

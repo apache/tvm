@@ -1088,12 +1088,10 @@ class Parser {
     VLOG(0) << "Parser::ParseFunctionDef";
     return WithSpan<Function>([&]() {
       PushScope();
-      PushTypeScope();  // TODO(mbs): BUG?
+      PushTypeScope();
 
       Array<TypeVar> generics;
       if (Peek()->token_type == TokenType::kLSquare) {
-        // If we have generics we need to add a type scope.
-        PushTypeScope();
         generics = ParseSequence<TypeVar>(
             TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
               auto type_var_name = Match(TokenType::kIdentifier).ToString();
