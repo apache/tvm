@@ -61,6 +61,7 @@ def has_fpu(board: str):
     fpu_boards = [name for name, board in board_properties.items() if board["fpu"]]
     return board in fpu_boards
 
+
 def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     project_dir = temp_dir / "project"
     project = tvm.micro.generate_project(
