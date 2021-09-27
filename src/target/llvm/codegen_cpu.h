@@ -110,8 +110,12 @@ class CodeGenCPU : public CodeGenLLVM {
   void UnpackClosureData(llvm::Value* cdata, const Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
-  llvm::BasicBlock* MakeCallPacked(const Array<PrimExpr>& args, llvm::Value** rvalue,
-                                   llvm::Value** ret_tcode, const DataType& r_type,
+  struct PackedCall {
+    llvm::Value* ret_value;
+    llvm::Value* ret_tcode;
+    llvm::BasicBlock* end_block;
+  };
+  PackedCall MakeCallPackedLowered(const Array<PrimExpr>& args, const DataType& r_type,
                                    const int64_t begin, const int64_t end);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
