@@ -37,15 +37,15 @@ from tvm.contrib.download import download_testdata
 # Load pretrained ResNet50 model
 # ---------------------------------------------
 # We load a pretrained ResNet50 provided by PaddlePaddle.
-url = 'https://bj.bcebos.com/x2paddle/models/paddle_resnet50.tar'
+url = "https://bj.bcebos.com/x2paddle/models/paddle_resnet50.tar"
 model_path = download_testdata(url, "paddle_resnet50.tar", module="model")
 
 with tarfile.open(model_path) as tar:
     names = tar.getnames()
     for name in names:
-        tar.extract(name, './')
+        tar.extract(name, "./")
 
-model = paddle.jit.load('./paddle_resnet50/model')
+model = paddle.jit.load("./paddle_resnet50/model")
 
 ######################################################################
 # Load a test image
@@ -56,11 +56,14 @@ from PIL import Image
 import paddle.vision.transforms as T
 
 
-transforms = T.Compose([
-    T.Resize((256, 256)),
-    T.CenterCrop(224),
-    T.ToTensor(),
-    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+transforms = T.Compose(
+    [
+        T.Resize((256, 256)),
+        T.CenterCrop(224),
+        T.ToTensor(),
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ]
+)
 
 img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
 img_path = download_testdata(img_url, "cat.png", module="data")
