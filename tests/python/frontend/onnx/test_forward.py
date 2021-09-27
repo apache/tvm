@@ -3470,6 +3470,49 @@ def test_lppool(target, dev):
     )
 
 
+def verify_global_lppool(x_shape, p, out_shape, target, dev):
+    pool_node = helper.make_node(
+        "GlobalLpPool",
+        inputs=["x"],
+        outputs=["y"],
+        p=p,
+    )
+
+    graph = helper.make_graph(
+        [pool_node],
+        "global_lppool_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape))],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="global_lppool_test")
+    verify_with_ort(
+        model, [x_shape], out_shape, use_vm=True, convert_to_static=True, target=target, dev=dev
+    )
+
+
+@tvm.testing.parametrize_targets
+def test_global_lppool(target, dev):
+
+    # LpPool1D
+    verify_global_lppool(x_shape=[1, 15, 16], p=2, out_shape=[1, 15, 1], target=target, dev=dev)
+
+    # LpPool2D
+    verify_global_lppool(
+        x_shape=[1, 15, 32, 32], p=2, out_shape=[1, 15, 1, 1], target=target, dev=dev
+    )
+
+    # LpPool2D
+    verify_global_lppool(
+        x_shape=[1, 15, 32, 32], p=3, out_shape=[1, 15, 1, 1], target=target, dev=dev
+    )
+
+    # LpPool3D
+    verify_global_lppool(
+        x_shape=[1, 15, 3, 32, 32], p=2, out_shape=[1, 15, 1, 1, 1], target=target, dev=dev
+    )
+
+
 def verify_rnn(
     seq_length,
     batch_size,
@@ -5826,3 +5869,4 @@ if __name__ == "__main__":
     test_random_uniform()
     test_convinteger()
     test_batch_matmul()
+    test_global_lppool()
