@@ -921,7 +921,6 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   context_.module = OptimizeModule(mod, targets_, target_host_);
 
   // Populate the global map.
-  //
   // This maps global variables to a global index
   // in the VMFunction table.
   PopulateGlobalMap();
@@ -1083,6 +1082,13 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
   pass_seqs.push_back(transform::InferType());
   pass_seqs.push_back(transform::LabelOps());
 
+  tec::TargetMap targets_;
+  tec::DeviceMap device_map;
+
+  targets_ = GetTecTargetMapFromTargetMap(targets);
+
+  pass_seqs.push_back(tec::LowerTEPass(targets_, device_map, "vm_mod", [this](Function func) {}));
+
   transform::Sequential seq(pass_seqs);
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
   if (targets.size() == 1) {
@@ -1090,6 +1096,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
     With<Target> tctx((*it).second);
     return seq(mod);
   }
+
   return seq(mod);
 }
 

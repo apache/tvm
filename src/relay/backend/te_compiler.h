@@ -153,7 +153,7 @@ Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
  * \brief Obtain the TargetMap from the Map<tvm::Integer, tvm::Target>.
  *
  * \param targets
- * \return tec::TargetMap
+ * \return TargetMap
  */
 TargetMap GetTecTargetMapFromTargetMap(Map<tvm::Integer, tvm::Target> targets);
 
