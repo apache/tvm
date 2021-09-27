@@ -150,6 +150,14 @@ void UpdateFunctionMetadata(Function relay_func,
 Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
 
 /*!
+ * \brief Obtain the TargetMap from the Map<tvm::Integer, tvm::Target>.
+ *
+ * \param targets
+ * \return tec::TargetMap
+ */
+TargetMap GetTecTargetMapFromTargetMap(Map<tvm::Integer, tvm::Target> targets);
+
+/*!
  * \brief Update the "main" control function's metadata
  *
  * \param mod The module
@@ -196,7 +204,7 @@ IRModule LowerTE(
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
- * \returns The pass which lowers primative functions to TIR
+ * \returns The pass which lowers primitive functions to TIR
  */
 transform::Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
                             const String& module_name, std::function<void(Function)> process_fn);

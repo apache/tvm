@@ -641,6 +641,17 @@ Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
   }
 }
 
+TargetMap GetTecTargetMapFromTargetMap(Map<tvm::Integer, tvm::Target> targets) {
+  tec::TargetMap targets_;
+  for (const auto& it : targets) {
+    auto dev_type = it.first.as<tir::IntImmNode>();
+    ICHECK(dev_type);
+    targets_[static_cast<DLDeviceType>(dev_type->value)] = it.second;
+  }
+
+  return targets_;
+}
+
 Pass LowerTensorExpr(TargetMap targets, DeviceMap device_context_map, const String& module_name,
                      TECompiler compiler, std::function<void(Function)> process_fn) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
