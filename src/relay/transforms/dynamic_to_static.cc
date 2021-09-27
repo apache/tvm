@@ -45,7 +45,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
            }
            return Expr(nullptr);
          }},
-         {Op::Get("dyn.squeeze"),
+        {Op::Get("dyn.squeeze"),
          [this](const CallNode* call_node) {
            auto args = PrepareArgs(call_node);
            if (const ConstantNode* axis = args[1].as<ConstantNode>()) {

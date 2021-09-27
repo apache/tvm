@@ -693,7 +693,7 @@ RELAY_REGISTER_OP("dyn.expand_dims")
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 bool DynSqueezeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter) {
+                   const TypeReporter& reporter) {
   // [data, axes, output]
   ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -713,14 +713,13 @@ bool DynSqueezeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-
 Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   ICHECK(out_ttype != nullptr);
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {
-      newshape.push_back(val.as<tir::AnyNode>()->ToVar());
+    newshape.push_back(val.as<tir::AnyNode>()->ToVar());
   }
   return {topi::reshape(inputs[0], newshape)};
 }
