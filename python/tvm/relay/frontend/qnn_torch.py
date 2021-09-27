@@ -140,8 +140,8 @@ def quantize_numpy(weight, scale, zero_point, out_dtype_np):
     iinfo = np.iinfo(out_dtype_np)
     clip_min = iinfo.min
     clip_max = iinfo.max
-    if len(scale.shape) > 0 and len(weight.shape) == 4:
-        scale = np.reshape(scale, (weight.shape[0], 1, 1, 1))
+    if len(scale.shape) > 0:
+        scale = np.reshape(scale, [weight.shape[0]] + [1] * (len(weight.shape) - 1))
     transformed = zero_point + weight / scale
     return np.clip(np.round(transformed), clip_min, clip_max).astype(out_dtype_np)
 
