@@ -35,6 +35,8 @@
 #include <string>
 #include <vector>
 
+#include <vector>
+
 #include "../printer/text_printer.h"
 #include "../support/array.h"
 #include "../support/base64.h"
