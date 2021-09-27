@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""The integration of Arm(R) Ethos(TM)-U NPU TIR compiler"""
+"""The integration of the Arm(R) Ethos(TM)-U NPU TIR compiler."""
 import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprMutator
@@ -29,7 +29,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
     """Lower a schedule to TIR for the Arm(R) Ethos(TM)-U NPU target.
 
     The resulting TIR module will contain a single function
-    that comprises of a sequence of tir.extern_calls to NPU
+    that consists of a sequence of tir.extern_calls to NPU
     operations.
 
     Parameters
@@ -96,20 +96,20 @@ def lower_ethosu(sch, args, const_dict, name="main"):
 
 
 def lower_to_te(prim_func):
-    """Lower a Relay primitive function to a Tensor Expression graph.
+    """Lower a Relay primitive function to a Tensor Expression in an unscheduled CachedFunc.
 
     Parameters
     ----------
     prim_func : tvm.relay.Function
-        The Relay function to lowerethosu_runtime([]).
+        The Relay function to lower.
 
     Returns
     -------
-    out : TEGraph
-        The lowered Tensor Expression graph.
+    out : CachedFunc
+        The lowered Tensor Expression as part of a CachedFunc.
 
     """
-    f = tvm._ffi.get_global_func("relay.backend.contrib.ethosu.LowerToTE")
+    f = tvm._ffi.get_global_func("relay.backend.LowerToTE")
     return f(prim_func)
 
 
@@ -193,7 +193,7 @@ def lower_to_tir(func, cascader=None):
     func, consts = extract_constants(func)
     mod = tvm.IRModule.from_expr(func)
     func = relay.transform.InferType()(mod)["main"]
-    te_graph = lower_to_te(func)
-    s = schedule(te_graph, consts, cascader)
-    mod, consts = lower_ethosu(s, te_graph, consts)
+    cached_func = lower_to_te(func)
+    s = schedule(cached_func, consts, cascader)
+    mod, consts = lower_ethosu(s, cached_func, consts)
     return mod, consts
