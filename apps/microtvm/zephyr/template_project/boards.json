@@ -1,7 +1,9 @@
 {
     "mimxrt1050_evk": {
         "board": "mimxrt1050_evk",
-        "model": "imxrt10xx"
+        "model": "imxrt10xx",
+        "is_qemu": false,
+        "fpu": true
     },
     "mps2_an521": {
         "board": "mps2_an521",
