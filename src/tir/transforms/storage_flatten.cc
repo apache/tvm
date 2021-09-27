@@ -808,40 +808,9 @@ class BufferBindUnwrapper : public StmtExprMutator {
   }
 
  private:
-  // The specific tensor data layout is not determined before
-  // StorageFlatten pass. We use buffer_bind_scope
-  // to specify before hand we want to bind a subregion
-  // of tensor to a symbolic buffer, which get used in extern.
-  //
-  // Example:
-  //
-  // realize A in range [i*4, extent=10) {
-  //   bind Ab to A in [i*4+1, extent=4) {
-  //     call_func(Ab.ptr, Ab.shape[0])
-  //   }
-  // }
-  //
-  // After StorageFlatten
-  //
-  // alloc A[10]
-  //   call(A + 1,  4)
-  //
-  // Buffer is a protocol to declare specific
-  // data layout and shape we expect.
-  // So this function need to check:
-  // - If the bind range is within the realize range
-  // - If we can match the requirement of buffer
-  // - Remap variables such as Ab.ptr to the actual value.
-  //
-  // Here are a few possible failure cases:
-  // - Buffer is declared to have constant shape,
-  //   but we try to bind it to a different one.
-  // - Buffer is declared to be compact(no strides)
-  //   but this binded region is a subregion of
-  //   a matrix(tensor), which means it requires strides.
-  //
-  // We do support a few relaxed case, such as bindingx
-  // region with shape [1, 1, n, m] to buffer with shape [n, m]
+  // Read the mapping from a buffer view to the actual buffer.  This
+  // allows all later BufferStore/BufferLoad nodes to reference the
+  // actual buffer, rather than the buffer view.
   Stmt HandleBufferBindScope(const AttrStmtNode* op) {
     // Unpack information from Attribute node
     RemapInfo remap;
@@ -942,29 +911,6 @@ class BufferBindUnwrapper : public StmtExprMutator {
 
     // The buffer to which the storage buffer should be remapped.
     std::unique_ptr<RemapInfo> remap{nullptr};
-
-    PrimExpr ElemOffset() const {
-      ICHECK(remap);
-
-      Buffer copy = remap->target;
-      {
-        Array<PrimExpr> shape;
-        for (auto r : bounds) {
-          shape.push_back(r->extent);
-        }
-        copy.CopyOnWrite()->shape = std::move(shape);
-      }
-
-      Buffer target_slice = copy.MakeSlice(remap->begins, remap->extents);
-      if (buffer->strides.size() == 0) {
-        ICHECK_EQ(target_slice->strides.size(), 0U)
-            << "Trying to bind compact buffer to strided one strides=" << target_slice->strides;
-      } else {
-        target_slice = target_slice.MakeStrideView();
-      }
-
-      return copy->ElemOffset(remap->begins);
-    }
   };
 
   // The buffer assignment map
@@ -1330,7 +1276,7 @@ class StorageFlattener : public StmtExprMutator {
 //   but this binded region is a subregion of
 //   a matrix(tensor), which means it requires strides.
 //
-// We do support a few relaxed case, such as bindingx
+// We do support a few relaxed case, such as binding a
 // region with shape [1, 1, n, m] to buffer with shape [n, m]
 PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_attributes) {
   // Only apply this pass to TIR from TE schedules
