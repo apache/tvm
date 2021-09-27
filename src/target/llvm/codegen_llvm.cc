@@ -481,6 +481,9 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, P
     }
   }
   llvm::Type* buf_type = DTypeToLLVMType(dtype);
+  if (!buf_type) {
+    buf_type = t_void_p_;
+  }
 
   std::string tmp;
   llvm::raw_string_ostream buffer_type(tmp);
@@ -1178,7 +1181,13 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
         int alignment, native_bits;
         GetAlignment(t, op->buffer_var.get(), ramp->base, &alignment, &native_bits);
         ICHECK_EQ(ramp->lanes, t.lanes());
+        // The index argument is element-based, to create buffer pointer for t's element type.
         TypedPointer buffer_ptr = CreateBufferPtr(t.element_of(), buffer, MakeValue(ramp->base));
+        unsigned addrspace =
+            llvm::dyn_cast<llvm::PointerType>(buffer->getType())->getAddressSpace();
+        buffer_ptr.type = DTypeToLLVMType(t);
+        buffer_ptr.addr =
+            builder_->CreatePointerCast(buffer_ptr.addr, buffer_ptr.type->getPointerTo(addrspace));
 #if TVM_LLVM_VERSION >= 110
         llvm::LoadInst* load = builder_->CreateAlignedLoad(buffer_ptr.type, buffer_ptr.addr,
                                                            llvm::Align(alignment), is_volatile);
@@ -1302,7 +1311,13 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
         int alignment, native_bits;
         GetAlignment(t, op->buffer_var.get(), ramp->base, &alignment, &native_bits);
         ICHECK_EQ(ramp->lanes, t.lanes());
+        // The index argument is element-based, to create buffer pointer for t's element type.
         TypedPointer buffer_ptr = CreateBufferPtr(t.element_of(), buffer, MakeValue(ramp->base));
+        unsigned addrspace =
+            llvm::dyn_cast<llvm::PointerType>(buffer->getType())->getAddressSpace();
+        buffer_ptr.type = DTypeToLLVMType(t);
+        buffer_ptr.addr =
+            builder_->CreatePointerCast(buffer_ptr.addr, buffer_ptr.type->getPointerTo(addrspace));
 #if TVM_LLVM_VERSION >= 110
         llvm::StoreInst* store = builder_->CreateAlignedStore(value, buffer_ptr.addr,
                                                               llvm::Align(alignment), is_volatile);
