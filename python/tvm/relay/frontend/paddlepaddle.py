@@ -120,7 +120,7 @@ def _convert_dtype_value(val):
 def convert_unary_op(g, op, block):
     """Operator converter for all the unary operators."""
 
-    # op_map stores mapping relationship between tvm and relay
+    # op_map stores mapping relationship between paddlepaddle and relay
     op_map = {
         "isinf_v2": _op.isinf,
         "isfinite_v2": _op.isfinite,
