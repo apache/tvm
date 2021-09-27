@@ -105,7 +105,6 @@ synset_url = "".join(
     ]
 )
 synset_name = "imagenet1000_clsid_to_human.txt"
-img_path = download_testdata(img_url, "cat.png", module="data")
 synset_path = download_testdata(synset_url, synset_name, module="data")
 with open(synset_path) as f:
     synset = f.readlines()
