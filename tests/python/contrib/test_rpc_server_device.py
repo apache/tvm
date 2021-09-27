@@ -4,7 +4,8 @@ import numpy as np
 import tvm.testing
 from tvm import te
 from tvm import rpc
-from tvm.contrib import utils, xcode
+from tvm import relay
+from tvm.contrib import utils, xcode, graph_executor
 from tvm.autotvm.measure import request_remote
 from tvm.auto_scheduler.utils import call_func_with_timeout
 from tvm.contrib.popen_pool import PopenWorker, StatusKind
@@ -27,31 +28,10 @@ TEMPORARY_DIRECTORY = utils.tempdir()
 ARCH = "x86_64"
 SDK = "iphonesimulator"
 DSO_NAME = "lib.dylib"
+DTYPE = "float32"
 
 
-def get_simple_add_lib(target):
-    n = te.var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = te.create_schedule(C.op)
-    return tvm.build(s, [A, B, C], target=target, target_host=target, name="simple_add")
-
-
-def export_lib(lib):
-    path_dso = TEMPORARY_DIRECTORY.relpath(DSO_NAME)
-    lib.export_library(path_dso, xcode.create_dylib, arch=ARCH, sdk=SDK)
-    return path_dso
-
-
-def assert_correct_compute(lib, device):
-    dtype = "float32"
-    n = 10
-    a = tvm.nd.array(np.random.uniform(size=n).astype(dtype), device)
-    b = tvm.nd.array(np.random.uniform(size=n).astype(dtype), device)
-    c = tvm.nd.array(np.zeros(n, dtype=dtype), device)
-    lib(a, b, c)
-    tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
+np.random.seed(0)
 
 
 def setup_pure_rpc_configuration(f):
@@ -155,6 +135,29 @@ def try_create_remote_session(session_factory, args=(), kwargs=None):
     return successful_attempt
 
 
+def export_lib(lib):
+    path_dso = TEMPORARY_DIRECTORY.relpath(DSO_NAME)
+    lib.export_library(path_dso, xcode.create_dylib, arch=ARCH, sdk=SDK)
+    return path_dso
+
+
+def get_add_relay_module(a_numpy, b_numpy):
+    a = relay.var("a", shape=a_numpy.shape, dtype=DTYPE)
+    b = relay.var("b", shape=b_numpy.shape, dtype=DTYPE)
+    params = {}
+    out = tvm.IRModule.from_expr(relay.add(a, b))
+    return out, params
+
+
+def get_add_module(target):
+    n = te.var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
+    return tvm.build(s, [A, B, C], target=target, target_host=target, name="simple_add")
+
+
 @setup_pure_rpc_configuration
 def test_pure_rpc(host, port):
     status_ok = try_create_remote_session(session_factory=rpc.connect, args=(host, port))
@@ -213,7 +216,7 @@ def test_basic_functionality_of_rpc_session(host, port):
     device = remote_session.cpu(0)
 
     target = tvm.target.Target(target=f"llvm -mtriple={ARCH}-apple-darwin")
-    lib = get_simple_add_lib(target)
+    lib = get_add_module(target)
     path_dso = export_lib(lib)
 
     # Check correct upload
@@ -226,7 +229,12 @@ def test_basic_functionality_of_rpc_session(host, port):
 
     # Check correct remote computing
     lib = remote_session.load_module(DSO_NAME)
-    assert_correct_compute(lib, device)
+    n = 100
+    a = tvm.nd.array(np.random.uniform(size=n).astype(DTYPE), device)
+    b = tvm.nd.array(np.random.uniform(size=n).astype(DTYPE), device)
+    c = tvm.nd.array(np.zeros(n, dtype=DTYPE), device)
+    lib(a, b, c)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     # Check correct remove
     remote_session.remove(DSO_NAME)
@@ -237,7 +245,7 @@ def test_cleanup_workspace_after_session_end(host, port):
     # Arrange
     remote_session = rpc.connect(host, port)
     target = tvm.target.Target(target=f"llvm -mtriple={ARCH}-apple-darwin")
-    lib = get_simple_add_lib(target)
+    lib = get_add_module(target)
     path_dso = export_lib(lib)
     remote_session.upload(path_dso)
 
@@ -254,6 +262,37 @@ def test_cleanup_workspace_after_session_end(host, port):
     assert status_ok, "Workspace not cleared after RPC Session termination."
 
 
+@setup_pure_rpc_configuration
+def test_graph_executor_remote_run(host, port):
+    remote_session = rpc.connect(host, port)
+    target = tvm.target.Target(target=f"llvm -mtriple={ARCH}-apple-darwin")
+    device = remote_session.cpu(0)
+
+    size = 100
+    a = np.random.uniform(size=size).astype(DTYPE)
+    b = np.random.uniform(size=size).astype(DTYPE)
+    mod, params = get_add_relay_module(a, b)
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target, target_host=target, params=params)
+
+    path_dso = export_lib(lib)
+    remote_session.upload(path_dso)
+    lib = remote_session.load_module(DSO_NAME)
+
+    gen_module = graph_executor.GraphModule(lib["default"](device))
+
+    # Check set input
+    gen_module.set_input("a", tvm.nd.array(a))
+    gen_module.set_input("b", tvm.nd.array(b))
+    tvm.testing.assert_allclose(gen_module.get_input(0).numpy(), a)
+    tvm.testing.assert_allclose(gen_module.get_input(1).numpy(), b)
+
+    # Check run
+    gen_module.run()
+    out = gen_module.get_output(0)
+    tvm.testing.assert_allclose(out.numpy(), a + b)
+
+
 if __name__ == '__main__':
     test_pure_rpc()
     test_rpc_proxy()
@@ -267,5 +306,6 @@ if __name__ == '__main__':
 
     test_basic_functionality_of_rpc_session()
     test_cleanup_workspace_after_session_end()
+    test_graph_executor_remote_run()
 
     server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
