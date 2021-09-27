@@ -821,7 +821,7 @@ def convert_pool2d(g, op, block):
             try:
                 in_h, in_w = infer_value(h_w, g.get_params()).numpy().tolist()
             except Exception as e:
-                msg = "The SAME padding algorithm of Conv not support dynamic shape"
+                msg = "Dynamic shape is not supported in SAME padding algorithm while stride!=1"
                 raise tvm.error.OpAttributeInvalid(msg) from e
             pad_h = _get_pad_size(in_h, ksize[0], strides[0])
             pad_w = _get_pad_size(in_w, ksize[1], strides[1])
