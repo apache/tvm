@@ -21,8 +21,8 @@ from .. import _ffi_api
 from .database import Database
 
 
-@register_object("meta_schedule.JSONFile")
-class JSONFile(Database):
+@register_object("meta_schedule.JSONDatabase")
+class JSONDatabase(Database):
     """The class of tuning records.
 
     Parameters
@@ -54,7 +54,7 @@ class JSONFile(Database):
             Whether to create new file when the given path is not found.
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.DatabaseJSONFile,  # type: ignore # pylint: disable=no-member
+            _ffi_api.DatabaseJSONDatabase,  # type: ignore # pylint: disable=no-member
             path_workload,
             path_tuning_record,
             allow_missing,

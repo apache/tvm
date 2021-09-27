@@ -19,4 +19,4 @@ The tvm.meta_schedule.database package.
 The database that stores serialized tuning records and workloads
 """
 from .database import Database, PyDatabase, TuningRecord
-from .json_file import JSONFile
+from .json_database import JSONDatabase

@@ -220,6 +220,10 @@ class PyDatabaseNode : public DatabaseNode {
   FSize f_size;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    // PackedFuncs are all not visited, because the reflection system doesn't take care of them,
+    // so it cannot be accessible on the python side. If there is such need from the future,
+    // we can then add corresponding accessor methods to help access on python.
+    //
     // `f_commit_workload` is not visited
     // `f_commit_tuning_record` is not visited
     // `f_get_top_k` is not visited
@@ -252,8 +256,8 @@ class Database : public runtime::ObjectRef {
    * \param path_tuning_record The path to the database table.
    * \param allow_missing Whether to create new file when the given path is not found.
    */
-  TVM_DLL static Database JSONFile(String path_workload, String path_tuning_record,
-                                   bool allow_missing);
+  TVM_DLL static Database JSONDatabase(String path_workload, String path_tuning_record,
+                                       bool allow_missing);
   /*!
    * \brief Create a database with customized methods on the python-side.
    * \param f_commit_workload The packed function of `CommitWorkload`.

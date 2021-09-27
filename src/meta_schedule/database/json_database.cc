@@ -47,7 +47,7 @@ struct SortTuningRecordByMeanRunSecs {
 };
 
 /*! \brief The default database implementation, which mimics two database tables with two files. */
-class JSONFileNode : public DatabaseNode {
+class JSONDatabaseNode : public DatabaseNode {
  public:
   /*! \brief The path to the workload table */
   String path_workload;
@@ -65,8 +65,8 @@ class JSONFileNode : public DatabaseNode {
     // `tuning_records_` is not visited
   }
 
-  static constexpr const char* _type_key = "meta_schedule.JSONFile";
-  TVM_DECLARE_FINAL_OBJECT_INFO(JSONFileNode, DatabaseNode);
+  static constexpr const char* _type_key = "meta_schedule.JSONDatabase";
+  TVM_DECLARE_FINAL_OBJECT_INFO(JSONDatabaseNode, DatabaseNode);
 
  public:
   Workload CommitWorkload(const IRModule& mod) {
@@ -115,8 +115,9 @@ class JSONFileNode : public DatabaseNode {
   int64_t Size() { return tuning_records_.size(); }
 };
 
-Database Database::JSONFile(String path_workload, String path_tuning_record, bool allow_missing) {
-  ObjectPtr<JSONFileNode> n = make_object<JSONFileNode>();
+Database Database::JSONDatabase(String path_workload, String path_tuning_record,
+                                bool allow_missing) {
+  ObjectPtr<JSONDatabaseNode> n = make_object<JSONDatabaseNode>();
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<Workload> workloads;
   {
@@ -153,8 +154,8 @@ Database Database::JSONFile(String path_workload, String path_tuning_record, boo
   return Database(n);
 }
 
-TVM_REGISTER_NODE_TYPE(JSONFileNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseJSONFile").set_body_typed(Database::JSONFile);
+TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseJSONDatabase").set_body_typed(Database::JSONDatabase);
 
 }  // namespace meta_schedule
 }  // namespace tvm

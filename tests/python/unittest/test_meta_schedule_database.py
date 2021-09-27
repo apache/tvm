@@ -27,7 +27,7 @@ import tvm
 from tvm import tir
 from tvm.ir.module import IRModule
 from tvm.meta_schedule.arg_info import ArgInfo
-from tvm.meta_schedule.database import JSONFile, TuningRecord
+from tvm.meta_schedule.database import JSONDatabase, TuningRecord
 from tvm.script import ty
 from tvm.tir import Schedule
 
@@ -85,10 +85,10 @@ def _create_schedule(mod: IRModule, sch_fn: Callable[[Schedule], None]) -> Sched
     return sch
 
 
-def _create_tmp_database(tmpdir: str) -> JSONFile:
+def _create_tmp_database(tmpdir: str) -> JSONDatabase:
     path_workload = osp.join(tmpdir, "workloads.json")
     path_tuning_record = osp.join(tmpdir, "tuning_records.json")
-    return JSONFile(path_workload, path_tuning_record)
+    return JSONDatabase(path_workload, path_tuning_record)
 
 
 def _equal_record(a: TuningRecord, b: TuningRecord):
@@ -255,7 +255,7 @@ def test_meta_schedule_database_reload():
         ]
         for record in records:
             database.commit_tuning_record(record)
-        new_database = JSONFile(  # pylint: disable=unused-variable
+        new_database = JSONDatabase(  # pylint: disable=unused-variable
             path_workload=database.path_workload,
             path_tuning_record=database.path_tuning_record,
         )
