@@ -37,21 +37,9 @@ from .. import qnn as _qnn
 from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_name,
-    get_relay_op,
-    gru_cell,
-    infer_channels,
-    infer_shape,
-    infer_type,
-    infer_value,
-    lstm_cell,
-    new_var,
-    unbind,
-)
+from .common import (AttrCvt, Renamer, fold_constant, get_name, get_relay_op,
+                     gru_cell, infer_channels, infer_shape, infer_type,
+                     infer_value, lstm_cell, new_var, unbind)
 
 __all__ = ["from_onnx"]
 
@@ -1464,29 +1452,6 @@ class Cast(OnnxOpConverter):
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
 
-class Squeeze(OnnxOpConverter):
-    """Operator converter for Squeeze."""
-
-    @classmethod
-    def run_calculation(cls, tensor, axes):
-        return _op.squeeze(tensor, axis=axes)
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        shape = infer_shape(inputs[0])
-        axes = sorted(attr.get("axes", [i for i, size in enumerate(shape) if size == 1]))
-        return cls.run_calculation(inputs[0], axes)
-
-    @classmethod
-    def _impl_v12(cls, inputs, attr, params):
-        if isinstance(inputs[1], _expr.Constant):
-            constant_axes = list(inputs[1].data.numpy())
-            constant_axes = list(map(int, constant_axes))
-            return cls.run_calculation(inputs[0], constant_axes)
-
-        raise ValueError("Dynamic squeeze is not supported yet!")
-
-
 class Unsqueeze(OnnxOpConverter):
     """Operator converter for Unsqueeze."""
 
@@ -1541,6 +1506,12 @@ class Squeeze(OnnxOpConverter):
     def _impl_v13(cls, inputs, attr, params):
         axis = inputs[1]
         dtype = infer_type(axis).checked_type.dtype
+
+        if isinstance(axis, _expr.Constant):
+            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(map(int, constant_axes))
+            return _op.squeeze(*inputs, constant_axes)
+
         rank = _op.shape_of(_op.shape_of(inputs[0], dtype), dtype)
         axis = _op.where(axis < _op.const(0, dtype), axis + rank, axis)
         return _op.squeeze(inputs[0], fold_constant(axis))
