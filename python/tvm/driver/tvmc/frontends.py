@@ -285,7 +285,7 @@ class PaddleFrontend(Frontend):
 
         # pylint: disable=E1101
         exe = paddle.static.Executor(paddle.CPUPlace())
-        [prog, inputs, outputs] = paddle.static.load_inference_model(path, exe)
+        prog, _, _ = paddle.static.load_inference_model(path, exe)
 
         return relay.frontend.from_paddle(prog, shape_dict=shape_dict, **kwargs)
 
