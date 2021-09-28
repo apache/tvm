@@ -78,3 +78,51 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
         return relay.qnn.op.conv2d(*inputs, **new_attrs)
 
     raise ValueError("Layout %s is not yet supported" % desired_data_layout)
+
+
+@reg.register_convert_op_layout("qnn.conv2d_transpose")
+def convert_qnn_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for QNN conv2d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    assert (
+        len(desired_layouts) == 2
+    ), "A desired layout is expected for both of qnn.conv2d_transpose's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+
+    new_attrs = dict(attrs)
+    new_attrs["data_layout"] = desired_data_layout
+
+    if desired_kernel_layout != "default":
+        new_attrs["kernel_layout"] = desired_kernel_layout
+        return relay.qnn.op.conv2d_transpose(*inputs, **new_attrs)
+
+    # Handle default kernel layouts
+    if desired_data_layout == "NCHW":
+        new_attrs["kernel_layout"] = "OIHW"
+        return relay.qnn.op.conv2d_transpose(*inputs, **new_attrs)
+    if desired_data_layout == "NHWC":
+        new_attrs["kernel_layout"] = "HWIO"
+        return relay.qnn.op.conv2d_transpose(*inputs, **new_attrs)
+
+    raise ValueError("Layout %s is not yet supported" % desired_data_layout)
