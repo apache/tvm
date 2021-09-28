@@ -154,7 +154,7 @@ def get_message(fd, expr: str, timeout_sec: int):
             return data
 
 
-#TODO move CMSIS integration to microtvm_api_server.py
+# TODO move CMSIS integration to microtvm_api_server.py
 # see https://discuss.tvm.apache.org/t/tvm-capturing-dependent-libraries-of-code-generated-tir-initially-for-use-in-model-library-format/11080
 def loadCMSIS(temp_dir):
     REPO_PATH = "ARM-software/CMSIS_5"

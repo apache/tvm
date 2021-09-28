@@ -158,8 +158,12 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
                     lowered.libmod_name, ["input_1"], ["output"], model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
-            test_utils.create_header_file("input_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
-            test_utils.create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
+            test_utils.create_header_file(
+                "input_data", np.zeros(shape=shape, dtype=dtype), "include", tf
+            )
+            test_utils.create_header_file(
+                "output_data", np.zeros(shape=shape, dtype=dtype), "include", tf
+            )
 
         project, project_dir = test_utils.build_project(
             temp_dir,
