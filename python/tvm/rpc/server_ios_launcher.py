@@ -120,8 +120,8 @@ def find_device(udid: AnyStr) -> Dict:
 
 class ServerIOSLauncher:
     booted_devices = []
-    bundle_id = "org.apache.tvmrpc"
-    bundle_path = "/Users/agladyshev/workspace/tvm/build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Debug-iphonesimulator/tvmrpc.app"
+    bundle_id = os.environ["BUNDLE_ID"]
+    bundle_path = os.environ["BUNDLE_PATH"]
 
     def __init__(self, mode, host, port, key):
         self.external_booted_device = None
