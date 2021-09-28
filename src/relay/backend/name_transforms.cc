@@ -76,28 +76,28 @@ std::string CombineNames(const Array<String>& names) {
   return combined_name;
 }
 
-std::string SanitiseName(const std::string& name) {
+std::string SanitizeName(const std::string& name) {
   ICHECK(!name.empty()) << "Name is empty";
 
   auto multipleSeparators = [](char before, char after) {
     return before == '_' && before == after;
   };
   auto isNotAlnum = [](char c) { return !std::isalnum(c); };
-  std::string sanitised_input = name;
-  std::replace_if(sanitised_input.begin(), sanitised_input.end(), isNotAlnum, '_');
+  std::string sanitized_input = name;
+  std::replace_if(sanitized_input.begin(), sanitized_input.end(), isNotAlnum, '_');
 
-  sanitised_input.erase(
-      std::unique(sanitised_input.begin(), sanitised_input.end(), multipleSeparators),
-      sanitised_input.end());
+  sanitized_input.erase(
+      std::unique(sanitized_input.begin(), sanitized_input.end(), multipleSeparators),
+      sanitized_input.end());
 
-  return sanitised_input;
+  return sanitized_input;
 }
 
 TVM_REGISTER_GLOBAL("relay.backend.ToCFunctionStyle").set_body_typed(ToCFunctionStyle);
 TVM_REGISTER_GLOBAL("relay.backend.ToCVariableStyle").set_body_typed(ToCVariableStyle);
 TVM_REGISTER_GLOBAL("relay.backend.PrefixName").set_body_typed(PrefixName);
 TVM_REGISTER_GLOBAL("relay.backend.PrefixGeneratedName").set_body_typed(PrefixGeneratedName);
-TVM_REGISTER_GLOBAL("relay.backend.SanitiseName").set_body_typed(SanitiseName);
+TVM_REGISTER_GLOBAL("relay.backend.SanitizeName").set_body_typed(SanitizeName);
 
 }  // namespace backend
 }  // namespace relay

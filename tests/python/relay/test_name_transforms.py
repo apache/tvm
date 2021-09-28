@@ -21,7 +21,7 @@ from tvm.relay.backend.name_transforms import (
     to_c_variable_style,
     prefix_name,
     prefix_generated_name,
-    sanitise_name,
+    sanitize_name,
 )
 import pytest
 
@@ -80,15 +80,15 @@ def test_prefix_generated_name():
         prefix_generated_name([""])
 
 
-def test_sanitise_name():
-    assert sanitise_name("+_+ ") == "_"
-    assert sanitise_name("input+") == "input_"
-    assert sanitise_name("input-") == "input_"
-    assert sanitise_name("input++") == "input_"
-    assert sanitise_name("woof:1") == "woof_1"
+def test_sanitize_name():
+    assert sanitize_name("+_+ ") == "_"
+    assert sanitize_name("input+") == "input_"
+    assert sanitize_name("input-") == "input_"
+    assert sanitize_name("input++") == "input_"
+    assert sanitize_name("woof:1") == "woof_1"
 
     with pytest.raises(TVMError, match="Name is empty"):
-        sanitise_name("")
+        sanitize_name("")
 
 
 def test_combined_logic():

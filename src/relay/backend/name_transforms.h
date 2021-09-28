@@ -92,11 +92,11 @@ inline std::string PrefixGeneratedName(const Array<String>& names) {
 }
 
 /*!
- * \brief Sanitise name for output into compiler artifacts
+ * \brief Sanitize name for output into compiler artifacts
  * \param name Original name
- * \return Sanitised name
+ * \return Sanitized name
  */
-std::string SanitiseName(const std::string& name);
+std::string SanitizeName(const std::string& name);
 
 }  // namespace backend
 }  // namespace relay

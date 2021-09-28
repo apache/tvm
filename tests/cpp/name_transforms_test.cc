@@ -70,13 +70,13 @@ TEST(NameTransforms, CombineNames) {
   EXPECT_THROW(CombineNames({"", "Woof"}), InternalError);
 }
 
-TEST(NameTransforms, SanitiseName) {
-  ASSERT_EQ(SanitiseName("+_+ "), "_");
-  ASSERT_EQ(SanitiseName("input+"), "input_");
-  ASSERT_EQ(SanitiseName("input-"), "input_");
-  ASSERT_EQ(SanitiseName("input++"), "input_");
-  ASSERT_EQ(SanitiseName("woof:1"), "woof_1");
-  EXPECT_THROW(SanitiseName(""), InternalError);
+TEST(NameTransforms, SanitizeName) {
+  ASSERT_EQ(SanitizeName("+_+ "), "_");
+  ASSERT_EQ(SanitizeName("input+"), "input_");
+  ASSERT_EQ(SanitizeName("input-"), "input_");
+  ASSERT_EQ(SanitizeName("input++"), "input_");
+  ASSERT_EQ(SanitizeName("woof:1"), "woof_1");
+  EXPECT_THROW(SanitizeName(""), InternalError);
 }
 
 TEST(NameTransforms, CombinedLogic) {
