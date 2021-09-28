@@ -1206,7 +1206,7 @@ class GraphProto:
             for op in block.ops:
                 if op.type == "fetch":
                     # `fetch` is a flag of output tensors
-                    # we do not need handle this
+                    # there's no need to handle this
                     continue
                 if op.type not in _convert_map:
                     unsupported_ops.add(op.type)
