@@ -25,6 +25,7 @@ from tvm.ir import IRModule
 
 from .. import analysis
 from .. import ty as _ty
+from ... import nd as _nd
 from .. import expr as _expr
 from .. import function as _function
 from .. import ty as _ty
@@ -35,6 +36,7 @@ from .common import (
     infer_shape,
     infer_type,
     infer_value,
+    try_infer_value,
     new_var,
 )
 
@@ -42,7 +44,7 @@ __all__ = ["from_paddle"]
 
 
 def _get_pad_size(in_size, dilated_kernel_size, stride_size):
-    """calculate the paddings size"""
+    """Calculate the paddings size."""
 
     if stride_size == 1 or in_size % stride_size == 0:
         pad = max(dilated_kernel_size - stride_size, 0)
@@ -56,7 +58,7 @@ def _get_pad_size(in_size, dilated_kernel_size, stride_size):
 
 
 def _dtype_shape_promotion(inputs):
-    """promote data type and shape for list of tensors."""
+    """Promote data type and shape for list of tensors."""
 
     dtype_order = ["bool", "int8", "int16", "int32", "int64", "float32", "float64"]
 
@@ -77,7 +79,7 @@ def _dtype_shape_promotion(inputs):
 
 
 def shape_of(x, dtype="int32"):
-    """Get shape of a tensor"""
+    """Get shape of a tensor."""
 
     ttype = infer_type(x).checked_type
     if not _ty.is_dynamic(ttype):
@@ -86,19 +88,8 @@ def shape_of(x, dtype="int32"):
     return _op.shape_of(x, dtype)
 
 
-def _infer_value(x, params):
-    """Try running infer_value, and if successful, return the inferred value.
-    Otherwise, return input"""
-
-    try:
-        value = infer_value(x, params)
-        return value.numpy().tolist()
-    except Exception:  # pylint: disable=broad-except
-        return x
-
-
 def _convert_dtype_value(val):
-    """converts a Paddle type id to a string."""
+    """Converts a Paddle type id to a string."""
 
     convert_dtype_map = {
         21: "int8",
@@ -145,8 +136,8 @@ def convert_binary_logical_op(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_arg_max(g, op, block):
-    """Operator converter for arg_max."""
+def convert_arg_max_min(g, op, block):
+    """Operator converter for arg_max and arg_min."""
 
     axis = op.attr("axis")
     keepdims = op.attr("keepdims")
@@ -154,32 +145,13 @@ def convert_arg_max(g, op, block):
     dtype = op.attr("dtype")
     dtype = _convert_dtype_value(dtype)
 
+    func = _op.argmax if op.type == "arg_max" else _op.argmin
     x = g.get_node(op.input("X")[0])
     if axis is None or flatten:
         x = _op.reshape(x, [-1])
-        out = _op.argmax(x, axis=None, keepdims=True)
+        out = func(x, axis=None, keepdims=True)
     else:
-        out = _op.argmax(x, axis=axis, keepdims=keepdims)
-    if dtype != infer_type(out).checked_type.dtype:
-        out = _op.cast(out, dtype)
-    g.add_node(op.output("Out")[0], out)
-
-
-def convert_arg_min(g, op, block):
-    """Operator converter for arg_min."""
-
-    axis = op.attr("axis")
-    keepdims = op.attr("keepdims")
-    flatten = op.attr("flatten")
-    dtype = op.attr("dtype")
-    dtype = _convert_dtype_value(dtype)
-
-    x = g.get_node(op.input("X")[0])
-    if axis is None or flatten:
-        x = _op.reshape(x, [-1])
-        out = _op.argmin(x, axis=None, keepdims=True)
-    else:
-        out = _op.argmin(x, axis=axis, keepdims=keepdims)
+        out = func(x, axis=axis, keepdims=keepdims)
     if dtype != infer_type(out).checked_type.dtype:
         out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
@@ -192,10 +164,10 @@ def convert_argsort(g, op, block):
     axis = op.attr("axis")
     descending = op.attr("descending")
 
-    out = _op.sort(x, axis, not descending)
-    out_indice = _op.argsort(x, axis, not descending, dtype="int64")
+    out_indices = _op.argsort(x, axis, not descending, dtype="int64")
+    out = _op.gather(x, axis, out_indices)
     g.add_node(op.output("Out")[0], out)
-    g.add_node(op.output("Indices")[0], out_indice)
+    g.add_node(op.output("Indices")[0], out_indices)
 
 
 def convert_assign(g, op, block):
@@ -342,6 +314,8 @@ def convert_dropout(g, op, block):
 def convert_dot(g, op, block):
     """Operator converter for dot."""
 
+    # x, y should be 1D or 2D tensor
+    # when it's 2D tensor, the first dimension means batch dimension
     x = g.get_node(op.input("X")[0])
     y = g.get_node(op.input("Y")[0])
 
@@ -362,7 +336,6 @@ def convert_elementwise_op(g, op, block):
         "elementwise_min": "minimum",
         "elementwise_pow": "power",
         "elementwise_floordiv": "floor_divide",
-        "floor_mod": "floor_mod",
         "equal": "equal",
         "greater_equal": "greater_equal",
         "greater_than": "greater",
@@ -392,9 +365,12 @@ def convert_expand(g, op, block):
     x = g.get_node(op.input("X")[0])
     if op.input("Shape"):
         sizes = g.get_node(op.input("Shape")[0])
-        sizes = _infer_value(sizes, g.get_params())
+        sizes = try_infer_value(sizes, g.get_params())[0]
     else:
         sizes = op.attr("shape")
+
+    if isinstance(sizes, np.ndarray):
+        sizes = size.tolist()
 
     out = _op.broadcast_to(x, sizes)
     g.add_node(op.output("Out")[0], out)
@@ -432,6 +408,17 @@ def convert_feed(g, op, block):
     g.add_node(ipt_name, out)
 
 
+def convert_fill_any_like(g, op, block):
+    """Operator converter for fill_any_like."""
+
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+    x = g.get_node(op.input("X")[0])
+    value = _expr.const(op.attr("value"), dtype=dtype)
+    out = _op.transform.full_like(x, value).astype(dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_fill_constant(g, op, block):
     """Operator converter for fill_constant."""
 
@@ -442,23 +429,15 @@ def convert_fill_constant(g, op, block):
     value = _expr.const(value).astype(dtype)
     if "ValueTensor" in op.input_names and op.input("ValueTensor"):
         shape = g.get_node(op.input("ValueTensor")[0])
-        shape = _infer_value(shape, g.get_params())
+        shape = try_infer_value(shape, g.get_params())[0]
     if "ShapeTensor" in op.input_names and op.input("ShapeTensor"):
         shape = g.get_node(op.input("ShapeTensor")[0])
-        shape = _infer_value(shape, g.get_params())
+        shape = try_infer_value(shape, g.get_params())[0]
+
+    if isinstance(shape, np.ndarray):
+        shape = shape.tolist()
 
     out = _op.full(value, shape=shape, dtype=dtype)
-    g.add_node(op.output("Out")[0], out)
-
-
-def convert_fill_any_like(g, op, block):
-    """Operator converter for fill_any_like."""
-
-    dtype = op.attr("dtype")
-    dtype = _convert_dtype_value(dtype)
-    x = g.get_node(op.input("X")[0])
-    value = _expr.const(op.attr("value"), dtype=dtype)
-    out = _op.transform.full_like(x, value).astype(dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -559,15 +538,17 @@ def convert_lookup_table(g, op, block):
     weights = g.get_node(op.input("W")[0])
     if padding_idx != -1:
         if op.input("W")[0] in g.get_params():
+            # while `w` is a parameter
             weights = g.get_params(op.input("W")[0])
             weights[padding_idx] = 0.0
             weights = _expr.const(weights)
         else:
-            shape = _infer_value(shape_of(weights), g.get_params())
+            # while `w` is a tensor
+            shape = try_infer_value(shape_of(weights), g.get_params())[0]
             assert not isinstance(
                 shape, _expr.Expr
             ), "Shape of weight has to be fixed for PaddlePaddle's lookup_table"
-            filters = np.ones(shape).astype(infer_type(weights).checked_type.dtype)
+            filters = np.ones(shape.tolist()).astype(infer_type(weights).checked_type.dtype)
             filters[padding_idx] = 0.0
             filters = _expr.const(filters)
             weights = weights * filters
@@ -856,18 +837,26 @@ def convert_reshape(g, op, block):
     input_shape_tensor = op.input("ShapeTensor")
     data = g.get_node(op.input("X")[0])
     if input_shape:
+        # if the target shape is a 1D tensor
         new_shape = g.get_node(input_shape[0])
     elif input_shape_tensor:
+        # if the target shape is a list of tensors
         new_shape = []
         for shape_name in input_shape_tensor:
             shape = g.get_node(shape_name)
             if len(infer_shape(shape)) == 0:
+                # sometimes the element maybe a scalar tensor
                 shape = _op.reshape(shape, [-1])
             new_shape.append(shape.astype("int64"))
         new_shape = _op.concatenate(new_shape, axis=0)
-        new_shape = _infer_value(new_shape, g.get_params())
+        new_shape = try_infer_value(new_shape, g.get_params())[0]
     else:
+        # if the target shape is a list of constant value
         new_shape = op.attr("shape")
+
+    if isinstance(new_shape, np.ndarray):
+        new_shape = new_shape.tolist()
+
     out = _op.reshape(data, new_shape)
     g.add_node(op.output("Out")[0], out)
 
@@ -925,17 +914,23 @@ def convert_slice(g, op, block):
         decrease_axis = [decrease_axis]
 
     if op.input("StartsTensor"):
+        # if `starts` is a 1D tensor
         starts = g.get_node(op.input("StartsTensor")[0])
-        starts = _infer_value(starts, g.get_params())
+        starts = try_infer_value(starts, g.get_params())[0]
     elif op.input("StartsTensorList"):
+        # if `starts` is a list of tensors
         starts = []
         for start_index in op.input("StartsTensorList"):
             start_index = g.get_node(start_index).astype("int64")
             starts.append(start_index)
         starts = _op.concatenate(starts, axis=0)
-        starts = _infer_value(starts, g.get_params())
+        starts = try_infer_value(starts, g.get_params())[0]
     else:
+        # if `starts` is a list of constant values
         starts = op.attr("starts")
+
+    if isinstance(starts, np.ndarray):
+        starts = starts.tolist()
 
     if len(axes) < dims:
         if isinstance(starts, _expr.Expr):
@@ -952,17 +947,23 @@ def convert_slice(g, op, block):
             starts = base
 
     if op.input("EndsTensor"):
+        # if `ends` is a 1D tensor
         ends = g.get_node(op.input("EndsTensor")[0])
-        ends = _infer_value(ends, g.get_params())
+        ends = try_infer_value(ends, g.get_params())[0]
     elif op.input("EndsTensorList"):
+        # if `ends` is a list of tensors
         ends = []
         for end_index in op.input("EndsTensorList"):
             end_index = g.get_node(end_index).astype("int64")
             ends.append(end_index)
         ends = _op.concatenate(ends, axis=0)
-        ends = _infer_value(ends, g.get_params())
+        ends = try_infer_value(ends, g.get_params())[0]
     else:
+        # if `ends` is a list of constant values
         ends = op.attr("ends")
+
+    if isinstance(ends, np.ndarray):
+        ends = ends.tolist()
 
     if len(axes) < dims:
         if isinstance(ends, _expr.Expr):
@@ -983,17 +984,23 @@ def convert_slice(g, op, block):
 
     strides = None
     if "StridesTensor" in op.input_names and op.input("StridesTensor"):
+        # if `strides` is a 1D tensor
         strides = g.get_node(op.input("StridesTensor")[0])
-        strides = _infer_value(strides, g.get_params())
+        strides = try_infer_value(strides, g.get_params())[0]
     elif "StridesTensorList" in op.input_names and op.input("StridesTensorList"):
+        # if `strides` is a list of tensors
         strides = []
         for strides_index in op.input("StridesTensorList"):
             strides_index = g.get_node(strides_index).astype("int64")
             strides.append(strides_index)
         strides = _op.concatenate(strides, axis=0)
-        strides = _infer_value(strides, g.get_params())
+        strides = try_infer_value(strides, g.get_params())[0]
     elif op.has_attr("strides"):
+        # if `strides` is a list of constant values
         strides = op.attr("strides")
+
+    if isinstance(strides, np.ndarray):
+        strides = strides.tolist()
 
     if len(axes) < dims:
         if isinstance(strides, _expr.Expr):
@@ -1016,6 +1023,8 @@ def convert_slice(g, op, block):
 
     out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)
     if decrease_axis:
+        # `decrease_axis` is False while using paddle.slice()
+        # `decrease_axis` is True while using tensor[1:2]
         out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output("Out")[0], out)
 
@@ -1047,8 +1056,8 @@ def convert_unsqueeze(g, op, block):
 _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
-    "arg_max": convert_arg_max,
-    "arg_min": convert_arg_min,
+    "arg_max": convert_arg_max_min,
+    "arg_min": convert_arg_max_min,
     "argsort": convert_argsort,
     "asin": convert_unary_op,
     "assign": convert_assign,
@@ -1083,17 +1092,13 @@ _convert_map = {
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
     "floor": convert_unary_op,
-    "floor_mod": convert_elementwise_op,
     "gelu": convert_gelu,
     "greater_equal": convert_elementwise_op,
     "greater_than": convert_elementwise_op,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
-    "isfinite": convert_unary_op,
     "isfinite_v2": convert_unary_op,
-    "isinf": convert_unary_op,
     "isinf_v2": convert_unary_op,
-    "isnan": convert_unary_op,
     "isnan_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
@@ -1109,7 +1114,6 @@ _convert_map = {
     "logical_xor": convert_binary_logical_op,
     "logsigmoid": convert_logsigmoid,
     "log_softmax": convert_logsoftmax,
-    "lookup_table": convert_lookup_table,
     "lookup_table_v2": convert_lookup_table,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
@@ -1187,7 +1191,7 @@ class GraphProto:
             if isinstance(scope, dict):
                 self.params[name] = scope[name]
             else:
-                self.params[name] = np.array(scope.var(name).get_tensor())
+                self.params[name] = _nd.array(np.array(scope.var(name).get_tensor()))
             if self.freeze_params:
                 self.nodes[name] = _expr.const(self.params[name])
             else:
@@ -1202,6 +1206,8 @@ class GraphProto:
         for block in program.blocks:
             for op in block.ops:
                 if op.type == "fetch":
+                    # `fetch` is a flag of output tensors
+                    # there's no need to handle this
                     continue
                 if op.type not in _convert_map:
                     unsupported_ops.add(op.type)
@@ -1283,6 +1289,32 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None, freeze_params=Fal
     PaddlePaddle Program/TranslatedLayer represent the computation
     graph of PaddlePaddle model, and PaddlePaddle scope stores all the
     weights of PaddlePaddle model.
+
+    Parameters
+    ----------
+    program_or_layer : Program/TranslatedLayer object
+                loaded model by `paddle.static.load_inference_model` or `paddle.jit.load`
+
+        shape_dict : dict of str to tuple, optional
+        The input shape to the model
+
+        scope : Scope object, optional
+                All the weights saved in scope, by default, use `paddle.fluid.global_scope`
+
+    freeze_params: bool
+        If this parameter is true, the importer will take any provided
+        weights and embed them into the relay model as Constants instead of variables.
+                This allows more aggressive optimizations at compile time and helps in making
+                models static if certain inputs represent attributes relay would traditionally
+                consider compile-time constants.
+
+    Returns
+    -------
+    mod : tvm.IRModule
+        The relay module for compilation
+
+    params : dict of str to tvm.nd.NDArray
+        The parameter dict to be used by relay
     """
 
     import paddle

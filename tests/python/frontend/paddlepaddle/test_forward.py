@@ -135,11 +135,11 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5, input_shape=None):
 
 @tvm.testing.uses_gpu
 def test_forward_math():
-    class MathOp(nn.Layer):
-        def __init__(self, op_name):
-            super(MathOp, self).__init__()
+    class MathAPI(nn.Layer):
+        def __init__(self, api_name):
+            super(MathAPI, self).__init__()
             for candidate in (paddle, paddle.nn.functional):
-                self.func = getattr(candidate, op_name, None)
+                self.func = getattr(candidate, api_name, None)
                 if self.func:
                     break
 
@@ -148,7 +148,7 @@ def test_forward_math():
             return self.func(inputs)
 
     input_data = paddle.rand([1, 2, 5, 5], dtype="float32")
-    op_list = [
+    api_list = [
         "abs",
         "acos",
         "asin",
@@ -176,8 +176,8 @@ def test_forward_math():
         "tan",
         "tanh",
     ]
-    for op_name in op_list:
-        verify_model(MathOp(op_name), input_data)
+    for api_name in api_list:
+        verify_model(MathAPI(api_name), input_data)
 
 
 @tvm.testing.uses_gpu
@@ -559,23 +559,23 @@ def test_forward_ones():
 
 
 def test_forward_elemwise():
-    class ElemwiseOp(nn.Layer):
-        def __init__(self, op_name):
-            super(ElemwiseOp, self).__init__()
-            self.op_name_ = op_name
+    class ElemwiseAPI(nn.Layer):
+        def __init__(self, api_name):
+            super(ElemwiseAPI, self).__init__()
+            self.api_name_ = api_name
             for candidate in (paddle, paddle.nn.functional):
-                self.func = getattr(candidate, op_name, None)
+                self.func = getattr(candidate, api_name, None)
                 if self.func:
                     break
 
         @paddle.jit.to_static
         def forward(self, input1, input2):
             y = self.func(input1, input2)
-            if "equal" in self.op_name_ or "than" in self.op_name_:
+            if "equal" in self.api_name_ or "than" in self.api_name_:
                 y = paddle.cast(y, "int32")
             return y
 
-    op_list = [
+    api_list = [
         "floor_divide",
         "floor_mod",
         "maximum",
@@ -595,10 +595,10 @@ def test_forward_elemwise():
     y_data = paddle.rand(input_shape_2, dtype="float32")
     x_data_2 = paddle.randint(1, 100, input_shape_2, dtype="int32")
     y_data_2 = paddle.randint(1, 100, input_shape, dtype="int32")
-    for op_name in op_list:
-        if op_name not in ["floor_divide"]:
-            verify_model(ElemwiseOp(op_name), [x_data, y_data])
-        verify_model(ElemwiseOp(op_name), [x_data_2, y_data_2])
+    for api_name in api_list:
+        if api_name not in ["floor_divide"]:
+            verify_model(ElemwiseAPI(api_name), [x_data, y_data])
+        verify_model(ElemwiseAPI(api_name), [x_data_2, y_data_2])
 
 
 @tvm.testing.uses_gpu
@@ -633,37 +633,33 @@ def test_forward_activation():
     op_list = [
         "hardsigmoid",
         "hardswish",
+        "leaky_relu",
         "log_sigmoid",
         "log_softmax",
         "sigmoid",
     ]
     for op_name in op_list:
-        try:
-            verify_model(Activation(op_name), input_data=input_data)
-            # verify_model(Activation(op_name), input_data=input_data_2)
-        except Exception as e:
-            print("{}".format(e))
+        verify_model(Activation(op_name), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
-def test_forward_isinf():
+def test_forward_check_tensor():
+    @paddle.jit.to_static
+    def isfinite(inputs):
+        return paddle.cast(paddle.isfinite(inputs), "int32")
+
     @paddle.jit.to_static
     def isinf(inputs):
         return paddle.cast(paddle.isinf(inputs), "int32")
 
-    input_shape = [5, 5]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(isinf, input_data=input_data)
-
-
-@tvm.testing.uses_gpu
-def test_forward_isnan():
     @paddle.jit.to_static
     def isnan(inputs):
         return paddle.cast(paddle.isnan(inputs), "int32")
 
     input_shape = [5, 5]
     input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(isfinite, input_data=input_data)
+    verify_model(isinf, input_data=input_data)
     verify_model(isnan, input_data=input_data)
 
 
@@ -689,17 +685,6 @@ def test_forward_layer_norm():
     bias = paddle.rand([10], dtype="float32")
     verify_model(layer_norm, input_data=[input_data, weight, bias])
     verify_model(LayerNorm(), input_data=input_data)
-
-
-@tvm.testing.uses_gpu
-def test_forward_leaky_relu():
-    @paddle.jit.to_static
-    def leaky_relu(inputs):
-        return nn.functional.leaky_relu(inputs)
-
-    input_shape = [1, 3, 10, 10]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(leaky_relu, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1007,10 +992,8 @@ if __name__ == "__main__":
     test_forward_gelu()
     test_forward_math()
     test_forward_activation()
-    test_forward_isinf()
-    test_forward_isnan()
+    test_forward_check_tensor()
     test_forward_layer_norm()
-    test_forward_leaky_relu()
     test_forward_logical_op()
     test_forward_look_up()
     test_forward_matmul()
