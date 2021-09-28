@@ -25,6 +25,7 @@ from tvm.ir import IRModule
 
 from .. import analysis
 from .. import ty as _ty
+from ... import nd as _nd
 from .. import expr as _expr
 from .. import function as _function
 from .. import ty as _ty
@@ -1190,7 +1191,7 @@ class GraphProto:
             if isinstance(scope, dict):
                 self.params[name] = scope[name]
             else:
-                self.params[name] = np.array(scope.var(name).get_tensor())
+                self.params[name] = _nd.array(np.array(scope.var(name).get_tensor()))
             if self.freeze_params:
                 self.nodes[name] = _expr.const(self.params[name])
             else:
@@ -1288,6 +1289,32 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None, freeze_params=Fal
     PaddlePaddle Program/TranslatedLayer represent the computation
     graph of PaddlePaddle model, and PaddlePaddle scope stores all the
     weights of PaddlePaddle model.
+
+    Parameters
+    ----------
+    program_or_layer : Program/TranslatedLayer object
+		loaded model by `paddle.static.load_inference_model` or `paddle.jit.load`
+
+	shape_dict : dict of str to tuple, optional
+        The input shape to the model
+
+	scope : Scope object, optional
+		All the weights saved in scope, by default, use `paddle.fluid.global_scope`
+
+    freeze_params: bool
+        If this parameter is true, the importer will take any provided
+        weights and embed them into the relay model as Constants instead of variables.
+		This allows more aggressive optimizations at compile time and helps in making
+		models static if certain inputs represent attributes relay would traditionally
+		consider compile-time constants.
+
+    Returns
+    -------
+    mod : tvm.IRModule
+        The relay module for compilation
+
+    params : dict of str to tvm.nd.NDArray
+        The parameter dict to be used by relay
     """
 
     import paddle
