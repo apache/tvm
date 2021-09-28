@@ -33,7 +33,6 @@
 #include <tvm/tir/schedule/schedule.h>
 
 #include <string>
-
 #include <vector>
 
 #include "../printer/text_printer.h"
@@ -139,7 +138,8 @@ inline String JSONObj2Str(const ObjectRef& json_obj) {
 inline String SHash2Str(Workload::THashCode hash_code) { return std::to_string(hash_code); }
 
 /*!
- * \brief Find the entry function of the given IRModule.
+ * \brief Find the entry function of the given IRModule, i.e, functions marked by
+ * `tir::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
  * \param mod The IRModule to find the entry function.
  * \return The entry function.
  */

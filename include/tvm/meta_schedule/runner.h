@@ -24,12 +24,12 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief The runner's result. */
+/*! \brief Runner's output containing measurement result of MeasureCandidate or error msg if any. */
 class RunnerResultNode : public runtime::Object {
  public:
-  /*! \brief The run time in seconds.*/
+  /*! \brief The run time in seconds. If not None, error_msg should be None. */
   Optional<Array<FloatImm>> run_secs;
-  /*! \brief The error message, if any. */
+  /*! \brief The error message, if any. If not None, run_secs should be None. */
   Optional<String> error_msg;
 
   void VisitAttrs(tvm::AttrVisitor* v) {

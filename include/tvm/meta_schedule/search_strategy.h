@@ -30,12 +30,12 @@ namespace meta_schedule {
 // Forward declaration
 class TuneContext;
 
-/*! \brief The measure candidate class. */
+/*! \brief The schedule (with input shapes) to be measured. */
 class MeasureCandidateNode : public runtime::Object {
  public:
-  /*! \brief The schedule for profiling. */
+  /*! \brief The schedule for measurement. */
   tir::Schedule sch;
-  /*! \brief The argument information. */
+  /*! \brief The argument information, e.g., (shape, dtype) for tensors. */
   Array<ArgInfo> args_info;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -55,18 +55,16 @@ class MeasureCandidate : public runtime::ObjectRef {
  public:
   /*!
    * \brief Constructor of MeasureCandidate.
-   * \param sch The schedule for profiling.
-   * \param args_info The argument information.
+   * \param sch The schedule for measurement.
+   * \param args_info The argument information, e.g., (shape, dtype) for tensors.
    */
   TVM_DLL MeasureCandidate(tir::Schedule sch, Array<ArgInfo> args_info);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MeasureCandidate, ObjectRef, MeasureCandidateNode);
 };
 
 /*!
-
-* \brief The search strategy for measure candidates generation.
-* \note The relationship between SearchStrategy and other classes are as follows:
-
+ * \brief The search strategy for measure candidates generation.
+ * \note The relationship between SearchStrategy and other classes are as follows:
       ┌──────────────────────────────────────────────────────────────┐
    ┌──┴───────────────────────────────────────────────────────────┐  │
 ┌──┴────────────────── Tune Context ───────────────────────────┐  │  │
@@ -108,6 +106,7 @@ class SearchStrategyNode : public runtime::Object {
   /*!
    * \brief Initialize the search strategy with tuning context.
    * \param tune_context The tuning context for initialization.
+   * \note This method is supposed to be called only once before every other method.
    */
   virtual void InitializeWithTuneContext(const TuneContext& tune_context) = 0;
 
@@ -127,8 +126,8 @@ class SearchStrategyNode : public runtime::Object {
   virtual Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() = 0;
 
   /*!
-   * \brief Update the search strategy with profiling results.
-   * \param results The profiling results from the runner.
+   * \brief Update the search strategy with measurement results.
+   * \param results The measurement results from the runner.
    */
   virtual void NotifyRunnerResults(const Array<RunnerResult>& results) = 0;
 
@@ -158,7 +157,7 @@ class PySearchStrategyNode : public SearchStrategyNode {
   using FGenerateMeasureCandidates = runtime::TypedPackedFunc<Optional<Array<MeasureCandidate>>()>;
   /*!
    * \brief The function type of `NotifyRunnerResults` method.
-   * \param results The profiling results from the runner.
+   * \param results The measurement results from the runner.
    */
   using FNotifyRunnerResults = runtime::TypedPackedFunc<void(const Array<RunnerResult>&)>;
 

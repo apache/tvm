@@ -21,7 +21,7 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief A search strategy that replays the trace. */
+/*! \brief A search strategy that generates measure candidates using trace and random decisions. */
 class ReplayTraceNode : public SearchStrategyNode {
  public:
   using TRandState = support::LinearCongruentialEngine::TRandState;
@@ -53,9 +53,9 @@ class ReplayTraceNode : public SearchStrategyNode {
   IRModule mod_{nullptr};
   /*! \brief The metadata of the function arguments. */
   Array<ArgInfo> args_info_{nullptr};
-  /*! \brief The number of threads to use. */
+  /*! \brief The number of threads to use. -1 means using logical cpu number. */
   int num_threads_ = -1;
-  /*! \brief The random state */
+  /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
@@ -73,7 +73,6 @@ class ReplayTraceNode : public SearchStrategyNode {
   static constexpr const char* _type_key = "meta_schedule.ReplayTrace";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayTraceNode, SearchStrategyNode);
 
- public:
   void InitializeWithTuneContext(const TuneContext& tune_context) final {
     this->mod_ = tune_context->mod.value();
     this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(this->mod_));
