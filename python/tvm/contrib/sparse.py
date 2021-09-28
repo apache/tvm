@@ -99,12 +99,86 @@ class CSRNDArray(object):
         full[ridx, self.indices.numpy().astype(itype)] = self.data.numpy()
         return full
 
+class BSRNDArray(object):
+    """Sparse tensor object in BSR format."""
+
+    def __init__(self, arg1, device=None, shape=None):
+        """Construct a sparse matrix in BSR format.
+
+        Parameters
+        ----------
+        arg1 : numpy.ndarray or a tuple with (data, indices, indptr, blocksize)
+            The corresponding a dense numpy array,
+            or a tuple for constructing a sparse matrix directly.
+
+        device: Device
+            The corresponding device.
+
+        shape : tuple of int
+            The shape of the array
+        """
+        if isinstance(arg1, tuple):
+            assert len(arg1) == 4
+            self.data, self.indices, self.indptr, self.blocksize = arg1
+            self.shape = shape
+        elif isinstance(arg1, _np.ndarray):
+            source_array = arg1
+            ridx, cidx = _np.nonzero(source_array)
+            data = source_array[ridx, cidx]
+            self.data = _nd.array(data, device)
+            indices = _np.nonzero(source_array)[1].astype(itype)
+            self.indices = _nd.array(indices, device)
+            indptr = [0] + _np.apply_along_axis(
+                _np.count_nonzero, axis=1, arr=source_array
+            ).tolist()
+            indptr = _np.cumsum(_np.array(indptr, itype)).astype(itype)
+            self.indptr = _nd.array(indptr, device)
+            self.shape = source_array.shape
+        else:
+            raise RuntimeError(
+                "Construct BSRNDArray with either a tuple (data, indices, indptr, blocksize) "
+                "or a numpy.array, can't handle type %s." % (type(arg1),)
+            )
+        self.stype = "bsr"
+        self.dtype = self.data.dtype
+        assert self.shape is not None
+        assert isinstance(self.data, _nd.NDArray)
+        assert isinstance(self.indices, _nd.NDArray)
+        assert str(self.indices.dtype) == "int32" or str(self.indices.dtype) == "int64", str(
+            self.indices.dtype
+        )
+        assert isinstance(self.indptr, _nd.NDArray)
+        assert str(self.indptr.dtype) == "int32" or str(self.indptr.dtype) == "int64", str(
+            self.indptr.dtype
+        )
+        assert isinstance(self.blocksize, _nd.NDArray)
+
+    def asnumpy(self):
+        """Construct a full matrix and convert it to numpy array. This API will be deprecated
+        in TVM v0.8 release. Please use `numpy` instead."""
+        warnings.warn(
+            "CSRNDArray.asnumpy() will be deprecated in TVM v0.8 release. "
+            "Please use CSRNDArray.numpy() instead.",
+            DeprecationWarning,
+        )
+        return self.numpy()
+
+    def numpy(self):
+        """Construct a full matrix and convert it to numpy array."""
+        full = _np.zeros(self.shape, self.dtype)
+        ridx = _np.diff(self.indptr.numpy())
+        ridx = _np.hstack((_np.ones((v,), itype) * i for i, v in enumerate(ridx)))
+        full[ridx, self.indices.numpy().astype(itype)] = self.data.numpy()
+        return full
+
 
 def array(source_array, device=None, shape=None, stype="csr"):
     """Construct a sparse NDArray from numpy.ndarray"""
     ret = None
     if stype == "csr":
         ret = CSRNDArray(source_array, shape=shape, device=device)
+    elif stype == "bsr":
+        ret = BSRNDArray(source_array, shape=shape, device=device)
     else:
         raise NotImplementedError("stype=%s is not supported yet." % (stype,))
     return ret
@@ -166,6 +240,40 @@ class CSRPlaceholderOp(SparsePlaceholderOp):
         assert isinstance(self.indices, _tensor.Tensor)
         assert isinstance(self.indptr, _tensor.Tensor)
 
+
+class BSRPlaceholderOp(SparsePlaceholderOp):
+    """Placeholder class for BSR based sparse tensor representation."""
+
+    def __init__(self, shape, blocksize, nonzeros, dtype, name):
+        """Contructing a bare bone structure for a bsr_matrix
+
+        Parameters
+        ----------
+        shape: Tuple of Expr
+            The shape of the tensor
+
+        blocksize: Tuple of Expr
+            The block size of the BSR sparse matrix
+
+        nonzeros: int
+            The number of non-zero values
+
+        dtype: str, optional
+            The data type of the tensor
+
+        name: str, optional
+            The name hint of the tensor
+        """
+        SparsePlaceholderOp.__init__(self, shape, nonzeros, dtype, name)
+        self.stype = "bsr"
+        self.data = te.placeholder((nonzeros,), dtype=dtype, name=self.name + "_data")
+        self.indices = te.placeholder((nonzeros,), dtype=itype, name=self.name + "_indices")
+        self.indptr = te.placeholder((self.shape[0] + 1,), dtype=itype, name=self.name + "_indptr")
+        self.blocksize = te.placeholder((blocksize[0], blocksize[1]), dtype= itype, name=self.name + "_blocksize" )
+        assert isinstance(self.data, _tensor.Tensor)
+        assert isinstance(self.indices, _tensor.Tensor)
+        assert isinstance(self.indptr, _tensor.Tensor)
+        assert isinstance(self.blocksize, _tensor.Tensor)
 
 def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None):
     """Construct an empty sparse tensor object.
