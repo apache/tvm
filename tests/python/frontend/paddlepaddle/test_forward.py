@@ -447,14 +447,19 @@ def test_forward_conv():
 @tvm.testing.uses_gpu
 def test_forward_dot():
     @paddle.jit.to_static
-    def dot(x, y):
+    def dot1(x, y):
         return paddle.dot(x, y)
 
-    x_shape = [10, 3]
-    y_shape = [10, 3]
-    x_data = paddle.rand(x_shape, dtype="float32")
-    y_data = paddle.rand(y_shape, dtype="float32")
-    verify_model(dot, input_data=[x_data, y_data])
+    @paddle.jit.to_static
+    def dot2(x):
+        y = paddle.to_tensor(np.random.rand(10).astype("float32"))
+        return paddle.dot(x, y)
+
+    x_data = paddle.rand([10, 3], dtype="float32")
+    y_data = paddle.rand([10, 3], dtype="float32")
+    verify_model(dot1, input_data=[x_data, y_data])
+    x_data = paddle.rand([10], dtype="float32")
+    verify_model(dot2, input_data=[x_data])
 
 
 @tvm.testing.uses_gpu
