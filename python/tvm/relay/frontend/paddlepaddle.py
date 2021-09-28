@@ -1293,20 +1293,20 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None, freeze_params=Fal
     Parameters
     ----------
     program_or_layer : Program/TranslatedLayer object
-                loaded model by `paddle.static.load_inference_model` or `paddle.jit.load`
+        Loaded model by `paddle.static.load_inference_model` or `paddle.jit.load`
 
-        shape_dict : dict of str to tuple, optional
+    shape_dict : dict of str to tuple, optional
         The input shape to the model
 
-        scope : Scope object, optional
-                All the weights saved in scope, by default, use `paddle.fluid.global_scope`
+    scope : Scope object, optional
+        All the weights saved in scope, by default, use `paddle.fluid.global_scope`
 
-    freeze_params: bool
-        If this parameter is true, the importer will take any provided
-        weights and embed them into the relay model as Constants instead of variables.
-                This allows more aggressive optimizations at compile time and helps in making
-                models static if certain inputs represent attributes relay would traditionally
-                consider compile-time constants.
+    freeze_params : bool
+        If this parameter is true, the importer will take any provided weights and
+        embed them into the relay model as Constants instead of variables. This
+        allows more aggressive optimizations at compile time and helps in making
+        models static if certain inputs represent attributes relay would traditionally
+        consider compile-time constants.
 
     Returns
     -------
