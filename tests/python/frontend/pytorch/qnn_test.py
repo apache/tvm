@@ -648,6 +648,3 @@ def test_keep_quantized_weight():
         tvm_result_int8_weight = runtime_int8_weight.get_output(0).numpy()
 
         tvm.testing.assert_allclose(tvm_result, tvm_result_int8_weight)
-
-
-test_quantize_dynamic()
