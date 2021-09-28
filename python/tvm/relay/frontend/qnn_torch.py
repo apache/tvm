@@ -489,7 +489,7 @@ def add_input_quant_params_to_op_inputs(graph):
             node.addInput(scale)
             node.addInput(zp)
 
-        if "conv2d" in operator or "linear" in operator:
+        if "conv" in operator or "linear" in operator:
             # This is required for quantizing the bias
             input_scales_for_bias[node.inputsAt(1).debugName()] = scale.node().f("value")
 
