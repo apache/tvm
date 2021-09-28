@@ -31,6 +31,7 @@
 #include <tvm/runtime/object.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <initializer_list>
 #include <memory>
@@ -148,6 +149,12 @@ class String : public ObjectRef {
    */
   String(const char* other)  // NOLINT(*)
       : String(std::string(other)) {}
+
+  /*!
+   * \brief Construct a new null object
+   */
+  String(std::nullptr_t)  // NOLINT(*)
+      : ObjectRef(nullptr) {}
 
   /*!
    * \brief Change the value the reference object points to.
