@@ -257,6 +257,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
 
     assert result_no_simd == result_simd == 2
 
+    # Time performance measurements on QEMU emulator are always equal to zero.
     if board not in [
         "mps2_an521",
     ]:
