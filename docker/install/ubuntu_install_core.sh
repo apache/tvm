@@ -22,9 +22,10 @@ set -o pipefail
 
 # install libraries for building c++ core on ubuntu
 apt-get update && apt-get install -y --no-install-recommends \
-        git make libgtest-dev cmake wget unzip libtinfo-dev libz-dev\
+        git make google-mock libgtest-dev cmake wget unzip libtinfo-dev libz-dev \
         libcurl4-openssl-dev libssl-dev libopenblas-dev g++ sudo \
         apt-transport-https graphviz pkg-config curl
 
 
 cd /usr/src/gtest && cmake CMakeLists.txt && make && cp *.a /usr/lib
+cd /usr/src/gmock && cmake CMakeLists.txt && make && cp *.a /usr/lib
