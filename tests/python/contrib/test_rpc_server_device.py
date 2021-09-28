@@ -1,10 +1,12 @@
 import time
 import numpy as np
+import multiprocessing
 
 import tvm.testing
+import tvm.relay.testing
 from tvm import te
 from tvm import rpc
-from tvm import relay
+from tvm import relay, auto_scheduler
 from tvm.contrib import utils, xcode, graph_executor
 from tvm.autotvm.measure import request_remote
 from tvm.auto_scheduler.utils import call_func_with_timeout
@@ -135,9 +137,16 @@ def try_create_remote_session(session_factory, args=(), kwargs=None):
     return successful_attempt
 
 
+def ios_create_dylib(output, objects, **kwargs):
+    xcode.create_dylib(output, objects, arch=ARCH, sdk=SDK)
+
+
+ios_create_dylib.output_format = "dylib"
+
+
 def export_lib(lib):
     path_dso = TEMPORARY_DIRECTORY.relpath(DSO_NAME)
-    lib.export_library(path_dso, xcode.create_dylib, arch=ARCH, sdk=SDK)
+    lib.export_library(path_dso, fcompile=ios_create_dylib)
     return path_dso
 
 
@@ -293,6 +302,36 @@ def test_graph_executor_remote_run(host, port):
     tvm.testing.assert_allclose(out.numpy(), a + b)
 
 
+@setup_rpc_tracker_configuration
+def test_check_auto_schedule_tuning(host, port):
+    log_file = TEMPORARY_DIRECTORY.relpath("ios_tuning_stat.log")
+    target = tvm.target.Target(target=f"llvm -mtriple={ARCH}-apple-darwin")
+    mod, params = relay.testing.mlp.get_workload(batch_size=4, image_shape=(1, 4, 4))
+
+    measure_runner = auto_scheduler.RPCRunner(
+        DEVICE_KEY, host, port,
+        min_repeat_ms=1,
+        timeout=10,
+        n_parallel=multiprocessing.cpu_count()
+    )
+    builder = auto_scheduler.LocalBuilder(
+        build_func=ios_create_dylib
+    )
+    tune_option = auto_scheduler.TuningOptions(
+        builder=builder,
+        num_measure_trials=2,
+        num_measures_per_round=1,
+        runner=measure_runner,
+        measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+        verbose=0
+    )
+
+    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+    tasks, task_weights = tasks[:2], task_weights[:2]
+    tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+    tuner.tune(tune_option, search_policy="sketch.random")
+
+
 if __name__ == '__main__':
     test_pure_rpc()
     test_rpc_proxy()
@@ -307,5 +346,7 @@ if __name__ == '__main__':
     test_basic_functionality_of_rpc_session()
     test_cleanup_workspace_after_session_end()
     test_graph_executor_remote_run()
+
+    test_check_auto_schedule_tuning()
 
     server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
