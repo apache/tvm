@@ -27,15 +27,14 @@ import pytest
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm.micro.project_api import server
 import tvm.relay as relay
 
 from tvm.contrib.download import download_testdata
 from tvm.micro.interface_api import generate_c_interface_header
 
-from test_utils import create_header_file
-from test_utils import build_project
-from test_utils import get_message
+import test_utils
 
 
 @tvm.testing.requires_micro
@@ -98,12 +97,12 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
-            create_header_file("input_data", sample, "include", tf)
-            create_header_file(
+            test_utils.create_header_file("input_data", sample, "include", tf)
+            test_utils.create_header_file(
                 "output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf
             )
 
-        project, _ = build_project(
+        project, _ = test_utils.build_project(
             temp_dir,
             board,
             west_cmd,
@@ -115,9 +114,9 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     project.flash()
     with project.transport() as transport:
         timeout_read = 60
-        get_message(transport, "#wakeup", timeout_sec=timeout_read)
+        test_utils.get_message(transport, "#wakeup", timeout_sec=timeout_read)
         transport.write(b"start\n", timeout_sec=5)
-        result_line = get_message(transport, "#result", timeout_sec=timeout_read)
+        result_line = test_utils.get_message(transport, "#result", timeout_sec=timeout_read)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
@@ -133,7 +132,7 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     if board not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
-    model = ZEPHYR_BOARDS[board]
+    model = test_utils.ZEPHYR_BOARDS[board]
     build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "float32"
@@ -159,10 +158,10 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
                     lowered.libmod_name, ["input_1"], ["output"], model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
-            create_header_file("input_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
-            create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
+            test_utils.create_header_file("input_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
+            test_utils.create_header_file("output_data", np.zeros(shape=shape, dtype=dtype), "include", tf)
 
-        project, project_dir = build_project(
+        project, project_dir = test_utils.build_project(
             temp_dir,
             board,
             west_cmd,

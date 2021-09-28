@@ -22,18 +22,10 @@ import sys
 import tarfile
 import tempfile
 
-from urllib.request import urlopen, urlretrieve
-from urllib.error import HTTPError
-import json
-
 import pytest
 import numpy as np
 
-import requests
-
-from test_utils import create_header_file
-from test_utils import build_project
-from test_utils import get_message
+import test_utils
 
 import tvm
 import tvm.rpc
@@ -113,41 +105,6 @@ def _apply_desired_layout_no_simd(relay_mod):
         return seq(relay_mod)
 
 
-def _loadCMSIS(temp_dir):
-    REPO_PATH = "ARM-software/CMSIS_5"
-    BRANCH = "master"
-    API_PATH_URL = f"https://api.github.com/repos/{REPO_PATH}/git/trees"
-    RAW_PATH_URL = f"https://raw.githubusercontent.com/{REPO_PATH}/{BRANCH}"
-
-    url = "https://api.github.com/repos/ARM-software/CMSIS_5/git/trees/master?recursive=1"
-    r = requests.get(url)
-    res = r.json()
-
-    include_trees = {}
-
-    for file in res["tree"]:
-        if file["path"] in {"CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include"}:
-            include_trees.update({file["path"]: file["sha"]})
-
-    for path, sha in include_trees.items():
-        url = f"{API_PATH_URL}/{sha}"
-        content = json.load(urlopen(url))
-        temp_path = f"{temp_dir}"
-        if path == "CMSIS/DSP/Include/dsp":
-            temp_path = f"{temp_dir}/dsp"
-            if not os.path.isdir(temp_path):
-                os.makedirs(temp_path)
-        for item in content["tree"]:
-            if item["type"] == "blob":
-                file_name = item["path"]
-                file_url = f"{RAW_PATH_URL}/{path}/{file_name}"
-                print(file_name, "   ", file_url)
-                try:
-                    urlretrieve(file_url, f"{temp_path}/{file_name}")
-                except HTTPError as e:
-                    print(f"Failed to download {file_url}: {e}")
-
-
 def _generate_project(temp_dir, board, west_cmd, lowered, build_config, sample, output_shape):
 
     with tempfile.NamedTemporaryFile() as tar_temp_file:
@@ -155,19 +112,19 @@ def _generate_project(temp_dir, board, west_cmd, lowered, build_config, sample, 
             with tempfile.TemporaryDirectory() as tar_temp_dir:
                 model_files_path = os.path.join(tar_temp_dir, "include")
                 os.mkdir(model_files_path)
-                _loadCMSIS(model_files_path)
+                test_utils.loadCMSIS(model_files_path)
                 tf.add(model_files_path, arcname=os.path.relpath(model_files_path, tar_temp_dir))
                 header_path = generate_c_interface_header(
                     lowered.libmod_name, ["input_1"], ["output"], model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
-            create_header_file("input_data", sample, "include", tf)
-            create_header_file(
+            test_utils.create_header_file("input_data", sample, "include", tf)
+            test_utils.create_header_file(
                 "output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf
             )
 
-        project, _ = build_project(
+        project, _ = test_utils.build_project(
             temp_dir,
             board,
             west_cmd,
@@ -190,7 +147,7 @@ def _run_model(temp_dir, board, west_cmd, lowered, build_config, sample, output_
     with project.transport() as transport:
         timeout_read = 60
         transport.write(b"start\n", timeout_sec=5)
-        result_line = get_message(transport, "#result", timeout_sec=timeout_read)
+        result_line = test_utils.get_message(transport, "#result", timeout_sec=timeout_read)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
@@ -213,7 +170,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     ]:
         pytest.skip(msg="Platform does not support ARM v7m SIMD extenion.")
 
-    model = conftest.ZEPHYR_BOARDS[board]
+    model = test_utils.ZEPHYR_BOARDS[board]
 
     build_config = {"debug": tvm_debug}
 

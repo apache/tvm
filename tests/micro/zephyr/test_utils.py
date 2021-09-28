@@ -15,12 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 import io
+import os
 import json
 import pathlib
 import logging
 import tarfile
 
 import numpy as np
+
+from urllib.request import urlopen, urlretrieve
+from urllib.error import HTTPError
+import json
+import requests
 
 import tvm.micro
 
@@ -146,3 +152,40 @@ def get_message(fd, expr: str, timeout_sec: int):
         logging.debug(f"new line: {data}")
         if expr in data:
             return data
+
+
+#TODO move CMSIS integration to microtvm_api_server.py
+# see https://discuss.tvm.apache.org/t/tvm-capturing-dependent-libraries-of-code-generated-tir-initially-for-use-in-model-library-format/11080
+def loadCMSIS(temp_dir):
+    REPO_PATH = "ARM-software/CMSIS_5"
+    BRANCH = "master"
+    API_PATH_URL = f"https://api.github.com/repos/{REPO_PATH}/git/trees"
+    RAW_PATH_URL = f"https://raw.githubusercontent.com/{REPO_PATH}/{BRANCH}"
+
+    url = "https://api.github.com/repos/ARM-software/CMSIS_5/git/trees/master?recursive=1"
+    r = requests.get(url)
+    res = r.json()
+
+    include_trees = {}
+
+    for file in res["tree"]:
+        if file["path"] in {"CMSIS/DSP/Include", "CMSIS/DSP/Include/dsp", "CMSIS/NN/Include"}:
+            include_trees.update({file["path"]: file["sha"]})
+
+    for path, sha in include_trees.items():
+        url = f"{API_PATH_URL}/{sha}"
+        content = json.load(urlopen(url))
+        temp_path = f"{temp_dir}"
+        if path == "CMSIS/DSP/Include/dsp":
+            temp_path = f"{temp_dir}/dsp"
+            if not os.path.isdir(temp_path):
+                os.makedirs(temp_path)
+        for item in content["tree"]:
+            if item["type"] == "blob":
+                file_name = item["path"]
+                file_url = f"{RAW_PATH_URL}/{path}/{file_name}"
+                print(file_name, "   ", file_url)
+                try:
+                    urlretrieve(file_url, f"{temp_path}/{file_name}")
+                except HTTPError as e:
+                    print(f"Failed to download {file_url}: {e}")
