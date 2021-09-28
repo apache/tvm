@@ -314,11 +314,12 @@ class BufferShapeLegalize : public StmtExprMutator {
     ArgBinder binder(&var_remap_);
     binder.BindBuffer(key, buffer, key->name, true);
 
+    Stmt body = this->VisitStmt(op->body);
+    body = MergeNest(binder.asserts(), body);
+    body = MergeNest(binder.init_nest(), body);
+
     Stmt stmt = AttrStmt(Array<ObjectRef>{buffer, target_remap.remap_to}, op->attr_key,
-                         Call(tuple->dtype, tuple->op, new_tuple_args, tuple->span),
-                         this->VisitStmt(op->body));
-    stmt = MergeNest(binder.asserts(), stmt);
-    stmt = MergeNest(binder.init_nest(), stmt);
+                         Call(tuple->dtype, tuple->op, new_tuple_args, tuple->span), body);
 
     for (const Var& v : binder.defs()) {
       var_remap_.erase(v.get());
