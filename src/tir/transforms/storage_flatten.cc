@@ -64,7 +64,14 @@ class BufferShapeLegalize : public StmtExprMutator {
                                IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_(bound_analyzer) {
     for (auto kv : extern_buffer_map) {
-      extern_buffers_.insert(kv.second);
+      Buffer buf = kv.second;
+      extern_buffers_.insert(buf);
+
+      InternalBufferRemap remap;
+      remap.remap_to = buf;
+      remap.realized_begins = Array<PrimExpr>(buf->shape.size(), 0);
+      remap.in_scope = true;
+      internal_buf_map_[buf] = remap;
     }
   }
 
@@ -248,9 +255,8 @@ class BufferShapeLegalize : public StmtExprMutator {
     ICHECK(target.defined());
 
     auto it = internal_buf_map_.find(target);
-    if (it == internal_buf_map_.end()) {
-      return StmtExprMutator::VisitStmt_(op);
-    }
+    ICHECK(it != internal_buf_map_.end())
+        << "attr::buffer_bind_scope target " << target << " not in scope.";
     const InternalBufferRemap& target_remap = it->second;
 
     ICHECK(target_remap.in_scope) << "Cannot bind " << buffer->name
@@ -262,7 +268,9 @@ class BufferShapeLegalize : public StmtExprMutator {
     Array<PrimExpr> new_tuple_args;
     Array<PrimExpr> realized_begins;
     Array<PrimExpr> realized_shape;
-    ICHECK_EQ(tuple->args.size(), target_remap.realized_begins.size() * 2);
+    ICHECK_EQ(tuple->args.size(), target_remap.realized_begins.size() * 2)
+        << "attr::buffer_bind_scope to define " << buffer << " as a view into " << target
+        << " does match dimensionality of " << target;
     for (size_t i = 0; i < target_remap.realized_begins.size(); i++) {
       PrimExpr parent_begin = tuple->args[2 * i];
       PrimExpr view_extent = tuple->args[2 * i + 1];
@@ -276,31 +284,47 @@ class BufferShapeLegalize : public StmtExprMutator {
       realized_begins.push_back(0);
     }
 
+    // If a view is binding to a buffer of a higher dimensionality,
+    // then the leading dimensions should be padded out with shape of
+    // 1.
     ICHECK_GE(realized_shape.size(), buffer->shape.size())
         << "Cannot bind " << buffer << " to a shape of lower dimension.";
+    if (realized_shape.size() > buffer->shape.size()) {
+      size_t diff = realized_shape.size() - buffer->shape.size();
+      Array<PrimExpr> padded_shape;
+      for (size_t i = 0; i < diff; i++) {
+        padded_shape.push_back(1);
+      }
+      for (auto dim : buffer->shape) {
+        padded_shape.push_back(dim);
+      }
+      realized_shape = std::move(padded_shape);
+    }
+
+    // If a buffer has strides defined, and is being remapped into a
+    // shape with additional dimensions, then define dummy values for
+    // the strides.
+    Array<PrimExpr> realized_strides = buffer->strides;
+    if ((realized_strides.size() > 0) && (realized_strides.size() != realized_shape.size())) {
+      ICHECK_GE(realized_shape.size(), realized_strides.size())
+          << "Cannot bind the strides of " << buffer << " to a shape of lower dimension";
+      size_t diff = realized_shape.size() - buffer->strides.size();
+
+      Array<PrimExpr> updated_strides;
+      for (size_t i = 0; i < diff; i++) {
+        updated_strides.push_back(Var("stride", buffer->shape[0].dtype()));
+      }
+      for (auto stride : buffer->strides) {
+        updated_strides.push_back(stride);
+      }
+      realized_strides = updated_strides;
+    }
 
     Buffer key = buffer;
 
     auto write_ptr = buffer.CopyOnWrite();
     write_ptr->shape = realized_shape;
-
-    // If a buffer has strides defined, and is being remapped into a
-    // shape with additional dimensions, then define dummy values for
-    // the strides.
-    if ((buffer->strides.size() > 0) && (buffer->strides.size() != buffer->shape.size())) {
-      ICHECK_LT(buffer->strides.size(), realized_shape.size())
-          << "Cannot bind the strides of " << buffer << " to a shape of lower dimension";
-
-      auto num_additional_strides = realized_shape.size() - buffer->strides.size();
-      Array<PrimExpr> updated_strides;
-      for (size_t i = 0; i < num_additional_strides; i++) {
-        updated_strides.push_back(Var("stride", buffer->shape[i].dtype()));
-      }
-      for (auto stride : buffer->strides) {
-        updated_strides.push_back(stride);
-      }
-      write_ptr->strides = updated_strides;
-    }
+    write_ptr->strides = realized_strides;
 
     {
       InternalBufferRemap remap;
@@ -944,7 +968,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
       // Add explicit strides to the view, in order to bind to source.strides[i].
       view = view.MakeStrideView();
     }
-    binder.BindBuffer(source, view, source->name, true);
+    binder.BindBuffer(source, view, source->name, false);
 
     // Apply the remaps
     Stmt body = op->body;
