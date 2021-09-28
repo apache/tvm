@@ -27,8 +27,9 @@ import numpy as np
 import tvm
 import tvm.micro as micro
 from tvm import relay
-from tvm.relay.backend.contrib import ethosu
 from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.op.contrib.ethosu import partition_for_ethosu
+
 import tvm.relay.testing.tf as tf_testing
 
 from . import infra
@@ -56,7 +57,7 @@ def test_forward_mobilenet_v1(accel_type="ethos-u55-256"):
     input_data = {input_tensor: input_data}
     output_data = generate_ref_data(relay_mod, input_data)
 
-    mod = ethosu.partition_for_ethosu(relay_mod, params)
+    mod = partition_for_ethosu(relay_mod, params)
     compiled_models = infra.build_source(mod, input_data, output_data, accel_type)
     infra.verify_source(compiled_models, accel_type)
 
