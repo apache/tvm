@@ -133,7 +133,7 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     if board not in ["qemu_x86", "mps2_an521"]:
         pytest.skip(msg="Only for QEMU targets.")
 
-    model = test_utils.ZEPHYR_BOARDS[board]
+    model = ZEPHYR_BOARDS[board]
     build_config = {"debug": tvm_debug}
     shape = (10,)
     dtype = "float32"
