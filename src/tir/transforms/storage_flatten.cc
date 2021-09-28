@@ -68,6 +68,15 @@ class BufferShapeLegalize : public StmtExprMutator {
     }
   }
 
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    auto it = var_remap_.find(op);
+    if (it != var_remap_.end()) {
+      return it->second;
+    } else {
+      return GetRef<PrimExpr>(op);
+    }
+  }
+
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     // External buffers should not be changed.
     if (extern_buffers_.count(op->buffer)) {
@@ -101,6 +110,12 @@ class BufferShapeLegalize : public StmtExprMutator {
       realized_shape.push_back(bound->extent);
       realized_begins.push_back(bound->min);
       new_bounds.push_back({0, bound->extent});
+    }
+
+    if (op->buffer->shape.size()) {
+      ICHECK_EQ(op->buffer->shape.size(), realized_shape.size())
+          << "Inconsistency between dimension of buffer " << op->buffer
+          << " and dimension of its realized bounds.";
     }
 
     Buffer key = op->buffer;
@@ -137,8 +152,15 @@ class BufferShapeLegalize : public StmtExprMutator {
           << "Inconsistent dimensions for buffer " << op->buffer->name;
 
       Array<PrimExpr> new_indices;
-      for (size_t i = 0; i < entry.realized_begins.size(); i++) {
-        new_indices.push_back(op->indices[i] - entry.realized_begins[i]);
+
+      // Pad leading indices with zero, matching the "fuzzy_match"
+      // behavior from ArgBinder::BindBuffer.
+      size_t diff = entry.realized_begins.size() - op->indices.size();
+      for (size_t i = 0; i < diff; i++) {
+        new_indices.push_back(0);
+      }
+      for (size_t i = 0; i < op->indices.size(); i++) {
+        new_indices.push_back(op->indices[i] - entry.realized_begins[i + diff]);
       }
 
       BufferStore updated = GetRef<BufferStore>(op);
@@ -160,12 +182,20 @@ class BufferShapeLegalize : public StmtExprMutator {
     if (it != internal_buf_map_.end()) {
       const InternalBufferRemap& entry = it->second;
       ICHECK(entry.in_scope) << "Cannot read from an out-of-scope buffer";
-      ICHECK_EQ(entry.realized_begins.size(), op->indices.size())
+
+      ICHECK_GE(entry.realized_begins.size(), op->indices.size())
           << "Inconsistent dimensions for buffer " << op->buffer->name;
 
       Array<PrimExpr> new_indices;
-      for (size_t i = 0; i < entry.realized_begins.size(); i++) {
-        new_indices.push_back(op->indices[i] - entry.realized_begins[i]);
+
+      // Pad leading indices with zero, matching the "fuzzy_match"
+      // behavior from ArgBinder::BindBuffer.
+      size_t diff = entry.realized_begins.size() - op->indices.size();
+      for (size_t i = 0; i < diff; i++) {
+        new_indices.push_back(0);
+      }
+      for (size_t i = 0; i < op->indices.size(); i++) {
+        new_indices.push_back(op->indices[i] - entry.realized_begins[i + diff]);
       }
 
       BufferLoad updated = GetRef<BufferLoad>(op);
@@ -246,10 +276,31 @@ class BufferShapeLegalize : public StmtExprMutator {
       realized_begins.push_back(0);
     }
 
+    ICHECK_GE(realized_shape.size(), buffer->shape.size())
+        << "Cannot bind " << buffer << " to a shape of lower dimension.";
+
     Buffer key = buffer;
 
     auto write_ptr = buffer.CopyOnWrite();
     write_ptr->shape = realized_shape;
+
+    // If a buffer has strides defined, and is being remapped into a
+    // shape with additional dimensions, then define dummy values for
+    // the strides.
+    if ((buffer->strides.size() > 0) && (buffer->strides.size() != buffer->shape.size())) {
+      ICHECK_LT(buffer->strides.size(), realized_shape.size())
+          << "Cannot bind the strides of " << buffer << " to a shape of lower dimension";
+
+      auto num_additional_strides = realized_shape.size() - buffer->strides.size();
+      Array<PrimExpr> updated_strides;
+      for (size_t i = 0; i < num_additional_strides; i++) {
+        updated_strides.push_back(Var("stride", buffer->shape[i].dtype()));
+      }
+      for (auto stride : buffer->strides) {
+        updated_strides.push_back(stride);
+      }
+      write_ptr->strides = updated_strides;
+    }
 
     {
       InternalBufferRemap remap;
@@ -259,12 +310,25 @@ class BufferShapeLegalize : public StmtExprMutator {
       internal_buf_map_[key] = remap;
     }
 
+    // Define remappings of any Variables referencing Buffer internals (e.g. Store/Load nodes).
+    ArgBinder binder(&var_remap_);
+    binder.BindBuffer(key, buffer, key->name, true);
+
     Stmt stmt = AttrStmt(Array<ObjectRef>{buffer, target_remap.remap_to}, op->attr_key,
                          Call(tuple->dtype, tuple->op, new_tuple_args, tuple->span),
                          this->VisitStmt(op->body));
+    stmt = MergeNest(binder.asserts(), stmt);
+    stmt = MergeNest(binder.init_nest(), stmt);
+
+    for (const Var& v : binder.defs()) {
+      var_remap_.erase(v.get());
+    }
+
     internal_buf_map_.at(key).in_scope = false;
     return stmt;
   }
+
+  std::unordered_map<const VarNode*, PrimExpr> var_remap_;
 
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buffers_;
 
@@ -317,7 +381,8 @@ class BufferStrideLegalize : public StmtExprMutator {
     }
 
     if (buf->strides.size()) {
-      ICHECK_EQ(buf->strides.size(), buf->shape.size());
+      ICHECK_EQ(buf->strides.size(), buf->shape.size())
+          << "Buffer " << buf << " has inconsistent strides/shape.";
       return buf;
     }
 
