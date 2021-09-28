@@ -16,7 +16,7 @@
 # under the License.
 """
 Compile PaddlePaddle Models
-===================
+===========================
 **Author**: `Ziyuan Ma <https://github.com/ZiyuanMa/>`_
 
 This article is an introductory tutorial to deploy PaddlePaddle models with Relay.
