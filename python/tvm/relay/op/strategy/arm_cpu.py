@@ -21,6 +21,7 @@ import logging
 
 from tvm import topi
 from ....target import arm_isa
+from ....topi.generic import conv2d as conv2d_generic
 from .generic import *
 from .. import op as _op
 
@@ -207,8 +208,8 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             else:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                    wrap_topi_schedule(topi.x86.schedule_depthwise_conv2d_nhwc),
-                    name="depthwise_conv2d_nhwc.x86",
+                    wrap_topi_schedule(conv2d_generic.schedule_depthwise_conv2d_nhwc),
+                    name="depthwise_conv2d_nhwc.generic",
                 )
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {} for arm cpu".format(layout))
