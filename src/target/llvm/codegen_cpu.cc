@@ -523,7 +523,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const Array<Var>& vfields,
                                                       uint64_t* num_bytes) {
   if (vfields.size() == 0) {
     *num_bytes = 0U;
-    return TypedPointer();
+    return TypedPointer(t_void_p_, llvm::Constant::getNullValue(t_void_p_));
   }
   std::vector<llvm::Type*> fields;
   for (Var v : vfields) {
