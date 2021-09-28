@@ -20,6 +20,7 @@ Name transformation functions for use in code generation
 
 from typing import List, Union
 
+from tvm import TVMError
 from . import _backend
 
 
@@ -47,6 +48,21 @@ def to_c_variable_style(original_name: str):
     return _backend.ToCVariableStyle(original_name)
 
 
+def _preprocess_names(names: Union[List[str], str]):
+    """Preprocesses name strings into format for C++ functions
+
+    Parameters
+    ----------
+    names : Union[List[str], str]
+        List of names to combine to form a combined name or the name itself
+    """
+    if isinstance(names, str):
+        if names == "":
+            raise TVMError("Name is empty")
+        return [names]
+    return names
+
+
 def prefix_name(names: Union[List[str], str]):
     """Apply TVM-specific prefix to a function name
 
@@ -55,10 +71,8 @@ def prefix_name(names: Union[List[str], str]):
     names : Union[List[str], str]
         List of names to combine to form a combined name or the name itself
     """
-    if isinstance(names, str):
-        names = [names]
 
-    return _backend.PrefixName(names)
+    return _backend.PrefixName(_preprocess_names(names))
 
 
 def prefix_generated_name(names: Union[List[str], str]):
@@ -69,10 +83,8 @@ def prefix_generated_name(names: Union[List[str], str]):
     names : Union[List[str], str]
         List of names to combine to form a combined name or the name itself
     """
-    if isinstance(names, str):
-        names = [names]
 
-    return _backend.PrefixGeneratedName(names)
+    return _backend.PrefixGeneratedName(_preprocess_names(names))
 
 
 def sanitise_name(original_name: str):

@@ -30,6 +30,7 @@ TEST(NameTransforms, ToCFunctionStyle) {
   ASSERT_EQ(ToCFunctionStyle("TVM_woof"), "TVMWoof");
   ASSERT_EQ(ToCFunctionStyle("TVM_woof_woof"), "TVMWoofWoof");
   ASSERT_EQ(ToCFunctionStyle("TVMGen_woof_woof"), "TVMGenWoofWoof");
+  EXPECT_THROW(ToCVariableStyle("Cake_Bakery"), InternalError);  // Incorrect prefix
   EXPECT_THROW(ToCFunctionStyle(""), InternalError);
 }
 
@@ -37,6 +38,7 @@ TEST(NameTransforms, ToCVariableStyle) {
   ASSERT_EQ(ToCVariableStyle("TVM_Woof"), "tvm_woof");
   ASSERT_EQ(ToCVariableStyle("TVM_woof"), "tvm_woof");
   ASSERT_EQ(ToCVariableStyle("TVM_woof_Woof"), "tvm_woof_woof");
+  EXPECT_THROW(ToCVariableStyle("Cake_Bakery"), InternalError);  // Incorrect prefix
   EXPECT_THROW(ToCVariableStyle(""), InternalError);
 }
 

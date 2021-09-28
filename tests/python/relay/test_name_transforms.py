@@ -32,7 +32,10 @@ def test_to_c_function_style():
     assert to_c_function_style("TVM_woof_woof") == "TVMWoofWoof"
     assert to_c_function_style("TVMGen_woof_woof") == "TVMGenWoofWoof"
 
-    with pytest.raises(TVMError):
+    # Incorrect prefix
+    with pytest.raises(TVMError, match="Function not TVM prefixed"):
+        to_c_function_style("Cake_Bakery")
+    with pytest.raises(TVMError, match="Function name is empty"):
         to_c_function_style("")
 
 
@@ -41,7 +44,10 @@ def test_to_c_variable_style():
     assert to_c_variable_style("TVM_woof") == "tvm_woof"
     assert to_c_variable_style("TVM_woof_Woof") == "tvm_woof_woof"
 
-    with pytest.raises(TVMError):
+    # Incorrect prefix
+    with pytest.raises(TVMError, match="Variable not TVM prefixed"):
+        to_c_variable_style("Cake_Bakery")
+    with pytest.raises(TVMError, match="Variable name is empty"):
         to_c_variable_style("")
 
 
@@ -51,11 +57,11 @@ def test_prefix_name():
     assert prefix_name(["woof"]) == "TVM_woof"
     assert prefix_name(["woof", "moo"]) == "TVM_woof_moo"
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TVMError, match="Name is empty"):
         prefix_name("")
-    with pytest.raises(TVMError):
+    with pytest.raises(TVMError, match="Name segments empty"):
         prefix_name([])
-    with pytest.raises(TVMError):
+    with pytest.raises(TVMError, match="Name segment is empty"):
         prefix_name([""])
 
 
@@ -66,11 +72,11 @@ def test_prefix_generated_name():
     assert prefix_generated_name(["woof"]) == "TVMGen_woof"
     assert prefix_generated_name(["woof", "moo"]) == "TVMGen_woof_moo"
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TVMError, match="Name is empty"):
         prefix_generated_name("")
-    with pytest.raises(TVMError):
+    with pytest.raises(TVMError, match="Name segments empty"):
         prefix_generated_name([])
-    with pytest.raises(TVMError):
+    with pytest.raises(TVMError, match="Name segment is empty"):
         prefix_generated_name([""])
 
 
@@ -81,7 +87,7 @@ def test_sanitise_name():
     assert sanitise_name("input++") == "input_"
     assert sanitise_name("woof:1") == "woof_1"
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TVMError, match="Name is empty"):
         sanitise_name("")
 
 

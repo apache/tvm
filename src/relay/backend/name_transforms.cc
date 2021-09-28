@@ -29,7 +29,8 @@ namespace relay {
 namespace backend {
 
 std::string ToCFunctionStyle(const std::string& original_name) {
-  ICHECK(!original_name.empty());
+  ICHECK(!original_name.empty()) << "Function name is empty";
+  ICHECK_EQ(original_name.find("TVM"), 0) << "Function not TVM prefixed";
 
   int tvm_prefix_length = 3;
   std::string function_name("TVM");
@@ -51,7 +52,8 @@ std::string ToCFunctionStyle(const std::string& original_name) {
 }
 
 std::string ToCVariableStyle(const std::string& original_name) {
-  ICHECK(!original_name.empty());
+  ICHECK(!original_name.empty()) << "Variable name is empty";
+  ICHECK_EQ(original_name.find("TVM"), 0) << "Variable not TVM prefixed";
 
   std::string variable_name;
   variable_name.resize(original_name.size());
@@ -62,10 +64,10 @@ std::string ToCVariableStyle(const std::string& original_name) {
 
 std::string CombineNames(const Array<String>& names) {
   std::stringstream combine_stream;
-  ICHECK(!names.empty());
+  ICHECK(!names.empty()) << "Name segments empty";
 
   for (const String& name : names) {
-    ICHECK(!name.empty());
+    ICHECK(!name.empty()) << "Name segment is empty";
     combine_stream << name << "_";
   }
 
@@ -75,7 +77,7 @@ std::string CombineNames(const Array<String>& names) {
 }
 
 std::string SanitiseName(const std::string& name) {
-  ICHECK(!name.empty());
+  ICHECK(!name.empty()) << "Name is empty";
 
   auto multipleSeparators = [](char before, char after) {
     return before == '_' && before == after;
