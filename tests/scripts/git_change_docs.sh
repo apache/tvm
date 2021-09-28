@@ -35,8 +35,8 @@ for file in $changed_files; do
 done
 
 if [ ${OTHER_DIR} -eq 1 ]; then
-    exit 1
-else
     exit 0
+else
+    exit 1
 fi
 

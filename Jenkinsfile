@@ -219,7 +219,7 @@ stage('Build') {
       }
   },
   'BUILD: CPU': {
-    if (is_docs_only_build == 1) {
+    if (is_docs_only_build != 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
@@ -244,7 +244,7 @@ stage('Build') {
     }
   },
   'BUILD: WASM': {
-    if (is_docs_only_build == 1) {
+    if (is_docs_only_build != 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-wasm')) {
           init_git()
@@ -261,7 +261,7 @@ stage('Build') {
     }
   },
   'BUILD : i386': {
-    if ( is_docs_only_build == 1) {
+    if ( is_docs_only_build != 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-i386')) {
           init_git()
@@ -275,7 +275,7 @@ stage('Build') {
     }
   },
   'BUILD : arm': {
-    if (is_docs_only_build == 1) {
+    if (is_docs_only_build != 1) {
       node('ARM') {
         ws(per_exec_ws('tvm/build-arm')) {
           init_git()
@@ -289,7 +289,7 @@ stage('Build') {
     }
   },
   'BUILD: QEMU': {
-    if (is_docs_only_build == 1) {
+    if (is_docs_only_build != 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-qemu')) {
           init_git()
@@ -310,7 +310,7 @@ stage('Build') {
 
 stage('Unit Test') {
     parallel 'python3: GPU': {
-      if (is_docs_only_build == 1) {
+      if (is_docs_only_build != 1) {
         node('TensorCore') {
           ws(per_exec_ws('tvm/ut-python-gpu')) {
             init_git()
@@ -329,7 +329,7 @@ stage('Unit Test') {
       }
     },
     'python3: i386': {
-      if (is_docs_only_build == 1) {
+      if (is_docs_only_build != 1) {
         node('CPU') {
           ws(per_exec_ws('tvm/ut-python-i386')) {
             init_git()
@@ -348,7 +348,7 @@ stage('Unit Test') {
       }
     },
     'python3: arm': {
-      if (is_docs_only_build == 1) {
+      if (is_docs_only_build != 1) {
         node('ARM') {
           ws(per_exec_ws('tvm/ut-python-arm')) {
             init_git()
@@ -367,7 +367,7 @@ stage('Unit Test') {
       }
     },
     'java: GPU': {
-      if (is_docs_only_build == 1 ) {
+      if (is_docs_only_build != 1 ) {
         node('GPU') {
           ws(per_exec_ws('tvm/ut-java')) {
             init_git()
@@ -386,7 +386,7 @@ stage('Unit Test') {
 
 stage('Integration Test') {
   parallel 'topi: GPU': {
-  if (is_docs_only_build == 1) {
+  if (is_docs_only_build != 1) {
     node('GPU') {
       ws(per_exec_ws('tvm/topi-python-gpu')) {
         init_git()
@@ -403,7 +403,7 @@ stage('Integration Test') {
   }
   },
   'frontend: GPU': {
-    if (is_docs_only_build == 1) {
+    if (is_docs_only_build != 1) {
       node('GPU') {
         ws(per_exec_ws('tvm/frontend-python-gpu')) {
           init_git()
@@ -420,7 +420,7 @@ stage('Integration Test') {
     }
   },
   'frontend: CPU': {
-    if (is_docs_only_build == 1) {
+    if (is_docs_only_build != 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/frontend-python-cpu')) {
           init_git()
