@@ -3470,6 +3470,49 @@ def test_lppool(target, dev):
     )
 
 
+def verify_global_lppool(x_shape, p, out_shape, target, dev):
+    pool_node = helper.make_node(
+        "GlobalLpPool",
+        inputs=["x"],
+        outputs=["y"],
+        p=p,
+    )
+
+    graph = helper.make_graph(
+        [pool_node],
+        "global_lppool_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape))],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="global_lppool_test")
+    verify_with_ort(
+        model, [x_shape], out_shape, use_vm=True, convert_to_static=True, target=target, dev=dev
+    )
+
+
+@tvm.testing.parametrize_targets
+def test_global_lppool(target, dev):
+
+    # LpPool1D
+    verify_global_lppool(x_shape=[1, 15, 16], p=2, out_shape=[1, 15, 1], target=target, dev=dev)
+
+    # LpPool2D
+    verify_global_lppool(
+        x_shape=[1, 15, 32, 32], p=2, out_shape=[1, 15, 1, 1], target=target, dev=dev
+    )
+
+    # LpPool2D
+    verify_global_lppool(
+        x_shape=[1, 15, 32, 32], p=3, out_shape=[1, 15, 1, 1], target=target, dev=dev
+    )
+
+    # LpPool3D
+    verify_global_lppool(
+        x_shape=[1, 15, 3, 32, 32], p=2, out_shape=[1, 15, 1, 1, 1], target=target, dev=dev
+    )
+
+
 def verify_rnn(
     seq_length,
     batch_size,
@@ -4871,10 +4914,6 @@ unsupported_onnx_tests = [
     "test_cast_FLOAT_to_BFLOAT16",
     "test_cast_FLOAT_to_STRING",
     "test_cast_STRING_to_FLOAT",
-    "test_compress_0",
-    "test_compress_1",
-    "test_compress_default_axis",
-    "test_compress_negative_axis",
     "test_convtranspose_dilations",
     "test_convtranspose_output_shape",
     "test_cumsum_1d",
@@ -4891,13 +4930,6 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
     "test_if_seq",
-    "test_logsoftmax_axis_0_expanded",
-    "test_logsoftmax_axis_1_expanded",
-    "test_logsoftmax_axis_2_expanded",
-    "test_logsoftmax_default_axis_expanded",
-    "test_logsoftmax_example_1_expanded",
-    "test_logsoftmax_large_number_expanded",
-    "test_logsoftmax_negative_axis_expanded",
     "test_loop11",
     "test_loop13_seq",
     "test_matmulinteger",
@@ -4936,58 +4968,14 @@ unsupported_onnx_tests = [
     "test_round",
     "test_scan9_sum",
     "test_scan_sum",
-    # With reduce_sum supported fully, these expanded tests should pass
-    "test_sce_NCd1_mean_weight_negative_ii_expanded",
-    "test_sce_NCd1_mean_weight_negative_ii_log_prob_expanded",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii_expanded",
-    "test_sce_NCd1d2d3_none_no_weight_negative_ii_log_prob_expanded",
-    "test_sce_NCd1d2d3_sum_weight_high_ii_expanded",
-    "test_sce_NCd1d2d3_sum_weight_high_ii_log_prob_expanded",
-    "test_sce_NCd1d2d3d4d5_mean_weight_expanded",
-    "test_sce_NCd1d2d3d4d5_mean_weight_log_prob_expanded",
-    "test_sce_NCd1d2d3d4d5_none_no_weight_expanded",
-    "test_sce_NCd1d2d3d4d5_none_no_weight_log_prob_expanded",
-    "test_sce_mean_3d_expanded",
-    "test_sce_mean_3d_log_prob_expanded",
-    "test_sce_mean_expanded",
-    "test_sce_mean_log_prob_expanded",
-    "test_sce_mean_no_weight_ii_3d_expanded",
-    "test_sce_mean_no_weight_ii_3d_log_prob_expanded",
-    "test_sce_mean_no_weight_ii_4d_expanded",
-    "test_sce_mean_no_weight_ii_4d_log_prob_expanded",
-    "test_sce_mean_no_weight_ii_expanded",
-    "test_sce_mean_no_weight_ii_log_prob_expanded",
-    "test_sce_mean_weight_expanded",
-    "test_sce_mean_weight_ii_3d_expanded",
-    "test_sce_mean_weight_ii_3d_log_prob_expanded",
-    "test_sce_mean_weight_ii_4d_expanded",
-    "test_sce_mean_weight_ii_4d_log_prob_expanded",
-    "test_sce_mean_weight_ii_expanded",
-    "test_sce_mean_weight_ii_log_prob_expanded",
-    "test_sce_mean_weight_log_prob_expanded",
-    "test_sce_none_expanded",
-    "test_sce_none_log_prob_expanded",
-    "test_sce_none_weights_expanded",
-    "test_sce_none_weights_log_prob_expanded",
-    "test_sce_sum_expanded",
-    "test_sce_sum_log_prob_expanded",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
     "test_simple_rnn_defaults",
     "test_simple_rnn_with_initial_bias",
-    "test_softmax_axis_0_expanded",
-    "test_softmax_axis_1_expanded",
-    "test_softmax_axis_2_expanded",
-    "test_softmax_default_axis_expanded",
-    "test_softmax_example_expanded",
-    "test_softmax_large_number_expanded",
-    "test_softmax_negative_axis_expanded",
     "test_split_variable_parts_1d",
     "test_split_variable_parts_2d",
     "test_split_variable_parts_default_axis",
     "test_split_zero_size_splits",
-    "test_squeeze",
-    "test_squeeze_negative_axes",
     "test_strnormalizer_export_monday_casesensintive_lower",
     "test_strnormalizer_export_monday_casesensintive_nochangecase",
     "test_strnormalizer_export_monday_casesensintive_upper",
@@ -5862,3 +5850,4 @@ if __name__ == "__main__":
     test_random_uniform()
     test_convinteger()
     test_batch_matmul()
+    test_global_lppool()

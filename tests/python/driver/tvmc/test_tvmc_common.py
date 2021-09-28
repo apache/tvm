@@ -165,6 +165,10 @@ def test_shape_parser():
     shape_string = "input:[10,10,10] input2:[20,20,20,20]"
     shape_dict = tvmc.common.parse_shape_string(shape_string)
     assert shape_dict == {"input": [10, 10, 10], "input2": [20, 20, 20, 20]}
+    # Check that multiple valid input shapes with colons are parse correctly
+    shape_string = "input:0:[10,10,10] input2:[20,20,20,20]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input:0": [10, 10, 10], "input2": [20, 20, 20, 20]}
     # Check that alternate syntax parses correctly
     shape_string = "input: [10, 10, 10] input2: [20, 20, 20, 20]"
     shape_dict = tvmc.common.parse_shape_string(shape_string)
@@ -193,6 +197,10 @@ def test_shape_parser():
         tvmc.common.parse_shape_string(shape_string)
     # Check that input with a invalid slash raises error.
     shape_string = "gpu_0/data_0:5,10 /:10,10"
+    with pytest.raises(argparse.ArgumentTypeError):
+        tvmc.common.parse_shape_string(shape_string)
+    # Check that input with a invalid colon raises error.
+    shape_string = "gpu_0/data_0:5,10 :test:10,10"
     with pytest.raises(argparse.ArgumentTypeError):
         tvmc.common.parse_shape_string(shape_string)
     # Check that input with a invalid slash raises error.

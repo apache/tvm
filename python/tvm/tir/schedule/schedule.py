@@ -373,6 +373,7 @@ class Schedule(Object):
         1) The loops can't have annotations or thread bindings.
         2) The (i+1)-th loop must be the only child of the i-th loop.
         3) All loops must start with 0.
+        4) The domain of a loop to be fused cannot depend on another loop to be fused.
 
         Parameters
         ----------

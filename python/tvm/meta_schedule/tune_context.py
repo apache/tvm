@@ -16,7 +16,7 @@
 # under the License.
 """Meta Schedule tuning context."""
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from tvm import IRModule
 from tvm.runtime import Object
@@ -25,6 +25,9 @@ from tvm.meta_schedule.utils import cpu_count
 from tvm._ffi import register_object
 
 from . import _ffi_api
+
+if TYPE_CHECKING:
+    from .space_generator import SpaceGenerator
 
 
 @register_object("meta_schedule.TuneContext")
@@ -68,6 +71,7 @@ class TuneContext(Object):
         self,
         mod: Optional[IRModule] = None,
         target: Optional[Target] = None,
+        space_generator: Optional["SpaceGenerator"] = None,
         task_name: Optional[str] = None,
         rand_state: int = -1,
         num_threads: Optional[int] = None,
@@ -80,6 +84,8 @@ class TuneContext(Object):
             The workload to be optimized.
         target : Optional[Target] = None
             The target to be optimized for.
+        space_generator : Optional[SpaceGenerator] = None
+            The design space generator.
         task_name : Optional[str] = None
             The name of the tuning task.
         rand_state : int = -1
@@ -95,6 +101,7 @@ class TuneContext(Object):
             _ffi_api.TuneContext,  # type: ignore # pylint: disable=no-member
             mod,
             target,
+            space_generator,
             task_name,
             rand_state,
             num_threads,

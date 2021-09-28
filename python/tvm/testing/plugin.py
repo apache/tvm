@@ -48,6 +48,7 @@ MARKERS = {
     "metal": "mark a test as requiring metal",
     "llvm": "mark a test as requiring llvm",
     "ethosn": "mark a test as requiring ethosn",
+    "hexagon": "mark a test as requiring hexagon",
 }
 
 
@@ -258,6 +259,8 @@ def _target_to_requirement(target):
         return utils.requires_opencl()
     if target.kind.name == "llvm":
         return utils.requires_llvm()
+    if target.kind.name == "hexagon":
+        return utils.requires_hexagon()
     return []
 
 

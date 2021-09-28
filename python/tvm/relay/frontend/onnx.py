@@ -1008,6 +1008,18 @@ class LpPool(OnnxOpConverter):
         return _op.power(out, reci_p)
 
 
+class GlobalLpPool(OnnxOpConverter):
+    """Operator converter for GlobalLpPool."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # TODO: GlobalLpPool does not yet support dynamic shapes
+        in_shape = infer_shape(inputs[0])
+        attr["kernel_shape"] = in_shape[2:]
+
+        return LpPool._impl_v1(inputs, attr, params)
+
+
 class Mul(Elemwise):
     """Operator converter for Multiply."""
 
@@ -1517,6 +1529,23 @@ class Unsqueeze(OnnxOpConverter):
         return result
 
 
+class Squeeze(OnnxOpConverter):
+    """Operator converter for Squeeze."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get("axes", None)
+        return _op.squeeze(*inputs, axis)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = inputs[1]
+        dtype = infer_type(axis).checked_type.dtype
+        rank = _op.shape_of(_op.shape_of(inputs[0], dtype), dtype)
+        axis = _op.where(axis < _op.const(0, dtype), axis + rank, axis)
+        return _op.squeeze(inputs[0], fold_constant(axis))
+
+
 class Split(OnnxOpConverter):
     """Operator converter for Split."""
 
@@ -1700,6 +1729,26 @@ class GatherND(OnnxOpConverter):
         return cls._impl_common(inputs[0], inputs[1], batch_dims)
 
 
+class Compress(OnnxOpConverter):
+    """Operator converter for compress"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        input_tensor, condition_tensor = inputs
+
+        axis = attr.get("axis", None)
+
+        # Change one hot tensor to indices e.g. [0, 1, 1, 0, 1] -> [1, 2, 4]
+        condition_tensor = _op.reshape(_op.argwhere(condition_tensor), (-1,))
+
+        if axis is not None:
+            return _op.take(input_tensor, condition_tensor, axis=axis)
+
+        # if axis is None, flatten input tensor before selection
+        input_tensor = _op.reshape(input_tensor, (-1,))
+        return _op.take(input_tensor, condition_tensor, axis=0)
+
+
 class Scatter(OnnxOpConverter):
     """Operator converter for Scatter."""
 
@@ -1815,14 +1864,31 @@ class Reduce(OnnxOpConverter):
     name = ""
 
     @classmethod
+    def run_calculation(cls, inputs, axis, keepdims):
+        attr = {"axis": axis, "keepdims": keepdims}
+        return AttrCvt(cls.name)(inputs, attr)
+
+    @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
-        return AttrCvt(cls.name)(inputs, attr)
+
+        return cls.run_calculation(inputs, axis, attr.get("keepdims", True))
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        if len(inputs) == 2:
+            if isinstance(inputs[1], _expr.Constant):
+                # Get axis and unpack scalar
+                constant_axis = int(inputs[1].data.numpy()[0])
+                return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
+
+            raise ValueError("Dynamic Reduce is not supported yet!")
+
+        return cls._impl_v1(inputs, attr, params)
 
 
 class ReduceMax(Reduce):
@@ -2803,7 +2869,8 @@ class Celu(OnnxOpConverter):
         alpha = _op.const(attr.get("alpha", 1.0), dtype)
         zero = _op.const(0, dtype)
         one = _op.const(1, dtype)
-        return _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+        out = _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+        return out
 
 
 class MaxRoiPool(OnnxOpConverter):
@@ -4080,6 +4147,7 @@ def _get_convert_map(opset):
         # defs/nn
         "AveragePool": AveragePool.get_converter(opset),
         "LpPool": LpPool.get_converter(opset),
+        "GlobalLpPool": GlobalLpPool.get_converter(opset),
         "MaxPool": MaxPool.get_converter(opset),
         "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
@@ -4127,6 +4195,7 @@ def _get_convert_map(opset):
         "Gather": Gather.get_converter(opset),
         "GatherElements": GatherElements.get_converter(opset),
         "GatherND": GatherND.get_converter(opset),
+        "Compress": Compress.get_converter(opset),
         "Size": AttrCvt("ndarray_size", extras={"dtype": "int64"}),
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),

@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import builder
 from . import arg_info
+from . import builder
+from . import database
+from . import space_generator
+from .database import TuningRecord
 from .tune_context import TuneContext
