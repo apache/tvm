@@ -101,6 +101,17 @@ def avgpool2d(expr, type_map):
     return [out, t]
 
 
+@register_fake_quantization_to_integer("nn.global_avg_pool2d")
+def global_avgpool2d(expr, type_map):
+    """Rewrite a global_avgpool op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    arg = relay.op.cast(arg, "int32")
+    out = relay.op.nn.global_avg_pool2d(arg)
+    out = relay.op.cast(out, t.dtype)
+    return [out, t]
+
+
 @register_fake_quantization_to_integer("nn.bias_add")
 def bias_add(expr, type_map):
     """Rewrite a bias_add op"""
