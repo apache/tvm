@@ -188,25 +188,25 @@ class MatchBufferLower : public StmtExprMutator {
       Load load = Downcast<Load>(source_buffer.vload(indices, source_buffer->dtype));
       Bind(buffer->elem_offset, load->index, buffer->name + ".elem_offset");
       CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
-          << "The source elem_offset " << buffer->elem_offset
-          << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
+          << "The source elem_offset " << load->index << " does not satisfy the offset_factor "
+          << buffer->offset_factor << ".";
     }
 
     // Step 2.3. Check and update strides
     // Check if target buffer strides are defined
+    ICHECK(source->region.size() >= buffer->shape.size());
+    size_t offset = source->region.size() - buffer->shape.size();
     if (!buffer->strides.empty()) {
       ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
       PrimExpr stride = make_const(DataType::Int(32), 1);
       for (size_t i = buffer->shape.size(); i > 0; --i) {
-        const PrimExpr& shape = source_buffer->shape[i - 1];
+        const PrimExpr& shape = source_buffer->shape[i - 1 + offset];
         Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));
         stride *= shape;
       }
     }
 
     // Step 2.4. Check and update shape
-    ICHECK(source->region.size() >= buffer->shape.size());
-    size_t offset = source->region.size() - buffer->shape.size();
     for (size_t i = 0; i < buffer->shape.size(); ++i) {
       const Range& range = source->region[i + offset];
       Bind(buffer->shape[i], range->extent, buffer->name + ".shape_" + std::to_string(i));
