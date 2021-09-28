@@ -473,14 +473,17 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     }
 #endif
   }
+  auto new_analyzer = std::make_unique<arith::Analyzer>();
   std::swap(function_, fcompute);
-  std::swap(new_vmap, var_map_);
+  std::swap(analyzer_, new_analyzer);
+  std::swap(var_map_, new_vmap);
   BasicBlock* compute_entry = BasicBlock::Create(*ctx_, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
   builder_->CreateRet(ConstInt32(0));
   // swap the var map back, now we are back on track.
-  std::swap(new_vmap, var_map_);
+  std::swap(var_map_, new_vmap);
+  std::swap(analyzer_, new_analyzer);
   std::swap(function_, fcompute);
   builder_->SetInsertPoint(compute_call_end);
 }
@@ -551,13 +554,16 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
   new_vmap[par_env.num_task.get()] =
       builder_->CreateLoad(builder_->CreateInBoundsGEP(penv, {ConstInt32(0), ConstInt32(1)}));
   par_env.penv = penv;
+  auto new_analyzer = std::make_unique<arith::Analyzer>();
   std::swap(function_, f);
   std::swap(parallel_env_, par_env);
+  std::swap(analyzer_, new_analyzer);
   std::swap(var_map_, new_vmap);
   this->VisitStmt(body);
   builder_->CreateRet(ConstInt32(0));
   // swap the var map back, now we are back on track.
   std::swap(var_map_, new_vmap);
+  std::swap(analyzer_, new_analyzer);
   std::swap(parallel_env_, par_env);
   std::swap(function_, f);
   ICHECK_NE(par_env.parallel_loop_count, 0) << "Cannot find parallel loop within parallel launch";
@@ -604,12 +610,15 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   UnpackClosureData(cdata, vfields, &new_vmap);
   ICHECK(parallel_env_.penv == nullptr);
+  auto new_analyzer = std::make_unique<arith::Analyzer>();
   std::swap(function_, f);
+  std::swap(analyzer_, new_analyzer);
   std::swap(var_map_, new_vmap);
   this->VisitStmt(body);
   builder_->CreateRet(ConstInt32(0));
   // swap the var map back, now we are back on track.
   std::swap(var_map_, new_vmap);
+  std::swap(analyzer_, new_analyzer);
   std::swap(function_, f);
   builder_->SetInsertPoint(init_end);
 }
