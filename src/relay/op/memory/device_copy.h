@@ -45,7 +45,7 @@ Expr DeviceCopy(Expr expr, DLDeviceType src_dev_type, DLDeviceType dst_dev_type)
  * a device of type \p src_dev_type but then copied to a device of type \p dst_dev_type.
  * However, return \p expr directly if \p src_dev_type equals \p dst_dev_type.
  */
-Expr OptDeviceCopy(Expr expr, DLDeviceType src_dev_type, DLDeviceType dst_dev_type);
+Expr MaybeDeviceCopy(Expr expr, DLDeviceType src_dev_type, DLDeviceType dst_dev_type);
 
 /*! \brief Result of \p GetDeviceCopyProps. */
 struct DeviceCopyProps {

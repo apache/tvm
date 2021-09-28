@@ -32,16 +32,12 @@ from .pytorch_utils import is_version_greater_than
 class QNNParam:
     """A placeholder for weight quantization parameters"""
 
-    def __init__(self, weight, bias, scale, zero_point, param_key):
-        param_prefix = param_key[: -len("._packed_params")]
-        self.weight_var = _expr.var(param_prefix + "_weight", shape=weight.shape)
+    def __init__(self, weight, bias, scale, zero_point):
         self.weight = weight
 
         if bias is not None:
-            self.bias_var = _expr.var(param_prefix + "_bias", shape=bias.shape)
             self.bias = bias.detach().numpy()
         else:
-            self.bias_var = None
             self.bias = None
 
         self.scale = _expr.const(scale)
@@ -61,14 +57,13 @@ class ConvPackedParam(QNNParam):
         bias,
         scale,
         zero_point,
-        param_name,
         stride,
         padding,
         dilation,
         groups,
         output_padding,
     ):
-        super().__init__(weight_np, bias, scale, zero_point, param_name)
+        super().__init__(weight_np, bias, scale, zero_point)
         self.stride = stride
         self.padding = padding
         self.dilation = dilation
@@ -93,12 +88,12 @@ def _get_quant_params(qweight):
     return weight_np, scales, 0
 
 
-def make_qnn_param(param_name, qweight, bias):
+def make_qnn_param(qweight, bias):
     weight_np, scale, zero_point = _get_quant_params(qweight)
-    return QNNParam(weight_np, bias, scale, zero_point, param_name)
+    return QNNParam(weight_np, bias, scale, zero_point)
 
 
-def make_conv_packed_param(param_name, qweight, bias, packed_params):
+def make_conv_packed_param(qweight, bias, packed_params):
     weight_np, scale, zero_point = _get_quant_params(qweight)
     stride = packed_params.stride()
     padding = packed_params.padding()
@@ -110,7 +105,6 @@ def make_conv_packed_param(param_name, qweight, bias, packed_params):
         bias,
         scale,
         zero_point,
-        param_name,
         stride,
         padding,
         dilation,
@@ -119,7 +113,7 @@ def make_conv_packed_param(param_name, qweight, bias, packed_params):
     )
 
 
-def get_weight_quant_params(script_module):
+def get_weight_quant_params(script_module, packed_param_names):
     """Retrive and unpack weight parameters from quantized modules"""
     import torch
 
@@ -135,6 +129,9 @@ def get_weight_quant_params(script_module):
     for name, m in filter(filter_func, script_module.named_modules()):
         key = name + "." + param_name
         state_dict = m.state_dict()
+
+        if key not in packed_param_names:
+            continue
 
         if len(state_dict) == 0 and not hasattr(m, param_name):
             # for v1.6 and above
@@ -152,28 +149,87 @@ def get_weight_quant_params(script_module):
 
         if "Conv" in m.original_name and len(state_dict) == 0:
             qweight, bias = torch.ops.quantized.conv2d_unpack(packed_params)
-            quant_params[key] = make_conv_packed_param(key, qweight, bias, packed_params)
+            quant_params[key] = make_conv_packed_param(qweight, bias, packed_params)
         elif "Conv" in m.original_name:
             qweight, bias = torch.ops.quantized.conv2d_unpack(packed_params)
-            quant_params[key] = make_qnn_param(key, qweight, bias)
+            quant_params[key] = make_qnn_param(qweight, bias)
         elif m.original_name == "LinearPackedParams":
             qweight, bias = torch.ops.quantized.linear_unpack(packed_params)
-            quant_params[key] = make_qnn_param(key, qweight, bias)
+            quant_params[key] = make_qnn_param(qweight, bias)
 
     return quant_params
 
 
-def add_quant_params_to_outputs(outputs, packed_param_map, quant_params):
+def quantize_numpy(weight, scale, zero_point, out_dtype_np):
+    iinfo = np.iinfo(out_dtype_np)
+    clip_min = iinfo.min
+    clip_max = iinfo.max
+    if len(scale.shape) > 0:
+        scale = np.reshape(scale, [weight.shape[0]] + [1] * (len(weight.shape) - 1))
+    transformed = zero_point + weight / scale
+    return np.clip(np.round(transformed), clip_min, clip_max).astype(out_dtype_np)
+
+
+def add_quant_params_to_outputs(
+    outputs, packed_param_map, quant_params, input_scales_for_bias, keep_quantized_weight=False
+):
     """
     Add quant params to outputs so that they can be referenced by other
     ops later. Weights are quantized here.
     """
     for node_name, packed_param_name in packed_param_map.items():
         qparam = quant_params[packed_param_name]
-        qweight = relay.qnn.op.quantize(
-            qparam.weight_var, qparam.scale, qparam.zero_point, out_dtype="int8", axis=0
-        )
-        params = [qweight, qparam.scale, qparam.zero_point, qparam.bias_var]
+        weight_scale = _get_numpy(qparam.scale)
+        param_prefix = packed_param_name[: -len("._packed_params")]
+
+        if keep_quantized_weight:
+            qparam.weight_var = _expr.var(
+                param_prefix + "_weight", shape=qparam.weight.shape, dtype="int8"
+            )
+            qparam.weight = quantize_numpy(
+                qparam.weight, weight_scale, _get_numpy(qparam.zero_point), np.int8
+            )
+            qweight = qparam.weight_var
+        else:
+            qparam.weight_var = _expr.var(
+                param_prefix + "_weight", shape=qparam.weight.shape, dtype="float32"
+            )
+            qweight = relay.qnn.op.quantize(
+                qparam.weight_var, qparam.scale, qparam.zero_point, out_dtype="int8", axis=0
+            )
+
+        if qparam.bias is not None:
+            float_bias_var = _expr.var(
+                param_prefix + "_bias", shape=qparam.bias.shape, dtype="float32"
+            )
+            if node_name not in input_scales_for_bias:
+                # This case is for dynamic quantization, where the input activation scale is
+                # unknown until runtime.
+                qparam.bias_var = float_bias_var
+                qbias = qparam.bias_var
+            elif keep_quantized_weight:
+                qparam.bias_var = _expr.var(
+                    param_prefix + "_bias", shape=qparam.bias.shape, dtype="int32"
+                )
+                qparam.bias = quantize_numpy(
+                    qparam.bias, input_scales_for_bias[node_name] * weight_scale, 0, np.int32
+                )
+                qbias = qparam.bias_var
+            else:
+                qparam.bias_var = float_bias_var
+                qbias = relay.qnn.op.quantize(
+                    qparam.bias_var,
+                    _expr.const(input_scales_for_bias[node_name] * weight_scale),
+                    _expr.const(0, "int32"),
+                    out_dtype="int32",
+                    axis=0,
+                )
+        else:
+            qbias = None
+
+        quant_params[packed_param_name] = qparam
+
+        params = [qweight, qparam.scale, qparam.zero_point, qbias]
 
         if isinstance(quant_params[packed_param_name], ConvPackedParam):
             params += [
@@ -397,6 +453,8 @@ def add_input_quant_params_to_op_inputs(graph):
     need_input_quant_param = set(num_quantized_inputs.keys())
     need_input_quant_param.add("quantized::cat")
 
+    input_scales_for_bias = {}
+
     for node in graph.nodes():
         operator = node.kind()
         if operator not in need_input_quant_param:
@@ -430,6 +488,12 @@ def add_input_quant_params_to_op_inputs(graph):
         for scale, zp in zip(input_scales, input_zero_points):
             node.addInput(scale)
             node.addInput(zp)
+
+        if "conv2d" in operator or "linear" in operator:
+            # This is required for quantizing the bias
+            input_scales_for_bias[node.inputsAt(1).debugName()] = scale.node().f("value")
+
+    return input_scales_for_bias
 
 
 def add_quant_params(params, quant_params):
@@ -508,10 +572,7 @@ def _do_bias_and_requantize(
     # Instead, the torch way requires rounding of activation at runtime
 
     if bias is not None:
-        qbias = relay.qnn.op.quantize(
-            bias, requant_input_scale, _expr.const(0, "int32"), out_dtype="int32", axis=0
-        )
-        requantize_input = _op.nn.bias_add(output, qbias)
+        requantize_input = _op.nn.bias_add(output, bias)
     else:
         requantize_input = output
 
