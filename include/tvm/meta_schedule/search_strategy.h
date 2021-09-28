@@ -112,10 +112,17 @@ class SearchStrategyNode : public runtime::Object {
   /*!
    * \brief Pre-tuning for the search strategy.
    * \param design_spaces The design spaces for pre-tuning.
+   * \note Pre-tuning is supposed to be called before the tuning process and after the
+   *  initialization. Because the search strategy is stateful, we can always call pretuning
+   *  and reset the search strategy.
    */
   virtual void PreTuning(const Array<tir::Schedule>& design_spaces) = 0;
 
-  /*! \brief Post-tuning for the search strategy. */
+  /*!
+   * \brief Post-tuning for the search strategy.
+   * \note Post-tuning is supposed to be called after the tuning process and before we reset the
+   *  search strategy with another pre-tuning. Post-tuning can be empty.
+   */
   virtual void PostTuning() = 0;
 
   /*!
