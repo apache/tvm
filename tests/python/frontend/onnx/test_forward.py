@@ -4993,8 +4993,6 @@ unsupported_onnx_tests = [
     "test_split_variable_parts_2d",
     "test_split_variable_parts_default_axis",
     "test_split_zero_size_splits",
-    "test_squeeze",
-    "test_squeeze_negative_axes",
     "test_strnormalizer_export_monday_casesensintive_lower",
     "test_strnormalizer_export_monday_casesensintive_nochangecase",
     "test_strnormalizer_export_monday_casesensintive_upper",

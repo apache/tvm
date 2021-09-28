@@ -692,6 +692,63 @@ RELAY_REGISTER_OP("dyn.expand_dims")
     .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+bool DynSqueezeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  // [data, axes, output]
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  const auto* axes = types[1].as<TensorTypeNode>();
+  if (axes == nullptr) {
+    return false;
+  }
+
+  ICHECK_EQ(axes->shape.size(), 1) << "Got" << axes->shape.size() << "expected 1";
+  ICHECK(axes->shape[0].as<IntImmNode>()) << "axes expected to be static rank";
+  size_t output_rank = data->shape.size() - axes->shape[0].as<IntImmNode>()->value;
+  std::vector<IndexExpr> result_shape(output_rank, Any());
+  reporter->Assign(types[2], TensorType(result_shape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                 const Type& out_type) {
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  ICHECK(out_ttype != nullptr);
+  Array<IndexExpr> newshape;
+  for (auto val : out_ttype->shape) {
+    newshape.push_back(val.as<tir::AnyNode>()->ToVar());
+  }
+  return {topi::reshape(inputs[0], newshape)};
+}
+
+Expr MakeDynSqueeze(Expr data, Expr axes) {
+  auto attrs = make_object<SqueezeAttrs>();
+  static const Op& op = Op::Get("dyn.squeeze");
+  return Call(op, {data, axes}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.squeeze").set_body_typed(MakeDynSqueeze);
+
+RELAY_REGISTER_OP("dyn.squeeze")
+    .describe(R"code(Remove axes of value 1 in input tensor at the dimensions given by axes
+
+- **data**: The input data to the operator.
+- **axes**: The axes to squeeze.
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .set_attrs_type<SqueezeAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("axes", "Tensor", "The axes to squeeze.")
+    .set_support_level(3)
+    .add_type_rel("DynSqueeze", DynSqueezeRel)
+    .set_attr<FTVMCompute>("FTVMCompute", SqueezeCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
+
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm

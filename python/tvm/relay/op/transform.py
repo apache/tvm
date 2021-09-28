@@ -149,7 +149,7 @@ def squeeze(data, axis=None):
     data : tvm.relay.Expr
         The input data to the operator.
 
-    axis : None or List[int]
+    axis : None or List[int] or Expr
         The set of axes to remove.
         If axis = None, remove all axis of dimensions 1.
         If any specified axis has dimension that does not equal 1, it is an error.
@@ -159,6 +159,10 @@ def squeeze(data, axis=None):
     result : tvm.relay.Expr
         The squeezed result.
     """
+    if isinstance(axis, Constant):
+        axis = list(axis.data.numpy())
+    if isinstance(axis, Expr):
+        return _dyn_make.squeeze(data, axis)
     return _make.squeeze(data, axis)
 
 
