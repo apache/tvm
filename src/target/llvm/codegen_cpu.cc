@@ -440,9 +440,11 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // $xxx_compute_ functions are not global. They should be marked as static (via InternalLinkage)
   // to call them correctly on MIPS platform (CALL16 issue)
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
-  llvm::Function* fcompute = llvm::Function::Create(
-      ftype, llvm::Function::InternalLinkage,
-      op->value.as<StringImmNode>()->value.operator llvm::StringRef(), module_.get());
+  const StringImmNode* value = op->value.as<StringImmNode>();
+  ICHECK(value != nullptr);
+  llvm::Function* fcompute =
+      llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
+                             value->value.operator llvm::StringRef(), module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
   // setup compute function.
   std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
@@ -953,7 +955,9 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 
 void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::coproc_uop_scope) {
-    this->CreateStaticInit(op->value.as<StringImmNode>()->value, op->body);
+    const StringImmNode* value = op->value.as<StringImmNode>();
+    ICHECK(value != nullptr);
+    this->CreateStaticInit(value->value, op->body);
   } else if (op->attr_key == tir::attr::compute_scope) {
     this->CreateComputeScope(op);
   } else if (tir::attr::IsPragmaKey(op->attr_key)) {
