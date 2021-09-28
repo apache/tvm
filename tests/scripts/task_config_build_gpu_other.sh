@@ -16,9 +16,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-export TVM_TEST_TARGETS="cuda;opencl;metal;rocm;nvptx;opencl -device=mali,aocl_sw_emu"
-export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
-export TVM_RELAY_TEST_TARGETS="cuda"
-export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-gpu
+# This file is a compiler test to ensure that runtimes can compile
+# correctly, even if they aren't actively tested in the CI.
 
-./tests/scripts/task_python_integration.sh
+set -e
+set -u
+
+mkdir -p build2
+cd build2
+cp ../cmake/config.cmake .
+
+echo set\(USE_OPENCL ON\) >> config.cmake
+echo set\(USE_ROCM ON\) >> config.cmake
+echo set\(USE_MICRO ON\) >> config.cmake
+echo set\(USE_PROFILER ON\) >> config.cmake
+echo set\(USE_LIBBACKTRACE OFF\) >> config.cmake
+echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
+echo set\(USE_CCACHE OFF\) >> config.cmake
