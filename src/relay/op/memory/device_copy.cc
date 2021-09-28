@@ -76,6 +76,7 @@ on different devices.
     .add_argument("data", "Tensor", "The input data.")
     .set_support_level(10)
     .add_type_rel("Identity", IdentityRel)
+    .set_attrs_type_key("relay.attrs.DeviceCopyAttrs")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)

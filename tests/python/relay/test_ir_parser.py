@@ -23,7 +23,6 @@ import pytest
 from numpy import isclose
 from typing import Union
 
-
 SEMVER = '#[version = "0.0.5"]\n'
 
 BINARY_OPS = {
@@ -965,6 +964,30 @@ def test_func_attrs():
     x = relay.var("x", shape=(2, 3))
     func = relay.Function([x], relay.reshape(x, (-1,)), attrs=attrs)
     assert_parses_as(func.astext(), func)
+
+
+def test_init_module_and_metatable():
+    init_metatable = {"relay.Constant": [relay.const(np.random.rand(2, 3), dtype="float32")]}
+    init_module = tvm.parser.fromtext(
+        SEMVER
+        + """
+            def @f(%y : Tensor[(2, 3), float32]) -> Tensor[(2, 3), float32] {
+              negative(%y)
+            }                                       
+        """,
+    )
+    mod = tvm.parser.parse(
+        SEMVER
+        + """
+            def @main(%x: Tensor[(2, 3), float32]) {
+              add(@f(%x), meta[relay.Constant][0])
+            }
+        """,
+        "from_string",
+        init_module,
+        init_metatable,
+    )
+    roundtrip(mod)
 
 
 if __name__ == "__main__":
