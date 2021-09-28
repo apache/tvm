@@ -62,7 +62,44 @@ class MeasureCandidate : public runtime::ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MeasureCandidate, ObjectRef, MeasureCandidateNode);
 };
 
-/*! \brief The search strategy for measure candidates generation. */
+/*!
+
+* \brief The search strategy for measure candidates generation.
+* \note The relationship between SearchStrategy and other classes are as follows:
+
+      ┌──────────────────────────────────────────────────────────────┐
+   ┌──┴───────────────────────────────────────────────────────────┐  │
+┌──┴────────────────── Tune Context ───────────────────────────┐  │  │
+│                ┌─────────────────────┐                       │  │  │
+│                │                     │   Generate            │  │  │
+│                │   Space Generator   ├──────────────┐        │  │  │
+│                │                     │              │        │  │  │
+│                └─────────────────────┘              ▼        │  │  │
+│                                                Design Space  │  │  │
+│                ┌─────────────────────┐              │        │  │  │
+│      Generate  │                     │   Pretuning  │        │  │  │
+│    ┌───────────┤   Search Strategy   │◄─────────────┘        │  │  │
+│    │           │                     │                       │  ├──┘
+│    │           └─────────────────────┘                       ├──┘
+└────┼─────────────────────────────────────────────────────────┘
+     │
+     │
+┌────┼──────────────── Managed By Task Scheduler ─────────────────────┐
+│    │                                 ┌───────────┐                  │
+│    │                      Send to    │           │  Send to         │
+│    ▼                  ┌─────────────►│  Builder  ├──────────┐       │
+│ Measure Candidate     │   Builder    │           │  Runner  │       │
+│    │                  │              └───────────┘          │       │
+│    │     ┌────────────┴────────┐                            │       │
+│    │     │                     │     ┌───────────┐          │       │
+│    └────►│   Task Scheduler    │     │           │          │       │
+│          │                     │     │  Runner   │◄─────────┘       │
+│          └─────────────────────┘     │           │                  │
+│                   ▲                  └─────┬─────┘                  │
+│                   │                        │                        │
+│                   └───  Runner Future ◄────┘                        │
+└─────────────────────────────────────────────────────────────────────┘
+*/
 class SearchStrategyNode : public runtime::Object {
  public:
   /*! \brief Virtual destructor */
