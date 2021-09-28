@@ -23,6 +23,7 @@
  * \file parser.h
  * \brief A parser for TVM IR.
  */
+#include <tvm/ir/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -32,8 +33,11 @@
 namespace tvm {
 namespace parser {
 
-IRModule ParseModule(std::string file_name, std::string file_content,
-                     Optional<IRModule> init_module = Optional<IRModule>());
+using MetaTable = Map<String, Array<ObjectRef>>;
+
+IRModule ParseModule(const std::string& file_name, const std::string& file_content,
+                     const Optional<IRModule>& init_module = Optional<IRModule>(),
+                     const MetaTable& init_meta_table = MetaTable());
 
 }  // namespace parser
 }  // namespace tvm

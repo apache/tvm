@@ -54,13 +54,10 @@ def test_function_on_device():
     f = relay.Function([x, y], relay.add(x, y))
     func = relay.annotation.function_on_device(f, ["cpu", "cuda"], "cuda")
     assert isinstance(func, relay.Function)
-    assert len(func.attrs["on_device"].param_device_types) == 2
-    assert func.attrs["on_device"].param_device_types[0] == 1
-    # ie kDLCPU
-    assert func.attrs["on_device"].param_device_types[1] == 2
-    # ie kDLCUDA
-    assert func.attrs["on_device"].result_device_type == 2
-    # ie KDLCUDA
+    assert len(func.attrs["param_device_types"]) == 2
+    assert func.attrs["param_device_types"][0] == 1  # ie kDLCPU
+    assert func.attrs["param_device_types"][1] == 2  # ie kDLCUDA
+    assert func.attrs["result_device_type"] == 2  # ie KDLCUDA
 
 
 if __name__ == "__main__":

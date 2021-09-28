@@ -26,8 +26,10 @@ class SourceMap(Object):
         return _ffi.get_global_func("SourceMapAdd")(self, name, content)
 
 
-def parse(source, source_name="from_string"):
-    return _ffi_api.ParseModule(source_name, source)
+def parse(source, source_name="from_string", init_module=None, init_meta_table=None):
+    if init_meta_table is None:
+        init_meta_table = {}
+    return _ffi_api.ParseModuleInContext(source_name, source, init_module, init_meta_table)
 
 
 def parse_expr(source):

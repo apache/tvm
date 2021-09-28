@@ -32,17 +32,44 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief Attributes for the "on_device" operator.
+ * \brief Attributes for the "on_device" special operator.
  *
- * The relay call
+ * The Relay call (aka 'annotation'):
  * \code
- *   on_device(expr, device_type=2)
+ *   on_device(sub_expr, device_type=2)
  * \endcode
- * denotes that the result of \p expr should be stored on the device with \p DLDeviceType 2
- * (i.e. \p kDLCuda). Semantically the operator is the identity function.
+ * constrains \p sub_expr to execute and store its result on a device with \p DLDeviceType \p 2
+ * (i.e. a \p kDLCuda device). However the annotation itself may appear in an expression to be
+ * executed and stored on a different device. If so the compiler will automatically insert a
+ * "device_copy" call to mediate the transition between devices.
  *
- * See also FunctionOnDeviceAttrs in include/relay/attrs/function.h for the function-level
- * companion.
+ * E.g.: Assuming %x and %y reside on the GPU and %z on the CPU then:
+ * \code
+ *   multiply(on_device(add(%x, %y), device_type=2), %z)
+ * \endcode
+ * indicates the \p add should execute on the GPU but the \p multiply should execute on the CPU.
+ * The compiler will rewrite this to:
+ * \code
+ *   multiply(device_copy(add(%x, %y), src_dev_type=2, dst_dev_type=1), %z)
+ * \endcode
+ *
+ * The Relay call
+ * \code
+ *   on_device(sub_expr, device_type=2, is_fixed=True)
+ * \endcode
+ * is similar to the above, however the annotation itself must appear in an expression on the
+ * same device. The compiler will check the devices are consistent, and will not insert any
+ * "device_copy" call. This form of annotation shouldn't be necessary in user programs. However
+ * it is needed by the \p PlanDevices pass to fully specify the results of device planning so that
+ * the pass is idempotent.
+ *
+ * E.g.: The following program is equivalent to the above:
+ * \code
+ *   let %a = on_device(add(%x, %y), device_type=2, is_fixed=True)
+ *   multiply(device_copy(%a, src_dev_type=2, dst_dev_type=1), %z)
+ * \endcode
+ * The "on_device" annotation with \p is_fixed=True indicates unambiguously that \p %a is stored
+ * on the GPU.
  */
 struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
   // TODO(mbs): Replace device types with TargetDevice.
