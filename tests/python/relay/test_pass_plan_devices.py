@@ -1313,40 +1313,6 @@ def test_adt():
     exercise(input(), expected(), ref, rands((5, 7), 2))
 
 
-# DO NOT CHECKIN
-# Helper to make hand testing easier
-def test_all():
-    test_plain()
-    test_left_add_on_cpu()
-    test_left_add_on_cpu_via_copy()
-    test_both_adds_on_cpu()
-    test_sharing()
-    test_let_on_cpu()
-    test_func_param_on_cpu()
-    test_func_result_on_cpu()
-    test_higher_order()
-    test_function_in_tuple()
-    test_device_copy()
-    test_shape_func()
-    test_shape_of()
-    test_alloc_storage()
-    test_alloc_tensor()
-    test_reshape_tensor()
-    test_dynamic_input()
-    test_redundant_annotation()
-    test_annotate_expr()
-    test_annotate_all()
-    test_conv_network()
-    test_tuple_get_item()
-    test_propogation()
-    test_fusible_network()
-    test_unpropagatable_graph()
-    test_conditional()
-    test_global()
-    test_ref()
-    test_adt()
-
-
 if __name__ == "__main__":
     import sys
     import pytest
