@@ -3713,7 +3713,7 @@ def from_pytorch(
     custom_convert_map=None,
     default_dtype="float32",
     use_parser_friendly_name=False,
-    return_int8_weight=False,
+    keep_quantized_weight=False,
 ):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
@@ -3746,13 +3746,13 @@ def from_pytorch(
         so a variable name like "dense.weight" cannot be parsed correctly.
         Use this option when you want to run the AnnotateSpans pass on the imported module.
 
-    return_int8_weight : bool
+    keep_quantized_weight : bool
         Return quantized weights and bias, rather than float ones. PyTorch stores quantized weights
         in a custom format, so we cannot directly access 8 bit weights as Numpy arrays. We use
         a PyTorch function to unpack quantized weights into float32 arrays and quantization
         parameters. By default, we return float32 weights and rely on the QNN lowering and the
         Relay constant folding pass to quantize weights at compile time. In BYOC use cases, however,
-        we cannot apply the constant folding pass on a QNN graph. If return_int8_weight is True,
+        we cannot apply the constant folding pass on a QNN graph. If keep_quantized_weight is True,
         we quantize weights in the frontend using a function that is equivalent to
         qnn.op.quantize(...) operating on Numpy arrays.
 
@@ -3809,7 +3809,7 @@ def from_pytorch(
             packed_param_map,
             weight_quant_params,
             input_scales_for_bias,
-            return_int8_weight,
+            keep_quantized_weight,
         )
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)

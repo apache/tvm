@@ -147,7 +147,7 @@ def quantize_numpy(weight, scale, zero_point, out_dtype_np):
 
 
 def add_quant_params_to_outputs(
-    outputs, packed_param_map, quant_params, input_scales_for_bias, return_int8_weight=False
+    outputs, packed_param_map, quant_params, input_scales_for_bias, keep_quantized_weight=False
 ):
     """
     Add quant params to outputs so that they can be referenced by other
@@ -160,7 +160,7 @@ def add_quant_params_to_outputs(
         param_prefix = packed_param_name[: -len("._packed_params")]
         qbias = None
 
-        if return_int8_weight:
+        if keep_quantized_weight:
             qparam.weight_var = _expr.var(
                 param_prefix + "_weight", shape=qparam.weight.shape, dtype="int8"
             )

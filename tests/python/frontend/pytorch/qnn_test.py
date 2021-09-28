@@ -40,13 +40,13 @@ def torch_version_check():
     return version.parse(torch.__version__) > version.parse("1.4.0")
 
 
-def get_tvm_runtime(script_module, input_name, ishape, return_int8_weight=False):
+def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False):
     input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(
-        script_module, input_shapes, return_int8_weight=return_int8_weight
+        script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
     )
 
-    if return_int8_weight:
+    if keep_quantized_weight:
         for p in params.values():
             assert p.dtype in ["int8", "int32"]
 
@@ -617,7 +617,7 @@ def test_qnn_mergecomposite():
     run_qnn_mergecomposite(script_module, input_name, inp.shape)
 
 
-def test_return_int8_weight():
+def test_keep_quantized_weight():
     qmodules = []
 
     for per_channel in [False, True]:
@@ -635,16 +635,19 @@ def test_return_int8_weight():
 
         input_name = "input"
 
-        runtime = get_tvm_runtime(script_module, input_name, ishape, return_int8_weight=False)
+        runtime = get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False)
         runtime.set_input(input_name, inp.numpy().copy())
         runtime.run()
         tvm_result = runtime.get_output(0).numpy()
 
         runtime_int8_weight = get_tvm_runtime(
-            script_module, input_name, ishape, return_int8_weight=True
+            script_module, input_name, ishape, keep_quantized_weight=True
         )
         runtime_int8_weight.set_input(input_name, inp.numpy().copy())
         runtime_int8_weight.run()
         tvm_result_int8_weight = runtime_int8_weight.get_output(0).numpy()
 
         tvm.testing.assert_allclose(tvm_result, tvm_result_int8_weight)
+
+
+test_quantize_dynamic()
