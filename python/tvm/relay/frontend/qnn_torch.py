@@ -183,23 +183,23 @@ def add_quant_params_to_outputs(
                 # unknown until runtime.
                 qparam.bias_var = float_bias_var
                 qbias = qparam.bias_var
+            elif keep_quantized_weight:
+                qparam.bias_var = _expr.var(
+                    param_prefix + "_bias", shape=qparam.bias.shape, dtype="int32"
+                )
+                qparam.bias = quantize_numpy(
+                    qparam.bias, input_scales_for_bias[node_name] * weight_scale, 0, np.int32
+                )
+                qbias = qparam.bias_var
             else:
-                requant_input_scale = input_scales_for_bias[node_name] * weight_scale
-                if keep_quantized_weight:
-                    qparam.bias_var = _expr.var(
-                        param_prefix + "_bias", shape=qparam.bias.shape, dtype="int32"
-                    )
-                    qparam.bias = quantize_numpy(qparam.bias, requant_input_scale, 0, np.int32)
-                    qbias = qparam.bias_var
-                else:
-                    qparam.bias_var = float_bias_var
-                    qbias = relay.qnn.op.quantize(
-                        qparam.bias_var,
-                        _expr.const(requant_input_scale),
-                        _expr.const(0, "int32"),
-                        out_dtype="int32",
-                        axis=0,
-                    )
+                qparam.bias_var = float_bias_var
+                qbias = relay.qnn.op.quantize(
+                    qparam.bias_var,
+                    _expr.const(input_scales_for_bias[node_name] * weight_scale),
+                    _expr.const(0, "int32"),
+                    out_dtype="int32",
+                    axis=0,
+                )
         else:
             qbias = None
 
