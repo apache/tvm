@@ -189,6 +189,27 @@ constexpr const char* kTarget = "target";
  * Type: String
  */
 constexpr const char* kGlobalSymbol = "global_symbol";
+
+/*!
+ * \brief The device type which will hold each of the functions parameters.
+ *
+ * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
+ * may be included as an annotation on user programs.
+ *
+ * Type: Array<Integer> (but interpreted as Array<DLDeviceType>)
+ */
+constexpr const char* kParamDeviceTypes = "param_device_types";
+
+/*!
+ * \brief The device type which will hold the function result.
+ *
+ * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
+ * may be included as an annotation on user programs.
+ *
+ * Type: Integer (but interpreted as DLDeviceType)
+ */
+constexpr const char* kResultDeviceType = "result_device_type";
+
 }  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTION_H_

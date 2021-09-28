@@ -357,6 +357,31 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_v
   return input;
 }
 
+/*!
+ * \brief Copy the function or module, but overrides the attributes with the entries from \p attrs.
+ *
+ * \param input The thing to annotate (BaseFunc or IRModule)
+ * \param attrs Key/values attributes to add to \p input.
+ *
+ * \tparam TFunc The corresponding function or module type.
+ *
+ * \returns The new function or module with updated attributes.
+ */
+template <typename TFunc>
+inline TFunc WithAttrs(TFunc input, Map<String, ObjectRef> attrs) {
+  using TNode = typename TFunc::ContainerType;
+  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
+  TNode* node = input.CopyOnWrite();
+  if (node->attrs.defined()) {
+    for (const auto& pair : attrs) {
+      node->attrs.CopyOnWrite()->dict.Set(pair.first, pair.second);
+    }
+  } else {
+    node->attrs = DictAttrs(std::move(attrs));
+  }
+  return input;
+}
+
 // Namespace containing detail implementations
 namespace detail {
 using runtime::TVMArgValue;
