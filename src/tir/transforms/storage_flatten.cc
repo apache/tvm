@@ -1349,10 +1349,9 @@ class StorageFlattener : public StmtExprMutator {
 /*!
  * \brief Simplify assert statements.
  *
- * If an assert statement can be statically verified to be false, emit
- * a failure at compile time.  If an assert statement can be
- * statically verified to be true, remove the assert statement.  If
- * neither case can be verified, keep the assert statement unmodified.
+ * If an assert statement can be statically verified to be true,
+ * remove the assert statement.  Otherwise, keep the assert statement
+ * unmodified.
  */
 class AssertSimplifier : public StmtMutator {
  public:
@@ -1364,9 +1363,6 @@ class AssertSimplifier : public StmtMutator {
     op = stmt.as<AssertStmtNode>();
 
     PrimExpr condition = bound_analyzer_->Simplify(op->condition);
-    if (is_zero(condition)) {
-      LOG(FATAL) << "Assert statement failed during static checking: " << op->message;
-    }
     if (is_one(condition)) {
       return op->body;
     }
