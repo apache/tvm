@@ -181,6 +181,15 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const EvaluateNode* op) override;
 
  protected:
+  /*!
+   * \brief Address and type pair to assist in handling opaque pointers.
+   */
+  struct TypedPointer {
+    TypedPointer() = default;
+    TypedPointer(llvm::Type* t, llvm::Value* a) : type(t), addr(a) {}
+    llvm::Type* type = nullptr;  /*!< Type of the value pointed to. */
+    llvm::Value* addr = nullptr; /*!< Address of the value.         */
+  };
   /*! \brief The storage information */
   struct StorageInfo {
     /*! \brief The alignment of allocation */
@@ -301,7 +310,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
-  llvm::Value* CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
+  TypedPointer CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);

@@ -105,9 +105,9 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
   llvm::Value* GetPackedFuncHandle(const std::string& str);
-  llvm::Value* PackClosureData(const Array<Var>& fields, uint64_t* num_bytes);
-  llvm::Value* CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
-  void UnpackClosureData(llvm::Value* cdata, const Array<Var>& fields,
+  TypedPointer PackClosureData(const Array<Var>& fields, uint64_t* num_bytes);
+  TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
+  void UnpackClosureData(TypedPointer cdata, const Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
   struct PackedCall {
