@@ -16,10 +16,9 @@
 # under the License.
 """Package `tvm.meta_schedule`. The meta schedule infrastructure."""
 from . import arg_info
-from . import builder
 from . import database
+from . import builder
+from . import runner
 from . import space_generator
 from . import search_strategy
-from . import runner
-from .database import TuningRecord
 from .tune_context import TuneContext
