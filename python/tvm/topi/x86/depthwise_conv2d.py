@@ -27,7 +27,7 @@ from ..nn.utils import get_pad_tuple
 from ..nn.depthwise_conv2d import _get_workload, depthwise_conv2d_infer_layout
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..utils import traverse_inline
-from .utils import get_simd_32bit_lanes
+from .utils import get_fp32_len
 
 
 def _fallback_schedule(cfg, wkl):
@@ -40,7 +40,7 @@ def _fallback_schedule(cfg, wkl):
     wkl : topi.nn.depthwise_conv2d.Workload
         Convolution workload
     """
-    simd_width = get_simd_32bit_lanes()
+    simd_width = get_fp32_len()
 
     pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.stride_h, wkl.stride_w
@@ -302,36 +302,6 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
         else:
             raise ValueError("Unsupported output ndim: %s" % out_ndim)
 
-    return s
-
-
-def schedule_depthwise_conv2d_nhwc(outs):
-    """Create schedule for depthwise conv2d in NHWC layout.
-
-    Parameters
-    ----------
-    outs : list[te.tensor.Tensor]
-            The output tensors.
-
-    Returns
-    -------
-    s : tvm.te.schedule.Schedule
-        The computation schedule for depthwise conv2d.
-    """
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    s = te.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        """Traverse operators from computation graph"""
-        if "depthwise_conv2d_nhwc" in op.tag:
-            out = outs[0]
-            depthwise_conv2d_out = op.output(0)
-            data_pad = depthwise_conv2d_out.op.input_tensors[0]
-            s[data_pad].compute_inline()
-            s[depthwise_conv2d_out].compute_at(s[out], s[out].op.axis[3])
-            s[out].fuse(*s[out].op.axis)
-
-    traverse_inline(s, outs[0].op, _callback)
     return s
 
 

@@ -56,7 +56,7 @@ _depthwise_conv2d_implement = {
     "NHWC": {
         "generic": [
             (topi.nn.depthwise_conv2d_nhwc, topi.generic.schedule_depthwise_conv2d_nhwc),
-            (topi.nn.depthwise_conv2d_nhwc, conv2d_generic.schedule_depthwise_conv2d_nhwc)
+            (topi.nn.depthwise_conv2d_nhwc, conv2d_generic.schedule_depthwise_conv2d_nhwc),
         ],
         "arm_cpu": [
             (
@@ -65,8 +65,6 @@ _depthwise_conv2d_implement = {
             )
         ],
         "gpu": [(topi.nn.depthwise_conv2d_nhwc, topi.cuda.schedule_depthwise_conv2d_nhwc)],
-        "mali": [(topi.mali.depthwise_conv2d_nhwc, topi.mali.schedule_depthwise_conv2d_nhwc)],
-        "bifrost": [(topi.mali.depthwise_conv2d_nhwc, topi.mali.schedule_depthwise_conv2d_nhwc)],
     },
     "NCHWc": {
         "generic": [(topi.x86.depthwise_conv2d_NCHWc, topi.x86.schedule_depthwise_conv2d_NCHWc)],
