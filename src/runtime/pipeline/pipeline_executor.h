@@ -68,17 +68,17 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    *
    * \return The number of outputs.
    */
-  int NumOutputs() const { return output_number_; }
+  int NumOutputs() const { return num_outputs_; }
 
  private:
   /*!\brief The class used to execute pipeline logic*/
   PipelineFunction pipeline_function_;
-  /*!\brief Dependency information of each graph runtime module of pipe line.*/
-  PipelineConfigure pipeline_configure_;
-  /*!\brief Module information that can get use to create graph runtime.*/
-  ModuleConfigure mod_configure_;
+  /*!\brief Dependency information of each graph runtime module of pipeline.*/
+  PipelineConfig pipeline_configure_;
+  /*!\brief Module information that can get used to create graph runtime.*/
+  ModuleConfig mod_configure_;
   /*!\birief How many outputs are in this pipeline executor.*/
-  size_t output_number_ = 0;
+  size_t num_outputs_ = 0;
   /*!\brief Json loader.*/
   void Load(dmlc::JSONReader* reader) {
     reader->BeginArray();
@@ -86,9 +86,9 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
       std::string key;
       reader->BeginObject();
       int mod_idx = 0;
-      std::string libName;
-      std::string jsonName;
-      std::string paramsName;
+      std::string lib_name;
+      std::string json_name;
+      std::string params_name;
       std::string dev;
       OutputMap output;
       while (reader->NextObjectItem(&key)) {
@@ -96,15 +96,15 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
           reader->Read(&mod_idx);
         }
         if (key == "lib_name") {
-          reader->Read(&libName);
+          reader->Read(&lib_name);
         }
 
         if (key == "json_name") {
-          reader->Read(&jsonName);
+          reader->Read(&json_name);
         }
 
         if (key == "params_name") {
-          reader->Read(&paramsName);
+          reader->Read(&params_name);
         }
 
         if (key == "dev") {
@@ -115,9 +115,15 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
           reader->Read(&output);
         }
       }
+      // Check if mod_idx is read successfully.
+      assert(mod_idx > 0);
+      // Check if the output is read successfully.
+      assert(!output.empty());
       pipeline_configure_[mod_idx] = output;
+      // Check if lib, json and params are read successfully.
+      assert(!lib_name.empty() && !json_name.empty() && !params_name.empty());
       mod_configure_[mod_idx] = {
-          {"lib_name", libName}, {"json_name", jsonName}, {"params", paramsName}, {"dev", dev}};
+          {"lib_name", lib_name}, {"json_name", json_name}, {"params", params_name}, {"dev", dev}};
     }
   }
 };

@@ -26,78 +26,73 @@ namespace runtime {
  * \brief Initialize pipeline.
  * \param modules  List of graph runtime module.
  * \param pipeline_conf Dependency relation of each graph runtime module.
- * \param mod_configure Configure information that generate by export library function call.
+ * \param mod_config Config information that generate by export library function call.
  */
-size_t PipelineFunction::PipelineInit(Array<Module> modules, const PipelineConfigure& pipeline_conf,
-                                      const ModuleConfigure& mod_configure) {
-  int outputNum = pipeline_conf.GetGlobalOutputNum();
-  std::vector<Module> graphRuntimes = PipelineCreateGraphruntime(modules, mod_configure);
-  return outputNum;
-}
-/*!
- * \brief There are two mode to create graph runtime list, first is to use modules that
- *  are the module list already created by caller, when modules is empty these information
- *  from mod_configure will get use to create graph runtime list.
- * \param modules List of graph runtime module.
- * \param mod_configure Configure information that generate by export library function call.
- */
-std::vector<Module> PipelineFunction::PipelineCreateGraphruntime(
-    Array<Module> modules, const ModuleConfigure& mod_configure) {
-  const PackedFunc* graphRuntimeCreate = Registry::Get("tvm.graph_executor.create");
-  std::vector<Module> ret;
+size_t PipelineFunction::PipelineInit(Array<Module> modules, const PipelineConfig& pipeline_config,
+                                      const ModuleConfig& mod_config) {
+  int num_output = pipeline_config.GetGlobalOutputNum();
   // if modules not empty just return in vector container
   if (!modules.empty()) {
     for (auto mod : modules) {
-      ret.push_back(mod);
+      graph_executors_.push_back(mod);
     }
-
-    // if modules is empty, need to build the graph runtime from mod_conf
   } else {
-    ret.resize(mod_configure.size());
-    for (auto configure : mod_configure) {
-      // load lib
-      auto lib = Module::LoadFromFile(configure.second["lib_name"].c_str());
+    // if modules is empty, need to build the graph runtime from mod_config.
+    graph_executors_ = PipelineCreateGraphExecutors(mod_config);
+  }
+  return num_output;
+}
+/*!
+ * \brief Use mod_config information to create a graph runtime list.
+ * \param mod_configure Config information that generate by export library function call.
+ */
+std::vector<Module> PipelineFunction::PipelineCreateGraphExecutors(const ModuleConfig& mod_config) {
+  const PackedFunc* graph_executor_create = Registry::Get("tvm.graph_executor.create");
+  std::vector<Module> ret;
+  ret.resize(mod_config.size());
+  for (auto config : mod_config) {
+    // load lib
+    auto lib = Module::LoadFromFile(config.second["lib_name"].c_str());
 
-      // read json
-      std::ifstream ifJson(configure.second["json_name"].c_str());
-      if (ifJson.fail()) {
-        throw std::runtime_error("json file not found!");
-      }
-      const std::string json((std::istreambuf_iterator<char>(ifJson)),
-                             std::istreambuf_iterator<char>());
-
-      // create graph runtime
-      std::istringstream istr(configure.second["dev"]);
-      std::string str;
-      int deviceType = 1, deviceId = 0;
-      while (getline(istr, str, ';')) {
-        std::istringstream istrDev(str);
-        std::string stemp;
-        if (getline(istrDev, stemp)) {
-          deviceType = stoi(stemp);
-        }
-        if (getline(istrDev, stemp)) {
-          deviceId = stoi(stemp);
-        }
-      }
-      Module graphModule = (*graphRuntimeCreate)(json, lib, deviceType, deviceId);
-
-      // load parameter
-      TVMByteArray params_arr;
-      std::ifstream ifParam(configure.second["params"].c_str());
-      if (ifParam.fail()) {
-        throw std::runtime_error("params file not found!");
-      }
-      const std::string params((std::istreambuf_iterator<char>(ifParam)),
-                               std::istreambuf_iterator<char>());
-      params_arr.data = params.c_str();
-      params_arr.size = params.length();
-      auto load_params = graphModule.GetFunction("load_params");
-      load_params(params_arr);
-
-      // put into return vector
-      ret[configure.first - 1] = graphModule;
+    // read json
+    std::ifstream ifJson(config.second["json_name"].c_str());
+    if (ifJson.fail()) {
+      throw std::runtime_error("json file not found!");
     }
+    const std::string json((std::istreambuf_iterator<char>(ifJson)),
+                           std::istreambuf_iterator<char>());
+
+    // create graph runtime
+    std::istringstream istr(config.second["dev"]);
+    std::string str;
+    int device_type = 1, device_id = 0;
+    while (getline(istr, str, ';')) {
+      std::istringstream istr_dev(str);
+      std::string str_temp;
+      if (getline(istr_dev, str_temp)) {
+        device_type = stoi(str_temp);
+      }
+      if (getline(istr_dev, str_temp)) {
+        device_id = stoi(str_temp);
+      }
+    }
+    Module graph_module = (*graph_executor_create)(json, lib, device_type, device_id);
+
+    // load parameter
+    TVMByteArray params_arr;
+    std::ifstream if_param(config.second["params"].c_str());
+    if (if_param.fail()) {
+      throw std::runtime_error("params file not found!");
+    }
+    const std::string params((std::istreambuf_iterator<char>(if_param)),
+                             std::istreambuf_iterator<char>());
+    params_arr.data = params.c_str();
+    params_arr.size = params.length();
+    auto load_params = graph_module.GetFunction("load_params");
+    load_params(params_arr);
+
+    // put into return vector
+    ret[config.first - 1] = graph_module;
   }
   return ret;
 }

@@ -30,23 +30,25 @@
     and the current outputs.
  */
 struct OutputBindings {
-  /*! \brief All module interface binding with current output. */
+  /*!\brief Output interface binding information, 'int' is the index of the bond module.
+   * 'string' is the interface name of the bond module.
+   */
   std::unordered_map<int, std::string> bindings;
   /*!
    * \brief If there is one global binding in bindings, then current output is
    *  global interface.
    * \return Whether this output interface is global output interface.
    */
-  bool IsGlobalOutputNum() const {
-    int outputNum = 0;
+  bool IsGlobalOutput() const {
+    int num_output = 0;
     for (auto binding : bindings) {
       /* output is global output when value is 0.
        */
-      outputNum += (binding.first == 0);
+      num_output += (binding.first == 0);
     }
     /* If this output is a global output then there is only one such output in map.*/
-    assert(outputNum <= 1);
-    return outputNum == 1;
+    assert(num_output <= 1);
+    return num_output == 1;
   }
   /*!
    * \brief Create module interface map from JSONReader.
@@ -57,17 +59,17 @@ struct OutputBindings {
     while (reader->NextArrayItem()) {
       std::string key;
       reader->BeginObject();
-      std::string inputName;
+      std::string input_name;
       int mod_idx;
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_idx") {
           reader->Read(&mod_idx);
         }
         if (key == "input_name") {
-          reader->Read(&inputName);
+          reader->Read(&input_name);
         }
       }
-      bindings[mod_idx] = inputName;
+      bindings[mod_idx] = input_name;
     }
   }
 };
@@ -81,16 +83,21 @@ struct OutputMap {
     output_binding_map = output.output_binding_map;
     return *this;
   }
+
+  /*!\brief Check that OutMap is empty.
+   * \return True or False.
+   */
+  bool Empty() { return output_binding_map.empty(); }
   /*! \brief Global output is the final outputs of pipeline, this function use to
    *   get how many global outputs are in this Outputmap
    *  \return Number of global outputs.
    */
   size_t GetGlobalOutputNum(void) const {
-    size_t outputNum = 0;
+    size_t num_output = 0;
     for (auto bindings : output_binding_map) {
-      outputNum += bindings.second.IsGlobalOutputNum() ? 1 : 0;
+      num_output += bindings.second.IsGlobalOutput() ? 1 : 0;
     }
-    return outputNum;
+    return num_output;
   }
 
   /*!
@@ -102,7 +109,7 @@ struct OutputMap {
     while (reader->NextArrayItem()) {
       std::string key;
       reader->BeginObject();
-      int output_idx;
+      int output_idx = -1;
       OutputBindings binding;
       while (reader->NextObjectItem(&key)) {
         if (key == "output_idx") {
@@ -112,6 +119,7 @@ struct OutputMap {
           reader->Read(&binding);
         }
       }
+      assert(output_idx >= 0);
       output_binding_map[output_idx] = binding;
     }
   }
@@ -119,8 +127,10 @@ struct OutputMap {
 /*!
  * \brief Binding or dependency information of each module output interface.
  */
-struct PipelineConfigure {
-  /*!  */
+struct PipelineConfig {
+  /*!\brief The module index is the key, this variable record all module pipeline configuration
+   * information.
+   */
   std::unordered_map<int, OutputMap> config;
   OutputMap& operator[](const int key) { return config[key]; }
   /*!
@@ -128,18 +138,21 @@ struct PipelineConfigure {
    * \return Global outputs number.
    */
   size_t GetGlobalOutputNum() const {
-    size_t output_num = 0;
+    size_t num_output = 0;
     for (auto mod_output : config) {
-      output_num += mod_output.second.GetGlobalOutputNum();
+      num_output += mod_output.second.GetGlobalOutputNum();
     }
-    return output_num;
+    return num_output;
   }
 };
 /*!
  * \brief Informations used to initialize the graph executor module, these
-    information comming from export library function call.
+    information come from export library function call.
  */
 struct ModuleInformation {
+  /*\brief The first string is information type such as "lib_name",the second string is
+   * information detail such as "/src/lib1.so" for "lib_name".
+   */
   std::unordered_map<std::string, std::string> info;
   const std::string& operator[](const std::string& key) { return info[key]; }
   ModuleInformation& operator=(const std::unordered_map<std::string, std::string>& umap) {
@@ -147,6 +160,6 @@ struct ModuleInformation {
     return *this;
   }
 };
-/*! Module information of each module. */
-typedef std::unordered_map<int, ModuleInformation> ModuleConfigure;
+/*! Module information of each module.The int is module index. */
+using ModuleConfig = std::unordered_map<int, ModuleInformation>;
 #endif  //  TVM_RUNTIME_PIPELINE_PIPELINE_STRUCT_H_

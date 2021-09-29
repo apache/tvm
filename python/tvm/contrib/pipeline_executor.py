@@ -90,7 +90,7 @@ class PipelineModule(object):
     def __init__(self, module=None):
         self.module = module.module if module else None
         self._get_num_outputs = None
-        # Get pack functions from pipeline executor.
+        # Get packed functions from pipeline executor.
         self.load_functions()
 
     def import_from_library(self, config_file_name):
@@ -107,7 +107,7 @@ class PipelineModule(object):
         # Load configuration file to initialize PipelineExecutorFactoryModule.
         pipeline_factory.import_from_library(config_file_name)
         self.module = pipeline_factory.module
-        # Get pack functions from pipeline executor.
+        # Get packed functions from pipeline executor.
         self.load_functions()
 
     def load_functions(self):
@@ -121,9 +121,9 @@ class PipelineModule(object):
         count : int
             The number of outputs.
         """
-        if self._get_num_outputs:
-            return self._get_num_outputs()
-        return 0
+        if not self._get_num_outputs:
+            raise RuntimeError(f"The pipeline executor has not been initialized.")
+        return self._get_num_outputs()
 
 
 class PipelineConfig(object):
@@ -570,10 +570,7 @@ class PipelineExecutorFactoryModule(object):
             The Modudle configuration.
         """
 
-        # The module in pipeline_mods has a index information to identify the modules order
-        # in pipe line, the pipe line executor follow such asend order to run each module,
-        # but asend order of module is not guaranteed in pipeline_mod, here need to pre-allocate
-        # module list then put module in correct place follow the index value.
+        # Modules need to be stored in the list named 'mods' in index order.
         mods = [None for _ in range(len(pipeline_mods))]
         for lib_index in pipeline_mods:
             pipeline_lib = pipeline_mods[lib_index]["lib"]
@@ -624,14 +621,6 @@ class PipelineExecutorFactoryModule(object):
                 file_handle.write(graph)
             with open(mconf["params_name"], "wb") as file_handle:
                 file_handle.write(relay.save_param_dict(params))
-
-            # Check whether the output is successful.
-            if not os.path.exists(mconf["json_name"]):
-                raise RuntimeError("File {} export failure.".format(mconf["json_name"]))
-            if not os.path.exists(mconf["lib_name"]):
-                raise RuntimeError("File {} export failure.".format(mconf["lib_name"]))
-            if not os.path.exists(mconf["params_name"]):
-                raise RuntimeError("File {} export failure.".format(mconf["params_name"]))
 
         # Export configuration file to disk.
         conf_file_name = "{}/config".format(directory_path)

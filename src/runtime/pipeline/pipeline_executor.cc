@@ -45,13 +45,13 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
  * \param pipeline_json The configuration of modules dependencies.
  */
 void PipelineExecutor::Init(const Array<Module>& modules, const std::string& pipeline_json) {
-  // Use JSONReader to load pipe line configuration from file.
+  // Use JSONReader to load pipeline configuration from file.
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
   // Initialize the pipeline function class used for pipeline thread pool management
-  // and schedule etc. This function return output number of whole pipeline.
-  output_number_ = pipeline_function_.PipelineInit(modules, pipeline_configure_, mod_configure_);
+  // and schedule etc. This function return the number of output.
+  num_outputs_ = pipeline_function_.PipelineInit(modules, pipeline_configure_, mod_configure_);
   return;
 }
 

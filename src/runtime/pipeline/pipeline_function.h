@@ -37,22 +37,22 @@ namespace runtime {
 class PipelineFunction {
  public:
   /*!
-   * \brief There are two mode to create graph runtime list, first is to use modules that
-   *  are the module list already created by caller, when modules is empty these information
-   *  from mod_configure will get use to create graph runtime list.
-   * \param modules List of graph runtime module.
-   * \param mod_configure Configure information that generate by export library function call.
+   * \brief Use the information of mod_config to create graph runtime list.
+   * \param mod_config Configuration information that generate by export library function call.
    */
-  std::vector<Module> PipelineCreateGraphruntime(Array<Module> modules,
-                                                 const ModuleConfigure& mod_configure);
+  std::vector<Module> PipelineCreateGraphExecutors(const ModuleConfig& mod_config);
   /*!
    * \brief Initialize pipeline.
    * \param modules  List of graph runtime module.
-   * \param pipeline_conf Dependency relation of each graph runtime module.
-   * \param mod_configure Configure information that generate by export library function call.
+   * \param pipeline_config Dependency relation of each graph runtime module.
+   * \param mod_config Config information that generate by export library function call.
    */
-  size_t PipelineInit(Array<Module> modules, const PipelineConfigure& pipeline_conf,
-                      const ModuleConfigure& mod_configure);
+  size_t PipelineInit(Array<Module> modules, const PipelineConfig& pipeline_config,
+                      const ModuleConfig& mod_config);
+
+ private:
+  /*!\brief List of graph executors.*/
+  std::vector<Module> graph_executors_;
 };
 }  // namespace runtime
 }  // namespace tvm
