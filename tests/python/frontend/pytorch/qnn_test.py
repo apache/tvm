@@ -98,6 +98,20 @@ class ConvBn(nn.Module):
         fuse_modules(self.conv, indices, inplace=True)
 
 
+class ConvTranspose(nn.Module):
+    def __init__(self):
+        super().__init__()
+        layers = [nn.ConvTranspose2d(3, 32, 3, bias=True)]
+        self.conv = nn.Sequential(*layers)
+        self.quant_wrap = QuantWrapper(self.conv)
+
+    def forward(self, x):
+        return self.quant_wrap(x)
+
+    def fuse_model(self):
+        pass
+
+
 class Linear(nn.Module):
     def __init__(self, with_relu=False):
         super().__init__()
@@ -276,6 +290,7 @@ def test_quantized_modules():
             ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
             ("linear" + postfix, (16, 16), Linear(), per_channel),
             ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
+            ("conv_transpose", imagenet_ishape, ConvTranspose(), False),
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
             ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
@@ -287,7 +302,15 @@ def test_quantized_modules():
         raw_module.eval()
         inp = torch.rand(ishape)
 
-        quantize_model(raw_module, inp, per_channel=per_channel)
+        # quantized conv_transpose2d is supported only with qnnpack engine before torch v1.8.0.
+        if module_name == "conv_transpose" and not is_version_greater_than("1.7.1"):
+            prev_engine = torch.backends.quantized.engine
+            torch.backends.quantized.engine = "qnnpack"
+            quantize_model(raw_module, inp, per_channel=per_channel)
+            torch.backends.quantized.engine = prev_engine
+        else:
+            quantize_model(raw_module, inp, per_channel=per_channel)
+
         script_module = torch.jit.trace(raw_module, inp).eval()
 
         with torch.no_grad():
@@ -314,6 +337,7 @@ def test_quantized_modules():
         conv_bn_relu 0.3700896 0.010921672 0.7489366477964451
         linear 0.15987062 0.009231662 0.794921875
         linear_relu 0.14180502 0.0053220326 0.8828125
+        conv_transpose 0.0033792555 4.4658788e-07 0.9998678439971806
         conv_bn, per_channel 0.01654929 2.9486866e-06 0.9998218235127019
         conv_bn_relu, per_channel 0.009089053 1.4926576e-06 0.9998357732732732
         linear, per_channel 0.0 0.0 1.0
