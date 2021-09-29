@@ -17,6 +17,8 @@
 import tvm
 import tvm.testing
 from tvm import te
+from tvm import tir
+from tvm.script import ty
 import numpy
 
 
@@ -434,7 +436,6 @@ def test_conv_tiling():
     oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -538,6 +539,18 @@ def test_simple_rfactor():
     assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
 
 
+@tvm.script.tir
+def partitioned_concat(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+    tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+    A = tir.match_buffer(a, [16], dtype="float32")
+    B = tir.match_buffer(b, [16], dtype="float32")
+    C = tir.match_buffer(c, [32], dtype="float32")
+    for i in tir.serial(0, 16):
+        tir.store(C.data, i, tir.load("float32", A.data, i), True)
+    for i in tir.serial(0, 16):
+        tir.store(C.data, i + 16, tir.load("float32", B.data, i + 16), True)
+
+
 def test_explicit_partition_hint():
     A = te.placeholder((16,), name="A")
     B = te.placeholder((16,), name="B")
@@ -545,18 +558,12 @@ def test_explicit_partition_hint():
     s = te.create_schedule(C.op)
     s.normalize()
     s[C].pragma(s[C].op.axis[0], "loop_partition_hint")
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt1 = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    mod1 = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt1))
-    stmt1 = tvm.tir.transform.Simplify()(mod1)["main"].body
-
+    mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        mod2 = tvm.tir.transform.LoopPartition()(mod1)
-        stmt2 = tvm.tir.transform.Simplify()(mod2)["main"].body
-
-    # make sure loop partition actually did something
-    assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
+        mod = tvm.tir.transform.StorageFlatten(64)(mod)
+        mod = tvm.tir.transform.LoopPartition()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
+    assert tvm.ir.structural_equal(mod["main"], partitioned_concat)
 
 
 if __name__ == "__main__":
