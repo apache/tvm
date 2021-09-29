@@ -60,6 +60,7 @@ class LocalRPC:
             port=9190,
             port_end=12345,
         )
+        time.sleep(0.5)
         self.tracker_host = self.tracker.host
         self.tracker_port = self.tracker.port
         self.tracker_key = tracker_key
