@@ -76,6 +76,19 @@ struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
   }
 };
 
+struct SearchSortedAttrs : public tvm::AttrsNode<SearchSortedAttrs> {
+  std::string side;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(SearchSortedAttrs, "relay.attrs.SearchSortedAttrs") {
+    TVM_ATTR_FIELD(side).set_default("left").describe(
+        "Controls which index is returned if a value lands exactly on one of sorted values.");
+    TVM_ATTR_FIELD(dtype)
+        .set_default(DataType::Int(64))
+        .describe("Data type of the output indices.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_ALGORITHM_H_
