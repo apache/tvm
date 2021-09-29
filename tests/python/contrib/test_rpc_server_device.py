@@ -9,6 +9,8 @@ from tvm import rpc
 from tvm import relay, auto_scheduler
 from tvm.contrib import utils, xcode, graph_executor
 from tvm.autotvm.measure import request_remote
+from tvm.auto_scheduler.measure_record import load_records
+from tvm.auto_scheduler.measure import MeasureErrorNo
 from tvm.auto_scheduler.utils import call_func_with_timeout
 from tvm.contrib.popen_pool import PopenWorker, StatusKind
 from tvm.rpc import tracker, proxy, server_ios_launcher
@@ -105,7 +107,7 @@ def setup_rpc_tracker_via_proxy_configuration(f):
     return wrapper
 
 
-def can_create_connection_without_deadlock(timeout, func, args=(), kwargs=None):
+def wrapper_for_call_function_with_timeout(timeout, func, args=(), kwargs=None):
     def wrapper(*_args, **_kwargs):
         """
             This wrapper is needed because the cloudpicle
@@ -126,7 +128,7 @@ def try_create_remote_session(session_factory, args=(), kwargs=None):
         successful_attempt = True
         results = []
         for _ in range(2):
-            ret = can_create_connection_without_deadlock(timeout=10, func=session_factory,
+            ret = wrapper_for_call_function_with_timeout(timeout=10, func=session_factory,
                                                          args=args, kwargs=kwargs)
             results.append(ret)
         if not np.all(np.array(results) == StatusKind.COMPLETE):
@@ -308,28 +310,44 @@ def test_check_auto_schedule_tuning(host, port):
     target = tvm.target.Target(target=f"llvm -mtriple={ARCH}-apple-darwin")
     mod, params = relay.testing.mlp.get_workload(batch_size=4, image_shape=(1, 4, 4))
 
-    measure_runner = auto_scheduler.RPCRunner(
-        DEVICE_KEY, host, port,
-        min_repeat_ms=1,
-        timeout=10,
-        n_parallel=multiprocessing.cpu_count()
-    )
-    builder = auto_scheduler.LocalBuilder(
-        build_func=ios_create_dylib
-    )
-    tune_option = auto_scheduler.TuningOptions(
-        builder=builder,
-        num_measure_trials=2,
-        num_measures_per_round=1,
-        runner=measure_runner,
-        measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-        verbose=0
-    )
+    try:
+        status_ok = True
+        measure_runner = auto_scheduler.RPCRunner(
+            DEVICE_KEY, host, port,
+            min_repeat_ms=1,
+            timeout=10,
+            n_parallel=multiprocessing.cpu_count()
+        )
+        builder = auto_scheduler.LocalBuilder(
+            timeout=10,
+            build_func=ios_create_dylib
+        )
+        tune_option = auto_scheduler.TuningOptions(
+            builder=builder,
+            num_measure_trials=2,
+            num_measures_per_round=1,
+            runner=measure_runner,
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+            verbose=0
+        )
 
-    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-    tasks, task_weights = tasks[:2], task_weights[:2]
-    tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
-    tuner.tune(tune_option, search_policy="sketch.random")
+        tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+        tasks, task_weights = tasks[:2], task_weights[:2]
+        tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+        tuner.tune(tune_option, search_policy="sketch.random")
+
+        # Check tuning log
+        tuning_statistic = list(load_records(log_file))
+        for measure_input, measure_result in tuning_statistic:
+            if measure_result.error_no != MeasureErrorNo.NO_ERROR:
+                raise ValueError(f"Error for MeasureResult. Error code: {measure_result.error_no},"
+                                 f" for details see MeasureErrorNO.")
+
+    except Exception as e:
+        status_ok = False
+        print(e)
+
+    assert status_ok, "Tuning failed, see logs."
 
 
 if __name__ == '__main__':
