@@ -16,6 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+/*!
+ * \file source_module.cc
+ * \brief Source code module for the host to invoke the NPU
+ */
 #include <dmlc/filesystem.h>
 #include <dmlc/logging.h>
 #include <dmlc/memory_io.h>
@@ -40,20 +45,24 @@
 namespace tvm {
 namespace runtime {
 
+// The runtime.Module that contains the host-side c code
+// required for invoking the NPU with the command stream
 class EthosUModuleNode : public ModuleNode {
  public:
   /*!
    * \brief The ethos runtime module.
    *
-   * \param cmms A array of external symbol 1, serialized command stream 1
-   * external symbol 2, serialized command stream 2, ....
-   * TODO : if and when FFI support Maps with non-objects OR compound arrays
-   * switch to that.
+   * \param func_name_ name of the should be codegen'd function
+   * \param cmms_hex_ command stream for the NPU in hex
+   * \param weights_bias_hex_ the encoded biases and weights for the NPU in hex
+   * \param scratch_size_ the size of the scratch memory required for command stream
+   * \param input_size_ the size (in bytes) for the input tensor
+   * \param output_size_ the size (in bytes) for the output tensor
    */
   explicit EthosUModuleNode(const String& func_name_, const String& cmms_hex_,
                             const String& weights_bias_hex_, const Integer& scratch_size_,
                             const Integer& input_size_, const Integer& output_size_) {
-    func_names_.push_back(func_name_);
+    func_name = func_name_;
     cmms_hex = std::move(cmms_hex_);
     weights_bias_hex = std::move(weights_bias_hex_);
     scratch_size = scratch_size_->value;
@@ -92,8 +101,9 @@ class EthosUModuleNode : public ModuleNode {
    */
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_func_names") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_; });
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = Array<String>{this->func_name};
+      });
     }
     return PackedFunc();
   }
@@ -109,7 +119,7 @@ class EthosUModuleNode : public ModuleNode {
 
  private:
   String c_source;
-  Array<String> func_names_;
+  String func_name;
   String cmms_hex;
   String weights_bias_hex;
   size_t scratch_size;
@@ -202,13 +212,12 @@ class EthosUModuleNode : public ModuleNode {
    * \return string of code that offloads a subgraph to the NPU
    */
   std::string GenerateSource() {
-    std::string func_no_dashes = func_names_[0];
+    std::string func_no_dashes = func_name;
     std::replace(func_no_dashes.begin(), func_no_dashes.end(), '-', '_');
     std::stringstream ss;
 
     ss << "#include <stdio.h>\n";
     ss << "#include <stdlib.h>\n";
-    ss << "#include <dlpack/dlpack.h>\n";
     ss << "#include <tvm/runtime/crt/module.h>\n";
     ss << "#include <ethosu_driver.h>\n";
     ss << "\n";
@@ -282,7 +291,7 @@ class EthosUModuleNode : public ModuleNode {
     PrintExternCPostfix(ss);
     ss << "\n";
     PrintExternCPrefix(ss);
-    PrintRuntimeFunctionHeader(ss, func_names_[0]);
+    PrintRuntimeFunctionHeader(ss, func_name);
     EnterScope();
     PrintIndents(ss);
     ss << "return " << func_no_dashes << "_wrapper_(input, output);\n";
@@ -308,9 +317,12 @@ inline EthosUModuleNode* EthosUModule::operator->() {
   return static_cast<EthosUModuleNode*>(get_mutable());
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.ethosu.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = EthosUModuleNode::Create(args[0], args[1], args[2], args[3], args[4], args[5]);
-});
+TVM_REGISTER_GLOBAL("runtime.module.ethosu.create")
+    .set_body_typed([](String func_name, String cmms_hex, String weights_bias_hex,
+                       Integer scratch_size, Integer input_size, Integer output_size) {
+      return EthosUModuleNode::Create(func_name, cmms_hex, weights_bias_hex, scratch_size,
+                                      input_size, output_size);
+    });
 
 TVM_REGISTER_GLOBAL("runtime.module.ethosu.getcs").set_body_typed([](EthosUModule mod) {
   return mod->GetCS();
