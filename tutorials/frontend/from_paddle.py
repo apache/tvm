@@ -20,7 +20,7 @@ Compile PaddlePaddle Models
 **Author**: `Ziyuan Ma <https://github.com/ZiyuanMa/>`_
 
 This article is an introductory tutorial to deploy PaddlePaddle models with Relay.
-For us to begin with, PaddlePaddle>=2.3.1 is required to be installed.
+For us to begin with, PaddlePaddle>=2.1.3 is required to be installed.
 A quick solution is
 
 .. code-block:: bash
