@@ -18,14 +18,14 @@
 import json
 import os
 import shutil
-from typing import Any, Callable, List, Union
+from typing import Any, Callable, List, Optional, Union
 
 import psutil
-
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError
 from tvm.ir import Array, Map
-from tvm.runtime import String
+from tvm.rpc import RPCSession
+from tvm.runtime import PackedFunc, String
 from tvm.tir import FloatImm, IntImm
 
 
@@ -93,6 +93,37 @@ def get_global_func_with_default_on_worker(
             "if there are extra functions to be registered, "
             "please send the registration logic via initializer."
         ) from error
+
+
+def get_global_func_on_rpc_session(
+    session: RPCSession,
+    name: str,
+    extra_error_msg: Optional[str] = None,
+) -> PackedFunc:
+    """Get a PackedFunc from the global registry from an RPCSession.
+
+    Parameters
+    ----------
+    session : RPCSession
+        The RPCSession to be retrieved from
+    name : str
+        The name of the PackedFunc
+    extra_error_msg : Optional[str]
+        Extra information to provide in the error message
+
+    Returns
+    -------
+    result : PackedFunc
+        The result
+    """
+    try:
+        result = session.get_function(name)
+    except AttributeError as error:
+        error_msg = f'Unable to find function "{name}" on the remote RPC server.'
+        if extra_error_msg:
+            error_msg = f"{error_msg} {extra_error_msg}"
+        raise AttributeError(error_msg) from error
+    return result
 
 
 @register_func("meta_schedule.remove_build_dir")

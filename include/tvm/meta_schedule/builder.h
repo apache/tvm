@@ -25,7 +25,7 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief The builder's input. */
+/*! \brief The builder's input, containing an IRModule and the target. */
 class BuilderInputNode : public runtime::Object {
  public:
   /*! \brief The IRModule to be built. */
@@ -57,7 +57,7 @@ class BuilderInput : public runtime::ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderInput, runtime::ObjectRef, BuilderInputNode);
 };
 
-/*! \brief The builder's output. */
+/*! \brief The builder's output, containing the artifact path or error message if any. */
 class BuilderResultNode : public runtime::Object {
  public:
   /*! \brief The path to the built artifact. */

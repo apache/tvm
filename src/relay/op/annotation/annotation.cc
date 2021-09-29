@@ -26,7 +26,6 @@
 #include "./annotation.h"
 
 #include <tvm/relay/attrs/annotation.h>
-#include <tvm/relay/attrs/function.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
@@ -54,7 +53,7 @@ Expr OnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
   return Call(OnDeviceOp(), {std::move(expr)}, Attrs(std::move(attrs)), /*type_args=*/{}, span);
 }
 
-Expr OptOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
+Expr MaybeOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
   if (device_type == kInvalidDeviceType) {
     // Undefined signals no annotation is required.
     return expr;
@@ -92,6 +91,7 @@ RELAY_REGISTER_OP("on_device")
     .add_argument("data", "Tensor", "The input data.")
     .set_support_level(10)
     .add_type_rel("Identity", IdentityRel)
+    .set_attrs_type_key("relay.attrs.OnDeviceAttrs")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
@@ -128,14 +128,10 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
   return {};
 }
 
-TVM_REGISTER_NODE_TYPE(FunctionOnDeviceAttrs);
-
 Function FunctionOnDevice(Function function, Array<Integer> param_device_types,
-                          DLDeviceType result_device_type) {
-  auto attrs = make_object<FunctionOnDeviceAttrs>();
-  attrs->param_device_types = std::move(param_device_types);
-  attrs->result_device_type = result_device_type;
-  return WithAttr(std::move(function), attr::kFunctionAttrsKey, Attrs(std::move(attrs)));
+                          Integer result_device_type) {
+  return WithAttrs(std::move(function), {{tvm::attr::kParamDeviceTypes, param_device_types},
+                                         {tvm::attr::kResultDeviceType, result_device_type}});
 }
 
 Function FunctionOnDevice(Function function, const std::vector<DLDeviceType>& param_device_types,
@@ -143,9 +139,21 @@ Function FunctionOnDevice(Function function, const std::vector<DLDeviceType>& pa
   Array<Integer> arr;
   arr.reserve(param_device_types.size());
   for (const auto device_type : param_device_types) {
-    arr.push_back(static_cast<int64_t>(device_type));
+    arr.push_back(static_cast<int>(device_type));
   }
-  return FunctionOnDevice(function, arr, result_device_type);
+  return FunctionOnDevice(std::move(function), std::move(arr),
+                          static_cast<int>(result_device_type));
+}
+
+Function MaybeFunctionOnDevice(Function function,
+                               const std::vector<DLDeviceType>& param_device_types,
+                               DLDeviceType result_device_type) {
+  if (std::all_of(param_device_types.begin(), param_device_types.end(),
+                  [](DLDeviceType type) { return type == kInvalidDeviceType; }) &&
+      result_device_type == kInvalidDeviceType) {
+    return function;
+  }
+  return FunctionOnDevice(function, param_device_types, result_device_type);
 }
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.function_on_device")
@@ -156,32 +164,26 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.function_on_device")
     });
 
 DLDeviceType GetFunctionResultDeviceType(const FunctionNode* function_node) {
-  auto opt_attrs = function_node->GetAttr<Attrs>(attr::kFunctionAttrsKey);
-  if (!opt_attrs) {
+  auto opt_integer = function_node->GetAttr<Integer>(tvm::attr::kResultDeviceType);
+  if (!opt_integer) {
     // No annotation.
     return kInvalidDeviceType;
   }
-  const auto* opt_function_on_device_attrs = opt_attrs.value().as<FunctionOnDeviceAttrs>();
-  ICHECK(opt_function_on_device_attrs != nullptr)
-      << "function '" << attr::kFunctionAttrsKey << "' annotation must be a FunctionOnDeviceAttrs";
-  return static_cast<DLDeviceType>(opt_function_on_device_attrs->result_device_type);
+  return static_cast<DLDeviceType>(opt_integer.value()->value);
 }
 
 DLDeviceType GetFunctionParamDeviceType(const FunctionNode* function_node, size_t i) {
   ICHECK_LT(i, function_node->params.size())
       << "param index " << i << " out of range for function of arity "
       << function_node->params.size();
-  auto opt_attrs = function_node->GetAttr<Attrs>(attr::kFunctionAttrsKey);
-  if (!opt_attrs) {
+  auto opt_array = function_node->GetAttr<Array<Integer>>(tvm::attr::kParamDeviceTypes);
+  if (!opt_array) {
     // No annotation.
     return kInvalidDeviceType;
   }
-  const auto* opt_function_on_device_attrs = opt_attrs.value().as<FunctionOnDeviceAttrs>();
-  ICHECK(opt_function_on_device_attrs != nullptr)
-      << "function '" << attr::kFunctionAttrsKey << "' annotation must be a FunctionOnDeviceAttrs";
-  ICHECK_EQ(opt_function_on_device_attrs->param_device_types.size(), function_node->params.size())
+  ICHECK_EQ(opt_array.value().size(), function_node->params.size())
       << "annotation parameters do not match function arity";
-  return static_cast<DLDeviceType>(opt_function_on_device_attrs->param_device_types[i]->value);
+  return static_cast<DLDeviceType>(opt_array.value()[i]->value);
 }
 
 Expr StopFusion(Expr data) {

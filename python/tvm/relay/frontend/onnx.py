@@ -1469,28 +1469,25 @@ class Unsqueeze(OnnxOpConverter):
 
     @classmethod
     def run_calculation(cls, tensor, axes):
-        """Calculation for the non-dynamic case."""
+        axes = sorted(axes)
         for axis in axes:
             tensor = _op.expand_dims(tensor, axis=axis, num_newaxis=1)
         return tensor
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        axes = sorted(attr["axes"])
-        return cls.run_calculation(inputs[0], axes)
+        return cls.run_calculation(inputs[0], attr["axes"])
 
     @classmethod
-    def _impl_v12(cls, inputs, attr, params):
+    def _impl_v13(cls, inputs, attr, params):
         if isinstance(inputs[1], _expr.Constant):
             constant_axes = list(inputs[1].data.numpy())
             constant_axes = list(map(int, constant_axes))
             return cls.run_calculation(inputs[0], constant_axes)
 
-        result = inputs[0]
         rank_input = len(infer_type(inputs[0]).checked_type.shape)
         num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0])
         axes = relay.split(inputs[1], num_new_axis).astuple()
-
         result = inputs[0]
 
         # TODO (AndrewZhaoLuo): investigate performance issues with consecutive
@@ -1499,7 +1496,7 @@ class Unsqueeze(OnnxOpConverter):
             axis = relay.TupleGetItem(axes, i)
             # Unpack scalar
             axis = relay.reshape(axis, [])
-            axis = relay.If(
+            axis = relay.where(
                 axis >= relay.const(0, "int64"), axis, axis + relay.const(rank_input, "int64")
             )
             result = _op.expand_dims(result, axis)
