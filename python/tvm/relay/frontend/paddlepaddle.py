@@ -370,7 +370,7 @@ def convert_expand(g, op, block):
         sizes = op.attr("shape")
 
     if isinstance(sizes, np.ndarray):
-        sizes = size.tolist()
+        sizes = sizes.tolist()
 
     out = _op.broadcast_to(x, sizes)
     g.add_node(op.output("Out")[0], out)
