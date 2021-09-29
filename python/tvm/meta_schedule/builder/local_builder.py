@@ -48,11 +48,20 @@ class LocalBuilder(PyBuilder):
     Attributes
     ----------
     T_BUILD : typing._GenericAlias
-        The signature of the build function `f_build`, which is
-        `Callable[[IRModule, Target], Module]`
+        The signature of the function `f_build`, which is
+
+        .. code-block:: python
+
+        def default_build(mod: IRModule, target: Target) -> Module:
+            ...
+
     T_EXPORT : typing._GenericAlias
-        The signature of the build function `f_export`, which is
-        `Callable[[Module], str]`
+        The signature of the function `f_export`, which is
+
+        .. code-block:: python
+
+        def default_export(mod: Module) -> str:
+            ...
 
     Note
     ----
