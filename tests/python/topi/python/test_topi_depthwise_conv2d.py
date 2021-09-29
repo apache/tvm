@@ -56,7 +56,7 @@ _depthwise_conv2d_implement = {
     "NHWC": {
         "generic": [
             (topi.nn.depthwise_conv2d_nhwc, topi.generic.schedule_depthwise_conv2d_nhwc),
-            (topi.nn.depthwise_conv2d_nhwc, conv2d_generic.schedule_depthwise_conv2d_nhwc)
+            (topi.nn.depthwise_conv2d_nhwc, conv2d_generic.schedule_depthwise_conv2d_nhwc),
         ],
         "arm_cpu": [
             (
