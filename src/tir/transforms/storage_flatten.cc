@@ -67,11 +67,11 @@ class BufferShapeLegalize : public StmtExprMutator {
       Buffer buf = kv.second;
       extern_buffers_.insert(buf);
 
-      InternalBufferRemap remap;
+      BufferEntry remap;
       remap.remap_to = buf;
-      remap.realized_begins = Array<PrimExpr>(buf->shape.size(), 0);
+      remap.index_offsets = Array<PrimExpr>(buf->shape.size(), 0);
       remap.in_scope = true;
-      internal_buf_map_[buf] = remap;
+      buf_map_[buf] = remap;
     }
   }
 
@@ -85,7 +85,10 @@ class BufferShapeLegalize : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    // External buffers should not be changed.
+    // BufferRealizeNode for an external buffer serves as an
+    // annotation of the external buffers, and should not be changed.
+    // Instead, verify that the bounds match the external
+    // buffer.
     if (extern_buffers_.count(op->buffer)) {
       CHECK_EQ(op->buffer->shape.size(), op->bounds.size())
           << "External buffer realize has mismatched dimension";
@@ -110,12 +113,12 @@ class BufferShapeLegalize : public StmtExprMutator {
     // Compute the new buffer shape, new realization bounds, and the
     // offsets to be applied to buffer access.
     Array<PrimExpr> realized_shape;
-    Array<PrimExpr> realized_begins;
+    Array<PrimExpr> index_offsets;
     Array<Range> new_bounds;
     for (size_t i = 0; i < op->bounds.size(); i++) {
       const Range& bound = op->bounds[i];
       realized_shape.push_back(bound->extent);
-      realized_begins.push_back(bound->min);
+      index_offsets.push_back(bound->min);
       new_bounds.push_back({0, bound->extent});
     }
 
@@ -132,16 +135,16 @@ class BufferShapeLegalize : public StmtExprMutator {
     write_ptr->shape = realized_shape;
 
     {
-      InternalBufferRemap remap;
+      BufferEntry remap;
       remap.remap_to = buf;
-      remap.realized_begins = realized_begins;
+      remap.index_offsets = index_offsets;
       remap.in_scope = true;
-      internal_buf_map_[key] = remap;
+      buf_map_[key] = remap;
     }
 
     Stmt stmt = BufferRealize(buf, new_bounds, op->condition, this->VisitStmt(op->body), op->span);
 
-    internal_buf_map_.at(key).in_scope = false;
+    buf_map_.at(key).in_scope = false;
 
     return stmt;
   }
@@ -151,28 +154,14 @@ class BufferShapeLegalize : public StmtExprMutator {
     op = stmt.as<BufferStoreNode>();
     ICHECK(op);
 
-    auto it = internal_buf_map_.find(op->buffer);
-    if (it != internal_buf_map_.end()) {
-      const InternalBufferRemap& entry = it->second;
+    auto it = buf_map_.find(op->buffer);
+    if (it != buf_map_.end()) {
+      const BufferEntry& entry = it->second;
       ICHECK(entry.in_scope) << "Cannot store to an out-of-scope buffer";
-      ICHECK_EQ(entry.realized_begins.size(), op->indices.size())
-          << "Inconsistent dimensions for buffer " << op->buffer->name;
-
-      Array<PrimExpr> new_indices;
-
-      // Pad leading indices with zero, matching the "fuzzy_match"
-      // behavior from ArgBinder::BindBuffer.
-      size_t diff = entry.realized_begins.size() - op->indices.size();
-      for (size_t i = 0; i < diff; i++) {
-        new_indices.push_back(0);
-      }
-      for (size_t i = 0; i < op->indices.size(); i++) {
-        new_indices.push_back(op->indices[i] - entry.realized_begins[i + diff]);
-      }
 
       BufferStore updated = GetRef<BufferStore>(op);
       auto write_ptr = updated.CopyOnWrite();
-      write_ptr->indices = new_indices;
+      write_ptr->indices = update_indices(op->indices, entry.index_offsets);
       write_ptr->buffer = entry.remap_to;
       stmt = updated;
     }
@@ -185,29 +174,14 @@ class BufferShapeLegalize : public StmtExprMutator {
     op = expr.as<BufferLoadNode>();
     ICHECK(op);
 
-    auto it = internal_buf_map_.find(op->buffer);
-    if (it != internal_buf_map_.end()) {
-      const InternalBufferRemap& entry = it->second;
+    auto it = buf_map_.find(op->buffer);
+    if (it != buf_map_.end()) {
+      const BufferEntry& entry = it->second;
       ICHECK(entry.in_scope) << "Cannot read from an out-of-scope buffer";
-
-      ICHECK_GE(entry.realized_begins.size(), op->indices.size())
-          << "Inconsistent dimensions for buffer " << op->buffer->name;
-
-      Array<PrimExpr> new_indices;
-
-      // Pad leading indices with zero, matching the "fuzzy_match"
-      // behavior from ArgBinder::BindBuffer.
-      size_t diff = entry.realized_begins.size() - op->indices.size();
-      for (size_t i = 0; i < diff; i++) {
-        new_indices.push_back(0);
-      }
-      for (size_t i = 0; i < op->indices.size(); i++) {
-        new_indices.push_back(op->indices[i] - entry.realized_begins[i + diff]);
-      }
 
       BufferLoad updated = GetRef<BufferLoad>(op);
       auto write_ptr = updated.CopyOnWrite();
-      write_ptr->indices = new_indices;
+      write_ptr->indices = update_indices(op->indices, entry.index_offsets);
       write_ptr->buffer = entry.remap_to;
       expr = updated;
     }
@@ -224,8 +198,8 @@ class BufferShapeLegalize : public StmtExprMutator {
       Stmt body = this->VisitStmt(op->body);
 
       Buffer buffer = Downcast<tir::Buffer>(op->node);
-      auto it = internal_buf_map_.find(buffer);
-      if (it != internal_buf_map_.end()) {
+      auto it = buf_map_.find(buffer);
+      if (it != buf_map_.end()) {
         buffer = it->second.remap_to;
         return AttrStmt(it->second.remap_to, op->attr_key, op->value, body);
       }
@@ -254,10 +228,9 @@ class BufferShapeLegalize : public StmtExprMutator {
     Buffer target = Downcast<Buffer>(arr[1]);
     ICHECK(target.defined());
 
-    auto it = internal_buf_map_.find(target);
-    ICHECK(it != internal_buf_map_.end())
-        << "attr::buffer_bind_scope target " << target << " not in scope.";
-    const InternalBufferRemap& target_remap = it->second;
+    auto it = buf_map_.find(target);
+    ICHECK(it != buf_map_.end()) << "attr::buffer_bind_scope target " << target << " not in scope.";
+    const BufferEntry& target_remap = it->second;
 
     ICHECK(target_remap.in_scope) << "Cannot bind " << buffer->name
                                   << " to the out-of-scope buffer " << target_remap.remap_to->name;
@@ -267,19 +240,19 @@ class BufferShapeLegalize : public StmtExprMutator {
 
     Array<PrimExpr> new_tuple_args;
     Array<PrimExpr> realized_begins;
-    Array<PrimExpr> realized_shape;
-    ICHECK_EQ(tuple->args.size(), target_remap.realized_begins.size() * 2)
+    Array<PrimExpr> view_shape;
+    ICHECK_EQ(tuple->args.size(), target_remap.index_offsets.size() * 2)
         << "attr::buffer_bind_scope to define " << buffer << " as a view into " << target
         << " does match dimensionality of " << target;
-    for (size_t i = 0; i < target_remap.realized_begins.size(); i++) {
+    for (size_t i = 0; i < target_remap.index_offsets.size(); i++) {
       PrimExpr parent_begin = tuple->args[2 * i];
       PrimExpr view_extent = tuple->args[2 * i + 1];
       // Offset the begin of the buffer view by the offset of the target buffer.
-      new_tuple_args.push_back(parent_begin - target_remap.realized_begins[i]);
+      new_tuple_args.push_back(parent_begin - target_remap.index_offsets[i]);
       // Keep the extent of the buffer view the same.
       new_tuple_args.push_back(view_extent);
       // Use the extent of the buffer view to define the buffer view's shape.
-      realized_shape.push_back(view_extent);
+      view_shape.push_back(view_extent);
       // Within the buffer view, indices start at 0.
       realized_begins.push_back(0);
     }
@@ -287,10 +260,10 @@ class BufferShapeLegalize : public StmtExprMutator {
     // If a view is binding to a buffer of a higher dimensionality,
     // then the leading dimensions should be padded out with shape of
     // 1.
-    ICHECK_GE(realized_shape.size(), buffer->shape.size())
+    ICHECK_GE(view_shape.size(), buffer->shape.size())
         << "Cannot bind " << buffer << " to a shape of lower dimension.";
-    if (realized_shape.size() > buffer->shape.size()) {
-      size_t diff = realized_shape.size() - buffer->shape.size();
+    if (view_shape.size() > buffer->shape.size()) {
+      size_t diff = view_shape.size() - buffer->shape.size();
       Array<PrimExpr> padded_shape;
       for (size_t i = 0; i < diff; i++) {
         padded_shape.push_back(1);
@@ -298,17 +271,17 @@ class BufferShapeLegalize : public StmtExprMutator {
       for (auto dim : buffer->shape) {
         padded_shape.push_back(dim);
       }
-      realized_shape = std::move(padded_shape);
+      view_shape = std::move(padded_shape);
     }
 
     // If a buffer has strides defined, and is being remapped into a
     // shape with additional dimensions, then define dummy values for
     // the strides.
     Array<PrimExpr> realized_strides = buffer->strides;
-    if ((realized_strides.size() > 0) && (realized_strides.size() != realized_shape.size())) {
-      ICHECK_GE(realized_shape.size(), realized_strides.size())
+    if ((realized_strides.size() > 0) && (realized_strides.size() != view_shape.size())) {
+      ICHECK_GE(view_shape.size(), realized_strides.size())
           << "Cannot bind the strides of " << buffer << " to a shape of lower dimension";
-      size_t diff = realized_shape.size() - buffer->strides.size();
+      size_t diff = view_shape.size() - buffer->strides.size();
 
       Array<PrimExpr> updated_strides;
       for (size_t i = 0; i < diff; i++) {
@@ -323,18 +296,20 @@ class BufferShapeLegalize : public StmtExprMutator {
     Buffer key = buffer;
 
     auto write_ptr = buffer.CopyOnWrite();
-    write_ptr->shape = realized_shape;
+    write_ptr->shape = view_shape;
     write_ptr->strides = realized_strides;
 
     {
-      InternalBufferRemap remap;
-      remap.realized_begins = realized_begins;
+      BufferEntry remap;
+      remap.index_offsets = realized_begins;
       remap.remap_to = buffer;
       remap.in_scope = true;
-      internal_buf_map_[key] = remap;
+      buf_map_[key] = remap;
     }
 
-    // Define remappings of any Variables referencing Buffer internals (e.g. Store/Load nodes).
+    // Define remappings of any Variables referencing Buffer internals
+    // (e.g. Store/Load nodes).  Passing fuzzy_match=true allows the
+    // remapped buffer to have a number of dimensions.
     ArgBinder binder(&var_remap_);
     binder.BindBuffer(key, buffer, key->name, true);
 
@@ -349,21 +324,43 @@ class BufferShapeLegalize : public StmtExprMutator {
       var_remap_.erase(v.get());
     }
 
-    internal_buf_map_.at(key).in_scope = false;
+    buf_map_.at(key).in_scope = false;
     return stmt;
+  }
+
+  Array<PrimExpr> update_indices(const Array<PrimExpr>& indices, const Array<PrimExpr>& offsets) {
+    ICHECK_GE(offsets.size(), indices.size())
+        << "Cannot bind buffer to a shape of lower dimension.";
+
+    Array<PrimExpr> new_indices;
+
+    // Pad leading indices with zero, matching the "fuzzy_match"
+    // behavior from ArgBinder::BindBuffer.
+    size_t diff = offsets.size() - indices.size();
+    for (size_t i = 0; i < diff; i++) {
+      new_indices.push_back(0);
+    }
+
+    // Offset indices used to access buffers of a reduced size.
+    for (size_t i = 0; i < indices.size(); i++) {
+      PrimExpr offset = offsets[i + diff];
+      new_indices.push_back(indices[i] - offset);
+    }
+
+    return new_indices;
   }
 
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
 
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> extern_buffers_;
 
-  struct InternalBufferRemap {
+  struct BufferEntry {
     Buffer remap_to;
-    Array<PrimExpr> realized_begins;
+    Array<PrimExpr> index_offsets;
     bool in_scope;
   };
 
-  std::unordered_map<Buffer, InternalBufferRemap, ObjectPtrHash, ObjectPtrEqual> internal_buf_map_;
+  std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
 
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
@@ -822,7 +819,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
     auto it = buf_map_.find(op->buffer.get());
     ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
     const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot read a buffer that is already out of scope";
+    ICHECK(e.in_scope) << "Cannot read from buffer " << op->buffer << ", out of scope.";
 
     if (e.remap) {
       return BufferLoad(e.remap->target,
@@ -839,7 +836,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
     auto it = buf_map_.find(op->buffer.get());
     ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
     const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot write to a buffer that is already out of scope";
+    ICHECK(e.in_scope) << "Cannot write to buffer" << op->buffer << ", out of scope.";
 
     if (e.remap) {
       return BufferStore(e.remap->target, op->value,
@@ -921,10 +918,11 @@ class BufferBindUnwrapper : public StmtExprMutator {
 
     // Determine bounds in the target buffer
     auto it = buf_map_.find(remap.target.get());
-    ICHECK(it != buf_map_.end()) << "Cannot find buffer " << remap.target << " @ "
-                                 << remap.target.get();
+    ICHECK(it != buf_map_.end()) << "Cannot define " << source << " as a view into " << remap.target
+                                 << ", " << remap.target << " was not defined.";
     const BufferEntry& target_info = it->second;
-    ICHECK(target_info.in_scope) << "Cannot bind to a buffer that is out of scope";
+    ICHECK(target_info.in_scope) << "Cannot define " << source << " as a view into " << remap.target
+                                 << ", " << remap.target << " is out of scope.";
     ICHECK_EQ(remap.begins.size(), target_info.buffer->shape.size())
         << "Incorrect number of arguments in buffer_bind_scope attribute.  "
         << "Expected (min_0, extent_0, min_1, extent_0, ..., min_N, extent_N).";
@@ -937,7 +935,10 @@ class BufferBindUnwrapper : public StmtExprMutator {
       remap.begins = std::move(mapped_begins);
     }
 
-    ICHECK(target_info.remap == nullptr) << "Indirect remapping not handled";
+    ICHECK(target_info.remap == nullptr)
+        << "buffer_bind_scope defines " << source << " as a view into " << remap.target
+        << ", which is itself a buffer view.  "
+        << "Indirect remapping not currently supported.";
 
     for (size_t i = 0; i < remap.begins.size(); i++) {
       remap.begins.Set(i, bound_analyzer_->Simplify(remap.begins[i]));
@@ -963,11 +964,17 @@ class BufferBindUnwrapper : public StmtExprMutator {
     Buffer view = remap.target.MakeSlice(remap.begins, remap.extents);
     if (source->strides.size() == 0) {
       ICHECK_EQ(view->strides.size(), 0U)
-          << "Cannot bind a compact buffer to a strided buffer" << view->strides;
+          << "Cannot bind a compact buffer " << source << " to a strided buffer " << view
+          << " with strides " << view->strides;
     } else {
       // Add explicit strides to the view, in order to bind to source.strides[i].
       view = view.MakeStrideView();
     }
+
+    // Bind any variables that reference the view (e.g. elem_offset,
+    // strides, shape).  Pass fuzzy_match=false, because all shape
+    // transformations should have been handled in
+    // BufferShapeLegalize.
     binder.BindBuffer(source, view, source->name, false);
 
     // Apply the remaps
@@ -1072,9 +1079,9 @@ class StorageFlattener : public StmtExprMutator {
     ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
 
     const BufferEntry& e = it->second;
-    ICHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK(e.in_scope) << "Cannot write to " << op->buffer << ", out of scope.";
 
-    Stmt body = e.buffer.vstore(e.RelIndex(op->indices), op->value);
+    Stmt body = e.buffer.vstore(op->indices, op->value);
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
     }
@@ -1092,15 +1099,27 @@ class StorageFlattener : public StmtExprMutator {
     const auto& key = op->buffer;
 
     if (buf_map_.count(key)) {
-      ICHECK(buf_map_.at(key).external);
+      ICHECK(buf_map_.at(key).external)
+          << "BufferRealize for internal buffer " << op->buffer << " appears multiple times.";
       return this->VisitStmt(op->body);
     } else {
       // create a buffer entry
       BufferEntry e;
-      e.bounds = op->bounds;
 
       ICHECK_EQ(op->buffer->shape.size(), op->bounds.size())
           << "Inconsistent buffer shape and realization shape for " << op->buffer;
+
+      for (size_t i = 0; i < op->bounds.size(); i++) {
+        const auto& bound = op->bounds[i];
+        const auto& dim_size = op->buffer->shape[i];
+        ICHECK(is_zero(bound_analyzer_->Simplify(bound->min)))
+            << "Buffer " << op->buffer << " has realization bounds that do not start at zero.  "
+            << "Please run BufferShapeLegalize first.";
+        ICHECK(is_one(bound_analyzer_->Simplify(bound->extent == dim_size)))
+            << "Buffer " << op->buffer
+            << " has realization extent that does not match its size.  "
+               "Please run BufferShapeLegalize first.";
+      }
 
       Array<PrimExpr> shape = op->buffer->shape;
       StorageScope skey = StorageScope::Create(GetPtrStorageScope(op->buffer->data));
@@ -1124,7 +1143,7 @@ class StorageFlattener : public StmtExprMutator {
 
       buf_map_[key] = e;
       Stmt body = this->VisitStmt(op->body);
-      buf_map_[key].released = true;
+      buf_map_[key].in_scope = false;
       Stmt ret;
 
       DataType storage_type = e.buffer->dtype;
@@ -1186,12 +1205,12 @@ class StorageFlattener : public StmtExprMutator {
     auto it = buf_map_.find(key);
     ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
     const BufferEntry& e = it->second;
-    ICHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK(e.in_scope) << "Cannot read to " << op->buffer << ", out of scope.";
 
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
     }
-    return e.buffer.vload(e.RelIndex(op->indices), e.buffer->dtype);
+    return e.buffer.vload(op->indices, e.buffer->dtype);
   }
 
   Stmt VisitStmt_(const PrefetchNode* op) final {
@@ -1204,7 +1223,7 @@ class StorageFlattener : public StmtExprMutator {
     ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
     const BufferEntry& e = it->second;
 
-    ICHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK(e.in_scope) << "Cannot prefetch " << op->buffer << ", out of scope.";
     ICHECK_EQ(e.buffer->shape.size(), op->bounds.size())
         << "Prefetch dim should be the same as buffer dim";
 
@@ -1237,7 +1256,7 @@ class StorageFlattener : public StmtExprMutator {
       if (i < starts) {
         stmt = For(vars[i], 0, op->bounds[i]->extent, ForKind::kSerial, stmt);
       } else {
-        PrimExpr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
+        PrimExpr load = e.buffer.vload(args, e.buffer->dtype);
         PrimExpr address = Call(DataType::Handle(), builtin::address_of(), {load});
         PrimExpr prefetch = Call(op->buffer->dtype, builtin::prefetch(), {address, 0, 3, 1});
         stmt = Evaluate(prefetch);
@@ -1276,25 +1295,10 @@ class StorageFlattener : public StmtExprMutator {
   struct BufferEntry {
     // the buffer of storage
     Buffer buffer;
-    // the bounds of realization, can be null, means everything
-    Region bounds;
     // Whether the buffer is external
     bool external{false};
-    // Whether we are out of allocation bounds and buffer get released.
-    bool released{false};
-    // relative index
-    inline Array<PrimExpr> RelIndex(Array<PrimExpr> args) const {
-      if (bounds.size() != 0) {
-        Array<PrimExpr> index;
-        ICHECK_EQ(bounds.size(), args.size());
-        for (size_t i = 0; i < bounds.size(); ++i) {
-          index.push_back(args[i] - bounds[i]->min);
-        }
-        return index;
-      } else {
-        return args;
-      }
-    }
+    // Whether the buffer is currently in scope.
+    bool in_scope{true};
   };
 
   bool ShapeIsValid(const Array<PrimExpr>& shape) {
