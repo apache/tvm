@@ -23,16 +23,22 @@
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/database.h>
+#include <tvm/meta_schedule/runner.h>
+#include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/node.h>
 #include <tvm/node/serialization.h>
+#include <tvm/support/parallel_for.h>
 #include <tvm/tir/schedule/schedule.h>
 
 #include <string>
+#include <vector>
 
+#include "../printer/text_printer.h"
 #include "../support/array.h"
 #include "../support/base64.h"
+#include "../tir/schedule/primitive.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -130,6 +136,76 @@ inline String JSONObj2Str(const ObjectRef& json_obj) {
  * \return The string representation of the hash code
  */
 inline String SHash2Str(Workload::THashCode hash_code) { return std::to_string(hash_code); }
+
+/*!
+ * \brief Find the entry function of the given IRModule, i.e, functions marked by
+ * `tir::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
+ * \param mod The IRModule to find the entry function.
+ * \return The entry function.
+ */
+inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
+  // Priority 1: PrimFunc marked as `tir::attr::kIsEntryFunc`
+  int num_prim_func = 0;
+  const tir::PrimFuncNode* main_func = nullptr;
+  const tir::PrimFuncNode* last_func = nullptr;
+  for (const auto& kv : mod->functions) {
+    GlobalVar gv = kv.first;
+    BaseFunc base_func = kv.second;
+    if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
+      last_func = func;
+      if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+        return GetRef<tir::PrimFunc>(func);
+      }
+      if (gv->name_hint == "main") {
+        main_func = func;
+      }
+      ++num_prim_func;
+    }
+  }
+  // Priority 2: PrimFunc whose name is `main`
+  if (main_func != nullptr) {
+    return GetRef<tir::PrimFunc>(main_func);
+  }
+  // Priority 3: The only PrimFunc in the IRModule
+  if (num_prim_func == 0) {
+    LOG(FATAL) << "ValueError: Cannot find any PrimFunc in the given IRModule: "
+               << tir::AsTVMScript(mod);
+  }
+  if (num_prim_func > 1) {
+    LOG(FATAL) << "ValueError: Multiple PrimFuncs exist in the IRModule, but none of them are "
+                  "annotated with `kIsEntryFunc`, i.e. `tir.is_entry_func`"
+               << tir::AsTVMScript(mod);
+  }
+  return GetRef<tir::PrimFunc>(last_func);
+}
+
+/*!
+ * \brief Fork a random state into another, i.e. PRNG splitting.
+ * The given random state is also mutated.
+ * \param rand_state The random state to be forked
+ * \return The forked random state
+ */
+inline support::LinearCongruentialEngine::TRandState ForkSeed(
+    support::LinearCongruentialEngine::TRandState* rand_state) {
+  return support::LinearCongruentialEngine(rand_state).ForkSeed();
+}
+
+/*!
+ * \brief Fork a random state into another ones, i.e. PRNG splitting.
+ * The given random state is also mutated.
+ * \param rand_state The random state to be forked
+ * \param n The number of forks
+ * \return The forked random states
+ */
+inline std::vector<support::LinearCongruentialEngine::TRandState> ForkSeed(
+    support::LinearCongruentialEngine::TRandState* rand_state, int n) {
+  std::vector<support::LinearCongruentialEngine::TRandState> results;
+  results.reserve(n);
+  for (int i = 0; i < n; ++i) {
+    results.push_back(support::LinearCongruentialEngine(rand_state).ForkSeed());
+  }
+  return results;
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

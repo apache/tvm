@@ -220,9 +220,7 @@ void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState se
 }
 
 support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
-  // In order for reproducibility, we computer the new seed using RNG's random state and a different
-  // set of parameters. Note that both 32767 and 1999999973 are prime numbers.
-  return (support::LinearCongruentialEngine(&rand_state_)() * 32767) % 1999999973;
+  return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
 ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,

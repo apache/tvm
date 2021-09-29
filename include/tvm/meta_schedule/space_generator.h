@@ -28,7 +28,42 @@ namespace meta_schedule {
 // Forward declaration
 class TuneContext;
 
-/*! \brief The abstract class for design space generation. */
+/*!
+ * \brief The abstract class for design space generation.
+ * \note The relationship between SpaceGenerator and other classes are as follows:
+      ┌──────────────────────────────────────────────────────────────┐
+   ┌──┴───────────────────────────────────────────────────────────┐  │
+┌──┴────────────────── Tune Context ───────────────────────────┐  │  │
+│                ┌─────────────────────┐                       │  │  │
+│                │                     │   Generate            │  │  │
+│                │   Space Generator   ├──────────────┐        │  │  │
+│                │                     │              │        │  │  │
+│                └─────────────────────┘              ▼        │  │  │
+│                                                Design Space  │  │  │
+│                ┌─────────────────────┐              │        │  │  │
+│      Generate  │                     │   Pretuning  │        │  │  │
+│    ┌───────────┤   Search Strategy   │◄─────────────┘        │  │  │
+│    │           │                     │                       │  ├──┘
+│    │           └─────────────────────┘                       ├──┘
+└────┼─────────────────────────────────────────────────────────┘
+     │
+     │
+┌────┼──────────────── Managed By Task Scheduler ─────────────────────┐
+│    │                                 ┌───────────┐                  │
+│    │                      Send to    │           │  Send to         │
+│    ▼                  ┌─────────────►│  Builder  ├──────────┐       │
+│ Measure Candidate     │   Builder    │           │  Runner  │       │
+│    │                  │              └───────────┘          │       │
+│    │     ┌────────────┴────────┐                            │       │
+│    │     │                     │     ┌───────────┐          │       │
+│    └────►│   Task Scheduler    │     │           │          │       │
+│          │                     │     │  Runner   │◄─────────┘       │
+│          └─────────────────────┘     │           │                  │
+│                   ▲                  └─────┬─────┘                  │
+│                   │                        │                        │
+│                   └───  Runner Future ◄────┘                        │
+└─────────────────────────────────────────────────────────────────────┘
+*/
 class SpaceGeneratorNode : public Object {
  public:
   /*! \brief Default destructor */
@@ -37,6 +72,7 @@ class SpaceGeneratorNode : public Object {
   /*!
    * \brief Initialize the design space generator with tuning context.
    * \param tune_context The tuning context for initialization.
+   * \note This method is supposed to be called only once before every other method.
    */
   virtual void InitializeWithTuneContext(const TuneContext& tune_context) = 0;
 
