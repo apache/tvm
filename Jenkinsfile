@@ -305,8 +305,8 @@ stage('Unit Test') {
         init_git()
         unpack_lib('cpu', tvm_multilib_tsim)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_i386} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
           junit "build/pytest-results/*.xml"
         }
       }
