@@ -195,7 +195,7 @@ class MatchBufferLower : public StmtExprMutator {
     // Step 2.3. Check and update strides
     // Check if target buffer strides are defined
     ICHECK(source->region.size() >= buffer->shape.size());
-    size_t offset = source->region.size() - buffer->shape.size();
+    int offset = source->region.size() - buffer->shape.size();
     if (!buffer->strides.empty()) {
       ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
       PrimExpr stride = make_const(DataType::Int(32), 1);
