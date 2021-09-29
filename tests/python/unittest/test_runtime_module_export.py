@@ -14,14 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm import relay
-from tvm.relay import testing
+
+import shutil
+import sys
+
+import pytest
+
 import tvm
-from tvm import te
-
 import tvm.testing
-
+from tvm import relay, te
 from tvm.contrib import utils
+from tvm.relay import testing
 
 header_file_dir_path = utils.tempdir()
 
@@ -62,14 +65,17 @@ def generate_engine_module():
     return csource_module
 
 
-@tvm.testing.uses_gpu
-def test_mod_export():
-    def verify_gpu_mod_export(obj_format):
-        for device in ["llvm", "cuda"]:
-            if not tvm.testing.device_enabled(device):
-                print("skip because %s is not enabled..." % device)
-                return
+class TestModExport:
+    obj_format = tvm.testing.parameter(".so", ".tar")
 
+    # The Cuda and LLVM libraries contain identically named functions,
+    # and cannot be linked into the same .so file.  This function
+    # currently doesn't run on CI, as no environments have both LLVM
+    # and CUDA enabled.
+    @pytest.mark.xfail(reason="Known failing case")
+    @tvm.testing.requires_llvm
+    @tvm.testing.requires_cuda
+    def test_gpu_mod_export(self, obj_format):
         synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload()
         synthetic_llvm_mod, synthetic_llvm_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
@@ -80,14 +86,11 @@ def test_mod_export():
                 synthetic_llvm_mod, "llvm", params=synthetic_llvm_params
             )
 
-        from tvm.contrib import utils
-
         temp = utils.tempdir()
-        if obj_format == ".so":
-            file_name = "deploy_lib.so"
-        else:
-            assert obj_format == ".tar"
-            file_name = "deploy_lib.tar"
+
+        assert obj_format in [".so", ".tar"]
+        file_name = f"deploy_lib{obj_format}"
+
         path_lib = temp.relpath(file_name)
         synthetic_gpu_lib.import_module(synthetic_llvm_cpu_lib)
         synthetic_gpu_lib.export_library(path_lib)
@@ -97,28 +100,19 @@ def test_mod_export():
         #  dso modules are merged together
         assert len(loaded_lib.imported_modules) == 1
 
-    def verify_multi_dso_mod_export(obj_format):
-        for device in ["llvm"]:
-            if not tvm.testing.device_enabled(device):
-                print("skip because %s is not enabled..." % device)
-                return
-
+    @tvm.testing.requires_llvm
+    def test_multi_dso_mod_export(self, obj_format):
         A = te.placeholder((1024,), name="A")
         B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
         s = te.create_schedule(B.op)
         mod0 = tvm.build(s, [A, B], "llvm", name="myadd0")
         mod1 = tvm.build(s, [A, B], "llvm", name="myadd1")
 
-        from tvm.contrib import utils
-
         temp = utils.tempdir()
-        if obj_format == ".so":
-            file_name = "deploy_lib.so"
-        else:
-            assert obj_format == ".tar"
-            file_name = "deploy_lib.tar"
-        path_lib = temp.relpath(file_name)
+        assert obj_format in [".so", ".tar"]
+        file_name = f"deploy_lib{obj_format}"
 
+        path_lib = temp.relpath(file_name)
         mod0.import_module(mod1)
         mod0.export_library(path_lib)
         loaded_lib = tvm.runtime.load_module(path_lib)
@@ -126,12 +120,8 @@ def test_mod_export():
         # dso modules are merged
         assert len(loaded_lib.imported_modules) == 0
 
-    def verify_json_import_dso(obj_format):
-        for device in ["llvm"]:
-            if not tvm.testing.device_enabled(device):
-                print("skip because %s is not enabled..." % device)
-                return
-
+    @tvm.testing.requires_llvm
+    def test_json_import_dso(self, obj_format):
         # Get subgraph Json.
         subgraph_json = (
             "json_rt_0\n"
@@ -152,8 +142,6 @@ def test_mod_export():
             + "mul 6 inputs: 5 3 shape: 10 10"
         )
 
-        from tvm.contrib import utils
-
         temp = utils.tempdir()
         subgraph_path = temp.relpath("subgraph.examplejson")
         with open(subgraph_path, "w") as f:
@@ -164,33 +152,28 @@ def test_mod_export():
         B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
+
         try:
             ext_lib = tvm.runtime.load_module(subgraph_path, "examplejson")
-        except:
-            print("skip because Loader of examplejson is not presented")
-            return
+        except tvm.TVMError:
+            pytest.skip("Loader for examplejson is not present")
+
+        ext_lib = tvm.runtime.load_module(subgraph_path, "examplejson")
+
         ext_lib.import_module(f)
-        if obj_format == ".so":
-            file_name = "deploy_lib.so"
-        else:
-            assert obj_format == ".tar"
-            file_name = "deploy_lib.tar"
+
+        assert obj_format in [".so", ".tar"]
+        file_name = f"deploy_lib{obj_format}"
+
         path_lib = temp.relpath(file_name)
         ext_lib.export_library(path_lib)
         lib = tvm.runtime.load_module(path_lib)
         assert lib.type_key == "examplejson"
         assert lib.imported_modules[0].type_key == "library"
 
-    def verify_multi_c_mod_export():
-        from shutil import which
-
-        if which("gcc") is None:
-            print("Skip test because gcc is not available.")
-
-        for device in ["llvm"]:
-            if not tvm.testing.device_enabled(device):
-                print("skip because %s is not enabled..." % device)
-                return
+    @tvm.testing.requires_llvm
+    @pytest.mark.skipif(shutil.which("gcc") is None, reason="gcc is unavailable")
+    def test_multi_c_mod_export(self):
 
         synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
@@ -203,7 +186,6 @@ def test_mod_export():
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "c", name="myadd")
         engine_module = generate_engine_module()
-        from tvm.contrib import utils
 
         temp = utils.tempdir()
         file_name = "deploy_lib.so"
@@ -217,13 +199,6 @@ def test_mod_export():
         # dso modules are merged
         assert len(loaded_lib.imported_modules) == 0
 
-    for obj_format in [".so", ".tar"]:
-        verify_gpu_mod_export(obj_format)
-        verify_multi_dso_mod_export(obj_format)
-        verify_json_import_dso(obj_format)
-
-    verify_multi_c_mod_export()
-
 
 if __name__ == "__main__":
-    test_mod_export()
+    sys.exit(pytest.main(sys.argv))
