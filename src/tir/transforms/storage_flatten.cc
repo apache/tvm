@@ -329,6 +329,14 @@ class BufferShapeLegalize : public StmtExprMutator {
   }
 
   Array<PrimExpr> update_indices(const Array<PrimExpr>& indices, const Array<PrimExpr>& offsets) {
+    // offsets come from BufferRealizeNode::bounds, which is allowed
+    // to be empty to indicate realization of the full shape of the
+    // buffer.  In that case, the indices do not need to be modified,
+    // but may need to be extended with leading zeroes.
+    if (offsets.size() == 0) {
+      return indices;
+    }
+
     ICHECK_GE(offsets.size(), indices.size())
         << "Cannot bind buffer to a shape of lower dimension.";
 
