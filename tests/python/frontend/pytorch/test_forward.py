@@ -1963,8 +1963,9 @@ def test_forward_nms():
         boxes = torch.rand(num_boxes, box_len, dtype=torch.float) * 0.5
         boxes[:, 2] += boxes[:, 0]
         boxes[:, 3] += boxes[:, 1]
-        scores = torch.from_numpy(np.random.uniform(-1, 1, size=(num_boxes,)).astype(np.float32))
-        return boxes, scores
+        scores = np.linspace(0, 1, num=num_boxes).astype("float32")
+        np.random.shuffle(scores)
+        return boxes, torch.from_numpy(scores)
 
     targets = ["llvm", "cuda"]
 
