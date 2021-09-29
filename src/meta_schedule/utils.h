@@ -26,6 +26,7 @@
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/space_generator.h>
+#include <tvm/meta_schedule/task_scheduler.h>
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/node.h>
 #include <tvm/node/serialization.h>
@@ -33,8 +34,6 @@
 #include <tvm/tir/schedule/schedule.h>
 
 #include <string>
-#include <vector>
-
 #include <vector>
 
 #include "../printer/text_printer.h"
