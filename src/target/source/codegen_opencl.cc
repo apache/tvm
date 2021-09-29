@@ -59,8 +59,6 @@ class InferTextureAccess : public StmtExprVisitor {
       var_access_map_[op->args[0].as<VarNode>()] |= kReadAccess;
     } else if (op->op.same_as(builtin::texture2d_store())) {
       var_access_map_[op->args[0].as<VarNode>()] |= kWriteAccess;
-    } else {
-      StmtExprVisitor::VisitExpr_(op);
     }
     StmtExprVisitor::VisitExpr_(op);
   }
