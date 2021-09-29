@@ -22,14 +22,28 @@ import tvm
 
 from ...contrib.popen_pool import PopenPoolExecutor
 from ...runtime import Device, Module, ndarray
-from ..arg_info import ArgInfo
 from ..utils import get_global_func_with_default_on_worker
 from .config import EvaluatorConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
-from .rpc_runner import T_ARG_INFO_JSON_OBJ, T_ARG_INFO_JSON_OBJ_LIST, T_ARGUMENT, T_ARGUMENT_LIST
+from .rpc_runner import T_ARG_INFO_JSON_OBJ, T_ARG_INFO_JSON_OBJ_LIST, T_ARGUMENT_LIST
 
 
 class LocalRunnerFuture(RunnerFuture):
+    """Local based runner future
+
+    Parameters
+    ----------
+    res: Optional[List[float]]
+        The optional result as a list of float.
+    error_message: Optional[str]
+        The optional error message.
+
+    Note
+    ----
+    Either one of the parameters will be None upon the creation
+    of LocalRunnerFuture object
+    """
+
     res: Optional[List[float]]
     error_message: Optional[str]
 
@@ -350,4 +364,4 @@ def default_run_evaluator(
 
 def default_cleanup() -> None:
     """Default function to clean up the session"""
-    pass
+    pass  # pylint: disable=unnecessary-pass

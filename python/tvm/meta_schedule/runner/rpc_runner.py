@@ -454,10 +454,10 @@ def default_alloc_argument(
         The session to allocate the arguments
     device: Device
         The device to allocate the arguments
+    args_info: T_ARG_INFO_JSON_OBJ_LIST
+        The arguments info
     alloc_repeat: int
         The number of times to repeat the allocation
-    args_info: PyArgsInfo
-        The arguments info
 
     Returns
     -------
@@ -514,7 +514,7 @@ def default_run_evaluator(
         The device to run the evaluator
     evaluator_config: EvaluatorConfig
         The evaluator config
-    repeated_args: List[Args]
+    repeated_args: List[T_ARGUMENT_LIST]
         The repeated arguments
 
     Returns
