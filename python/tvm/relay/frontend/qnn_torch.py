@@ -51,12 +51,25 @@ class ConvPackedParam(QNNParam):
     together with weights and quantization parameters
     """
 
-    def __init__(self, weight_np, bias, scale, zero_point, stride, padding, dilation, groups):
+    def __init__(
+        self,
+        weight_np,
+        bias,
+        scale,
+        zero_point,
+        stride,
+        padding,
+        dilation,
+        groups,
+        output_padding,
+    ):
         super().__init__(weight_np, bias, scale, zero_point)
         self.stride = stride
         self.padding = padding
         self.dilation = dilation
         self.groups = groups
+        # Used only for conv_transpose2d
+        self.output_padding = output_padding
 
 
 def _get_quant_params(qweight):
@@ -86,7 +99,18 @@ def make_conv_packed_param(qweight, bias, packed_params):
     padding = packed_params.padding()
     dilation = packed_params.dilation()
     groups = packed_params.groups()
-    return ConvPackedParam(weight_np, bias, scale, zero_point, stride, padding, dilation, groups)
+    output_padding = packed_params.output_padding()
+    return ConvPackedParam(
+        weight_np,
+        bias,
+        scale,
+        zero_point,
+        stride,
+        padding,
+        dilation,
+        groups,
+        output_padding,
+    )
 
 
 def get_weight_quant_params(script_module, packed_param_names):
@@ -208,7 +232,13 @@ def add_quant_params_to_outputs(
         params = [qweight, qparam.scale, qparam.zero_point, qbias]
 
         if isinstance(quant_params[packed_param_name], ConvPackedParam):
-            params += [qparam.stride, qparam.padding, qparam.dilation, qparam.groups]
+            params += [
+                qparam.stride,
+                qparam.padding,
+                qparam.dilation,
+                qparam.groups,
+                qparam.output_padding,
+            ]
 
         outputs[node_name] = params
 
@@ -246,6 +276,7 @@ def _get_quant_param_for_input(input_value):
         "quantized::mul_scalar": (2, 3),
         "quantized::add_scalar": (2, 3),
         "quantized::hardswish": (1, 2),
+        "quantized::conv_transpose2d": qconv_indices,
     }
 
     def dfs(current_node):
@@ -416,6 +447,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::relu6": 1,
         "quantized::hardswish": 1,
         "aten::hardsigmoid": 1,
+        "quantized::conv_transpose2d": 1,
     }
 
     need_input_quant_param = set(num_quantized_inputs.keys())
@@ -457,7 +489,7 @@ def add_input_quant_params_to_op_inputs(graph):
             node.addInput(scale)
             node.addInput(zp)
 
-        if "conv2d" in operator or "linear" in operator:
+        if "conv" in operator or "linear" in operator:
             # This is required for quantizing the bias
             input_scales_for_bias[node.inputsAt(1).debugName()] = scale.node().f("value")
 
@@ -983,6 +1015,65 @@ def _linear_dynamic():
     return _impl
 
 
+def _quantized_conv_transpose2d(with_relu=False):
+    def _impl(inputs, _):
+        # Refer to aten/src/ATen/native/quantized/cpu/qconv.cpp
+        # Supported in Torch 1.7 or newer
+        conv_params = inputs[1]
+        weight = conv_params[0]
+        weight_scale = conv_params[1]
+        weight_zero_point = conv_params[2]
+        bias = conv_params[3]
+
+        strides = conv_params[4]
+        padding = conv_params[5]
+        dilation = conv_params[6]
+        groups = conv_params[7]
+        output_padding = conv_params[8]
+
+        output_scale = _expr.const(inputs[2])
+        output_zero_point = _expr.const(inputs[3])
+
+        assert len(inputs) == 6, "Input quant params not found in op inputs"
+
+        # These are manually added by add_input_quant_params_to_op_inputs above
+        # In torch, they are retrieved from QTensor data structure at runtime
+        input_scale = _expr.const(inputs[4])
+        input_zero_point = _expr.const(inputs[5])
+
+        weight_shape = list(infer_shape(weight))
+
+        # Swap I and O dims to match shape relay expects for OIHW
+        weight_shape[0], weight_shape[1] = weight_shape[1], weight_shape[0]
+
+        kernel_size = (weight_shape[2], weight_shape[3])
+        out_channels = weight_shape[0]
+
+        conv_out = relay.qnn.op.conv2d_transpose(
+            inputs[0],
+            weight,
+            input_zero_point,
+            weight_zero_point,
+            input_scale,
+            weight_scale,
+            kernel_size=kernel_size,
+            dilation=dilation,
+            strides=strides,
+            padding=padding,
+            groups=groups,
+            channels=out_channels,
+            output_padding=output_padding,
+            out_dtype="int32",
+            kernel_layout="OIHW",
+        )
+
+        return _do_bias_and_requantize(
+            conv_out, bias, input_scale, weight_scale, output_scale, output_zero_point, with_relu
+        )
+
+    return _impl
+
+
 convert_map = {
     "aten::quantize_per_tensor": _quantize_per_tensor(),
     "quantized::conv2d_relu": _quantized_conv2d(with_relu=True),
@@ -1000,4 +1091,5 @@ convert_map = {
     "quantized::relu6": _relu6(),
     "quantized::linear_dynamic": _linear_dynamic(),
     "quantized::hardswish": _hswish(),
+    "quantized::conv_transpose2d": _quantized_conv_transpose2d(),
 }
