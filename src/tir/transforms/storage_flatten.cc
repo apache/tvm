@@ -1334,6 +1334,38 @@ class StorageFlattener : public StmtExprMutator {
   bool create_bound_attributes_{false};
 };
 
+/*!
+ * \brief Simplify assert statements.
+ *
+ * If an assert statement can be statically verified to be false, emit
+ * a failure at compile time.  If an assert statement can be
+ * statically verified to be true, remove the assert statement.  If
+ * neither case can be verified, keep the assert statement unmodified.
+ */
+class AssertSimplifier : public StmtMutator {
+ public:
+  explicit AssertSimplifier(IRVisitorWithAnalyzer* bound_analyzer)
+      : bound_analyzer_(bound_analyzer) {}
+
+  Stmt VisitStmt_(const AssertStmtNode* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
+    op = stmt.as<AssertStmtNode>();
+
+    PrimExpr condition = bound_analyzer_->Simplify(op->condition);
+    if (is_zero(condition)) {
+      LOG(FATAL) << "Assert statement failed during static checking: " << op->message;
+    }
+    if (is_one(condition)) {
+      return op->body;
+    }
+
+    return stmt;
+  }
+
+ private:
+  IRVisitorWithAnalyzer* bound_analyzer_;
+};
+
 // The specific tensor data layout is not determined before
 // StorageFlatten pass. We use buffer_bind_scope
 // to specify before hand we want to bind a subregion
@@ -1389,6 +1421,8 @@ PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_at
 
     fptr->body = StorageFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
                                   &bound_analyzer)(std::move(fptr->body));
+
+    fptr->body = AssertSimplifier(&bound_analyzer)(std::move(fptr->body));
 
     return func;
   } else {
