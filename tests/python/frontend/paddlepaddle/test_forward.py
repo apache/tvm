@@ -426,30 +426,14 @@ def test_forward_elemwise():
 
         @paddle.jit.to_static
         def forward(self, input1, input2):
-            if self.api_name_ == "pow":
-                # for pow, only support float32
-                input1 = paddle.cast(input1, dtype="float32")
-                input2 = paddle.cast(input2, dtype="float32")
-
             y = self.func(input1, input2)
-
             if "equal" in self.api_name_ or "than" in self.api_name_:
                 # for compare operation, cast boolean result to int32
                 y = paddle.cast(y, "int32")
             return y
 
     api_list = [
-        "floor_divide",
-        "maximum",
-        "minimum",
-        "mod",
         "equal",
-        "greater_equal",
-        "greater_than",
-        "less_equal",
-        "less_than",
-        "not_equal",
-        "pow",
     ]
     input_shape = [10, 10]
     input_shape_2 = [
