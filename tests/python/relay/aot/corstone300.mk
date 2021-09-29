@@ -28,9 +28,11 @@ endif
 ARM_CPU=ARMCM55
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 ETHOSU_PATH=/opt/arm/ethosu
+DRIVER_PATH=${ETHOSU_PATH}/core_driver
 CMSIS_PATH=${ETHOSU_PATH}/cmsis
 PLATFORM_PATH=${ETHOSU_PATH}/core_platform/targets/corstone-300
 PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -std=gnu99
+CMAKE = /opt/arm/cmake/bin/cmake
 CC = arm-none-eabi-gcc
 AR = arm-none-eabi-ar
 RANLIB = arm-none-eabi-ranlib
@@ -40,11 +42,15 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I$(build_dir)/../include \
 	-I$(CODEGEN_ROOT)/host/include \
 	-I${PLATFORM_PATH} \
+	-I${DRIVER_PATH}/include \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
 	-I${CMSIS_PATH}/CMSIS/Core/Include \
 	-I${CMSIS_PATH}/CMSIS/NN/Include \
 	-I${CMSIS_PATH}/CMSIS/DSP/Include \
-	-isystem$(STANDALONE_CRT_DIR)/include \
+	-isystem$(STANDALONE_CRT_DIR)/include
+DRIVER_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(ETHOSU_TEST_ROOT)/arm-none-eabi-gcc.cmake \
+	-DETHOSU_LOG_SEVERITY=debug \
+	-DCMAKE_SYSTEM_PROCESSOR=cortex-m55
 
 PKG_LDFLAGS = -lm -specs=nosys.specs -static -T ${AOT_TEST_ROOT}/corstone300.ld
 
@@ -60,6 +66,11 @@ CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(shell find ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
 CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/*/*.c)
 UART_SRCS = $(shell find ${PLATFORM_PATH}/*.c)
+
+ifdef ETHOSU_TEST_ROOT
+ETHOSU_ARCHIVE=${build_dir}/ethosu_core_driver/libethosu_core_driver.a
+ETHOSU_INCLUDE=-I$(ETHOSU_TEST_ROOT)
+endif
 
 aot_test_runner: $(build_dir)/aot_test_runner
 
@@ -94,9 +105,14 @@ ${build_dir}/libuart.a: $(UART_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libuart.a) $(abspath $(build_dir))/libuart/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libuart.a)
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a
+${build_dir}/ethosu_core_driver/libethosu_core_driver.a:
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
+	$(QUIET)cd $(DRIVER_PATH) && $(CMAKE) -B $(abspath $(build_dir)/ethosu_core_driver) $(DRIVER_CMAKE_FLAGS)
+	$(QUIET)cd $(abspath $(build_dir)/ethosu_core_driver) && $(MAKE)
+
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a $(ETHOSU_ARCHIVE)
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) $(PKG_CFLAGS) $(ETHOSU_INCLUDE) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
 
 clean:
 	$(QUIET)rm -rf $(build_dir)/crt
@@ -109,6 +125,7 @@ run: $(build_dir)/aot_test_runner
 	-C cpu0.CFGITCMSZ=15 -C mps3_board.uart0.out_file=\"-\" -C mps3_board.uart0.shutdown_tag=\"EXITTHESIM\" \
 	-C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 \
 	-C mps3_board.telnetterminal1.start_telnet=0 -C mps3_board.telnetterminal2.start_telnet=0 -C mps3_board.telnetterminal5.start_telnet=0 \
+	-C ethosu.extra_args="--fast" \
 	-C ethosu.num_macs=$(NPU_VARIANT) $(build_dir)/aot_test_runner
 
 .SUFFIXES:

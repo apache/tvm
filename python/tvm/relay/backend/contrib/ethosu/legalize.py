@@ -221,3 +221,9 @@ class LegalizeEthosU:
         mod = LegalizeSplit()(mod)
         mod = LegalizeEthosUConv2D()(mod)
         return mod
+
+    def __call__(self, *args, **kwargs):
+        # pylint is unable figure out the decorated
+        # class is callable, thus adding this to
+        # suppress the warning.
+        pass

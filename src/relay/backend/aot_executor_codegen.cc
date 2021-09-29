@@ -665,7 +665,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Apply storage rewrite pass to the runner function to do memory planning
     auto storage_rewrite = tir::transform::StorageRewrite();
     mod_run = storage_rewrite(mod_run);
-
     // The workspace for main function should be calculated after performing storage_rewrite for
     // the top level TIR function.
     auto workspace_byte_alignment =

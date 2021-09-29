@@ -29,7 +29,7 @@ from tvm.relay.backend.contrib.ethosu.tir.scheduler import (
     schedule_cache_reads,
 )
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_te, extract_constants
-from infra import AttachType, make_ethosu_conv2d
+from .infra import AttachType, make_ethosu_conv2d
 
 
 class TestTEGraph:
