@@ -456,8 +456,7 @@ def convert_hard_sigmoid(g, op, block):
 
     slope = op.attr("slope")
     x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
-    out = x * _expr.const(slope, dtype) + _expr.const(0.5, dtype)
+    out = x * _expr.const(slope) + _expr.const(0.5)
     out = _op.clip(out, 0, 1)
     g.add_node(op.output("Out")[0], out)
 
@@ -472,9 +471,8 @@ def convert_hard_swish(g, op, block):
     assert np.isclose(scale, 6.0), "Only support scale==6.0 for PaddlePaddle's hard_swish"
     assert np.isclose(threshold, 6.0), "Only support threshold==6.0 for PaddlePaddle's hard_swish"
     x = g.get_node(op.input("X")[0])
-    dtype = infer_type(x).checked_type.dtype
     out = _op.clip(x, -1 * offset, offset)
-    out = out / _expr.const(threshold, dtype) + _expr.const(0.5, dtype)
+    out = out / _expr.const(threshold) + _expr.const(0.5)
     out = x * out
     g.add_node(op.output("Out")[0], out)
 
@@ -701,7 +699,7 @@ def convert_pool2d(g, op, block):
         ksize = [1, 1]
 
     input_x = g.get_node(op.input("X")[0])
-    _, _, in_h, in_w = infer_shape(input_x)
+    in_h, in_w = infer_shape(input_x)[2:]
 
     op_map = {
         "avg": "avg_pool2d",
@@ -1054,6 +1052,7 @@ class GraphProto:
 
 def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """Convert a PaddlePaddle model into an equivalent Relay Function.
+
     PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model,
     and PaddlePaddle scope stores all the weights of PaddlePaddle model.
     """
