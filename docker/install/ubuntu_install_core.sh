@@ -26,6 +26,13 @@ apt-get update && apt-get install -y --no-install-recommends \
         libcurl4-openssl-dev libssl-dev libopenblas-dev g++ sudo \
         apt-transport-https graphviz pkg-config curl
 
-
-cd /usr/src/gtest && cmake CMakeLists.txt && make && cp *.a /usr/lib
-cd /usr/src/gmock && cmake CMakeLists.txt && make && cp *.a /usr/lib
+if [[ -d /usr/src/googletest ]]; then
+  # Single package source (Ubuntu 18.04)
+  # googletest is installed via libgtest-dev
+  cd /usr/src/googletest && cmake CMakeLists.txt && make && cp -v {googlemock,googlemock/gtest}/*.a /usr/lib
+else
+  # Split source package (Ubuntu 16.04)
+  # libgtest-dev and google-mock
+  cd /usr/src/gtest && cmake CMakeLists.txt && make && cp -v *.a /usr/lib
+  cd /usr/src/gmock && cmake CMakeLists.txt && make && cp -v *.a /usr/lib
+fi
