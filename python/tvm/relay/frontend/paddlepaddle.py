@@ -25,7 +25,6 @@ from tvm.ir import IRModule
 
 from .. import analysis
 from .. import ty as _ty
-from ... import nd as _nd
 from .. import expr as _expr
 from .. import function as _function
 from .. import ty as _ty
@@ -883,11 +882,6 @@ _convert_map = {
     "elementwise_div": convert_elementwise_op,
     "elementwise_mul": convert_elementwise_op,
     "elementwise_sub": convert_elementwise_op,
-    "elementwise_mod": convert_elementwise_op,
-    "elementwise_max": convert_elementwise_op,
-    "elementwise_min": convert_elementwise_op,
-    "elementwise_pow": convert_elementwise_op,
-    "elementwise_floordiv": convert_elementwise_op,
     "equal": convert_elementwise_op,
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
@@ -896,8 +890,6 @@ _convert_map = {
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
     "gelu": convert_gelu,
-    "greater_equal": convert_elementwise_op,
-    "greater_than": convert_elementwise_op,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "isfinite_v2": convert_unary_op,
@@ -905,8 +897,6 @@ _convert_map = {
     "isnan_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
-    "less_equal": convert_elementwise_op,
-    "less_than": convert_elementwise_op,
     "logical_and": convert_binary_logical_op,
     "logical_or": convert_binary_logical_op,
     "logical_xor": convert_binary_logical_op,
@@ -914,7 +904,6 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
-    "not_equal": convert_elementwise_op,
     "pool2d": convert_pool2d,
     "relu": convert_unary_op,
     "reshape2": convert_reshape,
@@ -968,7 +957,7 @@ class GraphProto:
             if isinstance(scope, dict):
                 self.params[name] = scope[name]
             else:
-                self.params[name] = _nd.array(np.array(scope.var(name).get_tensor()))
+                self.params[name] = np.array(scope.var(name).get_tensor())
             self.nodes[name] = _expr.const(self.params[name])
 
     def check_input_shape(self, op, block):
@@ -991,8 +980,6 @@ class GraphProto:
         for block in program.blocks:
             for op in block.ops:
                 if op.type == "fetch":
-                    # `fetch` is a flag of output tensors
-                    # there's no need to handle this
                     continue
                 if op.type not in _convert_map:
                     unsupported_ops.add(op.type)
