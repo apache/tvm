@@ -197,3 +197,15 @@ def get_dim_value(layout: str, dim: int):
         if dim_char == dim:
             return idx
     return None
+
+
+def calculate_size_bytes(expr):
+    """This is a helper function to calculate the number
+    of bytes required to hold the tensor/relay.expr"""
+    try:
+        type_info = np.iinfo(expr.checked_type.dtype)
+    except ValueError:
+        type_info = np.finfo(expr.checked_type.dtype)
+    element_size = type_info.bits // 8
+    elements = np.prod(list(expr.checked_type.shape))
+    return element_size * elements

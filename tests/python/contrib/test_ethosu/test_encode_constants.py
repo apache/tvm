@@ -26,7 +26,7 @@ from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import Convolution2DCompute
 
-from infra import make_ethosu_conv2d
+from .infra import make_ethosu_conv2d
 
 
 # fmt: off
