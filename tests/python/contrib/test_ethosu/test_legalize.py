@@ -27,7 +27,8 @@ from tvm.relay.backend.contrib import ethosu
 from tvm.relay.backend.contrib.ethosu import legalize, preprocess
 from tvm.relay.dataflow_pattern import *
 from tvm.relay.op.contrib.ethosu import *
-import relay_ir_builder
+
+from . import relay_ir_builder
 
 
 def test_split_indices_legalize():
