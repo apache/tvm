@@ -23,7 +23,8 @@ from tvm import arith
 # TODO(@mbaret): Formalise this with a specification
 def get_weights_pointer(tir_extern_call):
     """Get the weights pointer from a NPU extern call if it exists"""
-    if tir_extern_call.args[0] == "ethosu_conv2d":
+    supported_ops = ["ethosu_conv2d", "ethosu_depthwise2d"]
+    if tir_extern_call.args[0] in supported_ops:
         return tir_extern_call.args[41].buffer_var
     return None
 
@@ -31,7 +32,8 @@ def get_weights_pointer(tir_extern_call):
 # TODO(@mbaret): Formalise this with a specification
 def get_scale_bias_pointer(tir_extern_call):
     """Get the scale_bias pointer from a NPU extern call if it exists"""
-    if tir_extern_call.args[0] == "ethosu_conv2d":
+    supported_ops = ["ethosu_conv2d", "ethosu_depthwise2d"]
+    if tir_extern_call.args[0] in supported_ops:
         return tir_extern_call.args[44].buffer_var
     return None
 

@@ -130,18 +130,22 @@ def encode_weights(tir_extern_call, values, accel_type):
     bytearray
         Compressed weights
     """
-    supported_ops = ["ethosu_conv2d"]
+    supported_ops = {
+        "ethosu_conv2d": tirtocs.translate_ethosu_conv2d,
+        "ethosu_depthwise2d": tirtocs.translate_ethosu_depthwise2d,
+    }
     op = str(tir_extern_call.args[0].value)
-    assert op in supported_ops
-    npu_op, weights_zero_point = tirtocs.translate_ethosu_conv2d(tir_extern_call)
+    assert op in supported_ops.keys()
+    npu_op, weights_zero_point = supported_ops[op](tir_extern_call)
     block_config = get_optimal_block_config(npu_op, accel_type)
     # The weight layout is assumed to be flat OHWI, always.
     assert len(values.shape) == 1
+    is_depthwise = op == "ethosu_depthwise2d"
     shape_ohwi = (
         npu_op.ofm.shape.depth,
         npu_op.kernel.height,
         npu_op.kernel.width,
-        npu_op.ifm.shape.depth,
+        1 if is_depthwise else npu_op.ifm.shape.depth,
     )
     assert values.size == np.prod(shape_ohwi)
     values = np.reshape(values, shape_ohwi)
@@ -154,8 +158,7 @@ def encode_weights(tir_extern_call, values, accel_type):
         block_depth=block_config.depth,
         dilation=(npu_op.kernel.dilation_x, npu_op.kernel.dilation_y),
         accel_type=accel_type,
-        # TODO(@manupa-arm): change this when we support depthwise
-        is_depthwise=False,
+        is_depthwise=is_depthwise,
     )
 
 

@@ -299,6 +299,7 @@ def translate_ethosu_tir_extern_call(tir_extern_call):
     supported_extern_calls = {
         "ethosu_conv2d": translate_ethosu_conv2d,
         "ethosu_copy": translate_ethosu_copy,
+        "ethosu_depthwise2d": translate_ethosu_depthwise2d,
     }
     ext_call_type = tir_extern_call.args[0].value
     assert ext_call_type in supported_extern_calls.keys(), f"{ext_call_type} is not yet supported"
@@ -406,6 +407,54 @@ def _create_npu_op_conv2d(serial_2d_convolution):
         ifm_bitdepth=npu_conv2d_op.ifm.data_type.size_in_bits(),
     )
     return npu_conv2d_op, weights_zero_point
+
+
+def translate_ethosu_depthwise2d(tir_extern_call):
+    """This function will translate a tir extern_call
+    as produced by Relay to TIR compilation.
+
+    Parameters
+    ----------
+    tir_extern_call : tvm.tir.Call
+        This should be a tir external call that has an agreed upon ordering
+        for NPU TIR Compiler. See Serial2DDepthwise in
+        tvm/relay/backend/contrib/ethosu/tir/spec.py for the ordering.
+
+    Returns
+    -------
+    ethosu.vela.api.NpuDepthWiseOperation
+        The vela object containing the params of ethosu_depthwise2d
+    weights_zero_point : int
+        The zero point of the weights
+    """
+    serial_object = spec.create_serial_object(spec.Serial2DDepthwise, tir_extern_call.args[1:])
+    return _create_npu_op_depthwise2d(serial_object)
+
+
+def _create_npu_op_depthwise2d(serial_2d_depthwise):
+    npu_depthwise2d_op = vapi.NpuConvDepthWiseOperation()
+
+    npu_depthwise2d_op.ifm = _create_npu_feature_map(serial_2d_depthwise.ifm)
+    npu_depthwise2d_op.ofm = _create_npu_feature_map(serial_2d_depthwise.ofm)
+    npu_depthwise2d_op.kernel = _create_npu_kernel(serial_2d_depthwise.kernel)
+    npu_depthwise2d_op.weights = [_create_npu_address_range(serial_2d_depthwise.weight)]
+    weights_zero_point = np.int64(serial_2d_depthwise.weight_zero_point.value)
+    npu_depthwise2d_op.biases = [_create_npu_address_range(serial_2d_depthwise.scale_bias)]
+    npu_depthwise2d_op.padding = _create_npu_padding(serial_2d_depthwise.padding)
+
+    npu_depthwise2d_op.activation = _create_npu_activation(serial_2d_depthwise.activation)
+    if (
+        npu_depthwise2d_op.activation
+        and npu_depthwise2d_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+    ):
+        _convert_clip_bounds(npu_depthwise2d_op)
+
+    npu_depthwise2d_op.upscale = _create_npu_resampling_mode(serial_2d_depthwise.upscale)
+    target_accel_type = vela_api.get_target_accel_type()
+    block_config = vela_api.get_optimal_block_config(npu_depthwise2d_op, target_accel_type)
+    npu_depthwise2d_op.block_config = block_config
+
+    return npu_depthwise2d_op, weights_zero_point
 
 
 def _create_npu_feature_map(serial_feature_map):
