@@ -72,6 +72,7 @@ jobs:
         conda build --output-folder=conda/pkg  conda/recipe &&
         conda install tvm -c ./conda/pkg
     - name: Build iOS RPC@MacOS
+      if: startsWith(matrix.os, 'macOS')
       run: |
         CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug \
                      -DCMAKE_SYSTEM_NAME=iOS \
