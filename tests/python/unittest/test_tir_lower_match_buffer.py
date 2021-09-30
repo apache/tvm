@@ -205,6 +205,54 @@ def transformed_high_dim_opaque_access(a: ty.handle) -> None:
 
 
 @tvm.script.tir
+def high_dim_opaque_access_with_source_strides(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 32, 64), strides=[2576, 80, 1])
+    for i, j, k in tir.grid(16, 2, 4):
+        with tir.block([]):
+            As_0 = tir.var("int32")
+            As_1 = tir.var("int32")
+            tir.reads([])
+            tir.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
+            sub_A = tir.match_buffer(
+                A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16],
+                (16, 16),
+                strides=[As_0, As_1],
+                offset_factor=1,
+            )
+            tir.evaluate(
+                tir.intrin_test(
+                    sub_A.data,
+                    sub_A.elem_offset,
+                    sub_A.strides[0],
+                    sub_A.strides[1],
+                    sub_A.shape[0],
+                    sub_A.shape[1],
+                    dtype="handle",
+                )
+            )
+
+
+@tvm.script.tir
+def transformed_high_dim_opaque_access_with_source_strides(a: ty.handle) -> None:
+    A = tir.match_buffer(a, (16, 32, 64), strides=[2576, 80, 1])
+    for i, j, k in tir.grid(16, 2, 4):
+        with tir.block([]):
+            tir.reads([])
+            tir.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
+            tir.evaluate(
+                tir.intrin_test(
+                    A.data,
+                    i * 2576 + j * 1280 + k * 16,
+                    80,
+                    1,
+                    16,
+                    16,
+                    dtype="handle",
+                )
+            )
+
+
+@tvm.script.tir
 def recursive_match(a: ty.handle, b: ty.handle) -> None:
     A = tir.match_buffer(a, (64, 64, 64))
     B = tir.match_buffer(b, (64, 64, 64))
@@ -469,6 +517,10 @@ def test_opaque_access():
 
 def test_high_dim_opaque_access():
     _check(high_dim_opaque_access, transformed_high_dim_opaque_access)
+    _check(
+        high_dim_opaque_access_with_source_strides,
+        transformed_high_dim_opaque_access_with_source_strides,
+    )
 
 
 def test_recursive_match():
