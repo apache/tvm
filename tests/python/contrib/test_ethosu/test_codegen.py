@@ -27,6 +27,7 @@ import tvm.micro as micro
 from tvm import relay
 from tvm.relay.backend.contrib import ethosu
 from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tests.python.relay.aot.aot_test_utils import generate_ref_data
 
 from . import relay_ir_builder
@@ -139,7 +140,7 @@ def test_ethosu_conv2d(accel_type):
     for test_case in test_cases:
         relay_module, conv_params = test_case[0](*test_case[1])
         input_tensor, input_shape, input_dtype = test_case[1]
-        mod = ethosu.partition_for_ethosu(relay_module)
+        mod = partition_for_ethosu(relay_module)
 
         # Generate reference data
         in_min, in_max = util.get_range_for_dtype_str(input_dtype)
