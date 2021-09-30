@@ -54,6 +54,7 @@ class OperatorConverter(object):
             "InnerProduct": self.convert_innerproduct,
             "Input": None,
             "LRN": self.convert_lrn,
+            "Permute": self.convert_permute,
             "Pooling": self.convert_pooling,
             "PReLU": self.convert_prelu,
             "ReLU": self.convert_relu,
@@ -591,6 +592,17 @@ class OperatorConverter(object):
         # secondly, crop in_expr_a by in_expr_b
         in_expr_a_stride = _op.strided_slice(in_expr_a, slice_start, slice_end)
         out = _op.slice_like(in_expr_a_stride, in_expr_b, axes=to_crop_axis)
+        return out
+
+    def convert_permute(self, op):
+        """Convert Permute layer"""
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+
+        # parse permute params
+        permute_param = op.permute_param
+        axes = list(getattr(permute_param, "order", 0))
+        out = _op.transpose(in_expr, axes)
         return out
 
     def check_unsupported_ops(self):
