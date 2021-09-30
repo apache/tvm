@@ -1,4 +1,3 @@
-import socket
 import pytest
 import numpy as np
 import multiprocessing
@@ -20,13 +19,6 @@ from tvm.rpc import tracker, proxy, server_ios_launcher
 HOST_URL = "0.0.0.0"
 HOST_PORT = 9190
 DEVICE_KEY = "ios_mobile_device"
-# TODO: When starting an application in pure_rpc mode, the address and port fields are ignored.
-# The server starts on one of the following ports: 9090-9099.
-# The port on which the server is running is printed in the application log window.
-# This value is not broadcast anywhere else, it cannot be programmatically obtained from outside
-# the application, so there may be connection problems if port 9090 is busy and the server starts
-# on a different port.
-HOST_PORT_PURE_RPC = 9090
 
 
 TEMPORARY_DIRECTORY = utils.tempdir()
@@ -51,25 +43,12 @@ def setup_pure_rpc_configuration(f):
     """
     Host  --  RPC server
     """
-    def find_valid_port(url, start_port):
-        tested_ports = []
-        for test_port in range(start_port, start_port + 10):
-            tested_ports.append(test_port)
-            try:
-                socket.create_connection((url, test_port))
-                break
-            except Exception as _:
-                continue
-        if len(tested_ports) == 10:
-            raise RuntimeError(f"Can't connect to server, tested ports: {tested_ports}.")
-        return tested_ports[-1]
-
     def wrapper():
         device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.pure_server.value,
                                                                        host=HOST_URL,
-                                                                       port=HOST_PORT_PURE_RPC,
+                                                                       port=HOST_PORT,
                                                                        key=DEVICE_KEY)
-        f(host=device_server_launcher.host, port=find_valid_port(HOST_URL, HOST_PORT_PURE_RPC))
+        f(host=device_server_launcher.host, port=device_server_launcher.port)
         device_server_launcher.terminate()
     return wrapper
 

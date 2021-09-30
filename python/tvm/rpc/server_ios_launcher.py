@@ -1,5 +1,4 @@
 import os
-import time
 import json
 import subprocess
 from enum import Enum
@@ -76,16 +75,55 @@ def delete_bundle_from_simulator(udid: AnyStr, bundle_id: AnyStr) -> None:
         raise RuntimeError(f"Failed to uninstall bundle <{bundle_id}> from device with unique id: {udid}")
 
 
-def launch_ios_rpc(udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr) -> bool:
-    ret_code = os.system(f"xcrun simctl launch {udid} {bundle_id}"
-                         f" --immediate_connect"
-                         f" --host_url={host_url}"
-                         f" --host_port={host_port}"
-                         f" --key={key}"
-                         f" --server_mode={mode}")
-    if ret_code != 0:
-        raise RuntimeError(f"Failed to launch bundle <{bundle_id}> on device with unique id: {udid}")
-    return True
+def wait_launch_complete(proc, should_print_host_and_port=False):
+    marker_stopped = "PROCESS_STOPPED"
+    marker_callstack = "First throw call stack"
+    marker_connected = "[IOS-RPC] STATE: 2"  # 0 means state Tracker/Proxy is connected
+    marker_server_ip = "[IOS-RPC] IP: "
+    marker_server_port = "[IOS-RPC] PORT: "
+
+    host, port = None, None
+    for line in proc.stdout:
+        found = str(line).find(marker_stopped)
+        if found != -1:
+            raise RuntimeError("[ERROR] Crash during RCP Server launch.. ")
+
+        found = str(line).find(marker_callstack)
+        if found != -1:
+            raise RuntimeError("[ERROR] Crash during RCP Server launch.. ")
+
+        found = str(line).find(marker_server_ip)
+        if found != -1:
+            ip = str(line)[found + len(marker_server_ip):].rstrip("\n")
+            host = ip
+
+        found = str(line).find(marker_server_port)
+        if found != -1:
+            port = str(line)[found + len(marker_server_port):].rstrip("\n")
+            port = int(port)
+
+        if str(line).find(marker_connected) != -1:
+            # rpc server reports that it successfully connected
+            break
+
+    if should_print_host_and_port and (host is None and port is None):
+        raise RuntimeError("No messages with actual host and port.")
+    return host, port
+
+
+def launch_ios_rpc(udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr):
+    cmd = (f"xcrun simctl launch --console {udid} {bundle_id}"
+           f" --immediate_connect"
+           f" --host_url={host_url}"
+           f" --host_port={host_port}"
+           f" --key={key}"
+           f" --server_mode={mode}"
+           f" --verbose")
+    proc = subprocess.Popen(cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
+                            universal_newlines=True)
+    actual_host, actual_port = wait_launch_complete(proc,
+                                                    should_print_host_and_port=mode == RPCServerMode.pure_server.value)
+    return True, actual_host, actual_port
 
 
 def terminate_ios_rpc(udid: AnyStr, bundle_id: AnyStr) -> None:
@@ -135,11 +173,10 @@ class ServerIOSLauncher:
                                    if self.external_booted_device is not None
                                    else ServerIOSLauncher.booted_devices[-1])
         self.bundle_was_deployed = deploy_bundle_to_simulator(self.udid, self.bundle_path)
-        self.server_was_started = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
-        time.sleep(5)   # Need to make sure that the server start
+        self.server_was_started, _, actual_port = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
 
         self.host = host
-        self.port = port
+        self.port = port if mode != RPCServerMode.pure_server.value else actual_port
 
     def terminate(self):
         if self.server_was_started:
