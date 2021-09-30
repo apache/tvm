@@ -347,9 +347,7 @@ def test_compress_weights():
         assert mock_obj.call_args[1]["block_traversal"] == test_vec["block_traversal"]
 
     def create_mock(test_vec):
-        with patch(
-            "tvm.relay.backend.contrib.ethosu.vela_api.vapi.npu_encode_weights"
-        ) as mock_npu_encode_weights:
+        with patch("ethosu.vela.api.npu_encode_weights") as mock_npu_encode_weights:
             ifm_bitdepth = np.iinfo(test_vec["ifm_dtype"]).bits
             ifm_dtype = test_vec["ifm_dtype"]
             max = np.iinfo(ifm_dtype).max
@@ -427,9 +425,7 @@ def test_pack_biases():
             assert test_vec["hw_shifts"][idx] == mock_obj.call_args_list[idx][0][2]
 
     def create_mock(test_vec):
-        with patch(
-            "tvm.relay.backend.contrib.ethosu.vela_api.vapi.npu_encode_bias"
-        ) as mock_npu_encode_bias:
+        with patch("ethosu.vela.api.npu_encode_bias") as mock_npu_encode_bias:
             mock_npu_encode_bias.return_value = bytearray(10)
             ifm_dtype = test_vec["ifm_dtype"]
             max = np.iinfo(ifm_dtype).max
@@ -507,12 +503,8 @@ def test_encode_weights(accel):
     ]
 
     def create_mock(test_vec):
-        with patch(
-            "tvm.relay.backend.contrib.ethosu.vela_api.vapi.npu_encode_weights"
-        ) as mock_enc_w:
-            with patch(
-                "tvm.relay.backend.contrib.ethosu.vela_api.vapi.npu_find_block_configs"
-            ) as mock_blk_cfg:
+        with patch("ethosu.vela.api.npu_encode_weights") as mock_enc_w:
+            with patch("ethosu.vela.api.npu_find_block_configs") as mock_blk_cfg:
                 mock_blk_cfg.return_value = [vapi.NpuShape3D(8, 8, 8)]
                 ethosu_conv2d_calls = extract_ethosu_conv2d_extern_calls(test_vec["tir_module"])
                 buffer_info = tirtocs.extract_buffer_info(

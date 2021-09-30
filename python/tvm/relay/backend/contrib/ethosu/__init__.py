@@ -22,4 +22,3 @@ from . import errors
 from . import codegen
 from . import vela_api
 from . import tir_to_cs_translator
-from .util import partition_for_ethosu
