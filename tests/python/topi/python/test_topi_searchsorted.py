@@ -20,17 +20,21 @@ import tvm.testing
 import tvm.topi.testing
 from tvm import te, topi
 
-topi_funcs = {"searchsorted": {"generic": topi.searchsorted}}
+topi_funcs = {"generic": topi.searchsorted, "cuda": topi.cuda.searchsorted}
 
 
-def get_implementations(name, axis, dtype, exclusive):
-    topi_func_generic = topi_funcs[name]["generic"]
-    # topi_func_cuda = topi_funcs[name]["cuda"]
+def get_implementations():
+    topi_func_generic = topi_funcs["generic"]
+    topi_func_cuda = topi_funcs["cuda"]
 
     return {
         "generic": (
-            lambda x: topi_func_generic(x, axis, dtype, exclusive=exclusive),
+            lambda x, y: topi_func_generic(x, y),
             topi.generic.schedule_extern,
+        ),
+        "vulkan": (
+            lambda x, y: topi_func_cuda(x, y),
+            topi.cuda.schedule_extern,
         ),
     }
 
@@ -47,7 +51,7 @@ def searchsorted_ref(sorted_sequence, values):
 
 
 @tvm.testing.parametrize_targets
-def test_cumsum(dev, target):
+def test_searchsorted(dev, target):
     sequence_len = 1024
     num_search = 1000
     outer_axes = (10, 5, 3)
@@ -55,8 +59,12 @@ def test_cumsum(dev, target):
     values_shape = outer_axes + (num_search,)
     A = te.placeholder(sorted_sequence_shape, name="A", dtype="float32")
     B = te.placeholder(values_shape, name="B", dtype="float32")
-    C = topi.searchsorted(A, B)
-    s = te.create_schedule(C.op)
+
+    implementations = get_implementations()
+    fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
+
+    C = fcompute(A, B)
+    s = fschedule([C])
 
     with tvm.transform.PassContext(opt_level=3):
         func = tvm.build(s, [A, B, C], target=target)
@@ -71,8 +79,9 @@ def test_cumsum(dev, target):
     func(a, b, c)
     ref = searchsorted_ref(a_np, b_np)
     np.testing.assert_equal(c.numpy(), ref)
+    print("ok")
 
 
 if __name__ == "__main__":
-    target = "llvm"
-    test_cumsum(tvm.device(target, 0), target)
+    target = "vulkan -from_device=0"
+    test_searchsorted(tvm.device(target, 0), target)

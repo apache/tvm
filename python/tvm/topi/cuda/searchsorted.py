@@ -14,34 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""searchsorted operator"""
-from . import utils
-from . import te
-from ..tir import ir_builder
-from .math import cast
-
-
-def binary_search(ib, sequence_offset, search_range, sorted_sequence, i, values, out_indices, out_dtype):
-    lo = ib.allocate(out_dtype, (1,), name="lo", scope="local")
-    hi = ib.allocate(out_dtype, (1,), name="hi", scope="local")
-
-    v = values[i]
-    lo[0] = cast(0, out_dtype)
-    hi[0] = cast(search_range, out_dtype)
-
-    with ib.while_loop(lo[0] < hi[0]):
-        mid = lo[0] + (hi[0] - lo[0] >> 1)
-        with ib.if_scope(sorted_sequence[sequence_offset + mid] < v):
-            lo[0] = mid + 1
-        with ib.else_scope():
-            hi[0] = mid
-
-    out_indices[i] = lo[0]
+"""searchsorted operator for GPU"""
+import tvm
+from tvm import te
+from .. import utils
+from ..searchsorted import binary_search
 
 
 def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
     def ir(sorted_sequence, values, indices):
-        ib = ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         sorted_sequence_shape = sorted_sequence.shape
         values_shape = values.shape
         num_search = utils.prod(values_shape)
@@ -51,10 +33,18 @@ def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
         values = ib.buffer_ptr(values)
         indices = ib.buffer_ptr(indices)
 
-        with ib.for_range(0, num_search, name="i", kind="parallel") as i:
-            sequence_id = i // values_shape[-1]
-            sequence_offset = sequence_id * search_range
-            binary_search(ib, sequence_offset, search_range, sorted_sequence, i, values, indices, out_dtype)
+        max_threads = 256
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(bx, "thread_extent", tvm.tir.indexdiv(num_search + max_threads - 1, max_threads))
+        ib.scope_attr(tx, "thread_extent", max_threads)
+        tid = bx * max_threads + tx
+
+        with ib.new_scope():
+            with ib.if_scope(tid < num_search):
+                sequence_id = tid // values_shape[-1]
+                sequence_offset = sequence_id * search_range
+                binary_search(ib, sequence_offset, search_range, sorted_sequence, tid, values, indices, out_dtype)
 
         return ib.get()
 
