@@ -33,7 +33,9 @@ namespace example_target_hooks {
 class ConvertAddToSubtract : public MixedModeMutator {
  public:
   explicit ConvertAddToSubtract(IRModule ir_module, Target host_target)
-      : ir_module_(ir_module), host_target_(host_target) {}
+      : ir_module_(ir_module),
+        host_target_(host_target),
+        custom_target_(Target("example_target_hook")) {}
 
   IRModule Mutate() {
     GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
@@ -81,7 +83,15 @@ class ConvertAddToSubtract : public MixedModeMutator {
 
     tir::PrimFunc replacement_func = tir::PrimFunc({x_var, y_var, out_var}, math_loop, VoidType(),
                                                    buffer_map, DictAttrs(dict_attrs));
-    replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, host_target_);
+
+    // Switch to TIRToRuntime hook for testing
+    Bool tir_to_runtime = func->GetAttr<Bool>("tir_to_runtime").value_or(Bool(false));
+    if (tir_to_runtime) {
+      replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, custom_target_);
+    } else {
+      replacement_func = WithAttr(replacement_func, ::tvm::attr::kTarget, host_target_);
+    }
+
     ir_module_->Add(new_global_var, replacement_func);
   }
 
@@ -109,6 +119,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
  public:
   IRModule ir_module_;
   Target host_target_;
+  Target custom_target_;
 };
 
 transform::Pass RelayToTIR() {
@@ -123,9 +134,5 @@ transform::Pass RelayToTIR() {
 }  // namespace example_target_hooks
 }  // namespace contrib
 }  // namespace relay
-
-TVM_REGISTER_TARGET_KIND("example_target_hook", kDLCPU)
-    .set_attr<tvm::transform::Pass>("RelayToTIR",
-                                    relay::contrib::example_target_hooks::RelayToTIR());
 
 }  // namespace tvm

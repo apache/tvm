@@ -34,6 +34,8 @@
 #include <mutex>
 #include <stack>
 
+#include "../relay/backend/te_compiler.h"
+
 namespace tvm {
 
 // Register build pipeline related options
@@ -401,12 +403,20 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   auto opt_mixed = transform::Sequential(mixed_pass_list);
   mod_mixed = opt_mixed(std::move(mod_mixed));
 
+  // We make an assumption here that the overriden host target
+  // can be used alongside the default host codegen based on device type
+  // this is so the correct code generator is used later instead of overriding the target.
+  // We need better support for inserting multiple kDLCPU targets.
+  Target overriden_host_target = target_host;
+  if (target->kind->device_type == target_host->kind->device_type) {
+    overriden_host_target = target;
+  }
   auto host_pass_list = {
       Filter([](const tir::PrimFunc& f) {
         return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
                CallingConv::kDeviceKernelLaunch;
       }),
-      BindTarget(target_host),
+      BindTarget(overriden_host_target),
       tir::transform::LowerTVMBuiltin(),
       tir::transform::LowerCustomDatatypes(),
       tir::transform::LowerIntrin(),
@@ -495,7 +505,13 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
 
       ICHECK(mhost_all.defined()) << "The host module must be defined";
 
-      mhost_all->Update(mhost);
+      // We don't want library modules going back into host codegen
+      // unless they're supposed to
+      if (it.first->kind == target_host->kind) {
+        mhost_all->Update(mhost);
+      } else {
+        device_modules.push_back(codegen::Build(mhost, it.first));
+      }
 
       if (mdevice->functions.size() != 0) {
         device_modules.push_back(codegen::Build(mdevice, it.first));
@@ -510,6 +526,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
       mhost.Import(it);
     }
   }
+
   return mhost;
 }
 
