@@ -337,14 +337,14 @@ inline void CPUCacheFlushImpl(const char* addr, unsigned int len) {
   for (uintptr_t uptr = (uintptr_t)addr & ~(cache_line - 1); uptr < (uintptr_t)addr + len;
        uptr += cache_line) {
 #if defined(__aarch64__)
-    asm volatile("dc civac, %0\n\t" : : "r" (reinterpret_cast<const void*>(uptr)) : "memory");
+    asm volatile("dc civac, %0\n\t" : : "r"(reinterpret_cast<const void*>(uptr)) : "memory");
 #else
     _mm_clflush(reinterpret_cast<const void*>(uptr));
 #endif
   }
 
 #if defined(__aarch64__)
-    asm volatile("dmb ishst" : : : "memory");
+  asm volatile("dmb ishst" : : : "memory");
 #endif
 
 #endif
