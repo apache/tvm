@@ -587,6 +587,27 @@ def test_forward_LRN():
 
 
 #######################################################################
+# Permute
+# -----------
+
+
+def _test_permute(data, **kwargs):
+    """One iteration of Permute."""
+    _test_op(data, L.Permute, "Permute", **kwargs)
+
+
+def test_forward_Permute():
+    """Permute"""
+    data = np.random.rand(2, 3, 4).astype(np.float32)
+    _test_permute(data, permute_param={"order": [0, 1, 2]})
+    _test_permute(data, permute_param={"order": [0, 2, 1]})
+    _test_permute(data, permute_param={"order": [1, 0, 2]})
+    _test_permute(data, permute_param={"order": [1, 2, 0]})
+    _test_permute(data, permute_param={"order": [2, 0, 1]})
+    _test_permute(data, permute_param={"order": [2, 1, 0]})
+
+
+#######################################################################
 # Pooling
 # -----------
 
