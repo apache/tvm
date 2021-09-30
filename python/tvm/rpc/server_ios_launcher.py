@@ -1,4 +1,5 @@
 import os
+import time
 import json
 import subprocess
 from enum import Enum
@@ -124,6 +125,8 @@ class ServerIOSLauncher:
     bundle_path = os.environ["BUNDLE_PATH"]
 
     def __init__(self, mode, host, port, key):
+        self.bundle_was_deployed = None
+        self.server_was_started = None
         self.external_booted_device = None
         if not ServerIOSLauncher.booted_devices:
             self._boot_or_find_booted_device()
@@ -133,6 +136,7 @@ class ServerIOSLauncher:
                                    else ServerIOSLauncher.booted_devices[-1])
         self.bundle_was_deployed = deploy_bundle_to_simulator(self.udid, self.bundle_path)
         self.server_was_started = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
+        time.sleep(5)   # Need to make sure that the server start
 
         self.host = host
         self.port = port

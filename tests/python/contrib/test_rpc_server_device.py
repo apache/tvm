@@ -1,4 +1,5 @@
-import time
+import socket
+import pytest
 import numpy as np
 import multiprocessing
 
@@ -38,17 +39,37 @@ DTYPE = "float32"
 np.random.seed(0)
 
 
+@pytest.fixture(scope='session', autouse=True)
+def setup_and_teardown_actions():
+    # No setup actions
+    yield
+    # Teardown actions:
+    server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
+
+
 def setup_pure_rpc_configuration(f):
     """
     Host  --  RPC server
     """
+    def find_valid_port(url, start_port):
+        tested_ports = []
+        for test_port in range(start_port, start_port + 10):
+            tested_ports.append(test_port)
+            try:
+                socket.create_connection((url, test_port))
+                break
+            except Exception as _:
+                continue
+        if len(tested_ports) == 10:
+            raise RuntimeError(f"Can't connect to server, tested ports: {tested_ports}.")
+        return tested_ports[-1]
+
     def wrapper():
         device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.pure_server.value,
                                                                        host=HOST_URL,
                                                                        port=HOST_PORT_PURE_RPC,
                                                                        key=DEVICE_KEY)
-        time.sleep(5)   # Need to make sure that the server start
-        f(host=device_server_launcher.host, port=device_server_launcher.port)
+        f(host=device_server_launcher.host, port=find_valid_port(HOST_URL, HOST_PORT_PURE_RPC))
         device_server_launcher.terminate()
     return wrapper
 
@@ -169,30 +190,35 @@ def get_add_module(target):
     return tvm.build(s, [A, B, C], target=target, target_host=target, name="simple_add")
 
 
+@pytest.mark.dependency()
 @setup_pure_rpc_configuration
 def test_pure_rpc(host, port):
     status_ok = try_create_remote_session(session_factory=rpc.connect, args=(host, port))
     assert status_ok
 
 
+@pytest.mark.dependency()
 @setup_rpc_proxy_configuration
 def test_rpc_proxy(host, port):
     status_ok = try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
     assert status_ok
 
 
+@pytest.mark.dependency()
 @setup_rpc_tracker_configuration
 def test_rpc_tracker(host, port):
     status_ok = try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
     assert status_ok
 
 
+@pytest.mark.dependency()
 @setup_rpc_tracker_via_proxy_configuration
 def test_rpc_tracker_via_proxy(host, port):
     status_ok = try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
     assert status_ok
 
 
+@pytest.mark.dependency(depends=["test_pure_rpc"])
 @setup_pure_rpc_configuration
 def test_can_call_remote_function_with_pure_rpc(host, port):
     remote_session = rpc.connect(host, port)
@@ -200,6 +226,7 @@ def test_can_call_remote_function_with_pure_rpc(host, port):
     assert f("hello") == "hello"
 
 
+@pytest.mark.dependency(depends=["test_rpc_proxy"])
 @setup_rpc_proxy_configuration
 def test_can_call_remote_function_with_rpc_proxy(host, port):
     remote_session = rpc.connect(host, port, key=DEVICE_KEY)
@@ -207,6 +234,7 @@ def test_can_call_remote_function_with_rpc_proxy(host, port):
     assert f("hello") == "hello"
 
 
+@pytest.mark.dependency(depends=["test_rpc_tracker"])
 @setup_rpc_tracker_configuration
 def test_can_call_remote_function_with_rpc_tracker(host, port):
     remote_session = request_remote(DEVICE_KEY, host, port)
@@ -214,6 +242,7 @@ def test_can_call_remote_function_with_rpc_tracker(host, port):
     assert f("hello") == "hello"
 
 
+@pytest.mark.dependency(depends=["test_rpc_tracker_via_proxy"])
 @setup_rpc_tracker_via_proxy_configuration
 def test_can_call_remote_function_with_rpc_tracker_via_proxy(host, port):
     remote_session = request_remote(DEVICE_KEY, host, port)
@@ -221,6 +250,7 @@ def test_can_call_remote_function_with_rpc_tracker_via_proxy(host, port):
     assert f("hello") == "hello"
 
 
+@pytest.mark.dependency(depends=["test_pure_rpc"])
 @setup_pure_rpc_configuration
 def test_basic_functionality_of_rpc_session(host, port):
     remote_session = rpc.connect(host, port)
@@ -251,6 +281,8 @@ def test_basic_functionality_of_rpc_session(host, port):
     remote_session.remove(DSO_NAME)
 
 
+@pytest.mark.xfail(reason="Not implemented functionality")
+@pytest.mark.dependency(depends=["test_pure_rpc"])
 @setup_pure_rpc_configuration
 def test_cleanup_workspace_after_session_end(host, port):
     # Arrange
@@ -273,6 +305,7 @@ def test_cleanup_workspace_after_session_end(host, port):
     assert status_ok, "Workspace not cleared after RPC Session termination."
 
 
+@pytest.mark.dependency(depends=["test_pure_rpc"])
 @setup_pure_rpc_configuration
 def test_graph_executor_remote_run(host, port):
     remote_session = rpc.connect(host, port)
@@ -304,6 +337,7 @@ def test_graph_executor_remote_run(host, port):
     tvm.testing.assert_allclose(out.numpy(), a + b)
 
 
+@pytest.mark.dependency(depends=["test_rpc_tracker"])
 @setup_rpc_tracker_configuration
 def test_check_auto_schedule_tuning(host, port):
     log_file = TEMPORARY_DIRECTORY.relpath("ios_tuning_stat.log")
@@ -328,7 +362,7 @@ def test_check_auto_schedule_tuning(host, port):
             num_measures_per_round=1,
             runner=measure_runner,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-            verbose=0
+            verbose=2
         )
 
         tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
