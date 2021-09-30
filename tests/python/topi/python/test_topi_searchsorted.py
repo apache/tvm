@@ -35,28 +35,42 @@ def get_implementations(name, axis, dtype, exclusive):
     }
 
 
+def searchsorted_ref(sorted_sequence, values):
+    sorted_sequence_2d = np.reshape(sorted_sequence, (-1, sorted_sequence.shape[-1]))
+    values_2d = np.reshape(values, (-1, values.shape[-1]))
+    indices = np.zeros(values_2d.shape)
+
+    for i in range(indices.shape[0]):
+        indices[i] = np.searchsorted(sorted_sequence_2d[i], values_2d[i])
+
+    return np.reshape(indices, values.shape)
+
+
 @tvm.testing.parametrize_targets
 def test_cumsum(dev, target):
-    n = 1024
-    A = te.placeholder((n,), name="A", dtype="float32")
-    B = te.placeholder((n,), name="B", dtype="float32")
+    sequence_len = 1024
+    num_search = 1000
+    outer_axes = (10, 5, 3)
+    sorted_sequence_shape = outer_axes + (sequence_len,)
+    values_shape = outer_axes + (num_search,)
+    A = te.placeholder(sorted_sequence_shape, name="A", dtype="float32")
+    B = te.placeholder(values_shape, name="B", dtype="float32")
     C = topi.searchsorted(A, B)
     s = te.create_schedule(C.op)
 
     with tvm.transform.PassContext(opt_level=3):
-        func = tvm.build(s, [A, B, C], target)
+        func = tvm.build(s, [A, B, C], target=target)
 
     dev = tvm.device(target, 0)
-    a_np = np.random.uniform(size=n).astype(A.dtype)
-    b_np = np.random.uniform(size=n).astype(B.dtype)
-    a_np = np.sort(a_np)
+    a_np = np.random.randn(*sorted_sequence_shape).astype(A.dtype)
+    b_np = np.random.randn(*values_shape).astype(B.dtype)
+    a_np = np.sort(a_np, axis=-1)
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(b_np, dev)
-    c = tvm.nd.array(np.zeros(n, dtype=C.dtype), dev)
+    c = tvm.nd.array(np.zeros(values_shape, dtype=C.dtype), dev)
     func(a, b, c)
-    ref = np.searchsorted(a_np, b_np)
-    tvm.testing.assert_allclose(c.numpy(), ref)
-    print("ok")
+    ref = searchsorted_ref(a_np, b_np)
+    np.testing.assert_equal(c.numpy(), ref)
 
 
 if __name__ == "__main__":
