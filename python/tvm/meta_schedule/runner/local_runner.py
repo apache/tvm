@@ -198,6 +198,7 @@ class LocalRunner(PyRunner):
             timeout=timeout_sec,
             initializer=initializer,
         )
+        self._sanity_check()
 
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
         results: List[RunnerFuture] = []
@@ -227,6 +228,25 @@ class LocalRunner(PyRunner):
             local_future = LocalRunnerFuture(res=result, error_message=error_message)
             results.append(local_future)
         return results
+
+    def _sanity_check(self) -> None:
+        def _check(
+            f_alloc_argument,
+            f_run_evaluator,
+            f_cleanup,
+        ) -> None:
+            get_global_func_with_default_on_worker(name=f_alloc_argument, default=None)
+            get_global_func_with_default_on_worker(name=f_run_evaluator, default=None)
+            get_global_func_with_default_on_worker(name=f_cleanup, default=None)
+            tvm.get_global_func("tvm.contrib.random.random_fill", True)
+
+        value = self.pool.submit(
+            _check,
+            self.f_alloc_argument,
+            self.f_run_evaluator,
+            self.f_cleanup,
+        )
+        value.result()
 
     @staticmethod
     def _worker_func(
