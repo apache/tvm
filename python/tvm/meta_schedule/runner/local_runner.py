@@ -254,7 +254,7 @@ class LocalRunner(PyRunner):
             try:
                 yield
             finally:
-                # Final step. Always clean up…
+                # Final step. Always clean up
                 f_cleanup()
 
         with resource_handler():
