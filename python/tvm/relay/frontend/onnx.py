@@ -1496,7 +1496,7 @@ class Unsqueeze(OnnxOpConverter):
             axis = relay.TupleGetItem(axes, i)
             # Unpack scalar
             axis = relay.reshape(axis, [])
-            axis = relay.If(
+            axis = relay.where(
                 axis >= relay.const(0, "int64"), axis, axis + relay.const(rank_input, "int64")
             )
             result = _op.expand_dims(result, axis)
@@ -1509,12 +1509,18 @@ class Squeeze(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axes", None)
-        return _op.squeeze(*inputs, axis)
+        return _op.squeeze(inputs[0], axis)
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
         axis = inputs[1]
         dtype = infer_type(axis).checked_type.dtype
+
+        if isinstance(axis, _expr.Constant):
+            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(map(int, constant_axes))
+            return _op.squeeze(inputs[0], constant_axes)
+
         rank = _op.shape_of(_op.shape_of(inputs[0], dtype), dtype)
         axis = _op.where(axis < _op.const(0, dtype), axis + rank, axis)
         return _op.squeeze(inputs[0], fold_constant(axis))
@@ -1640,7 +1646,7 @@ def normalize_gather_indices(data, indices, axis):
     """Make sure gather indicies aren't negative"""
     ind_dtype = infer_type(indices).checked_type.dtype
     # Normalize the indices to a positive range
-    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis, dtype="int64"))
     cond = fold_constant(indices < _op.const(0, ind_dtype))
     if isinstance(cond, _expr.Constant):
         val = cond.data.numpy()
