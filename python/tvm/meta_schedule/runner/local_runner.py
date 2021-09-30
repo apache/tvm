@@ -238,7 +238,9 @@ class LocalRunner(PyRunner):
             get_global_func_with_default_on_worker(name=f_alloc_argument, default=None)
             get_global_func_with_default_on_worker(name=f_run_evaluator, default=None)
             get_global_func_with_default_on_worker(name=f_cleanup, default=None)
-            tvm.get_global_func("tvm.contrib.random.random_fill", True)
+            get_global_func_with_default_on_worker(
+                name="tvm.contrib.random.random_fill", default=None
+            )
 
         value = self.pool.submit(
             _check,
@@ -319,13 +321,9 @@ def default_alloc_argument(
     repeated_args: List[T_ARGUMENT_LIST]
         The allocation args
     """
-    try:
-        f_random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
-    except AttributeError as error:
-        raise AttributeError(
-            'Unable to find function "tvm.contrib.random.random_fill" on local runner. '
-            "Please make sure USE_RANDOM is turned ON in the config.cmake."
-        ) from error
+    f_random_fill = get_global_func_with_default_on_worker(
+        name="tvm.contrib.random.random_fill", default=None
+    )
     return alloc_argument_common(f_random_fill, device, args_info, alloc_repeat)
 
 
