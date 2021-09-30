@@ -26,6 +26,7 @@ from tvm import relay
 from tvm.relay.expr import Constant  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant  # type: ignore
+from tvm.relay.build_module import bind_params_by_name  # type: ignore
 
 try:
     # As ethos-u-vela package is an optional TVM dependency, we want to lazy load it
