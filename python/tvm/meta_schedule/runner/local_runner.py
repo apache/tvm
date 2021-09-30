@@ -15,18 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local Runner"""
-import itertools
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Callable, List, Optional, Union
 import tvm
 
 from ...contrib.popen_pool import PopenPoolExecutor
-from ...runtime import Device, Module, ndarray
+from ...runtime import Device, Module
 from ..utils import get_global_func_with_default_on_worker
 from .config import EvaluatorConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
 from .utils import (
-    T_ARG_INFO_JSON_OBJ,
     T_ARG_INFO_JSON_OBJ_LIST,
     T_ARGUMENT_LIST,
     alloc_argument_common,

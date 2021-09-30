@@ -17,13 +17,12 @@
 """RPC Runner"""
 import concurrent.futures
 from contextlib import contextmanager
-import itertools
 import os.path as osp
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.rpc import RPCSession
-from tvm.runtime import Device, Module, ndarray
+from tvm.runtime import Device, Module
 
 from ..utils import (
     get_global_func_on_rpc_session,
@@ -32,7 +31,6 @@ from ..utils import (
 from .config import EvaluatorConfig, RPCConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
 from .utils import (
-    T_ARG_INFO_JSON_OBJ,
     T_ARG_INFO_JSON_OBJ_LIST,
     T_ARGUMENT_LIST,
     alloc_argument_common,
