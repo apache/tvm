@@ -358,7 +358,11 @@ Allocate::Allocate(Var buffer_var, DataType dtype, PrimExpr extent, PrimExpr con
 }
 
 int32_t AllocateNode::constant_allocation_size(const PrimExpr& extent) {
-  if (const IntImmNode* int_size = extent.as<IntImmNode>()) {
+  arith::Analyzer analyzer;
+
+  PrimExpr simplified = analyzer.Simplify(extent);
+
+  if (const IntImmNode* int_size = simplified.as<IntImmNode>()) {
     return int_size->value;
   } else {
     return 0;
