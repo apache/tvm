@@ -183,9 +183,9 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
-                name="conv2d_nhwc.cuda",
+                wrap_compute_conv2d(topi.gpu.conv2d_nhwc),
+                wrap_topi_schedule(topi.gpu.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.gpu",
             )
 
             N, H, W, _ = get_const_tuple(data.shape)
