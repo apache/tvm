@@ -31,6 +31,13 @@ from ..utils import (
 )
 from .config import EvaluatorConfig, RPCConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
+from .utils import (
+    T_ARG_INFO_JSON_OBJ,
+    T_ARG_INFO_JSON_OBJ_LIST,
+    T_ARGUMENT_LIST,
+    alloc_argument_common,
+    run_evaluator_common,
+)
 
 
 class RPCRunnerFuture(RunnerFuture):
@@ -78,12 +85,6 @@ class RPCRunnerFuture(RunnerFuture):
                 error_msg="RPCRunner: An exception occurred\n" + str(exception),
             )
         return RunnerResult(run_secs, None)
-
-
-T_ARG_INFO_JSON_OBJ = List[Any]  # pylint: disable=invalid-name
-T_ARG_INFO_JSON_OBJ_LIST = List[T_ARG_INFO_JSON_OBJ]  # pylint: disable=invalid-name
-T_ARGUMENT = Any  # pylint: disable=invalid-name
-T_ARGUMENT_LIST = List[T_ARGUMENT]  # pylint: disable=invalid-name
 
 
 class RPCRunner(PyRunner):
@@ -470,29 +471,7 @@ def default_alloc_argument(
         "Please make sure 'USE_RANDOM' is turned ON in the config.cmake on the RPC server.",
     )
 
-    def alloc_tensor(_, dtype, shape) -> ndarray.NDArray:
-        arg = ndarray.empty(shape=shape, dtype=dtype, device=device)
-        f_random_fill(arg)
-        return arg
-
-    def alloc_fail(*arg_info) -> None:
-        raise NotImplementedError(arg_info)
-
-    dispatcher: Dict[Any, Callable] = {
-        "TENSOR": alloc_tensor,
-        None: alloc_fail,
-    }
-
-    repeated_args: List[T_ARGUMENT_LIST] = []
-    for _ in range(alloc_repeat):
-        args: T_ARGUMENT_LIST = []
-        arg_info: T_ARG_INFO_JSON_OBJ
-        for arg_info in args_info:
-            arg_type = arg_info[0]
-            arg: Any = dispatcher.get(arg_type, None)(*arg_info)
-            args.append(arg)
-        repeated_args.append(args)
-    return repeated_args
+    return alloc_argument_common(f_random_fill, device, args_info, alloc_repeat)
 
 
 def default_run_evaluator(
@@ -522,23 +501,7 @@ def default_run_evaluator(
     costs: List[float]
         The evaluator results
     """
-    evaluator = rt_mod.time_evaluator(
-        func_name=rt_mod.entry_name,
-        dev=device,
-        number=evaluator_config.number,
-        repeat=evaluator_config.repeat,
-        min_repeat_ms=evaluator_config.min_repeat_ms,
-        f_preproc="cache_flush_cpu_non_first_arg"
-        if evaluator_config.enable_cpu_cache_flush
-        else "",
-    )
-    repeated_costs: List[List[float]] = []
-    for args in repeated_args:
-        device.sync()
-        profile_result = evaluator(*args)
-        repeated_costs.append(profile_result.results)
-    costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
-    return costs
+    return run_evaluator_common(rt_mod, device, evaluator_config, repeated_args)
 
 
 def default_cleanup(
