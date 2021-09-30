@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-The tvm.meta_schedule.database package.
-The database that stores serialized tuning records and workloads
+The tvm.meta_schedule.task_scheduler package.
+Meta Schedule task scheduler that manage the task scheduling
+for measure candidates generation and measurement, then save
+records to the database.
 """
-from .database import Database, PyDatabase, TuningRecord, Workload
-from .json_database import JSONDatabase
+from .task_scheduler import TaskScheduler, PyTaskScheduler
+from .round_robin import RoundRobin
