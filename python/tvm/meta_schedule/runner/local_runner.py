@@ -44,7 +44,7 @@ class LocalRunnerFuture(RunnerFuture):
 
     Note
     ----
-    Either one of the parameters will be None upon the creation
+    Only one of the parameters should be None upon the creation
     of LocalRunnerFuture object
     """
 
@@ -52,7 +52,7 @@ class LocalRunnerFuture(RunnerFuture):
     error_message: Optional[str]
 
     def __init__(
-        self, result: Optional[List[float]] = None, error_message: Optional[str] = None
+        self, res: Optional[List[float]] = None, error_message: Optional[str] = None
     ) -> None:
         """Constructor
 
@@ -65,8 +65,17 @@ class LocalRunnerFuture(RunnerFuture):
 
         """
         super().__init__()
-        self.res = result
+        self.res = res
         self.error_message = error_message
+
+        # sanity check upon the creation of LocalRunnerFuture object
+        if (res is None and error_message is None) or (
+            res is not None and error_message is not None
+        ):
+            raise AttributeError(
+                "Only one of the two parameters should be None upon the creation"
+                "of LocalRunnerFuture object."
+            )
 
     def done(self) -> bool:
         return True
@@ -215,7 +224,7 @@ class LocalRunner(PyRunner):
             except Exception as exception:  # pylint: disable=broad-except
                 result: List[float] = None
                 error_message: str = "LocalRunner: An exception occurred\n" + str(exception)
-            local_future = LocalRunnerFuture(result=result, error_message=error_message)
+            local_future = LocalRunnerFuture(res=result, error_message=error_message)
             results.append(local_future)
         return results
 
@@ -245,7 +254,7 @@ class LocalRunner(PyRunner):
             try:
                 yield
             finally:
-                # Step 5. Clean up
+                # Final step. Always clean up…
                 f_cleanup()
 
         with resource_handler():

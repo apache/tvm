@@ -368,7 +368,7 @@ class RPCRunner(PyRunner):
             try:
                 yield
             finally:
-                # Step 5. Clean up
+                # Final step. Always clean up…
                 f_cleanup(session, remote_path)
 
         with resource_handler():
