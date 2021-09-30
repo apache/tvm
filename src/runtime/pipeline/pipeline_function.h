@@ -31,27 +31,28 @@
 namespace tvm {
 namespace runtime {
 /*!
- * \brief The class that executes pipeline logic is used to initialize the thread pool,
+ * \brief The class that executes the pipeline logic is used to initialize the thread pool,
     execute and schedule pipeline tasks, allocate and manage memory, etc.
  */
 class PipelineFunction {
  public:
   /*!
-   * \brief Use the information of mod_config to create graph runtime list.
-   * \param mod_config Configuration information that generate by export library function call.
+   * \brief Use the information of mod_config to create graph executor list.
+   * \param mod_config The Configuration information that generate by the library export library
+   *  function call.
    */
   std::vector<Module> PipelineCreateGraphExecutors(const ModuleConfig& mod_config);
   /*!
-   * \brief Initialize pipeline.
-   * \param modules  List of graph runtime module.
-   * \param pipeline_config Dependency relation of each graph runtime module.
-   * \param mod_config Config information that generate by export library function call.
+   * \brief Initialize the pipeline.
+   * \param modules The List of graph executor module.
+   * \param pipeline_config The Dependency information of each graph executor module.
+   * \param mod_config The config information that generate by the export library function call.
    */
   size_t PipelineInit(Array<Module> modules, const PipelineConfig& pipeline_config,
                       const ModuleConfig& mod_config);
 
  private:
-  /*!\brief List of graph executors.*/
+  /*!\brief The list of graph executors.*/
   std::vector<Module> graph_executors_;
 };
 }  // namespace runtime

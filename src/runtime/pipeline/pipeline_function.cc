@@ -23,38 +23,38 @@
 namespace tvm {
 namespace runtime {
 /*!
- * \brief Initialize pipeline.
- * \param modules  List of graph runtime module.
- * \param pipeline_conf Dependency relation of each graph runtime module.
- * \param mod_config Config information that generate by export library function call.
+ * \brief Initialize the pipeline.
+ * \param modules The List of graph executor module.
+ * \param pipeline_conf The Dependency information of each graph executor module.
+ * \param mod_config The config information that generate by the export library function call.
  */
 size_t PipelineFunction::PipelineInit(Array<Module> modules, const PipelineConfig& pipeline_config,
                                       const ModuleConfig& mod_config) {
   int num_output = pipeline_config.GetGlobalOutputNum();
-  // if modules not empty just return in vector container
+  // If 'modules' is not empty just return in vector container
   if (!modules.empty()) {
     for (auto mod : modules) {
       graph_executors_.push_back(mod);
     }
   } else {
-    // if modules is empty, need to build the graph runtime from mod_config.
+    // If 'modules' is empty, need to build the graph exectuor from mod_config.
     graph_executors_ = PipelineCreateGraphExecutors(mod_config);
   }
   return num_output;
 }
 /*!
- * \brief Use mod_config information to create a graph runtime list.
- * \param mod_configure Config information that generate by export library function call.
+ * \brief Use the mod_config information to create a graph runtime list.
+ * \param mod_configure The config information that generate by export library function call.
  */
 std::vector<Module> PipelineFunction::PipelineCreateGraphExecutors(const ModuleConfig& mod_config) {
   const PackedFunc* graph_executor_create = Registry::Get("tvm.graph_executor.create");
   std::vector<Module> ret;
   ret.resize(mod_config.size());
   for (auto config : mod_config) {
-    // load lib
+    // Load library.
     auto lib = Module::LoadFromFile(config.second["lib_name"].c_str());
 
-    // read json
+    // Read json.
     std::ifstream ifJson(config.second["json_name"].c_str());
     if (ifJson.fail()) {
       throw std::runtime_error("json file not found!");
@@ -62,7 +62,7 @@ std::vector<Module> PipelineFunction::PipelineCreateGraphExecutors(const ModuleC
     const std::string json((std::istreambuf_iterator<char>(ifJson)),
                            std::istreambuf_iterator<char>());
 
-    // create graph runtime
+    // Create graph executor.
     std::istringstream istr(config.second["dev"]);
     std::string str;
     int device_type = 1, device_id = 0;
@@ -78,7 +78,7 @@ std::vector<Module> PipelineFunction::PipelineCreateGraphExecutors(const ModuleC
     }
     Module graph_module = (*graph_executor_create)(json, lib, device_type, device_id);
 
-    // load parameter
+    // Load parameters.
     TVMByteArray params_arr;
     std::ifstream if_param(config.second["params"].c_str());
     if (if_param.fail()) {
@@ -91,7 +91,7 @@ std::vector<Module> PipelineFunction::PipelineCreateGraphExecutors(const ModuleC
     auto load_params = graph_module.GetFunction("load_params");
     load_params(params_arr);
 
-    // put into return vector
+    // Put a graph executor module into the vector.
     ret[config.first - 1] = graph_module;
   }
   return ret;

@@ -73,9 +73,9 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
  private:
   /*!\brief The class used to execute pipeline logic*/
   PipelineFunction pipeline_function_;
-  /*!\brief Dependency information of each graph runtime module of pipeline.*/
+  /*!\brief The Dependency information of each graph runtime module of pipeline.*/
   PipelineConfig pipeline_configure_;
-  /*!\brief Module information that can get used to create graph runtime.*/
+  /*!\brief The Module information that can get used to create graph runtime.*/
   ModuleConfig mod_configure_;
   /*!\birief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;

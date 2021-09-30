@@ -26,8 +26,7 @@
 #include <unordered_map>
 #include <vector>
 /*!
- * \brief Store the corresponding dependencies between the input of other modules
-    and the current outputs.
+ * \brief All binding information of a output interface.
  */
 struct OutputBindings {
   /*!\brief Output interface binding information, 'int' is the index of the bond module.
@@ -74,10 +73,10 @@ struct OutputBindings {
   }
 };
 /*!
- * \brief Binding information of the outputs by each module.
+ * \brief The binding information of all outputs of a module.
  */
 struct OutputMap {
-  /*! \brief output and output binding map. */
+  /*! \brief Output binding map, 'int' is output interface index.*/
   std::unordered_map<int, OutputBindings> output_binding_map;
   OutputMap& operator=(const OutputMap& output) {
     output_binding_map = output.output_binding_map;
@@ -101,7 +100,7 @@ struct OutputMap {
   }
 
   /*!
-   * \brief Create output and output binding map from JSONReader.
+   * \brief Create output binding map from JSONReader.
    * \param reader Json reader.
    */
   void Load(dmlc::JSONReader* reader) {
@@ -134,8 +133,8 @@ struct PipelineConfig {
   std::unordered_map<int, OutputMap> config;
   OutputMap& operator[](const int key) { return config[key]; }
   /*!
-   * \brief Get total global outputs number.
-   * \return Global outputs number.
+   * \brief Get the total global outputs number.
+   * \return The global outputs number.
    */
   size_t GetGlobalOutputNum() const {
     size_t num_output = 0;
@@ -146,12 +145,12 @@ struct PipelineConfig {
   }
 };
 /*!
- * \brief Informations used to initialize the graph executor module, these
-    information come from export library function call.
+ * \brief The informations used to initialize the graph executor module, the information
+ *  come from the export library function call.
  */
 struct ModuleInformation {
-  /*\brief The first string is information type such as "lib_name",the second string is
-   * information detail such as "/src/lib1.so" for "lib_name".
+  /*\brief The first string is the information type such as "lib_name",the second string is
+   * the information detail such as "/src/lib1.so" for "lib_name".
    */
   std::unordered_map<std::string, std::string> info;
   const std::string& operator[](const std::string& key) { return info[key]; }
@@ -160,6 +159,6 @@ struct ModuleInformation {
     return *this;
   }
 };
-/*! Module information of each module.The int is module index. */
+/*! The Module information of each module.The 'int' is module index. */
 using ModuleConfig = std::unordered_map<int, ModuleInformation>;
 #endif  //  TVM_RUNTIME_PIPELINE_PIPELINE_STRUCT_H_

@@ -231,7 +231,7 @@ def test_pipeline():
             with tvm.transform.PassContext(opt_level=3):
                 pipeline_mod_factory = pipeline_executor.build(pipe_config)
 
-            # Export parameter configuration to file.
+            # Export the parameter configuration to a file.
             config_file_name = pipeline_mod_factory.export_library()
 
             # Use the output of build to create and initialize PipelineModule.

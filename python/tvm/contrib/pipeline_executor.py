@@ -90,11 +90,11 @@ class PipelineModule(object):
     def __init__(self, module=None):
         self.module = module.module if module else None
         self._get_num_outputs = None
-        # Get packed functions from pipeline executor.
+        # Get the packed functions from the pipeline executor.
         self.load_functions()
 
     def import_from_library(self, config_file_name):
-        """Create pipeline executor from files.
+        """Import files to create pipeline executor.
 
         Parameters
         ----------
@@ -102,16 +102,16 @@ class PipelineModule(object):
             The configuration file path, the configuration file contains the
             disk path of the parameter file, library file and JSON file。
         """
-        # Create empty PipelineExecutorFactoryModule.
+        # Create a empty PipelineExecutorFactoryModule.
         pipeline_factory = PipelineExecutorFactoryModule()
-        # Load configuration file to initialize PipelineExecutorFactoryModule.
+        # Load the configuration file to initialize a PipelineExecutorFactoryModule.
         pipeline_factory.import_from_library(config_file_name)
         self.module = pipeline_factory.module
-        # Get packed functions from pipeline executor.
+        # Get packed functions from the pipeline executor.
         self.load_functions()
 
     def load_functions(self):
-        # Get functions from pipeline executor C++ modules
+        # Get functions from the pipeline executor.
         self._get_num_outputs = self.module["get_num_outputs"] if self.module else None
 
     def get_num_outputs(self):
@@ -582,7 +582,7 @@ class PipelineExecutorFactoryModule(object):
         return mods, json.dumps(mod_config)
 
     def export_library(self, directory_path=None):
-        """Export pipeline runtime into disk.
+        """Export the pipeline executor into disk files.
 
         Parameters
         ----------
@@ -592,17 +592,18 @@ class PipelineExecutorFactoryModule(object):
         if not self.pipeline_libs:
             raise RuntimeError(f"The pipeline executor has not been initialized.")
 
-        # If directory_path is not set, use the temporary path as the file storage directory_path.
+        # If the directory_path is not set, use the temporary path as the file storage
+        # directory_path.
         if not directory_path:
             directory_path = tvm.contrib.utils.tempdir().temp_dir
 
-        # Create if the directory does not exist.
+        # If the directory does not exist, create the directory.
         if not os.path.exists(directory_path):
             os.makedirs(directory_path)
-        # Get the initial version of the configuration for export.
+        # Create a configuration copy for export.
         export_conf = self.mods_config.copy()
-        # Export library, JSON file and parameter file, and export the corresponding
-        # relationship between the files and the pipeline modules.
+        # Export the library, JSON and parameter into files, then export these files path
+        # into a configuraton file.
         for lib_index in self.pipeline_libs:
             mconf = export_conf[lib_index - 1]
             mconf["lib_name"] = "{}/lib{}.so".format(directory_path, lib_index)
@@ -613,16 +614,16 @@ class PipelineExecutorFactoryModule(object):
                 self.pipeline_libs[lib_index]["dev"].device_id,
             )
 
-            # Get graph, lib and parameters from GraphExecutorFactoryModule.
+            # Get the graph, lib and parameters from GraphExecutorFactoryModule.
             graph, lib, params = self.pipeline_libs[lib_index]["lib"]
-            # Export lib, graph and parameters to disk.
+            # Export the lib, graph and parameters to disk.
             lib.export_library(mconf["lib_name"])
             with open(mconf["json_name"], "w") as file_handle:
                 file_handle.write(graph)
             with open(mconf["params_name"], "wb") as file_handle:
                 file_handle.write(relay.save_param_dict(params))
 
-        # Export configuration file to disk.
+        # Export the configuration file to disk.
         conf_file_name = "{}/config".format(directory_path)
         with open(conf_file_name, "w") as file_handle:
             file_handle.write(json.dumps(export_conf))
