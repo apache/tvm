@@ -25,7 +25,7 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief The runner's input. */
+/*! \brief Runner's input containing path of artifact, type of device and argument info. */
 class RunnerInputNode : public runtime::Object {
  public:
   /*! \brief The path to the built artifact. */
@@ -61,7 +61,7 @@ class RunnerInput : public runtime::ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RunnerInput, runtime::ObjectRef, RunnerInputNode);
 };
 
-/*! \brief The runner's output. */
+/*! \brief Runner's output containing measurement result of MeasureCandidate or error msg if any. */
 class RunnerResultNode : public runtime::Object {
  public:
   /*! \brief The run time in seconds.*/
@@ -96,7 +96,7 @@ class RunnerResult : public runtime::ObjectRef {
 /*!
  * \brief A class to asynchronously fetch runner's output.
  * \note The API design is consistent with python's concurrent.futures.Future:
- * https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Future
+ *  https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Future
  */
 class RunnerFutureNode : public runtime::Object {
  public:
