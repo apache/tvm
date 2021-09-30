@@ -14,7 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Search Strategy"""
+"""
+The tvm.meta_schedule.search_strategy package.
+Meta Schedule search strategy utilizes the design spaces given
+to generate measure candidates.
+"""
 
 from .search_strategy import SearchStrategy, PySearchStrategy
 from .replay_trace import ReplayTrace
