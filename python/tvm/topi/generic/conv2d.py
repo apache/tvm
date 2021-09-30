@@ -384,7 +384,8 @@ def schedule_depthwise_conv2d_nhwc(outs):
             depthwise_conv2d_out = op.output(0)
             data_pad = depthwise_conv2d_out.op.input_tensors[0]
             s[data_pad].compute_inline()
-            s[depthwise_conv2d_out].compute_at(s[out], s[out].op.axis[3])
+            if depthwise_conv2d_out != out:
+                s[depthwise_conv2d_out].compute_at(s[out], s[out].op.axis[3])
             s[out].fuse(*s[out].op.axis)
 
     traverse_inline(s, outs[0].op, _callback)
