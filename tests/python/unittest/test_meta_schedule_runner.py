@@ -25,7 +25,6 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import tir
 from tvm._ffi import register_func
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
@@ -44,7 +43,7 @@ from tvm.meta_schedule.testing import LocalRPC
 from tvm.meta_schedule.utils import get_global_func_with_default_on_worker
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.target import Target
 import tvm.testing
 from tvm.tir import FloatImm
@@ -55,56 +54,60 @@ MATMUL_M = 32
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class MatmulModule:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, (16, 16), "float32")
-        B = tir.match_buffer(b, (16, 16), "float32")
-        C = tir.match_buffer(c, (16, 16), "float32")
-        with tir.block([16, 16, tir.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
-            with tir.init():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, (16, 16), "float32")
+        B = T.match_buffer(b, (16, 16), "float32")
+        C = T.match_buffer(c, (16, 16), "float32")
+        with T.block([16, 16, T.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
+            with T.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class MatmulReluModule:
-    def main(a: ty.handle, b: ty.handle, d: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, (16, 16), "float32")
-        B = tir.match_buffer(b, (16, 16), "float32")
-        D = tir.match_buffer(d, (16, 16), "float32")
-        C = tir.alloc_buffer((16, 16), "float32")
-        with tir.block([16, 16, tir.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
-            with tir.init():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, (16, 16), "float32")
+        B = T.match_buffer(b, (16, 16), "float32")
+        D = T.match_buffer(d, (16, 16), "float32")
+        C = T.alloc_buffer((16, 16), "float32")
+        with T.block([16, 16, T.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
+            with T.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-        with tir.block([16, 16], "relu") as [vi, vj]:
-            D[vi, vj] = tir.max(C[vi, vj], 0.0)
+        with T.block([16, 16], "relu") as [vi, vj]:
+            D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class BatchMatmulModule:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, [16, 32, 32])
-        B = tir.match_buffer(b, [16, 32, 32])
-        C = tir.match_buffer(c, [16, 32, 32])
-        with tir.block([16, 32, 32, tir.reduce_axis(0, 32)], "update") as [vn, vi, vj, vk]:
-            with tir.init():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, [16, 32, 32])
+        B = T.match_buffer(b, [16, 32, 32])
+        C = T.match_buffer(c, [16, 32, 32])
+        with T.block([16, 32, 32, T.reduce_axis(0, 32)], "update") as [vn, vi, vj, vk]:
+            with T.init():
                 C[vn, vi, vj] = 0.0
             C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class AddModule:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, [32], "float32")
-        B = tir.match_buffer(b, [32], "float32")
-        C = tir.match_buffer(c, [32], "float32")
-        with tir.block([32], "add") as [vi]:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, [32], "float32")
+        B = T.match_buffer(b, [32], "float32")
+        C = T.match_buffer(c, [32], "float32")
+        with T.block([32], "add") as [vi]:
             C[vi] = A[vi] + B[vi]
 
 
@@ -122,7 +125,7 @@ def _clean_build(artifact_path: str) -> None:
 def test_meta_schedule_rpc_single_run():
     """Test meta schedule rpc runner for a single run"""
     # Build the module
-    mod = MatmulModule()
+    mod = MatmulModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
@@ -169,9 +172,9 @@ def test_meta_schedule_rpc_multiple_runs():
     """Test meta schedule rpc runner for multiple runs"""
     # Build the module
     mods = [
-        MatmulModule(),
-        MatmulReluModule(),
-        BatchMatmulModule(),
+        MatmulModule,
+        MatmulReluModule,
+        BatchMatmulModule,
     ]
     builder = LocalBuilder()
     builder_inputs = [BuilderInput(mod, Target("llvm")) for mod in mods]
@@ -407,7 +410,7 @@ def test_meta_schedule_runner_matmul_test():
         return costs
 
     # Build the module
-    mod = MatmulModule()
+    mod = MatmulModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
@@ -519,7 +522,7 @@ def test_meta_schedule_runner_add_test():
         return costs
 
     # Build the module
-    mod = AddModule()
+    mod = AddModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None

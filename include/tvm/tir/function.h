@@ -195,12 +195,12 @@ class LinkedParam : public ObjectRef {
  * \note We can define a Meta TIR function with symbolic shape:
  *
  * \code
- *  @tvm.script.tir
- *  def mem_copy(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32) -> None:
- *      A = tir.match_buffer(a, (m, n), "float32")
- *      B = tir.match_buffer(b, (m, n), "float32")
+ *  @T.prim_func
+ *  def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
+ *      A = T.match_buffer(a, (m, n), "float32")
+ *      B = T.match_buffer(b, (m, n), "float32")
  *
- *      with tir.block([m, n], "") as [vi, vj]:
+ *      with T.block([m, n], "") as [vi, vj]:
  *          B[vi, vj] = A[vi, vj]
  * \endcode
  *
@@ -214,12 +214,12 @@ class LinkedParam : public ObjectRef {
  * \endcode
  *
  * \code {.language-id}
- *  @tvm.script.tir
- *  def mem_copy_16_16(a: ty.handle, b: ty.handle) -> None:
- *      A = tir.match_buffer(a, (16, 16), "float32")
- *      B = tir.match_buffer(b, (16, 16), "float32")
+ *  @T.prim_func
+ *  def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
+ *      A = T.match_buffer(a, (16, 16), "float32")
+ *      B = T.match_buffer(b, (16, 16), "float32")
  *
- *      with tir.block([16, 16], "") as [vi, vj]:
+ *      with T.block([16, 16], "") as [vi, vj]:
  *          B[vi, vj] = A[vi, vj]
  * \endcode
  */

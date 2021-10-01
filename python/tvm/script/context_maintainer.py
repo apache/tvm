@@ -24,7 +24,7 @@ import tvm
 from tvm.ir import Span
 from tvm.tir import Var, Buffer, PrimExpr, Stmt, MatchBufferRegion
 from tvm.runtime import Object
-from .node import BufferSlice
+from .tir.node import BufferSlice
 
 
 class BlockInfo:
@@ -34,34 +34,34 @@ class BlockInfo:
     ----------
     .. code-block:: python
 
-        @tvm.script.tir
-        def example_func(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-            A = tir.match_buffer(a, (16, 16), "float32")
-            B = tir.match_buffer(b, (16, 16), "float32")
-            C = tir.match_buffer(a, (16, 16), "float32")
+        @T.prim_func
+        def example_func(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(a, (16, 16), "float32")
+            B = T.match_buffer(b, (16, 16), "float32")
+            C = T.match_buffer(a, (16, 16), "float32")
 
-            for i, j, k in tir.grid(16, 16, 16):
-                with tir.block([16, 16, tir.reduce_axis(16)], "matmul") as [vi, vj, vk]:
-                    tir.bind(vi, i)
-                    tir.bind(vj, j)
-                    tir.bind(vk, k)         # iter_bindings = {vj: i, vj: j, vk: k}
+            for i, j, k in T.grid(16, 16, 16):
+                with T.block([16, 16, T.reduce_axis(16)], "matmul") as [vi, vj, vk]:
+                    T.bind(vi, i)
+                    T.bind(vj, j)
+                    T.bind(vk, k)         # iter_bindings = {vj: i, vj: j, vk: k}
 
-                    tir.where(True)         # predicate of the block_realize
+                    T.where(True)         # predicate of the block_realize
 
-                    tir.reads(A[0:16, 0:16], B[0: 16, 0: 16])      # reads region of the block
-                    tir.writes(C[0: 16, 0: 16])                    # writes region of the block
-                    tir.block_attr({"attr_key": "attr_value"})     # block annotations
+                    T.reads(A[0:16, 0:16], B[0: 16, 0: 16])      # reads region of the block
+                    T.writes(C[0: 16, 0: 16])                    # writes region of the block
+                    T.block_attr({"attr_key": "attr_value"})     # block annotations
 
                     # alloc_buffers inside the block
-                    CC = tir.alloc_buffer((1, 1), dtype="float32")
+                    CC = T.alloc_buffer((1, 1), dtype="float32")
 
                     # match_buffers of the block,
                     # which bind a sub-region of source buffer into a new buffer
-                    D = tir.match_buffer(C[vi, vj], ())
+                    D = T.match_buffer(C[vi, vj], ())
 
                     # init part of the block, executed when all reduce axes are the beginning value
-                    with tir.init():
-                        C[vi, vj] = tir.float32(0)
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
 
                     # block body
                     CC[0, 0] = A[vi, vk] * B[vj, vk]
@@ -69,20 +69,20 @@ class BlockInfo:
     """
 
     alloc_buffers: List[Buffer] = []
-    """List[Buffer]: list of tir.alloc_buffer statements in the block signature"""
+    """List[Buffer]: list of T.alloc_buffer statements in the block signature"""
     match_buffers: List[MatchBufferRegion] = []
-    """List[MatchBufferRegion]: list of tir.match_buffer statements in the block signature"""
+    """List[MatchBufferRegion]: list of T.match_buffer statements in the block signature"""
     iter_bindings: Mapping[Var, PrimExpr] = {}
     """Mapping[Var, PrimExpr]: map of block iter var to its values"""
     reads: Optional[List[BufferSlice]] = None
     """Optional[List[BufferSlice]]:
-    list of tir.reads statements in the block signature, None for not-visited"""
+    list of T.reads statements in the block signature, None for not-visited"""
     writes: Optional[List[BufferSlice]] = None
     """Optional[List[BufferSlice]]:
-    list of tir.writes statements in the block signature, None for not-visited"""
+    list of T.writes statements in the block signature, None for not-visited"""
     annotations: Optional[Mapping[str, Object]] = None
     """Optional[Mapping[str, Object]]:
-    list of tir.block_attr statements in the block signature, None for not-visited"""
+    list of T.block_attr statements in the block signature, None for not-visited"""
     predicate: Optional[PrimExpr] = None
     """Optional[PrimExpr]: block realize predicate, None for not-visited"""
     init: Optional[Stmt] = None

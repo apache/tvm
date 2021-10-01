@@ -290,9 +290,9 @@ class BaseInliner : public StmtExprMutator {
 
   /*!
    * \brief Update the following block signature:
-   * 1) tir.alloc_buffer, if the block is scope root
-   * 2) tir.reads, if the block is not scope root
-   * 3) tir.writes, if the block is not scope root
+   * 1) T.alloc_buffer, if the block is scope root
+   * 2) T.reads, if the block is not scope root
+   * 3) T.writes, if the block is not scope root
    * \param block The block to be updated
    * \param is_scope_root A flag indicating if a block is the scope root of the block to be inlined
    * \return The updated block

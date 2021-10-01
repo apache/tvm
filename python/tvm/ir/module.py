@@ -255,3 +255,23 @@ class IRModule(Node):
 
     def __repr__(self):
         return self.astext()
+
+    def script(self, tir_prefix: str = "tir", show_meta: bool = False) -> str:
+        """Print IRModule into TVMScript
+
+        Parameters
+        ----------
+        tir_prefix : str
+            The tir namespace prefix
+
+        show_meta : bool
+            Whether to show meta information
+
+        Returns
+        -------
+        script : str
+            The TVM Script of the IRModule
+        """
+        return tvm._ffi.get_global_func("script.AsTVMScript")(
+            self, tir_prefix, show_meta
+        )  # type: ignore

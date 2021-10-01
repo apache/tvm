@@ -17,8 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
-from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 import numpy
 
 
@@ -539,16 +538,16 @@ def test_simple_rfactor():
     assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
 
 
-@tvm.script.tir
-def partitioned_concat(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    tir.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-    A = tir.match_buffer(a, [16], dtype="float32")
-    B = tir.match_buffer(b, [16], dtype="float32")
-    C = tir.match_buffer(c, [32], dtype="float32")
-    for i in tir.serial(0, 16):
-        tir.store(C.data, i, tir.load("float32", A.data, i), True)
-    for i in tir.serial(0, 16):
-        tir.store(C.data, i + 16, tir.load("float32", B.data, i + 16), True)
+@T.prim_func
+def partitioned_concat(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+    A = T.match_buffer(a, [16], dtype="float32")
+    B = T.match_buffer(b, [16], dtype="float32")
+    C = T.match_buffer(c, [32], dtype="float32")
+    for i in T.serial(0, 16):
+        T.store(C.data, i, T.load("float32", A.data, i), True)
+    for i in T.serial(0, 16):
+        T.store(C.data, i + 16, T.load("float32", B.data, i + 16), True)
 
 
 def test_explicit_partition_hint():

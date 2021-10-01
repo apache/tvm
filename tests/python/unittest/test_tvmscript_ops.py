@@ -16,44 +16,43 @@
 # under the License.
 
 import tvm
-from tvm.script import ty
-from tvm import te, tir
+from tvm.script import tir as T
 import numpy as np
 import tvm.testing
 
 
-@tvm.script.tir
+@T.prim_func
 def get_valid_counts(
-    data: ty.handle,
-    valid_count: ty.handle,
-    out: ty.handle,
-    out_indices: ty.handle,
-    score_threshold: ty.float32,
-    id_index: ty.int32,
-    score_index: ty.int32,
+    data: T.handle,
+    valid_count: T.handle,
+    out: T.handle,
+    out_indices: T.handle,
+    score_threshold: T.float32,
+    id_index: T.int32,
+    score_index: T.int32,
 ) -> None:
 
-    data_buf = tir.match_buffer(data, (1, 2500, 6), "float32")
-    valid_count_buf = tir.match_buffer(valid_count, (1,), "int32")
-    out_buf = tir.match_buffer(out, (1, 2500, 6), "float32")
-    out_indices_buf = tir.match_buffer(out_indices, (1, 2500), "int32")
+    data_buf = T.match_buffer(data, (1, 2500, 6), "float32")
+    valid_count_buf = T.match_buffer(valid_count, (1,), "int32")
+    out_buf = T.match_buffer(out, (1, 2500, 6), "float32")
+    out_indices_buf = T.match_buffer(out_indices, (1, 2500), "int32")
 
-    with tir.block([1], "init") as [vi]:
-        valid_count_buf[vi] = tir.int32(0)
-        with tir.block([2500], "update") as [vj]:
-            tir.reads([data_buf[vi, vj, 6]])
-            tir.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
+    with T.block([1], "init") as [vi]:
+        valid_count_buf[vi] = T.int32(0)
+        with T.block([2500], "update") as [vj]:
+            T.reads([data_buf[vi, vj, 6]])
+            T.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
             if (data_buf[vi, vj, score_index] > score_threshold) and (
-                (id_index < 0) or (data_buf[vi, vj, id_index] >= tir.float32(0))
+                (id_index < 0) or (data_buf[vi, vj, id_index] >= T.float32(0))
             ):
-                for k in tir.serial(0, 6):
+                for k in T.serial(0, 6):
                     out_buf[vi, valid_count_buf[vi], k] = data_buf[vi, vj, k]
                 out_indices_buf[vi, valid_count_buf[vi]] = vj
                 valid_count_buf[vi] = valid_count_buf[vi] + 1
             if vj >= valid_count_buf[vi]:
-                for k in tir.serial(0, 6):
-                    out_buf[vi, vj, k] = tir.float32(-1)
-                out_indices_buf[vi, vj] = tir.int32(-1)
+                for k in T.serial(0, 6):
+                    out_buf[vi, vj, k] = T.float32(-1)
+                out_indices_buf[vi, vj] = T.int32(-1)
 
 
 def _check_get_valid_counts_with_numpy(f, dshape, score_threshold, id_index, score_index):
@@ -81,7 +80,6 @@ def _check_get_valid_counts_with_numpy(f, dshape, score_threshold, id_index, sco
                 np_out3[i, j] = -1
 
     in_data = tvm.nd.array(np_data, ctx)
-    score_threshold_data = tvm.nd.array(np.array([score_threshold], dtype=dtype), ctx)
     out1 = tvm.nd.array(np_out1, ctx)
     out2 = tvm.nd.array(np_out2, ctx)
     out3 = tvm.nd.array(np_out3, ctx)
@@ -95,9 +93,9 @@ def _check_get_valid_counts_with_numpy(f, dshape, score_threshold, id_index, sco
 def test_get_valid_counts_script_func():
     device = "llvm"
     # check lowering
-    print(tvm.script.asscript(get_valid_counts))
-    mod = tvm.script.create_module({"get_valid_counts": get_valid_counts})
-    print(tvm.script.asscript(mod))
+    print(get_valid_counts.script())
+    mod = tvm.ir.IRModule({"get_valid_counts": get_valid_counts})
+    print(mod.script())
     # check building
     f = tvm.build(mod["get_valid_counts"], target=device)
     _check_get_valid_counts_with_numpy(f, (1, 2500, 6), 0.0, 0, 1)

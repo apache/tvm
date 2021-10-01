@@ -19,21 +19,21 @@
 from typing import Tuple, Any, Callable, Optional, List, Union, Mapping
 
 import synr
-from synr import ast
 import tvm.tir
 from tvm.runtime import Object
 from tvm.ir import Span, Range
 from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
 
-from .context_maintainer import ContextMaintainer
-from .utils import (
+from .node import BufferSlice
+from .utils import buffer_slice_to_region
+
+from ..context_maintainer import ContextMaintainer
+from ..registry import register
+from ..utils import (
     get_param_list,
     tvm_span_from_synr,
-    buffer_slice_to_region,
     call_with_error_reporting,
 )
-from .registry import register
-from .node import BufferSlice
 
 
 class ScopeHandler:
@@ -81,14 +81,14 @@ class WithScopeHandler(ScopeHandler):
 
     @staticmethod
     def get_optional_vars(node, context):
-        """Get a list ast.With's optional_vars"""
+        """Get a list synr.ast.With's optional_vars"""
         assert isinstance(
-            node, ast.With
-        ), f"WithScopeHandler expected ast.With but got {type(node)}"
+            node, synr.ast.With
+        ), f"WithScopeHandler expected synr.ast.With but got {type(node)}"
 
         if isinstance(node.lhs, list):
             for var in node.lhs:
-                if not isinstance(var, ast.Var):
+                if not isinstance(var, synr.ast.Var):
                     context.report_error(
                         f"Invalid optional var definition, expected Var but got {type(var)}",
                         node.span,
@@ -104,7 +104,7 @@ class WithScopeHandler(ScopeHandler):
 
 @register
 class Allocate(WithScopeHandler):
-    """With scope handler tir.allocate(extents, dtype, scope, condition)"""
+    """With scope handler T.allocate(extents, dtype, scope, condition)"""
 
     def __init__(self):
         def allocate(extents, dtype, scope, condition=True, span=None):
@@ -125,13 +125,13 @@ class Allocate(WithScopeHandler):
         span: synr.ast.Span,
     ):
         # define buffer vars in symbol table
-        if isinstance(node, ast.With):
+        if isinstance(node, synr.ast.With):
             vars = WithScopeHandler.get_optional_vars(node, context)
             if len(vars) != 1:
                 context.report_error("Unexpected number of vars", node.span)
             name = vars[0].id.name
             var_span = vars[0].id.span
-        elif isinstance(node, ast.Assign):
+        elif isinstance(node, synr.ast.Assign):
             name = node.lhs.id.name
             var_span = node.lhs.id.span
         else:
@@ -148,7 +148,7 @@ class Allocate(WithScopeHandler):
 
 @register
 class LaunchThread(WithScopeHandler):
-    """With scope handler tir.launch_thread(env_var, extent)"""
+    """With scope handler T.launch_thread(env_var, extent)"""
 
     def __init__(self):
         def launch_thread(env_var, extent, span):
@@ -174,7 +174,7 @@ class LaunchThread(WithScopeHandler):
 
 @register
 class Realize(WithScopeHandler):
-    """With scope handler tir.realize(buffer_bounds, scope, condition)"""
+    """With scope handler T.realize(buffer_bounds, scope, condition)"""
 
     def __init__(self):
         def realize(
@@ -204,7 +204,7 @@ class Realize(WithScopeHandler):
 
 @register
 class Attr(WithScopeHandler):
-    """With scope handler tir.attr(attr_node, attr_key, value)"""
+    """With scope handler T.attr(attr_node, attr_key, value)"""
 
     def __init__(self):
         def attr(attr_node, attr_key, value, span):
@@ -217,7 +217,7 @@ class Attr(WithScopeHandler):
 
 @register
 class AssertHandler(WithScopeHandler):
-    """With scope handler tir.Assert(condition, message)"""
+    """With scope handler T.Assert(condition, message)"""
 
     def __init__(self):
         def Assert(condition, message, span):
@@ -228,7 +228,7 @@ class AssertHandler(WithScopeHandler):
 
 @register
 class Let(WithScopeHandler):
-    """With scope handler tir.let(var, value)"""
+    """With scope handler T.let(var, value)"""
 
     def __init__(self):
         def let(var, value, span):
@@ -239,7 +239,7 @@ class Let(WithScopeHandler):
 
 @register
 class Block(WithScopeHandler):
-    """With scope handler tir.block(extents, name) as iter_vars"""
+    """With scope handler T.block(extents, name) as iter_vars"""
 
     def __init__(self):
         def block(axes=None, name_hint: str = "", span: Optional[Span] = None):
@@ -268,7 +268,7 @@ class Block(WithScopeHandler):
                     block_iters.append(IterVar(axis.dom, self.block_vars[i], axis.iter_type))
                 else:
                     self.context.report_error(
-                        "Invalid argument of tir.block(), "
+                        "Invalid argument of T.block(), "
                         + f"expected PrimExpr, Range or IterVar, but got {type(axis)}",
                         self.node.span,
                     )
@@ -347,8 +347,8 @@ class Block(WithScopeHandler):
     ):
         # define block vars
         assert isinstance(
-            node, ast.With
-        ), f"BlockScopeHandler expected to work on ast.With but got {type(node)}"
+            node, synr.ast.With
+        ), f"BlockScopeHandler expected to work on synr.ast.With but got {type(node)}"
 
         vars = WithScopeHandler.get_optional_vars(node, context)
         self.block_vars = [tvm.te.var(var.id.name) for var in vars]
@@ -358,7 +358,7 @@ class Block(WithScopeHandler):
 
 @register
 class InitBlock(WithScopeHandler):
-    """With scope handler tir.init()"""
+    """With scope handler T.init()"""
 
     def __init__(self):
         def init(span: Span = None):
@@ -384,16 +384,18 @@ class ForScopeHandler(ScopeHandler):
         arg_list: List[Any],
         span: synr.ast.Span,
     ):
-        assert isinstance(node, ast.For), f"ForScopeHandler expected ast.For but got {type(node)}"
+        assert isinstance(
+            node, synr.ast.For
+        ), f"ForScopeHandler expected synr.ast.For but got {type(node)}"
 
         loop_var_names = list()
         spans = list()
-        if isinstance(node.lhs, ast.Var):
+        if isinstance(node.lhs, synr.ast.Var):
             loop_var_names.append(node.lhs.id.name)
             spans.append(tvm_span_from_synr(node.lhs.id.span))
         elif isinstance(node.lhs, list):
             for elt in node.lhs:
-                if not isinstance(elt, ast.Var):
+                if not isinstance(elt, synr.ast.Var):
                     context.report_error(
                         f"Invalid loop var. Expected a var, but got {type(elt)}", elt.span
                     )
@@ -489,7 +491,7 @@ class ForScopeHandler(ScopeHandler):
 
 @register
 class Serial(ForScopeHandler):
-    """For scope handler tir.serial(begin, end, annotations)"""
+    """For scope handler T.serial(begin, end, annotations)"""
 
     def __init__(self):
         def serial(
@@ -505,7 +507,7 @@ class Serial(ForScopeHandler):
 
 @register
 class Parallel(ForScopeHandler):
-    """For scope handler tir.parallel(begin, end, annotations)"""
+    """For scope handler T.parallel(begin, end, annotations)"""
 
     def __init__(self):
         def parallel(
@@ -523,7 +525,7 @@ class Parallel(ForScopeHandler):
 
 @register
 class Vectorized(ForScopeHandler):
-    """For scope handler tir.vectorized(begin, end, annotations)"""
+    """For scope handler T.vectorized(begin, end, annotations)"""
 
     def __init__(self):
         def vectorized(
@@ -541,7 +543,7 @@ class Vectorized(ForScopeHandler):
 
 @register
 class Unroll(ForScopeHandler):
-    """For scope handler tir.unroll(begin, end, annotations)"""
+    """For scope handler T.unroll(begin, end, annotations)"""
 
     def __init__(self):
         def unroll(
@@ -559,7 +561,7 @@ class Unroll(ForScopeHandler):
 
 @register
 class ThreadBinding(ForScopeHandler):
-    """For scope handler tir.thread_binding(begin, end, thread, annotations)"""
+    """For scope handler T.thread_binding(begin, end, thread, annotations)"""
 
     def __init__(self):
         def thread_binding(
@@ -585,7 +587,7 @@ class ThreadBinding(ForScopeHandler):
 @register
 class RangeHandler(ForScopeHandler):
     """For scope handler range(begin, end, annotations)
-    Note that tir.range is totally the same as tir.serial
+    Note that tir.range is totally the same as T.serial
     """
 
     def __init__(self):
@@ -608,7 +610,7 @@ class RangeHandler(ForScopeHandler):
 
 @register
 class Grid(ForScopeHandler):
-    """For scope handler tir.grid(extents)"""
+    """For scope handler T.grid(extents)"""
 
     def __init__(self):
         def grid(*extents: List[PrimExpr], span: Span):
