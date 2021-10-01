@@ -182,11 +182,13 @@ class ServerIOSLauncher:
         if self.server_was_started:
             try:
                 terminate_ios_rpc(self.udid, self.bundle_id)
+                self.server_was_started = False
             except Exception as e:
                 print(e)
         if self.bundle_was_deployed:
             try:
                 delete_bundle_from_simulator(self.udid, self.bundle_id)
+                self.bundle_was_deployed = False
             except Exception as e:
                 print(e)
 
@@ -223,3 +225,21 @@ class ServerIOSLauncher:
             target_device = target_devices[-1 if take_latest_model else 0]
             boot_device(get_device_uid(target_device))
             ServerIOSLauncher.booted_devices.append(target_device)
+
+
+class ServerIOSContextManager:
+    def __init__(self, mode, host, port, key):
+        self.__mode = mode
+        self.__host = host
+        self.__port = port
+        self.__key = key
+        self.__ios_rpc_server_launcher = None
+
+    def __enter__(self):
+        self.__ios_rpc_server_launcher = ServerIOSLauncher(self.__mode, self.__host, self.__port, self.__key)
+        return self.__ios_rpc_server_launcher
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.__ios_rpc_server_launcher is not None:
+            self.__ios_rpc_server_launcher.terminate()
+            self.__ios_rpc_server_launcher = None

@@ -44,12 +44,11 @@ def setup_rpc_standalone_configuration(f):
     Host  --  RPC server
     """
     def wrapper():
-        device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.standalone.value,
-                                                                       host=HOST_URL,
-                                                                       port=HOST_PORT,
-                                                                       key=DEVICE_KEY)
-        f(host=device_server_launcher.host, port=device_server_launcher.port)
-        device_server_launcher.terminate()
+        with server_ios_launcher.ServerIOSContextManager(mode=server_ios_launcher.RPCServerMode.standalone.value,
+                                                         host=HOST_URL,
+                                                         port=HOST_PORT,
+                                                         key=DEVICE_KEY) as ios_server:
+            f(host=ios_server.host, port=ios_server.port)
     return wrapper
 
 
@@ -59,12 +58,11 @@ def setup_rpc_proxy_configuration(f):
     """
     def wrapper():
         proxy_server = proxy.Proxy(host=HOST_URL, port=HOST_PORT)
-        device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.proxy.value,
-                                                                       host=proxy_server.host,
-                                                                       port=proxy_server.port,
-                                                                       key=DEVICE_KEY)
-        f(host=proxy_server.host, port=proxy_server.port)
-        device_server_launcher.terminate()
+        with server_ios_launcher.ServerIOSContextManager(mode=server_ios_launcher.RPCServerMode.proxy.value,
+                                                         host=proxy_server.host,
+                                                         port=proxy_server.port,
+                                                         key=DEVICE_KEY):
+            f(host=proxy_server.host, port=proxy_server.port)
         proxy_server.terminate()
     return wrapper
 
@@ -77,12 +75,11 @@ def setup_rpc_tracker_configuration(f):
     """
     def wrapper():
         tracker_server = tracker.Tracker(host=HOST_URL, port=HOST_PORT, silent=True)
-        device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.tracker.value,
-                                                                       host=tracker_server.host,
-                                                                       port=tracker_server.port,
-                                                                       key=DEVICE_KEY)
-        f(host=tracker_server.host, port=tracker_server.port)
-        device_server_launcher.terminate()
+        with server_ios_launcher.ServerIOSContextManager(mode=server_ios_launcher.RPCServerMode.tracker.value,
+                                                         host=tracker_server.host,
+                                                         port=tracker_server.port,
+                                                         key=DEVICE_KEY):
+            f(host=tracker_server.host, port=tracker_server.port)
         tracker_server.terminate()
     return wrapper
 
@@ -96,12 +93,11 @@ def setup_rpc_tracker_via_proxy_configuration(f):
     def wrapper():
         tracker_server = tracker.Tracker(host=HOST_URL, port=HOST_PORT, silent=True)
         proxy_server_tracker = proxy.Proxy(host=HOST_URL, port=8888, tracker_addr=(tracker_server.host, tracker_server.port))
-        device_server_launcher = server_ios_launcher.ServerIOSLauncher(mode=server_ios_launcher.RPCServerMode.proxy.value,
-                                                                       host=proxy_server_tracker.host,
-                                                                       port=proxy_server_tracker.port,
-                                                                       key=DEVICE_KEY)
-        f(host=tracker_server.host, port=tracker_server.port)
-        device_server_launcher.terminate()
+        with server_ios_launcher.ServerIOSContextManager(mode=server_ios_launcher.RPCServerMode.proxy.value,
+                                                         host=proxy_server_tracker.host,
+                                                         port=proxy_server_tracker.port,
+                                                         key=DEVICE_KEY):
+            f(host=tracker_server.host, port=tracker_server.port)
         proxy_server_tracker.terminate()
         tracker_server.terminate()
     return wrapper
