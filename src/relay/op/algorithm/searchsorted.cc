@@ -39,6 +39,14 @@ bool SearchSortedRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   ICHECK(sorted_sequence) << "Expects TensorType in the first input";
   ICHECK(values) << "Expects TensorType in the second input";
 
+  ICHECK_EQ(sorted_sequence->shape.size(), values->shape.size())
+      << "Ranks of sorted sequence and values must be the same";
+  for (size_t i = 0; i < values->shape.size() - 1; ++i) {
+    ICHECK_EQ(sorted_sequence->shape[i], values->shape[i])
+        << "sorted sequence and values do not have the same shape along outer axes";
+  }
+
+  reporter->Assign(types[2], TensorType(values->shape, param->dtype));
   return true;
 }
 
@@ -60,7 +68,6 @@ RELAY_REGISTER_OP("searchsorted")
     .add_argument("values", "Tensor", "Values to search for.")
     .set_support_level(6)
     .add_type_rel("SearchSorted", SearchSortedRel);
-
 
 }  // namespace relay
 }  // namespace tvm

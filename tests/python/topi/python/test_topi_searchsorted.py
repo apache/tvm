@@ -79,9 +79,8 @@ def test_searchsorted(dev, target):
     func(a, b, c)
     ref = searchsorted_ref(a_np, b_np)
     np.testing.assert_equal(c.numpy(), ref)
-    print("ok")
 
 
 if __name__ == "__main__":
-    target = "vulkan -from_device=0"
-    test_searchsorted(tvm.device(target, 0), target)
+    for target in ["llvm", "vulkan -from_device=0"]:
+        test_searchsorted(tvm.device(target, 0), target)
