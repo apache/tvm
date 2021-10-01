@@ -23,25 +23,25 @@ import math
 import pytest
 
 import tvm
-from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 
-from tvm.tir.schedule import Schedule, Trace
+from tvm.tir.schedule import Schedule
 from tvm.meta_schedule.space_generator import ScheduleFn, SpaceGeneratorUnion
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
-@tvm.script.tir
+@tvm.script.ir_module
 class Matmul:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-        tir.func_attr({"global_symbol": "main"})
-        A = tir.match_buffer(a, (1024, 1024), "float32")
-        B = tir.match_buffer(b, (1024, 1024), "float32")
-        C = tir.match_buffer(c, (1024, 1024), "float32")
-        with tir.block([1024, 1024, tir.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with tir.init():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"global_symbol": "main"})
+        A = T.match_buffer(a, (1024, 1024), "float32")
+        B = T.match_buffer(b, (1024, 1024), "float32")
+        C = T.match_buffer(c, (1024, 1024), "float32")
+        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
+            with T.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -66,7 +66,7 @@ def _check_correct(schedule: Schedule):
 
 
 def test_meta_schedule_space_generator_schedule_fn():
-    mod = Matmul()
+    mod = Matmul
     space_generator = ScheduleFn(sch_fn=schedule_matmul)
     design_spaces = space_generator.generate_design_space(mod)
     assert len(design_spaces) == 1
@@ -75,7 +75,7 @@ def test_meta_schedule_space_generator_schedule_fn():
 
 
 def test_meta_schedule_design_space_generator_union():
-    mod = Matmul()
+    mod = Matmul
     space_generator = ScheduleFn(sch_fn=schedule_matmul)
     space_generator_union = SpaceGeneratorUnion([space_generator, space_generator])
     design_spaces = space_generator_union.generate_design_space(mod)

@@ -267,14 +267,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
  * \param var_map The var mapping to be updated.
  * \note This function will match target buffer's shape, strides and element_offset
  *   For example, we define a buffer in PrimFunc:
- *   A = tir.match_buffer(a, [m, n])
+ *   A = T.match_buffer(a, [m, n])
  *
  *   Then we match it with a buffer B =  tir.decl_buffer((8, 16))
  *
  *   It means we have two var mappings here: m = 8 and n = 16
  *
  *   If the buffer signature is not a Var, the mapping will fail.
- *   e.g. A = tir.match_buffer(a, [m * 2, n + 1])
+ *   e.g. A = T.match_buffer(a, [m * 2, n + 1])
  */
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer& specific_buf,
                             VarMap* var_map) {

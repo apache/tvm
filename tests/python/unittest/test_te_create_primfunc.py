@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import tvm
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm import te, tir
 import numpy as np
 import tvm.testing
@@ -48,14 +48,14 @@ def te_matmul():
     return [A, B, C]
 
 
-@tvm.script.tir
-def tir_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
+@T.prim_func
+def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
 
-    with tir.block([128, 128, tir.reduce_axis(0, 128)]) as [i, j, k]:
-        with tir.init():
+    with T.block([128, 128, T.reduce_axis(0, 128)]) as [i, j, k]:
+        with T.init():
             C[i, j] = 0.0
         C[i, j] += A[i, k] * B[j, k]
 
@@ -71,15 +71,15 @@ def te_element_wise():
     return [A, C]
 
 
-@tvm.script.tir
-def tir_element_wise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B = tir.alloc_buffer((128, 128))
+@T.prim_func
+def tir_element_wise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B = T.alloc_buffer((128, 128))
 
-    with tir.block([128, 128]) as [i, j]:
+    with T.block([128, 128]) as [i, j]:
         B[i, j] = A[i, j] * 2.0
-    with tir.block([128, 128]) as [i, j]:
+    with T.block([128, 128]) as [i, j]:
         C[i, j] = B[i, j] + 1.0
 
 
@@ -118,24 +118,24 @@ def te_conv2d():
     return [A, W, B]
 
 
-@tvm.script.tir
-def tir_conv2d(a: ty.handle, w: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [16, 16, 14, 14])
-    W = tir.match_buffer(w, [16, 3, 3, 32])
-    B = tir.match_buffer(b, [16, 32, 14, 14])
-    Apad = tir.alloc_buffer([16, 16, 16, 16])
+@T.prim_func
+def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [16, 16, 14, 14])
+    W = T.match_buffer(w, [16, 3, 3, 32])
+    B = T.match_buffer(b, [16, 32, 14, 14])
+    Apad = T.alloc_buffer([16, 16, 16, 16])
 
-    with tir.block([16, 16, 16, 16], "Apad") as [nn, cc, yy, xx]:
-        Apad[nn, cc, yy, xx] = tir.if_then_else(
+    with T.block([16, 16, 16, 16], "Apad") as [nn, cc, yy, xx]:
+        Apad[nn, cc, yy, xx] = T.if_then_else(
             yy >= 1 and yy - 1 < 14 and xx >= 1 and xx - 1 < 14,
             A[nn, cc, yy - 1, xx - 1],
             0.0,
             dtype="float32",
         )
-    with tir.block(
-        [16, 32, 14, 14, tir.reduce_axis(0, 16), tir.reduce_axis(0, 3), tir.reduce_axis(0, 3)], "B"
+    with T.block(
+        [16, 32, 14, 14, T.reduce_axis(0, 16), T.reduce_axis(0, 3), T.reduce_axis(0, 3)], "B"
     ) as [nn, ff, yy, xx, rc, ry, rx]:
-        with tir.init():
+        with T.init():
             B[nn, ff, yy, xx] = 0.0
         B[nn, ff, yy, xx] += Apad[nn, rc, yy + ry, xx + rx] * W[rc, ry, rx, ff]
 
@@ -153,19 +153,19 @@ def te_multi_output():
     return [A0, A1, B0, B1]
 
 
-@tvm.script.tir
-def tir_multi_output(a0: ty.handle, a1: ty.handle, b0: ty.handle, b1: ty.handle) -> None:
-    m = tir.var("int32")
-    n = tir.var("int32")
-    A0 = tir.match_buffer(a0, (m, n))
-    A1 = tir.match_buffer(a1, (m, n))
-    B0 = tir.match_buffer(b0, (m, n))
-    B1 = tir.match_buffer(b1, (m, n))
+@T.prim_func
+def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> None:
+    m = T.var("int32")
+    n = T.var("int32")
+    A0 = T.match_buffer(a0, (m, n))
+    A1 = T.match_buffer(a1, (m, n))
+    B0 = T.match_buffer(b0, (m, n))
+    B1 = T.match_buffer(b1, (m, n))
 
-    for i0, i1 in tir.grid(m, n):
-        with tir.block([m, n], "B.v0") as [i, j]:
+    for i0, i1 in T.grid(m, n):
+        with T.block([m, n], "B.v0") as [i, j]:
             B0[i, j] = A0[i, j] + 2.0
-        with tir.block([m, n], "B.v1") as [i, j]:
+        with T.block([m, n], "B.v1") as [i, j]:
             B1[i, j] = A1[i, j] * 3.0
 
 
@@ -187,39 +187,39 @@ def te_extern():
     return [A, B, C]
 
 
-@tvm.script.tir
-def tir_extern(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
+@T.prim_func
+def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
     # body
-    with tir.block([], "C"):
-        tir.reads([A[0:128, 0:128], B[0:128, 0:128]])
-        tir.writes([C[0:128, 0:128]])
-        tir.evaluate(
-            tir.tvm_call_packed(
+    with T.block([], "C"):
+        T.reads([A[0:128, 0:128], B[0:128, 0:128]])
+        T.writes([C[0:128, 0:128]])
+        T.evaluate(
+            T.tvm_call_packed(
                 "tvm.contrib.cblas.matmul",
-                tir.tvm_stack_make_array(
+                T.tvm_stack_make_array(
                     A.data,
-                    tir.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
                     0,
                     2,
                     0.0,
                     0,
                     dtype="handle",
                 ),
-                tir.tvm_stack_make_array(
+                T.tvm_stack_make_array(
                     B.data,
-                    tir.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
                     0,
                     2,
                     0.0,
                     0,
                     dtype="handle",
                 ),
-                tir.tvm_stack_make_array(
+                T.tvm_stack_make_array(
                     C.data,
-                    tir.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
                     0,
                     2,
                     0.0,
@@ -245,14 +245,14 @@ def te_reordered_matmul():
     return [C, A, B]
 
 
-@tvm.script.tir
-def tir_reordered_matmul(c: ty.handle, a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
+@T.prim_func
+def tir_reordered_matmul(c: T.handle, a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
 
-    with tir.block([128, 128, tir.reduce_axis(0, 128)]) as [i, j, k]:
-        with tir.init():
+    with T.block([128, 128, T.reduce_axis(0, 128)]) as [i, j, k]:
+        with T.init():
             C[i, j] = 0.0
         C[i, j] += A[i, k] * B[j, k]
 

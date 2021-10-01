@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script Parser Typing Class
+"""TVM Script Parser Typing Class for TIR
 
 This module provides typing class for TVM script type annotation usage, it can be viewed as
 a wrapper for uniform Type system in IR

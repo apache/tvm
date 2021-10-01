@@ -22,22 +22,22 @@ import tvm
 
 from tvm import tir
 from tvm.ir import IRModule
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "init") as [vi, vj]:
-            C[vi, vj] = tir.float32(0)
+@T.prim_func
+def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    for i, j in T.grid(128, 128):
+        with T.block([128, 128], "init") as [vi, vj]:
+            C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+            with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 

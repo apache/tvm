@@ -19,8 +19,8 @@
 from typing import List, Any
 
 import tvm.tir
-from .registry import register
-from .utils import get_param_list, tvm_span_from_synr
+from ..registry import register
+from ..utils import get_param_list, tvm_span_from_synr
 
 
 class Intrin:
