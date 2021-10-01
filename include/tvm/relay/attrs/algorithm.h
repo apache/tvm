@@ -84,7 +84,7 @@ struct SearchSortedAttrs : public tvm::AttrsNode<SearchSortedAttrs> {
     TVM_ATTR_FIELD(side).set_default("left").describe(
         "Controls which index is returned if a value lands exactly on one of sorted values.");
     TVM_ATTR_FIELD(dtype)
-        .set_default(DataType::Int(64))
+        .set_default(DataType::Int(32))
         .describe("Data type of the output indices.");
   }
 };

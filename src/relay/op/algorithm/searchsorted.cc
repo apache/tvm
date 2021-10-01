@@ -38,12 +38,18 @@ bool SearchSortedRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   const auto* values = types[1].as<TensorTypeNode>();
   ICHECK(sorted_sequence) << "Expects TensorType in the first input";
   ICHECK(values) << "Expects TensorType in the second input";
+  ICHECK(param->side == "left" || param->side == "right")
+      << "'side' parameter must be either 'left' or 'right'";
 
   ICHECK_EQ(sorted_sequence->shape.size(), values->shape.size())
       << "Ranks of sorted sequence and values must be the same";
+
   for (size_t i = 0; i < values->shape.size() - 1; ++i) {
-    ICHECK_EQ(sorted_sequence->shape[i], values->shape[i])
-        << "sorted sequence and values do not have the same shape along outer axes";
+    if (sorted_sequence->shape[i].as<IntImmNode>() && values->shape[i].as<IntImmNode>()) {
+      ICHECK_EQ(sorted_sequence->shape[i].as<IntImmNode>()->value,
+                values->shape[i].as<IntImmNode>()->value)
+          << "sorted sequence and values do not have the same shape along outer axes";
+    }
   }
 
   reporter->Assign(types[2], TensorType(values->shape, param->dtype));

@@ -115,3 +115,20 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
     if ret_type == "both":
         return TupleWrapper(out, 2)
     return out
+
+
+def searchsorted(sorted_sequence, values, side="left", dtype="int32"):
+    """TODO
+
+    Parameters
+    ----------
+    dtype : string, optional
+        The data type of the output indices.
+
+    Returns
+    -------
+    indices : relay.Expr
+        Tensor with same shape as values, representing the indices of
+        elements of values if they are inserted in sorted_sequence.
+    """
+    return _make.searchsorted(sorted_sequence, values, side, dtype)

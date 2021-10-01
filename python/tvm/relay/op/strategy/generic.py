@@ -1002,6 +1002,31 @@ def topk_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# searchsorted
+def wrap_compute_searchsorted(topi_compute):
+    """Wrap searchsorted compute"""
+
+    def _compute_searchsorted(attrs, inputs, out_type):
+        side = attrs.side
+        dtype = attrs.dtype
+        return [topi_compute(inputs[0], inputs[1], side, dtype)]
+
+    return _compute_searchsorted
+
+
+# searchsorted_strategy
+@override_native_generic_func("searchsorted_strategy")
+def searchsorted_strategy(attrs, inputs, out_type, target):
+    """searchsorted generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_searchsorted(topi.searchsorted),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="searchsorted.generic",
+    )
+    return strategy
+
+
 # multibox_prior
 def wrap_compute_multibox_prior(topi_compute):
     """Wrap multibox_prior compute"""
