@@ -22,15 +22,22 @@
 #include <stdarg.h>
 #include <tvm/runtime/crt/platform.h>
 
+// Provide dummy implementations for TVM runtime functions for use by the tests.
+
 extern "C" {
+
 void InternalTVMPlatformAbort(tvm_crt_error_t error_code) {
   FAIL() << "TVMPlatformAbort(" << error_code << ")";
 }
+
 void TVMPlatformAbort(tvm_crt_error_t error_code) {
   InternalTVMPlatformAbort(error_code);
   exit(2);  // for __attribute__((noreturn))
 }
-void* TVMSystemLibEntryPoint() { return NULL; }
+
+struct TVMModule;
+const TVMModule* TVMSystemLibEntryPoint(void) { return NULL; }
+
 void TVMLogf(const char* fmt, ...) {
   va_list args;
   char log_buf[1024];
@@ -43,5 +50,23 @@ void TVMLogf(const char* fmt, ...) {
   } else {
     LOG(INFO) << "TVMLogf: " << std::string(log_buf, ret);
   }
+}
+
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+  *out_ptr = malloc(num_bytes);
+  return *out_ptr ? kTvmErrorNoError : kTvmErrorPlatformNoMemory;
+}
+
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  if (ptr) {
+    free(ptr);
+  }
+  return kTvmErrorNoError;
+}
+
+tvm_crt_error_t TVMPlatformTimerStart() { return kTvmErrorFunctionCallNotImplemented; }
+
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+  return kTvmErrorFunctionCallNotImplemented;
 }
 }

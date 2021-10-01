@@ -135,7 +135,7 @@ if(USE_MICRO)
     # Create the `crttest` target if we can find GTest.  If not, we create dummy
     # targets that give the user an informative error message.
     if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-      file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*_test.cc)
+      file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
       add_executable(crttest ${TEST_SRCS})
       target_include_directories(crttest SYSTEM PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/micro)
       target_link_libraries(crttest PRIVATE ${cmake_crt_libraries} ${GTEST_LIB} gtest_main pthread dl)
