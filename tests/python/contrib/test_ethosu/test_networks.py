@@ -58,7 +58,9 @@ def test_forward_mobilenet_v1(accel_type="ethos-u55-256"):
     output_data = generate_ref_data(relay_mod, input_data)
 
     mod = partition_for_ethosu(relay_mod, params)
-    compiled_models = infra.build_source(mod, input_data, output_data, accel_type)
+    compiled_models = infra.build_source(
+        mod, input_data, output_data, accel_type, output_tolerance=10
+    )
     infra.verify_source(compiled_models, accel_type)
 
 

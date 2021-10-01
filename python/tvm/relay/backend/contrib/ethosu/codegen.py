@@ -24,31 +24,32 @@ from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
 from tvm.relay.backend.contrib.ethosu import util
 
 
+@tvm._ffi.register_func("relay.ext.ethosu")
+def ethosu_compiler(external_function):
+    """The entry-point to a compile a external relay function of
+    NPU compatible operators to generated command stream.
+    Such generated command stream would be used to create c-source r
+    runtime module that interfaces with NPU driver.
+    """
+    assert isinstance(external_function, tvm.ir.function.BaseFunc)
+    func_name = external_function.attrs["global_symbol"]
+    # There should only be a single input
+    assert len(external_function.params) == 1
+    input_size = util.calculate_size_bytes(external_function.params[0])
+    output_size = util.calculate_size_bytes(external_function.body)
+    cmms, encoded_constants, scratch_size = _compile(external_function)
+    ethosu_runtime = tvm._ffi.get_global_func("runtime.module.ethosu.create")
+    return ethosu_runtime(func_name, cmms, encoded_constants, scratch_size, input_size, output_size)
+
+
 @tvm._ffi.register_func("relay.ext.ethosu.constant_updater")
 def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     """
-    We dont want the build process to extract constants to be loaded in
+    The constant updater process happen after lowering in the core compiler.
+    For the NPU, we dont want the build process to extract constants to be loaded in
     the runtime as we are embedding them inside the C runtime.Module.
     """
     return dict()
-
-
-@tvm._ffi.register_func("relay.ext.ethosu")
-def ethosu_compiler(ref):
-    """Main function to a compile a given relay function of
-    NPU compatible operators to generated command stream.
-    Such generated command stream would be loaded to the runtime
-    module that interfaces with NPU driver.
-    """
-    assert isinstance(ref, tvm.ir.function.BaseFunc)
-    func_name = ref.attrs["global_symbol"]
-    # There should only be a single input
-    assert len(ref.params) == 1
-    input_size = util.calculate_size_bytes(ref.params[0])
-    output_size = util.calculate_size_bytes(ref.body)
-    cmms, encoded_constants, scratch_size = _compile(ref)
-    ethosu_runtime = tvm._ffi.get_global_func("runtime.module.ethosu.create")
-    return ethosu_runtime(func_name, cmms, encoded_constants, scratch_size, input_size, output_size)
 
 
 def _compile(ext_func):
