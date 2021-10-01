@@ -30,6 +30,7 @@ from tvm.topi.nn.utils import get_pad_tuple
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.depthwise_conv2d import _get_workload
 from tvm.topi.x86.depthwise_conv2d import _fallback_schedule
+from tvm.topi.generic import conv2d as conv2d_generic
 
 
 _depthwise_conv2d_implement = {
@@ -53,7 +54,10 @@ _depthwise_conv2d_implement = {
         ],
     },
     "NHWC": {
-        "generic": [(topi.nn.depthwise_conv2d_nhwc, topi.generic.schedule_depthwise_conv2d_nhwc)],
+        "generic": [
+            (topi.nn.depthwise_conv2d_nhwc, topi.generic.schedule_depthwise_conv2d_nhwc),
+            (topi.nn.depthwise_conv2d_nhwc, conv2d_generic.schedule_depthwise_conv2d_nhwc),
+        ],
         "arm_cpu": [
             (
                 topi.arm_cpu.compute_depthwise_conv2d_nhwc,
