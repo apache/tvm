@@ -152,10 +152,7 @@ def test_ethosu_conv2d(accel_type):
         output_data = generate_ref_data(relay_module, input_data)
 
         compiled_models = infra.build_source(
-            mod,
-            input_data,
-            output_data,
-            accel_type,
+            mod, input_data, output_data, accel_type, output_tolerance=1
         )
 
         # Assumes only two runtime.Modules are created -- i.e. single offload module
