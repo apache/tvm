@@ -41,7 +41,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_run_parser(subparsers):
+def add_run_parser(subparsers, main_parser):
     """Include parser for 'run' subcommand"""
 
     parser = subparsers.add_parser("run", help="run a compiled module")

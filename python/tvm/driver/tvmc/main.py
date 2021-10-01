@@ -66,7 +66,7 @@ def _main(argv):
 
     subparser = parser.add_subparsers(title="commands")
     for make_subparser in REGISTERED_PARSER:
-        make_subparser(subparser)
+        make_subparser(subparser, parser)
 
     args = parser.parse_args(argv)
     if args.verbose > 4:
