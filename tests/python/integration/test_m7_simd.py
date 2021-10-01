@@ -25,7 +25,7 @@ import tvm
 from tvm import relay
 from tvm.ir.module import IRModule
 from tvm.relay import transform
-from aot_test_utils import (
+from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_DEFAULT_RUNNER,
     generate_ref_data,
@@ -34,8 +34,8 @@ from aot_test_utils import (
 )
 
 
-
 @parametrize_aot_options
+@tvm.testing.requires_corstone300
 @pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
 def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
     """Test a subgraph with a single conv2d operator."""
@@ -59,60 +59,6 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
     output_list = generate_ref_data(mod, inputs)
     compile_and_run(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
-        test_runner,
-        interface_api,
-        use_unpacked_api,
-    )
-
-
-
-@parametrize_aot_options
-def test_multiple_models(interface_api, use_unpacked_api, test_runner):
-    # Identity model without params
-    x = relay.var("x", "float32")
-    mod1 = relay.Function([x], x)
-    one = np.array(1.0, "float32")
-    inputs1 = {"x": one}
-    output_list1 = generate_ref_data(mod1, inputs1)
-    params1 = None
-
-    # Convolution model
-    RELAY_MODEL = """
-#[version = "0.0.5"]
-def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
-    %1 = nn.conv2d(
-         %data,
-         %weight,
-         padding=[2, 2],
-         channels=8,
-         kernel_size=[5, 5],
-         data_layout="NCHW",
-         kernel_layout="OIHW",
-         out_dtype="int32");
-  %1
-}
-"""
-    mod2 = tvm.parser.fromtext(RELAY_MODEL)
-    main_func = mod2["main"]
-    shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
-    type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
-
-    weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
-    input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
-
-    params2 = {"weight": weight_data}
-    inputs2 = {"data": input_data}
-    output_list2 = generate_ref_data(mod2, inputs2, params2)
-
-    compile_and_run(
-        [
-            AOTTestModel(
-                name="mod1", module=mod1, inputs=inputs1, outputs=output_list1, params=params1
-            ),
-            AOTTestModel(
-                name="mod2", module=mod2, inputs=inputs2, outputs=output_list2, params=params2
-            ),
-        ],
         test_runner,
         interface_api,
         use_unpacked_api,
