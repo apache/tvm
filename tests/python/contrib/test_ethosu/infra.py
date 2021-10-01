@@ -228,14 +228,14 @@ def _create_test_runner(accel):
     )
 
 
-def build_source(module, inputs, outputs, accel="ethos-u55-256"):
+def build_source(module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0):
     test_runner = _create_test_runner(accel)
     return compile_models(
         models=AOTTestModel(
             module=module,
             inputs=inputs,
             outputs=outputs,
-            output_tolerance=10,
+            output_tolerance=output_tolerance,
             extra_memory_in_bytes=16 * 1024 * 1024,
         ),
         interface_api="c",

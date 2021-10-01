@@ -764,7 +764,4 @@ def test_assign_addresses():
 
 
 if __name__ == "__main__":
-    test_buffer_info_extraction()
-    test_translate_ethosu_conv2d()
-    test_translate_ethosu_copy()
-    test_assign_addresses()
+    pytest.main([__file__])
