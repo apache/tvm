@@ -79,6 +79,16 @@ def _parse_error_render_level(error_render_level: str) -> int:
     return _ERROR_RENDER_LEVEL.get(error_render_level)
 
 
+def _parse_seed(seed: Optional[int]) -> int:
+    if seed is None:
+        return -1
+    if not isinstance(seed, int):
+        raise TypeError(f"Expected `seed` to be int or None, but gets: {seed}")
+    if seed < 1 or seed > 2147483647:
+        raise ValueError(f"seed must be in the range [1, 2147483647], but gets: {seed}")
+    return seed
+
+
 @_register_object("tir.Schedule")
 class Schedule(Object):
     """The user-facing schedule class
@@ -98,6 +108,7 @@ class Schedule(Object):
         self,
         mod: Union[PrimFunc, IRModule],
         *,
+        seed: Optional[int] = None,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
     ) -> None:
@@ -107,6 +118,10 @@ class Schedule(Object):
         ----------
         mod : Union[PrimFunc, IRModule]
             The IRModule or PrimFunc to be scheduled
+        seed: Optional[int]
+            The seed value for schedule's random state
+            Note that None and -1 means use device random, otherwise only integer between 1 and
+            2147483647 is allowed.
         debug_mask : Union[str, int]
             Do extra correctness checking after the class creation and each time
             after calling the Replace method.
@@ -130,6 +145,7 @@ class Schedule(Object):
         self.__init_handle_by_constructor__(
             _ffi_api.TracedSchedule,  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
+            _parse_seed(seed),
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
         )
@@ -138,12 +154,14 @@ class Schedule(Object):
     def _create_non_traced(
         mod: Union[PrimFunc, IRModule],
         *,
+        seed: Optional[int] = None,
         debug_mask: Union[str, int] = "none",
         error_render_level: str = "detail",
     ) -> "Schedule":
         """Construct a non-traced TensorIR schedule class from an IRModule."""
         return _ffi_api.ConcreteSchedule(  # type: ignore # pylint: disable=no-member
             _parse_mod(mod),
+            _parse_seed(seed),
             _parse_debug_mask(debug_mask),
             _parse_error_render_level(error_render_level),
         )
@@ -189,6 +207,16 @@ class Schedule(Object):
             The new random seed, -1 if use device random, otherwise non-negative
         """
         return _ffi_api.ScheduleSeed(self, seed)  # type: ignore # pylint: disable=no-member
+
+    def fork_seed(self) -> int:
+        """Returns a forked random state as seed for new schedules
+
+        Returns
+        -------
+        seed : int
+            The forked random state, not the same as the current random state
+        """
+        return _ffi_api.ScheduleForkSeed(self)  # type: ignore # pylint: disable=no-member
 
     def show(self, rand_var: RAND_VAR_TYPE) -> str:
         """Returns a string representation of the value that the random variable evaluates to
@@ -268,6 +296,35 @@ class Schedule(Object):
 
     ########## Schedule: Sampling ##########
 
+    def sample_categorical(
+        self,
+        candidates: List[int],
+        probs: List[float],
+        decision: Optional[int] = None,
+    ) -> ExprRV:
+        """Sample an integer given the probability distribution
+
+        Parameters
+        ----------
+        candidates : List[int]
+            The candidates to be sampled from
+        probs : List[float]
+            The probability of each candidate
+        decision : Optional[int]
+            The sampling decision, if any
+
+        Returns
+        -------
+        result : ExprRV
+            The random variable sampled from candidates
+        """
+        return _ffi_api.ScheduleSampleCategorical(  # type: ignore # pylint: disable=no-member
+            self,
+            candidates,
+            probs,
+            decision,
+        )
+
     ########## Schedule: Get blocks & loops ##########
     def get_block(
         self,
@@ -316,6 +373,7 @@ class Schedule(Object):
         1) The loops can't have annotations or thread bindings.
         2) The (i+1)-th loop must be the only child of the i-th loop.
         3) All loops must start with 0.
+        4) The domain of a loop to be fused cannot depend on another loop to be fused.
 
         Parameters
         ----------
@@ -441,6 +499,65 @@ class Schedule(Object):
         # it will be checked later in C++ implementation
         # that there is at most one None in `factors`
         return _ffi_api.ScheduleSplit(self, loop, factors)  # type: ignore # pylint: disable=no-member
+
+    def reorder(self, *ordered_loops: List[LoopRV]) -> None:
+        """
+        Reorder a list of loops. It doesn't require the loops to be consecutive.
+        It requires:
+        1) The loops are in the same chain. That means: the loops can be ordered to [l_1, l_2, ... ,
+        l_n] where l_i is an ancestor of l_{i+1} and there are only single-branch loops between
+        l_1 and l_n (which also indicates they are under the same scope).
+        2) After reordering, the domain of an outer loop cannot depend on any of the inner loops.
+        3) For every block under the loop nests, its block binding must be affine, and the block
+        variables must be either data parallel or reduction.
+        4) No duplicated loops are allowed in the arguments.
+
+        Parameters
+        ----------
+        *ordered_loops : List[LoopRV]
+            The loops in the new order
+
+        Examples
+        --------
+
+        Before reorder, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_reorder(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do reorder:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_reorder)
+            i, j = sch.get_loops(sch.get_block("B"))
+            sch.reorder(j, i)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying reorder, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_reorder(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                # Here j and i are reordered
+                for j, i in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        tir.bind(vi, i)
+                        tir.bind(vj, j)
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Manipulate ForKind ##########
 
@@ -674,7 +791,319 @@ class Schedule(Object):
 
     ########## Schedule: Insert cache stages ##########
 
+    def cache_read(self, block: BlockRV, read_buffer_index: int, storage_scope: str) -> BlockRV:
+        """Create a block that reads a buffer region into a read cache. It requires:
+
+        1) There is at most one block who write the buffer in the scope.
+
+        2) The scope block have stage-pipeline property.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The consumer block of the target buffer.
+
+        read_buffer_index: int
+            The index of the buffer in block's read region.
+
+        storage_scope: str
+            The target storage scope.
+
+        Returns
+        -------
+        cached_block : BlockRV
+            The block of the cache stage
+
+        Examples
+        --------
+        Before cache_read, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_cache_read(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and cache_read:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_cache_read)
+            block_b = sch.get_block("B")
+            sch.cache_read(block_b, 0, "local")
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying cache_read, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_cache_read(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                A_local = tir.alloc_buffer((128, 128), scope="local")
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "A_local") as [vi, vj]:
+                        A_local[vi, vj] = A[vi, vj]
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A_local[vi, vj] * 2.0
+
+        """
+        return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
+            self, block, read_buffer_index, storage_scope
+        )
+
+    def cache_write(self, block: BlockRV, write_buffer_index: int, storage_scope: str) -> BlockRV:
+        """Create a block that reads a buffer region into a write cache. It requires:
+
+        1) There is only one block who write the buffer in the scope.
+
+        2) The scope block have stage-pipeline property.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The producer block of the target buffer.
+
+        write_buffer_index: int
+            The index of the buffer in block's write region.
+
+        storage_scope: str
+            The target storage scope.
+
+
+        Returns
+        -------
+        cached_block : BlockRV
+            The block of the cache stage
+
+        Examples
+        --------
+        Before cache_write, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_cache_write(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and cache_write:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_cache_write)
+            block_b = sch.get_block("B")
+            sch.cache_write(block_b, 0, "local")
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying cache_write, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_cache_write(a: ty.handle, b: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128))
+                B = tir.match_buffer(b, (128, 128))
+                B_local = tir.alloc_buffer((128, 128), scope="local")
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "A_local") as [vi, vj]:
+                        B_local[vi, vj] = A[vi, vj] * 2.0
+                for i, j in tir.grid(128, 128):
+                    with tir.block([128, 128], "B") as [vi, vj]:
+                        B[vi, vj] = B_local[vi, vj]
+
+        """
+        return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
+            self, block, write_buffer_index, storage_scope
+        )
+
     ########## Schedule: Compute location ##########
+
+    def compute_at(
+        self,
+        block: BlockRV,
+        loop: LoopRV,
+        preserve_unit_loops: bool = False,
+    ) -> None:
+        """Compute-At. Move a producer block under the specific loop, and regenerate the
+        loops induced by the block so that the buffer region produced by the producer block could
+        cover those regions consumed by its consumer blocks under the given loop. It requires:
+
+        1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+
+        2) The scope block has stage-pipeline property
+
+        3) The subtree of the scope block, where the given block is in, satisfies the compact
+        dataflow condition. i.e. all the blocks in the scope block's subtree must be either
+        complete block or reduction block
+
+        4) The block is not an output block with regard to the scope block, i.e. the buffers written
+        by the block are allocated under the scope block
+
+        5) All the consumers of the block are under the given loop
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be moved
+
+        loop: LoopRV
+            The loop where the block to be moved under
+
+        preserve_unit_loops: bool
+            Whether to keep the trivial loops whose extents are 1
+
+        Examples
+        --------
+
+        Before compute-at, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_compute_at(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128), "float32")
+                B = tir.alloc_buffer((128, 128), "float32")
+                C = tir.match_buffer(c, (128, 128), "float32")
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do compute-at:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_compute_at)
+            block = sch.get_block("B")
+            loop, _ = sch.get_loops(sch.get_block("C"))
+            sch.compute_at(block, loop, preserve_unit_loops=False)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying compute-at, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_compute_at(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128), "float32")
+                B = tir.alloc_buffer((128, 128), "float32")
+                C = tir.match_buffer(c, (128, 128), "float32")
+                for i in tir.serial(0, 128):
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "B") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "C") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            C[vi, vj] = B[vi, vj] + 1.0
+
+        """
+        _ffi_api.ScheduleComputeAt(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+            loop,
+            preserve_unit_loops,
+        )
+
+    def reverse_compute_at(
+        self,
+        block: BlockRV,
+        loop: LoopRV,
+        preserve_unit_loops: bool = False,
+    ) -> None:
+        """Reverse-Compute-At. Move a consumer block under the specific loop, and regenerate the
+        loops induced by the block so that the buffer region consumed by the consumer block could
+        cover those regions produced by its producer blocks under the given loop. It requires:
+
+        1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+
+        2) The scope block has stage-pipeline property
+
+        3) The subtree of the scope block, where the given block is in, satisfies the compact
+        dataflow condition. i.e. all the blocks in the scope block's subtree must be either
+        complete block or reduction block
+
+        4) All the producers of the block are under the given loop
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be moved
+
+        loop: LoopRV
+            The loop where the block to be moved under
+
+        preserve_unit_loops: bool
+            Whether to keep the trivial loops whose extents are 1
+
+        Examples
+        --------
+
+        Before reverse-compute-at, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def before_reverse_compute_at(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128), "float32")
+                B = tir.alloc_buffer((128, 128), "float32")
+                C = tir.match_buffer(c, (128, 128), "float32")
+                with tir.block([128, 128], "B") as [vi, vj]:
+                    B[vi, vj] = A[vi, vj] * 2.0
+                with tir.block([128, 128], "C") as [vi, vj]:
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do reverse-compute-at:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_reverse_compute_at)
+            block = sch.get_block("C")
+            loop, _ = sch.get_loops(sch.get_block("B"))
+            sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
+            print(tvm.script.asscript(sch.mod["main"]))
+
+        After applying reverse-compute-at, the IR becomes:
+
+        .. code-block:: python
+
+            @tvm.script.tir
+            def after_reverse_compute_at(a: ty.handle, c: ty.handle) -> None:
+                A = tir.match_buffer(a, (128, 128), "float32")
+                B = tir.alloc_buffer((128, 128), "float32")
+                C = tir.match_buffer(c, (128, 128), "float32")
+                for i in tir.serial(0, 128):
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "B") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
+                    for j in tir.serial(0, 128):
+                        with tir.block([128, 128], "C") as [vi, vj]:
+                            tir.bind(vi, i)
+                            tir.bind(vj, j)
+                            C[vi, vj] = B[vi, vj] + 1.0
+
+        """
+        _ffi_api.ScheduleReverseComputeAt(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+            loop,
+            preserve_unit_loops,
+        )
 
     def compute_inline(self, block: BlockRV) -> None:
         """Inline a block into its consumer(s). It requires:
@@ -938,10 +1367,15 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleRFactor(self, loop, factor_axis)  # type: ignore # pylint: disable=no-member
 
-    ######## Schedule: Block annotatoin ########
+    ######## Schedule: Block annotation ########
 
     def storage_align(  # pylint: disable=too-many-arguments
-        self, block: BlockRV, buffer_index: int, axis: int, factor: int, offset: int
+        self,
+        block: BlockRV,
+        buffer_index: int,
+        axis: int,
+        factor: int,
+        offset: int,
     ) -> None:
         """Set alignment requirement for specific dimension such that
         stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more

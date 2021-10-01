@@ -205,13 +205,17 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       this->EmitFatal(Diagnostic::Error(op->span) << "Cannot do type inference on global variables "
                                                   << "without a module");
     }
-
     if (mod_->ContainGlobalVar(var->name_hint)) {
-      relay::Function e = Downcast<Function>(mod_->Lookup(var));
-      return e->checked_type();
-    } else {
-      return op->checked_type_;
+      BaseFunc func = mod_->Lookup(var->name_hint);
+
+      if (func->IsInstance<FunctionNode>()) {
+        relay::Function relay_func = Downcast<Function>(func);
+        return relay_func->checked_type();
+      }
     }
+    // Return op->checked_type if the module doesn't contain the GlobalVar or the function is a
+    // PrimFunc (we don't typecheck PrimFuncs)
+    return op->checked_type_;
   }
 
   Type VisitExpr_(const ConstantNode* op) final { return op->tensor_type(); }
@@ -820,10 +824,8 @@ Pass InferType() {
   auto pass_info = PassInfo(0, "InferType", {});
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
-        DLOG(INFO) << "tvm::relay::transform::InferType";
         // Execute the pass function and return a new module.
-        IRModule updated_mod =
-            IRModule(mod->functions, mod->type_definitions, mod->Imports(), mod->source_map);
+        IRModule updated_mod = mod->ShallowCopy();
 
         pass_ctx->diag_ctx = DiagnosticContext::Default(updated_mod);
 

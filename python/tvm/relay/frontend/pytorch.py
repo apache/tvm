@@ -39,7 +39,7 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op, unbind, lstm_cell
+from .common import AttrCvt, get_relay_op, unbind, lstm_cell, gru_cell
 from .common import infer_value as _infer_value
 from .common import infer_shape as _infer_shape
 from .common import infer_value_simulated as _infer_value_simulated
@@ -572,6 +572,12 @@ class PyTorchOpConverter:
         data = inputs[0]
         if isinstance(inputs[1], int):
             repeats = inputs[1]
+            axis = inputs[2]
+        elif isinstance(inputs[1], _expr.Expr):
+            if isinstance(inputs[1], _expr.Constant):
+                repeats = int(inputs[1].data.numpy())
+            else:
+                repeats, _ = try_infer_value(inputs[1], lambda ret: ret.tolist())
             axis = inputs[2]
         else:
             msg = "Only repeat with one value as repeat is currently supported."
@@ -2315,6 +2321,192 @@ class PyTorchOpConverter:
         axis = inputs[1]
         return _op.transform.reverse(data, axis=axis[0])
 
+    def bidir_gru_cell(
+        self,
+        input_seqs,
+        weights_dicts,
+    ):
+        """
+        Bidirectional GRU cell
+        """
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t = gru_cell(
+            input_seqs,
+            **weights_dicts[0],
+        )
+
+        reverse_outputs, rev_H_t = gru_cell(
+            input_seqs,
+            **weights_dicts[1],
+            backwards=True,
+        )
+
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.concatenate([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=-1)
+            )
+
+        return final_outputs, _op.stack([fw_H_t, rev_H_t], axis=0)
+
+    def gru_layers(self, input_data, layer_weights_dicts, bidirectional, dropout_p=0.0):
+        """
+        Methods iterates layers for Stacked GRU
+        """
+        layers_num = len(layer_weights_dicts)
+        # split input sequence to samples set
+        input_seqs = unbind(input_data, 0)  # [seq_num, (batch, feature_size)]
+        output_hiddens = []
+        for i in range(layers_num):
+            weights_dicts = layer_weights_dicts[i]
+            # input_seqs shape = [seq_num, (batch, feature_size)] or
+            # [seq_num, (batch, 2*feature_size)] for bidirectional
+            if bidirectional:
+                input_seqs, H_t = self.bidir_gru_cell(input_seqs, weights_dicts)
+            else:
+                input_seqs, H_t = gru_cell(input_seqs, **weights_dicts[0])
+
+            output_hiddens.append(H_t)
+
+            # TODO (vvchernov): in pytorch implementation train is also checked
+            # see https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339
+            # /aten/src/ATen/native/RNN.cpp#L1054
+            if dropout_p != 0 and i < layers_num - 1:
+                # for input in input_seqs:
+                #     input = _op.dropout(input, dropout_p)
+                raise NotImplementedError("Dropout for GRU has not been supported yet!")
+
+        return _op.stack(input_seqs, 0), _op.stack(output_hiddens, 0)
+
+    def gru(self, inputs, input_types):
+        """
+        Description of GRU in pytorch:
+        https://pytorch.org/docs/stable/generated/torch.nn.GRU.html?highlight=gru#torch.nn.GRU
+        """
+        # TODO (vvchernov): support dropout
+        assert len(inputs) == 9, "Input of size 9 is expected"
+        # Unpack inputs, note that if optional and not provided then value will be None.
+        _X = inputs[0]
+        # _X shape (seq_num, batch, feature_size) or (batch, seq_num, feature_size)
+
+        hidden_state = inputs[1]
+        # Hidden state shape (hidden_layers_num, batch, hidden_size)
+
+        _weights = inputs[2]
+        # Wi layer[0] shape (3 * hidden_size, feature_size)
+        # Wh layer[0] shape (3 * hidden_size, hidden_size)
+        # Bi layer[0] shape (3 * hidden_size)
+        # Bh layer[0] shape (3 * hidden_size)
+
+        # Wi layer[>0] shape (3 * hidden_size, hidden_size * num_directions)
+        # Wh layer[>0] shape (3 * hidden_size, hidden_size)
+        # Bi layer[>0] shape (3 * hidden_size)
+        # Bh layer[>0] shape (3 * hidden_size)
+
+        # Scalar inputs
+        has_biases = inputs[3]
+        num_layers = inputs[4]
+        dropout_p = inputs[5]  # dropout probability, if 0.0 it means there is no dropout
+        # train = inputs[6]
+        bidirectional = inputs[7]
+        batch_first = inputs[8]
+
+        num_directions = 1
+        if bidirectional:
+            num_directions = 2
+
+        rsd = len(_weights) % num_layers
+        assert rsd == 0, "The number of weights must be a multiple of the number of layers!"
+        rsd = (len(_weights) / num_layers) % num_directions
+        assert (
+            rsd == 0
+        ), "The number of weights in layer must be a multiple of the number of directions!"
+
+        weights_num = int(len(_weights) / num_layers / num_directions)
+        if has_biases:
+            assert weights_num == 4, "The weights number in layer is expected equal to 4"
+        else:
+            assert weights_num == 2, "The weights number in layer is expected equal to 2"
+
+        X = _op.transpose(_X, (1, 0, 2)) if batch_first else _X
+        # TODO (vvchernov): Which data type should be used? from input or weights?
+        # Instead of it _infer_type(X).checked_type.dtype can be used
+        X_dtype = input_types[0]
+        X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
+
+        hidden_size = int(_infer_shape(_weights[0])[0] / 3)
+        batch_size = X_shape[1]
+
+        # Initialize hidden states if not provided.
+        layers_h = []
+        hidden_layers_num = num_directions * num_layers
+        if hidden_state is None:
+            h_0 = _op.zeros((batch_size, hidden_size), X_dtype)
+            for i in range(hidden_layers_num):
+                layers_h.append(h_0)
+        else:
+            layers_h = unbind(hidden_state, 0)
+
+        layer_weights_dicts = []
+        k = 0  # layer counter
+        if has_biases:
+            names = ["hidden_state", "w_inp", "w_hid", "b_inp", "b_hid"]
+            if bidirectional:
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of GRU weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_tensors = [layers_h[2 * k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    j = i + weights_num
+                    rev_tensors = [layers_h[2 * k + 1], *_weights[j : j + 4]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
+                    layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
+                    k += 1
+            else:
+                assert len(_weights) % weights_num == 0, "got an incorrect number of GRU weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_tensors = [layers_h[k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    layer_weights_dicts.append([fw_weights_dict])
+                    k += 1
+        else:
+            names = ["hidden_state", "w_inp", "w_hid"]
+            if bidirectional:
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of GRU weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_tensors = [layers_h[2 * k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    j = i + weights_num
+                    rev_tensors = [layers_h[2 * k + 1], *_weights[j : j + 2]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
+                    layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
+                    k += 1
+            else:
+                assert len(_weights) % weights_num == 0, "got an incorrect number of GRU weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_tensors = [layers_h[k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    layer_weights_dicts.append([fw_weights_dict])
+                    k += 1
+        assert (
+            len(layer_weights_dicts) == num_layers and k == num_layers
+        ), "For stacked GRU number of weights sets should be the same as number of layers!"
+
+        output, out_hidden_state = self.gru_layers(
+            X,
+            layer_weights_dicts,
+            bidirectional,
+            dropout_p=dropout_p,
+        )
+
+        # output shape = (seq_num, batch, hidden_size) or
+        # (seq_num, batch, 2*feature_size) for bidirectional
+        if batch_first:
+            output = _op.transpose(output, (1, 0, 2))
+
+        return (output, out_hidden_state)
+
     def bidir_lstm_cell(
         self,
         input_seqs,
@@ -2792,6 +2984,7 @@ class PyTorchOpConverter:
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
             "aten::flip": self.flip,
+            "aten::gru": self.gru,
             "aten::lstm": self.lstm,
         }
 
@@ -3207,8 +3400,8 @@ def _getattr_attr_name(node):
     return attr_name
 
 
-def _getattr_full_name(getattrs):
-    return ".".join([_getattr_attr_name(node) for node in getattrs])
+def _getattr_full_name(getattrs, sep="."):
+    return sep.join([_getattr_attr_name(node) for node in getattrs])
 
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
@@ -3464,7 +3657,7 @@ def get_attr_chains(root_getattr_node):
     return get_use_chains(root_getattr_node, terminate)
 
 
-def convert_params(graph, state_dict):
+def convert_params(graph, state_dict, use_parser_friendly_name=False):
     """
     Return Relay vars and TVM NDArrays for input parameters
     A chain of prim::GetAttr nodes is processed one at a time
@@ -3475,6 +3668,7 @@ def convert_params(graph, state_dict):
     packed_param_map = {}
     vars_by_name = {}
     seen = set()
+    attr_name_sep = "_" if use_parser_friendly_name else "."
 
     for node in getattr_nodes:
         if _get_output_name(node) in seen:
@@ -3483,7 +3677,7 @@ def convert_params(graph, state_dict):
         for getattrs in get_attr_chains(node):
             seen.update(map(_get_output_name, getattrs))
 
-            full_attr = _getattr_full_name(getattrs)
+            full_attr = _getattr_full_name(getattrs, attr_name_sep)
             full_attr_node_name = _get_output_name(getattrs[-1])
 
             if full_attr.endswith("_packed_params"):  # for quantized models
@@ -3513,7 +3707,14 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dtype="float32"):
+def from_pytorch(
+    script_module,
+    input_infos,
+    custom_convert_map=None,
+    default_dtype="float32",
+    use_parser_friendly_name=False,
+    keep_quantized_weight=False,
+):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -3535,6 +3736,25 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     custom_convert_map : Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
+
+    default_type : str
+        The default dtype to use when type information is not provided by PyTorch.
+
+    use_parser_friendly_name : bool
+        When True, replace '.' with `_' in a original parameter name.
+        The Relay text parser treats a variable name followed by a period as a tuple element access,
+        so a variable name like "dense.weight" cannot be parsed correctly.
+        Use this option when you want to run the AnnotateSpans pass on the imported module.
+
+    keep_quantized_weight : bool
+        Return quantized weights and bias, rather than float ones. PyTorch stores quantized weights
+        in a custom format, so we cannot directly access 8 bit weights as Numpy arrays. We use
+        a PyTorch function to unpack quantized weights into float32 arrays and quantization
+        parameters. By default, we return float32 weights and rely on the QNN lowering and the
+        Relay constant folding pass to quantize weights at compile time. In BYOC use cases, however,
+        we cannot apply the constant folding pass on a QNN graph. If keep_quantized_weight is True,
+        we quantize weights in the frontend using a function that is equivalent to
+        qnn.op.quantize(...) operating on Numpy arrays.
 
     Returns
     -------
@@ -3565,7 +3785,13 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     outputs = _get_relay_input_vars(
         graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
     )
-    param_vars, tensors, packed_param_map = convert_params(graph, params)
+
+    if use_parser_friendly_name:
+        new_names = [key.replace(".", "_") for key in params.keys()]
+        params = dict(zip(new_names, params.values()))
+
+    param_vars, tensors, packed_param_map = convert_params(graph, params, use_parser_friendly_name)
+
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
     outputs.update(param_vars)
@@ -3574,9 +3800,17 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     # For quantized models
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
     if len(quantized_ops.intersection(set(op_names))) > 0:
-        weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
-        qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)
+        weight_quant_params = qnn_torch.get_weight_quant_params(
+            script_module, packed_param_map.values()
+        )
+        input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
+        qnn_torch.add_quant_params_to_outputs(
+            outputs,
+            packed_param_map,
+            weight_quant_params,
+            input_scales_for_bias,
+            keep_quantized_weight,
+        )
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
@@ -3585,7 +3819,7 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         # ListConstruct kept original python list. Convert to tuple.
         ret = _expr.Tuple(ret)
 
-    # Separate data inputs and parameters to make sure data inputs are always in the beginning.
+    # Separate data inputs and parameters to make sure data inputs come first.
     func_args = []
     data_inputs = []
     for arg in _analysis.free_vars(ret):

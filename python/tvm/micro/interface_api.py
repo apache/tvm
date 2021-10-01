@@ -17,7 +17,13 @@
 
 """Defines functions for generating a C interface header"""
 
+# TODO: Currently the Interface API header is generated in Python but the source it references
+# is generated in C++. These should be consolidated to generate both header and source in C++
+# and avoid re-implementing logic, such as name sanitising, in the two different languages.
+# See https://github.com/apache/tvm/issues/8792 .
+
 import os
+import re
 
 from tvm.relay.backend.utils import mangle_module_name
 
@@ -51,15 +57,23 @@ def generate_c_interface_header(module_name, inputs, outputs, output_path):
     metadata_header = os.path.join(output_path, f"{mangled_name}.h")
     with open(metadata_header, "w") as header_file:
         header_file.write(
-            "#include <stdint.h>\n"
             f"#ifndef {mangled_name.upper()}_H_\n"
-            f"#define {mangled_name.upper()}_H_\n"
+            f"#define {mangled_name.upper()}_H_\n\n"
+            "#include <stdint.h>\n\n"
+            "#ifdef __cplusplus\n"
+            'extern "C" {\n'
+            "#endif\n\n"
         )
 
         _emit_brief(header_file, module_name, "Input tensor pointers")
         header_file.write(f"struct {mangled_name}_inputs {{\n")
+        sanitized_names = []
         for input_name in inputs:
-            header_file.write(f"  void* {input_name};\n")
+            sanitized_input_name = re.sub(r"\W", "_", input_name)
+            if sanitized_input_name in sanitized_names:
+                raise ValueError(f"Sanitized input tensor name clash: {sanitized_input_name}")
+            sanitized_names.append(sanitized_input_name)
+            header_file.write(f"  void* {sanitized_input_name};\n")
         header_file.write("};\n\n")
 
         _emit_brief(header_file, module_name, "Output tensor pointers")
@@ -80,6 +94,8 @@ def generate_c_interface_header(module_name, inputs, outputs, output_path):
             ");\n"
         )
 
-        header_file.write(f"#endif // {mangled_name.upper()}_H_\n")
+        header_file.write(
+            "\n#ifdef __cplusplus\n}\n#endif\n\n" f"#endif // {mangled_name.upper()}_H_\n"
+        )
 
     return metadata_header

@@ -20,9 +20,14 @@ import tvm.testing
 from tvm import topi
 import tvm.topi.testing
 
+in_dtype = tvm.testing.parameter("int32", "int64")
+is_sorted = tvm.testing.parameter(True, False, ids=["sorted", "unsorted"])
+with_counts = tvm.testing.parameter(True, False, ids=["with_counts", "no_counts"])
+arr_size, maxval = tvm.testing.parameters((1, 100), (10, 10), (10000, 100))
+
 
 @tvm.testing.parametrize_targets
-def test_unique(dev, target):
+def test_unique(dev, target, in_dtype, is_sorted, with_counts, arr_size, maxval):
     def calc_numpy_unique(data, is_sorted=False):
         uniq, index, inverse, counts = np.unique(
             data, return_index=True, return_inverse=True, return_counts=True
@@ -43,82 +48,67 @@ def test_unique(dev, target):
             num_uniq,
         ]
 
-    def check_unique(data, is_sorted=False, with_counts=False):
-        # numpy reference
-        np_unique, np_indices, np_inverse_indices, np_counts, np_num_unique = calc_numpy_unique(
-            data, is_sorted
-        )
-        num_unique = np_num_unique[0]
+    data = np.random.randint(0, maxval, size=(arr_size)).astype(in_dtype)
 
-        implementations = {
-            "generic": (
-                lambda x, return_counts: topi.unique(x, is_sorted, return_counts),
-                topi.generic.schedule_unique,
-            ),
-            "cuda": (
-                lambda x, return_counts: topi.cuda.unique(x, is_sorted, return_counts),
-                topi.cuda.schedule_scan,
-            ),
-            "nvptx": (
-                lambda x, return_counts: topi.cuda.unique(x, is_sorted, return_counts),
-                topi.cuda.schedule_scan,
-            ),
-        }
-        fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
-        tvm_data = tvm.nd.array(data, device=dev)
-        tvm_unique = tvm.nd.array(np.zeros(data.shape).astype(data.dtype), device=dev)
-        tvm_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
-        tvm_inverse_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
-        tvm_num_unique = tvm.nd.array(np.zeros([1]).astype("int32"), device=dev)
+    # numpy reference
+    np_unique, np_indices, np_inverse_indices, np_counts, np_num_unique = calc_numpy_unique(
+        data, is_sorted
+    )
+    num_unique = np_num_unique[0]
 
-        with tvm.target.Target(target):
-            te_input = tvm.te.placeholder(shape=data.shape, dtype=str(data.dtype))
-            outs = fcompute(te_input, with_counts)
-            s = fschedule(outs)
-            func = tvm.build(s, [te_input, *outs])
+    implementations = {
+        "generic": (
+            lambda x, return_counts: topi.unique(x, is_sorted, return_counts),
+            topi.generic.schedule_unique,
+        ),
+        "gpu": (
+            lambda x, return_counts: topi.cuda.unique(x, is_sorted, return_counts),
+            topi.cuda.schedule_scan,
+        ),
+        "nvptx": (
+            lambda x, return_counts: topi.cuda.unique(x, is_sorted, return_counts),
+            topi.cuda.schedule_scan,
+        ),
+    }
+    fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
+    tvm_data = tvm.nd.array(data, device=dev)
+    tvm_unique = tvm.nd.array(np.zeros(data.shape).astype(data.dtype), device=dev)
+    tvm_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
+    tvm_inverse_indices = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
+    tvm_num_unique = tvm.nd.array(np.zeros([1]).astype("int32"), device=dev)
 
-            if with_counts:
-                tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
-                func(
-                    tvm_data,
-                    tvm_unique,
-                    tvm_indices,
-                    tvm_inverse_indices,
-                    tvm_num_unique,
-                    tvm_counts,
-                )
-            else:
-                func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique)
-
-        num_unique = np_num_unique[0]
-        assert tvm_num_unique.numpy()[0] == np_num_unique
-
-        np.testing.assert_allclose(tvm_unique.numpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5)
-        np.testing.assert_allclose(
-            tvm_indices.numpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5
-        )
-
-        np.testing.assert_allclose(
-            tvm_inverse_indices.numpy(), np_inverse_indices, atol=1e-5, rtol=1e-5
-        )
+    with tvm.target.Target(target):
+        te_input = tvm.te.placeholder(shape=data.shape, dtype=str(data.dtype))
+        outs = fcompute(te_input, with_counts)
+        s = fschedule(outs)
+        func = tvm.build(s, [te_input, *outs])
 
         if with_counts:
-            np.testing.assert_allclose(
-                tvm_counts.numpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5
+            tvm_counts = tvm.nd.array(np.zeros(data.shape).astype("int32"), device=dev)
+            func(
+                tvm_data,
+                tvm_unique,
+                tvm_indices,
+                tvm_inverse_indices,
+                tvm_num_unique,
+                tvm_counts,
             )
+        else:
+            func(tvm_data, tvm_unique, tvm_indices, tvm_inverse_indices, tvm_num_unique)
 
-    for in_dtype in ["int32", "int64"]:
-        for is_sorted in [True, False]:
-            for with_counts in [True, False]:
-                data = np.random.randint(0, 100, size=(1)).astype(in_dtype)
-                check_unique(data, is_sorted, with_counts)
-                data = np.random.randint(0, 10, size=(10)).astype(in_dtype)
-                check_unique(data, is_sorted, with_counts)
-                data = np.random.randint(0, 100, size=(10000)).astype(in_dtype)
-                check_unique(data, is_sorted, with_counts)
+    num_unique = np_num_unique[0]
+    assert tvm_num_unique.numpy()[0] == np_num_unique
+
+    np.testing.assert_allclose(tvm_unique.numpy()[:num_unique], np_unique, atol=1e-5, rtol=1e-5)
+    np.testing.assert_allclose(tvm_indices.numpy()[:num_unique], np_indices, atol=1e-5, rtol=1e-5)
+
+    np.testing.assert_allclose(
+        tvm_inverse_indices.numpy(), np_inverse_indices, atol=1e-5, rtol=1e-5
+    )
+
+    if with_counts:
+        np.testing.assert_allclose(tvm_counts.numpy()[:num_unique], np_counts, atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":
-    test_unique(tvm.device("cpu"), tvm.target.Target("llvm"))
-    test_unique(tvm.device("cuda"), tvm.target.Target("cuda"))
-    test_unique(tvm.device("nvptx"), tvm.target.Target("nvptx"))
+    sys.exit(pytest.main(sys.argv))

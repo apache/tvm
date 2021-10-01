@@ -1,0 +1,86 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Pre-commit hook
+# See documentation at: https://pre-commit.com/
+#
+# Pre-commit hook to run the sanity checks from Jenkins locally.
+#
+# Requirements:
+#   - How to configure:
+#        - $ pip install pre-commit
+#        - $ pre-commit install --hook-type pre-push
+#   - How to prevent running it:
+#        - git options: --no-verify or -n
+#        - $ git commit -n -m "YOUR COMMIT MESSAGE"
+#   - How to run it as standalone
+#        - $ pre-commit run
+#
+
+default_language_version:
+    python: python3.6
+fail_fast: True
+default_stages: [push]
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v2.3.0
+      hooks:
+        - id: check-added-large-files
+        - id: check-merge-conflict
+        - id: check-yaml
+        - id: end-of-file-fixer
+          stages: [push]
+        - id: trailing-whitespace
+          stages: [push]
+    - repo: local
+      hooks:
+        -   id: run-black
+            name: Running Black...
+            entry: docker/lint.sh python_format
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-file-checks
+            name: Checking File Types....
+            entry: docker/lint.sh file_type
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-headers-check
+            name: Checking ASF License Headers ...
+            entry: docker/lint.sh asf
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-headers-check
+            name: Linting the C++ code ...
+            entry: docker/lint.sh cpplint
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-clang-format
+            name: Checking Clang format ...
+            entry: docker/lint.sh clang_format
+            language: system
+            always_run: true
+            pass_filenames: false
+        -   id: run-mypy
+            name: Type Checking with MyPY ...
+            entry: docker/lint.sh mypy
+            language: system
+            always_run: true
+            pass_filenames: false

@@ -105,10 +105,13 @@ set(USE_GRAPH_EXECUTOR ON)
 # Whether enable tiny graph executor with CUDA Graph
 set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
 
+# Whether enable pipeline executor.
+set(USE_PIPELINE_EXECUTOR OFF)
+
 # Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
 
-# Whether enable uTVM standalone runtime
+# Whether enable microTVM standalone runtime
 set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
@@ -272,6 +275,13 @@ set(USE_FALLBACK_STL_MAP OFF)
 # Whether to use hexagon device
 set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
+
+# Hexagon architecture to target when compiling TVM itself (not the target for
+# compiling _by_ TVM). This applies to components like the TVM runtime, but is
+# also used to select correct include/library paths from the Hexagon SDK when
+# building offloading runtime for Android.
+# Valid values are v60, v62, v65, v66, v68.
+set(USE_HEXAGON_ARCH "v66")
 
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)

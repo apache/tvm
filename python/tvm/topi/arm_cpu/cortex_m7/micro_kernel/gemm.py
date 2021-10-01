@@ -47,7 +47,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     if isinstance(N, tvm.tir.IntImm):
         N = N.value
     # TODO(weberlo, areusch): support more dtypes?
-    assert in_dtype == "int8" or in_dtype == "int16"
+    assert in_dtype in ("int8", "int16")
     assert out_dtype == "int32"
     A = te.placeholder((M, K), name="a", dtype=in_dtype)
     B = te.placeholder((N, K), name="b", dtype=in_dtype)
@@ -122,7 +122,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
 def gemm_MxKxN_impl(M, K, N, uniq_id):
     """Emit C code for gemm impl."""
     # TODO(weberlo, areusch): are there any SIMD tricks to zero out arrays quickly?
-    aa_pad_size = M * K
+    # aa_pad_size = M * K
     bb_pad_size = N * K
     # code reference: CMSIS-NN paper (https://arxiv.org/abs/1801.06601)
     cc_code = f"""
@@ -510,6 +510,15 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     retcode = gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
     goto out;
   }}
+
+#ifdef __cplusplus
+extern "C"
+#endif
+__STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
+    int16_t *aa, int16_t *bb, int32_t *cc,
+    int A_stride, int B_stride, int C_stride) {{  
+  if ( {M} < 2 || {N} < 2 )
+    return gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);  
 
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{

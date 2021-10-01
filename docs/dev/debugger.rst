@@ -123,12 +123,12 @@ Example of loading the parameters
 How to use Debugger?
 ***************************************
 
-1. In ``config.cmake`` set the ``USE_GRAPH_EXECUTOR_DEBUG`` flag to ``ON``
+1. In ``config.cmake`` set the ``USE_PROFILER`` flag to ``ON``
 
    ::
 
        # Whether enable additional graph debug functions
-       set(USE_GRAPH_EXECUTOR_DEBUG ON)
+       set(USE_PROFILER ON)
 
 2. Do 'make' tvm, so that it will make the ``libtvm_runtime.so``
 
@@ -147,6 +147,22 @@ How to use Debugger?
     # execute
     m.run()
     tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).numpy()
+
+4. If network previously was exported to external libray using ``lib.export_library("network.so")``
+     like shared object file/dynamic linked library, the initialization
+     of debug runtime will be slightly different
+
+::
+
+    lib = tvm.runtime.load_module("network.so")
+    m = graph_executor.create(lib["get_graph_json"](), lib, dev, dump_root="/tmp/tvmdbg")
+    # set inputs
+    m.set_input('data', tvm.nd.array(data.astype(dtype)))
+    m.set_input(**params)
+    # execute
+    m.run()
+    tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).numpy()
+
 
 The outputs are dumped to a temporary folder in ``/tmp`` folder or the
 folder specified while creating the runtime.

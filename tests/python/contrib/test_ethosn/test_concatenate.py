@@ -20,7 +20,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
@@ -53,10 +53,8 @@ def _get_model(shapes, dtype, axis):
     return con
 
 
+@requires_ethosn
 def test_concatenate():
-    if not ethosn_available():
-        return
-
     trials = [
         ([(1, 4), (1, 6)], 1),
         ([(1, 16, 4), (1, 16, 4)], 1),
@@ -75,10 +73,8 @@ def test_concatenate():
         tei.verify(outputs, 0)
 
 
+@requires_ethosn
 def test_concatenate_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         ([(1, 4, 4, 4, 4), (1, 4, 4, 4, 4)], "uint8", 1, "dimensions=5, dimensions must be <= 4;"),
         (

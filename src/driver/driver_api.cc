@@ -215,6 +215,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
 
   // PHASE 1
   pass_list.push_back(tir::transform::InjectPrefetch());
+  pass_list.push_back(tir::transform::TextureFlatten());
   pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
   pass_list.push_back(tir::transform::LowerInitBlock());
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());

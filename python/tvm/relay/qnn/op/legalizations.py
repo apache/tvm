@@ -20,7 +20,9 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm._ffi.base import TVMError
 from .. import op as reg
+from ....topi.x86.utils import target_has_sse42
 
 #################################################
 # Register the functions for different operators.
@@ -139,11 +141,35 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
     data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
 
     shift_data = relay.subtract(
-        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
+        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, dtype="int16")
     )
-    shift_kernel = relay.subtract(
-        relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
-    )
+    # If kernel zero point is a scalar we can directly subtract it.
+    if len(types[3].shape) == 0:
+        shift_kernel = relay.subtract(
+            relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, dtype="int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        # Determine output axis of kernel for spatial operations.
+        if hasattr(attrs, "kernel_layout"):
+            output_axis = tvm.tir.layout(attrs["kernel_layout"]).index_of("O")
+        # For dense operations, broadcast to [N, K] layout.
+        elif isinstance(attrs, relay.op.op_attrs.DenseAttrs):
+            output_axis = 0
+        # For matrix multiplication instead expand to [K, N] layout.
+        elif isinstance(attrs, relay.op.op_attrs.MatmulAttrs):
+            output_axis = 1
+        else:
+            raise TVMError(
+                "Legalization of %s is not yet supported with per channel parameters"
+                % str(type(attrs))
+            )
+
+        shift_kernel = relay.nn.bias_add(
+            relay.cast(kernel, dtype="int16"),
+            relay.cast(kernel_zero_point, dtype="int16"),
+            output_axis,
+        )
     new_attrs = {k: attrs[k] for k in attrs.keys()}
     return relay_op(shift_data, shift_kernel, **new_attrs)
 
@@ -318,7 +344,7 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 def is_fast_int8_on_intel():
     """Checks whether the hardware has support for fast Int8 arithmetic operations."""
     target = tvm.target.Target.current(allow_none=False)
-    return target.mcpu in {"skylake-avx512", "cascadelake"}
+    return target_has_sse42(target.mcpu)
 
 
 def is_fast_int8_on_arm():

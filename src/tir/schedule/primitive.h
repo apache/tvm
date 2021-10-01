@@ -19,12 +19,34 @@
 #ifndef TVM_TIR_SCHEDULE_PRIMITIVE_H_
 #define TVM_TIR_SCHEDULE_PRIMITIVE_H_
 
+#include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
 
 namespace tvm {
 namespace tir {
 
 /******** Schedule: Sampling ********/
+/*!
+ * \brief Sample a random integer from a given range.
+ * \param min_inclusive The minimum value of the range, inclusive.
+ * \param max_exclusive The maximum value of the range, exclusive.
+ * \return The random integer sampled in the given range.
+ */
+TVM_DLL int SampleInt(support::LinearCongruentialEngine::TRandState* rand_state, int min_inclusive,
+                      int max_exclusive);
+/*!
+ * \brief Sample once category from candidates according to the probability weights.
+ * \param self The schedule to update
+ * \param rand_state The pointer to schedule's random state
+ * \param candidates The candidates
+ * \param probs The probability distribution of the candidates
+ * \param decision The sampling decision, if any
+ * \return The random variable sampled from candidates
+ */
+TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
+                                  const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                  Optional<Integer>* decision);
+
 /******** Schedule: Get blocks & loops ********/
 /*!
  * \brief Retrieves blocks in a specific function with its name
@@ -58,11 +80,27 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  * 1) The loops can't have annotations or thread bindings.
  * 2) The inner loop must be the only child of the outer loop.
  * 3) All loops must start with 0.
+ * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
  * \param self The state of the schedule
  * \param loop_srefs An array of srefs to the loops to be fused
  * \return The sref to the fused loop
  */
 TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
+/*!
+ * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
+ * It requires:
+ * 1) The loops are in the same chain. That means: the loops can be ordered to [l_1, l_2, ... ,
+ *     l_n] where l_i is an ancestor of l_{i+1} and there are only single-branch loops between
+ *     l_1 and l_n (which also indicates they are under the same scope).
+ * 2) After reordering, the domain of an outer loop cannot depend on any of the inner loops.
+ * 3) For every block under the loop nests, its block binding must be affine, and the block
+ *    variables must be either data parallel or reduction.
+ * 4) No duplicated loops are allowed in the arguments.
+ * \param self The state of the schedule
+ * \param ordered_loop_srefs An array of srefs which indicates the new order of loops
+ */
+TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs);
+
 /******** Schedule: Manipulate ForKind ********/
 /*!
  * \brief Parallelize the input loop. It requires:
@@ -106,7 +144,69 @@ TVM_DLL void Bind(ScheduleState self, const StmtSRef& loop_sref, const IterVar& 
  */
 TVM_DLL void Unroll(ScheduleState self, const StmtSRef& loop_sref);
 /******** Schedule: Insert cache stages ********/
+/*!
+ * \brief Create a block that reads a buffer region into a read cache. It requires:
+ * 1) There is at most one block who writes the buffer in the scope.
+ * 2) The scope block have stage-pipeline property.
+ * \param self The state of the schedule
+ * \param block_sref The consumer block of the target buffer.
+ * \param read_buffer_index The index of the buffer in block's read region.
+ * \param storage_scope The target storage scope.
+ * \return The cache stage block.
+ */
+TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
+                           const String& storage_scope);
+/*!
+ * \brief Create a block that writes a buffer region into a write cache. It requires:
+ * 1) There is only one block that writes the target buffer.
+ * 2) The scope block have stage-pipeline property.
+ * \param self The state of the schedule
+ * \param block_sref The producer of the buffer
+ * \param write_buffer_index The index of the buffer in block's write region
+ * \param storage_scope The target storage scope
+ * \return The cache stage block.
+ */
+TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
+                            const String& storage_scope);
 /******** Schedule: Compute location ********/
+/*!
+ * \brief Move a producer block under the specific loop, and regenerate the
+ * loops induced by the block so that the buffer region produced by the producer block could
+ * cover those regions consumed by its consumer blocks under the given loop. It requires:
+ * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+ * 2) The scope block has stage-pipeline property
+ * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+ * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+ * reduction block
+ * 4) The block is not an output block with regard to the scope block, i.e. the buffers written by
+ * the block are allocated under the scope block
+ * 5) All the consumers of the block are under the given loop
+ *
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ */
+TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
+                       bool preserve_unit_loops);
+/*!
+ * \brief Move a consumer block under the specific loop, and regenerate the
+ * loops induced by the block so that the buffer region consumed by the consumer block could
+ * cover those regions produced by its producer blocks under the given loop. It requires:
+ * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+ * 2) The scope block has stage-pipeline property
+ * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+ * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+ * reduction block
+ * 4) All the producers of the block are under the given loop
+ *
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ */
+TVM_DLL void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref,
+                              const StmtSRef& loop_sref, bool preserve_unit_loops);
 /*!
  * \brief Inline a block into its consumer(s). It requires:
  * 1) The block is a complete non-root block, which only produces one buffer
@@ -146,6 +246,10 @@ TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
 /******** Schedule: Block annotation ********/
+/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
+using StorageAlignTuple = Array<Integer>;
+/*! \brief A list of StorageAlignTuple, used by StorageAlign */
+using StorageAlignAnnotation = Array<StorageAlignTuple>;
 /*!
  * \brief Set alignment requirement for specific dimension such that
  *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
@@ -160,10 +264,6 @@ TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int fact
  */
 TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           int axis, int factor, int offset);
-
-/******** Annotation types for StorageAlign ********/
-using StorageAlignTuple = Array<Integer>;                 // (buffer_idx, axis, factor, offset)
-using StorageAlignAnnotation = Array<StorageAlignTuple>;  // unordered array of StorageAlignTuple
 
 /******** Schedule: Blockize & Tensorize ********/
 /******** Schedule: Annotation ********/

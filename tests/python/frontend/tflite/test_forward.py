@@ -322,7 +322,6 @@ def compare_tflite_with_tvm(
                 out_names=out_names,
                 mode=mode,
             )
-
             # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
             # range for the specific operator. While adding test ensure that we aren't getting only clipped values
             # in output tensors that still pass the assertion. For reference see _test_elemwise_qnn_out_range()
@@ -1264,6 +1263,26 @@ def _test_transpose_conv(
 def test_forward_transpose_conv():
     for quantized in [True, False]:
         for fp16_quantized in [True, False]:
+            # odd size input, padding VALID
+            _test_transpose_conv(
+                [1, 5, 6, 16],
+                [2, 2, 16, 16],
+                [1, 10, 12, 16],
+                [2, 2],
+                "VALID",
+                quantized,
+                fp16_quantized,
+            )
+            # odd size input, padding SAME
+            _test_transpose_conv(
+                [1, 5, 6, 16],
+                [2, 2, 16, 16],
+                [1, 10, 12, 16],
+                [2, 2],
+                "SAME",
+                quantized,
+                fp16_quantized,
+            )
             # kernel 3x3, padding VALID
             _test_transpose_conv(
                 [4, 32, 32, 16],
@@ -2618,6 +2637,22 @@ def test_forward_select():
             )
 
 
+@pytest.mark.parametrize("quant_bits", [2, 4, 8, 16])
+@pytest.mark.parametrize(
+    "value, min, max", [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]]
+)
+def test_forward_fake_quant(value, min, max, quant_bits):
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+            input = tf.placeholder(tf.float32, shape=[1], name="input")
+            out = tf.quantization.fake_quant_with_min_max_args(
+                input, min=min, max=max, num_bits=quant_bits, name=None
+            )
+
+            in_data = np.float32(value)
+            compare_tflite_with_tvm([in_data], ["input:0"], [input], [out])
+
+
 # Squeeze
 # -------
 
@@ -3251,6 +3286,7 @@ def _test_softmax(data):
 def test_forward_softmax():
     """Softmax"""
     _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+    _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 2, 3)))
 
 
 ######################################################################

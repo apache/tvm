@@ -546,7 +546,7 @@ def MergeCompilerRegions():
 
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
-    `on_deivce`, mark which device an expression should be scheduled to.
+    `on_device`, mark which device an expression should be scheduled to.
     This pass helps heterogeneous execution where different operators may need
     to be allocated on various devices.
 
@@ -1093,7 +1093,7 @@ def DenseToSparse(weight_name, weight_shape):
     return _ffi_api.DenseToSparse(weight_name, weight_shape)
 
 
-def Conv2dToSparse(weight_name, weight_shape, layout):
+def Conv2dToSparse(weight_name, weight_shape, layout, kernel_size):
     """
     Rewrite qualified ```nn.conv2d operation``` to ```nn.sparse_conv2d```
 
@@ -1113,7 +1113,27 @@ def Conv2dToSparse(weight_name, weight_shape, layout):
     ret : tvm.transform.Pass
         The registered DenseToSparse pass.
     """
-    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout)
+    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout, kernel_size)
+
+
+def Conv2dToSparse2(layout, kernel_size, blocksize, sparsity_threshold):
+    """
+    Rewrite freezed ```nn.conv2d``` operation to ```nn.sparse_conv2d```
+
+    Parameters
+    ----------
+    layout : str
+        layout of data
+
+    kernel_size : int
+        kernel size of conv2d
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered DenseToSparse pass.
+    """
+    return _ffi_api.Conv2dToSparse2(layout, kernel_size, *blocksize, sparsity_threshold)
 
 
 def SimplifyFCTranspose(target_weight_name):
@@ -1145,6 +1165,16 @@ def SimplifyExpr():
         The registered SimplifyExpr pass.
     """
     return _ffi_api.SimplifyExpr()
+
+
+def PlanDevices(default_device):
+    """
+    Uses existing "on_device" and "device_copy" CallNodes to infer the device on which
+    every Relay sub-expression should run (and the result stored). Captures the result of that
+    analysis using new "on_device" and "device_copy" CallNodes. Note that the device_id of
+    the default_device is ignored.
+    """
+    return _ffi_api.PlanDevices(default_device)
 
 
 def FoldExplicitPadding():
@@ -1184,7 +1214,7 @@ def FakeQuantizationToInteger():
         x    w
         |    |
         dq   dq
-         \   /
+         \\   /
           op1
            |
           op2

@@ -20,19 +20,8 @@ import pathlib
 
 import pytest
 import tvm.target.target
-
-# The models that should pass this configuration. Maps a short, identifying platform string to
-# (model, zephyr_board).
-PLATFORMS = {
-    "due": ("sam3x8e", "due"),
-    "feathers2": ("esp32", "feathers2"),
-    "nano33ble": ("nrf52840", "nano33ble"),
-    "pybadge": ("atsamd51", "pybadge"),
-    "spresense": ("cxd5602gg", "spresense"),
-    "teensy40": ("imxrt1060", "teensy40"),
-    "teensy41": ("imxrt1060", "teensy41"),
-    "wioterminal": ("atsamd51", "wioterminal"),
-}
+from tvm.micro import project
+from tvm import micro, relay
 
 TEMPLATE_PROJECT_DIR = (
     pathlib.Path(__file__).parent
@@ -46,13 +35,30 @@ TEMPLATE_PROJECT_DIR = (
 ).resolve()
 
 
+def arduino_boards() -> dict:
+    """Returns a dict mapping board to target model"""
+    template = project.TemplateProject.from_directory(TEMPLATE_PROJECT_DIR)
+    project_options = template.info()["project_options"]
+    for option in project_options:
+        if option["name"] == "arduino_board":
+            boards = option["choices"]
+        if option["name"] == "arduino_model":
+            models = option["choices"]
+
+    arduino_boards = {boards[i]: models[i] for i in range(len(boards))}
+    return arduino_boards
+
+
+ARDUINO_BOARDS = arduino_boards()
+
+
 def pytest_addoption(parser):
     parser.addoption(
-        "--microtvm-platforms",
+        "--arduino-board",
         nargs="+",
         required=True,
-        choices=PLATFORMS.keys(),
-        help="Target platforms for microTVM tests.",
+        choices=ARDUINO_BOARDS.keys(),
+        help="Arduino board for tests.",
     )
     parser.addoption(
         "--arduino-cli-cmd",
@@ -90,8 +96,8 @@ def pytest_collection_modifyitems(config, items):
 # (to take advantage of multiple cores / external memory / etc.), so all tests
 # are parameterized by board
 def pytest_generate_tests(metafunc):
-    platforms = metafunc.config.getoption("microtvm_platforms")
-    metafunc.parametrize("platform", platforms, scope="session")
+    board = metafunc.config.getoption("arduino_board")
+    metafunc.parametrize("board", board, scope="session")
 
 
 @pytest.fixture(scope="session")
@@ -104,12 +110,11 @@ def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
 
 
-def make_workspace_dir(test_name, platform):
-    _, arduino_board = PLATFORMS[platform]
+def make_workspace_dir(test_name, board):
     filepath = pathlib.Path(__file__)
     board_workspace = (
         filepath.parent
-        / f"workspace_{test_name}_{arduino_board}"
+        / f"workspace_{test_name}_{board}"
         / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     )
 
@@ -121,3 +126,42 @@ def make_workspace_dir(test_name, platform):
     t = tvm.contrib.utils.tempdir(board_workspace)
     # time.sleep(200)
     return t
+
+
+def make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
+    this_dir = pathlib.Path(__file__).parent
+    model = ARDUINO_BOARDS[board]
+    build_config = {"debug": tvm_debug}
+
+    with open(this_dir.parent / "testdata" / "kws" / "yes_no.tflite", "rb") as f:
+        tflite_model_buf = f.read()
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+
+    mod, params = relay.frontend.from_tflite(tflite_model)
+    target = tvm.target.target.micro(
+        model, options=["--link-params=1", "--unpacked-api=1", "--executor=aot"]
+    )
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = relay.build(mod, target, params=params)
+
+    return tvm.micro.generate_project(
+        str(TEMPLATE_PROJECT_DIR),
+        mod,
+        workspace_dir / "project",
+        {
+            "arduino_board": board,
+            "arduino_cli_cmd": arduino_cli_cmd,
+            "project_type": "example_project",
+            "verbose": bool(build_config.get("debug")),
+        },
+    )

@@ -15,125 +15,82 @@
 # specific language governing permissions and limitations
 # under the License
 """test of correlation operator in NCHW layout"""
+import sys
+
 import numpy as np
+import pytest
+
 import tvm
-from tvm import te
-from tvm import autotvm
-from tvm import topi
-import tvm.testing
 import tvm.topi.testing
-from tvm.contrib.pickle_memoize import memoize
-from tvm.topi.utils import get_const_tuple
+
+from tvm import autotvm, te, topi
 
 _correlation_implement = {
     "generic": (topi.nn.correlation_nchw, topi.generic.schedule_correlation_nchw),
-    "cuda": (topi.cuda.correlation_nchw, topi.cuda.schedule_correlation_nchw),
+    "gpu": (topi.cuda.correlation_nchw, topi.cuda.schedule_correlation_nchw),
 }
 
+(
+    data_shape,
+    kernel_size,
+    max_displacement,
+    stride1,
+    stride2,
+    pad_size,
+    is_multiply,
+) = tvm.testing.parameters(
+    ((1, 3, 10, 10), 1, 4, 1, 1, 4, True),
+    ((1, 3, 10, 10), 1, 5, 1, 1, 5, True),
+    ((5, 1, 4, 4), 3, 1, 2, 1, 2, True),
+    ((5, 1, 6, 4), 3, 1, 2, 2, 2, False),
+    ((5, 1, 11, 11), 5, 1, 1, 1, 2, False),
+)
 
-def verify_correlation_nchw(
-    data_shape, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply
+dtype = tvm.testing.parameter("float32")
+
+
+@tvm.testing.fixture(cache_return_value=True)
+def ref_data(
+    dtype, data_shape, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply
 ):
-    print(
-        "Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d, %d)"
-        % (
-            data_shape[0],
-            data_shape[1],
-            data_shape[2],
-            data_shape[3],
-            kernel_size,
-            max_displacement,
-            stride1,
-            stride2,
-            pad_size,
-            is_multiply,
-        )
+    a_np = np.random.uniform(size=data_shape).astype(dtype)
+    b_np = np.random.uniform(size=data_shape).astype(dtype)
+    c_np = tvm.topi.testing.correlation_nchw_python(
+        a_np, b_np, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply
     )
-
-    A = te.placeholder(data_shape, name="data1")
-    B = te.placeholder(data_shape, name="data2")
-    dtype = A.dtype
-
-    @memoize("topi.tests.test_topi_correlation_nchw.verify_correlation_nchw")
-    def get_ref_data():
-        a_np = np.random.uniform(size=data_shape).astype(dtype)
-        b_np = np.random.uniform(size=data_shape).astype(dtype)
-        c_np = tvm.topi.testing.correlation_nchw_python(
-            a_np, b_np, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply
-        )
-        return a_np, b_np, c_np
-
-    a_np, b_np, c_np = get_ref_data()
-
-    def check_device(target, dev):
-        print("Running on target: %s" % target)
-        fcompute, fschedule = tvm.topi.testing.dispatch(target, _correlation_implement)
-        with tvm.target.Target(target):
-            C = fcompute(
-                A, B, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply
-            )
-            s = fschedule([C])
-
-            a = tvm.nd.array(a_np, dev)
-            b = tvm.nd.array(b_np, dev)
-            c = tvm.nd.empty(c_np.shape, dtype=dtype, device=dev)
-
-            func = tvm.build(s, [A, B, C], target)
-            func(a, b, c)
-            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
-
-    for target, dev in tvm.testing.enabled_targets():
-        check_device(target, dev)
+    return a_np, b_np, c_np
 
 
-@tvm.testing.uses_gpu
-def test_correlation_nchw():
-    verify_correlation_nchw(
-        (1, 3, 10, 10),
-        kernel_size=1,
-        max_displacement=4,
-        stride1=1,
-        stride2=1,
-        pad_size=4,
-        is_multiply=True,
-    )
-    verify_correlation_nchw(
-        (1, 3, 10, 10),
-        kernel_size=1,
-        max_displacement=5,
-        stride1=1,
-        stride2=1,
-        pad_size=5,
-        is_multiply=True,
-    )
-    verify_correlation_nchw(
-        (5, 1, 4, 4),
-        kernel_size=3,
-        max_displacement=1,
-        stride1=2,
-        stride2=1,
-        pad_size=2,
-        is_multiply=True,
-    )
-    verify_correlation_nchw(
-        (5, 1, 6, 4),
-        kernel_size=3,
-        max_displacement=1,
-        stride1=2,
-        stride2=2,
-        pad_size=2,
-        is_multiply=False,
-    )
-    verify_correlation_nchw(
-        (5, 1, 11, 11),
-        kernel_size=5,
-        max_displacement=1,
-        stride1=1,
-        stride2=1,
-        pad_size=2,
-        is_multiply=False,
-    )
+def test_correlation_nchw(
+    target,
+    dev,
+    ref_data,
+    dtype,
+    kernel_size,
+    max_displacement,
+    stride1,
+    stride2,
+    pad_size,
+    is_multiply,
+):
+    a_np, b_np, c_np = ref_data
+
+    A = te.placeholder(a_np.shape, name="data1", dtype=dtype)
+    B = te.placeholder(b_np.shape, name="data2", dtype=dtype)
+
+    fcompute, fschedule = tvm.topi.testing.dispatch(target, _correlation_implement)
+    with tvm.target.Target(target):
+        C = fcompute(A, B, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply)
+        s = fschedule([C])
+
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.empty(c_np.shape, dtype=dtype, device=dev)
+
+        func = tvm.build(s, [A, B, C], target)
+        func(a, b, c)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
 
 if __name__ == "__main__":
-    test_correlation_nchw()
+    sys.exit(pytest.main(sys.argv))

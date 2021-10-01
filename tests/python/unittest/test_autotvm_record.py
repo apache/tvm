@@ -25,7 +25,7 @@ from tvm import autotvm
 from tvm.autotvm.measure import MeasureInput, MeasureResult, MeasureErrorNo
 from tvm.autotvm.record import encode, decode, ApplyHistoryBest, measure_str_key
 
-from test_autotvm_common import get_sample_task
+from tvm.testing.autotvm import get_sample_task
 
 
 def test_load_dump():

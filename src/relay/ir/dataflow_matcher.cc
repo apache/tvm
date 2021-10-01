@@ -752,22 +752,27 @@ bool PatternGrouper::EmbedConst(const Expr& expr, const DFPattern pattern) {
 
 // Rewrite
 
-DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function, bool require_type) {
+DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function, bool require_type,
+                                     bool rewrite_once) {
   ObjectPtr<DFPatternCallbackNode> n = make_object<DFPatternCallbackNode>();
   n->pattern = std::move(pattern);
   n->function = std::move(function);
   n->require_type = require_type;
+  n->rewrite_once = rewrite_once;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
-    .set_body_typed([](DFPattern pattern, PackedFunc function, bool require_type) {
-      return DFPatternCallback(pattern, function, require_type);
+    .set_body_typed([](DFPattern pattern, PackedFunc function, bool require_type,
+                       bool rewrite_once) {
+      return DFPatternCallback(pattern, function, require_type, rewrite_once);
     });
 
 Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre) {
+  VLOG_CONTEXT << "PatternRewriter";
+  VLOG(1) << "rewriting:" << std::endl << PrettyPrint(pre);
   auto post = pre;
   auto last = post;
   // rewrite the graph until it stops changing to make sure all rewrites are complete
@@ -786,11 +791,13 @@ Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const E
       groups_ = grouper.GroupMatches(callback_->pattern, post);
       gid_assignments_ = grouper.GetGIDAssignments();
       memo_.clear();
+      VLOG(1) << "pre rewritten:" << std::endl << PrettyPrint(pre);
       post = this->VisitExpr(post);
+      VLOG(1) << "post rewritten:" << std::endl << PrettyPrint(post);
       count++;
     }
     equal = (*structural_equal)(last, post, false, true);
-  } while (!equal && count < 100);
+  } while (!equal && count < 100 && !callback_->rewrite_once);
   if (count >= 100) {
     LOG(FATAL) << "Observed 100 rewrite passes, possible conflicting passes?";
   }
