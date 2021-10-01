@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Testing utilities in meta schedule"""
-import time
-
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.server import Server
 
@@ -49,7 +47,6 @@ class LocalRPC:
             port=9190,
             port_end=12345,
         )
-        time.sleep(0.5)
         self.server = Server(
             host="0.0.0.0",
             is_proxy=False,
@@ -60,7 +57,6 @@ class LocalRPC:
             port=9190,
             port_end=12345,
         )
-        time.sleep(0.5)
         self.tracker_host = self.tracker.host
         self.tracker_port = self.tracker.port
         self.tracker_key = tracker_key

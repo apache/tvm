@@ -236,7 +236,7 @@ class RPCRunner(PyRunner):
         f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None] = None,
         f_run_evaluator: Union[T_RUN_EVALUATOR, str, None] = None,
         f_cleanup: Union[T_CLEANUP, str, None] = None,
-        max_connections: Optional[int] = None,
+        max_workers: int = 1,
         initializer: Optional[Callable[[], None]] = None,
     ) -> None:
         """Constructor
@@ -261,8 +261,8 @@ class RPCRunner(PyRunner):
             The function name to run the evaluator or the function itself.
         f_cleanup: Union[T_CLEANUP, str, None]
             The function name to cleanup the session or the function itself.
-        max_connections: Optional[int]
-            The maximum number of connections.
+        max_workers: int = 1
+            The maximum number of connections. Defaults to 1.
         initializer: Optional[Callable[[], None]]
             The initializer function.
         """
@@ -276,15 +276,8 @@ class RPCRunner(PyRunner):
         self.f_alloc_argument = f_alloc_argument
         self.f_run_evaluator = f_run_evaluator
         self.f_cleanup = f_cleanup
-
-        num_servers = self.rpc_config.count_num_servers(allow_missing=False)
-        if max_connections is None:
-            max_connections = num_servers
-        else:
-            max_connections = min(max_connections, num_servers)
-
         self.pool = PopenPoolExecutor(
-            max_workers=max_connections,
+            max_workers=max_workers,
             timeout=rpc_config.session_timeout_sec,
             initializer=initializer,
         )
