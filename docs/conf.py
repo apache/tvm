@@ -257,6 +257,7 @@ within_subsection_order = {
         "from_coreml.py",
         "from_darknet.py",
         "from_caffe2.py",
+        "from_paddle.py",
     ],
     "language": [
         "schedule_primitives.py",
