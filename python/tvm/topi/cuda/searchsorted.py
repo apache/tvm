@@ -22,6 +22,8 @@ from ..searchsorted import binary_search
 
 
 def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
+    """TODO"""
+
     def ir(sorted_sequence, values, indices):
         ib = tvm.tir.ir_builder.create()
         sorted_sequence_shape = sorted_sequence.shape
@@ -36,15 +38,26 @@ def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
         max_threads = 256
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
-        ib.scope_attr(bx, "thread_extent", tvm.tir.indexdiv(num_search + max_threads - 1, max_threads))
+        ib.scope_attr(
+            bx, "thread_extent", tvm.tir.indexdiv(num_search + max_threads - 1, max_threads)
+        )
         ib.scope_attr(tx, "thread_extent", max_threads)
         tid = bx * max_threads + tx
 
-        with ib.new_scope():
-            with ib.if_scope(tid < num_search):
-                sequence_id = tid // values_shape[-1]
-                sequence_offset = sequence_id * search_range
-                binary_search(ib, sequence_offset, search_range, sorted_sequence, tid, values, indices, out_dtype)
+        with ib.if_scope(tid < num_search):
+            sequence_id = tid // values_shape[-1]
+            sequence_offset = sequence_id * search_range
+            binary_search(
+                ib,
+                sequence_offset,
+                search_range,
+                sorted_sequence,
+                tid,
+                values,
+                indices,
+                side,
+                out_dtype,
+            )
 
         return ib.get()
 
@@ -52,6 +65,6 @@ def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
         values.shape,
         [sorted_sequence, values],
         lambda ins, outs: ir(ins[0], ins[1], outs[0]),
-        name="searchsorted_ir",
+        name="searchsorted",
         dtype=out_dtype,
     )
