@@ -83,7 +83,4 @@ def test_recursive():
 
 
 if __name__ == "__main__":
-    # pytest.main()
-    test_basic()
-    test_closure()
-    test_recursive()
+    pytest.main()

@@ -733,18 +733,10 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
           num_shape_outputs = static_cast<size_t>(
               Downcast<Integer>(attrs->metadata.at("prim_shape_fn_num_outputs"))->value);
         }
-        Target prim_target;
-        if (attrs->metadata.count(tvm::attr::kTarget)) {
-          prim_target = Downcast<Target>(attrs->metadata.at(tvm::attr::kTarget));
-        }
-        Target prim_shape_target;
-        if (attrs->metadata.count("shape_target")) {
-          prim_shape_target = Downcast<Target>(attrs->metadata.at("shape_target"));
-        }
 
-        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars, prim_target,
+        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars, target_,
                                  prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
-                                 num_shape_inputs, num_shape_outputs, prim_shape_target, args);
+                                 num_shape_inputs, num_shape_outputs, cpu_target_, args);
       }
     }
 
@@ -756,7 +748,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     } else if (const RecClosureObj* closure_node = fn_val.as<RecClosureObj>()) {
       return Invoke(closure_node->clos, args, closure_node->bind);
     } else {
-      LOG(FATAL) << "internal error: type error, expected function value in the call_node "
+      LOG(FATAL) << "internal error: type error, expected function value in the call "
                  << "position";
       return ObjectRef();
     }
@@ -897,6 +889,8 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   Device device_;
   // Unique target describing how to compile for primitives (but not shape functions).
   Target target_;
+  // Default 'CPU' target for shape primitives.
+  Target cpu_target_{"llvm"};
   // Call stack.
   Stack stack_;
   // The distinguished 'debug' operator, which is handled specially.

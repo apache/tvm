@@ -570,16 +570,15 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {}
 
   LoweredOutput Codegen(relay::Function func, String mod_name) {
-    // TODO(mbs): Codegen at the IRModule level instead of one-function-at-a-time.
-    IRModule mod = IRModule::FromExpr(func);
-
-    // TODO(mbs): Break LowerTE's dependence on the memory plan, which currently requires us
-    // to generate the storage map twice.
     AOTOnDemandAllocator initial_aot_allocator;
     initial_aot_allocator.Run(func);
 
+    // Pre-lowering storage map and memory plan
+    // TODO(mbs): Why plan memory and update workspace sizes before lowering?
     StorageMap initial_storage_map = initial_aot_allocator.GetStorageMap();
     StaticMemoryPlan memory_plan(initial_storage_map);
+
+    IRModule mod = IRModule::FromExpr(func);
 
     backend::FunctionInfo func_info;
 

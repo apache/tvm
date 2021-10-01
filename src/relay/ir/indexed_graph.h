@@ -97,7 +97,6 @@ class IndexedGraph {
       return false;
     }
   };
-
   /*! \brief Construct the domination tree inside IndexedGraph */
   void PostDom() {
     for (size_t i = topological_order_.size(); i != 0; --i) {
@@ -114,18 +113,8 @@ class IndexedGraph {
       }
     }
   }
-
-  std::shared_ptr<Node> operator[](const T& item) const {
-    auto itr = node_map_.find(item);
-    ICHECK(itr != node_map_.end()) << "no entry for:" << std::endl << PrettyPrint(item);
-    return itr->second;
-  }
-
-  void Set(const T& item, std::shared_ptr<Node> ptr) {
-    ICHECK(ptr != nullptr) << "null ptr for:" << std::endl << PrettyPrint(item);
-    node_map_[item] = std::move(ptr);
-  }
-
+  /*! \brief Map of input nodes to IndexedGraph Nodes */
+  std::unordered_map<T, std::shared_ptr<Node>, ObjectPtrHash, ObjectPtrEqual> node_map_;
   /*! \brief Topological IndexedGraph Nodes */
   std::vector<std::shared_ptr<Node>> topological_order_;
 
@@ -161,10 +150,6 @@ class IndexedGraph {
     }
     return lhs;
   }
-
- private:
-  /*! \brief Map of input nodes to IndexedGraph Nodes */
-  std::unordered_map<T, std::shared_ptr<Node>, ObjectPtrHash, ObjectPtrEqual> node_map_;
 };
 
 /*! \brief Create an Indexed Graph based on an Expr */

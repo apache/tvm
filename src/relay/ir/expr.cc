@@ -120,31 +120,6 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
   data_ = std::move(n);
 }
 
-Call Call::CopyWith(Optional<Expr> opt_op, Optional<Array<Expr>> opt_args,
-                    Optional<Attrs> opt_attrs, Optional<Array<Type>> opt_type_args,
-                    Optional<Span> opt_span) {
-  Expr op = opt_op.value_or(get()->op);
-  Array<Expr> args = opt_args.value_or(get()->args);
-  Attrs attrs = opt_attrs.value_or(get()->attrs);
-  Array<Type> type_args = opt_type_args.value_or(get()->type_args);
-  Span span = opt_span.value_or(get()->span);
-  if (op == get()->op &&
-      std::equal(args.begin(), args.end(), get()->args.begin(), get()->args.end()) &&
-      attrs == get()->type_args &&
-      std::equal(type_args.begin(), type_args.end(), get()->type_args.begin(),
-                 get()->type_args.end()) &&
-      span == get()->span) {
-    return *this;
-  }
-  CallNode* new_call_node = CopyOnWrite();
-  new_call_node->op = op;
-  new_call_node->args = args;
-  new_call_node->attrs = attrs;
-  new_call_node->type_args = type_args;
-  new_call_node->span = span;
-  return GetRef<Call>(new_call_node);
-}
-
 TVM_REGISTER_NODE_TYPE(CallNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Call")

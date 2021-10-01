@@ -199,19 +199,19 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   }
 
   LoweredOutput Codegen(relay::Function func, String mod_name) {
+    mod_name_ = mod_name;
     VLOG_CONTEXT << "GraphExecutorCodegen";
     VLOG(1) << "compiling:" << std::endl << PrettyPrint(func);
     for (const auto& pair : targets_) {
       VLOG(1) << "target: " << pair.first << " = " << pair.second->str();
     }
 
-    mod_name_ = mod_name;
-
     // This first phase moves from implicit use of compile engine,
     // to instead explicitly lowering the incoming IRModule, and then
     // performing the preexisting graph executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
+    // TODO(mbs): Why plan memory and update workspace sizes before lowering?
     memory_plan_ = GraphPlanMemory(func);
 
     backend::FunctionInfo func_info;

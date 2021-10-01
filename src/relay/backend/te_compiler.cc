@@ -482,7 +482,6 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
     tir_call_attrs->metadata.Set("relay_attrs", func->attrs);
     tir_call_attrs->metadata.Set("all_prim_fn_vars", all_prim_fn_vars);
-    tir_call_attrs->metadata.Set(tvm::attr::kTarget, lowered_func->target);
 
     if (IsDynamic(func->ret_type)) {
       // Also lower the dynamic shape function.
@@ -513,7 +512,6 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         all_prim_shape_fn_vars.push_back(prim_shape_fn.first);
       }
       tir_call_attrs->metadata.Set("all_prim_shape_fn_vars", all_prim_shape_fn_vars);
-      tir_call_attrs->metadata.Set("shape_target", lowered_shape_func->target);
     }
 
     return {lowered_func->prim_fn_var, Attrs(tir_call_attrs)};

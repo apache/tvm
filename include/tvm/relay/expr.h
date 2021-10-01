@@ -316,21 +316,7 @@ class Call : public Expr {
   TVM_DLL Call(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
                Array<Type> type_args = Array<Type>(), Span span = Span());
 
-  /*!
-   * \brief Returns a copy of this with given properties. A null property denotes 'no change'.
-   * Returns this if all properties are unchanged. Returns a modified this if this is the only
-   * reference to the underlying node.
-   *
-   * TODO(mbs): Extend to all node types.
-   */
-  Call CopyWith(Optional<Expr> opt_op = Optional<Expr>(),
-                Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(nullptr),
-                Optional<Attrs> opt_attrs = Optional<Attrs>(nullptr),
-                Optional<Array<Type>> opt_type_args = Optional<Array<Type>>(nullptr),
-                Optional<Span> opt_span = Optional<Span>(nullptr));
-
   TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
 /*!

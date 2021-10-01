@@ -1032,7 +1032,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(targets, true);
 
   DLDeviceType default_device_type;
-  if (targets_arg.size() == 1UL) {
+  if (targets_arg.size() == 1) {
     default_device_type =
         static_cast<DLDeviceType>(static_cast<int>((*targets_arg.begin()).first->value));
   } else {
