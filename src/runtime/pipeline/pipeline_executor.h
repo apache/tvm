@@ -74,9 +74,9 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!\brief The class used to execute pipeline logic*/
   PipelineFunction pipeline_function_;
   /*!\brief The Dependency information of each graph runtime module of pipeline.*/
-  PipelineConfig pipeline_configure_;
+  PipelineConfig pipeline_config_;
   /*!\brief The Module information that can get used to create graph runtime.*/
-  ModuleConfig mod_configure_;
+  ModuleConfig mod_config_;
   /*!\birief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
   /*!\brief Json loader.*/
@@ -116,14 +116,14 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
         }
       }
       // Check if mod_idx is read successfully.
-      assert(mod_idx > 0);
+      ICHECK(mod_idx > 0);
       // Check if the output is read successfully.
-      assert(!output.empty());
-      pipeline_configure_[mod_idx] = output;
-      // Check if lib, json and params are read successfully.
-      assert(!lib_name.empty() && !json_name.empty() && !params_name.empty());
-      mod_configure_[mod_idx] = {
-          {"lib_name", lib_name}, {"json_name", json_name}, {"params", params_name}, {"dev", dev}};
+      ICHECK(!output.Empty());
+      pipeline_config_.Insert(mod_idx, output);
+      // Check if there is lib, json and params information.
+      if (!lib_name.empty() && !json_name.empty() && !params_name.empty()) {
+        mod_config_[mod_idx] = ModuleInformation(lib_name, json_name, params_name, dev);
+      }
     }
   }
 };

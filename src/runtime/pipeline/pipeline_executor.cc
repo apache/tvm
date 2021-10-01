@@ -50,8 +50,8 @@ void PipelineExecutor::Init(const Array<Module>& modules, const std::string& pip
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
   // Initialize the pipeline function class used for pipeline thread pool management
-  // and schedule etc. This function return the number of output.
-  num_outputs_ = pipeline_function_.PipelineInit(modules, pipeline_configure_, mod_configure_);
+  // and schedule etc. This function returns the number of output.
+  num_outputs_ = pipeline_function_.PipelineInit(modules, pipeline_config_, mod_config_);
   return;
 }
 

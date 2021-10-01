@@ -71,7 +71,8 @@ def build(pipe_configs):
         )
 
         mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
-        # Create a pipeline configuration.
+        # Create a pipeline configuration, 'mod_idx' start from 1, use 'mod_idx - 1' here
+        # to get correct index of 'string_config' which is a list.
         string_config[mod_idx - 1] = mconf
         libs[mod_idx] = {"lib": lib, "dev": dev}
 
@@ -546,7 +547,7 @@ class PipelineExecutorFactoryModule(object):
         self.module = None
         # Only create pipeline executor when pipeline_libs, mods_config and
         # self.pipeline_create are not None.
-        if pipeline_libs and mods_config and self.pipeline_create:
+        if pipeline_libs and mods_config:
             graph_executors, config = self.graph_executor_create(pipeline_libs, mods_config)
             self.module = self.pipeline_create(graph_executors, config)
 
@@ -576,7 +577,8 @@ class PipelineExecutorFactoryModule(object):
             pipeline_lib = pipeline_mods[lib_index]["lib"]
             dev = pipeline_mods[lib_index]["dev"]
             lib = graph_executor.GraphModule(pipeline_lib["default"](dev))
-            # Return a module list sorted by lib_index.
+            # Return a module list sorted by lib_index, because lib_index start from 1, use
+            # 'lib_index - 1' here to get the correct index value of module in list.
             mods[lib_index - 1] = lib.module
 
         return mods, json.dumps(mod_config)
@@ -627,25 +629,23 @@ class PipelineExecutorFactoryModule(object):
         conf_file_name = "{}/config".format(directory_path)
         with open(conf_file_name, "w") as file_handle:
             file_handle.write(json.dumps(export_conf))
-        if not os.path.exists(conf_file_name):
-            raise RuntimeError(f"File {conf_file_name} export failure.")
 
         return conf_file_name
 
-    def import_from_library(self, configure_file_name):
+    def import_from_library(self, config_file_name):
         """Load configuration file to create and initialize pipeline executor.
 
         Parameters
         ----------
-        configure_file_name : str
+        config_file_name : str
             The configuration file path, the configuration file contains the
             disk path of the parameter file, library file and JSON file。
         """
         if self.module:
             raise RuntimeError(f"The pipeline executor has already been initialized.")
 
-        self.pipe_configure = ""
-        with open(configure_file_name, "r") as file_handle:
-            self.pipe_configure = file_handle.read()
+        self.pipe_config = ""
+        with open(config_file_name, "r") as file_handle:
+            self.pipe_config = file_handle.read()
 
-        self.module = self.pipeline_create([], self.pipe_configure)
+        self.module = self.pipeline_create([], self.pipe_config)

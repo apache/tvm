@@ -29,8 +29,9 @@
  * \brief All binding information of a output interface.
  */
 struct OutputBindings {
-  /*!\brief Output interface binding information, 'int' is the index of the bond module.
-   * 'string' is the interface name of the bond module.
+  /*!\brief Output interface binding information, 'int' is the index of the module that
+   *  use this output data as the input interface data, 'string' is the input interface name
+   *  of the module.
    */
   std::unordered_map<int, std::string> bindings;
   /*!
@@ -46,7 +47,7 @@ struct OutputBindings {
       num_output += (binding.first == 0);
     }
     /* If this output is a global output then there is only one such output in map.*/
-    assert(num_output <= 1);
+    ICHECK(num_output <= 1);
     return num_output == 1;
   }
   /*!
@@ -59,7 +60,7 @@ struct OutputBindings {
       std::string key;
       reader->BeginObject();
       std::string input_name;
-      int mod_idx;
+      int mod_idx = -1;
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_idx") {
           reader->Read(&mod_idx);
@@ -68,6 +69,7 @@ struct OutputBindings {
           reader->Read(&input_name);
         }
       }
+      ICHECK(mod_idx >= 0);
       bindings[mod_idx] = input_name;
     }
   }
@@ -83,11 +85,11 @@ struct OutputMap {
     return *this;
   }
 
-  /*!\brief Check that OutMap is empty.
-   * \return True or False.
+  /*!\brief This function is used to verify whether OutputMap is loaded successfully.
+   * \return Return true to indicate that this class has not been successfully loaded.
    */
   bool Empty() { return output_binding_map.empty(); }
-  /*! \brief Global output is the final outputs of pipeline, this function use to
+  /*! \brief Global output is the final outputs of pipeline, this function is used to
    *   get how many global outputs are in this Outputmap
    *  \return Number of global outputs.
    */
@@ -118,7 +120,7 @@ struct OutputMap {
           reader->Read(&binding);
         }
       }
-      assert(output_idx >= 0);
+      ICHECK(output_idx >= 0);
       output_binding_map[output_idx] = binding;
     }
   }
@@ -127,14 +129,19 @@ struct OutputMap {
  * \brief Binding or dependency information of each module output interface.
  */
 struct PipelineConfig {
-  /*!\brief The module index is the key, this variable record all module pipeline configuration
+  /*!\brief The module index is the key, this variable records all module pipeline configuration
    * information.
    */
   std::unordered_map<int, OutputMap> config;
-  OutputMap& operator[](const int key) { return config[key]; }
+  OutputMap& operator[](int key) {
+    ICHECK(config.find(key) != config.end());
+    return config[key];
+  }
+
+  void Insert(int key, const OutputMap& map) { config[key] = map; }
   /*!
-   * \brief Get the total global outputs number.
-   * \return The global outputs number.
+   * \brief Get the number of global outputs that is the outputs of entire pipeline.
+   * \return How much output does the entire pipeline have.
    */
   size_t GetGlobalOutputNum() const {
     size_t num_output = 0;
@@ -149,15 +156,14 @@ struct PipelineConfig {
  *  come from the export library function call.
  */
 struct ModuleInformation {
-  /*\brief The first string is the information type such as "lib_name",the second string is
-   * the information detail such as "/src/lib1.so" for "lib_name".
-   */
-  std::unordered_map<std::string, std::string> info;
-  const std::string& operator[](const std::string& key) { return info[key]; }
-  ModuleInformation& operator=(const std::unordered_map<std::string, std::string>& umap) {
-    info = umap;
-    return *this;
-  }
+  ModuleInformation(const std::string& lib, const std::string& json, const std::string& params,
+                    const std::string& device)
+      : lib_name(lib), json_name(json), params_name(params), dev(device) {}
+  ModuleInformation() { ; }
+  std::string lib_name;
+  std::string json_name;
+  std::string params_name;
+  std::string dev;
 };
 /*! The Module information of each module.The 'int' is module index. */
 using ModuleConfig = std::unordered_map<int, ModuleInformation>;
