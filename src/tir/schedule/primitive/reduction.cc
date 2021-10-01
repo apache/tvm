@@ -163,9 +163,9 @@ class LoopHeightError : public ScheduleError {
 };
 
 PrimExpr RemakePredicate(PrimExpr pred, const std::unordered_set<const VarNode*>& discarded_loops) {
+  if (is_one(pred)) return Bool(true);
   PrimExpr new_pred = Bool(true);
-  if (is_one(pred)) return new_pred;
-  auto f = [&](const VarNode* var) { return discarded_loops.find(var) != discarded_loops.end(); };
+  auto f = [&](const VarNode* var) { return discarded_loops.count(var); };
   arith::PVar<PrimExpr> lhs, rhs, rest;
   for (;;) {
     if ((rest && (lhs < rhs)).Match(pred)) {
@@ -198,8 +198,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   Array<StmtSRef> loops = GetLoops(block_sref);
   const BlockRealizeNode* realize = GetBlockRealize(self, block_sref).get();
   // Cond 0. Check loop_sref is an ancestor of block_sref
-  const auto& it = std::find(loops.begin(), loops.end(), loop_sref);
-  if (it == loops.end()) {
+  if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
     throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block));
   }
   // Cond 1. Check block is reduction
@@ -214,11 +213,11 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   ObjectPtr<BlockRealizeNode> init_realize = make_object<BlockRealizeNode>();
   init_block->name_hint = block->name_hint + "_init";
   init_realize->iter_values = {};
-  init_realize->predicate = realize->predicate;
   init_realize->block = Block(init_block);
   // Step 1. Create new block vars and their bindings
   // Maps an old block var to the new corresponding block var
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> block_var_map;
+  block_var_map.reserve(block->iter_vars.size());
   for (int i = 0, n = block->iter_vars.size(); i < n; ++i) {
     const IterVar& iter_var = block->iter_vars[i];
     const PrimExpr& binding = realize->iter_values[i];
@@ -228,7 +227,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     }
     // Create a new block var
     IterVar new_iter_var(/*dom=*/iter_var->dom,
-                         /*var=*/iter_var->var.copy_with_suffix("_init"),
+                         /*var=*/iter_var->var.copy_with_suffix(""),
                          /*iter_type=*/iter_var->iter_type,
                          /*thread_tag=*/iter_var->thread_tag);
     // Add a block var and its binding
@@ -268,11 +267,11 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   }
   // Step 4. After scanning loops, make a new predicate in the init block realize
   //         We discard predicate that is related to discarded loops
-  init_realize->predicate = RemakePredicate(init_realize->predicate, discarded_loops);
+  init_realize->predicate = RemakePredicate(realize->predicate, discarded_loops);
   // Step 5. Create new loops above init block
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> loop_var_map;
   Stmt body = BlockRealize(init_realize);
-  for (const int& i : chosen_loops) {
+  for (int i : chosen_loops) {
     const ForNode* old_loop = TVM_SREF_TO_FOR(old_loop, loops[i]);
     // Create a new equivalent to the chosen loop
     Var old_loop_var = old_loop->loop_var;
@@ -287,14 +286,14 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   body = Substitute(body, loop_var_map);
   // Step 6. Mutate IR
   const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(old_scope_root, scope_root_sref);
-  Block new_scope_root;
-  Block new_reduction_block;
+  Block new_scope_root{nullptr};
+  Block new_reduction_block{nullptr};
   std::tie(new_scope_root, new_reduction_block) = DecomposeReductionBlockReplacer::Replace(
       GetRef<Block>(old_scope_root), GetRef<For>(loop), body, GetRef<Block>(block));
   self->Replace(scope_root_sref, new_scope_root,
                 {{GetRef<Block>(old_scope_root), new_scope_root},
                  {GetRef<Block>(block), new_reduction_block}});
-  self->UpdateSubtreeBlockInfo(new_scope_root);
+  self->UpdateScopeBlockInfo(new_scope_root);
   return self->stmt2ref.at(init_block.get());
 }
 

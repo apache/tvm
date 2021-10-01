@@ -1082,7 +1082,7 @@ BlockInfo ScheduleStateNode::GetBlockInfo(const StmtSRef& block_sref) const {
   return it->second;
 }
 
-void ScheduleStateNode::UpdateSubtreeBlockInfo(const Stmt& stmt) {
+void ScheduleStateNode::UpdateScopeBlockInfo(const Stmt& stmt) {
   BlockInfoCollector::Collect(this, stmt);
 }
 
