@@ -46,10 +46,10 @@ void CodeGenCPU::Init(const std::string& module_name, llvm::TargetMachine* tm,
   export_system_symbols_.clear();
   // TVM runtime types
   t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, DataType::ShapeIndex().bits());
-  t_tvm_context_ = llvm::StructType::create({t_int_, t_int_});
+  t_tvm_device_ = llvm::StructType::create({t_int_, t_int_});
   t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_});
   t_tvm_func_handle_ = t_void_p_;
-  t_tvm_array_ = llvm::StructType::create({t_void_p_, t_tvm_context_, t_int_, t_tvm_type_,
+  t_tvm_array_ = llvm::StructType::create({t_void_p_, t_tvm_device_, t_int_, t_tvm_type_,
                                            t_tvm_shape_index_->getPointerTo(),
                                            t_tvm_shape_index_->getPointerTo(), t_int64_});
   t_tvm_value_ = llvm::StructType::create({t_float64_});
