@@ -376,18 +376,24 @@ def conv2d_packed_filter_nhwhwc(
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
-    n, ho, wo, hi, wi, k = s[Y].op.axis
-    rh, rw, rc = s[Y].op.reduce_axis
-
-    rco, rci = s[Y].split(rc, factor=32)
-    s[Y].reorder(n, rco, wo, ho, k, hi, wi)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
-    s[Xl].compute_at(s[Y], rco)
+    # Fl = s.cache_read(filt_packed, storage_scope, [Y])
+    Yl = s.cache_write(Y, storage_scope)
 
+    n, ho, wo, hi, wi, k = s[Y].op.axis
+    # rh, rw, rc = s[Y].op.reduce_axis
     ko, ki = s[Y].split(k, factor=32)
-    s[Y].reorder(n, rco, wo, ho, ko, hi, wi, ki)
-    Fl = s.cache_read(filt_packed, storage_scope, [Y])
-    s[Fl].compute_at(s[Y], ko)
+    s[Y].reorder(n, ho, wo, ko, hi, wi, ki)
+    ho1, ho2 = s[Y].split(ho, factor=h_loop_split)
+    s[Yl].compute_at(s[Y], ho1)
+    # s[Fl].compute_at(s[Y], ho)
+
+    n, ho, wo, hi, wi, k = s[Yl].op.axis
+    rh, rw, rc = s[Yl].op.reduce_axis
+    ko, ki = s[Yl].split(k, factor=32)
+    s[Yl].reorder(n, ho, wo, ko, hi, wi, ki, rc)
+    ho1, ho2 = s[Yl].split(ho, factor=h_loop_split)
+    s[Xl].compute_at(s[Yl], ho1)
 
     binds = {}
     if storage_scope and storage_scope != "global":
@@ -403,7 +409,7 @@ class BaseConv2d:
     batch = tvm.testing.parameter(1)
     in_size = tvm.testing.parameter(8, 56, 64)
     in_channel = tvm.testing.parameter(64)
-    out_channel = tvm.testing.parameter(64)
+    out_channel = tvm.testing.parameter(64, 128)
     kernel = tvm.testing.parameter(1, 3)
     stride = tvm.testing.parameter(1)
     pad = tvm.testing.parameter(0, 1)
