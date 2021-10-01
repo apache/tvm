@@ -62,6 +62,7 @@ def make_model(
 
 @skip_if_no_reference_system
 @pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
+@pytest.mark.skipif(not cmsisnn.enabled(), reason="CMSISNN not enabled")
 def test_softmax_int8(zero_point, scale):
     interface_api = "c"
     use_unpacked_api = True
