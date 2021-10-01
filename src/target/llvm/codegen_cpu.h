@@ -63,7 +63,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // TVM related data types
   llvm::Type* t_tvm_shape_index_{nullptr};
   llvm::Type* t_tvm_func_handle_{nullptr};
-  llvm::StructType* t_tvm_context_{nullptr};
+  llvm::StructType* t_tvm_device_{nullptr};
   llvm::StructType* t_tvm_type_{nullptr};
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
