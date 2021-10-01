@@ -17,48 +17,22 @@
 
 """CMSIS-NN: testing with networks"""
 
-import platform
 import sys
-import os
-import pathlib
-import tvm
+
+import numpy as np
+import pytest
+
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib import cmsisnn
-import numpy as np
-import pytest
-import itertools
 
+from utils import skip_if_no_reference_system, get_range_for_dtype_str
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
     generate_ref_data,
     compile_and_run,
 )
-
-
-def get_range_for_dtype_str(dtype):
-    """
-    Produce the min,max for a give data type.
-
-    Parameters
-    ----------
-    dtype : str
-        a type string (e.g., int8)
-
-    Returns
-    -------
-    type_info.min : int
-        the minimum of the range
-    type_info.max : int
-        the maximum of the range
-    """
-
-    try:
-        type_info = np.iinfo(dtype)
-    except ValueError:
-        type_info = np.finfo(dtype)
-    return type_info.min, type_info.max
 
 
 def convert_to_relay(
@@ -99,9 +73,7 @@ def convert_to_relay(
     return mod, params
 
 
-@pytest.mark.skipif(
-    platform.machine() == "i686", reason="Reference system unavailable in i386 container"
-)
+@skip_if_no_reference_system
 def test_cnn_small():
     # download the model
     base_url = "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8"

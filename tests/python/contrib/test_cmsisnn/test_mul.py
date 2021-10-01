@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""CMSIS-NN integration tests: softmax"""
+"""CMSIS-NN integration tests: mul"""
 
 import sys
-import itertools
 
 import numpy as np
 import pytest
@@ -26,12 +25,7 @@ import pytest
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-from utils import (
-    skip_if_no_reference_system,
-    make_module,
-    count_num_calls,
-    get_range_for_dtype_str,
-)
+from utils import skip_if_no_reference_system, make_module, count_num_calls, get_range_for_dtype_str
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
@@ -41,35 +35,53 @@ from tests.python.relay.aot.aot_test_utils import (
 
 
 def make_model(
-    shape, in_dtype, out_dtype, in_zero_point, in_scale, out_zero_point=-128, out_scale=1.0 / 256
+    shape,
+    input_0_dtype,
+    input_1_dtype,
+    input_0_scale,
+    input_0_zero_point,
+    input_1_scale,
+    input_1_zero_point,
+    out_scale=1.0 / 256,
+    out_zero_point=-128,
 ):
     """Create a Relay Function / network model"""
-    a = relay.var("in0", shape=shape, dtype=in_dtype)
-    dequantize = relay.qnn.op.dequantize(
-        a,
-        input_scale=relay.const(in_scale, "float32"),
-        input_zero_point=relay.const(in_zero_point, "int32"),
+
+    return relay.qnn.op.mul(
+        relay.var("input_0", shape=shape, dtype=input_0_dtype),
+        relay.var("input_1", shape=shape, dtype=input_1_dtype),
+        relay.const(input_0_scale, "float32"),
+        relay.const(input_0_zero_point, "int32"),
+        relay.const(input_1_scale, "float32"),
+        relay.const(input_1_zero_point, "int32"),
+        relay.const(out_scale, "float32"),
+        relay.const(out_zero_point, "int32"),
     )
-    softmax = relay.nn.softmax(dequantize)
-    model = relay.qnn.op.quantize(
-        softmax,
-        output_scale=relay.const(out_scale, "float32"),
-        output_zero_point=relay.const(out_zero_point, "int32"),
-        out_dtype=out_dtype,
-    )
-    return model
 
 
 @skip_if_no_reference_system
-@pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
-def test_softmax_int8(zero_point, scale):
+@pytest.mark.parametrize(
+    [
+        "input_0_scale",
+        "input_0_zero_point",
+        "input_1_scale",
+        "input_1_zero_point",
+        "output_tolerance",
+    ],
+    [[0.256, 33, 0.256, 33, 0], [0.0128, -64, 0.0128, -64, 1], [0.0128, -64, 0.256, 33, 0]],
+)
+def test_mul_int8(
+    input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point, output_tolerance
+):
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]
-    model = make_model(shape, dtype, dtype, zero_point, scale)
+    model = make_model(
+        shape, dtype, dtype, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point
+    )
     orig_mod = make_module(model)
 
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
@@ -93,48 +105,38 @@ def test_softmax_int8(zero_point, scale):
 
     # validate the output
     in_min, in_max = get_range_for_dtype_str(dtype)
-    np.random.seed(0)
-    input_data = np.random.randint(in_min, high=in_max, size=shape, dtype=dtype)
-    inputs = {"in0": input_data}
-    params = {}
-    output_list = generate_ref_data(orig_mod["main"], inputs, params)
+    inputs = {
+        "input_0": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
+        "input_1": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
+    }
+    output_list = generate_ref_data(orig_mod["main"], inputs)
     compile_and_run(
-        AOTTestModel(module=cmsisnn_mod, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            output_tolerance=output_tolerance,
+        ),
         test_runner,
         interface_api,
         use_unpacked_api,
     )
 
 
-def parameterize_for_invalid_model(test):
-    in_dtype = ["uint8", "int8"]
-    out_dtype = ["uint8", "int8"]
-    zero_point = [-128, 64]
-    scale = [1.0 / 256, 0.2]
-    out_zero_point = [-128, 33]
-    out_scale = [1.0 / 256, 0.2]
-    all_combinations = itertools.product(
-        in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale
-    )
-    all_combinations = filter(
-        lambda parameters: not (
-            parameters[0] == "int8"
-            and parameters[1] == "int8"
-            and parameters[4] == -128
-            and parameters[5] == 1.0 / 256
-        ),
-        all_combinations,
-    )
-    return pytest.mark.parametrize(
-        ["in_dtype", "out_dtype", "zero_point", "scale", "out_zero_point", "out_scale"],
-        all_combinations,
-    )(test)
-
-
-@parameterize_for_invalid_model
-def test_invalid_softmax(in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale):
+@pytest.mark.parametrize(["input_dtype"], [["uint8"], ["int16"]])
+def test_invalid_parameters(
+    input_dtype,
+):
+    input_scale = 0.256
+    input_zero_point = 33
     model = make_model(
-        [1, 16, 16, 3], in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale
+        [1, 16, 16, 3],
+        input_dtype,
+        input_dtype,
+        input_scale,
+        input_zero_point,
+        input_scale,
+        input_zero_point,
     )
 
     orig_mod = make_module(model)
