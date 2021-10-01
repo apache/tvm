@@ -240,6 +240,7 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 # Source file lists
 file(GLOB_RECURSE COMPILER_SRCS
     src/auto_scheduler/*.cc
+    src/meta_schedule/*.cc
     src/node/*.cc
     src/ir/*.cc
     src/arith/*.cc
@@ -305,9 +306,12 @@ if(BUILD_FOR_HEXAGON)
   # static one.
   if(NOT BUILD_STATIC_RUNTIME)
     list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+    # Allow undefined symbols (there will be some from libc).
+    set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
 
   add_definitions(-D_MACH_I32=int)
+  add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
 endif()
 
 # Package runtime rules
@@ -358,7 +362,7 @@ endif(USE_GRAPH_EXECUTOR)
 
 # convert old options for profiler
 if(USE_GRAPH_EXECUTOR_DEBUG)
-  message(WARNING "USE_GRAPH_EXECUTOR renamed to USE_PROFILER. Please update your config.cmake")
+  message(WARNING "USE_GRAPH_EXECUTOR_DEBUG renamed to USE_PROFILER. Please update your config.cmake")
   unset(USE_GRAPH_EXECUTOR_DEBUG CACHE)
   set(USE_PROFILER ON)
 endif()
@@ -389,6 +393,12 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
   include(GoogleTest)
 endif()
 
+if(USE_PIPELINE_EXECUTOR)
+  message(STATUS "Build with Pipeline Executor support...")
+  file(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
+endif(USE_PIPELINE_EXECUTOR)
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
@@ -407,6 +417,7 @@ include(cmake/modules/contrib/EthosU.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
+include(cmake/modules/contrib/ExampleTargetHooks.cmake)
 include(cmake/modules/contrib/Random.cmake)
 include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
@@ -575,7 +586,7 @@ endif()
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
 if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-  file(GLOB TEST_SRCS tests/cpp/*.cc)
+  file(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
   add_executable(cpptest ${TEST_SRCS})
   target_include_directories(cpptest SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} gtest_main pthread dl)

@@ -44,6 +44,11 @@
 
 namespace tvm {
 namespace relay {
+
+namespace tec {
+class TECompiler;
+}
+
 namespace transform {
 Pass InlinePrimitives();
 }
@@ -144,6 +149,17 @@ struct LoweredOutput {
   Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
   runtime::Metadata metadata;
+};
+
+/*!
+ * \brief This class is needed to avoid a GCC 5 bug that prevents maps containing enums from being
+ compiled. If i386 GCC version is increased, we can remove it.
+ */
+struct EnumClassHash {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
 };
 
 /*!
@@ -480,6 +496,15 @@ TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
  */
 Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
     std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
+
+/*!
+ * \brief Call "weight update callback" to communicate op weights seen during Relay module
+ * lowering back to the auto scheduler.
+ * Op weights refer to the number of times each distinct op/workload appears in a given module.
+ * It is called "use_count" in TECompiler.
+ * \param TECompiler used in the Relay module lowering step.
+ */
+void UpdateAutoSchedulerOpWeights(tec::TECompiler compiler);
 
 }  // namespace backend
 }  // namespace relay

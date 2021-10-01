@@ -209,7 +209,7 @@ stage('Build') {
         make(ci_gpu, 'build', '-j2')
         pack_lib('gpu', tvm_multilib)
         // compiler test
-        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_vulkan.sh"
+        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh"
         make(ci_gpu, 'build2', '-j2')
       }
     }
@@ -224,7 +224,6 @@ stage('Build') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
@@ -295,6 +294,19 @@ stage('Unit Test') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
+          junit "build/pytest-results/*.xml"
+        }
+      }
+    }
+  },
+  'python3: CPU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/ut-python-cpu")) {
+        init_git()
+        unpack_lib('cpu', tvm_multilib_tsim)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
           junit "build/pytest-results/*.xml"
         }
       }

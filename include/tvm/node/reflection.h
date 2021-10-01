@@ -229,7 +229,7 @@ class ReflectionVTable::Registry {
 };
 
 #define TVM_REFLECTION_REG_VAR_DEF \
-  static TVM_ATTRIBUTE_UNUSED ::tvm::ReflectionVTable::Registry __make_reflectiion
+  static TVM_ATTRIBUTE_UNUSED ::tvm::ReflectionVTable::Registry __make_reflection
 
 /*!
  * \brief Directly register reflection VTable.

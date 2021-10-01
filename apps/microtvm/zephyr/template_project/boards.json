@@ -1,0 +1,68 @@
+{
+    "mimxrt1050_evk": {
+        "board": "mimxrt1050_evk",
+        "model": "imxrt10xx",
+        "is_qemu": false,
+        "fpu": true
+    },
+    "mps2_an521": {
+        "board": "mps2_an521",
+        "model": "mps2_an521",
+        "is_qemu": true,
+        "fpu": false
+    },
+    "nrf5340dk_nrf5340_cpuapp": {
+        "board": "nrf5340dk_nrf5340_cpuapp",
+        "model": "nrf5340dk",
+        "is_qemu": false,
+        "fpu": true
+    },
+    "nucleo_f746zg": {
+        "board": "nucleo_f746zg",
+        "model": "stm32f746xx",
+        "is_qemu": false,
+        "fpu": true
+    },
+    "nucleo_l4r5zi": {
+        "board": "nucleo_l4r5zi",
+        "model": "stm32l4r5zi",
+        "is_qemu": false,
+        "fpu": true
+    },
+    "qemu_cortex_r5": {
+        "board": "qemu_cortex_r5",
+        "model": "zynq_mp_r5",
+        "is_qemu": true,
+        "fpu": true
+    },
+    "qemu_riscv32": {
+        "board": "qemu_riscv32",
+        "model": "host",
+        "is_qemu": true,
+        "fpu": true
+    },
+    "qemu_riscv64": {
+        "board": "qemu_riscv64",
+        "model": "host",
+        "is_qemu": true,
+        "fpu": true
+    },
+    "qemu_x86": {
+        "board": "qemu_x86",
+        "model": "host",
+        "is_qemu": true,
+        "fpu": true
+    },
+    "stm32f746g_disco": {
+        "board": "stm32f746g_disco",
+        "model": "stm32f746xx",
+        "is_qemu": false,
+        "fpu": true
+    },
+    ""stm32f429i_disc1"": {
+        "board": "stm32f429i_disc1",
+        "model": "stm32f4xx",
+        "is_qemu": false,
+        "fpu": true
+    }
+}

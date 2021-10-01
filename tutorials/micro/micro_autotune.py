@@ -20,7 +20,9 @@
 
 Autotuning with micro TVM
 =========================
-**Author**: `Andrew Reusch <https://github.com/areusch>`_, `Mehrdad Hessar <https://github.com/mehrdadh>`
+**Authors**:
+`Andrew Reusch <https://github.com/areusch>`_,
+`Mehrdad Hessar <https://github.com/mehrdadh>`_
 
 This tutorial explains how to autotune a model using the C runtime.
 """
@@ -117,7 +119,7 @@ repo_root = pathlib.Path(
 
 module_loader = tvm.micro.AutoTvmModuleLoader(
     template_project_dir=repo_root / "src" / "runtime" / "crt" / "host",
-    project_options={},
+    project_options={"verbose": False},
 )
 builder = tvm.autotvm.LocalBuilder(
     n_parallel=1,
@@ -125,7 +127,7 @@ builder = tvm.autotvm.LocalBuilder(
     do_fork=True,
     build_func=tvm.micro.autotvm_build_func,
 )
-runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=100, module_loader=module_loader)
 
 measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
@@ -136,7 +138,7 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #        project_options={
 #            "zephyr_board": BOARD,
 #            "west_cmd": "west",
-#            "verbose": 1,
+#            "verbose": False,
 #            "project_type": "host_driven",
 #        },
 #    )
@@ -146,9 +148,9 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 #        do_fork=False,
 #        build_func=tvm.micro.autotvm_build_func,
 #    )
-#    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
-
-# measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
+#    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=100, module_loader=module_loader)
+#
+#    measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 ################
 # Run Autotuning
@@ -162,7 +164,7 @@ for task in tasks:
         n_trial=num_trials,
         measure_option=measure_option,
         callbacks=[
-            tvm.autotvm.callback.log_to_file("microtvm_autotune.log"),
+            tvm.autotvm.callback.log_to_file("microtvm_autotune.log.txt"),
             tvm.autotvm.callback.progress_bar(num_trials, si_prefix="M"),
         ],
         si_prefix="M",
@@ -181,7 +183,10 @@ with pass_context:
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"), lowered, temp_dir / "project"
+    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    lowered,
+    temp_dir / "project",
+    {"verbose": False},
 )
 
 # Compiling for physical hardware
@@ -193,7 +198,7 @@ project = tvm.micro.generate_project(
 #        {
 #            "zephyr_board": BOARD,
 #            "west_cmd": "west",
-#            "verbose": 1,
+#            "verbose": False,
 #            "project_type": "host_driven",
 #        },
 #    )
@@ -214,14 +219,17 @@ with tvm.micro.Session(project.transport()) as session:
 ##########################
 # Once autotuning completes, you can time execution of the entire program using the Debug Runtime:
 
-with tvm.autotvm.apply_history_best("microtvm_autotune.log"):
+with tvm.autotvm.apply_history_best("microtvm_autotune.log.txt"):
     with pass_context:
         lowered_tuned = tvm.relay.build(relay_mod, target=TARGET, params=params)
 
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"), lowered_tuned, temp_dir / "project"
+    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    lowered_tuned,
+    temp_dir / "project",
+    {"verbose": False},
 )
 
 # Compiling for physical hardware
@@ -233,7 +241,7 @@ project = tvm.micro.generate_project(
 #        {
 #            "zephyr_board": BOARD,
 #            "west_cmd": "west",
-#            "verbose": 1,
+#            "verbose": False,
 #            "project_type": "host_driven",
 #        },
 #    )

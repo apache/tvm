@@ -96,7 +96,7 @@ def expand_dims(data, axis, num_newaxis=1):
     data : relay.Expr
         The input data to the operator.
 
-    axis : int
+    axis : Union[int, Expr]
         The axis at which the input array is expanded.
         Should lie in range `[-data.ndim - 1, data.ndim]`.
         If `axis < 0`, it is the first axis inserted;
@@ -110,7 +110,13 @@ def expand_dims(data, axis, num_newaxis=1):
     result : relay.Expr
         The reshaped result.
     """
-    return _make.expand_dims(data, axis, num_newaxis)
+    if isinstance(axis, int):
+        return _make.expand_dims(data, axis, num_newaxis)
+    if isinstance(axis, Expr):
+        # TODO (AndrewZhaoLuo): investigate performance issues with consecutive
+        # dynamic expand_dims on non-llvm targets.
+        return _dyn_make.expand_dims(data, axis, num_newaxis)
+    raise ValueError(f"Unknown type for axis: {type(axis)}")
 
 
 def transpose(data, axes=None):
@@ -143,7 +149,7 @@ def squeeze(data, axis=None):
     data : tvm.relay.Expr
         The input data to the operator.
 
-    axis : None or List[int]
+    axis : None or List[int] or Expr
         The set of axes to remove.
         If axis = None, remove all axis of dimensions 1.
         If any specified axis has dimension that does not equal 1, it is an error.
@@ -153,6 +159,10 @@ def squeeze(data, axis=None):
     result : tvm.relay.Expr
         The squeezed result.
     """
+    if isinstance(axis, Constant):
+        axis = list(axis.data.numpy())
+    if isinstance(axis, Expr):
+        return _dyn_make.squeeze(data, axis)
     return _make.squeeze(data, axis)
 
 

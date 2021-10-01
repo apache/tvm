@@ -60,6 +60,18 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   }
 };  // struct ExpandDimsAttrs
 
+/*! \brief Attributes used in dynamic expand_dims operators */
+struct DynExpandDimsAttrs : public tvm::AttrsNode<DynExpandDimsAttrs> {
+  int num_newaxis;
+
+  TVM_DECLARE_ATTRS(DynExpandDimsAttrs, "relay.attrs.DynExpandDimsAttrs") {
+    TVM_ATTR_FIELD(num_newaxis)
+        .describe("Number of axes to be inserted. Should be >= 0.")
+        .set_lower_bound(0)
+        .set_default(1);
+  }
+};  // struct ExpandDimsAttrs
+
 /*! \brief Attributes used in concatenate operators */
 struct ConcatenateAttrs : public tvm::AttrsNode<ConcatenateAttrs> {
   int axis;
@@ -475,7 +487,7 @@ struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
         .describe("The first element is not included")
         .set_default(Bool(false));
   }
-};
+};  // struct ScanopAttrs
 
 /*! \brief Attributes used in unique operator */
 struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
@@ -488,6 +500,15 @@ struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
         .set_default(false);
   }
 };  // struct UniqueAttrs
+
+/*! \brief Attributes used in einsum operator */
+struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
+  String equation;
+
+  TVM_DECLARE_ATTRS(EinsumAttrs, "relay.attrs.EinsumAttrs") {
+    TVM_ATTR_FIELD(equation).describe("The einsum expression string");
+  }
+};  // struct EinsumAttrs
 
 }  // namespace relay
 }  // namespace tvm

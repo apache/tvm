@@ -38,8 +38,8 @@
 #include <string>
 #include <vector>
 
-#include "te_compiler.h"
-#include "utils.h"
+#include "./te_compiler.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
@@ -291,7 +291,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         args.push_back(param_handle);
       } else {
         auto var_arg = FindExpr(arg);
-        args.push_back(var_arg[0]);
+        for (const auto& var : var_arg) {
+          args.push_back(var);
+        }
       }
     }
 
@@ -583,8 +585,16 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // performing the preexisting AOT executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
+    backend::FunctionInfo func_info;
+
+    if (memory_plan.defined()) {
+      // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
+      func_info = tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
+    }
+
     IRModule lowered_mod =
-        LowerTEPass(targets_, device_context_map, memory_plan, mod_name, [this](Function func) {
+        tec::LowerTEPass(targets_, device_context_map, mod_name, [this](Function func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -615,8 +625,13 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Define the storage allocator ids
     for (auto kv : storage_device_map_) {
       for (auto sid : kv.second->storage_ids) {
+        // The buffer_var is created with storage_scope to be global.workspace to be serviced by
+        // TVMBackendAllocWorkspace(TVMBAW) calls, explicitly. The reasoning being the executor
+        // allocates should be serviced by TVMBAWs as the data could be accessed by many devices and
+        // should not be lowered to the stack. For more details please refer to the discussion here:
+        // https://github.com/apache/tvm/issues/9022
         te::Var buffer_var(MakeString("sid_", sid),
-                           PointerType(PrimType(DataType::Int(8)), "global"));
+                           PointerType(PrimType(DataType::Int(8)), "global.workspace"));
         sids_table_[sid] = buffer_var;
       }
     }
@@ -650,7 +665,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Apply storage rewrite pass to the runner function to do memory planning
     auto storage_rewrite = tir::transform::StorageRewrite();
     mod_run = storage_rewrite(mod_run);
-
     // The workspace for main function should be calculated after performing storage_rewrite for
     // the top level TIR function.
     auto workspace_byte_alignment =
@@ -661,7 +675,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
-    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
+
     main_func_info.value()->workspace_sizes.Set(target_host_, main_workspace_size);
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 

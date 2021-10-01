@@ -27,6 +27,14 @@ namespace tir {
 
 /******** Schedule: Sampling ********/
 /*!
+ * \brief Sample a random integer from a given range.
+ * \param min_inclusive The minimum value of the range, inclusive.
+ * \param max_exclusive The maximum value of the range, exclusive.
+ * \return The random integer sampled in the given range.
+ */
+TVM_DLL int SampleInt(support::LinearCongruentialEngine::TRandState* rand_state, int min_inclusive,
+                      int max_exclusive);
+/*!
  * \brief Sample once category from candidates according to the probability weights.
  * \param self The schedule to update
  * \param rand_state The pointer to schedule's random state
@@ -72,6 +80,7 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  * 1) The loops can't have annotations or thread bindings.
  * 2) The inner loop must be the only child of the outer loop.
  * 3) All loops must start with 0.
+ * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
  * \param self The state of the schedule
  * \param loop_srefs An array of srefs to the loops to be fused
  * \return The sref to the fused loop

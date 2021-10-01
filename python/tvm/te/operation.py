@@ -445,9 +445,12 @@ def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
 
         import tvm
         from tvm import te
+        from tvm.te import create_prim_func
+        import tvm.script
 
         A = te.placeholder((128, 128), name="A")
         B = te.placeholder((128, 128), name="B")
+        k = te.reduce_axis((0, 128), "k")
         C = te.compute((128, 128), lambda x, y: te.sum(A[x, k] * B[y, k], axis=k), name="C")
         func = create_prim_func([A, B, C])
         print(tvm.script.asscript(func))

@@ -1722,3 +1722,24 @@ def invert_permutation_strategy(attrs, inputs, out_type, target):
         name="invert_permutation.generic",
     )
     return strategy
+
+
+def wrap_compute_einsum(topi_compute):
+    """Wrap einsum topi compute"""
+
+    def _compute_einsum(attrs, inputs, _):
+        return [topi_compute(attrs.equation, *inputs)]
+
+    return _compute_einsum
+
+
+@override_native_generic_func("einsum_strategy")
+def einsum_strategy(attrs, inputs, out_type, target):
+    """einsum generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_einsum(topi.einsum),
+        wrap_topi_schedule(topi.generic.schedule_einsum),
+        name="einsum.generic",
+    )
+    return strategy

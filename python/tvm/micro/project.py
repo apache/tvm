@@ -18,7 +18,7 @@
 """Defines glue wrappers around the Project API which mate to TVM interfaces."""
 
 import pathlib
-import typing
+from typing import Union
 
 from .. import __version__
 from ..contrib import utils
@@ -64,7 +64,7 @@ class GeneratedProject:
     """Defines a glue interface to interact with a generated project through the API server."""
 
     @classmethod
-    def from_directory(cls, project_dir: typing.Union[pathlib.Path, str], options: dict):
+    def from_directory(cls, project_dir: Union[pathlib.Path, str], options: dict):
         return cls(client.instantiate_from_dir(project_dir), options)
 
     def __init__(self, api_client, options):
@@ -101,7 +101,17 @@ class TemplateProject:
         if not self._info["is_template"]:
             raise NotATemplateProjectError()
 
+    def _check_project_options(self, options: dict):
+        """Check if options are valid ProjectOptions"""
+        available_options = [option["name"] for option in self.info()["project_options"]]
+        if options and not set(options.keys()).issubset(available_options):
+            raise ValueError(
+                f"""options:{list(options)} include non valid ProjectOptions.
+                        Here is a list of available options:{list(available_options)}."""
+            )
+
     def generate_project_from_mlf(self, model_library_format_path, project_dir, options):
+        self._check_project_options(options)
         self._api_client.generate_project(
             model_library_format_path=str(model_library_format_path),
             standalone_crt_dir=get_standalone_crt_dir(),
@@ -124,9 +134,9 @@ class TemplateProject:
 
 
 def generate_project(
-    template_project_dir: typing.Union[pathlib.Path, str],
+    template_project_dir: Union[pathlib.Path, str],
     module: ExportableModule,
-    generated_project_dir: typing.Union[pathlib.Path, str],
+    generated_project_dir: Union[pathlib.Path, str],
     options: dict = None,
 ):
     """Generate a project for an embedded platform that contains the given model.
@@ -154,3 +164,36 @@ def generate_project(
     """
     template = TemplateProject.from_directory(str(template_project_dir))
     return template.generate_project(module, str(generated_project_dir), options)
+
+
+def generate_project_from_mlf(
+    template_project_dir: Union[pathlib.Path, str],
+    project_dir: Union[pathlib.Path, str],
+    mlf_path: Union[pathlib.Path, str],
+    options: dict,
+):
+    """Generate a project from a platform template and an existing Model Library Format archive.
+
+    Parameters
+    ----------
+    template_project_path : pathlib.Path or str
+        Path to a template project containing a microTVM Project API server.
+
+    project_dir : pathlib.Path or str
+        Path to a directory where the project will be created.
+
+    mlf_path : pathlib.Path or str
+        Path to the Model Library Format archive that will be used when creating
+        the new project.
+
+    options : dict
+        Project API options given to the microTVM API server for the specified platform.
+
+    Returns
+    -------
+    GeneratedProject :
+        A class that wraps the generated project and which can be used to further interact with it.
+    """
+
+    template = TemplateProject.from_directory(str(template_project_dir))
+    return template.generate_project_from_mlf(str(mlf_path), str(project_dir), options)

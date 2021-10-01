@@ -116,6 +116,10 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
         ),
     ),
     (
+        "importer-paddle",
+        ("Requirements for the PaddlePaddle importer", ["paddlepaddle"]),
+    ),
+    (
         "importer-pytorch",
         (
             "Requirements for the PyTorch importer",
@@ -235,6 +239,7 @@ CONSTRAINTS = [
     ("onnx", None),
     ("onnxruntime", None),
     ("opencv-python", None),
+    ("paddlepaddle", None),
     ("pillow", None),
     ("progressbar", None),
     ("psutil", None),
@@ -244,7 +249,7 @@ CONSTRAINTS = [
     ("sphinx_autodoc_annotation", None),
     ("sphinx_gallery", None),
     ("sphinx_rtd_theme", None),
-    ("synr", "==0.3.0"),
+    ("synr", "==0.4.0"),
     ("tensorflow", None),
     ("tensorflow-estimator", None),
     ("tflite", None),

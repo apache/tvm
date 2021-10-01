@@ -15,18 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import contextlib
-import copy
-import glob
 import os
 import pathlib
 import pytest
 import shutil
+import json
 
 pytest.importorskip("pty")
 import sys
-import subprocess
-import textwrap
 
 import numpy as np
 import pytest
@@ -38,6 +34,8 @@ from tvm.target import Target
 
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
+
+from tvm.micro.testing import check_tune_log
 
 BUILD = True
 DEBUG = False
@@ -248,7 +246,7 @@ def test_autotune():
     inputs = {"data": input_data}
 
     target = tvm.target.target.micro("host")
-    template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+    template_project_dir = pathlib.Path(tvm.micro.get_standalone_crt_dir()) / "template" / "host"
 
     pass_context = tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True})
     with pass_context:
@@ -265,7 +263,7 @@ def test_autotune():
         do_fork=True,
         build_func=tvm.micro.autotvm_build_func,
     )
-    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=0, module_loader=module_loader)
+    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, module_loader=module_loader)
 
     measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
@@ -285,6 +283,9 @@ def test_autotune():
             ],
             si_prefix="M",
         )
+        assert tuner.best_flops > 0
+
+    check_tune_log(tune_log_file)
 
     # Build without tuning
     with pass_context:
