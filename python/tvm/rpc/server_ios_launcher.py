@@ -18,7 +18,7 @@ class IOSDevice(Enum):
 
 
 class RPCServerMode(Enum):
-    pure_server = "pure_server"
+    standalone = "standalone"
     proxy = "proxy"
     tracker = "tracker"
 
@@ -122,7 +122,7 @@ def launch_ios_rpc(udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port:
     proc = subprocess.Popen(cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
                             universal_newlines=True)
     actual_host, actual_port = wait_launch_complete(proc,
-                                                    should_print_host_and_port=mode == RPCServerMode.pure_server.value)
+                                                    should_print_host_and_port=mode == RPCServerMode.standalone.value)
     return True, actual_host, actual_port
 
 
@@ -176,7 +176,7 @@ class ServerIOSLauncher:
         self.server_was_started, _, actual_port = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
 
         self.host = host
-        self.port = port if mode != RPCServerMode.pure_server.value else actual_port
+        self.port = port if mode != RPCServerMode.standalone.value else actual_port
 
     def terminate(self):
         if self.server_was_started:
