@@ -143,41 +143,6 @@ def get_accelerator_config():
     return compiler_attrs.accelerator_config
 
 
-# pylint: disable=unused-argument
-def partition_for_ethosu(
-    mod: tvm.ir.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, **opts
-):
-    """This helper function partition the relay graph as produced by the
-    relay frontend for a given model into external functions
-    to be presented to the codegen.
-
-    Parameters
-    ----------
-    mod : tvm.ir.IRModule
-        The IRModule that gets generated from a relay frontend
-    params : Optional[Dict[str, tvm.runtime.NDArray]]
-        Constant input parameters.
-
-    Returns
-    -------
-    mod : IRModule
-        The partitioned IRModule with external global functions
-    """
-    if params:
-        mod["main"] = bind_params_by_name(mod["main"], params)
-
-    pattern = relay.op.contrib.get_pattern_table("ethosu")
-    mod = relay.transform.InferType()(mod)
-    mod = relay.transform.MergeComposite(pattern)(mod)
-    mod = relay.transform.AnnotateTarget("ethosu")(mod)
-    mod = relay.transform.MergeCompilerRegions()(mod)
-    mod = relay.transform.InferType()(mod)
-    mod = relay.transform.PartitionGraph()(mod)
-    mod = relay.transform.InferType()(mod)
-    mod = preprocess.preprocess_ext_io()(mod)
-    return mod
-
-
 def get_arg_count(func):
     """Helper function to get the number of
     arguments in a python function"""
