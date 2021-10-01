@@ -35,7 +35,7 @@ def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
         values = ib.buffer_ptr(values)
         indices = ib.buffer_ptr(indices)
 
-        max_threads = 256
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(

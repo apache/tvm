@@ -57,33 +57,32 @@ def test_searchsorted(dev, target):
     outer_axes = (10, 5, 3)
     sorted_sequence_shape = outer_axes + (sequence_len,)
     values_shape = outer_axes + (num_search,)
-    A = te.placeholder(sorted_sequence_shape, name="A", dtype="float32")
-    B = te.placeholder(values_shape, name="B", dtype="float32")
+    sorted_sequence = te.placeholder(sorted_sequence_shape, name="A", dtype="float32")
+    values = te.placeholder(values_shape, name="B", dtype="float32")
     out_dtype = "int32"
     implementations = get_implementations()
     fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
 
     for side in ["left", "right"]:
-        C = fcompute(A, B, side, out_dtype)
-        s = fschedule([C])
+        with tvm.target.Target(target):
+            indices = fcompute(sorted_sequence, values, side, out_dtype)
+            s = fschedule([indices])
 
-        with tvm.transform.PassContext(opt_level=3):
-            func = tvm.build(s, [A, B, C], target=target)
-
+        func = tvm.build(s, [sorted_sequence, values, indices], target=target)
         dev = tvm.device(target, 0)
 
         for i in range(100):
-            a_np = np.random.randn(*sorted_sequence_shape).astype(A.dtype)
-            b_np = np.random.randn(*values_shape).astype(B.dtype)
+            a_np = np.random.randn(*sorted_sequence_shape).astype(sorted_sequence.dtype)
+            b_np = np.random.randn(*values_shape).astype(values.dtype)
             a_np = np.sort(a_np, axis=-1)
             a = tvm.nd.array(a_np, dev)
             b = tvm.nd.array(b_np, dev)
-            c = tvm.nd.array(np.zeros(values_shape, dtype=C.dtype), dev)
+            c = tvm.nd.array(np.zeros(values_shape, dtype=indices.dtype), dev)
             func(a, b, c)
             ref = searchsorted_ref(a_np, b_np, side, out_dtype)
             np.testing.assert_equal(c.numpy(), ref)
 
 
 if __name__ == "__main__":
-    for target in ["vulkan -from_device=0"]:
+    for target in ["llvm", "vulkan -from_device=0"]:
         test_searchsorted(tvm.device(target, 0), target)
