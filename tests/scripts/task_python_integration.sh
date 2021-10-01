@@ -76,5 +76,7 @@ run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
 
 
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/integration/test_m7_simd.py -k test_conv2d
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/integration/test_m7_simd.py -k test_conv2d
+if [ -z "${TVM_INTEGRATION_GPU_ONLY:-}" ]; then
+    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-m7-simd tests/python/integration/test_m7_simd.py -k test_conv2d
+    run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-m7-simd tests/python/integration/test_m7_simd.py -k test_conv2d
+fi
