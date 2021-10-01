@@ -2716,15 +2716,17 @@ class Resize(OnnxOpConverter):
         exclude = attr.get("exclude_outside", 0)
 
         scale = inputs[2]
-        scale_shape = infer_shape(scale)
-        if len(inputs) == 4:
+        size = inputs[3]
+        if size is not None:
             assert (
-                len(scale_shape) == 0 or scale_shape[0] == 0
+                scale is None
             ), "One of scale or size should be passed, not both."
-            size = inputs[3]
         else:
+            scale_type = infer_type(scale)
+            scale_shape = scale_type.checked_type.shape
+            scale_dtype = scale_type.checked_type.dtype
             assert len(scale_shape) != 0, "One of scale or size should be passed."
-            size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
+            size = _op.cast(shape_of(inputs[0]), scale_dtype) * scale
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
         out = None
         if ndims == 3:
