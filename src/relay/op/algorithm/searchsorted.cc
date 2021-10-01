@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file topk.cc
- * \brief TopK operators
+ * \file searchsorted.cc
+ * \brief SearchSorted operators
  */
 #include <tvm/relay/attrs/algorithm.h>
 #include <tvm/relay/op.h>
@@ -59,6 +59,8 @@ bool SearchSortedRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 Expr MakeSearchSorted(Expr sorted_sequence, Expr values, String side, DataType dtype) {
   auto attrs = make_object<SearchSortedAttrs>();
   static const Op& op = Op::Get("searchsorted");
+  attrs->dtype = dtype;
+  attrs->side = side;
   return Call(op, {sorted_sequence, values}, Attrs(attrs), {});
 }
 

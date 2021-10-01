@@ -20,6 +20,7 @@ import pytest
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.topi.testing import searchsorted_ref
 import tvm.testing
 
 
@@ -147,6 +148,29 @@ def test_topk():
                 verify_topk(k, axis, ret_type, True, "int64")
                 verify_topk(k, axis, ret_type, False, "float32")
                 verify_topk(k, axis, ret_type, False, "int64", "float16")
+
+
+@tvm.testing.uses_gpu
+def test_searchsorted():
+    def verify_searchsorted(side, dtype):
+        shape = (10, 20, 100)
+        values_shape = shape[:-1] + (50,)
+        sorted_sequence = relay.var("sorted_sequence", relay.TensorType(shape, "float32"))
+        values = relay.var("sorted_sequence", relay.TensorType(values_shape, "float32"))
+        out = relay.searchsorted(sorted_sequence, values, side, dtype)
+        func = relay.Function([sorted_sequence, values], out)
+        sorted_sequence_np = np.sort(np.random.randn(*shape).astype("float32"), axis=-1)
+        values_np = np.random.randn(*values_shape).astype("float32")
+        np_indices = searchsorted_ref(sorted_sequence_np, values_np, side, dtype)
+
+        for target, dev in tvm.testing.enabled_targets():
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                sorted_sequence_np, values_np
+            )
+            np.testing.assert_equal(op_res.numpy(), np_indices)
+
+    verify_searchsorted("left", "int32")
+    verify_searchsorted("right", "int64")
 
 
 if __name__ == "__main__":
