@@ -242,8 +242,8 @@ conda/pkg
 .dgl
 .caffe2
 
-
 /build
+/build-ci
 /build-microtvm
 /tests/micro/zephyr/workspace*
 /apps/microtvm/grovety/workspace*

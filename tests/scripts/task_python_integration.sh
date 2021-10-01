@@ -74,3 +74,7 @@ run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 
 # Do not enable OpenGL
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
+
+
+run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/integration/test_m7_simd.py -k test_conv2d
+run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME} tests/python/integration/test_m7_simd.py -k test_conv2d
