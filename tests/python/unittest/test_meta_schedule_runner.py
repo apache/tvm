@@ -177,7 +177,7 @@ def test_meta_schedule_rpc_single_run():
 def test_meta_schedule_local_single_run():
     """Test meta schedule local runner for a single run"""
     # Build the module
-    mod = MatmulModule()
+    mod = MatmulModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
@@ -285,9 +285,9 @@ def test_meta_schedule_local_multiple_runs():
     """Test meta schedule local runner for multiple runs"""
     # Build the module
     mods = [
-        MatmulModule(),
-        MatmulReluModule(),
-        BatchMatmulModule(),
+        MatmulModule,
+        MatmulReluModule,
+        BatchMatmulModule,
     ]
     builder = LocalBuilder()
     builder_inputs = [BuilderInput(mod, Target("llvm")) for mod in mods]
@@ -408,7 +408,7 @@ def test_meta_schedule_rpc_runner_time_out():
 
 def test_meta_schedule_local_runner_time_out():
     """Test meta schedule Local Runner time out"""
-    mod = MatmulModule()
+    mod = MatmulModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
@@ -508,7 +508,7 @@ def test_meta_schedule_rpc_runner_exception():
 
 def test_meta_schedule_local_runner_exception():
     """Test meta schedule Local Runner time out"""
-    mod = MatmulModule()
+    mod = MatmulModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
@@ -833,7 +833,7 @@ def test_meta_schedule_local_runner_add_test():
         return costs
 
     # Build the module
-    mod = AddModule()
+    mod = AddModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
