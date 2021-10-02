@@ -27,7 +27,7 @@ A quick solution is to install protobuf compiler, and
 
 .. code-block:: bash
 
-    pip install onnx --user
+    pip install --user onnx onnxoptimizer
 
 or please refer to official site.
 https://github.com/onnx/onnx
