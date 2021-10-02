@@ -2,7 +2,11 @@ import numpy as np
 
 
 def searchsorted_ref(sorted_sequence, values, side, out_dtype):
-    sorted_sequence_2d = np.reshape(sorted_sequence, (-1, sorted_sequence.shape[-1]))
+    if len(sorted_sequence.shape) == 1 and len(values.shape) > 1:
+        sorted_sequence_2d = np.tile(sorted_sequence, (np.prod(values.shape[:-1]), 1))
+    else:
+        sorted_sequence_2d = np.reshape(sorted_sequence, (-1, sorted_sequence.shape[-1]))
+
     values_2d = np.reshape(values, (-1, values.shape[-1]))
     indices = np.zeros(values_2d.shape, dtype=out_dtype)
 

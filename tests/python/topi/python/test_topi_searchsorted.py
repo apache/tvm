@@ -75,7 +75,6 @@ def test_searchsorted(dev, target):
         ref = searchsorted_ref(a_np, b_np, side, out_dtype)
         np.testing.assert_equal(c.numpy(), ref)
 
-    # The first argument is the range of binary search
     verify(1024, 1000, (10, 5, 3), "left")
     verify(999, 2000, (10, 5, 3), "right")
     verify(1000, 1000, (), "left")

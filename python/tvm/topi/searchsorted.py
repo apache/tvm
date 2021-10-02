@@ -22,14 +22,14 @@ from .math import cast
 
 
 def binary_search(
-    ib, sequence_offset, search_range, dst_index, sorted_sequence, values, out_indices,
+    ib, sequence_offset, search_range, index, sorted_sequence, values, out_indices,
     side, out_dtype
 ):
     """Common IR generator for CPU and GPU searchsorted."""
     lo = ib.allocate(out_dtype, (1,), name="lo", scope="local")
     hi = ib.allocate(out_dtype, (1,), name="hi", scope="local")
 
-    v = values[i]
+    v = values[index]
     lo[0] = cast(0, out_dtype)
     hi[0] = cast(search_range, out_dtype)
 
@@ -46,7 +46,7 @@ def binary_search(
         with ib.else_scope():
             hi[0] = mid
 
-    out_indices[dst_index] = lo[0]
+    out_indices[index] = lo[0]
 
 
 def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
