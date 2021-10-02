@@ -22,6 +22,134 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.contrib import graph_executor, pipeline_executor
 
+"""
+Split graph into a serial of sbgraph.
+"""
+def pipeline_graph(expr, indices):
+    """Split Graph Into A Group Of Subgraph
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+    indices : Array[int]
+    Returns
+    -------
+    ret : Array[tvm.relay.IRModule]
+    """
+
+    def run_opt_pass(expr, opt_pass):
+        """Exectue a relay pass"""
+        assert isinstance(opt_pass, tvm.transform.Pass)
+        mod = tvm.IRModule.from_expr(expr)
+        mod = tvm.relay.transform.InferType()(mod)
+        mod = opt_pass(mod)
+        entry = mod["main"]
+        return entry if isinstance(expr, tvm.relay.Function) else entry.body
+
+    def _operator_idx_inc(expr, operator_current_idx):
+        """Increase operator index"""
+        if not isinstance(expr, tvm.relay.expr.Constant):
+            operator_current_idx = operator_current_idx + 1
+
+        return operator_current_idx
+
+    def merge_constant_expr(constant_expr, expr):
+        # merge constant express with a express
+        # Parameters
+        # ----------
+        # constant_expr:
+        #     constant expression
+        # expr:
+        #     expression to merge with constant expression
+
+        # If body not let, then reached end of the express
+        if not isinstance(constant_expr.body, tvm.relay.expr.Let):
+            return tvm.relay.expr.Let(constant_expr.var, constant_expr.value, expr)
+
+        return tvm.relay.expr.Let(
+            constant_expr.var, constant_expr.value, merge_constant_expr(constant_expr.body, expr)
+        )
+
+    def _recursion(anf, operator_indx, pipeline_mods, indices, constant_expr):
+        # Enumrate all operator of compute graph then split the compute graph
+        # into a group subgraph.
+        # Parameters
+        # ----------
+        # anf:
+        #     ANF format expression
+        # operator_indx:
+        #     current operator indice
+        # pipeline_mods:
+        #     the subgraph list get storage in this variable
+        # indices:
+        #     Array of indices use to define the subgraph scope
+        # constant_expr:
+        #     constant defined before current operator
+
+        # Do the split work
+        if isinstance(anf, tvm.relay.Function):
+            return tvm.relay.Function(
+                anf.params,
+                _recursion(anf.body, operator_indx, pipeline_mods, indices, constant_expr),
+                anf.ret_type,
+                anf.type_params,
+                anf.attrs,
+            )
+        if isinstance(anf, tvm.relay.expr.Let):
+            value = anf.value
+            operator_indx = _operator_idx_inc(value, operator_indx)
+
+            # record constan expr to make sure all sugraph can find correct
+            # constant.
+            if isinstance(value, tvm.relay.expr.Constant):
+                if not constant_expr:
+                    constant_expr = tvm.relay.expr.Let(anf.var, value, anf.var)
+                else:
+                    constant_expr = tvm.relay.expr.Let(anf.var, value, constant_expr)
+
+            if isinstance(value, tvm.relay.expr.Call):
+                if isinstance(value.op, tvm.ir.Op):
+
+                    # if have expr a(b(c(d(e)))) and indexes are [1,2,3]
+                    # then would get separate modules for a(b),c,d(e).
+                    # the split area is a(b)[0,1] c[2,2] d(e)[2,3]
+                    if indices and operator_indx == indices[0]:
+                        indices.pop(0)
+                        ann = _recursion(
+                            anf.body, operator_indx, pipeline_mods, indices, constant_expr
+                        )
+
+                        # when current subgraph use previous subgraph constant,
+                        # such constant may become free varaible due to the constant
+                        # not exist, merge the previous constant with current subgraph
+                        # to avoid such issue.
+                        if constant_expr:
+                            ann = merge_constant_expr(constant_expr, ann)
+
+                        ann = run_opt_pass(ann, transform.ToGraphNormalForm())
+                        mod = tvm.IRModule.from_expr(ann)
+                        pipeline_mods.insert(0, mod)
+                        return tvm.relay.expr.Let(anf.var, value, anf.var)
+            return tvm.relay.expr.Let(
+                anf.var,
+                value,
+                _recursion(anf.body, operator_indx, pipeline_mods, indices, constant_expr),
+            )
+        else:
+            return anf
+
+    pipeline_mods = []
+
+    # operator count start from 0, then initial value get set into -1
+    operator_indx = -1
+    constant_expr = None
+    subgraph_indices = indices.copy()
+    anf = run_opt_pass(expr, transform.ToANormalForm())
+    anf = run_opt_pass(anf, transform.InferType())
+    ann = _recursion(anf, operator_indx, pipeline_mods, subgraph_indices, constant_expr)
+    ann = run_opt_pass(ann.body, transform.ToGraphNormalForm())
+    mod = tvm.IRModule.from_expr(ann)
+    pipeline_mods.insert(0, mod)
+    return pipeline_mods
 
 def run_modules(mod_configs, dev, target, dname, data, iMod, iName, iData):
     mod_input = {}
@@ -69,54 +197,45 @@ def run_modules(mod_configs, dev, target, dname, data, iMod, iName, iData):
 
     return final_output
 
-
-def get_mannual_mod():
-    mods = []
+def get_network():
     dshape = (3, 3)
-    data = relay.var("data_0", relay.TensorType(dshape, "float32"))
+    data = relay.var("data", relay.TensorType(dshape, "float32"))
     data21 = relay.var("data_1", relay.TensorType(dshape, "float32"))
-    data_net1_output_1 = relay.var("data_0", relay.TensorType(dshape, "float32"))
-    data_net1_output_2 = relay.var("data_1", relay.TensorType(dshape, "float32"))
-    data_net2_output_1 = relay.var("data_0", relay.TensorType(dshape, "float32"))
     mvalue1 = np.full((1), 1).astype("float32")
     mvalue2 = np.full((1), 2).astype("float32")
     mvalue3 = np.full((1), 3).astype("float32")
     mv1 = relay.Constant(tvm.nd.array(mvalue1))
     mv2 = relay.Constant(tvm.nd.array(mvalue2))
     mv3 = relay.Constant(tvm.nd.array(mvalue3))
+    data = relay.var("data", relay.TensorType(dshape, "float32"))
+    net = relay.add(data, mv1)
+    net = relay.multiply(net, mv3)
 
-    # net1 have three output, output3 is final output
-    net_output1 = relay.add(data, mv1)
-    net_output2 = relay.subtract(data, mv2)
-    net_output3 = relay.multiply(data, mv3)
+    net = relay.add(net, mv2)
+    net = relay.add(net, data21)
+    net = relay.add(net, mv3)
 
-    # net2 use net1 output1 as input
-    net2 = relay.add(data_net1_output_1, mv2)
-    net2 = relay.add(net2, data21)
-    net2 = relay.add(net2, mv3)
+    net = relay.multiply(net, mv3)
+    net_output2 = relay.subtract(net, mv2)
+    net = relay.add(net, net)
+    func = relay.Function([data, data21], net)
+    mod = tvm.IRModule.from_expr(func)
+    return mod, dshape
 
-    # net3 use net2 output1 and net1 outpu2 as input
-    net3 = relay.multiply(data_net2_output_1, mv3)
-    net3 = relay.add(net3, data_net1_output_2)
-
-    mods.append(
-        tvm.IRModule.from_expr(
-            relay.Function([data], relay.Tuple([net_output1, net_output2, net_output3]))
-        )
-    )
-    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1, data21], net2)))
-    mods.append(
-        tvm.IRModule.from_expr(relay.Function([data_net1_output_2, data_net2_output_1], net3))
-    )
-
+def get_split_mod():
+    mod, dshape = get_network()
+    """
+    #split compute graph into 4 subgraph
+    """
+    pl = [2, 5]
+    mods = pipeline_graph(mod["main"], pl)
     return mods, dshape
-
 
 def run_pipeline(target):
     """
     #Get 4 pipeline module.
     """
-    mods, dshape = get_mannual_mod()
+    mods, dshape = get_split_mod()
     """
     #Prepare batch data for pipeline feeding
     """
@@ -136,9 +255,7 @@ def run_pipeline(target):
     mconfig1["pipeline"] = {
         "mod_indx": 1,
         "output": [
-            {"output_indx": 0, "dependent": [{"mod_indx": 2, "input_name": "data_0"}]},
-            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_name": "data_0"}]},
-            {"output_indx": 2, "dependent": [{"mod_indx": 0, "input_name": "1"}]},
+            {"output_indx": 0, "dependent": [{"mod_indx": 2, "input_name": "x"}]},
         ],
     }
     mod_config[mods[0]] = mconfig1
@@ -149,7 +266,7 @@ def run_pipeline(target):
     mconfig2["pipeline"] = {
         "mod_indx": 2,
         "output": [
-            {"output_indx": 0, "dependent": [{"mod_indx": 3, "input_name": "data_1"}]},
+            {"output_indx": 0, "dependent": [{"mod_indx": 3, "input_name": "x"}]},
         ],
     }
     mod_config[mods[1]] = mconfig2
@@ -160,7 +277,7 @@ def run_pipeline(target):
 
     mconfig3["pipeline"] = {
         "mod_indx": 3,
-        "output": [{"output_indx": 0, "dependent": [{"mod_indx": 0, "input_name": "2"}]}],
+        "output": [{"output_indx": 0, "dependent": [{"mod_indx": 0, "input_name": "1"}]}],
     }
     mod_config[mods[2]] = mconfig3
 
@@ -168,7 +285,7 @@ def run_pipeline(target):
     #Run with graph executor for verification purpose
     """
     outs = [
-        run_modules(mod_config, tvm.cpu(), "llvm", "data_0", data, mods[1], "data_1", data)
+        run_modules(mod_config, tvm.cpu(), "llvm", "data", data, mods[1], "data_1", data)
         for data in datas
     ]
     """
@@ -188,7 +305,7 @@ def run_pipeline(target):
     """
     d3 = np.full(dshape, 10).astype("float32")
     for data in datas:
-        pipeline_module.set_input("data_0", data)
+        pipeline_module.set_input("data", data)
         pipeline_module.set_input("data_1", data, mod_idx=2)
         pipeline_module.run()
 
