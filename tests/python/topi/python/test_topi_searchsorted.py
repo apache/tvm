@@ -76,4 +76,4 @@ def test_searchsorted(dev, target):
     verify(1024, 1000, (10, 5, 3), "left")
     verify(999, 2000, (10, 5, 3), "right")
     verify(1000, 1000, (), "left")
-    verify(2001, 100, (500), "right")
+    verify(2001, 100, (500,), "right")

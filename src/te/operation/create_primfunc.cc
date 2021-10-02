@@ -48,7 +48,7 @@ class ProducerToBufferTransformer : public StmtExprMutator {
   const std::unordered_map<te::Tensor, Buffer>& tensor2buffers_;
 };
 
-/*! \brief Helper data structural to store informations. */
+/*! \brief Helper data structure to store information. */
 struct CreateFuncInfo {
   /*! \brief The Tensor arg_list. */
   Array<te::Tensor> arg_list;
