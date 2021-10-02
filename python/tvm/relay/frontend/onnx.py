@@ -3531,6 +3531,28 @@ class QLinearMul(OnnxOpConverter):
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
 
 
+class QLinearLeakyRelu(OnnxOpConverter):
+    """Operator converter for QLinearLeakyRelu from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+
+        a_scale = get_scalar(inputs[1], params)
+        a_zero_point = get_scalar(inputs[2], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, "int32")
+        alpha = float(attr.get("alpha", 1.0))
+
+        dtype = infer_type(inputs[0]).checked_type.dtype
+
+        # Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        # and then requantize afer (according to documentation below)
+        # https://github.com/microsoft/onnxruntime/blob/master/docs/ContribOperators.md#com.microsoft.QLinearLeakyRelu
+        a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
+        out = _op.nn.leaky_relu(a, alpha)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
 class QLinearSigmoid(OnnxOpConverter):
     """Operator converter for QLinearSigmoid from Microsoft onnxruntime contrib opset."""
 
@@ -4217,6 +4239,7 @@ def _get_convert_map(opset):
         "ConvInteger": ConvInteger.get_converter(opset),
         "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
+        "QLinearLeakyRelu": QLinearLeakyRelu.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
         # Loss functions / training

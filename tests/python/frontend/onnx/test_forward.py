@@ -5526,6 +5526,27 @@ def test_qlinearmul(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_qlinearleakyrelu(target, dev):
+    def verify_qlinearleakyrelu(inshape, kwargs):
+
+        in_array = np.random.random(inshape).astype("float32")
+        node = helper.make_node("LeakyRelu", ["X"], ["Y"], **kwargs)
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearRelu_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(in_array.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(in_array.shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearRelu_test")
+        quantize_and_verify_with_ort(model, ["X"], [in_array.shape], target, dev)
+
+    verify_qlinearleakyrelu([2, 4, 5, 6], {"alpha": 0.25})
+    verify_qlinearleakyrelu([6, 5, 6, 7], {"alpha": 0.35})
+    verify_qlinearleakyrelu([5, 1, 4, 6], {"alpha": 0.65})
+
+
+@tvm.testing.parametrize_targets
 def test_qlinearsigmoid(target, dev):
     def verify_qlinearsigmoid(a_shape):
 
