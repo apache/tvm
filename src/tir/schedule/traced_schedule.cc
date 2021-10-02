@@ -236,6 +236,16 @@ void TracedScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
 
 /******** Schedule: Reduction ********/
 
+BlockRV TracedScheduleNode::DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) {
+  BlockRV result = ConcreteScheduleNode::DecomposeReduction(block_rv, loop_rv);
+  static const InstructionKind& kind = InstructionKind::Get("DecomposeReduction");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv, loop_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{result}));
+  return result;
+}
+
 BlockRV TracedScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
   BlockRV result = ConcreteScheduleNode::RFactor(loop_rv, factor_axis);
   static const InstructionKind& kind = InstructionKind::Get("RFactor");
