@@ -46,8 +46,11 @@ def get_implementations():
 
 @tvm.testing.parametrize_targets
 def test_searchsorted(dev, target):
-    def verify(sequence_len, num_search, outer_axes, side):
-        sorted_sequence_shape = outer_axes + (sequence_len,)
+    def verify(sequence_len, num_search, outer_axes, side, sorted_sequence_1d=False):
+        if sorted_sequence_1d:
+            sorted_sequence_shape = (sequence_len,)
+        else:
+            sorted_sequence_shape = outer_axes + (sequence_len,)
         values_shape = outer_axes + (num_search,)
         sorted_sequence = te.placeholder(sorted_sequence_shape, dtype="float32")
         values = te.placeholder(values_shape, dtype="float32")
@@ -77,3 +80,4 @@ def test_searchsorted(dev, target):
     verify(999, 2000, (10, 5, 3), "right")
     verify(1000, 1000, (), "left")
     verify(2001, 100, (500,), "right")
+    verify(2001, 100, (500,), "left", sorted_sequence_1d=True)
