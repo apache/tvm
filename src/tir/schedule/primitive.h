@@ -234,6 +234,23 @@ TVM_DLL void ComputeInline(ScheduleState self, const StmtSRef& block_sref);
 TVM_DLL void ReverseComputeInline(ScheduleState self, const StmtSRef& block_sref);
 /******** Schedule: Reduction ********/
 /*!
+ * \brief Decompose a reduction block into two separate blocks.
+ * a) The init block, which is translated from the init statement of the reduction block;
+ * b) The update block, which is the original block without init statement.
+ *
+ * The init block is inserted right before the given loop.
+ *
+ * The schedule primitive requires:
+ * 1) The input block is a reduction block.
+ * 2) The input loop is the ancestor of the block.
+ * 3) The input loop is not lower than all the loops related to reduce block var.
+ * \param block_rv The reduction block to be decomposed
+ * \param loop_rv The loop above which the init block is inserted before.
+ * \return The init block
+ */
+TVM_DLL StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
+                                    const StmtSRef& loop_sref);
+/*!
  * \brief Factor a reduction block by the specified loop
  * \details See python/tvm/tir/schedule/schedule.py
  * \param self The state of the schedule

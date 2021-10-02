@@ -82,6 +82,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void ComputeInline(const BlockRV& block_rv) final;
   void ReverseComputeInline(const BlockRV& block_rv) final;
   /******** Schedule: Reduction ********/
+  BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) final;
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) final;
   /******** Schedule: Block annotation ********/
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
