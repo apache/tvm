@@ -63,8 +63,12 @@ def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
         indices = ib.buffer_ptr(indices)
 
         with ib.for_range(0, num_search, name="i", kind="parallel") as i:
-            sequence_id = i // values_shape[-1]
-            sequence_offset = sequence_id * search_range
+            if len(sorted_sequence_shape) == 1:
+                sequence_offset = 0
+            else:
+                sequence_id = i // values_shape[-1]
+                sequence_offset = sequence_id * search_range
+
             binary_search(
                 ib,
                 sequence_offset,

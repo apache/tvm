@@ -3973,6 +3973,12 @@ def test_searchsorted():
     verify_model(test_fn(out_int32=True), [sorted_sequence[0], values[0]])
     verify_model(test_fn(right=True), [sorted_sequence, values])
 
+    sorted_sequence_1d = torch.tensor([1, 3, 5, 7, 9])
+    values = torch.tensor([[3, 6, 9], [4, 2, 7]])
+    verify_model(test_fn(), [sorted_sequence_1d, values])
+
+    verify_model(test_fn(), [sorted_sequence_1d, torch.tensor(6)])
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

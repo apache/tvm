@@ -45,8 +45,12 @@ def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
         tid = bx * max_threads + tx
 
         with ib.if_scope(tid < num_search):
-            sequence_id = tid // values_shape[-1]
-            sequence_offset = sequence_id * search_range
+            if len(sorted_sequence_shape) == 1:
+                sequence_offset = 0
+            else:
+                sequence_id = tid // values_shape[-1]
+                sequence_offset = sequence_id * search_range
+
             binary_search(
                 ib,
                 sequence_offset,

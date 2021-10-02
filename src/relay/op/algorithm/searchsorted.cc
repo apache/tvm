@@ -38,17 +38,21 @@ bool SearchSortedRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   const auto* values = types[1].as<TensorTypeNode>();
   ICHECK(sorted_sequence) << "Expects TensorType in the first input";
   ICHECK(values) << "Expects TensorType in the second input";
+  ICHECK_GT(values->shape.size(), 0) << "The rank of `values` must be greater than one";
   ICHECK(param->side == "left" || param->side == "right")
-      << "'side' parameter must be either 'left' or 'right'";
+      << "`side` parameter must be either `left` or `right`";
 
-  ICHECK_EQ(sorted_sequence->shape.size(), values->shape.size())
-      << "Ranks of sorted sequence and values must be the same";
+  if (sorted_sequence->shape.size() > 1) {
+    ICHECK_EQ(sorted_sequence->shape.size(), values->shape.size())
+        << "Ranks of `sorted_sequence` and values must be the same if `sorted_sequence` is "
+           "multi-dimensional.";
 
-  for (size_t i = 0; i < values->shape.size() - 1; ++i) {
-    if (sorted_sequence->shape[i].as<IntImmNode>() && values->shape[i].as<IntImmNode>()) {
-      ICHECK_EQ(sorted_sequence->shape[i].as<IntImmNode>()->value,
-                values->shape[i].as<IntImmNode>()->value)
-          << "sorted sequence and values do not have the same shape along outer axes";
+    for (size_t i = 0; i < values->shape.size() - 1; ++i) {
+      if (sorted_sequence->shape[i].as<IntImmNode>() && values->shape[i].as<IntImmNode>()) {
+        ICHECK_EQ(sorted_sequence->shape[i].as<IntImmNode>()->value,
+                  values->shape[i].as<IntImmNode>()->value)
+            << "`sorted_sequence and `values` do not have the same shape along outer axes";
+      }
     }
   }
 

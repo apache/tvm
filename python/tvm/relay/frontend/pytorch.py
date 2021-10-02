@@ -2775,11 +2775,22 @@ class PyTorchOpConverter:
         return op(inp, axis=dim, keepdims=keepdim)
 
     def searchsorted(self, inputs, input_types):
+        values = inputs[1]
         out_int32 = inputs[2]
         right = inputs[3]
         dtype = "int32" if out_int32 else "int64"
         side = "right" if right else "left"
-        return _op.searchsorted(inputs[0], inputs[1], side=side, dtype=dtype)
+        values_shape = _infer_shape(values)
+
+        if len(values_shape) == 0:
+            values = _op.expand_dims(values, 0)
+
+        out = _op.searchsorted(inputs[0], values, side=side, dtype=dtype)
+
+        if len(values_shape) == 0:
+            return _op.squeeze(out)
+
+        return out
 
     # Operator mappings
     def create_convert_map(self):
