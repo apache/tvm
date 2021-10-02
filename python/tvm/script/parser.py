@@ -344,7 +344,7 @@ class TVMScriptParser(Transformer):
                 __tvm_meta__ = ...
 
             # returns an IRModule
-            mod = MyMod()
+            mod = MyMod
         """
         if len(node.funcs) == 1:
             return self.transform(next(iter(node.funcs.values())))
