@@ -1031,6 +1031,7 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
 
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(targets, true);
 
+  // TODO(mbs): Reconcile with relay/backend/build_module.cc
   DLDeviceType default_device_type;
   if (targets_arg.size() == 1) {
     default_device_type =

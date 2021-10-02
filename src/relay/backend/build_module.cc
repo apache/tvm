@@ -332,6 +332,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     Array<Pass> pass_seqs = GetPassPrefix(targets_, false);
     transform::PassContext pass_ctx = PassContext::Current();
 
+    // TODO(mbs): Centralize this logic and reconcile with similar in relay/backend/vm/compiler.cc
     DLDeviceType default_device_type;
     if (targets_.size() == 1) {
       // Homogenous execution.
