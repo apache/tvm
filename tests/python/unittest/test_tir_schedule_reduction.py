@@ -158,6 +158,7 @@ def test_reduction_decompose0():
     i, j, k = s.get_loops(C)
     s.decompose_reduction(C, i)
     tvm.ir.assert_structural_equal(matmul_decompose0, s.mod["main"])
+    verify_trace_roundtrip(s, mod=matmul)
 
 
 def test_reduction_decompose1():
@@ -166,6 +167,7 @@ def test_reduction_decompose1():
     io, ko = s.get_loops(blockized_B)
     s.decompose_reduction(blockized_B, io)
     tvm.ir.assert_structural_equal(matmul_decompose1, s.mod["main"])
+    verify_trace_roundtrip(s, mod=rowsum_blockized)
 
 
 def test_reduction_decompose2():
@@ -174,6 +176,7 @@ def test_reduction_decompose2():
     i, j, k = s.get_loops(C)
     s.decompose_reduction(C, k)
     tvm.ir.assert_structural_equal(matmul_decompose2, s.mod["main"])
+    verify_trace_roundtrip(s, mod=matmul)
 
 
 def test_reduction_decompose3():
@@ -192,6 +195,7 @@ def test_reduction_decompose4():
     ko, ki = s.split(k, factors=[19, 7])
     s.decompose_reduction(C, ii)
     tvm.ir.assert_structural_equal(matmul_decompose4, s.mod["main"])
+    verify_trace_roundtrip(s, mod=matmul)
 
 
 if __name__ == "__main__":

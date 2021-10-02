@@ -206,7 +206,10 @@ class BlockInfoCollector : private StmtVisitor {
             .first->second;
     // Set `affine_binding`
     if (is_root_block) {
-      info.affine_binding = true;
+      // If the block doesn't have outer loops and BlockRealize,
+      // then we set the affine binding flag as true only if the block has no block vars
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root);
+      if (block->iter_vars.empty()) info.affine_binding = true;
     } else {
       info.affine_binding =
           IsAffineBinding(/*realize=*/block2realize_.at(scope_root->stmt),

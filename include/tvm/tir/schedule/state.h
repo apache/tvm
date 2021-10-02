@@ -142,7 +142,11 @@ class ScheduleStateNode : public Object {
   /******** Property of blocks ********/
   /*! \brief Returns the BlockInfo correpsonding to the block sref */
   TVM_DLL BlockInfo GetBlockInfo(const StmtSRef& block_sref) const;
-  /*! \brief Recalculate the BlockInfo recursively under stmt */
+  /*!
+   * \brief Recalculate the BlockInfo recursively under stmt.
+   * If stmt is a Block itself, we will not reset its affine binding flag unless it doesn't
+   * have block vars, since the affine flag depends on the outer scope of stmt.
+   */
   TVM_DLL void UpdateScopeBlockInfo(const Stmt& stmt);
   /*!
    * \brief Get the BlockScope correpsonding to the sref of scope root block
