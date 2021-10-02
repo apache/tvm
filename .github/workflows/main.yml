@@ -103,6 +103,7 @@ jobs:
       shell: bash -l {0}
       run: >-
         python -m pip install numpy decorator attrs tornado psutil xgboost cloudpickle &&
+        export PYTHONPATH=tests/python/contrib:${PYTHONPATH} &&
         export BUNDLE_ID=org.apache.tvmrpc &&
         export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Debug-iphonesimulator/tvmrpc.app &&
         python -m pytest -vrP tests/python/contrib/test_rpc_server_device.py
