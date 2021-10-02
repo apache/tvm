@@ -3962,5 +3962,17 @@ def test_all_any():
         verify_model(test_fn(f, 0, keepdim=True), [torch.rand(4, 2).bool()])
 
 
+@tvm.testing.uses_gpu
+def test_searchsorted():
+    def test_fn(out_int32=False, right=False):
+        return lambda x, y: torch.searchsorted(x, y, out_int32=out_int32, right=right)
+
+    sorted_sequence = torch.tensor([[1, 3, 5, 7, 9], [2, 4, 6, 8, 10]])
+    values = torch.tensor([[3, 6, 9], [3, 6, 9]])
+    verify_model(test_fn(), [sorted_sequence, values])
+    verify_model(test_fn(out_int32=True), [sorted_sequence[0], values[0]])
+    verify_model(test_fn(right=True), [sorted_sequence, values])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

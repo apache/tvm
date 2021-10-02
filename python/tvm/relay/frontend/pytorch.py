@@ -2774,6 +2774,13 @@ class PyTorchOpConverter:
             inp = inputs[0]
         return op(inp, axis=dim, keepdims=keepdim)
 
+    def searchsorted(self, inputs, input_types):
+        out_int32 = inputs[2]
+        right = inputs[3]
+        dtype = "int32" if out_int32 else "int64"
+        side = "right" if right else "left"
+        return _op.searchsorted(inputs[0], inputs[1], side=side, dtype=dtype)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2999,6 +3006,7 @@ class PyTorchOpConverter:
             "aten::lstm": self.lstm,
             "aten::all": functools.partial(self.all_any_common, _op.all),
             "aten::any": functools.partial(self.all_any_common, _op.any),
+            "aten::searchsorted": self.searchsorted,
         }
 
     def update_convert_map(self, custom_map):
