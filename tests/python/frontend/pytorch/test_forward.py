@@ -3980,5 +3980,17 @@ def test_searchsorted():
     verify_model(test_fn(), [sorted_sequence_1d, torch.tensor(6)])
 
 
+@tvm.testing.uses_gpu
+def test_bucketize():
+    def test_fn(out_int32=False, right=False):
+        return lambda x, y: torch.bucketize(x, y, out_int32=out_int32, right=right)
+
+    boundaries = torch.tensor([1, 3, 5, 7, 9])
+    values = torch.tensor([3, 6, 9])
+
+    verify_model(test_fn(), [values, boundaries])
+    verify_model(test_fn(out_int32=True, right=True), [values, boundaries])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

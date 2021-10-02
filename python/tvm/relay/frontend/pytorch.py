@@ -2774,10 +2774,8 @@ class PyTorchOpConverter:
             inp = inputs[0]
         return op(inp, axis=dim, keepdims=keepdim)
 
-    def searchsorted(self, inputs, input_types):
-        values = inputs[1]
-        out_int32 = inputs[2]
-        right = inputs[3]
+    def searchsorted_common(self, sorted_sequence, values, out_int32, right):
+
         dtype = "int32" if out_int32 else "int64"
         side = "right" if right else "left"
         values_shape = _infer_shape(values)
@@ -2785,12 +2783,18 @@ class PyTorchOpConverter:
         if len(values_shape) == 0:
             values = _op.expand_dims(values, 0)
 
-        out = _op.searchsorted(inputs[0], values, side=side, dtype=dtype)
+        out = _op.searchsorted(sorted_sequence, values, side=side, dtype=dtype)
 
         if len(values_shape) == 0:
             return _op.squeeze(out)
 
         return out
+
+    def searchsorted(self, inputs, input_types):
+        return self.searchsorted_common(*inputs)
+
+    def bucketize(self, inputs, input_types):
+        return self.searchsorted_common(inputs[1], inputs[0], inputs[2], inputs[3])
 
     # Operator mappings
     def create_convert_map(self):
@@ -3018,6 +3022,7 @@ class PyTorchOpConverter:
             "aten::all": functools.partial(self.all_any_common, _op.all),
             "aten::any": functools.partial(self.all_any_common, _op.any),
             "aten::searchsorted": self.searchsorted,
+            "aten::bucketize": self.bucketize,
         }
 
     def update_convert_map(self, custom_map):
