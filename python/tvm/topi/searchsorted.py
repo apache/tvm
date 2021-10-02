@@ -22,9 +22,10 @@ from .math import cast
 
 
 def binary_search(
-    ib, sequence_offset, search_range, sorted_sequence, i, values, out_indices, side, out_dtype
+    ib, sequence_offset, search_range, dst_index, sorted_sequence, values, out_indices,
+    side, out_dtype
 ):
-    """TODO"""
+    """Common IR generator for CPU and GPU searchsorted."""
     lo = ib.allocate(out_dtype, (1,), name="lo", scope="local")
     hi = ib.allocate(out_dtype, (1,), name="hi", scope="local")
 
@@ -45,11 +46,39 @@ def binary_search(
         with ib.else_scope():
             hi[0] = mid
 
-    out_indices[i] = lo[0]
+    out_indices[dst_index] = lo[0]
 
 
 def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
-    """TODO"""
+    """Find indices where elements should be inserted to maintain order.
+       If `sorted_sequence` is N-dimensional, the innermost dimension of
+       `values` are searched in the corresponding dimension of `sorted_sequence`.
+
+    Parameters
+    ----------
+    sorted_sequence : te.Tensor
+        N-D or 1-D Tensor, containing monotonically increasing sequence
+        on the innermost dimension.
+
+    values : te.Tensor
+        N-D Tensor containing the search values. When `sorted_sequence` is 1-D,
+        the shape of `values` can be arbitrary. Otherwise, ranks of `sorted_sequence`
+        and `values` must be the same, and outer N-1 axes must have the same size.
+
+    side : string, optional
+        It can be `left` or `right`. If `left`, gets the lower bound index for each value
+        in `values` on the corresponding innermost dimension of the `sorted_sequence`.
+        If `right`, gets the upper bound index instead.
+
+    dtype : string, optional
+        The data type of the output indices.
+
+    Returns
+    -------
+    indices : te.Tensor
+        Tensor with same shape as values, representing the indices of
+        elements of `values` if they are inserted in `sorted_sequence`.
+    """
 
     def ir(sorted_sequence, values, indices):
         ib = ir_builder.create()
@@ -73,8 +102,8 @@ def searchsorted(sorted_sequence, values, side="left", out_dtype="int64"):
                 ib,
                 sequence_offset,
                 search_range,
-                sorted_sequence,
                 i,
+                sorted_sequence,
                 values,
                 indices,
                 side,

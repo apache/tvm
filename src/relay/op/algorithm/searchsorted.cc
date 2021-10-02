@@ -71,7 +71,10 @@ Expr MakeSearchSorted(Expr sorted_sequence, Expr values, String side, DataType d
 TVM_REGISTER_GLOBAL("relay.op._make.searchsorted").set_body_typed(MakeSearchSorted);
 
 RELAY_REGISTER_OP("searchsorted")
-    .describe(R"doc(Find indices where elements should be inserted to maintain order.
+    .describe(
+        R"doc(Find indices where elements should be inserted to maintain order.
+If `sorted_sequence` is N-dimensional, the innermost dimension of
+`values` are searched in the corresponding dimension of `sorted_sequence`.
 )doc" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .set_attrs_type<SearchSortedAttrs>()

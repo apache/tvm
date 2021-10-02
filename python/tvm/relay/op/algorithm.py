@@ -118,10 +118,26 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
 
 
 def searchsorted(sorted_sequence, values, side="left", dtype="int32"):
-    """TODO
+    """Find indices where elements should be inserted to maintain order.
+       If `sorted_sequence` is N-dimensional, the innermost dimension of
+       `values` are searched in the corresponding dimension of `sorted_sequence`.
 
     Parameters
     ----------
+    sorted_sequence : relay.Expr
+        N-D or 1-D Tensor, containing monotonically increasing sequence
+        on the innermost dimension.
+
+    values : relay.Expr
+        N-D Tensor containing the search values. When `sorted_sequence` is 1-D,
+        the shape of `values` can be arbitrary. Otherwise, ranks of `sorted_sequence`
+        and `values` must be the same, and outer N-1 axes must have the same size.
+
+    side : string, optional
+        It can be `left` or `right`. If `left`, gets the lower bound index for each value
+        in `values` on the corresponding innermost dimension of the `sorted_sequence`.
+        If `right`, gets the upper bound index instead.
+
     dtype : string, optional
         The data type of the output indices.
 
@@ -129,6 +145,6 @@ def searchsorted(sorted_sequence, values, side="left", dtype="int32"):
     -------
     indices : relay.Expr
         Tensor with same shape as values, representing the indices of
-        elements of values if they are inserted in sorted_sequence.
+        elements of `values` if they are inserted in `sorted_sequence`.
     """
     return _make.searchsorted(sorted_sequence, values, side, dtype)
