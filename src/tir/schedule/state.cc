@@ -169,34 +169,16 @@ void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new
 }
 
 /**************** Creation ****************/
-
-/*! \brief A helper class to create a new ScheduleStateNode from an IRModule */
-class StateCreator : private StmtVisitor {
+/*! \brief A helper class to update BlockInfo for a ScheduleStateNode */
+class BlockInfoCollector : private StmtVisitor {
  public:
-  /*!
-   * \brief The entry function
-   * \param self The schedule state to be completed
-   */
-  static ObjectPtr<ScheduleStateNode> Create(IRModule mod, int debug_mask) {
-    ObjectPtr<ScheduleStateNode> n = make_object<ScheduleStateNode>();
-    ScheduleStateNode* self = n.get();
-    // Set `n->mod`
-    n->mod = std::move(mod);
-    // Set `n->debug_mask`
-    n->debug_mask = debug_mask;
-    // Set `n->stmt2ref` and `n->block_info`
-    StateCreator creator(self);
-    for (const auto& kv : n->mod->functions) {
-      const BaseFunc& base_func = kv.second;
-      if (const auto* func = base_func.as<PrimFuncNode>()) {
-        creator.VisitStmt(func->body);
-      }
-    }
-    return n;
+  static void Collect(ScheduleStateNode* self, const Stmt& stmt) {
+    BlockInfoCollector collector(self);
+    collector.VisitStmt(stmt);
   }
 
  private:
-  explicit StateCreator(ScheduleStateNode* self)
+  explicit BlockInfoCollector(ScheduleStateNode* self)
       : self_(self), srefs_{}, block2realize_{}, block_frames_{} {
     block_frames_.emplace({});
   }
@@ -206,25 +188,11 @@ class StateCreator : private StmtVisitor {
    * \param stmt A for-loop statement or a block statement
    * \return A sref to the stmt
    */
-  StmtSRef PushSRef(const StmtNode* stmt) {
-    if (srefs_.empty()) {
-      srefs_.push_back(
-          StmtSRef(stmt,
-                   /*parent=*/nullptr,
-                   /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
-    } else {
-      StmtSRefNode* parent = srefs_.back().get();
-      srefs_.push_back(
-          StmtSRef(stmt, parent,
-                   /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
-    }
-    return srefs_.back();
-  }
+  void PushSRef(const StmtNode* stmt) { srefs_.push_back(self_->stmt2ref.at(stmt)); }
 
-  /*! \brief Pop the top of the scope and record it in stmt2ref map */
-  StmtSRef PopAndRecordSRef() {
-    StmtSRef sref = std::move(srefs_.back());
-    self_->stmt2ref[sref->stmt] = sref;
+  /*! \brief Pop the top of the scope */
+  StmtSRef PopSRef() {
+    StmtSRef sref = srefs_.back();
     srefs_.pop_back();
     return sref;
   }
@@ -385,7 +353,7 @@ class StateCreator : private StmtVisitor {
     analyzer_.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     PushSRef(loop);
     VisitStmt(loop->body);
-    PopAndRecordSRef();
+    PopSRef();
   }
 
   void VisitStmt_(const BlockRealizeNode* realize) final {
@@ -395,7 +363,7 @@ class StateCreator : private StmtVisitor {
     // Recursive visit
     PushSRef(block);
     VisitStmt(block->body);  // `block->init` is not visited
-    StmtSRef sref = PopAndRecordSRef();
+    StmtSRef sref = PopSRef();
     // Create BlockInfo for the block
     MakeBlockInfo(sref);
     // Update parent scope
@@ -409,7 +377,7 @@ class StateCreator : private StmtVisitor {
     SetSeqIndexInChildren(self_, seq_stmt);
   }
 
-  /*! \brief The result ScheduleStateNode */
+  /*! \brief The ScheduleStateNode we are operating on */
   ScheduleStateNode* self_;
   /*! \brief The stack frame used to indicate the current scope */
   std::vector<StmtSRef> srefs_;
@@ -419,6 +387,86 @@ class StateCreator : private StmtVisitor {
   std::vector<Array<StmtSRef>> block_frames_;
   /*! \brief The auxiliary analyzer */
   arith::Analyzer analyzer_;
+};
+
+/*! \brief A helper class to create a new ScheduleStateNode from an IRModule */
+class StateCreator : private StmtVisitor {
+ public:
+  /*!
+   * \brief The entry function
+   * \param self The schedule state to be completed
+   */
+  static ObjectPtr<ScheduleStateNode> Create(IRModule mod, int debug_mask) {
+    ObjectPtr<ScheduleStateNode> n = make_object<ScheduleStateNode>();
+    ScheduleStateNode* self = n.get();
+    // Set `n->mod`
+    n->mod = std::move(mod);
+    // Set `n->debug_mask`
+    n->debug_mask = debug_mask;
+    // Set `n->stmt2ref` and `n->block_info`
+    StateCreator creator(self);
+    for (const auto& kv : n->mod->functions) {
+      const BaseFunc& base_func = kv.second;
+      if (const auto* func = base_func.as<PrimFuncNode>()) {
+        creator.VisitStmt(func->body);
+        BlockInfoCollector::Collect(self, func->body);
+      }
+    }
+    return n;
+  }
+
+ private:
+  explicit StateCreator(ScheduleStateNode* self) : self_(self) {}
+
+  /*!
+   * \brief Add a new statement to the stack, which becomes the current scope
+   * \param stmt A for-loop statement or a block statement
+   * \return A sref to the stmt
+   */
+  void PushSRef(const StmtNode* stmt) {
+    if (srefs_.empty()) {
+      srefs_.push_back(
+          StmtSRef(stmt,
+                   /*parent=*/nullptr,
+                   /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
+    } else {
+      StmtSRefNode* parent = srefs_.back().get();
+      srefs_.push_back(
+          StmtSRef(stmt, parent,
+                   /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
+    }
+  }
+
+  /*! \brief Pop the top of the scope and record it in stmt2ref map */
+  void PopAndRecordSRef() {
+    StmtSRef sref = std::move(srefs_.back());
+    self_->stmt2ref[sref->stmt] = sref;
+    srefs_.pop_back();
+  }
+
+  void VisitStmt_(const ForNode* loop) final {
+    PushSRef(loop);
+    VisitStmt(loop->body);
+    PopAndRecordSRef();
+  }
+
+  void VisitStmt_(const BlockRealizeNode* realize) final {
+    const BlockNode* block = realize->block.get();
+    PushSRef(block);
+    VisitStmt(block->body);  // `block->init` is not visited
+    PopAndRecordSRef();
+  }
+
+  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
+    // Set `seq_index` information for SeqStmtNode
+    StmtVisitor::VisitStmt_(seq_stmt);
+    SetSeqIndexInChildren(self_, seq_stmt);
+  }
+
+  /*! \brief The result ScheduleStateNode */
+  ScheduleStateNode* self_;
+  /*! \brief The stack frame used to indicate the current scope */
+  std::vector<StmtSRef> srefs_;
 };
 
 /**************** Constructor ****************/
@@ -1032,6 +1080,10 @@ BlockInfo ScheduleStateNode::GetBlockInfo(const StmtSRef& block_sref) const {
       << "IndexError: Cannot find the corresponding BlockScope to the block sref:\n"
       << GetRef<Stmt>(block_sref->stmt);
   return it->second;
+}
+
+void ScheduleStateNode::UpdateBlockInfo(const Stmt& stmt) {
+  BlockInfoCollector::Collect(this, stmt);
 }
 
 TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& block_sref) {
