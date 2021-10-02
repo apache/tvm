@@ -104,10 +104,11 @@ capabilities, and set the stage for understanding how TVM works.
 ################################################################################
 # .. note:: Adding ONNX Support to TVM
 #
-#    TVM relies on the ONNX python library being available on your system. You
-#    can install ONNX using the command ``pip3 install --user onnx``. You may
-#    remove the ``--user`` option if you have root access and want to install
-#    ONNX globally.
+#    TVM relies on the ONNX python library being available on your system. You can
+#    install ONNX using the command ``pip3 install --user onnx onnxoptimizer``. You
+#    may remove the ``--user`` option if you have root access and want to install
+#    ONNX globally.  The ``onnxoptimizer`` dependency is optional, and is only used
+#    for ``onnx>=1.9``.
 #
 
 ################################################################################

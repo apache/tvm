@@ -34,6 +34,34 @@ from tvm.relay.ty import TupleType, TensorType
 ONNX_OPSET_VERSONS_SUPPORTED = [11]
 
 
+def run_onnx_optimizer(onnx_model):
+    """Run ONNX's optimization routines.
+
+    ONNX Optimizer was moved to an external library in
+    version 1.9.  Attempt to use the optimizer in onnx if
+    it is available, fall back to the standalone
+    onnxoptimizer otherwise, and return the model
+    unoptimized if neither are available.
+
+    """
+    try:
+        onnx_polish_model = onnx.utils.polish_model
+    except AttributeError:
+        pass
+    else:
+        return onnx_polish_model(onnx_model)
+
+    try:
+        # pylint: disable=import-outside-toplevel
+        import onnxoptimizer
+    except ImportError:
+        pass
+    else:
+        return onnxoptimizer.optimize(onnx_model)
+
+    return model
+
+
 def tvm_array_to_list(arr):
     return tuple(x.value for x in arr)
 
@@ -881,8 +909,7 @@ class RelayToONNXConverter(ExprVisitor):
         self.visit(func)
         self._add_output(self._node_dict[self.last_node])
         model = self._mc.make_model()
-        polished_model = onnx.utils.polish_model(model)
-        return polished_model
+        return run_onnx_optimizer(model)
 
     def visit(self, expr):
         self._node_count += 1
