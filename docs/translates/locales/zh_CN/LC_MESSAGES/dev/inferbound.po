@@ -5,6 +5,7 @@
 # 
 # Translators:
 # baijie xie, 2021
+# minggui wang, 2021
 # 
 #, fuzzy
 msgid ""
@@ -13,7 +14,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:43+0000\n"
-"Last-Translator: baijie xie, 2021\n"
+"Last-Translator: minggui wang, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -23,7 +24,7 @@ msgstr ""
 
 #: ../../_staging/dev/inferbound.rst:22
 msgid "InferBound Pass"
-msgstr ""
+msgstr "InferBound Pass"
 
 #: ../../_staging/dev/inferbound.rst:25
 msgid ""
@@ -51,11 +52,11 @@ msgstr ""
 
 #: ../../_staging/dev/inferbound.rst:27
 msgid "The output of InferBound is a map from IterVar to Range:"
-msgstr ""
+msgstr "InferBound的输出是一个从循环变量（IterVar）到其范围（Range）的映射表："
 
 #: ../../_staging/dev/inferbound.rst:33
 msgid "Therefore, let's review the Range and IterVar classes:"
-msgstr ""
+msgstr "因此，让我们回顾一下 Range 和 IterVar 类："
 
 #: ../../_staging/dev/inferbound.rst:56
 msgid ""
@@ -66,6 +67,10 @@ msgid ""
 "for each axis and reduce axis, with dom's equal to the shape supplied in the"
 " call to ``tvm.compute``."
 msgstr ""
+"请注意，IterVarNode 还包含一个Range ``dom`` 成员变量。此 ``dom``  可能有或可能没有有意义的值，具体取决于 "
+"IterVar 的创建时间。例如，当调用 ``tvm.compute`` "
+"时，会为每个空间轴和规约轴`创建一个IterVar<https://github.com/apache/tvm/blob/main/src/te/operation/compute_op.cc>`"
+" ，这时dom也就等于调用 ``tvm.compute`` 时所提供的形状（shape）。"
 
 #: ../../_staging/dev/inferbound.rst:58
 msgid ""
@@ -74,6 +79,9 @@ msgid ""
 " for the inner and outer axes, but these IterVars are not given a meaningful"
 " ``dom`` value."
 msgstr ""
+"另一方面，当 ``tvm.split`` 被调用时，会`为内部轴和外部轴创建 "
+"IterVar<https://github.com/apache/tvm/blob/main/src/te/schedule/schedule_lang.cc>`"
+" ，但并没有给这些 IterVar 赋予有意义的 ``dom`` 值。"
 
 #: ../../_staging/dev/inferbound.rst:60
 msgid ""
@@ -81,18 +89,21 @@ msgid ""
 "InferBound. However, keep in mind that the ``dom`` member of an IterVar is "
 "sometimes used as default value for the Ranges InferBound computes."
 msgstr ""
+"在任何情况下，IterVar 的 ``dom`` 成员变量在 InferBound 期间都不会被修改。但是，请记住，IterVar 的 ``dom`` "
+"成员变量有时用作范围（Ranges）计算的默认值。"
 
 #: ../../_staging/dev/inferbound.rst:62
 msgid ""
 "We next review some TVM codebase concepts that are required to understand "
 "the InferBound pass."
-msgstr ""
+msgstr "为了理解 InferBound pass，接下来我们将回顾一些 TVM 代码库的概念。"
 
 #: ../../_staging/dev/inferbound.rst:64
 msgid ""
 "Recall that InferBound takes one argument, a Schedule. This schedule object,"
 " and its members, contains all information about the program being compiled."
 msgstr ""
+"回想一下， InferBound 需要一个 Schedule 引用类型的参数。这个 schedule 对象及其成员包含了有关正在编译的程序的所有信息。"
 
 #: ../../_staging/dev/inferbound.rst:66
 msgid ""
@@ -106,12 +117,19 @@ msgid ""
 "IterVarRelation specifies the parent IterVar that was split, and the two "
 "children IterVars: inner and outer."
 msgstr ""
+"TVM schedule 由阶段（Stage）组成。每个阶段只有一个操作（Operation），例如 ComputeOp 或 "
+"TensorComputeOp 。而每个操作都有一个 root_iter_vars 列表，在 ComputeOp 的情况下，该列表由轴循环变量（axis"
+" IterVars）和规约轴循环变量（reduce "
+"IterVars）组成。每个操作还可以包含许多其他循环变量（IterVar），但这些循环变量都会由操作的 IterVarRelations "
+"列表相关联。每个 IterVarRelation 表示 schedule "
+"中的拆分（split）、融合（fuse）或变基（rebase）。例如，在拆分的情况下，IterVarRelation "
+"指定了被拆分的父循环变量（parent IterVar）和两个子循环变量（children IterVar）：内部循环变量和外部循环变量。"
 
 #: ../../_staging/dev/inferbound.rst:107
 msgid ""
 "Tensors haven't been mentioned yet, but in the context of TVM, a Tensor "
 "represents output of an operation."
-msgstr ""
+msgstr "至此还未提及张量（Tensor），但在 TVM 中，张量表示一个操作（Operation）输出。"
 
 #: ../../_staging/dev/inferbound.rst:120
 msgid ""
@@ -125,6 +143,11 @@ msgid ""
 "`CreateReadGraph "
 "<https://github.com/apache/tvm/blob/main/src/te/schedule/bound.cc>`_."
 msgstr ""
+"在上面的 Operation 类声明中，我们可以看到每个操作都有一个 InputTensor 列表。因此，schedule "
+"的所有阶段形成了一张有向无环图（DAG），其中每个阶段就是图中的节点。如果阶段 B 的操作有一个输入张量，其源操作是阶段 A 中的操作，则从阶段 A "
+"到阶段 B 存在一条边。 简单地说，如果 B 消耗 A 产生的张量，则从 A 到 B 有一条边。请参阅下面的图。在InferBound的开头通过调用 "
+"`CreateReadGraph "
+"<https://github.com/apache/tvm/blob/main/src/te/schedule/bound.cc>` 创建了这张图。"
 
 #: ../../_staging/dev/inferbound.rst:125
 msgid ""
@@ -135,28 +158,31 @@ msgid ""
 "nodes of the graph. Therefore, when InferBound visits a stage, each of its "
 "consumer stages has already been visited."
 msgstr ""
+"InferBound 遍历一次图，每个阶段正好访问一次。InferBound "
+"从输出阶段开始（即上图中的蓝色实心节点），然后向上移动（延着边的相反方向）。这是通过对图的节点执行反向拓扑排序来实现的。因此，当 InferBound "
+"访问一个阶段时，其每个消费者阶段就已经被访问了。"
 
 #: ../../_staging/dev/inferbound.rst:130
 msgid "The InferBound pass is shown in the following pseudo-code:"
-msgstr ""
+msgstr "InferBound pass 的伪代码如下所示："
 
 #: ../../_staging/dev/inferbound.rst:146
 msgid ""
 "The InferBound pass has two interesting properties that are not immediately "
 "obvious:"
-msgstr ""
+msgstr "InferBound pass 有两个有趣的属性，不是明显："
 
 #: ../../_staging/dev/inferbound.rst:148
 msgid ""
 "After InferBound visits a stage, the ranges of all IterVars in the stage "
 "will be set in ``rmap``."
-msgstr ""
+msgstr "在 InferBound 访问一个 stage 后，该 stage 中所有 IterVars 的范围将被设置在 ``rmap`` 中。"
 
 #: ../../_staging/dev/inferbound.rst:149
 msgid ""
 "The Range of each IterVar is only set once in ``rmap``, and then never "
 "changed."
-msgstr ""
+msgstr "每个 IterVar 的范围只在 ``rmap`` 中设置一次，然后永远不会改变。"
 
 #: ../../_staging/dev/inferbound.rst:151
 msgid ""
@@ -169,6 +195,12 @@ msgid ""
 "this information to the rest of the stage's IterVars.  When PassDownDomain "
 "returns, all IterVars of the stage have known Ranges in ``rmap``."
 msgstr ""
+"因此，有必要解释下 InferBound 在访问一个阶段时的作用。如上文的伪代码所示，InferBound "
+"在每个阶段调用两个函数：InferRootBound 和 PassDownDomain。InferRootBound 的目的是设置该阶段的每个 "
+"root_iter_var 的 Range（在 ``rmap`` 中）。（注：InferRootBound 不会设置其他任何 IterVar 的 "
+"Range，而只会设置属于 root_iter_vars 的 IterVar Range）。PassDownDomain "
+"的目的是将该信息传播到阶段的其余 IterVar。当 PassDownDomain 返回时， 阶段中的所有 IterVar 在 ``rmap`` "
+"都有对应的 Range。"
 
 #: ../../_staging/dev/inferbound.rst:153
 msgid ""
@@ -176,10 +208,12 @@ msgid ""
 "PassDownDomain. Since PassDownDomain is simpler to describe, we will cover "
 "it first."
 msgstr ""
+"该文档的其余部分深入探讨了 InferRootBound 和 PassDownDomain 的细节。由于 PassDownDomain "
+"更易于描述，我们将先介绍它。"
 
 #: ../../_staging/dev/inferbound.rst:158
 msgid "IterVar Hyper-graph"
-msgstr ""
+msgstr "IterVar 超图"
 
 #: ../../_staging/dev/inferbound.rst:160
 msgid ""
@@ -187,6 +221,8 @@ msgid ""
 "within each stage is another graph, whose nodes are IterVars. InferRootBound"
 " and PassDownDomain perform message-passing on these IterVar graphs."
 msgstr ""
+"如上所述，InferBound pass 遍历了由阶段组成的图。但是，在每个阶段中都有另外一张图，其节点都是 "
+"IterVar。InferRootBound 和 PassDownDomain 在这些 IterVar 图上执行消息的传递。"
 
 #: ../../_staging/dev/inferbound.rst:162
 msgid ""
@@ -196,6 +232,9 @@ msgid ""
 " to an IterVarRelation. We can also represent this hyper-graph as a DAG, "
 "which is simpler to visualize as shown below."
 msgstr ""
+"回想一下，该阶段的所有 IterVar 都与 IterVarRelation 相关。阶段的 IterVarRelation "
+"形成了有向无环超图，其中图的每个节点对应一个 IterVar，超图的每条边对应于一个 IterVarRelation。我们还可以将此超图表示为 "
+"DAG，这样更易于可视化，如下图所示。"
 
 #: ../../_staging/dev/inferbound.rst:168
 msgid ""
@@ -204,6 +243,9 @@ msgid ""
 "``i.inner``, has been split again. The leaf_iter_vars of the stage are shown"
 " in green: ``i.outer``, ``i.inner.outer``, and ``i.inner.inner``."
 msgstr ""
+"上图显示了一个阶段的 IterVar 超图。该阶段有一个 root_iter_var，``i``。它已经被拆分，并且由此产生的内轴 "
+"``i.inner`` 再次被拆分。该阶段的 leaf_iter_var 用绿色表示：``i.outer``，``i.inner.outer`` 和 "
+"``i.inner.inner``。"
 
 #: ../../_staging/dev/inferbound.rst:170
 msgid ""
@@ -214,10 +256,13 @@ msgid ""
 "that PassDownDomain sends messages from the root IterVar ``i`` to its "
 "children ``i.outer`` and ``i.inner``."
 msgstr ""
+"消息传递函数的名称为 \"PassUp\" 或 \"PassDown\"，具体取决于消息是从子节点传递到 DAG "
+"中的父节点（\"PassUp\"），还是从父节点传递给其子节点（\"PassDown\"）。例如，上图左侧的大箭头表明 PassDownDomain "
+"会从根 IterVar ``i`` 向其子节点 ``i.outer`` 和 ``i.inner`` 发送消息。"
 
 #: ../../_staging/dev/inferbound.rst:175
 msgid "PassDownDomain"
-msgstr ""
+msgstr "PassDownDomain"
 
 #: ../../_staging/dev/inferbound.rst:176
 msgid ""
@@ -261,7 +306,7 @@ msgstr ""
 
 #: ../../_staging/dev/inferbound.rst:197
 msgid "InferRootBound"
-msgstr ""
+msgstr "InferRootBound"
 
 #: ../../_staging/dev/inferbound.rst:199
 msgid ""

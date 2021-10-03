@@ -200,7 +200,7 @@ msgstr ""
 #: ../../../python/tvm/error.pydocstring of
 #: tvm.error.OpAttributeUnImplemented:4
 msgid "Example"
-msgstr ""
+msgstr "样例"
 
 #: ../../../python/tvm/error.pydocstring of tvm.error.DiagnosticError:3
 msgid "See the configured diagnostic renderer for detailed error information."

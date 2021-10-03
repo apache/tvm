@@ -69,17 +69,17 @@ msgstr "为 C++ 程序写文档"
 msgid ""
 "We use the doxgen format to document c++ functions. The following snippet "
 "shows an example of c++ docstring."
-msgstr ""
+msgstr "我们使用 doxgen 格式来编写 c++ 文档。以下代码片段展示了 c++ docstring 的示例。"
 
 #: ../../_staging/contribute/document.rst:92
 msgid ""
 "Besides documenting function usages, we also highly recommend contributors "
 "to add comments about code logics to improve readability."
-msgstr ""
+msgstr "除了记录方程的使用方法以外，我们同样强烈建议贡献者添加有关代码逻辑的注释以提高代码可读性。"
 
 #: ../../_staging/contribute/document.rst:97
 msgid "Write Tutorials"
-msgstr ""
+msgstr "编写教程"
 
 #: ../../_staging/contribute/document.rst:98
 msgid ""
@@ -89,6 +89,9 @@ msgid ""
 "explanatory. One thing that worth noting is that the comment blocks are "
 "written in reStructuredText instead of markdown so be aware of the syntax."
 msgstr ""
+"我们使用 `sphinx-gallery <https://sphinx-gallery.github.io/>`_ 来构建 python "
+"教程。你可以在 `tutorials <https://github.com/apache/tvm/tree/main/tutorials>`_ "
+"中找到源代码。值得注意的是注释块是用 reStructuredText 而不是 Markdown 编写的，因此请注意语法。"
 
 #: ../../_staging/contribute/document.rst:102
 msgid ""
@@ -107,4 +110,4 @@ msgstr ""
 msgid ""
 "Please use sphinx's `:ref:` markup to refer to another location in the same "
 "doc."
-msgstr ""
+msgstr "请使用 sphinx 的 `:ref:` 标记来指出同一文档下的另一个位置。"

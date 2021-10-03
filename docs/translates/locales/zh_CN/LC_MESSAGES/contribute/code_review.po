@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# juzi, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:41+0000\n"
+"Last-Translator: juzi, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,7 +23,7 @@ msgstr ""
 
 #: ../../_staging/contribute/code_review.rst:22
 msgid "Perform Code Reviews"
-msgstr ""
+msgstr "执行代码审查"
 
 #: ../../_staging/contribute/code_review.rst:25
 msgid ""
@@ -35,17 +39,18 @@ msgid ""
 "committers are expected to participate in not only writing code but also "
 "reviewing it."
 msgstr ""
+"开源代码由具有不同背景、兴趣和目标的社区维护。因此，提供清晰、文档化和可维护的代码和过程是很重要的。代码审查是一个指导过程，用于共同发现潜在问题，提高代码质量，并训练贡献者和审查者关于代码库及其假设的知识。它也是一种可以确保有多个人可以一起维护一段相关代码的机制。鼓励贡献者在请求审查之前将代码修改至可审查状态。这对于提交者候选人来说尤其重要，因为提交者不仅要参与代码的编写，还要参与代码的审查。"
 
 #: ../../_staging/contribute/code_review.rst:33
 msgid ""
 "This document is a living guideline for code review in open source. Please "
 "also take sometime to read :ref:`community_guide` about the general "
 "development process."
-msgstr ""
+msgstr "本文档是在开放源码中做代码审查的或指南，请花费一些时间阅读:ref:`community_guide`来了解通常的开发过程"
 
 #: ../../_staging/contribute/code_review.rst:37
 msgid "Building Trust"
-msgstr ""
+msgstr "建立信任"
 
 #: ../../_staging/contribute/code_review.rst:39
 msgid ""
@@ -58,10 +63,11 @@ msgid ""
 "and an important factor to consider in growing the community, and promoting "
 "members to official roles."
 msgstr ""
+"首先也是最重要的是，我们正在建立一个基于信任的社区，这需要时间和努力来建立和维护。我们希望我们的社区成员可以达成共识，以建设性的方式合作。尽管我们都有不同的背景、兴趣和目标，但我们必须共同努力来寻找适合更大社区的解决方案。基于信任的协作也是Apache方式的关键一员，是社区成长中的重要因素，并促进成员成为官方角色。"
 
 #: ../../_staging/contribute/code_review.rst:47
 msgid "Community Participation"
-msgstr ""
+msgstr "社区参与"
 
 #: ../../_staging/contribute/code_review.rst:49
 msgid ""
@@ -70,6 +76,7 @@ msgid ""
 " architecture change. The goal is to give people time to speak up and "
 "express interest in reviewing and participate."
 msgstr ""
+"欢迎大家对PRs发表评论。我们鼓励提交者在合并包含重大架构更改的PR之前等待一段时间（如三天）。目的是让人们有时间发言并且表达对复查和参与的兴趣。"
 
 #: ../../_staging/contribute/code_review.rst:53
 msgid ""
@@ -83,6 +90,7 @@ msgid ""
 "helping people land PRs is a great way to encourage broader participation, "
 "especially for those who volunteer their time to contribute."
 msgstr ""
+"记住我们都来自不同的背景在这里很重要。例如，一些社区成员在不同的时区工作，只能在工作时间使用开源软件，或者可能在旅行或在忙于其他事情。在大型项目中工作的一个重要部分是确保有集体的理解，因此没有一个人是累赘。虽然留出时间参与代码评审很重要，但我们也不能阻止所有审查者的所有变数。请记住，帮助人们获得PRs是鼓励更广泛参与的一个很好的方式，特别是对于那些自愿花费时间做贡献的人。"
 
 #: ../../_staging/contribute/code_review.rst:60
 msgid ""
@@ -95,7 +103,7 @@ msgstr ""
 
 #: ../../_staging/contribute/code_review.rst:65
 msgid "Read the code carefully"
-msgstr ""
+msgstr "仔细阅读代码"
 
 #: ../../_staging/contribute/code_review.rst:67
 msgid ""
@@ -106,6 +114,7 @@ msgid ""
 "good and careful code review is a large time investment and sometimes can be"
 " longer than writing the actual contribution."
 msgstr ""
+"有时，我们可能会快速阅读代码，只了解代码的某些方面。这些类型的注释通常很有帮助而且在社区应该受到欢迎。然而，它们只是执行代码审查的一部分，应该说是更全面反馈的一部分。一个好的、仔细的代码审查需要消耗大量的时间，有时可能比编写实际贡献还要长。"
 
 #: ../../_staging/contribute/code_review.rst:72
 msgid ""
@@ -115,6 +124,7 @@ msgid ""
 " contributor and committer is important and can help make you a more "
 "effective code reviewer and contributor."
 msgstr ""
+"举个例子，如果你的PR只在一些次要方面收到严厉的批评，你的感觉就不会很好，如果在审查过程中你的时间和努力没有得到回报，这也可能就会让人沮丧。在同时作为贡献者和提交者时，学会同情非常重要，可以帮助您成为更有效率的代码审查者和贡献者。"
 
 #: ../../_staging/contribute/code_review.rst:76
 msgid ""
@@ -127,14 +137,14 @@ msgstr ""
 
 #: ../../_staging/contribute/code_review.rst:81
 msgid "Be Respectful"
-msgstr ""
+msgstr "尊重他人"
 
 #: ../../_staging/contribute/code_review.rst:83
 msgid ""
 "To everyone who are making comments: making constructive comment will help "
 "new contributors to land their PRs timely and help us welcome new members to"
 " the community."
-msgstr ""
+msgstr "对所有发表意见的人：发表建设性意见将有助于新的贡献者及时获得他们的PRs，并有助于我们欢迎新成员加入社区。"
 
 #: ../../_staging/contribute/code_review.rst:86
 msgid ""
@@ -143,6 +153,7 @@ msgid ""
 "Respectfully address review comments and reciprocate the review by helping "
 "review others changes in the future."
 msgstr ""
+"对作者来说：审查者应该花大量的时间阅读代码，而仔细的审查可能和从头开始编写代码一样耗费大量的时间。尊重审查意见，并在将来通过帮助审查其他变更来作为回报。"
 
 #: ../../_staging/contribute/code_review.rst:90
 msgid ""
@@ -151,23 +162,24 @@ msgid ""
 " in the process not working, consider getting some face time with the other "
 "contributors and discussing how to improve the process or communication."
 msgstr ""
+"最重要的是，专注于进行建设性的对话，并在作为审查者进行互动时，尽量假设自己的意图是最好的。如果这个过程中有什么不起作用了，考虑花费一些时间与其他贡献者讨论如何改进过程或交流。"
 
 #: ../../_staging/contribute/code_review.rst:95
 msgid "Factors to Consider about Code Quality"
-msgstr ""
+msgstr "关于代码质量需要考虑的因素"
 
 #: ../../_staging/contribute/code_review.rst:97
 msgid ""
 "High quality code is critical to the long term success of the project. There"
 " are many factors of code quality to consider during a code review:"
-msgstr ""
+msgstr "高质量的代码对项目的长期成功至关重要。在代码审查期间有许多代码质量方面的因素需要考虑："
 
 #: ../../_staging/contribute/code_review.rst:100
 msgid ""
 "F0: Overall architecture. This includes the definition of public modules, "
 "key data structures and public interfaces. Good architectural choices are "
 "critical to the success of the project in the long run."
-msgstr ""
+msgstr "F0：总体架构。这包括公共模块、关键数据结构和公共接口的定义。选择良好的体系结构对项目的长期成功至关重要。"
 
 #: ../../_staging/contribute/code_review.rst:102
 msgid ""
@@ -178,13 +190,14 @@ msgid ""
 "design ideally minimizes the increase in complexity bought by a new feature,"
 " making it easier to maintain code in the long run."
 msgstr ""
+"F1：架构一致性。通常有多种方法来实现新功能。我们必须确保新特性与以前的总体架构选择一致，并且能和现有的代码进行良好的交互。每一个新特性都会增加项目的复杂性，而一致的设计理念能将新特性带来的复杂性增加程度降至最低，从而使代码的长期维护更加容易。"
 
 #: ../../_staging/contribute/code_review.rst:106
 msgid ""
 "F2: Code robustness and test coverage. Ensure code runs correctly in all "
 "possible settings(platforms), ensure test coverage of the new feature. Clear"
 " error messages for user facing errors."
-msgstr ""
+msgstr "F2：代码健壮性和测试覆盖率。确保代码在所有可能的设置（平台）中正确运行，确保新功能的测试覆盖率。清除用户面对的错误的错误消息。"
 
 #: ../../_staging/contribute/code_review.rst:108
 msgid ""
@@ -195,6 +208,8 @@ msgid ""
 "include some form of documentations for internal APIs that are used in "
 "multiple places, see also F4."
 msgstr ""
+"F3:面向用户的API文档:面向公共用户的API和关键模块接口的文档是必需的。这包括API，出现在公共接口中的数据结构(例如`include/tvm`和面向用户的python"
+" API)。我们通常鼓励有良好文档记录的代码和为在多个地方使用的内部API提供某种形式的文档，参考F4。"
 
 #: ../../_staging/contribute/code_review.rst:112
 msgid ""

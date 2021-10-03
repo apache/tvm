@@ -6,6 +6,7 @@
 # Translators:
 # HLearning, 2021
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
+# Huan Mei, 2021
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:45+0000\n"
-"Last-Translator: a_flying_fish <a_flying_fish@outlook.com>, 2021\n"
+"Last-Translator: Huan Mei, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -24,7 +25,7 @@ msgstr ""
 
 #: ../../_staging/microtvm/index.rst:21
 msgid "microTVM: TVM on bare-metal"
-msgstr "mocroTVM： 裸机使用 TVM"
+msgstr "microTVM：裸机使用TVM"
 
 #: ../../_staging/microtvm/index.rst:23
 msgid ""

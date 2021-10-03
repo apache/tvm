@@ -4,9 +4,9 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# 长德 司, 2021
 # JiaKui Hu, 2021
 # HLearning, 2021
+# 长德 司, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:40+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: 长德 司, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -30,7 +30,7 @@ msgstr ""
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis:1
 msgid "The Relay IR namespace containing the analysis passes."
-msgstr ""
+msgstr "包含分析的Relay IR命名空间的passes。"
 
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis:1
@@ -49,7 +49,7 @@ msgstr ""
 #: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
 #: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1
 msgid "Class to represent a relay expression split into regions."
-msgstr ""
+msgstr "表示relay expression的类拆分为区域。"
 
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis:1:<autosummary>:1
@@ -61,7 +61,7 @@ msgstr ""
 #: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
 #: tvm.relay.analysis.call_graph.CallGraph:1
 msgid "Class to represent a call graph."
-msgstr ""
+msgstr "表示call graph的类。"
 
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis:1:<autosummary>:1
@@ -73,7 +73,7 @@ msgstr ""
 #: ../../../python/tvm/relay/analysis/feature.pydocstring of
 #: tvm.relay.analysis.feature.Feature:1
 msgid "The features a program might contain."
-msgstr ""
+msgstr "程序可能包含的功能。"
 
 #: ../../../python/tvm/relay/analysis/__init__.pydocstring of
 #: tvm.relay.analysis:1

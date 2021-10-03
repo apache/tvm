@@ -7,6 +7,7 @@
 # 长德 司, 2021
 # JiaKui Hu, 2021
 # HLearning, 2021
+# 安杰 许, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +16,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:39+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: 安杰 许, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -25,23 +26,23 @@ msgstr ""
 
 #: ../../_staging/api/python/topi.rst:19
 msgid "tvm.topi"
-msgstr ""
+msgstr "tvm.topi"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1
 msgid "TVM Operator Inventory."
-msgstr ""
+msgstr "TVM 运算符清单"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:3
 msgid ""
 "TOPI is the operator collection library for TVM, to provide sugars for "
 "constructing compute declaration as well as optimized schedules."
-msgstr ""
+msgstr "TOPI是TVM的运算符集合库，为构建计算声明和调度优化提供了支持。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:6
 msgid ""
 "Some of the schedule function may have been specially optimized for a "
 "specific workload."
-msgstr ""
+msgstr "针对一些特定的工作负载，一些调度函数可能已经被特定优化了。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1
 #: ../../../python/tvm/topi/nn/__init__.pydocstring of tvm.topi.nn:1
@@ -57,7 +58,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 #: ../../../python/tvm/tir/stmt.pydocstring of tvm.tir.stmt.AssertStmt:1
 msgid "AssertStmt node."
-msgstr ""
+msgstr "AssertStmt 节点。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`Callable <tvm.topi.tvm.topi.Callable>`\\ \\(\\*args\\, \\*\\*kwds\\)"

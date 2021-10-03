@@ -5,6 +5,7 @@
 # 
 # Translators:
 # HLearning, 2021
+# juzi, 2021
 # 
 #, fuzzy
 msgid ""
@@ -13,7 +14,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-09-18 01:16+0000\n"
 "PO-Revision-Date: 2021-09-18 07:44+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: juzi, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -160,22 +161,23 @@ msgid ""
 "obtain the latest version from `official website "
 "<https://cmake.org/download/>`_"
 msgstr ""
+"首先，检查系统中的cmake。如果您没有cmake，可以从`官方网站 <https://cmake.org/download/>`_获取最新版本"
 
 #: ../../_staging/install/from_source.rst:93
 msgid ""
 "First create a build directory, copy the ``cmake/config.cmake`` to the "
 "directory."
-msgstr ""
+msgstr "首先创建一个构建目录，将``cmake/config.cmake``复制到该目录。"
 
 #: ../../_staging/install/from_source.rst:100
 msgid "Edit ``build/config.cmake`` to customize the compilation options"
-msgstr ""
+msgstr "编辑``build/config.cmake``以自定义编译选项"
 
 #: ../../_staging/install/from_source.rst:102
 msgid ""
 "On macOS, for some versions of Xcode, you need to add ``-lc++abi`` in the "
 "LDFLAGS or you'll get link errors."
-msgstr ""
+msgstr "在macOS上,对于某些版本的Xcode,您需要在LDFLAGS中添加``-lc++abi``,否则会出现链接错误。"
 
 #: ../../_staging/install/from_source.rst:103
 msgid ""
@@ -183,6 +185,8 @@ msgid ""
 " Do the same for other backends and libraries you want to build for (OpenCL,"
 " RCOM, METAL, VULKAN, ...)."
 msgstr ""
+"将``设置(USE_CUDA OFF)``更改为``设置(USE_CUDA ON)``以启用CUDA后端。对您要构建的其他后端和库(OpenCL, "
+"RCOM, METAL, VULKAN, ...)执行相同的操作。"
 
 #: ../../_staging/install/from_source.rst:105
 msgid ""
@@ -190,12 +194,14 @@ msgid ""
 "functions are enabled with ``set(USE_GRAPH_EXECUTOR ON)`` and "
 "``set(USE_PROFILER ON)``"
 msgstr ""
+"为了帮助调试，请确保已使用``设置(USE_GRAPH_EXECUTOR ON)``和``设置(USE_PROFILER "
+"ON)``启用嵌入式图形执行器和调试功能``"
 
 #: ../../_staging/install/from_source.rst:106
 msgid ""
 "To debug with IRs, ``set(USE_RELAY_DEBUG ON)`` and set environment variable "
 "`TVM_LOG_DEBUG`."
-msgstr ""
+msgstr "要使用IRs进行调试, ``设置(USE_RELAY_DEBUG ON)``并设置环境变量`TVM_LOG_DEBUG`。"
 
 #: ../../_staging/install/from_source.rst:112
 msgid ""
@@ -207,7 +213,7 @@ msgstr ""
 msgid ""
 "LLVM 4.0 or higher is needed for build with LLVM. Note that version of LLVM "
 "from default apt may lower than 4.0."
-msgstr ""
+msgstr "使用LLVM构建需要LLVM 4.0或更高版本。请注意，默认apt的LLVM版本可能低于4.0。"
 
 #: ../../_staging/install/from_source.rst:115
 msgid ""
@@ -215,22 +221,25 @@ msgid ""
 "version of LLVM from `LLVM Download Page "
 "<http://releases.llvm.org/download.html>`_."
 msgstr ""
+"因为从源代码构建LLVM需要很长时间,所以您可以从`LLVM下载页面<http://releases.llvm.org/download.html>`_.下载预构建版本的LLVM。"
 
 #: ../../_staging/install/from_source.rst:118
 msgid ""
 "Unzip to a certain location, modify ``build/config.cmake`` to add "
 "``set(USE_LLVM /path/to/your/llvm/bin/llvm-config)``"
 msgstr ""
+"解压到一个特定的位置，修改``build/config.cmake``以添加``set(USE_LLVM /path/to/your/llvm/bin"
+"/llvm-config)``"
 
 #: ../../_staging/install/from_source.rst:119
 msgid ""
 "You can also directly set ``set(USE_LLVM ON)`` and let cmake search for a "
 "usable version of LLVM."
-msgstr ""
+msgstr "您还可以直接设置``set(USE_LLVM ON)``并使用cmake搜索可用版本的LLVM。"
 
 #: ../../_staging/install/from_source.rst:121
 msgid "You can also use `LLVM Nightly Ubuntu Build <https://apt.llvm.org/>`_"
-msgstr ""
+msgstr "您还可以使用`LLVM Nightly Ubuntu Build <https://apt.llvm.org/>`_"
 
 #: ../../_staging/install/from_source.rst:123
 msgid ""
@@ -238,16 +247,18 @@ msgid ""
 "example, set ``set(USE_LLVM llvm-config-10)`` if you installed LLVM 10 "
 "package"
 msgstr ""
+"请注意，apt-package会在`llvm-config``后加上版本号。例如，如果您安装了LLVM 10软件包，请设置``set(USE_LLVM "
+"llvm-config-10)``"
 
 #: ../../_staging/install/from_source.rst:126
 msgid "We can then build tvm and related libraries."
-msgstr ""
+msgstr "接下来我们可以建立tvm和相关的库。"
 
 #: ../../_staging/install/from_source.rst:134
 msgid ""
 "You can also use Ninja build system instead of Unix Makefiles. It can be "
 "faster to build than using Makefiles."
-msgstr ""
+msgstr "您还可以使用Ninja构建系统而不是Unix Makefiles。Ninja可以比Makefiles更快地进行构建。"
 
 #: ../../_staging/install/from_source.rst:142
 msgid ""
@@ -265,6 +276,7 @@ msgid ""
 "base tvm directory. ``TVM_BUILD_PATH`` can also be set to a list of space-"
 "separated paths, in which case all paths listed will be built."
 msgstr ""
+"可以使用环境变量``TVM_BUILD_PATH``指定生成目录。如果``TVM_BUILD_PATH``未设置，则makefile假定生成文件使用TVM内的``build``目录。``TVM_BUILD_PATH``指定的路径可以是绝对路径，也可以是相对于基本TVM目录的路径``TVM_BUILD_PATH``也可以设置为空间分隔路径列表，在这种情况下，将生成列出的所有路径。"
 
 #: ../../_staging/install/from_source.rst:155
 msgid ""
@@ -274,6 +286,8 @@ msgid ""
 "look relative to the location of the tvm python module.  Unlike "
 "``TVM_BUILD_PATH``, this must be an absolute path."
 msgstr ""
+"如果使用备用生成目录，则应在运行时设置环境变量``TVM_LIBRARY_PATH``，指向编译的``libtvm.so``和``libtvm_runtime.so``的位置。如果未设置，tvm将根据tvm"
+" python module的位置进行查看。与``TVM_BUILD_PATH``不同，这必须是绝对路径。"
 
 #: ../../_staging/install/from_source.rst:176
 msgid ""
@@ -301,7 +315,7 @@ msgid ""
 "The above command will install all necessary build dependencies such as "
 "cmake and LLVM. You can then run the standard build process in the last "
 "section."
-msgstr ""
+msgstr "上面的命令将安装所有必要的构建依赖项，例如cmake和LLVM。然后您可以在最后一节中运行标准构建过程。"
 
 #: ../../_staging/install/from_source.rst:196
 msgid ""
@@ -310,6 +324,8 @@ msgid ""
 "static\")``. In this way, the resulting library won't depend on the dynamic "
 "LLVM libraries in the conda environment."
 msgstr ""
+"如果要在conda环境之外使用编译后的二进制文件，可以将LLVM设置为静态链接模式``set(USE_LLVM \"llvm-config "
+"--link-static\")``。这样，生成的库将不依赖于conda环境中的动态LLVM库。"
 
 #: ../../_staging/install/from_source.rst:200
 msgid ""
@@ -318,10 +334,11 @@ msgid ""
 " manager and wish to directly build and install tvm as a conda package, you "
 "can follow the instructions below:"
 msgstr ""
+"上面的说明显示了如何使用conda来提供构建libtvm所需的构建依赖项。如果您已经使用conda作为软件包管理器并且希望直接将tvm作为conda软件包进行构建和安装，则可以按照以下说明进行操作："
 
 #: ../../_staging/install/from_source.rst:210
 msgid "Building on Windows"
-msgstr ""
+msgstr "基于Windows构建"
 
 #: ../../_staging/install/from_source.rst:211
 msgid ""
@@ -331,46 +348,49 @@ msgid ""
 " obtain necessary dependencies and get an activated tvm-build environment. "
 "Then you can run the following command to build"
 msgstr ""
+"使用cmake通过MSVC构建TVM支持。您将需要安装visual studio编译器。要求VS最低的版本为**Visual Studio "
+"Community 2015 Update 3**。我们建议:ref:`build-with-"
+"conda`以获得必要的生产环境并激活tvm的构建环境。您可以运行以下命令来生成"
 
 #: ../../_staging/install/from_source.rst:223
 msgid ""
 "The above command generates the solution file under the build directory. You"
 " can then run the following command to build"
-msgstr ""
+msgstr "上面的命令在build目录下生成解决方案的文件。您可以运行以下指令来生成"
 
 #: ../../_staging/install/from_source.rst:232
 msgid "Building ROCm support"
-msgstr ""
+msgstr "构建 ROCm 支持"
 
 #: ../../_staging/install/from_source.rst:234
 msgid ""
 "Currently, ROCm is supported only on linux, so all the instructions are "
 "written with linux in mind."
-msgstr ""
+msgstr "目前，仅linux上支持ROCm，因此所有的指令都是用linux编写的。"
 
 #: ../../_staging/install/from_source.rst:236
 msgid "Set ``set(USE_ROCM ON)``, set ROCM_PATH to the correct path."
-msgstr ""
+msgstr "设置``set(USE_ROCM ON)``，将ROCM_PATH设置为正确的路径。"
 
 #: ../../_staging/install/from_source.rst:237
 msgid ""
 "You need to first install HIP runtime from ROCm. Make sure the installation "
 "system has ROCm installed in it."
-msgstr ""
+msgstr "您需要首先从ROCm安装HIP runtime。确保安装系统中已经安装了ROCm。"
 
 #: ../../_staging/install/from_source.rst:238
 msgid ""
 "Install latest stable version of LLVM (v6.0.1), and LLD, make sure "
 "``ld.lld`` is available via command line."
-msgstr ""
+msgstr "安装最新稳定版本的LLVM（v6.0.1）和LLD，确保``ld.lld``通过命令行可用。"
 
 #: ../../_staging/install/from_source.rst:243
 msgid "Python Package Installation"
-msgstr ""
+msgstr "Python包安装"
 
 #: ../../_staging/install/from_source.rst:246
 msgid "TVM package"
-msgstr ""
+msgstr "TVM包"
 
 #: ../../_staging/install/from_source.rst:248
 msgid ""
@@ -378,16 +398,17 @@ msgid ""
 "environment and package manager, such as ``virtualenv`` or ``conda``, to "
 "manage your python packages and dependencies."
 msgstr ""
+"根据您的开发环境，您可能希望使用虚拟环境和包管理器（如``virtualenv``或者``conda``）来管理python的包和生产环境。"
 
 #: ../../_staging/install/from_source.rst:251
 msgid "to install and maintain your python development environment."
-msgstr ""
+msgstr "安装和维护python开发环境。"
 
 #: ../../_staging/install/from_source.rst:253
 msgid ""
 "The python package is located at `tvm/python` There are two ways to install "
 "the package:"
-msgstr ""
+msgstr "python软件包位于`tvm/python`中。安装该软件包有两种方法："
 
 #: ../../_staging/install/from_source.rst:268
 msgid "Method 1"
@@ -396,7 +417,7 @@ msgstr "方法 1"
 #: ../../_staging/install/from_source.rst:257
 msgid ""
 "This method is **recommended for developers** who may change the codes."
-msgstr ""
+msgstr "此方法**推荐给可能更改代码的开发人员**。"
 
 #: ../../_staging/install/from_source.rst:259
 msgid ""
@@ -406,6 +427,7 @@ msgid ""
 "immediately reflected once you pull the code and rebuild the project (no "
 "need to call ``setup`` again)"
 msgstr ""
+"设置环境变量`PYTHONPATH`来告诉python在哪里可以找到库。例如，假设我们克隆目录`/path/to/tvm`上的`tvm`，那么我们可以在`~/.bashrc`中添加以下行。一旦您提取代码并重建项目，这些更改将立即反映出来（无需再次调用``setup``）"
 
 #: ../../_staging/install/from_source.rst:280
 msgid "Method 2"
