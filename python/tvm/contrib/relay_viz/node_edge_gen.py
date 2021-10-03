@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""RenderCallback interface"""
+"""NodeEdgeGenerator interface"""
 import abc
 from typing import (
     Dict,
@@ -26,15 +26,25 @@ from tvm import relay
 
 UNKNOWN_TYPE = "unknown"
 
+
 class NodeEdgeGenerator(abc.ABC):
     """Abstract class generating nodes and edgs for Graph interface."""
 
     @abc.abstractmethod
-    def get_node_edges(self,
-                       node: relay.expr.ExprWithOp,
-                       relay_param: Dict[str, tvm.runtime.NDArray],
-                       node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]]) -> Tuple[list, list]:
-        pass
+    def get_node_edges(
+        self,
+        node: relay.expr.ExprWithOp,
+        relay_param: Dict[str, tvm.runtime.NDArray],
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[list, list]:
+        """Function return node and edges consumed by Graph interface
+        The returned tuple containing two lists, the first list match
+        the interface of Graph.node(), i.e. `node_id`, `node_type`, and `node_detail`.
+        The secon list is the form:
+            [(node_id_start0, node_id_end0), ...]
+        where the tuple `(node_id_start0, node_id_end0)` represent an edge from
+        `node_id_start0` to `node_id_end0`.
+        """
 
 
 class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
@@ -67,13 +77,12 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
         return node_info, edge_info
 
     def function_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+        """Render rule for a relay function node"""
         node_details = []
         name = ""
         func_attrs = node.attrs
         if func_attrs:
-            node_details = [
-                "{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()
-            ]
+            node_details = ["{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()]
             # "Composite" might from relay.transform.MergeComposite
             if "Composite" in func_attrs.keys():
                 name = func_attrs["Composite"]
@@ -165,15 +174,15 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
             tvm.ir.Op: self.op_node,
         }
 
-    def get_node_edges(self,
-                       node: relay.expr.ExprWithOp,
-                       relay_param: Dict[str, tvm.runtime.NDArray],
-                       node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]]):
+    def get_node_edges(
+        self,
+        node: relay.expr.ExprWithOp,
+        relay_param: Dict[str, tvm.runtime.NDArray],
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[list, list]:
         try:
-            graph_info, edge_info = self.render_rules[type(node)](
-                node, relay_param, node_to_id
-            )
+            graph_info, edge_info = self.render_rules[type(node)](node, relay_param, node_to_id)
         except KeyError:
-            graph_info = [node_to_id[node], "unknown", f"failed to parse node: {type(node)}"]
+            graph_info = [node_to_id[node], UNKNOWN_TYPE, f"failed to parse node: {type(node)}"]
             edge_info = []
         return graph_info, edge_info

@@ -17,7 +17,6 @@
 """Visualize Relay IR in AST text-form"""
 
 from collections import deque
-import functools
 
 from .plotter import (
     Plotter,
@@ -74,6 +73,7 @@ class TermNodeEdgeGenerator(DefaultNodeEdgeGenerator):
         edge_info = [[node_to_id[node.body], node_id]]
         return node_info, edge_info
 
+
 class Node:
     def __init__(self, node_type, other_info):
         self.type = node_type
@@ -111,14 +111,20 @@ class TermGraph(Graph):
     def render(self):
         """To draw a terminal graph"""
         lines = []
+        seen_node = set()
 
-        @functools.lru_cache()
         def gen_line(indent, n_id):
+            if (indent, n_id) in seen_node:
+                return
+            seen_node.add((indent, n_id))
+
             conn_symbol = ["|--", "`--"]
             last = len(self._graph[n_id]) - 1
             for i, next_n_id in enumerate(self._graph[n_id]):
                 node = self._id_to_node[next_n_id]
-                lines.append(f"{indent}{conn_symbol[i==last]}{node.type} {node.other_info}")
+                lines.append(
+                    f"{indent}{conn_symbol[1 if i==last else 0]}{node.type} {node.other_info}"
+                )
                 next_indent = indent
                 next_indent += "   " if (i == last) else "|  "
                 gen_line(next_indent, next_n_id)
@@ -142,11 +148,12 @@ class TermPlotter(Plotter):
         return self._name_to_graph[name]
 
     def render(self, filename):
+        """If filename is None, print to stdio. Otherwise, write to the filename."""
         lines = []
         for name in self._name_to_graph:
             lines.append(self._name_to_graph[name].render())
         if filename is None:
             print("\n".join(lines))
         else:
-            with open(filename, "w") as fp:
-                fp.write("\n".join(lines))
+            with open(filename, "w") as out_file:
+                out_file.write("\n".join(lines))

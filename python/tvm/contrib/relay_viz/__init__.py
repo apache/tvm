@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relay IR Visualizer"""
-import logging
 from typing import (
     Dict,
     Tuple,
@@ -27,7 +26,6 @@ from tvm import relay
 from .plotter import Plotter
 from .node_edge_gen import NodeEdgeGenerator
 
-_LOGGER = logging.getLogger(__name__)
 
 class PlotterBackend(Enum):
     """Enumeration for available plotters."""
@@ -39,10 +37,12 @@ class PlotterBackend(Enum):
 class RelayVisualizer:
     """Relay IR Visualizer"""
 
-    def __init__(self,
-                 relay_mod: tvm.IRModule,
-                 relay_param: Dict = None,
-                 backend: Union[PlotterBackend, Tuple[Plotter, NodeEdgeGenerator]] = PlotterBackend.TERMINAL):
+    def __init__(
+        self,
+        relay_mod: tvm.IRModule,
+        relay_param: Dict = None,
+        backend: Union[PlotterBackend, Tuple[Plotter, NodeEdgeGenerator]] = PlotterBackend.TERMINAL,
+    ):
         """Visualize Relay IR.
 
         Parameters
@@ -54,7 +54,7 @@ class RelayVisualizer:
         backend: PlotterBackend or a tuple
                         PlotterBackend: The backend of plotting. Default "terminal"
                         Tuple: A tuple with two arguments. First is user-defined Plotter,
-                               the second is user-defined RenderCallback
+                               the second is user-defined NodeEdgeGenerator
         """
 
         self._plotter, self._ne_generator = get_plotter_and_generator(backend)
@@ -63,15 +63,16 @@ class RelayVisualizer:
         global_vars = relay_mod.get_global_vars()
         graph_names = []
         # If we have main function, put it to the first.
-        # Then main function can be shown at the top.
+        # Then main function can be shown on the top.
         for gv_name in global_vars:
             if gv_name.name_hint == "main":
                 graph_names.insert(0, gv_name.name_hint)
             else:
                 graph_names.append(gv_name.name_hint)
 
+        node_to_id = {}
         for name in graph_names:
-            node_to_id = {}
+
             def traverse_expr(node):
                 if node in node_to_id:
                     return
@@ -79,8 +80,8 @@ class RelayVisualizer:
 
             relay.analysis.post_order_visit(relay_mod[name], traverse_expr)
             graph = self._plotter.create_graph(name)
-            # shallow copy to prevent callback modify node_to_id
-            self._render(graph, node_to_id.copy(), self._relay_param)
+            self._render(graph, node_to_id, self._relay_param)
+            node_to_id.clear()
 
     def _render(self, graph, node_to_id, relay_param):
         """render nodes and edges to the graph.
@@ -94,9 +95,7 @@ class RelayVisualizer:
         relay_param : Dict[string, NDarray]
         """
         for node in node_to_id:
-            graph_info, edge_info = self._ne_generator.get_node_edges(
-                node, relay_param, node_to_id
-            )
+            graph_info, edge_info = self._ne_generator.get_node_edges(node, relay_param, node_to_id)
             if graph_info:
                 graph.node(*graph_info)
             for edge in edge_info:
@@ -107,21 +106,15 @@ class RelayVisualizer:
 
 
 def get_plotter_and_generator(backend):
-    """Specify the Plottor and its NodeEdgeGenerator
-
-    Parameters
-        ----------
-        backend: PlotterBackend or a tuple
-                        PlotterBackend: The backend of plotting. Default "bokeh"
-                        Tuple: A tuple with two arguments. First is user-defined Plotter, \
-                               the second is user-defined RenderCallback
-    """
+    """Specify the Plottor and its NodeEdgeGenerator"""
     if isinstance(backend, (tuple, list)) and len(backend) == 2:
         if not isinstance(backend[0], Plotter):
-            raise ValueError(f"First elemnet of backend argument should be derived from {type(Plotter)}")
+            raise ValueError(f"First element of backend should be derived from {type(Plotter)}")
 
         if not isinstance(backend[1], NodeEdgeGenerator):
-            raise ValueError(f"Second elemnet of backend argument should be derived from {type(NodeEdgeGenerator)}")
+            raise ValueError(
+                f"Second element of backend should be derived from {type(NodeEdgeGenerator)}"
+            )
 
         return backend
 
@@ -137,6 +130,7 @@ def get_plotter_and_generator(backend):
             BokehPlotter,
             BokehNodeEdgeGenerator,
         )
+
         plotter = BokehPlotter()
         ne_generator = BokehNodeEdgeGenerator()
     elif backend == PlotterBackend.TERMINAL:
@@ -145,8 +139,7 @@ def get_plotter_and_generator(backend):
             TermPlotter,
             TermNodeEdgeGenerator,
         )
+
         plotter = TermPlotter()
         ne_generator = TermNodeEdgeGenerator()
     return plotter, ne_generator
-
-

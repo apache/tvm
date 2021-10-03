@@ -18,6 +18,7 @@
 import abc
 from typing import Union
 
+
 class Graph(abc.ABC):
     """Abstract class for graph.
 
@@ -41,7 +42,7 @@ class Graph(abc.ABC):
         """
 
     @abc.abstractmethod
-    def edge(self, id_start: Union[int, str], id_end: Union[int, str]):
+    def edge(self, id_start: Union[int, str], id_end: Union[int, str]) -> None:
         """Add an edge to the underlying graph.
 
         Parameters
@@ -74,7 +75,7 @@ class Plotter(abc.ABC):
         """
 
     @abc.abstractmethod
-    def render(self, filename:str) -> None:
+    def render(self, filename: str) -> None:
         """Render the graph as a file.
 
         Parameters
