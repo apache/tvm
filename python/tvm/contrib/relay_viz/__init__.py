@@ -93,24 +93,14 @@ class RelayVisualizer:
 
         relay_param : Dict[string, NDarray]
         """
-        for node, node_id in node_to_id.items():
-            try:
-                graph_info, edge_info = self._ne_generator.get_node_edges(
-                    node, relay_param, node_to_id
-                )
-                if graph_info:
-                    graph.node(*graph_info)
-                for edge in edge_info:
-                    graph.edge(*edge)
-            except KeyError as excp:
-                unknown_type = "unknown"
-                unknown_info = f"Failed to render node: {type(node)}"
-                _LOGGER.warning("When invoking render rule for %s, "
-                                "KeyError with args=%s is raised.",
-                                type(node),
-                                excp.args,
-                )
-                graph.node(node_id, unknown_type, unknown_info)
+        for node in node_to_id:
+            graph_info, edge_info = self._ne_generator.get_node_edges(
+                node, relay_param, node_to_id
+            )
+            if graph_info:
+                graph.node(*graph_info)
+            for edge in edge_info:
+                graph.edge(*edge)
 
     def render(self, filename: str = None) -> None:
         self._plotter.render(filename=filename)
@@ -129,36 +119,34 @@ def get_plotter_and_generator(backend):
     if isinstance(backend, (tuple, list)) and len(backend) == 2:
         if not isinstance(backend[0], Plotter):
             raise ValueError(f"First elemnet of backend argument should be derived from {type(Plotter)}")
-        plotter = backend[0]
+
         if not isinstance(backend[1], NodeEdgeGenerator):
             raise ValueError(f"Second elemnet of backend argument should be derived from {type(NodeEdgeGenerator)}")
-        ne_generator = backend[1]
-        return plotter, ne_generator
 
-    if backend in PlotterBackend:
-        # Plotter modules are Lazy-imported to avoid they become a requirement of TVM.
-        # Basically we want to keep them as optional -- users can choose which plotter they want,
-        # and just install libraries required by that plotter.
-        if backend == PlotterBackend.BOKEH:
-            # pylint: disable=import-outside-toplevel
-            from ._bokeh import (
-                BokehPlotter,
-                BokehNodeEdgeGenerator,
-            )
+        return backend
 
-            plotter = BokehPlotter()
-            ne_generator = BokehNodeEdgeGenerator()
+    if backend not in PlotterBackend:
+        raise ValueError(f"Unknown plotter backend {backend}")
 
-        elif backend == PlotterBackend.TERMINAL:
-            # pylint: disable=import-outside-toplevel
-            from ._terminal import (
-                TermPlotter,
-                TermNodeEdgeGenerator,
-            )
+    # Plotter modules are Lazy-imported to avoid they become a requirement of TVM.
+    # Basically we want to keep them as optional -- users can choose which plotter they want,
+    # and just install libraries required by that plotter.
+    if backend == PlotterBackend.BOKEH:
+        # pylint: disable=import-outside-toplevel
+        from ._bokeh import (
+            BokehPlotter,
+            BokehNodeEdgeGenerator,
+        )
+        plotter = BokehPlotter()
+        ne_generator = BokehNodeEdgeGenerator()
+    elif backend == PlotterBackend.TERMINAL:
+        # pylint: disable=import-outside-toplevel
+        from ._terminal import (
+            TermPlotter,
+            TermNodeEdgeGenerator,
+        )
+        plotter = TermPlotter()
+        ne_generator = TermNodeEdgeGenerator()
+    return plotter, ne_generator
 
-            plotter = TermPlotter()
-            ne_generator = TermNodeEdgeGenerator()
 
-        return plotter, ne_generator
-
-    raise ValueError(f"Unknown plotter backend {backend}")

@@ -19,6 +19,7 @@ import abc
 from typing import (
     Dict,
     Union,
+    Tuple,
 )
 import tvm
 from tvm import relay
@@ -32,7 +33,7 @@ class NodeEdgeGenerator(abc.ABC):
     def get_node_edges(self,
                        node: relay.expr.ExprWithOp,
                        relay_param: Dict[str, tvm.runtime.NDArray],
-                       node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]]):
+                       node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]]) -> Tuple[list, list]:
         pass
 
 
@@ -173,6 +174,6 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
                 node, relay_param, node_to_id
             )
         except KeyError:
-            graph_info = []
+            graph_info = [node_to_id[node], "unknown", f"failed to parse node: {type(node)}"]
             edge_info = []
         return graph_info, edge_info
