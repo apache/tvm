@@ -507,7 +507,7 @@ def test_meta_schedule_rpc_runner_exception():
 
 
 def test_meta_schedule_local_runner_exception():
-    """Test meta schedule Local Runner time out"""
+    """Test meta schedule Local Runner exception"""
     mod = MatmulModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
@@ -541,7 +541,6 @@ def test_meta_schedule_local_runner_exception():
     )
 
     runner = LocalRunner(
-        timeout_sec=1,
         evaluator_config=evaluator_config,
         initializer=initializer,
         f_alloc_argument="meta_schedule.runner.test_exception",

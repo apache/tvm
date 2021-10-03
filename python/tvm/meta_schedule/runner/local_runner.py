@@ -175,7 +175,7 @@ class LocalRunner(PyRunner):
 
     def __init__(
         self,
-        timeout_sec: float,
+        timeout_sec: float = 30,
         evaluator_config: Optional[EvaluatorConfig] = None,
         cooldown_sec: float = 0.0,
         alloc_repeat: int = 1,
