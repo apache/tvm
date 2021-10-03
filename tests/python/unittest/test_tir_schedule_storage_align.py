@@ -18,90 +18,90 @@
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name
 
-@tvm.script.tir
-def element_wise(a: ty.handle, c: ty.handle) -> None:
-    C = tir.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = tir.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+@T.prim_func
+def element_wise(a: T.handle, c: T.handle) -> None:
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
     # body
-    with tir.block([], "root"):
-        tir.reads([])
-        tir.writes([])
-        B = tir.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
-        for i0 in tir.serial(0, 128):
-            for ax1 in tir.serial(0, 128):
-                with tir.block([128, 128], "B") as [vi, vj]:
-                    tir.bind(vi, i0)
-                    tir.bind(vj, ax1)
-                    tir.reads([A[vi, vj]])
-                    tir.writes([B[vi, vj]])
-                    B[vi, vj] = (A[vi, vj]*tir.float32(2))
-            for i1 in tir.serial(0, 128):
-                with tir.block([128, 128], "C") as [vi_1, vj_1]:
-                    tir.bind(vi_1, i0)
-                    tir.bind(vj_1, i1)
-                    tir.reads([B[vi_1, vj_1]])
-                    tir.writes([C[vi_1, vj_1]])
-                    C[vi_1, vj_1] = (B[vi_1, vj_1] + tir.float32(1))
+    with T.block([], "root"):
+        T.reads([])
+        T.writes([])
+        B = T.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
+        for i0 in T.serial(0, 128):
+            for ax1 in T.serial(0, 128):
+                with T.block([128, 128], "B") as [vi, vj]:
+                    T.bind(vi, i0)
+                    T.bind(vj, ax1)
+                    T.reads([A[vi, vj]])
+                    T.writes([B[vi, vj]])
+                    B[vi, vj] = (A[vi, vj]*T.float32(2))
+            for i1 in T.serial(0, 128):
+                with T.block([128, 128], "C") as [vi_1, vj_1]:
+                    T.bind(vi_1, i0)
+                    T.bind(vj_1, i1)
+                    T.reads([B[vi_1, vj_1]])
+                    T.writes([C[vi_1, vj_1]])
+                    C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 
-@tvm.script.tir
-def element_wise_storage_align(a: ty.handle, c: ty.handle) -> None:
-    C = tir.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = tir.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+@T.prim_func
+def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
     # body
-    with tir.block([], "root"):
-        tir.reads([])
-        tir.writes([])
-        B = tir.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
-        for i0 in tir.serial(0, 128):
-            for ax1 in tir.serial(0, 128):
-                with tir.block([128, 128], "B") as [vi, vj]:
-                    tir.bind(vi, i0)
-                    tir.bind(vj, ax1)
-                    tir.reads([A[vi, vj]])
-                    tir.writes([B[vi, vj]])
-                    tir.block_attr({"buffer_dim_align":[[0, 0, 128, 127]]})
-                    B[vi, vj] = (A[vi, vj]*tir.float32(2))
-            for i1 in tir.serial(0, 128):
-                with tir.block([128, 128], "C") as [vi_1, vj_1]:
-                    tir.bind(vi_1, i0)
-                    tir.bind(vj_1, i1)
-                    tir.reads([B[vi_1, vj_1]])
-                    tir.writes([C[vi_1, vj_1]])
-                    C[vi_1, vj_1] = (B[vi_1, vj_1] + tir.float32(1))
+    with T.block([], "root"):
+        T.reads([])
+        T.writes([])
+        B = T.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
+        for i0 in T.serial(0, 128):
+            for ax1 in T.serial(0, 128):
+                with T.block([128, 128], "B") as [vi, vj]:
+                    T.bind(vi, i0)
+                    T.bind(vj, ax1)
+                    T.reads([A[vi, vj]])
+                    T.writes([B[vi, vj]])
+                    T.block_attr({"buffer_dim_align":[[0, 0, 128, 127]]})
+                    B[vi, vj] = (A[vi, vj]*T.float32(2))
+            for i1 in T.serial(0, 128):
+                with T.block([128, 128], "C") as [vi_1, vj_1]:
+                    T.bind(vi_1, i0)
+                    T.bind(vj_1, i1)
+                    T.reads([B[vi_1, vj_1]])
+                    T.writes([C[vi_1, vj_1]])
+                    C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 
-@tvm.script.tir
-def element_wise_invalid_annotation(a: ty.handle, c: ty.handle) -> None:
-    C = tir.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = tir.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+@T.prim_func
+def element_wise_invalid_annotation(a: T.handle, c: T.handle) -> None:
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
     # body
-    with tir.block([], "root"):
-        tir.reads([])
-        tir.writes([])
-        B = tir.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
-        for i0 in tir.serial(0, 128):
-            for ax1 in tir.serial(0, 128):
-                with tir.block([128, 128], "B") as [vi, vj]:
-                    tir.block_attr({"buffer_dim_align": [0]})
-                    tir.bind(vi, i0)
-                    tir.bind(vj, ax1)
-                    tir.reads([A[vi, vj]])
-                    tir.writes([B[vi, vj]])
-                    B[vi, vj] = (A[vi, vj]*tir.float32(2))
-            for i1 in tir.serial(0, 128):
-                with tir.block([128, 128], "C") as [vi_1, vj_1]:
-                    tir.bind(vi_1, i0)
-                    tir.bind(vj_1, i1)
-                    tir.reads([B[vi_1, vj_1]])
-                    tir.writes([C[vi_1, vj_1]])
-                    C[vi_1, vj_1] = (B[vi_1, vj_1] + tir.float32(1))
+    with T.block([], "root"):
+        T.reads([])
+        T.writes([])
+        B = T.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
+        for i0 in T.serial(0, 128):
+            for ax1 in T.serial(0, 128):
+                with T.block([128, 128], "B") as [vi, vj]:
+                    T.block_attr({"buffer_dim_align": [0]})
+                    T.bind(vi, i0)
+                    T.bind(vj, ax1)
+                    T.reads([A[vi, vj]])
+                    T.writes([B[vi, vj]])
+                    B[vi, vj] = (A[vi, vj]*T.float32(2))
+            for i1 in T.serial(0, 128):
+                with T.block([128, 128], "C") as [vi_1, vj_1]:
+                    T.bind(vi_1, i0)
+                    T.bind(vj_1, i1)
+                    T.reads([B[vi_1, vj_1]])
+                    T.writes([C[vi_1, vj_1]])
+                    C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
 
 
 def test_storage_align():

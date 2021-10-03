@@ -19,15 +19,16 @@
 from typing import Optional, TYPE_CHECKING
 
 from tvm import IRModule
+from tvm._ffi import register_object
+from tvm.meta_schedule.utils import cpu_count
 from tvm.runtime import Object
 from tvm.target import Target
-from tvm.meta_schedule.utils import cpu_count
-from tvm._ffi import register_object
 
 from . import _ffi_api
 
 if TYPE_CHECKING:
     from .space_generator import SpaceGenerator
+    from .search_strategy import SearchStrategy
 
 
 @register_object("meta_schedule.TuneContext")
@@ -45,6 +46,10 @@ class TuneContext(Object):
         The workload to be optimized.
     target : Optional[Target] = None
         The target to be optimized for.
+    space_generator : Optional[SpaceGenerator] = None
+        The design space generator.
+    search_strategy : Optional[SearchStrategy] = None
+        The search strategy.
     task_name : Optional[str] = None
         The name of the tuning task.
     rand_state : int = -1
@@ -63,6 +68,8 @@ class TuneContext(Object):
 
     mod: Optional[IRModule]
     target: Optional[Target]
+    space_generator: "SpaceGenerator"
+    search_strategy: "SearchStrategy"
     task_name: Optional[str]
     rand_state: int
     num_threads: int
@@ -72,6 +79,7 @@ class TuneContext(Object):
         mod: Optional[IRModule] = None,
         target: Optional[Target] = None,
         space_generator: Optional["SpaceGenerator"] = None,
+        search_strategy: Optional["SearchStrategy"] = None,
         task_name: Optional[str] = None,
         rand_state: int = -1,
         num_threads: Optional[int] = None,
@@ -86,6 +94,8 @@ class TuneContext(Object):
             The target to be optimized for.
         space_generator : Optional[SpaceGenerator] = None
             The design space generator.
+        search_strategy : Optional[SearchStrategy] = None
+            The search strategy.
         task_name : Optional[str] = None
             The name of the tuning task.
         rand_state : int = -1
@@ -102,6 +112,7 @@ class TuneContext(Object):
             mod,
             target,
             space_generator,
+            search_strategy,
             task_name,
             rand_state,
             num_threads,

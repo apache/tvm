@@ -54,12 +54,13 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     cfg.define_knob("vthread_n", [1] if dynamic_batch else [1, 2])
     cfg.define_knob("vthread_c", [1, 2])
     cfg.define_knob("step", [16, 3, 32, 64])
+    cfg.define_knob("vectorize", [1, 2, 4, 8])
 
     # fallback support
     target = tvm.target.Target.current()
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.kind.name, target.model, "conv2d_nhwc.cuda"
+            target.kind.name, target.model, "conv2d_nhwc.gpu"
         )
         cfg.fallback_with_reference_log(ref_log)
 
@@ -70,6 +71,7 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     vthread_n = cfg["vthread_n"].val
     vthread_c = cfg["vthread_c"].val
     step = cfg["step"].val
+    vec_factor = cfg["vectorize"].val
     block_factor_c = tile_c * num_thread_c * vthread_c
 
     offset = 8
@@ -85,15 +87,17 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     thread_yz = te.thread_axis((0, vthread_n), "vthread", name="vy")
 
     # Schedule for output
-    ni, hi, wi, fi = s[output].op.axis
-    bx = s[output].fuse(hi, wi)
+    ni, _, wi, fi = s[output].op.axis
+    bx = wi
+    fi, vec = s[output].split(fi, factor=vec_factor)
+    s[output].vectorize(vec)
     tx, fi = s[output].split(fi, factor=tile_c)
     txz, tx = s[output].split(tx, factor=num_thread_c)
     bz, txz = s[output].split(txz, factor=vthread_c)
     ty, ni = s[output].split(ni, factor=tile_n)
     tyz, ty = s[output].split(ty, factor=num_thread_n)
     by, tyz = s[output].split(tyz, factor=vthread_n)
-    s[output].reorder(bx, by, bz, tyz, txz, ty, tx, ni, fi)
+    s[output].reorder(bx, by, bz, tyz, txz, ty, tx, ni, fi, vec)
     s[output].bind(bz, block_z)
     s[output].bind(by, block_y)
     s[output].bind(bx, block_x)
@@ -106,6 +110,7 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     ni, yi, xi, fi = s[OL].op.axis
     ry, rx, rc = s[OL].op.reduce_axis
     rco, rci = s[OL].split(rc, factor=step)
+    s[OL].vectorize(fi)
     s[OL].reorder(rco, ry, rx, rci, ni, fi)
 
     s[AA].compute_at(s[OL], rx)
@@ -125,6 +130,8 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     _, _, ic, o = s[WW].op.axis
     t = s[WW].fuse(ic, o)
     s[WW].storage_align(ic, W_align - 1, W_align)
+    t, vec = s[WW].split(t, factor=vec_factor)
+    s[WW].vectorize(vec)
     ty, tx = s[WW].split(t, factor=num_thread_c)
     _, ty = s[WW].split(ty, factor=num_thread_n)
     s[WW].bind(tx, thread_x)

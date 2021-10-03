@@ -18,38 +18,38 @@
 """Test workload for lowering and build"""
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 import tvm.testing
 import numpy as np
 
 
-@tvm.script.tir
-def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+@T.prim_func
+def tensorcore_gemm(a: T.handle, b: T.handle, c: T.handle) -> None:
     # match buffer
-    A = tir.match_buffer(a, [1024, 1024], "float16")
-    B = tir.match_buffer(b, [1024, 1024], "float16")
-    C = tir.match_buffer(c, [1024, 1024], "float32")
+    A = T.match_buffer(a, [1024, 1024], "float16")
+    B = T.match_buffer(b, [1024, 1024], "float16")
+    C = T.match_buffer(c, [1024, 1024], "float32")
 
     # body
-    for blockIdx_x in tir.thread_binding(0, 16, "blockIdx.x"):
-        for blockIdx_y in tir.thread_binding(0, 8, "blockIdx.y"):
-            with tir.block([16, 8]) as [bx, by]:
-                tir.bind(bx, blockIdx_x)
-                tir.bind(by, blockIdx_y)
-                shared_A = tir.alloc_buffer([1024, 1024], "float16", scope="shared")
-                shared_B = tir.alloc_buffer([1024, 1024], "float16", scope="shared")
-                wmma_A = tir.alloc_buffer([1024, 1024], "float16", scope="wmma.matrix_a")
-                wmma_B = tir.alloc_buffer([1024, 1024], "float16", scope="wmma.matrix_b")
-                wmma_C = tir.alloc_buffer([1024, 1024], "float32", scope="wmma.accumulator")
-                for ty in tir.thread_binding(0, 2, "threadIdx.y"):
-                    for tz in tir.thread_binding(0, 2, "threadIdx.z"):
-                        for i, j in tir.grid(2, 4):
-                            with tir.block([64, 64]) as [vi, vj]:
-                                tir.bind(vi, bx * 4 + ty * 2 + i)
-                                tir.bind(vj, by * 8 + tz * 4 + j)
-                                tir.reads([])
-                                tir.writes(wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                                C0 = tir.match_buffer(
+    for blockIdx_x in T.thread_binding(0, 16, "blockIdx.x"):
+        for blockIdx_y in T.thread_binding(0, 8, "blockIdx.y"):
+            with T.block([16, 8]) as [bx, by]:
+                T.bind(bx, blockIdx_x)
+                T.bind(by, blockIdx_y)
+                shared_A = T.alloc_buffer([1024, 1024], "float16", scope="shared")
+                shared_B = T.alloc_buffer([1024, 1024], "float16", scope="shared")
+                wmma_A = T.alloc_buffer([1024, 1024], "float16", scope="wmma.matrix_a")
+                wmma_B = T.alloc_buffer([1024, 1024], "float16", scope="wmma.matrix_b")
+                wmma_C = T.alloc_buffer([1024, 1024], "float32", scope="wmma.accumulator")
+                for ty in T.thread_binding(0, 2, "threadIdx.y"):
+                    for tz in T.thread_binding(0, 2, "threadIdx.z"):
+                        for i, j in T.grid(2, 4):
+                            with T.block([64, 64]) as [vi, vj]:
+                                T.bind(vi, bx * 4 + ty * 2 + i)
+                                T.bind(vj, by * 8 + tz * 4 + j)
+                                T.reads([])
+                                T.writes(wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+                                C0 = T.match_buffer(
                                     wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                                     (16, 16),
                                     "float32",
@@ -57,52 +57,52 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                     scope="wmma.accumulator",
                                     offset_factor=1,
                                 )
-                                tir.evaluate(
-                                    tir.tvm_fill_fragment(
+                                T.evaluate(
+                                    T.tvm_fill_fragment(
                                         C0.data,
                                         16,
                                         16,
                                         16,
                                         i * 4 + j,
-                                        tir.float32(0),
+                                        T.float32(0),
                                         dtype="handle",
                                     )
                                 )
 
                         for ko in range(0, 32):
                             # copy data from global to shared
-                            for tx in tir.thread_binding(0, 32, "threadIdx.x"):
-                                for i0, j0 in tir.grid(1, 4):
-                                    for j1 in tir.vectorized(0, 4):
-                                        with tir.block([1024, 1024]) as [vi, vj]:
-                                            tir.bind(vi, bx * 64 + ty * 32 + tx + i0)
-                                            tir.bind(vj, ko * 32 + tz * 16 + j0 * 4 + j1)
+                            for tx in T.thread_binding(0, 32, "threadIdx.x"):
+                                for i0, j0 in T.grid(1, 4):
+                                    for j1 in T.vectorized(0, 4):
+                                        with T.block([1024, 1024]) as [vi, vj]:
+                                            T.bind(vi, bx * 64 + ty * 32 + tx + i0)
+                                            T.bind(vj, ko * 32 + tz * 16 + j0 * 4 + j1)
                                             shared_A[vi, vj + 8] = A[vi, vj]
 
-                                for i0, j0 in tir.grid(2, 4):
-                                    for j1 in tir.vectorized(0, 4):
-                                        with tir.block([1024, 1024]) as [vi, vj]:
-                                            tir.bind(vi, by * 128 + ty * 64 + tx * 2 + i0)
-                                            tir.bind(vj, ko * 32 + tz * 16 + j0 * 4 + j1)
+                                for i0, j0 in T.grid(2, 4):
+                                    for j1 in T.vectorized(0, 4):
+                                        with T.block([1024, 1024]) as [vi, vj]:
+                                            T.bind(vi, by * 128 + ty * 64 + tx * 2 + i0)
+                                            T.bind(vj, ko * 32 + tz * 16 + j0 * 4 + j1)
                                             shared_B[vi, vj + 8] = B[vi, vj]
 
                             for ki in range(0, 2):
                                 for i in range(0, 2):
-                                    with tir.block([64, 64]) as [vi, vk]:
-                                        tir.bind(vi, bx * 4 + ty * 2 + i)
-                                        tir.bind(vk, ko * 2 + ki)
-                                        tir.reads(
+                                    with T.block([64, 64]) as [vi, vk]:
+                                        T.bind(vi, bx * 4 + ty * 2 + i)
+                                        T.bind(vk, ko * 2 + ki)
+                                        T.reads(
                                             shared_A[
                                                 vi * 16 : vi * 16 + 16,
                                                 vk * 16 : vk * 16 + 16 + 8,
                                             ]
                                         )
-                                        tir.writes(
+                                        T.writes(
                                             wmma_A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16]
                                         )
-                                        s0 = tir.var("int32")
-                                        s1 = tir.var("int32")
-                                        A0 = tir.match_buffer(
+                                        s0 = T.var("int32")
+                                        s1 = T.var("int32")
+                                        A0 = T.match_buffer(
                                             shared_A[
                                                 vi * 16 : vi * 16 + 16,
                                                 vk * 16 : vk * 16 + 16 + 8,
@@ -113,7 +113,7 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                             scope="shared",
                                             offset_factor=1,
                                         )
-                                        wmma_A0 = tir.match_buffer(
+                                        wmma_A0 = T.match_buffer(
                                             wmma_A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                                             (16, 16),
                                             "float16",
@@ -121,15 +121,15 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                             scope="wmma.matrix_a",
                                             offset_factor=1,
                                         )
-                                        tir.evaluate(
-                                            tir.tvm_load_matrix_sync(
+                                        T.evaluate(
+                                            T.tvm_load_matrix_sync(
                                                 wmma_A0.data,
                                                 16,
                                                 16,
                                                 16,
                                                 i,
-                                                tir.tvm_access_ptr(
-                                                    tir.type_annotation(dtype="float16"),
+                                                T.tvm_access_ptr(
+                                                    T.type_annotation(dtype="float16"),
                                                     A0.data,
                                                     A0.elem_offset + 8,
                                                     A0.strides[0],
@@ -142,21 +142,21 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                             )
                                         )
                                 for j in range(0, 4):
-                                    with tir.block([64, 64]) as [vj, vk]:
-                                        tir.bind(vj, by * 8 + tz * 4 + j)
-                                        tir.bind(vk, ko * 2 + ki)
-                                        tir.reads(
+                                    with T.block([64, 64]) as [vj, vk]:
+                                        T.bind(vj, by * 8 + tz * 4 + j)
+                                        T.bind(vk, ko * 2 + ki)
+                                        T.reads(
                                             shared_B[
                                                 vj * 16 : vj * 16 + 16,
                                                 vk * 16 : vk * 16 + 16 + 8,
                                             ]
                                         )
-                                        tir.writes(
+                                        T.writes(
                                             wmma_B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16]
                                         )
-                                        s0 = tir.var("int32")
-                                        s1 = tir.var("int32")
-                                        B0 = tir.match_buffer(
+                                        s0 = T.var("int32")
+                                        s1 = T.var("int32")
+                                        B0 = T.match_buffer(
                                             shared_B[
                                                 vj * 16 : vj * 16 + 16,
                                                 vk * 16 : vk * 16 + 16 + 8,
@@ -167,7 +167,7 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                             scope="shared",
                                             offset_factor=1,
                                         )
-                                        wmma_B0 = tir.match_buffer(
+                                        wmma_B0 = T.match_buffer(
                                             wmma_B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                                             (16, 16),
                                             "float16",
@@ -175,15 +175,15 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                             scope="wmma.matrix_b",
                                             offset_factor=1,
                                         )
-                                        tir.evaluate(
-                                            tir.tvm_load_matrix_sync(
+                                        T.evaluate(
+                                            T.tvm_load_matrix_sync(
                                                 wmma_B0.data,
                                                 16,
                                                 16,
                                                 16,
                                                 j,
-                                                tir.tvm_access_ptr(
-                                                    tir.type_annotation(dtype="float16"),
+                                                T.tvm_access_ptr(
+                                                    T.type_annotation(dtype="float16"),
                                                     B0.data,
                                                     B0.elem_offset + 8,
                                                     B0.strides[0],
@@ -195,16 +195,16 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                                 dtype="handle",
                                             )
                                         )
-                                for i, j in tir.grid(2, 4):
-                                    with tir.block([64, 64, tir.reduce_axis(0, 64)]) as [
+                                for i, j in T.grid(2, 4):
+                                    with T.block([64, 64, T.reduce_axis(0, 64)]) as [
                                         vi,
                                         vj,
                                         vk,
                                     ]:
-                                        tir.bind(vi, bx * 4 + ty * 2 + i)
-                                        tir.bind(vj, by * 8 + tz * 4 + j)
-                                        tir.bind(vk, ko * 2 + ki)
-                                        tir.reads(
+                                        T.bind(vi, bx * 4 + ty * 2 + i)
+                                        T.bind(vj, by * 8 + tz * 4 + j)
+                                        T.bind(vk, ko * 2 + ki)
+                                        T.reads(
                                             [
                                                 wmma_A[
                                                     vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16
@@ -217,10 +217,10 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                                 ],
                                             ]
                                         )
-                                        tir.writes(
+                                        T.writes(
                                             wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16]
                                         )
-                                        wmma_A1 = tir.match_buffer(
+                                        wmma_A1 = T.match_buffer(
                                             wmma_A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                                             (16, 16),
                                             "float16",
@@ -228,7 +228,7 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                             scope="wmma.matrix_a",
                                             offset_factor=1,
                                         )
-                                        wmma_B1 = tir.match_buffer(
+                                        wmma_B1 = T.match_buffer(
                                             wmma_B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                                             (16, 16),
                                             "float16",
@@ -236,7 +236,7 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                             scope="wmma.matrix_b",
                                             offset_factor=1,
                                         )
-                                        wmma_C1 = tir.match_buffer(
+                                        wmma_C1 = T.match_buffer(
                                             wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                                             (16, 16),
                                             "float32",
@@ -244,8 +244,8 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                             scope="wmma.accumulator",
                                             offset_factor=1,
                                         )
-                                        tir.evaluate(
-                                            tir.tvm_mma_sync(
+                                        T.evaluate(
+                                            T.tvm_mma_sync(
                                                 wmma_C1.data,
                                                 i * 4 + j,
                                                 wmma_A1.data,
@@ -257,15 +257,15 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                                 dtype="handle",
                                             )
                                         )
-                        for i, j in tir.grid(2, 4):
-                            with tir.block([64, 64]) as [vi, vj]:
-                                tir.bind(vi, bx * 4 + ty * 2 + i)
-                                tir.bind(vj, by * 8 + tz * 4 + j)
-                                tir.reads(wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                                tir.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                                s0 = tir.var("int32")
-                                s1 = tir.var("int32")
-                                wmma_C2 = tir.match_buffer(
+                        for i, j in T.grid(2, 4):
+                            with T.block([64, 64]) as [vi, vj]:
+                                T.bind(vi, bx * 4 + ty * 2 + i)
+                                T.bind(vj, by * 8 + tz * 4 + j)
+                                T.reads(wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+                                T.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+                                s0 = T.var("int32")
+                                s1 = T.var("int32")
+                                wmma_C2 = T.match_buffer(
                                     wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                                     (16, 16),
                                     "float32",
@@ -273,22 +273,22 @@ def tensorcore_gemm(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
                                     scope="wmma.accumulator",
                                     offset_factor=1,
                                 )
-                                C1 = tir.match_buffer(
+                                C1 = T.match_buffer(
                                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                                     (16, 16),
                                     "float32",
                                     strides=[s0, s1],
                                     offset_factor=1,
                                 )
-                                tir.evaluate(
-                                    tir.tvm_store_matrix_sync(
+                                T.evaluate(
+                                    T.tvm_store_matrix_sync(
                                         wmma_C2.data,
                                         16,
                                         16,
                                         16,
                                         i * 4 + j,
-                                        tir.tvm_access_ptr(
-                                            tir.type_annotation(dtype="float32"),
+                                        T.tvm_access_ptr(
+                                            T.type_annotation(dtype="float32"),
                                             C1.data,
                                             C1.elem_offset,
                                             C1.strides[0],

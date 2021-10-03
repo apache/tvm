@@ -27,7 +27,8 @@ from tvm.relay.backend.contrib import ethosu
 from tvm.relay.backend.contrib.ethosu import legalize, preprocess
 from tvm.relay.dataflow_pattern import *
 from tvm.relay.op.contrib.ethosu import *
-import relay_ir_builder
+
+from . import relay_ir_builder
 
 
 def test_split_indices_legalize():
@@ -293,7 +294,7 @@ def test_ethosu_conv2d_legalize():
     ]
     for test_case in test_cases:
         mod, conv_params = test_case[0](*test_case[1])
-        mod = ethosu.partition_for_ethosu(mod)
+        mod = partition_for_ethosu(mod)
         mod = legalize.LegalizeEthosUConv2D()(mod)
         verify_linear(mod["tvmgen_default_ethosu_main_0"], conv_params)
 
@@ -326,7 +327,7 @@ def test_ethosu_conv2d_legalize_errors():
 
     for test_case in test_cases:
         mod, conv_params = test_case[0](*test_case[1])
-        mod = ethosu.partition_for_ethosu(mod)
+        mod = partition_for_ethosu(mod)
         with pytest.raises(
             tvm._ffi.base.TVMError, match="EthosUCodegenError: Unsupported Layout NCHW"
         ):

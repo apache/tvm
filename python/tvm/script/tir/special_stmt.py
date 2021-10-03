@@ -27,15 +27,17 @@ from tvm.runtime import Object
 from tvm import te
 from tvm.ir import Span
 from tvm.tir import IntImm
-from .utils import (
+
+from .node import BufferSlice
+from .utils import buffer_slice_to_region
+
+from ..context_maintainer import ContextMaintainer
+from ..registry import register
+from ..utils import (
     get_param_list,
     tvm_span_from_synr,
-    buffer_slice_to_region,
     call_with_error_reporting,
 )
-from .registry import register
-from .context_maintainer import ContextMaintainer
-from .node import BufferSlice
 
 
 def convert_to_int(
@@ -109,11 +111,11 @@ class MatchBuffer(SpecialStmt):
     -------
     Match buffer from function parameter
     .. code-block:: python
-        A = tir.match_buffer(a, (128, 128), dtype="float32")
+        A = T.match_buffer(a, (128, 128), dtype="float32")
 
     Match buffer from Buffer subregion
     .. code-block:: python
-        A = tir.match_buffer(B[0:128, i * 128 : i * 128 + 128], (128, 128), dtype="float32")
+        A = T.match_buffer(B[0:128, i * 128 : i * 128 + 128], (128, 128), dtype="float32")
     """
 
     def __init__(self):
@@ -183,7 +185,7 @@ class BufferDeclare(SpecialStmt):
     Example
     -------
     .. code-block:: python
-        A = tir.buffer_decl((128, 128), dtype="float32")
+        A = T.buffer_decl((128, 128), dtype="float32")
     """
 
     def __init__(self):
@@ -239,7 +241,7 @@ class AllocBuffer(SpecialStmt):
     -------
     .. code-block:: python
 
-        A = tir.alloc_buffer((128, 128), dtype="float32")
+        A = T.alloc_buffer((128, 128), dtype="float32")
     """
 
     def __init__(self):
@@ -294,7 +296,7 @@ class BlockVarBind(SpecialStmt):
     -------
     .. code-block:: python
 
-        tir.bind(vx, i)
+        T.bind(vx, i)
     """
 
     def __init__(self):
@@ -315,7 +317,7 @@ class BlockReads(SpecialStmt):
     -------
     .. code-block:: python
 
-        tir.reads([A[vi: vi + 4, vk: vk + 4], B[vk: vk + 4, vj]])
+        T.reads([A[vi: vi + 4, vk: vk + 4], B[vk: vk + 4, vj]])
     """
 
     def __init__(self):
@@ -350,7 +352,7 @@ class BlockWrites(SpecialStmt):
     -------
     .. code-block:: python
 
-        tir.writes([C[vi: vi + 4, vj])
+        T.writes([C[vi: vi + 4, vj])
     """
 
     def __init__(self):
@@ -387,7 +389,7 @@ class BlockAttr(SpecialStmt):
     -------
     .. code-block:: python
 
-        tir.block_attr({"double_buffer_scope": 1})
+        T.block_attr({"double_buffer_scope": 1})
     """
 
     def __init__(self):
@@ -418,7 +420,7 @@ class BlockPredicate(SpecialStmt):
     -------
     .. code-block:: python
 
-        tir.where(i < 4)
+        T.where(i < 4)
     """
 
     def __init__(self):
@@ -491,7 +493,7 @@ class FuncAttr(SpecialStmt):
     Example
     -------
     .. code-block:: python
-         tir.func_attr({"tir.noalias": True, "global_symbol"})
+         T.func_attr({"tir.noalias": True, "global_symbol"})
     """
 
     def __init__(self):

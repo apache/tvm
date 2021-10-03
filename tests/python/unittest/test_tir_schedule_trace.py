@@ -21,28 +21,28 @@ import sys
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV, Trace
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def elementwise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
+@T.prim_func
+def elementwise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    with T.block([128, 128], "B") as [vi, vj]:
         B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
+    with T.block([128, 128], "C") as [vi, vj]:
         C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def elementwise_inlined(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "C") as [vi, vj]:
+@T.prim_func
+def elementwise_inlined(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    with T.block([128, 128], "C") as [vi, vj]:
         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
