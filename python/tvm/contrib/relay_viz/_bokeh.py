@@ -49,12 +49,12 @@ from .plotter import (
     Graph,
 )
 
-from .render_callback import RenderCallback  # pylint: disable=import-outside-toplevel
+from .node_edge_gen import DefaultNodeEdgeGenerator
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class BokehRenderCallback(RenderCallback):
+class BokehNodeEdgeGenerator(DefaultNodeEdgeGenerator):
     pass
 
 
@@ -464,7 +464,9 @@ class BokehPlotter(Plotter):
         return self._name_to_graph[name]
 
     def render(self, filename):
-        if not filename.endswith(".html"):
+        if filename is None:
+            filename = "bokeh_plotter_result.html"
+        elif not filename.endswith(".html"):
             filename = f"{filename}.html"
 
         dom_list = []

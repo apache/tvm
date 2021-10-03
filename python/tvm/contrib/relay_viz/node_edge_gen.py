@@ -18,39 +18,26 @@
 import abc
 from typing import (
     Dict,
-    Callable,
     Union,
-    List,
 )
 import tvm
 from tvm import relay
-from tvm.relay.expr import Tuple
 
 UNKNOWN_TYPE = "unknown"
 
-class RenderCallbackInterface(abc.ABC):
+class NodeEdgeGenerator(abc.ABC):
+    """Abstract class generating nodes and edgs for Graph interface."""
 
     @abc.abstractmethod
-    def get_rules(self) -> Dict[
-            tvm.ir.op.Op,
-            Callable[
-                [
-                    tvm.ir.op.Op,
-                    Dict[str, tvm.runtime.NDArray],
-                    Dict[tvm.ir.op.Op, Union[int, str]]
-                ],
-                Tuple[List, List],
-            ]
-        ]:
-        """Retrun a dictionary. Relay node type as key and a callable as valeu.
-        The callable object should return Tuple[List, List],
-        where the first List is [node_id, node_type, node_detail] used by Plotter interface.
-        The second one is for edges, with the form [[e0_start, e0_end], [e1_start, e1_end], ...]
-        """
+    def get_node_edges(self,
+                       node: relay.expr.ExprWithOp,
+                       relay_param: Dict[str, tvm.runtime.NDArray],
+                       node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]]):
         pass
 
-class RenderCallback(RenderCallbackInterface):
-    """RenderCallback generate nodes and edges information for each Relay type.
+
+class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
+    """NodeEdgeGenerator generate for nodes and edges consumed by Graph.
     This class is a default implementation for common relay types, heavily based on
     `visualize` function in https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
     """
@@ -79,8 +66,18 @@ class RenderCallback(RenderCallbackInterface):
         return node_info, edge_info
 
     def function_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+        node_details = []
+        name = ""
+        func_attrs = node.attrs
+        if func_attrs:
+            node_details = [
+                "{}: {}".format(k, func_attrs.get_str(k)) for k in func_attrs.keys()
+            ]
+            # "Composite" might from relay.transform.MergeComposite
+            if "Composite" in func_attrs.keys():
+                name = func_attrs["Composite"]
         node_id = node_to_id[node]
-        node_info = [node_id, "Func", str(node.params)]
+        node_info = [node_id, f"Func {name}", "\n".join(node_details)]
         edge_info = [[node_to_id[node.body], node_id]]
         return node_info, edge_info
 
@@ -167,5 +164,15 @@ class RenderCallback(RenderCallbackInterface):
             tvm.ir.Op: self.op_node,
         }
 
-    def get_rules(self):
-        return self.render_rules
+    def get_node_edges(self,
+                       node: relay.expr.ExprWithOp,
+                       relay_param: Dict[str, tvm.runtime.NDArray],
+                       node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]]):
+        try:
+            graph_info, edge_info = self.render_rules[type(node)](
+                node, relay_param, node_to_id
+            )
+        except KeyError:
+            graph_info = []
+            edge_info = []
+        return graph_info, edge_info

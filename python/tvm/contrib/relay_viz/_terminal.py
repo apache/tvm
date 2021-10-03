@@ -24,11 +24,11 @@ from .plotter import (
     Graph,
 )
 
-from .render_callback import RenderCallback
+from .node_edge_gen import DefaultNodeEdgeGenerator
 
 
-class TermRenderCallback(RenderCallback):
-    """Terminal render callback"""
+class TermNodeEdgeGenerator(DefaultNodeEdgeGenerator):
+    """Terminal nodes and edges generator."""
 
     def call_node(self, node, relay_param, node_to_id):
         node_id = node_to_id[node]
@@ -68,6 +68,11 @@ class TermRenderCallback(RenderCallback):
         edge_info = []
         return graph_info, edge_info
 
+    def function_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+        node_id = node_to_id[node]
+        node_info = [node_id, "Func", str(node.params)]
+        edge_info = [[node_to_id[node.body], node_id]]
+        return node_info, edge_info
 
 class Node:
     def __init__(self, node_type, other_info):
@@ -137,9 +142,11 @@ class TermPlotter(Plotter):
         return self._name_to_graph[name]
 
     def render(self, filename):
-        # if filename  == "stdio", print to terminal.
-        # Otherwise, print to the file
         lines = []
         for name in self._name_to_graph:
             lines.append(self._name_to_graph[name].render())
-        print("\n".join(lines))
+        if filename is None:
+            print("\n".join(lines))
+        else:
+            with open(filename, "w") as fp:
+                fp.write("\n".join(lines))

@@ -25,13 +25,9 @@ from enum import Enum
 import tvm
 from tvm import relay
 from .plotter import Plotter
-from .render_callback import (
-    RenderCallbackInterface,
-    RenderCallback,
-)
+from .node_edge_gen import NodeEdgeGenerator
 
 _LOGGER = logging.getLogger(__name__)
-
 
 class PlotterBackend(Enum):
     """Enumeration for available plotters."""
@@ -46,7 +42,7 @@ class RelayVisualizer:
     def __init__(self,
                  relay_mod: tvm.IRModule,
                  relay_param: Dict = None,
-                 backend: Union[PlotterBackend, Tuple[Plotter, RenderCallbackInterface]] = PlotterBackend.TERMINAL):
+                 backend: Union[PlotterBackend, Tuple[Plotter, NodeEdgeGenerator]] = PlotterBackend.TERMINAL):
         """Visualize Relay IR.
 
         Parameters
@@ -61,7 +57,7 @@ class RelayVisualizer:
                                the second is user-defined RenderCallback
         """
 
-        self._plotter, self._render_rules = get_plotter_and_render_rules(backend)
+        self._plotter, self._ne_generator = get_plotter_and_generator(backend)
         self._relay_param = relay_param if relay_param is not None else {}
 
         global_vars = relay_mod.get_global_vars()
@@ -84,10 +80,10 @@ class RelayVisualizer:
             relay.analysis.post_order_visit(relay_mod[name], traverse_expr)
             graph = self._plotter.create_graph(name)
             # shallow copy to prevent callback modify node_to_id
-            self._render_cb(graph, node_to_id.copy(), self._relay_param)
+            self._render(graph, node_to_id.copy(), self._relay_param)
 
-    def _render_cb(self, graph, node_to_id, relay_param):
-        """a callback to Add nodes and edges to the graph.
+    def _render(self, graph, node_to_id, relay_param):
+        """render nodes and edges to the graph.
 
         Parameters
         ----------
@@ -99,7 +95,7 @@ class RelayVisualizer:
         """
         for node, node_id in node_to_id.items():
             try:
-                graph_info, edge_info = self._render_rules[type(node)](
+                graph_info, edge_info = self._ne_generator.get_node_edges(
                     node, relay_param, node_to_id
                 )
                 if graph_info:
@@ -116,12 +112,12 @@ class RelayVisualizer:
                 )
                 graph.node(node_id, unknown_type, unknown_info)
 
-    def render(self, filename: str) -> None:
+    def render(self, filename: str = None) -> None:
         self._plotter.render(filename=filename)
 
 
-def get_plotter_and_render_rules(backend):
-    """Specify the Plottor and its render rules
+def get_plotter_and_generator(backend):
+    """Specify the Plottor and its NodeEdgeGenerator
 
     Parameters
         ----------
@@ -134,11 +130,10 @@ def get_plotter_and_render_rules(backend):
         if not isinstance(backend[0], Plotter):
             raise ValueError(f"First elemnet of backend argument should be derived from {type(Plotter)}")
         plotter = backend[0]
-        if not isinstance(backend[1], RenderCallback):
-            raise ValueError(f"Second elemnet of backend argument should be derived from {type(RenderCallbackInterface)}")
-        render = backend[1]
-        render_rules = render.get_rules()
-        return plotter, render_rules
+        if not isinstance(backend[1], NodeEdgeGenerator):
+            raise ValueError(f"Second elemnet of backend argument should be derived from {type(NodeEdgeGenerator)}")
+        ne_generator = backend[1]
+        return plotter, ne_generator
 
     if backend in PlotterBackend:
         # Plotter modules are Lazy-imported to avoid they become a requirement of TVM.
@@ -148,23 +143,22 @@ def get_plotter_and_render_rules(backend):
             # pylint: disable=import-outside-toplevel
             from ._bokeh import (
                 BokehPlotter,
-                BokehRenderCallback,
+                BokehNodeEdgeGenerator,
             )
 
             plotter = BokehPlotter()
-            render = BokehRenderCallback()
+            ne_generator = BokehNodeEdgeGenerator()
 
         elif backend == PlotterBackend.TERMINAL:
             # pylint: disable=import-outside-toplevel
             from ._terminal import (
                 TermPlotter,
-                TermRenderCallback,
+                TermNodeEdgeGenerator,
             )
 
             plotter = TermPlotter()
-            render = TermRenderCallback()
+            ne_generator = TermNodeEdgeGenerator()
 
-        render_rules = render.get_rules()
-        return plotter, render_rules
+        return plotter, ne_generator
 
     raise ValueError(f"Unknown plotter backend {backend}")
