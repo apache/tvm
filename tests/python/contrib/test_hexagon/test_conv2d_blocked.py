@@ -265,12 +265,16 @@ def conv2d_packed_filter(
     Xl = s.cache_read(X_packed, storage_scope, [Y])
     Yl = s.cache_write(Y, storage_scope)
 
-    n, hid, wid, cid, hoff, woff, coff = s[Y].op.axis
+    n, hid, wid, kid, hoff, woff, koff = s[Y].op.axis
     houter, hinner = s[Y].split(hid, factor=h_loop_split)
     s[Yl].compute_at(s[Y], houter)
 
-    n, hid, wid, cid, hoff, woff, coff = s[Yl].op.axis
+    n, hid, wid, kid, hoff, woff, koff = s[Yl].op.axis
+    rh, rw, rc = s[Yl].op.reduce_axis
+    rco, rci = s[Yl].split(rc, factor=32)
     houter, hinner = s[Yl].split(hid, factor=h_loop_split)
+    s[Yl].reorder(n, houter, hinner, wid, kid, rco, hoff, woff, koff, rci)
+
     s[Xl].compute_at(s[Yl], houter)
 
     binds = {}
@@ -391,9 +395,14 @@ def conv2d_packed_filter_nhwhwc(
     n, ho, wo, hi, wi, k = s[Yl].op.axis
     rh, rw, rc = s[Yl].op.reduce_axis
     ko, ki = s[Yl].split(k, factor=32)
-    s[Yl].reorder(n, ho, wo, ko, hi, wi, ki, rc)
+    rco, rci = s[Yl].split(rc, factor=32)
+    s[Yl].reorder(n, ho, wo, ko, rco, hi, wi, ki, rci)
     ho1, ho2 = s[Yl].split(ho, factor=h_loop_split)
     s[Xl].compute_at(s[Yl], ho1)
+
+    n, ho, wo, hi, wi, c = s[Xl].op.axis
+    co, ci = s[Xl].split(c, factor=32)
+    s[Xl].reorder(n, ho, wo, co, hi, wi, ci)
 
     binds = {}
     if storage_scope and storage_scope != "global":
