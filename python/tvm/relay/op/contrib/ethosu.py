@@ -14,19 +14,51 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=ungrouped-imports
 """Arm(R) Ethos(TM)-U NPU supported operators."""
-from typing import List, Tuple, Callable
+import functools
+
+from typing import Dict, List, Tuple, Callable, Optional
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
+from tvm import relay
 from tvm.relay.expr import Constant  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant  # type: ignore
-from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
-from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-from tvm.relay.backend.contrib.ethosu.util import RequantArgs
-from tvm.relay.backend.contrib.ethosu.util import get_dim_value
-from ethosu.vela import api as vapi  # type: ignore
+from tvm.relay.build_module import bind_params_by_name  # type: ignore
+
+try:
+    # As ethos-u-vela package is an optional TVM dependency, we want to lazy load it
+    # and check whether it is installed or not.
+    #
+    # In order to show the appropriate error messages when we try to invoke code that
+    # rely on imports from ethos-u-vela, we protect them with the decorator @requires_vela
+    # implemented below.
+    from ethosu.vela import api as vapi  # type: ignore
+    from tvm.relay.backend.contrib.ethosu import preprocess
+    from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
+    from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
+    from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+    from tvm.relay.backend.contrib.ethosu.util import get_dim_value
+except ImportError:
+    vapi = None
+
+
+def requires_vela(func):
+    """Decorator to check whether we have the required dependency ethos-u-vela
+    installed as a python package"""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if not vapi:
+            raise ImportError(
+                "The 'ethos-u-vela' python package is required for the Arm(R) Ethos(TM)-U NPU "
+                "backend. Please install the dependency using your Python package manager."
+            ) from None
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 class TensorParams:
@@ -36,6 +68,7 @@ class TensorParams:
     for the creation of tensors in Vela.
     """
 
+    @requires_vela
     def __init__(self, tensor, layout=None, scale=None, zero_point=None):
         self.tensor = tensor
         if isinstance(tensor, Constant):
@@ -148,6 +181,7 @@ class QnnConv2DParams:
     padding_bounds = [31, 31, 32, 32]
     activation_map = {"clip": "CLIP"}
 
+    @requires_vela
     def __init__(self, func_body: tvm.relay.Function):
         activation = None
         if str(func_body.op) in self.activation_map.keys():
@@ -247,3 +281,39 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             lambda pat: QnnConv2DParams(pat).is_valid(),
         )
     ]
+
+
+# pylint: disable=unused-argument
+@requires_vela
+def partition_for_ethosu(
+    mod: tvm.ir.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, **opts
+):
+    """This helper function partition the relay graph as produced by the
+    relay frontend for a given model into external functions
+    to be presented to the codegen.
+
+    Parameters
+    ----------
+    mod : tvm.ir.IRModule
+        The IRModule that gets generated from a relay frontend
+    params : Optional[Dict[str, tvm.runtime.NDArray]]
+        Constant input parameters.
+
+    Returns
+    -------
+    mod : IRModule
+        The partitioned IRModule with external global functions
+    """
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    pattern = relay.op.contrib.get_pattern_table("ethosu")
+    mod = relay.transform.InferType()(mod)
+    mod = relay.transform.MergeComposite(pattern)(mod)
+    mod = relay.transform.AnnotateTarget("ethosu")(mod)
+    mod = relay.transform.MergeCompilerRegions()(mod)
+    mod = relay.transform.InferType()(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.transform.InferType()(mod)
+    mod = preprocess.preprocess_ext_io()(mod)
+    return mod

@@ -24,6 +24,18 @@
 namespace tvm {
 namespace tir {
 
+int SampleInt(support::LinearCongruentialEngine::TRandState* rand_state, int min_inclusive,
+              int max_exclusive) {
+  CHECK(min_inclusive < max_exclusive)
+      << "ValueError: max_exclusive must be greater than min_inclusive.";
+  if (min_inclusive + 1 == max_exclusive) {
+    return min_inclusive;
+  }
+  support::LinearCongruentialEngine rand_(rand_state);
+  std::uniform_int_distribution<int> dist(min_inclusive, max_exclusive - 1);
+  return dist(rand_);
+}
+
 int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
                           const Array<Integer>& candidates, const Array<FloatImm>& probs,
                           Optional<Integer>* decision) {

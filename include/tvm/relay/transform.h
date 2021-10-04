@@ -437,12 +437,23 @@ TVM_DLL Pass RelayToTIRTargetHook();
  * \brief A pass for manifesting explicit memory allocations and rewriting
  * specific dialects.
  *
- * \param target_host The target used by the host for compliation.
- * \param targets The device type and target pairs for compliation.
+ * \param target_host The target used by the host for compilation.
+ * \param targets The device type and target pairs for compilation.
  *
  * \return The pass.
  */
 TVM_DLL Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets);
+
+/*!
+ * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the device on which
+ * every Relay sub-expression should run (and the result stored). Captures the result of that
+ * analysis using new "on_device" and "device_copy" CallNodes. See
+ * tvm::relay::transform::{LexicalOnDeviceMixin,DeviceAwareExprVisitor,DeviceAwareExprMutator}
+ * for help recovering the device for an arbitrary sub-expression in downstream transformations.
+ *
+ * \param default_device_type DLDeviceType for default device.
+ */
+TVM_DLL Pass PlanDevices(DLDeviceType default_device_type);
 
 }  // namespace transform
 

@@ -164,3 +164,36 @@ def generate_project(
     """
     template = TemplateProject.from_directory(str(template_project_dir))
     return template.generate_project(module, str(generated_project_dir), options)
+
+
+def generate_project_from_mlf(
+    template_project_dir: Union[pathlib.Path, str],
+    project_dir: Union[pathlib.Path, str],
+    mlf_path: Union[pathlib.Path, str],
+    options: dict,
+):
+    """Generate a project from a platform template and an existing Model Library Format archive.
+
+    Parameters
+    ----------
+    template_project_path : pathlib.Path or str
+        Path to a template project containing a microTVM Project API server.
+
+    project_dir : pathlib.Path or str
+        Path to a directory where the project will be created.
+
+    mlf_path : pathlib.Path or str
+        Path to the Model Library Format archive that will be used when creating
+        the new project.
+
+    options : dict
+        Project API options given to the microTVM API server for the specified platform.
+
+    Returns
+    -------
+    GeneratedProject :
+        A class that wraps the generated project and which can be used to further interact with it.
+    """
+
+    template = TemplateProject.from_directory(str(template_project_dir))
+    return template.generate_project_from_mlf(str(mlf_path), str(project_dir), options)

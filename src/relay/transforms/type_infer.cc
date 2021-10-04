@@ -824,7 +824,6 @@ Pass InferType() {
   auto pass_info = PassInfo(0, "InferType", {});
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
-        DLOG(INFO) << "tvm::relay::transform::InferType";
         // Execute the pass function and return a new module.
         IRModule updated_mod = mod->ShallowCopy();
 

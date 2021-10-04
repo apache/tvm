@@ -79,6 +79,27 @@ def pattern_table():
             and dequantize_call.args[0].checked_type.dtype == "int8"
         )
 
+    def mul_pattern():
+        """Matcher for QNN multiplication"""
+        return is_op("qnn.mul")(
+            wildcard(),
+            wildcard(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+        )
+
+    def check_quantized_mul(extract):
+        """Check if multiply is supported by CMSIS-NN."""
+        return (
+            extract.args[0].checked_type.dtype == "int8"
+            and extract.args[1].checked_type.dtype == "int8"
+        )
+
     return [
         ("cmsisnn.quantized_softmax", softmax_pattern(), check_quantized_softmax),
+        ("cmsisnn.quantized_mul", mul_pattern(), check_quantized_mul),
     ]

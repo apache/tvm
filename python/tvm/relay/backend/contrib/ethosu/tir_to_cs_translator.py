@@ -25,6 +25,8 @@ import numpy as np  # type: ignore
 import ethosu.vela.api as vapi  # type: ignore
 
 import tvm
+from tvm.tir import stmt_functor
+from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.backend.contrib.ethosu import vela_api
 from tvm.relay.backend.contrib.ethosu.tir import spec
 
@@ -39,6 +41,14 @@ class BufferType(Enum):
     output = auto()
 
 
+_REGION_MAP = {
+    BufferType.constant: 0,
+    BufferType.scratch: 1,
+    BufferType.input: 3,
+    BufferType.output: 4,
+}
+
+
 class BufferInfo(NamedTuple):
     """A data structure to hold metadata of the buffer"""
 
@@ -47,6 +57,72 @@ class BufferInfo(NamedTuple):
     shape: tvm.ir.container.Array
     dtype: np.dtype
     btype: BufferType
+
+
+def translate(tir_module, params):
+    """This will take an tir module for the NPU
+    and compile to command stream
+
+    Parameters
+    ----------
+    tir_module : tvm.IRModule
+        The TIR module containing ethosu extern calls
+    params : dict
+        A dictionary containing TIR primfunc argument ordering
+        idx to constant NDArray map
+    accel_type : ethosu.vela.api.NpuAccelerator
+        the accelerator variant the tir module needs to compiled to
+
+    Returns
+    -------
+    cs : str
+        An hex string of the bytes of command stream
+    encoded_constants : str
+        An hex string of the bytes that includes concat'd
+        encoded weights, encoded biases and scales.
+    scratch_size : int
+        The size of the scratch buffer needed.
+    """
+
+    buffer_info = extract_buffer_info(tir_module, params)
+    extern_calls = extract_extern_calls(tir_module)
+    _npu_ops = list()
+    for extern_call in extern_calls:
+        _npu_ops.append(translate_ethosu_tir_extern_call(extern_call))
+    _npu_ops, constant_tensor, scratch_size = assign_addresses(buffer_info, _npu_ops)
+    target_accel_type = vela_api.get_target_accel_type()
+    cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_type)
+    payload = vapi.npu_create_driver_payload(cmds, target_accel_type)
+    hex_value = "" if constant_tensor is None else constant_tensor.tobytes().hex()
+    return payload.hex(), hex_value, scratch_size
+
+
+def extract_extern_calls(mod):
+    """This function will obtain all extern
+    calls from a TIR module
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The TIR Module for NPU
+
+    Returns
+    -------
+    list
+        of tvm.tir.Call objects
+        that are tir extern calls
+    """
+    # There should only be a single function
+    assert len(mod.functions.items()) == 1
+    primfunc = mod.functions.items()[0][1]
+
+    extern_calls = list()
+
+    def populate_extern_calls(stmt):
+        if isinstance(stmt, tvm.tir.Call) and stmt.op.name == "tir.call_extern":
+            extern_calls.append(stmt)
+
+    stmt_functor.post_order_visit(primfunc.body, populate_extern_calls)
+    return extern_calls
 
 
 def extract_buffer_info(mod, param_dict):
@@ -99,6 +175,156 @@ def extract_buffer_info(mod, param_dict):
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, populate_allocate_buffer_info)
 
     return buffer_info
+
+
+def assign_addresses(buffer_info, npu_ops):
+    """This function will assign addresses to tensors
+    within two buffers : scratch and constants.
+    The scratch is the buffer created to hold all intermediary data
+    The constants is the buffer created via unifying all the constant data
+    (post-encoding).
+    Parameters
+    ----------
+    buffer_info : dict
+        This is the dictionary obtained via calling extract_buffer_info.
+        The key is the buffer name to BufferInfo
+    npu_ops : list
+        A list of Vela NpuOps with tir.Loads for addresses
+    Returns
+    -------
+    npu_ops : list
+        A list of Vela NpuOps with addesses within scratch and constant buffers
+    constant_tensor : NDArray
+        A unified constant data array of uint8 as the constant buffer
+    scratch_size : int
+        The size of the scratch tensor.
+    """
+
+    def replace_npu_fm_with_address(npu_fm):
+        assert isinstance(npu_fm.tiles.addresses[0], tvm.tir.Load)
+        # We currently does not support tiles
+        # Change this when tiles are needed
+        # (i.e. when using rolling buffers)
+        assert npu_fm.tiles.addresses[1:] == [0, 0, 0]
+        npu_fm.tiles.addresses[1:] = [0, 0, 0]
+        buffer = npu_fm.tiles.addresses[0].buffer_var
+        assert buffer in buffer_addresses.keys()
+        address, buffer_type = buffer_addresses[buffer]
+        npu_fm.tiles.addresses[0] = address
+        npu_fm.region = _REGION_MAP[buffer_type]
+        return npu_fm
+
+    def replace_npu_address_range_with_address(npu_addr_range):
+        assert isinstance(npu_addr_range.address, tvm.tir.Load)
+        buffer = npu_addr_range.address.buffer_var
+        assert buffer in buffer_addresses.keys()
+        address, buffer_type = buffer_addresses[buffer]
+        return vapi.NpuAddressRange(_REGION_MAP[buffer_type], address, npu_addr_range.length)
+
+    def replace_tir_loads(npu_object):
+        if isinstance(npu_object, vapi.NpuFeatureMap):
+            return replace_npu_fm_with_address(npu_object)
+        if isinstance(npu_object, vapi.NpuAddressRange):
+            return replace_npu_address_range_with_address(npu_object)
+        return npu_object
+
+    def classify_io(buffer):
+        for _npu_op in npu_ops:
+            if issubclass(type(_npu_op), vapi.NpuBlockOperation):
+                if _npu_op.ifm and _npu_op.ifm.tiles.addresses[0].buffer_var == buffer:
+                    return BufferType.input
+                if _npu_op.ifm2 and _npu_op.ifm2.tiles.addresses[0].buffer_var == buffer:
+                    return BufferType.input
+                if _npu_op.ofm and _npu_op.ofm.tiles.addresses[0].buffer_var == buffer:
+                    return BufferType.output
+
+        raise ValueError(f"Unused IO : {buffer} in tir module.")
+
+    scratch_size = 0
+    constant_tensor = None
+    buffer_addresses = dict()
+    for _buffer, info in buffer_info.items():
+        if info.values is not None:
+            assert np.dtype(info.dtype) == np.uint8
+            assert info.btype == BufferType.constant
+            assert len(info.shape) == 1
+            if constant_tensor is None:
+                buffer_addresses[_buffer] = (0, info.btype)
+                assert info.values.dtype == np.uint8
+                size_in_bytes = info.values.size
+                # Every memory address the NPU access have to be 16 byte aligned
+                size_in_bytes = util.round_up(size_in_bytes, 16)
+                constant_tensor = np.resize(info.values, size_in_bytes)
+            else:
+                buffer_addresses[_buffer] = (constant_tensor.size, info.btype)
+                assert info.values.dtype == np.uint8
+                size_in_bytes = info.values.size
+                # Every memory address the NPU access have to be 16 byte aligned
+                size_in_bytes = util.round_up(size_in_bytes, 16)
+                constant_tensor = np.append(constant_tensor, np.resize(info.values, size_in_bytes))
+        else:
+            size_in_bytes = int(
+                (np.iinfo(np.dtype(info.dtype)).bits // 8) * np.prod(list(info.shape))
+            )
+            # Every memory address the NPU access have to be 16 byte aligned
+            size_in_bytes = util.round_up(size_in_bytes, 16)
+            if info.btype == BufferType.input_or_output:
+                buffer_type = classify_io(_buffer)
+                assert buffer_type in (BufferType.input, BufferType.output)
+                address = 0
+                buffer_addresses[_buffer] = (address, buffer_type)
+            else:
+                assert info.btype == BufferType.scratch
+                address = scratch_size
+                scratch_size += size_in_bytes
+                buffer_addresses[_buffer] = (address, info.btype)
+
+    for npu_op in npu_ops:
+        for attr_name, attr in npu_op.__dict__.items():
+            if isinstance(attr, list):
+                new_attr = list()
+                for attr_ in attr:
+                    new_attr.append(replace_tir_loads(attr_))
+                setattr(npu_op, attr_name, new_attr)
+            else:
+                setattr(npu_op, attr_name, replace_tir_loads(attr))
+
+    return npu_ops, constant_tensor, scratch_size
+
+
+def translate_ethosu_tir_extern_call(tir_extern_call):
+    """This is a dispatcher function to dispatch
+    correct translation call depending on the extern call's
+    first argument"""
+    supported_extern_calls = {
+        "ethosu_conv2d": translate_ethosu_conv2d,
+        "ethosu_copy": translate_ethosu_copy,
+    }
+    ext_call_type = tir_extern_call.args[0].value
+    assert ext_call_type in supported_extern_calls.keys(), f"{ext_call_type} is not yet supported"
+    npu_op = supported_extern_calls[ext_call_type](tir_extern_call)
+    # Some conversions return additional outputs
+    # if they are needed, the caller should use the function directly
+    if isinstance(npu_op, tuple):
+        return npu_op[0]
+    return npu_op
+
+
+def translate_ethosu_copy(tir_extern_call):
+    """This function will translate a tir ethosu_copy extern_call
+    as produced by Relay to TIR compilation.
+    Parameters
+    ----------
+    tir_extern_call : tvm.tir.Call
+
+    Returns
+    -------
+    ethosu.vela.api.NpuDmaOperation
+        The vela object containing the params of ethosu_copy
+    """
+    # We skip the first element as it is the extern_call function name
+    serial_object = spec.create_serial_object(spec.SerialCopy, tir_extern_call.args[1:])
+    return _create_npu_dma_op(serial_object)
 
 
 def _convert_clip_bounds(npu_op):
@@ -330,3 +556,21 @@ def _create_npu_resampling_mode(
     mode = str(mode.value)
     assert mode in mode_map.keys()
     return mode_map[mode]
+
+
+def _create_npu_dma_op(serial_copy):
+    """This is a helper function to capture the list of arguments
+    to create a NpuDmaOperation object"""
+    src = vapi.NpuAddressRange(
+        # region will be updated later
+        region=0,
+        address=serial_copy.read_address,
+        length=int(serial_copy.length.value),
+    )
+    dest = vapi.NpuAddressRange(
+        # region will be updated later
+        region=0,
+        address=serial_copy.write_address,
+        length=int(serial_copy.length.value),
+    )
+    return vapi.NpuDmaOperation(src, dest)

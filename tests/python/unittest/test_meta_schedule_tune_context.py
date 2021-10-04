@@ -20,23 +20,23 @@ import sys
 import pytest
 
 import tvm
-from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.target import Target
 from tvm.meta_schedule import TuneContext
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class Matmul:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, (1024, 1024), "float32")
-        B = tir.match_buffer(b, (1024, 1024), "float32")
-        C = tir.match_buffer(c, (1024, 1024), "float32")
-        with tir.block([1024, 1024, tir.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with tir.init():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, (1024, 1024), "float32")
+        B = T.match_buffer(b, (1024, 1024), "float32")
+        C = T.match_buffer(c, (1024, 1024), "float32")
+        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
+            with T.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -45,8 +45,8 @@ class Matmul:
 
 
 def test_tune_context_create():
-    mod = Matmul()
-    context = TuneContext(mod, Target("llvm"), "Test Task")
+    mod = Matmul
+    context = TuneContext(mod=mod, target=Target("llvm"), task_name="Test Task")
     assert context.num_threads > 0
     assert context.rand_state != -1
     assert context.task_name == "Test Task"

@@ -273,7 +273,7 @@ void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
     primitive_names[packed_index] = it.first;
   }
   strm->Write(primitive_names);
-  std::map<size_t, std::map<std::string, std::string>> primitive_attrs;
+  std::map<uint64_t, std::map<std::string, std::string>> primitive_attrs;
   for (const auto& it : this->op_attrs) {
     auto packed_index = static_cast<size_t>(it.first);
     std::map<std::string, std::string> attrs;
@@ -584,7 +584,7 @@ void Executable::LoadPrimitiveOpNames(dmlc::Stream* strm) {
     this->primitive_map.insert({primitive_names[i], i});
   }
 
-  std::map<size_t, std::map<std::string, std::string>> primitive_attrs;
+  std::map<uint64_t, std::map<std::string, std::string>> primitive_attrs;
   STREAM_CHECK(strm->Read(&primitive_attrs), "primitive attrs");
   for (const auto& fn : primitive_attrs) {
     std::vector<std::pair<String, ObjectRef>> attrs;

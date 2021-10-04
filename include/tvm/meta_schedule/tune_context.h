@@ -20,6 +20,7 @@
 #define TVM_META_SCHEDULE_TUNE_CONTEXT_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/meta_schedule/space_generator.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/target/target.h>
 
@@ -33,6 +34,10 @@ class TuneContextNode : public runtime::Object {
   Optional<IRModule> mod;
   /*! \brief The target to be tuned for. */
   Optional<Target> target;
+  /*! \brief The design space generator. */
+  Optional<SpaceGenerator> space_generator;
+  /*! \brief The search strategy. */
+  Optional<SearchStrategy> search_strategy;
   /*! \brief The name of the tuning task. */
   Optional<String> task_name;
   /*! \brief The random state. */
@@ -40,12 +45,24 @@ class TuneContextNode : public runtime::Object {
   /*! \brief The number of threads to be used. */
   int num_threads;
 
+  /*! \brief Whether the tuning task has been stopped or finished. */
+  bool is_stopped;
+  /*! \brief Packed functions to fetch the runner results asynchronously. */
+  Optional<Array<RunnerFuture>> runner_futures;
+  /*! \brief The measure candidates. */
+  Optional<Array<MeasureCandidate>> measure_candidates;
+
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("mod", &mod);
     v->Visit("target", &target);
+    v->Visit("space_generator", &space_generator);
+    v->Visit("search_strategy", &search_strategy);
     v->Visit("task_name", &task_name);
     v->Visit("rand_state", &rand_state);
     v->Visit("num_threads", &num_threads);
+    v->Visit("is_stopped", &is_stopped);
+    v->Visit("runner_futures", &runner_futures);
+    v->Visit("measure_candidates", &measure_candidates);
   }
 
   static constexpr const char* _type_key = "meta_schedule.TuneContext";
@@ -62,12 +79,16 @@ class TuneContext : public runtime::ObjectRef {
    * \brief Constructor.
    * \param mod The workload to be tuned.
    * \param target The target to be tuned for.
+   * \param space_generator The design space generator.
+   * \param search_strategy The search strategy.
    * \param task_name The name of the tuning task.
    * \param rand_state The random state.
    * \param num_threads The number of threads to be used.
    */
   TVM_DLL explicit TuneContext(Optional<IRModule> mod,                                    //
                                Optional<Target> target,                                   //
+                               Optional<SpaceGenerator> space_generator,                  //
+                               Optional<SearchStrategy> search_strategy,                  //
                                Optional<String> task_name,                                //
                                support::LinearCongruentialEngine::TRandState rand_state,  //
                                int num_threads);

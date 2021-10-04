@@ -947,6 +947,7 @@ class ShuffleNode : public PrimExprNode {
   Array<PrimExpr> indices;
 
   void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("vectors", &vectors);
     v->Visit("indices", &indices);
     v->Visit("span", &span);
