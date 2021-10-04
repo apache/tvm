@@ -1167,6 +1167,16 @@ def SimplifyExpr():
     return _ffi_api.SimplifyExpr()
 
 
+def PlanDevices(default_device):
+    """
+    Uses existing "on_device" and "device_copy" CallNodes to infer the device on which
+    every Relay sub-expression should run (and the result stored). Captures the result of that
+    analysis using new "on_device" and "device_copy" CallNodes. Note that the device_id of
+    the default_device is ignored.
+    """
+    return _ffi_api.PlanDevices(default_device)
+
+
 def FoldExplicitPadding():
     """
     FoldExplicitPadding finds explict padding before an op that can support

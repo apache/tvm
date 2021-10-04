@@ -3713,6 +3713,7 @@ def from_pytorch(
     custom_convert_map=None,
     default_dtype="float32",
     use_parser_friendly_name=False,
+    keep_quantized_weight=False,
 ):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
@@ -3744,6 +3745,16 @@ def from_pytorch(
         The Relay text parser treats a variable name followed by a period as a tuple element access,
         so a variable name like "dense.weight" cannot be parsed correctly.
         Use this option when you want to run the AnnotateSpans pass on the imported module.
+
+    keep_quantized_weight : bool
+        Return quantized weights and bias, rather than float ones. PyTorch stores quantized weights
+        in a custom format, so we cannot directly access 8 bit weights as Numpy arrays. We use
+        a PyTorch function to unpack quantized weights into float32 arrays and quantization
+        parameters. By default, we return float32 weights and rely on the QNN lowering and the
+        Relay constant folding pass to quantize weights at compile time. In BYOC use cases, however,
+        we cannot apply the constant folding pass on a QNN graph. If keep_quantized_weight is True,
+        we quantize weights in the frontend using a function that is equivalent to
+        qnn.op.quantize(...) operating on Numpy arrays.
 
     Returns
     -------
@@ -3789,9 +3800,17 @@ def from_pytorch(
     # For quantized models
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
     if len(quantized_ops.intersection(set(op_names))) > 0:
-        weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
-        qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)
+        weight_quant_params = qnn_torch.get_weight_quant_params(
+            script_module, packed_param_map.values()
+        )
+        input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
+        qnn_torch.add_quant_params_to_outputs(
+            outputs,
+            packed_param_map,
+            weight_quant_params,
+            input_scales_for_bias,
+            keep_quantized_weight,
+        )
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 

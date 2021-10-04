@@ -92,6 +92,22 @@ def test_dyn_shape_reshape():
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
 
+def test_squeeze():
+    def verify_squeeze(shape, dtype, axis):
+        x = relay.var("x", relay.TensorType(shape, dtype))
+        assert axis is not None
+        np_axis = tuple(axis)
+        axis = relay.var("axis", relay.TensorType([len(axis)], "int64"))
+        squeeze = relay.squeeze(x, axis=axis)
+        func = relay.Function([x, axis], squeeze)
+        x_data = np.random.random_sample(shape).astype(dtype)
+        ref_res = np.squeeze(x_data, axis=np_axis)
+        verify_func(func, [x_data, np.array(np_axis).astype("int64")], ref_res)
+
+    verify_squeeze((1, 3, 1), "float32", [0])
+    verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
+
+
 @tvm.testing.uses_gpu
 def test_dyn_expand_dims():
     def verify_expand_dims(

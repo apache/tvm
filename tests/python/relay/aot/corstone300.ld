@@ -257,6 +257,14 @@ SECTIONS
     __bss_end__ = .;
   } > DTCM AT > DTCM
 
+  .ddr :
+  {
+    . = ALIGN(4);
+    . = ALIGN(16);
+    *(ethosu_scratch)
+    . = ALIGN (16);
+  } > DDR
+
   .data_sram :
   {
     . = ALIGN(16);
