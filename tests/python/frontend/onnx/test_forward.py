@@ -1281,6 +1281,47 @@ def test_batch_matmul(target, dev):
         convert_config={"use_nt_batch_matmul": False},
     )
 
+@tvm.testing.parametrize_targets
+def test_matmulinteger16(target, dev):
+    def verify_matmulinteger16(a_shape, b_shape, out_shape):
+        a_dtype = "int16"
+        b_dtype = "int16"
+        low = -10
+        high = 10
+
+        a_proto = TensorProto.INT16
+        b_proto = TensorProto.INT16
+        out_proto = TensorProto.INT32
+        a_array = np.random.randint(low, high, size=a_shape).astype(a_dtype)
+        b_array = np.random.randint(low, high, size=b_shape).astype(b_dtype)
+
+        mul_node = helper.make_node("MatMulInteger16",
+            ["a", "b"],
+            ["out"],
+            domain="com.microsoft")
+
+        graph = helper.make_graph(
+            [mul_node],
+            "matmuli16_test",
+            inputs=[
+                helper.make_tensor_value_info("a", a_proto, list(a_shape)),
+                helper.make_tensor_value_info("b", b_proto, list(b_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", out_proto, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="matmuli16_test")
+        verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
+
+    # Working tests
+    verify_matmulinteger16((2, 4, 3), (1, 3, 4), (2, 4, 4))
+    verify_matmulinteger16((1, 4, 3), (2, 3, 4), (2, 4, 4))
+    verify_matmulinteger16((4, 3), (3, 4), (4, 4))
+    verify_matmulinteger16((5, 7), (7, 8), (5, 8))
+    verify_matmulinteger16((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4))
+    verify_matmulinteger16((2, 4, 3), (3, 4), (2, 4, 4))
+    verify_matmulinteger16((2, 3, 4, 3), (3, 4), (2, 3, 4, 4))
+
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
     def verify_model(model, a_shape, b_shape):
@@ -4932,7 +4973,6 @@ unsupported_onnx_tests = [
     "test_if_seq",
     "test_loop11",
     "test_loop13_seq",
-    "test_matmulinteger",
     "test_maxpool_2d_same_lower",
     "test_maxpool_2d_same_upper",
     "test_maxpool_with_argmax_2d_precomputed_pads",
@@ -5801,6 +5841,7 @@ if __name__ == "__main__":
     test_onehot()
     test_gemm()
     test_matmul()
+    test_matmulinteger16()
     test_gather()
     test_gatherelements()
     test_gather_nd()
