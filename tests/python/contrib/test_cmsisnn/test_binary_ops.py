@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""CMSIS-NN integration tests: mul"""
+"""CMSIS-NN integration tests: binary ops"""
 
 import sys
 
@@ -35,6 +35,7 @@ from tests.python.relay.aot.aot_test_utils import (
 
 
 def make_model(
+    op,
     shape,
     input_0_dtype,
     input_1_dtype,
@@ -47,7 +48,7 @@ def make_model(
 ):
     """Create a Relay Function / network model"""
 
-    return relay.qnn.op.mul(
+    return op(
         relay.var("input_0", shape=shape, dtype=input_0_dtype),
         relay.var("input_1", shape=shape, dtype=input_1_dtype),
         relay.const(input_0_scale, "float32"),
@@ -60,19 +61,17 @@ def make_model(
 
 
 @skip_if_no_reference_system
+@pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize(
     [
         "input_0_scale",
         "input_0_zero_point",
         "input_1_scale",
         "input_1_zero_point",
-        "output_tolerance",
     ],
-    [[0.256, 33, 0.256, 33, 0], [0.0128, -64, 0.0128, -64, 1], [0.0128, -64, 0.256, 33, 0]],
+    [[0.256, 33, 0.256, 33], [0.0128, -64, 0.0128, -64], [0.0128, -64, 0.256, 33]],
 )
-def test_mul_int8(
-    input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point, output_tolerance
-):
+def test_op_int8(op, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point):
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_CORSTONE300_RUNNER
@@ -80,7 +79,14 @@ def test_mul_int8(
     dtype = "int8"
     shape = [1, 16, 16, 3]
     model = make_model(
-        shape, dtype, dtype, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point
+        op,
+        shape,
+        dtype,
+        dtype,
+        input_0_scale,
+        input_0_zero_point,
+        input_1_scale,
+        input_1_zero_point,
     )
     orig_mod = make_module(model)
 
@@ -115,7 +121,7 @@ def test_mul_int8(
             module=cmsisnn_mod,
             inputs=inputs,
             outputs=output_list,
-            output_tolerance=output_tolerance,
+            output_tolerance=1,
         ),
         test_runner,
         interface_api,
@@ -123,13 +129,16 @@ def test_mul_int8(
     )
 
 
+@pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize(["input_dtype"], [["uint8"], ["int16"]])
 def test_invalid_parameters(
+    op,
     input_dtype,
 ):
     input_scale = 0.256
     input_zero_point = 33
     model = make_model(
+        op,
         [1, 16, 16, 3],
         input_dtype,
         input_dtype,
