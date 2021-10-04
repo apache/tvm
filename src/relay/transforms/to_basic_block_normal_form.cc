@@ -46,7 +46,7 @@ IRModule ToBasicBlockNormalForm(const IRModule& mod) {
     if (const auto* n = it.second.as<FunctionNode>()) {
       if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
       Function func = GetRef<Function>(n);
-      Function ret = Downcast<Function>(ToBasicBlockNormalFormAux(mod, func));
+      Function ret = Downcast<Function>(ToBasicBlockNormalFormAux(func));
       VLOG(1) << "rewritten:" << std::endl
               << PrettyPrint(func) << std::endl
               << "to BasicBlockANF:" << std::endl
