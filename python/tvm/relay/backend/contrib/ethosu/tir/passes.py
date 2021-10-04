@@ -58,7 +58,7 @@ def ReplaceOperators():
     pointer_to_producer = {}
     pointer_to_consumer = {}
     replace_output_pointer = {}
-    pointer_to_extents = {}
+    pointer_to_extent = {}
 
     def _resolve_pointers(stmt):
         """This pass determines information about the pointers present in the IR.
@@ -75,7 +75,7 @@ def ReplaceOperators():
                 loads.append(stmt.buffer_var)
 
         if isinstance(stmt, tvm.tir.Allocate):
-            pointer_to_extents[stmt.buffer_var] = stmt.extents
+            pointer_to_extent[stmt.buffer_var] = stmt.extent
             if isinstance(stmt.body[0], tvm.tir.AttrStmt):
                 if stmt.body[0].attr_key == "pragma_op":
                     pointer_to_producer[stmt.buffer_var] = stmt.body[0]
@@ -160,7 +160,7 @@ def ReplaceOperators():
                 # If the pointer doesn't have an extent registered to it,
                 # this means the pointer is to a Buffer. In this case, we
                 # just want to delete the memory scope attribute
-                if replace_pointer not in pointer_to_extents:
+                if replace_pointer not in pointer_to_extent:
                     return stmt.body
                 # Otherwise, rewrite the memory scope attribute with the new pointer
                 return tvm.tir.AttrStmt(
@@ -174,12 +174,12 @@ def ReplaceOperators():
                 # If the pointer doesn't have an extent registered to it,
                 # this means the pointer is to a Buffer. In this case, we
                 # just want to delete the allocation statement
-                if replace_pointer not in pointer_to_extents:
+                if replace_pointer not in pointer_to_extent:
                     return stmt.body
                 # Otherwise, rewrite the allocation statement with the new pointer
                 # and the new extent
                 replace_type = replace_pointer.type_annotation.element_type.dtype
-                replace_extents = pointer_to_extents[replace_pointer]
+                replace_extents = pointer_to_extent[replace_pointer]
                 return tvm.tir.Allocate(
                     replace_pointer, replace_type, replace_extents, stmt.condition, stmt.body
                 )
@@ -404,10 +404,11 @@ def EncodeConstants(const_dict):
                 if pointer_to_buffer[allocate_pointer] in rewrite_buffer:
                     new_buffer = rewrite_buffer[pointer_to_buffer[allocate_pointer]]
                     new_pointer = rewrite_pointer[allocate_pointer]
+                    assert len(new_buffer.shape) == 1
                     return tvm.tir.Allocate(
                         new_pointer,
                         new_buffer.dtype,
-                        new_buffer.shape,
+                        new_buffer.shape[0],
                         stmt.condition,
                         stmt.body,
                         stmt.span,

@@ -93,7 +93,7 @@ class Module2:
         B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
         C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
         # body
-        packedB = T.allocate([32768], "float32x32", "global")
+        packedB = T.allocate(32768, "float32x32", "global")
         for x in T.parallel(0, 32):
             for y in T.serial(0, 1024):
                 T.store(
@@ -108,7 +108,7 @@ class Module2:
                     T.broadcast(True, 32),
                 )
         for x_outer in T.parallel(0, 32):
-            C_global = T.allocate([1024], "float32", "global")
+            C_global = T.allocate(1024, "float32", "global")
             for y_outer in T.serial(0, 32):
                 for x_c_init in T.serial(0, 32):
                     T.store(
@@ -1080,11 +1080,11 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
     ty = T.env_thread("threadIdx.y")
     tz = T.env_thread("threadIdx.z")
     T.launch_thread(bz, 196)
-    Conv_wmma_accumulator = T.allocate([2048], "float32", "wmma.accumulator")
-    Apad_shared = T.allocate([12288], "float16", "shared")
-    W_shared = T.allocate([12288], "float16", "shared")
-    Apad_shared_wmma_matrix_a = T.allocate([512], "float16", "wmma.matrix_a")
-    W_shared_wmma_matrix_b = T.allocate([1024], "float16", "wmma.matrix_b")
+    Conv_wmma_accumulator = T.allocate(2048, "float32", "wmma.accumulator")
+    Apad_shared = T.allocate(12288, "float16", "shared")
+    W_shared = T.allocate(12288, "float16", "shared")
+    Apad_shared_wmma_matrix_a = T.allocate(512, "float16", "wmma.matrix_a")
+    W_shared_wmma_matrix_b = T.allocate(1024, "float16", "wmma.matrix_b")
     T.launch_thread(bx, 2)
     T.launch_thread(by, 4)
     T.launch_thread(ty, 4)
@@ -2653,7 +2653,7 @@ def vthread_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i0, 4)
     T.launch_thread(i1, 2)
     T.launch_thread(i2, 2)
-    B = T.allocate([16], "float32", "local")
+    B = T.allocate(16, "float32", "local")
     for j in range(16):
         B[j] = T.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + T.float32(1)
     for j in range(16):
@@ -3067,7 +3067,7 @@ def primfunc_with_allocate_annotations(placeholder_28: T.handle, T_cast_6: T.han
     placeholder_29 = T.match_buffer(placeholder_28, [1, 112, 112, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
     T_cast_7 = T.match_buffer(T_cast_6, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
     # body
-    tensor_2 = T.allocate([200704], "uint8", "global", annotations={"attr1_key": "attr1_value"})
+    tensor_2 = T.allocate(200704, "uint8", "global", annotations={"attr1_key": "attr1_value"})
     for ax0_ax1_fused_4 in T.serial(0, 56):
         for ax2_4 in T.serial(0, 56):
             for ax3_init in T.serial(0, 64):

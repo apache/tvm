@@ -22,15 +22,19 @@ import numpy as np
 import tvm.testing
 
 
-@tvm.testing.requires_cuda
-def test_lower_warp_memory_local_scope():
-    m = 128
-    A = te.placeholder((m,), name="A")
-    B = te.compute((m,), lambda i: A[i] + 3, name="B")
+@tvm.testing.parametrize_targets("cuda")
+def test_lower_warp_memory_local_scope(target):
+    target = tvm.target.Target(target)
+    assert target.thread_warp_size == 32
+
+    arr_size = 128
+    cache_size = 64
+    A = te.placeholder((arr_size,), name="A")
+    B = te.compute((arr_size,), lambda i: A[i] + 3, name="B")
 
     s = te.create_schedule(B.op)
     AA = s.cache_read(A, "warp", [B])
-    xo, xi = s[B].split(B.op.axis[0], 64)
+    xo, xi = s[B].split(B.op.axis[0], cache_size)
     xi0, xi1 = s[B].split(xi, factor=32)
     tx = te.thread_axis("threadIdx.x")
     s[B].bind(xi1, tx)
@@ -39,17 +43,16 @@ def test_lower_warp_memory_local_scope():
     xo, xi = s[AA].split(s[AA].op.axis[0], 32)
     s[AA].bind(xi, tx)
 
-    cuda_target = tvm.target.Target("cuda")
-    assert cuda_target.thread_warp_size == 32
     mod = tvm.lower(s, [A, B], name="f")
 
-    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)
-    fdevice = tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
+    mod = tvm.tir.transform.LowerWarpMemory()(mod)
+    fdevice = mod["f_kernel0"]
     allocate = fdevice.body.body
     assert allocate.buffer_var.type_annotation.storage_scope == "local"
-    assert fdevice.body.body.extents[0].value == 2
+    assert fdevice.body.body.extent.value * target.thread_warp_size == cache_size
 
 
 @tvm.testing.requires_cuda

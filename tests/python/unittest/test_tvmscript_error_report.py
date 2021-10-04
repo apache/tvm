@@ -147,7 +147,7 @@ def test_no_body():
 
 
 def allocate_with_buffers() -> None:
-    with T.allocate([1], "float32", "") as [A, B]:  # error
+    with T.allocate(1, "float32", "") as [A, B]:  # error
         T.evaluate(1.0)
 
 
@@ -384,7 +384,7 @@ def test_match_buffer_shape_mismatch():
 
 def high_dim_store() -> None:
     with T.block([], "root"):
-        B = T.allocate([256], "float32", "global")
+        B = T.allocate(256, "float32", "global")
         for i, j in T.grid(16, 16):
             B[i, j] = 1.0  # error: Store is only allowed with one index
 

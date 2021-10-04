@@ -157,8 +157,8 @@ def test_call_packed_return_non_i32():
         Aptr[0] = packed_echo(tvm.tir.const(expected_value[0], "float32"))
         # return handle
         # let Aptr_var = testing.echo(Aptr) in Aptr_var[1] = expected_value[1]
-        Aptr_var = ib.let("Aptr_dup", packed_echo(Aptr.asobject()))
-        ib.emit(tvm.tir.Store(Aptr, tvm.tir.const(expected_value[1], "float32"), 1))
+        Aptr_var = ib.let("Aptr_dup", packed_echo(Aptr.asobject().data))
+        ib.emit(tvm.tir.Store(Aptr_var, tvm.tir.const(expected_value[1], "float32"), 1))
 
         stmt = ib.get()
         return tvm.IRModule.from_expr(

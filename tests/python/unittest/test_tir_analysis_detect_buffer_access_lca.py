@@ -46,7 +46,7 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
     with T.block([]):
         T.reads([])
         T.writes(B[0:16, 0:16])
-        A = T.allocate([256], "float32", "global")
+        A = T.allocate(256, "float32", "global")
         for i, j in T.grid(16, 16):
             T.store(A, i * 16 + j, 1)
         for i in range(0, 16):

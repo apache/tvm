@@ -41,21 +41,23 @@ def run_passes(sch, args):
 
 def verify_single_allocation(stmt, alloc_size=None):
     num_alloc = [0]
-    alloc_extents = []
+    alloc_extent = 1
 
     def verify(n):
+        nonlocal alloc_extent
+
         if (
             isinstance(n, tvm.tir.Allocate)
             and n.buffer_var.type_annotation.storage_scope == "shared.dyn"
         ):
             num_alloc[0] += 1
-            alloc_extents.append(n.extents[0])
+            alloc_extent *= n.extent
 
     tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert num_alloc[0] == 1
 
     if alloc_size:
-        assert alloc_extents[0] == alloc_size
+        assert alloc_extent == alloc_size
 
 
 @tvm.testing.requires_gpu
@@ -80,12 +82,12 @@ def test_matmul_dyn_shared():
         ib.scope_attr(bx, "thread_extent", n // block)
         ib.scope_attr(by, "thread_extent", n // block)
 
-        A_sh = ib.allocate(A.dtype, (block, block), scope="shared.dyn", name="A_sh")  # fp16
-        B_sh = ib.allocate(B.dtype, (block, block), scope="shared.dyn", name="B_sh")  # fp16
+        A_sh = ib.buffer_realize(A.dtype, (block, block), scope="shared.dyn", name="A_sh")  # fp16
+        B_sh = ib.buffer_realize(B.dtype, (block, block), scope="shared.dyn", name="B_sh")  # fp16
         # Create a dynamic shared memory for the accumulation.
         # This is for testing merging dynamic shared memory alloctions with different data type.
         # In practice, there is no need to allocate a shared memory for C.
-        C_sh = ib.allocate(C.dtype, (block, block), scope="shared.dyn", name="C_sh")  # fp32
+        C_sh = ib.buffer_realize(C.dtype, (block, block), scope="shared.dyn", name="C_sh")  # fp32
 
         A_ptr = ib.buffer_ptr(A)
         B_ptr = ib.buffer_ptr(B)
@@ -155,8 +157,8 @@ def test_dyn_shared_vectorized_store():
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", tvm.tir.indexdiv(n, values_per_thread))
 
-        A_sh = ib.allocate(A.dtype, (n,), scope="shared.dyn")  # fp16
-        B_sh = ib.allocate(B.dtype, (n,), scope="shared.dyn")  # fp32
+        A_sh = ib.allocate(A.dtype, n, scope="shared.dyn")  # fp16
+        B_sh = ib.allocate(B.dtype, n, scope="shared.dyn")  # fp32
 
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
@@ -218,9 +220,9 @@ def test_dyn_shared_reuse_and_merge():
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", n)
 
-        A_sh = ib.allocate(A.dtype, (n,), scope="shared.dyn", name="A_sh")
-        B_sh = ib.allocate(B.dtype, (n,), scope="shared.dyn", name="B_sh")
-        C_sh = ib.allocate(C.dtype, (C.shape[0],), scope="shared.dyn", name="C_sh")
+        A_sh = ib.allocate(A.dtype, n, scope="shared.dyn", name="A_sh")
+        B_sh = ib.allocate(B.dtype, n, scope="shared.dyn", name="B_sh")
+        C_sh = ib.allocate(C.dtype, C.shape[0], scope="shared.dyn", name="C_sh")
 
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)

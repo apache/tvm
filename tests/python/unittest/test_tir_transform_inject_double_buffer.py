@@ -47,10 +47,13 @@ def test_double_buffer():
         mod = opt(mod)
     stmt = mod["db"].body
 
+    # Allocation of B is now twice as large
     assert isinstance(stmt.body, tvm.tir.Allocate)
-    assert stmt.body.extents[0].value == 2
+    assert stmt.body.extent.value == 2 * m
 
-    f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
+    mod = tvm.tir.transform.ThreadSync("shared")(mod)
+    f = mod["db"]
+
     count = [0]
 
     def count_sync(op):

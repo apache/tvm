@@ -81,25 +81,25 @@ def test_flatten_storage_align():
     )(mod)
 
     stmt = mod["main"].body
-    assert stmt.extents[0].value == 17 * 8
+    assert stmt.extent.value == 17 * 8
 
 
 def test_flatten_double_buffer():
     dtype = "int64"
     n = 100
-    m = 4
+    buffer_size = 4
     tx = te.thread_axis("threadIdx.x")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     C = ib.pointer("float32", name="C")
     ib.scope_attr(tx, "thread_extent", 1)
     with ib.for_range(0, n) as i:
-        B = ib.allocate("float32", m, name="B", scope="shared")
+        B = ib.allocate("float32", buffer_size, name="B", scope="shared")
         with ib.new_scope():
             ib.scope_attr(B.asobject(), "double_buffer_scope", 1)
-            with ib.for_range(0, m) as j:
+            with ib.for_range(0, buffer_size) as j:
                 B[j] = A[i * 4 + j]
-        with ib.for_range(0, m) as j:
+        with ib.for_range(0, buffer_size) as j:
             C[j] = B[j] + 1
 
     stmt = ib.get()
@@ -119,7 +119,7 @@ def test_flatten_double_buffer():
 
     stmt = mod["main"].body
     assert isinstance(stmt.body, tvm.tir.Allocate)
-    assert stmt.body.extents[0].value == 2
+    assert stmt.body.extent.value == 2 * buffer_size
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C], stmt).with_attr("global_symbol", "db"))
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]

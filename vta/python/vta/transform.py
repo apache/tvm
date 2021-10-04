@@ -172,7 +172,7 @@ def CPUAccessRewrite():
                     ),
                     op.body,
                 )
-                alloc = tvm.tir.Allocate(buffer_var, op.dtype, op.extents, op.condition, let_stmt)
+                alloc = tvm.tir.Allocate(buffer_var, op.dtype, op.extent, op.condition, let_stmt)
                 del rw_info[buffer_var]
                 return alloc
             if isinstance(op, tvm.tir.Load):
@@ -226,7 +226,7 @@ def LiftAllocToScopeBegin():
                 if op.body == body:
                     body = op
                 elif isinstance(op, tvm.tir.Allocate):
-                    body = tvm.tir.Allocate(op.buffer_var, op.dtype, op.extents, op.condition, body)
+                    body = tvm.tir.Allocate(op.buffer_var, op.dtype, op.extent, op.condition, body)
                 elif isinstance(op, tvm.tir.AttrStmt):
                     body = tvm.tir.AttrStmt(op.node, op.attr_key, op.value, body)
                 elif isinstance(op, tvm.tir.For):

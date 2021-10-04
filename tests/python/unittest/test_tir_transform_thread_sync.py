@@ -69,8 +69,8 @@ def test_sync_else_branch():
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", 1)
 
-        local = ib.allocate(A.dtype, (8,), name="buf_local", scope="local")
-        shared = ib.allocate(A.dtype, (8,), name="buf_shared", scope="shared")
+        local = ib.allocate(A.dtype, 8, name="buf_local", scope="local")
+        shared = ib.allocate(A.dtype, 8, name="buf_shared", scope="shared")
 
         with ib.for_range(0, 8) as i:
             with ib.if_scope(Aptr[i] < 0):

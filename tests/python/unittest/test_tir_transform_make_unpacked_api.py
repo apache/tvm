@@ -132,7 +132,7 @@ def test_body():
     ib = tvm.tir.ir_builder.create()
     A = tvm.tir.decl_buffer(name="A", shape=[1])
     B = tvm.tir.decl_buffer(name="B", shape=[1])
-    C = ib.buffer_ptr(A)
+    C = ib.buffer_ptr(A.data)
 
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, B, C], stmt))

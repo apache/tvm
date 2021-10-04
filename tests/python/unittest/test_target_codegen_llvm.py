@@ -761,7 +761,7 @@ def test_llvm_lower_atomic():
     def do_atomic_add(A):
         ib = tvm.tir.ir_builder.create()
         n = A.shape[0]
-        atomic_add_return = ib.allocate(A.dtype, (1,), name="atomic_add_return", scope="local")
+        atomic_add_return = ib.allocate(A.dtype, 1, name="atomic_add_return", scope="local")
         one = tvm.tir.const(1, A.dtype)
         A_ptr = ib.buffer_ptr(A)
         with ib.for_range(0, n, name="i", kind="parallel") as i:
@@ -787,7 +787,7 @@ def test_llvm_gpu_lower_atomic():
     def do_atomic_add(A):
         ib = tvm.tir.ir_builder.create()
         n = A.shape[0]
-        atomic_add_return = ib.allocate(A.dtype, (1,), name="atomic_add_return", scope="local")
+        atomic_add_return = ib.allocate(A.dtype, 1, name="atomic_add_return", scope="local")
         one = tvm.tir.const(1, A.dtype)
         A_ptr = ib.buffer_ptr(A)
         nthread_tx = 64

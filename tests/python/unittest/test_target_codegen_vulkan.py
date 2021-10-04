@@ -333,7 +333,7 @@ def test_vulkan_while_if(target, dev):
         if "gpu" in target.keys:
             ib.scope_attr(te.thread_axis("blockIdx.x"), "thread_extent", 0)
 
-        iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
+        iterations = ib.allocate("int32", 1, name="iterations", scope="local")
         iterations[0] = 0
         B[0] = 0
 
@@ -503,10 +503,10 @@ class TestVectorizedIndices:
             store_index = index_map[store_type]
 
             if indirect_indices:
-                load_index = tvm.tir.expr.Load("int32x4", R, load_index)
+                load_index = tvm.tir.expr.Load("int32x4", R.asobject().data, load_index)
 
-            transfer = tvm.tir.expr.Load("int32x4", A, load_index)
-            ib.emit(tvm.tir.stmt.Store(B, transfer, store_index))
+            transfer = tvm.tir.expr.Load("int32x4", A.asobject().data, load_index)
+            ib.emit(tvm.tir.stmt.Store(B.asobject().data, transfer, store_index))
 
             return ib.get()
 
@@ -536,7 +536,7 @@ def test_shared_mem_alloc(target, dev):
 
         ib.scope_attr(te.thread_axis("blockIdx.x"), "thread_extent", 0)
 
-        array = ib.allocate("int32", (alloc_nbytes,), name="array", scope="shared")
+        array = ib.allocate("int32", alloc_nbytes, name="array", scope="shared")
         array[0] = 0
         out[0] = array[0]
 

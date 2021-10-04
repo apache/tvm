@@ -607,7 +607,7 @@ def test_local_stage_predicate2():
 
     def visit_stmt(op):
         if isinstance(op, tvm.tir.Allocate):
-            return op.extents[0].value == 97
+            return op.extent.value == 97
         return False
 
     assert not any(collect_visit(lowered_body, lambda x: isinstance(x, tvm.tir.IfThenElse)))

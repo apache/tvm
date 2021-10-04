@@ -53,7 +53,7 @@ def flattened_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in T.serial(0, 16):
-        B_new = T.allocate([16], "float32", "global")
+        B_new = T.allocate(16, "float32", "global")
         for j in T.serial(0, 16):
             B_new[j] = T.load("float32", A.data, ((i * 16) + j)) + 1.0
         for j in T.serial(0, 16):
@@ -95,7 +95,7 @@ def flattened_gpu_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i0, 4)
     T.launch_thread(i1, 2)
     T.launch_thread(i2, 2)
-    B = T.allocate([16], "float32", "local")
+    B = T.allocate(16, "float32", "local")
     for j in range(0, 16):
         B[j] = T.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + 1.0
     for j in range(0, 16):
@@ -130,7 +130,7 @@ def flattened_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
     C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        B = T.allocate([m], "float32", "global")
+        B = T.allocate(m, "float32", "global")
         for j in range(0, m):
             B[j] = T.load("float32", A.data, i * m + j) + 1.0
         for j in range(0, m):
@@ -203,8 +203,8 @@ def flattened_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        B = T.allocate((32,), "float32", "global")
-        C = T.allocate((32,), "float32", "global")
+        B = T.allocate(32, "float32", "global")
+        C = T.allocate(32, "float32", "global")
         B[i] = T.load("float32", A.data, i) + 1.0
         C[i] = T.load("float32", A.data, i) + T.load("float32", B, i)
         D.data[i] = T.load("float32", C, i) * 2.0
@@ -238,7 +238,7 @@ def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i0 in T.serial(0, 4):
-        B_new = T.allocate([68], "float32", "global")
+        B_new = T.allocate(68, "float32", "global")
         for i1 in T.serial(0, 4):
             for j in T.serial(0, 16):
                 B_new[i1 * 17 + j] = T.load("float32", A.data, i0 * 64 + i1 * 16 + j) + 1.0

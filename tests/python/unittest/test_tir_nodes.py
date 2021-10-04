@@ -481,7 +481,7 @@ def test_tir_allocate():
     allocate = tvm.tir.Allocate(
         buffer_var=a,
         dtype=dtype,
-        extents=[2, 2],
+        extent=4,
         condition=tvm.get_global_func("tir.const_true")(dtype, None),
         body=tvm.tir.Evaluate(2 + 1),
         annotations={
@@ -491,7 +491,7 @@ def test_tir_allocate():
     )
     assert allocate.buffer_var == a
     assert allocate.dtype == "int8"
-    assert list(allocate.extents) == [2, 2]
+    assert allocate.extent == 4
     assert allocate.annotations["attr1"] == "foo"
     assert allocate.annotations["attr2"] == "bar"
 
@@ -500,7 +500,7 @@ def test_tir_allocate():
     output = func.astext()
     assert (
         output.find(
-            'allocate(buffer: Pointer(global int8), int8, [2, 2]), storage_scope = global, annotations = {"attr2": "bar", "attr1": "foo"})'
+            'allocate(buffer: Pointer(global int8), int8, 4), storage_scope = global, annotations = {"attr2": "bar", "attr1": "foo"})'
         )
         != -1
     )

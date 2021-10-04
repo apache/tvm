@@ -184,7 +184,7 @@ def test_while_vectorize():
         A = ib.buffer_ptr(A)
         B = ib.buffer_ptr(B)
         C = ib.buffer_ptr(C)
-        i = ib.allocate("int32", (1,), name="i", scope="local")
+        i = ib.allocate("int32", 1, name="i", scope="local")
         i[0] = 0
 
         with ib.for_range(0, n) as j:
@@ -242,8 +242,8 @@ def test_while_collatz():
         return i
 
     def collatz(ib, n, C):
-        i = ib.allocate("int32", (1,), name="i", scope="local")
-        a = ib.allocate("int32", (1,), name="a", scope="local")
+        i = ib.allocate("int32", 1, name="i", scope="local")
+        a = ib.allocate("int32", 1, name="a", scope="local")
         i[0] = 0
         a[0] = n
         with ib.while_loop(a[0] > 1):
@@ -317,9 +317,9 @@ def test_while_mandel():
         return pixels
 
     def mandel(ib, i, j, pixels):
-        z = ib.allocate("float32", (2,), name="z", scope="local")
-        tmp = ib.allocate("float32", (1,), name="tmp", scope="local")
-        iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
+        z = ib.allocate("float32", 2, name="z", scope="local")
+        tmp = ib.allocate("float32", 1, name="tmp", scope="local")
+        iterations = ib.allocate("int32", 1, name="iterations", scope="local")
 
         z[0] = (i / float(n) - 1) * 2
         z[1] = (j / float(n) - 0.5) * 2
@@ -409,8 +409,8 @@ def test_while_mandel():
 
 def test_while_binary_search():
     def binary_search(ib, n, i, Aptr, Bptr, Cptr):
-        lo = ib.allocate("int32", (1,), name="lo", scope="local")
-        hi = ib.allocate("int32", (1,), name="hi", scope="local")
+        lo = ib.allocate("int32", 1, name="lo", scope="local")
+        hi = ib.allocate("int32", 1, name="hi", scope="local")
 
         lo[0] = 0
         hi[0] = n
@@ -509,7 +509,7 @@ def test_dyn_shared():
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", n)
 
-        temp = ib.allocate(dtype, (n,), scope="shared.dyn")  # n is symbolic size
+        temp = ib.allocate(dtype, n, scope="shared.dyn")  # n is symbolic size
 
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)

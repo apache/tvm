@@ -170,7 +170,7 @@ def test_vectorize_while_fail():
         A = ib.buffer_ptr(A)
         B = ib.buffer_ptr(B)
         C = ib.buffer_ptr(C)
-        i = ib.allocate("int32", (1,), name="i", scope="local")
+        i = ib.allocate("int32", 1, name="i", scope="local")
         i[0] = 0
 
         with ib.for_range(0, n) as j:

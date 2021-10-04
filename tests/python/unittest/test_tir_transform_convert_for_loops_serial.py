@@ -31,17 +31,19 @@ def fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2(placeholder_30: T.
     placeholder_35 = T.match_buffer(placeholder_32, [1, 1, 1, 16], dtype="int32", elem_offset=0, align=128, offset_factor=1)
     T_cast_9 = T.match_buffer(T_cast_8, [1, 28, 28, 16], dtype="int16", elem_offset=0, align=128, offset_factor=1)
     # body
-    PaddedInput_3 = T.allocate([1, 28, 28, 192], "int16", "global")
+    PaddedInput_3 = T.buffer_decl([1,28,28,192], dtype='int16', scope='global')
+    T.realize(PaddedInput_3[0:1, 0:28, 0:28, 0:192], '')
     for i0_i1_fused_3 in T.parallel(0, 28):
         for i2_3, i3_3 in T.grid(28, 192):
-            T.store(PaddedInput_3, (((i0_i1_fused_3*5376) + (i2_3*192)) + i3_3), T.load("int16", placeholder_33.data, (((i0_i1_fused_3*5376) + (i2_3*192)) + i3_3)), True)
+            PaddedInput_3[0, i0_i1_fused_3, i2_3, i3_3] = placeholder_33[0, i0_i1_fused_3, i2_3, i3_3]
     for ax0_ax1_fused_ax2_fused_3 in T.parallel(0, 784):
         for ax3_2 in T.serial(0, 16):
-            Conv2dOutput_3 = T.allocate([1, 1, 1, 1], "int32", "global")
-            T.store(Conv2dOutput_3, 0, 0, True)
+            Conv2dOutput_3 = T.buffer_decl([1], dtype='int32', scope='global')
+            T.realize(Conv2dOutput_3[0:1], '')
+            Conv2dOutput_3[0] = 0
             for rc_3 in T.serial(0, 192):
-                T.store(Conv2dOutput_3, 0, (T.load("int32", Conv2dOutput_3, 0) + (T.cast(T.load("int16", PaddedInput_3, ((ax0_ax1_fused_ax2_fused_3*192) + rc_3)), "int32")*T.cast(T.load("int16", placeholder_34.data, ((rc_3*16) + ax3_2)), "int32"))), True)
-            T.store(T_cast_9.data, ((ax0_ax1_fused_ax2_fused_3*16) + ax3_2), T.cast(T.cast(T.max(T.min(T.q_multiply_shift((T.load("int32", Conv2dOutput_3, 0) + T.load("int32", placeholder_35.data, ax3_2)), 1764006585, 31, -7, dtype="int32"), 255), 0), "uint8"), "int16"), True)
+                Conv2dOutput_3[0] = Conv2dOutput_3[0] + T.cast(PaddedInput_3[ax0_ax1_fused_ax2_fused_3//28, ax0_ax1_fused_ax2_fused_3%28, rc_3], "int32")*T.cast(placeholder_34[0,0,rc_3,ax3_2], "int32")
+            T_cast_9[ax0_ax1_fused_ax2_fused_3//28, ax0_ax1_fused_ax2_fused_3%28, ax3_2] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift((Conv2dOutput_3[0] + placeholder_35[0,0,0,ax3_2]), 1764006585, 31, -7, dtype="int32"), 255), 0), "uint8"), "int16")
 # fmt: on
 
 
