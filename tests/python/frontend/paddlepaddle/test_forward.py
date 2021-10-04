@@ -855,5 +855,4 @@ def test_forward_math_api():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_forward_math_api()
+    pytest.main([__file__])
