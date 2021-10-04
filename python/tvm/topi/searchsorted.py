@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """searchsorted operator"""
 from . import utils
 from . import te
@@ -22,8 +23,7 @@ from .math import cast
 
 
 def binary_search(
-    ib, sequence_offset, search_range, index, sorted_sequence, values, out_indices,
-    side, out_dtype
+    ib, sequence_offset, search_range, index, sorted_sequence, values, out_indices, side, out_dtype
 ):
     """Common IR generator for CPU and GPU searchsorted."""
     lo = ib.allocate(out_dtype, (1,), name="lo", scope="local")

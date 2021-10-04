@@ -45,6 +45,7 @@ register_pattern("topk", OpPattern.OPAQUE)
 register_strategy("searchsorted", strategy.searchsorted_strategy)
 register_pattern("searchsorted", OpPattern.OPAQUE)
 
+
 @script
 def _topk_shape_func_input_shape(data_shape, k, axis):
     ndim = data_shape.shape[0]
