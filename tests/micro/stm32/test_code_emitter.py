@@ -377,7 +377,12 @@ def test_mnist():
     DEBUG = False
     tempdir_root = None
     if DEBUG:
-        tempdir_root = os.path.join(curr_path, f"workspace", "test_mnist", datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"))
+        tempdir_root = os.path.join(
+            curr_path,
+            f"workspace",
+            "test_mnist",
+            datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
+        )
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     model_path = os.path.join(curr_path, "models/mnist.tflite")
     build_dir = tvm.contrib.utils.tempdir(tempdir_root)

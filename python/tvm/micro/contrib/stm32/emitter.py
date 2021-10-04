@@ -1364,4 +1364,3 @@ class CodeEmitter(object):
             self._emit_run(model_name, out_h, out_c)
 
             self._emit_close(model_name, out_h, out_c)
-
