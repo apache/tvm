@@ -206,6 +206,17 @@ def InjectDoubleBuffer():
     return _ffi_api.InjectDoubleBuffer()  # type: ignore
 
 
+def InjectRollingBuffer():
+    """Inject rolling buffer statements.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectRollingBuffer()  # type: ignore
+
+
 def StorageRewrite():
     """Rewrite storage allocation pattern.
 

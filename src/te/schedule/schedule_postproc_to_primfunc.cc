@@ -67,7 +67,8 @@ class TensorToBufferMapper : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     auto ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
-    if (op->attr_key == tir::attr::double_buffer_scope) {
+    if (op->attr_key == tir::attr::double_buffer_scope ||
+        op->attr_key == tir::attr::rolling_buffer_scope) {
       Stmt body = op->body;
       Operation operation = Downcast<Operation>(op->node);
       for (int i = operation->num_outputs(); i != 0; --i) {
