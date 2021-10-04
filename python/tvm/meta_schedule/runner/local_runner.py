@@ -17,8 +17,6 @@
 """Local Runner"""
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
-import os
-import shutil
 import tvm
 
 from ...contrib.popen_pool import PopenPoolExecutor
@@ -138,9 +136,7 @@ class LocalRunner(PyRunner):
 
         .. code-block:: python
 
-        def default_cleanup(
-            Optional[str],
-        ) -> None:
+        def default_cleanup() -> None:
             ...
     """
 
@@ -162,9 +158,7 @@ class LocalRunner(PyRunner):
         List[float],  # A list of running time
     ]
     T_CLEANUP = Callable[
-        [
-            Optional[str],  # local path to the artifact
-        ],
+        [],
         None,
     ]
 
@@ -304,7 +298,7 @@ class LocalRunner(PyRunner):
                 yield
             finally:
                 # Final step. Always clean up
-                f_cleanup(artifact_path)
+                f_cleanup()
 
         with resource_handler():
             # Step 1: create the local runtime module
@@ -381,7 +375,6 @@ def default_run_evaluator(
     return run_evaluator_common(rt_mod, device, evaluator_config, repeated_args)
 
 
-def default_cleanup(local_path: Optional[str]) -> None:
+def default_cleanup() -> None:
     """Default function to clean up the session"""
-    if local_path is not None:
-        shutil.rmtree(os.path.dirname(local_path))
+    pass  # pylint: disable=unnecessary-pass
