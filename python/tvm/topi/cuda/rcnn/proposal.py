@@ -176,8 +176,8 @@ def argsort_ir(data_buf, out_index_buf):
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "virtual_thread", nthread_bx)
     tid = bx * nthread_tx + tx
-    temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
-    temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
+    temp_data = ib.allocate("float32", 1, name="temp_data", scope="local")
+    temp_index = ib.allocate("int32", 1, name="temp_index", scope="local")
 
     idxm = tvm.tir.indexmod
 
@@ -299,14 +299,14 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
     tx = te.thread_axis("threadIdx.x")
     ib = tvm.tir.ir_builder.create()
     ib.scope_attr(tx, "thread_extent", nthread_tx)
-    i = ib.allocate("int32", (1,), "i", scope="local")
+    i = ib.allocate("int32", 1, "i", scope="local")
     i[0] = 0
     p_sorted_bbox = ib.buffer_ptr(sorted_bbox_buf)
     p_remove = ib.buffer_ptr(remove_mask_buf)
     p_out = ib.buffer_ptr(out_buf)
     b = tx
 
-    nkeep = ib.allocate("int32", (1,), "nkeep", scope="local")
+    nkeep = ib.allocate("int32", 1, "nkeep", scope="local")
     nkeep[0] = 0  # number of bbox after nms
 
     with ib.for_range(0, num_bbox) as j:

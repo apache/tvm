@@ -121,9 +121,9 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
 
                 by = te.thread_axis("blockIdx.y")
                 ib.scope_attr(by, "thread_extent", nthread_by)
-                start = ib.allocate("int64", (1,), name="start", scope="local")
-                middle = ib.allocate("int64", (1,), name="middle", scope="local")
-                end = ib.allocate("int64", (1,), name="end", scope="local")
+                start = ib.allocate("int64", 1, name="start", scope="local")
+                middle = ib.allocate("int64", 1, name="middle", scope="local")
+                end = ib.allocate("int64", 1, name="end", scope="local")
                 start[0] = width * tid
                 with ib.if_scope(start[0] < scan_axis_size):
                     middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
@@ -159,10 +159,10 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
 
                 by = te.thread_axis("blockIdx.y")
                 ib.scope_attr(by, "thread_extent", nthread_by)
-                start = ib.allocate("int64", (1,), name="start", scope="local")
-                middle = ib.allocate("int64", (1,), name="middle", scope="local")
-                end = ib.allocate("int64", (1,), name="end", scope="local")
-                tmp = ib.allocate(out_dtype, (1,), name="end", scope="local")
+                start = ib.allocate("int64", 1, name="start", scope="local")
+                middle = ib.allocate("int64", 1, name="middle", scope="local")
+                end = ib.allocate("int64", 1, name="end", scope="local")
+                tmp = ib.allocate(out_dtype, 1, name="end", scope="local")
                 start[0] = width * tid
                 with ib.if_scope(tvm.tir.all(start[0] < scan_axis_size)):
                     middle[0] = start[0] + tvm.tir.indexdiv(width, 2)

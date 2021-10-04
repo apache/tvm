@@ -89,19 +89,17 @@ def sparse_reshape(
         new_shape_size = new_shape_ptr.shape[0]
 
         multipliers = ib.allocate(
-            new_shape_ptr.dtype, (prev_shape_size,), name="multipliers", scope="local"
+            new_shape_ptr.dtype, prev_shape_size, name="multipliers", scope="local"
         )
-        dividers = ib.allocate(
-            new_shape_ptr.dtype, (new_shape_size,), name="dividers", scope="local"
-        )
+        dividers = ib.allocate(new_shape_ptr.dtype, new_shape_size, name="dividers", scope="local")
         flattened_indices = ib.allocate(
             new_shape_ptr.dtype,
-            (sparse_indices_ptr.shape[0],),
+            sparse_indices_ptr.shape[0],
             name="flattened_indices",
             scope="local",
         )
 
-        total_ele = ib.allocate(new_shape_ptr.dtype, (1,), name="total_ele", scope="local")
+        total_ele = ib.allocate(new_shape_ptr.dtype, 1, name="total_ele", scope="local")
         total_ele[0] = prev_shape[0]
 
         # Cumulative Reverse Exclusive Multiply
@@ -114,7 +112,7 @@ def sparse_reshape(
             total_ele[0] *= prev_shape[prev_shape_size - i]
 
         division_total_ele = ib.allocate(
-            new_shape_ptr.dtype, (1,), name="division_total_ele", scope="local"
+            new_shape_ptr.dtype, 1, name="division_total_ele", scope="local"
         )
         division_total_ele[0] = Cast(new_shape_ptr.dtype, 1)
         with ib.for_range(0, new_shape_size) as i:
@@ -130,7 +128,7 @@ def sparse_reshape(
             with ib.else_scope():
                 out_new_shape[i] = new_shape[i]
 
-        equal_shape = ib.allocate("bool", (1,), name="equal_shape", scope="local")
+        equal_shape = ib.allocate("bool", 1, name="equal_shape", scope="local")
 
         # Check if prev_shape and new_shape are equal
         equal_shape[0] = True
@@ -163,7 +161,7 @@ def sparse_reshape(
 
             with ib.for_range(0, new_sparse_indices_ptr.shape[0], kind="parallel") as i:
                 current_element = ib.allocate(
-                    new_shape_ptr.dtype, (1,), name="current_element", scope="local"
+                    new_shape_ptr.dtype, 1, name="current_element", scope="local"
                 )
                 current_element[0] = flattened_indices[i]
 

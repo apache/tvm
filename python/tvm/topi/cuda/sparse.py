@@ -180,7 +180,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
 
         out_ptr = ib.buffer_ptr(out)
         data_ptr = ib.buffer_ptr(data)
-        w_data_ptr = ib.buffer_ptr(w_data, shape=(nnzb, bs_n, bs_k))
+        w_data_ptr = ib.buffer_ptr(w_data)
         w_indices_ptr = ib.buffer_ptr(w_indices)
         w_indptr_ptr = ib.buffer_ptr(w_indptr)
 
@@ -192,18 +192,20 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         rowlength_bo = ceil_div(w_indptr_ptr[n_index + 1] - row_start, rowlength_bi)
 
         # thread local storage for bs_m x bs_n block
-        block = ib.allocate(data.dtype, (bs_m, bs_n), name="block", scope="local")
-        data_cache = ib.allocate(data.dtype, (mi, bs_m, bs_k), name="data_cache", scope="local")
+        block = ib.buffer_realize(data.dtype, (bs_m, bs_n), name="block", scope="local")
+        data_cache = ib.buffer_realize(
+            data.dtype, (mi, bs_m, bs_k), name="data_cache", scope="local"
+        )
         if use_warp_storage:
-            indices = ib.allocate(w_indices.dtype, (rowlength_bi,), name="indices", scope="warp")
-            w_data_cache = ib.allocate(
+            indices = ib.allocate(w_indices.dtype, rowlength_bi, name="indices", scope="warp")
+            w_data_cache = ib.buffer_realize(
                 w_data.dtype, (rowlength_bi, bs_n, bs_k), name="w_data_cache", scope="warp"
             )
         else:
-            indices = ib.allocate(
+            indices = ib.buffer_realize(
                 w_indices.dtype, (ni, rowlength_bi), name="indices", scope="shared"
             )
-            w_data_cache = ib.allocate(
+            w_data_cache = ib.buffer_realize(
                 w_data.dtype, (ni, rowlength_bi, bs_n, bs_k), name="w_data_cache", scope="shared"
             )
 

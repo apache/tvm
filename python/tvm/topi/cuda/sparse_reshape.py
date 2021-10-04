@@ -88,22 +88,20 @@ def sparse_reshape(
         new_shape_size = new_shape_ptr.shape[0]
 
         multipliers = ib.allocate(
-            new_shape_ptr.dtype, (prev_shape_size,), name="multipliers", scope="global"
+            new_shape_ptr.dtype, prev_shape_size, name="multipliers", scope="global"
         )
-        dividers = ib.allocate(
-            new_shape_ptr.dtype, (new_shape_size,), name="dividers", scope="global"
-        )
+        dividers = ib.allocate(new_shape_ptr.dtype, new_shape_size, name="dividers", scope="global")
         flattened_indices = ib.allocate(
             new_shape_ptr.dtype,
-            (sparse_indices_ptr.shape[0],),
+            sparse_indices_ptr.shape[0],
             name="flattened_indices",
             scope="global",
         )
-        total_ele = ib.allocate(new_shape_ptr.dtype, (1,), name="total_ele", scope="global")
+        total_ele = ib.allocate(new_shape_ptr.dtype, 1, name="total_ele", scope="global")
         division_total_ele = ib.allocate(
-            new_shape_ptr.dtype, (1,), name="division_total_ele", scope="global"
+            new_shape_ptr.dtype, 1, name="division_total_ele", scope="global"
         )
-        equal_shape = ib.allocate("bool", (1,), name="equal_shape", scope="global")
+        equal_shape = ib.allocate("bool", 1, name="equal_shape", scope="global")
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         with ib.new_scope():
             # The computation in this block is very very miniscule since we are just iterating over
@@ -183,7 +181,7 @@ def sparse_reshape(
 
                 with ib.if_scope(row_number < sparse_indices_ptr.shape[0]):
                     current_element = ib.allocate(
-                        new_shape_ptr.dtype, (1,), name="current_element", scope="local"
+                        new_shape_ptr.dtype, 1, name="current_element", scope="local"
                     )
                     current_element[0] = flattened_indices[row_number]
 

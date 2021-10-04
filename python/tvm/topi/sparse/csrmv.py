@@ -71,7 +71,7 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
         out_ptr = irb.buffer_ptr(out)
         num_rows = indptr.shape[0] - 1
         with irb.for_range(0, num_rows, kind="parallel", name="row") as row:
-            dot = irb.allocate(data.dtype, (1,), name="dot", scope="local")
+            dot = irb.allocate(data.dtype, 1, name="dot", scope="local")
             out_ptr[row] = cast(0, data.dtype)
             dot[0] = cast(0, data.dtype)
             row_start = indptr_ptr[row]

@@ -642,7 +642,7 @@ def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
 
     ni = indices.shape[0]
 
-    atomic_add_return = ib.allocate(updates.dtype, (1,), name="atomic_add_return", scope="local")
+    atomic_add_return = ib.allocate(updates.dtype, 1, name="atomic_add_return", scope="local")
 
     with ib.new_scope():
         nthread_bx = ceil_div(ni, nthread_tx)
@@ -772,9 +772,7 @@ def scatter_nd(data, indices, updates, mode):
         updates = ib.buffer_ptr(updates_ptr)
         out = ib.buffer_ptr(out_ptr)
 
-        atomic_add_return = ib.allocate(
-            updates.dtype, (1,), name="atomic_add_return", scope="local"
-        )
+        atomic_add_return = ib.allocate(updates.dtype, 1, name="atomic_add_return", scope="local")
 
         fused_indices_dimension = 1
         for i in indices_ptr.shape[1:]:

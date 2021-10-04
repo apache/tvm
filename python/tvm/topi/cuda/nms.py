@@ -306,9 +306,7 @@ def _nms_loop(
         ib.scope_attr(by, "thread_extent", nthread_by)
         ib.scope_attr(tx, "thread_extent", nthread_tx)
 
-        num_valid_boxes_local = ib.allocate(
-            "int32", (1,), name="num_valid_boxes_local", scope="local"
-        )
+        num_valid_boxes_local = ib.allocate("int32", 1, name="num_valid_boxes_local", scope="local")
         num_valid_boxes_local[0] = 0
 
         def nms_inner_loop(ib, i, j, nkeep):
@@ -345,7 +343,7 @@ def _nms_loop(
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Apply nms
             # No need to do more iteration if we have already reached max_output_size boxes
-            box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
+            box_idx = ib.allocate("int32", 1, name="box_idx", scope="local")
             box_idx[0] = 0
             with ib.while_loop(
                 tvm.tir.all(box_idx[0] < nkeep, num_valid_boxes_local[0] < max_output_size)

@@ -60,8 +60,8 @@ def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
 
 def binary_search(ib, y, num_boxes, scores, score_threshold, out):
     """Binary search for score_threshold on scores sorted in descending order"""
-    lo = ib.allocate("int32", (1,), name="lo", scope="local")
-    hi = ib.allocate("int32", (1,), name="hi", scope="local")
+    lo = ib.allocate("int32", 1, name="lo", scope="local")
+    hi = ib.allocate("int32", 1, name="hi", scope="local")
 
     lo[0] = 0
     hi[0] = num_boxes

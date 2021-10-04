@@ -134,25 +134,25 @@ def _odd_even_sort(
         ## Create shared memory as syncable thread scratch space
         tmp_keys_swap = ib.allocate(
             keys_swap.dtype,
-            (block_size,),
+            block_size,
             name="temp_keys_swap",
             scope="shared",
         )
         if values_swap is not None:
             tmp_values_swap = ib.allocate(
                 values_swap.dtype,
-                (block_size,),
+                block_size,
                 name="temp_values_swap",
                 scope="shared",
             )
 
         ## Create thread local data for swapping
-        temp_keys = ib.allocate(keys_swap.dtype, (1,), name="temp_keys", scope="local")
+        temp_keys = ib.allocate(keys_swap.dtype, 1, name="temp_keys", scope="local")
         if values_swap is not None:
-            temp_values = ib.allocate(values_swap.dtype, (1,), name="temp_values", scope="local")
+            temp_values = ib.allocate(values_swap.dtype, 1, name="temp_values", scope="local")
 
-        temp_cond1 = ib.allocate(keys_swap.dtype, (1,), name="temp_cond1", scope="local")
-        temp_cond2 = ib.allocate(keys_swap.dtype, (1,), name="temp_cond2", scope="local")
+        temp_cond1 = ib.allocate(keys_swap.dtype, 1, name="temp_cond1", scope="local")
+        temp_cond2 = ib.allocate(keys_swap.dtype, 1, name="temp_cond2", scope="local")
         # Copy data to scratch space
         base_idx = by * size * axis_mul_after + bz
         with ib.for_range(0, 2) as n:
@@ -255,9 +255,9 @@ def _sort_common(
     upper_lim = ceil_log2(size)
 
     def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, step_count):
-        first = ib.allocate("int64", (1,), name="first", scope="local")
-        mid = ib.allocate("int64", (1,), name="mid", scope="local")
-        last = ib.allocate("int64", (1,), name="last", scope="local")
+        first = ib.allocate("int64", 1, name="first", scope="local")
+        mid = ib.allocate("int64", 1, name="mid", scope="local")
+        last = ib.allocate("int64", 1, name="last", scope="local")
         first[0] = tvm.te.max(0, diag - bCount)
         last[0] = tvm.te.min(diag, aCount)
         with ib.while_loop(first[0] < last[0]):
@@ -286,8 +286,8 @@ def _sort_common(
         first,
         last,
     ):
-        i = ib.allocate("int64", (1,), name="i", scope="local")
-        j = ib.allocate("int64", (1,), name="j", scope="local")
+        i = ib.allocate("int64", 1, name="i", scope="local")
+        j = ib.allocate("int64", 1, name="j", scope="local")
         i[0] = aStart + first
         j[0] = bStart + diag - last
         with ib.for_range(0, tvm.te.min(aCount + bCount - diag, step_count)) as count:

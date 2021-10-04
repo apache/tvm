@@ -655,9 +655,9 @@ def _nms_loop(
 
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             num_valid_boxes_local = ib.allocate(
-                "int32", (1,), name="num_valid_boxes_local", scope="local"
+                "int32", 1, name="num_valid_boxes_local", scope="local"
             )
-            box_idx = ib.allocate("int32", (1,), name="box_idx", scope="local")
+            box_idx = ib.allocate("int32", 1, name="box_idx", scope="local")
             num_valid_boxes_local[0] = 0
             box_idx[0] = 0
 

@@ -205,8 +205,8 @@ def argsort_ir(data_buf, out_index_buf):
     ib = tvm.tir.ir_builder.create()
     p_data = ib.buffer_ptr(data_buf)
     index_out = ib.buffer_ptr(out_index_buf)
-    temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
-    temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
+    temp_data = ib.allocate("float32", 1, name="temp_data", scope="local")
+    temp_index = ib.allocate("int32", 1, name="temp_index", scope="local")
     idxm = tvm.tir.indexmod
     with ib.for_range(0, batch, kind="unroll") as b:
         start = b * num_bbox
@@ -316,12 +316,12 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
     batch, num_bbox, _ = get_const_tuple(sorted_bbox_buf.shape)
     rpn_post_nms_top_n = get_const_int(out_buf.shape[0]) // batch
     ib = tvm.tir.ir_builder.create()
-    i = ib.allocate("int32", (batch,), "i", scope="local")
+    i = ib.allocate("int32", batch, "i", scope="local")
     p_sorted_bbox = ib.buffer_ptr(sorted_bbox_buf)
     p_remove = ib.buffer_ptr(remove_mask_buf)
     p_out = ib.buffer_ptr(out_buf)
 
-    nkeep = ib.allocate("int32", (batch,), "nkeep", scope="local")
+    nkeep = ib.allocate("int32", batch, "nkeep", scope="local")
 
     with ib.for_range(0, batch) as b:
         nkeep[b] = 0
