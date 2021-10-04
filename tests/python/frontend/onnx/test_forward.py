@@ -1281,6 +1281,7 @@ def test_batch_matmul(target, dev):
         convert_config={"use_nt_batch_matmul": False},
     )
 
+
 @tvm.testing.parametrize_targets
 def test_matmulinteger16(target, dev):
     def verify_matmulinteger16(a_shape, b_shape, out_shape):
@@ -1295,10 +1296,7 @@ def test_matmulinteger16(target, dev):
         a_array = np.random.randint(low, high, size=a_shape).astype(a_dtype)
         b_array = np.random.randint(low, high, size=b_shape).astype(b_dtype)
 
-        mul_node = helper.make_node("MatMulInteger16",
-            ["a", "b"],
-            ["out"],
-            domain="com.microsoft")
+        mul_node = helper.make_node("MatMulInteger16", ["a", "b"], ["out"], domain="com.microsoft")
 
         graph = helper.make_graph(
             [mul_node],

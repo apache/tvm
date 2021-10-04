@@ -891,8 +891,9 @@ class MatMulInteger16(OnnxOpConverter):
         out_dtype = "int32"
         # Set output data type as uint32 when both inputs are uint16
         if a_dtype == "uint16" and b_dtype == "uint16":
-           out_dtype = "uint32"
+            out_dtype = "uint32"
         if a_rank > 2 or b_rank > 2:
+
             def flatten_to_nd(x, x_shape, nd=3):
                 ndims = infer_shape(x_shape)[0]
                 if ndims == nd:
