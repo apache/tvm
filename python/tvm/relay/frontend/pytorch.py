@@ -20,6 +20,7 @@
 # pylint: disable=missing-function-docstring
 """PT: PyTorch frontend."""
 import itertools
+import functools
 import logging
 import math
 import sys
@@ -2763,6 +2764,16 @@ class PyTorchOpConverter:
 
         return (output, _op.stack(hy, 0), _op.stack(cy, 0))
 
+    def all_any_common(self, op, inputs, input_types):
+        dim = inputs[1]
+        keepdim = inputs[2]
+        if self.infer_type(inputs[0]).dtype != "bool":
+            # The input dtype can be uint8.
+            inp = _op.cast(inputs[0], "bool")
+        else:
+            inp = inputs[0]
+        return op(inp, axis=dim, keepdims=keepdim)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2986,6 +2997,8 @@ class PyTorchOpConverter:
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
+            "aten::all": functools.partial(self.all_any_common, _op.all),
+            "aten::any": functools.partial(self.all_any_common, _op.any),
         }
 
     def update_convert_map(self, custom_map):
