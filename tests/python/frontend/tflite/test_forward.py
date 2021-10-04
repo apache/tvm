@@ -1869,16 +1869,6 @@ def _test_sqrt(data):
 
 
 #######################################################################
-# Rsqrt
-# -----
-
-
-def _test_rsqrt(data):
-    """One iteration of rsqrt"""
-    return _test_unary_elemwise(math_ops.rsqrt, data)
-
-
-#######################################################################
 # Neg
 # ---
 
@@ -1910,7 +1900,7 @@ def _test_elu(data):
 
 def _test_forward_unary_elemwise(test_op):
     # functions that need positive input
-    if test_op.__name__ in {"_test_log", "_test_sqrt", "_test_rsqrt"}:
+    if test_op.__name__ in {"_test_log", "_test_sqrt"}:
         test_op(np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)))
     else:
         test_op(np.random.uniform(-10, 10, (3, 2)).astype(np.float32))
@@ -1923,7 +1913,6 @@ def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_log)
     _test_forward_unary_elemwise(_test_sin)
     _test_forward_unary_elemwise(_test_sqrt)
-    _test_forward_unary_elemwise(_test_rsqrt)
     _test_forward_unary_elemwise(_test_neg)
     _test_forward_unary_elemwise(_test_square)
     # ceil and cos come with TFLite 1.14.0.post1 fbs schema
@@ -3353,6 +3342,45 @@ def test_forward_tanh():
 
 
 #######################################################################
+# RSQRT
+# ----
+
+
+def _test_rsqrt(data, quantized=False):
+    """One iteration of RSQRT"""
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="in_0")
+
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(
+                in_data, min=1, max=6, name="inq_0"
+            )
+            input_range = {"inq_0": (1, 6)}
+            out = math_ops.rsqrt(inq_data)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=1, max=6, name="out")
+            compare_tflite_with_tvm(
+                data,
+                "inq_0:0",
+                [inq_data],
+                [out],
+                quantized=True,
+                input_range=input_range,
+                experimental_new_converter=True,
+            )
+        else:
+            out = math_ops.rsqrt(in_data)
+            compare_tflite_with_tvm(data, "in_0:0", [in_data], [out])
+
+
+def test_forward_rsqrt():
+    """RSQRT"""
+    _test_rsqrt(np.arange(1.0, 7.0, dtype=np.float32), quantized=False)
+    _test_rsqrt(np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)), quantized=False)
+    _test_rsqrt(np.arange(1, 240, 40, dtype=np.uint8), quantized=True)
+    _test_rsqrt(np.arange(1, 240, 40, dtype=np.uint8).reshape((2, 1, 3)), quantized=True)
+
+
+#######################################################################
 # ReLu
 # ----
 
@@ -4561,6 +4589,7 @@ if __name__ == "__main__":
     test_forward_l2_pool2d()
     test_forward_softmax()
     test_forward_tanh()
+    test_forward_rsqrt()
     test_forward_relu()
     test_forward_relu6()
     test_forward_leaky_relu()
