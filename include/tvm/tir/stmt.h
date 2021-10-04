@@ -515,8 +515,8 @@ class AllocateNode : public StmtNode {
   Var buffer_var;
   /*! \brief The type of the buffer. */
   DataType dtype;
-  /*! \brief The extents of the buffer. */
-  Array<PrimExpr> extents;
+  /*! \brief The extent of the buffer. */
+  PrimExpr extent;
   /*! \brief Only allocate buffer when condition is satisfied. */
   PrimExpr condition;
   /*! \brief The body to be executed. */
@@ -532,7 +532,7 @@ class AllocateNode : public StmtNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
     v->Visit("dtype", &dtype);
-    v->Visit("extents", &extents);
+    v->Visit("extent", &extent);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
     v->Visit("annotations", &annotations);
@@ -541,14 +541,14 @@ class AllocateNode : public StmtNode {
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
-           equal(extents, other->extents) && equal(condition, other->condition) &&
+           equal(extent, other->extent) && equal(condition, other->condition) &&
            equal(body, other->body) && equal(annotations, other->annotations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce.DefHash(buffer_var);
     hash_reduce(dtype);
-    hash_reduce(extents);
+    hash_reduce(extent);
     hash_reduce(condition);
     hash_reduce(body);
     hash_reduce(annotations);
@@ -559,14 +559,14 @@ class AllocateNode : public StmtNode {
    *        Otherwise return 0.
    * \return The result.
    */
-  int32_t constant_allocation_size() const { return constant_allocation_size(extents); }
+  int32_t constant_allocation_size() const { return constant_allocation_size(extent); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
-   * \param extents The extents of the buffer.
+   * \param extent The extent of the buffer.
    * \return The result.
    */
-  TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
+  TVM_DLL static int32_t constant_allocation_size(const PrimExpr& extent);
 
   static constexpr const char* _type_key = "tir.Allocate";
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
@@ -578,8 +578,8 @@ class AllocateNode : public StmtNode {
  */
 class Allocate : public Stmt {
  public:
-  TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+  TVM_DLL Allocate(Var buffer_var, DataType dtype, PrimExpr extent, PrimExpr condition, Stmt body,
+                   Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
                    Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);

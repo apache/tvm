@@ -332,18 +332,16 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Allocate
-Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Map<String, ObjectRef> annotations, Span span) {
+Allocate::Allocate(Var buffer_var, DataType dtype, PrimExpr extent, PrimExpr condition, Stmt body,
+                   Map<String, ObjectRef> annotations, Span span) {
   CHECK(IsPointerType(buffer_var->type_annotation, dtype))
       << "The allocated data type (" << dtype
       << ") does not match the type annotation of the buffer " << buffer_var << " ("
       << buffer_var->type_annotation
       << "). The data type should be an element of the pointer type.";
 
-  for (size_t i = 0; i < extents.size(); ++i) {
-    ICHECK(extents[i].defined());
-    ICHECK(extents[i].dtype().is_scalar());
-  }
+  ICHECK(extent.defined());
+  ICHECK(extent.dtype().is_scalar());
   ICHECK(body.defined());
   ICHECK(condition.defined());
   ICHECK(condition.dtype().is_bool());
@@ -351,7 +349,7 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   ObjectPtr<AllocateNode> node = make_object<AllocateNode>();
   node->buffer_var = std::move(buffer_var);
   node->dtype = dtype;
-  node->extents = std::move(extents);
+  node->extent = std::move(extent);
   node->condition = std::move(condition);
   node->body = std::move(body);
   node->annotations = std::move(annotations);
@@ -359,25 +357,18 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   data_ = std::move(node);
 }
 
-int32_t AllocateNode::constant_allocation_size(const Array<PrimExpr>& extents) {
-  int64_t result = 1;
-  for (size_t i = 0; i < extents.size(); ++i) {
-    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-      result *= int_size->value;
-      if (result > std::numeric_limits<int32_t>::max()) {
-        return 0;
-      }
-    } else {
-      return 0;
-    }
+int32_t AllocateNode::constant_allocation_size(const PrimExpr& extent) {
+  if (const IntImmNode* int_size = extent.as<IntImmNode>()) {
+    return int_size->value;
+  } else {
+    return 0;
   }
-  return static_cast<int32_t>(result);
 }
 
 TVM_REGISTER_GLOBAL("tir.Allocate")
-    .set_body_typed([](Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition,
+    .set_body_typed([](Var buffer_var, DataType type, PrimExpr extent, PrimExpr condition,
                        Stmt body, Map<String, ObjectRef> annotations, Span span) {
-      return Allocate(buffer_var, type, extents, condition, body, annotations, span);
+      return Allocate(buffer_var, type, extent, condition, body, annotations, span);
     });
 
 TVM_REGISTER_NODE_TYPE(AllocateNode);
@@ -389,10 +380,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       ICHECK(ptr_type) << "The provided variable is not of pointer type";
       p->PrintIndent();
       p->stream << "allocate " << op->buffer_var << "[" << op->dtype;
-      for (size_t i = 0; i < op->extents.size(); ++i) {
-        p->stream << " * ";
-        p->Print(op->extents[i]);
-      }
+      p->stream << " * ";
+      p->Print(op->extent);
       p->stream << "], storage_scope = " << ptr_type->storage_scope;
       if (!is_one(op->condition)) {
         p->stream << " if ";

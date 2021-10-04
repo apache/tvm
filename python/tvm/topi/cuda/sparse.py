@@ -149,7 +149,6 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
         m = data.shape[1]
         nb = w_indptr.shape[0] - 1
-        nnzb = w_data.shape[0]
         # treat csr like block size 1 bsr
         if len(w_data.shape) == 1:
             bs_n = 1

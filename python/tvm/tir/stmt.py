@@ -309,8 +309,8 @@ class Allocate(Stmt):
     dtype : str
         The data type of the buffer.
 
-    extents : list of Expr
-        The extents of the allocate
+    extent : Expr
+        The number of elements to allocate
 
     condition : PrimExpr
         The condition.
@@ -325,14 +325,14 @@ class Allocate(Stmt):
         The location of this itervar in the source code.
     """
 
-    def __init__(self, buffer_var, dtype, extents, condition, body, annotations=None, span=None):
+    def __init__(self, buffer_var, dtype, extent, condition, body, annotations=None, span=None):
         if annotations is None:
             annotations = dict()
         self.__init_handle_by_constructor__(
             _ffi_api.Allocate,  # type: ignore
             buffer_var,
             dtype,
-            extents,
+            extent,
             condition,
             body,
             annotations,
