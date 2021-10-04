@@ -2775,7 +2775,6 @@ class PyTorchOpConverter:
         return op(inp, axis=dim, keepdims=keepdim)
 
     def searchsorted_common(self, sorted_sequence, values, out_int32, right):
-
         dtype = "int32" if out_int32 else "int64"
         side = "right" if right else "left"
         values_shape = _infer_shape(values)
