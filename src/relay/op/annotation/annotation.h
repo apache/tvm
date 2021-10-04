@@ -45,14 +45,18 @@ const Op& OnDeviceOp();
 Expr OnDevice(Expr expr, DLDeviceType device_type, bool is_fixed);
 
 /*!
- * \brief Wraps \p expr in an "on_device" CallNode for \p device_type and \p is_fixed. However
- * returns \p expr directly if:
+ * \brief Wraps \p expr in an "on_device" CallNode for \p device_type and \p is_fixed if the
+ * device for \p expr cannot otherwise be recovered by the lexical scoping convention. This means
+ * we will NOT wrap if:
  *  - \p device_type is \p kInvalidDeviceType, which signals there are no device annotations
  *    already in play.
  *  - \p expr is an operator or primitive function literal. These are device polymorphic.
- *  - \p expr is a global or local var. These already have an implied device.
- *  - \p expr is a constructor. There should probably be device polymorphic but are in an
- *    in-between state at the moment.
+ *  - \p expr is a non-primitive function literal. The device is captured by the
+ *    "result_device_type" attribute on the function itself.
+ *  - \p expr is a global var. The device is on the function attributes the global is bound to.
+ *  - \p expr is a local var. The device is tracked by the device aware visitors for us.
+ *  - \p expr is a constructor. These should eventually be device polymorphic but are currently
+ *    in an in-between state at the moment.
  */
 Expr MaybeOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed);
 
