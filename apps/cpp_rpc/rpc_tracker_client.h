@@ -56,14 +56,6 @@ class TrackerClient {
         port_(port),
         gen_(std::random_device{}()),
         dis_(0.0, 1.0) {
-    if (custom_addr_.empty()) {
-      custom_addr_ = "null";
-    } else {
-      // Since custom_addr_ can be either the json value null which is not surrounded by quotes
-      // or a string containing the custom value which json does required to be quoted then we
-      // need to set custom_addr_ to be a string containing the quotes here.
-      custom_addr_ = "\"" + custom_addr_ + "\"";
-    }
   }
   /*!
    * \brief Destructor.
@@ -90,7 +82,11 @@ class TrackerClient {
 
       std::ostringstream ss;
       ss << "[" << static_cast<int>(TrackerCode::kUpdateInfo) << ", {\"key\": \"server:" << key_
-         << "\", \"addr\": [" << custom_addr_ << ", \"" << port_ << "\"]}]";
+         << "\"";
+      if (!custom_addr_.empty()) {
+        ss << ", \"addr\": [\"" << custom_addr_ << "\", \"" << port_ << "\"]";
+      }
+      ss << "}]";
       tracker_sock_.SendBytes(ss.str());
 
       // Receive status and validate
@@ -118,7 +114,11 @@ class TrackerClient {
 
       std::ostringstream ss;
       ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", [" << port
-         << ", \"" << *matchkey << "\"], " << custom_addr_ << "]";
+         << ", \"" << *matchkey << "\"]";
+      if (!custom_addr_.empty()) {
+        ss << ", \"" << custom_addr_ << "\"";
+      }
+      ss << "]";
 
       tracker_sock_.SendBytes(ss.str());
 
@@ -170,7 +170,11 @@ class TrackerClient {
 
             std::ostringstream ss;
             ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", [" << port
-               << ", \"" << *matchkey << "\"], " << custom_addr_ << "]";
+               << ", \"" << *matchkey << "\"]";
+            if (!custom_addr_.empty()) {
+              ss << ", \"" << custom_addr_ << "\"";
+            }
+            ss << "]";
             tracker_sock_.SendBytes(ss.str());
 
             std::string remote_status = tracker_sock_.RecvBytes();
