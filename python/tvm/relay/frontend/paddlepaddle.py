@@ -43,7 +43,7 @@ __all__ = ["from_paddle"]
 
 
 def _get_pad_size(in_size, dilated_kernel_size, stride_size):
-    """Calculate the paddings size."""
+    """Calculate the paddings size for Conv/Pool in SAME padding mode."""
 
     if stride_size == 1 or in_size % stride_size == 0:
         pad = max(dilated_kernel_size - stride_size, 0)
