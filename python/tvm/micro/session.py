@@ -19,7 +19,10 @@
 
 import json
 import logging
+import pathlib
 import sys
+import os
+import tempfile
 
 from ..error import register_error
 from .._ffi import get_global_func, register_func
@@ -247,10 +250,36 @@ def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
     )
 
 
+def get_next_debug_path(base_path: str) -> pathlib.Path:
+    temp_parent = pathlib.Path(tempfile.TemporaryDirectory().name).parent
+
+    debug_path = pathlib.Path(temp_parent) / base_path
+    if not debug_path.exists():
+        debug_path.mkdir()
+
+    dir_list = list()
+    debug_prefix = "debug_"
+    for path in os.listdir(debug_path):
+        full_path = pathlib.Path(debug_path) / path
+        if full_path.is_dir() and full_path.name.startswith(debug_prefix):
+            # assuming debug directories are in "debug_NUM" format.
+            dir_list.append(int(path.split("_")[1]))
+    dir_list.sort()
+    if dir_list and len(dir_list) > 0:
+        for num in range(0, dir_list[-1] + 2):
+            if num not in dir_list:
+                next_ind = num
+                break
+    else:
+        next_ind = 0
+    return pathlib.Path(debug_path) / f"{debug_prefix}{next_ind}"
+
+
 @register_func("tvm.micro.compile_and_create_micro_session")
 def compile_and_create_micro_session(
     mod_src_bytes: bytes,
     template_project_dir: str,
+    debug_base_path: str = None,
     project_options: dict = None,
 ):
     """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
@@ -270,9 +299,14 @@ def compile_and_create_micro_session(
         Options for the microTVM API Server contained in template_project_dir.
     """
 
-    temp_dir = utils.tempdir()
-    # Keep temp directory for generate project
-    temp_dir.set_keep_for_debug(True)
+    if debug_base_path:
+        temp_dir = get_next_debug_path(debug_base_path)
+        temp_dir.mkdir()
+    else:
+        temp_dir = utils.tempdir()
+        # Keep temp directory for generate project
+        temp_dir.set_keep_for_debug(True)
+
     model_library_format_path = temp_dir / "model.tar.gz"
     with open(model_library_format_path, "wb") as mlf_f:
         mlf_f.write(mod_src_bytes)
