@@ -133,6 +133,11 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    ++step_count_;
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   Stmt VisitStmt_(const StoreNode* op) final {
     ++step_count_;
     return StmtExprMutator::VisitStmt_(op);
