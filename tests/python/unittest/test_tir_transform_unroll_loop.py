@@ -14,13 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import sys
+
+import pytest
+
 import tvm
 from tvm import te
-import os
 
 
-def test_unroll_loop():
+@tvm.testing.fixture
+def loop_module():
     ib = tvm.tir.ir_builder.create()
+
     dtype = "int64"
     n = te.size_var("n")
     Ab = tvm.tir.decl_buffer((n,), dtype)
@@ -31,41 +37,58 @@ def test_unroll_loop():
             Aptr[j + 1] = Aptr[i] + 1
 
     stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt))
 
-    assert isinstance(stmt, tvm.tir.For)
+    return tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt))
 
+
+def test_auto_unroll_disabled_above_limit(loop_module):
     with tvm.transform.PassContext(config={"tir.UnrollLoop": {"auto_max_step": 16}}):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert not isinstance(ret, tvm.tir.For)
+        mod = tvm.tir.transform.UnrollLoop()(loop_module)
+        body = mod["main"].body
+        assert not isinstance(body, tvm.tir.For)
 
+
+def test_auto_unroll_enabled_below_limit(loop_module):
     with tvm.transform.PassContext(config={"tir.UnrollLoop": {"auto_max_step": 15}}):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret, tvm.tir.For)
+        mod = tvm.tir.transform.UnrollLoop()(loop_module)
+        body = mod["main"].body
+        assert isinstance(body, tvm.tir.For)
 
+
+def test_explicit_unroll(loop_module):
     with tvm.transform.PassContext(
         config={"tir.UnrollLoop": {"auto_max_step": 16, "explicit_unroll": False}}
     ):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret, tvm.tir.For)
-        assert ret.kind == tvm.tir.ForKind.UNROLLED
+        mod = tvm.tir.transform.UnrollLoop()(loop_module)
+        body = mod["main"].body
+        assert isinstance(body, tvm.tir.For)
+        assert body.kind == tvm.tir.ForKind.UNROLLED
 
+
+@tvm.testing.fixture
+def loop_module_pragma_sequential(loop_module):
+    orig_body = loop_module["main"].body
     ib = tvm.tir.ir_builder.create()
     ib.scope_attr(tvm.tir.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
-    ib.emit(stmt)
+    ib.emit(orig_body)
     wrapped = ib.get()
-    wrapped = tvm.tir.SeqStmt([wrapped, stmt])
-    assert isinstance(ret, tvm.tir.For)
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], wrapped))
 
+    body = tvm.tir.SeqStmt([wrapped, orig_body])
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc(loop_module["main"].params, body))
+    return mod
+
+
+def test_pragma_unroll(loop_module_pragma_sequential):
     with tvm.transform.PassContext(
         config={"tir.UnrollLoop": {"auto_max_depth": 8, "explicit_unroll": False}}
     ):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret[0], tvm.tir.For)
-        assert ret[0].kind == tvm.tir.ForKind.UNROLLED
-        assert isinstance(ret[1], tvm.tir.For)
-        assert ret[1].kind != tvm.tir.ForKind.UNROLLED
+        mod = tvm.tir.transform.UnrollLoop()(loop_module_pragma_sequential)
+        body = mod["main"].body
+        assert isinstance(body[0], tvm.tir.For)
+        assert body[0].kind == tvm.tir.ForKind.UNROLLED
+        assert isinstance(body[1], tvm.tir.For)
+        assert body[1].kind != tvm.tir.ForKind.UNROLLED
 
 
 def test_unroll_fake_loop():
@@ -89,8 +112,9 @@ def test_unroll_fake_loop():
             "tir.UnrollLoop": {"auto_max_depth": 8, "auto_max_extent": 1, "explicit_unroll": False}
         }
     ):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret[0], tvm.tir.Store)
+        mod = tvm.tir.transform.UnrollLoop()(mod)
+        body = mod["main"].body
+        assert isinstance(body[0], tvm.tir.BufferStore)
 
 
 def test_unroll_single_count_loops():
@@ -111,6 +135,4 @@ def test_unroll_single_count_loops():
 
 
 if __name__ == "__main__":
-    test_unroll_loop()
-    test_unroll_fake_loop()
-    test_unroll_single_count_loops()
+    sys.exit(pytest.main(sys.argv))
