@@ -2697,6 +2697,40 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
+        scale = inputs[2]
+        scale_shape = infer_shape(scale)
+        if len(inputs) == 4:
+            assert (
+                len(scale_shape) == 0 or scale_shape[0] == 0
+            ), "One of scale or size should be passed, not both."
+            size = inputs[3]
+        else:
+            assert len(scale_shape) != 0, "One of scale or size should be passed."
+            size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
+        return cls.v11_13_common(inputs, size, attr, params)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        scale = inputs[2]
+        size = inputs[3]
+        if size is not None:
+            assert scale is None, "One of scale or size should be passed, not both."
+        else:
+            scale_type = infer_type(scale)
+            scale_shape = scale_type.checked_type.shape
+            scale_dtype = scale_type.checked_type.dtype
+            assert len(scale_shape) != 0, "One of scale or size should be passed."
+            size = _op.cast(shape_of(inputs[0]), scale_dtype) * scale
+
+        return cls.v11_13_common(inputs, size, attr, params)
+
+    @classmethod
+    def v11_13_common(cls, inputs, size, attr, params):
+        """
+        Resize v11 and Resize v13 are identical except in how
+        they handle passing in scale and size. This utility
+        provides the implementation for both
+        """
         ndims = len(infer_shape(inputs[0]))
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
@@ -2715,18 +2749,6 @@ class Resize(OnnxOpConverter):
         alpha = attr.get("cubic_coeff_a", -0.75)
         exclude = attr.get("exclude_outside", 0)
 
-        scale = inputs[2]
-        size = inputs[3]
-        if size is not None:
-            assert (
-                scale is None
-            ), "One of scale or size should be passed, not both."
-        else:
-            scale_type = infer_type(scale)
-            scale_shape = scale_type.checked_type.shape
-            scale_dtype = scale_type.checked_type.dtype
-            assert len(scale_shape) != 0, "One of scale or size should be passed."
-            size = _op.cast(shape_of(inputs[0]), scale_dtype) * scale
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
         out = None
         if ndims == 3:
