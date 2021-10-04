@@ -696,10 +696,6 @@ static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }
 
-Expr StopFusion(Expr data);
-
-Expr CastHint(Expr data, DataType dtype);
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_

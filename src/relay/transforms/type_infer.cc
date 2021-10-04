@@ -486,8 +486,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (type_args.size() > fn_ty_node->type_params.size()) {
       this->EmitFatal(Diagnostic::Error(call->span)
                       << "Incorrect number of type args in " << call->span << ": "
-                      << "Expected " << fn_ty_node->type_params.size() << "but got "
-                      << type_args.size());
+                      << "Expected " << fn_ty_node->type_params.size() << " but got "
+                      << type_args.size() << " for call:\n"
+                      << PrettyPrint(GetRef<Call>(call)));
     }
     for (size_t i = type_args.size(); i < fn_ty_node->type_params.size(); i++) {
       type_args.push_back(IncompleteType(TypeKind::kType));

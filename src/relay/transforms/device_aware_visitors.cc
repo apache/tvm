@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/transforms/device_aware_visitors.cc
- * \brief Visitors which track the device for the current Relay expression and Relay Vars.
+ * \brief Visitors which track the device for the current Relay expression.
  */
 
 #include "./device_aware_visitors.h"
@@ -28,30 +28,51 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
-// TODO(mbs): We'd probably have less tendious code duplication if we redefined the memoizing
-// mutator on top of the generic Functor.
+// TODO(mbs): This machinery can be used a) on expressions/modules which have not had
+// device planning run, and b) on expressions for which we've not kept track of their
+// containing module. For now we'll handle b) by being forgiving as possible when recovering
+// the device for an expression, and we'll support a) the same way. But better would be
+// to ICHECK fail when, eg, a variable is not in scope or the lexical device stack is empty.
+
+LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) {
+  if (maybe_mod) {
+    for (const auto& pair : maybe_mod.value()->functions) {
+      if (const auto* function_node = pair.second.as<FunctionNode>()) {
+        DLDeviceType device_type = GetFunctionResultDeviceType(function_node);
+        if (device_type != kInvalidDeviceType) {
+          global_var_device_types_.emplace(pair.first, device_type);
+        }
+      }
+    }
+  }
+}
 
 DLDeviceType LexicalOnDeviceMixin::GetInScopeDeviceType(const Expr& expr) const {
   auto props = GetOnDeviceProps(expr);
   if (props.body.defined() && props.is_fixed) {
-    // Look through any fixed "on_device" annotations.
     return props.device_type;
-  }
-  if (expr->IsInstance<VarNode>()) {
+  } else if (const auto* var_node = expr.as<VarNode>()) {
     // Lookup variable binding.
-    auto itr = var_device_types_.find(Downcast<Var>(expr));
-    if (itr == var_device_types_.end()) {
-      return kInvalidDeviceType;
-    } else {
+    auto itr = var_device_types_.find(GetRef<Var>(var_node));
+    if (itr != var_device_types_.end()) {
       return itr->second;
     }
-  }
-  // Otherwise use the currently in-scope device type.
-  if (expr_device_types_.empty()) {
-    return kInvalidDeviceType;
+    // else: fallthrough to unknown
+  } else if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
+    // Lookup global variable.
+    auto itr = global_var_device_types_.find(GetRef<GlobalVar>(global_var_node));
+    if (itr != global_var_device_types_.end()) {
+      return itr->second;
+    }
+    // else: fallthrough to unknown
   } else {
-    return expr_device_types_.back();
+    if (!expr_device_types_.empty()) {
+      // Use the currently in-scope device type.
+      return expr_device_types_.back();
+    }
+    // else: fallthrough to unknown
   }
+  return kInvalidDeviceType;
 }
 
 void LexicalOnDeviceMixin::EnterFunctionBody() { ++function_nesting_; }
@@ -90,6 +111,9 @@ void LexicalOnDeviceMixin::PopBoundVar(const Var& var) {
   }
   var_device_types_.erase(itr);
 }
+
+// TODO(mbs): We'd probably have less tedious code duplication if we redefined the memoizing
+// mutator on top of the generic Functor.
 
 void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
   if (function_node->HasNonzeroAttr(attr::kPrimitive)) {

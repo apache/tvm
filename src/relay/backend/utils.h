@@ -189,6 +189,8 @@ struct ConstantUpdater : public ExprVisitor {
  */
 inline void UpdateConstants(Function func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
+  VLOG_CONTEXT << "UpdateConstants";
+  VLOG(1) << "updating constants for:" << std::endl << PrettyPrint(func);
   auto codegen = func->GetAttr<String>(attr::kCompiler);
   ICHECK(codegen.defined()) << "No external codegen is set";
   std::string codegen_name = codegen.value();
@@ -210,6 +212,9 @@ inline void UpdateConstants(Function func,
           << "External constant names must start with compiler name";
       (*params)[const_name] = it.second;
     }
+  }
+  for (const auto& pair : *params) {
+    VLOG(1) << "Constants: " << pair.first << " = " << PrettyPrint(pair.second);
   }
 }
 
