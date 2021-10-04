@@ -959,4 +959,6 @@ def test_benchmark_end_to_end_rpc():
 
 
 if __name__ == "__main__":
+    import sys
+
     sys.exit(pytest.main(sys.argv))

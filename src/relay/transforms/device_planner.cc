@@ -672,6 +672,7 @@ class DeviceDefaulter : public ExprVisitor {
 
   std::unique_ptr<DeviceDomains> Default() {
     VLOG_CONTEXT << "DeviceDefaulter";
+    VLOG(0) << "using default device type " << default_device_type_;
     for (const auto& pair : mod_->functions) {
       VLOG(1) << "defaulting devices for '" << PrettyPrint(pair.first) << "'";
       VisitExpr(pair.second);

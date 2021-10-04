@@ -23,7 +23,8 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
-#include "pattern_utils.h"
+#include "../op/annotation/annotation.h"
+#include "./pattern_utils.h"
 
 namespace tvm {
 namespace relay {
