@@ -212,6 +212,21 @@ def get_scalar(x, params, dtype="float32"):
     return _op.cast(x, dtype)
 
 
+def flatten_to_nd(x, x_shape, nd=3):
+    ndims = infer_shape(x_shape)[0]
+    if ndims == nd:
+        return x
+    newshape = _op.concatenate(
+        [
+            _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+            _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+        ],
+        0,
+    )
+    out = _op.reshape(x, fold_constant(newshape))
+    return out
+
+
 class OnnxOpConverter(object):
     """A helper class for holding onnx op converters."""
 
@@ -803,21 +818,6 @@ class MatMul(OnnxOpConverter):
         b_rank = infer_shape(b_shape)[0]
         # When performing a batch matmul, we need to properly handle N-dim shapes.
         if a_rank > 2 or b_rank > 2:
-
-            def flatten_to_nd(x, x_shape, nd=3):
-                ndims = infer_shape(x_shape)[0]
-                if ndims == nd:
-                    return x
-                newshape = _op.concatenate(
-                    [
-                        _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                        _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-                    ],
-                    0,
-                )
-                out = _op.reshape(x, fold_constant(newshape))
-                return out
-
             b_type = infer_type(inputs[1])
             # Convert to dense if the second matrix is 2d and non-dynamic
             if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
@@ -892,21 +892,6 @@ class MatMulInteger16(OnnxOpConverter):
         if a_dtype == "uint16" and b_dtype == "uint16":
             out_dtype = "uint32"
         if a_rank > 2 or b_rank > 2:
-
-            def flatten_to_nd(x, x_shape, nd):
-                ndims = infer_shape(x_shape)[0]
-                if ndims == nd:
-                    return x
-                newshape = _op.concatenate(
-                    [
-                        _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                        _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-                    ],
-                    0,
-                )
-                out = _op.reshape(x, fold_constant(newshape))
-                return out
-
             b_type = infer_type(inputs[1])
             # Convert to dense if the second matrix is 2d and non-dynamic
             if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
