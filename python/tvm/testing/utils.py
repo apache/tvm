@@ -681,10 +681,7 @@ def requires_corstone300(*args):
     f : function
         Function to mark
     """
-    _requires_corstone300 = [
-        pytest.mark.corstone300,
-        pytest.mark.skipif(not device_enabled("corstone300"), reason="corstone300 support not enabled"),
-    ]
+    _requires_corstone300 = [pytest.mark.corstone300]
     return _compose(args, _requires_corstone300)
 
 

@@ -23,21 +23,19 @@ import pytest
 
 import tvm
 from tvm import relay
-from tvm.ir.module import IRModule
 from tvm.relay import transform
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
-    AOT_DEFAULT_RUNNER,
+    AOT_CORSTONE300_RUNNER,
     generate_ref_data,
     compile_and_run,
-    parametrize_aot_options,
 )
 
 
-@parametrize_aot_options
 @tvm.testing.requires_corstone300
 @pytest.mark.parametrize("groups,weight_shape", [(1, 32), (32, 1)])
-def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
+def test_conv2d(groups, weight_shape):
+
     """Test a subgraph with a single conv2d operator."""
     dtype = "int8"
     ishape = (1, 32, 14, 14)
@@ -59,13 +57,13 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
     output_list = generate_ref_data(mod, inputs)
     compile_and_run(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
-        test_runner,
-        interface_api,
-        use_unpacked_api,
+        runner=AOT_CORSTONE300_RUNNER,
+        interface_api='c',
+        use_unpacked_api=True,
     )
 
 
-#   target_str = f"c -keys=arm_cpu -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
+#   target_str = f"c -keys=arm_cpu --target-kind=corstone300 -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
 
 
 if __name__ == "__main__":
