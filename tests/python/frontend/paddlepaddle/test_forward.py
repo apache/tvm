@@ -100,7 +100,6 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
-            break
 
 
 @tvm.testing.uses_gpu
