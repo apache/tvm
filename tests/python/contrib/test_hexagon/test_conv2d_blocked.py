@@ -162,7 +162,7 @@ def conv2d_packed_filter(
     stride,
     padding,
     dtype,
-    h_loop_split,
+    h_split_factor,
     storage_scope="global",
 ):
     """
@@ -261,21 +261,19 @@ def conv2d_packed_filter(
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
-    # Perform scheduling
     Xl = s.cache_read(X_packed, storage_scope, [Y])
     Yl = s.cache_write(Y, storage_scope)
 
-    n, hid, wid, kid, hoff, woff, koff = s[Y].op.axis
-    houter, hinner = s[Y].split(hid, factor=h_loop_split)
-    s[Yl].compute_at(s[Y], houter)
+    n, ho, wo, ko, hi, wi, ki = s[Y].op.axis
+    hoo, hoi = s[Y].split(ho, factor=h_split_factor)
+    s[Yl].compute_at(s[Y], hoo)
 
-    n, hid, wid, kid, hoff, woff, koff = s[Yl].op.axis
+    n, ho, wo, ko, hi, wi, ki = s[Yl].op.axis
     rh, rw, rc = s[Yl].op.reduce_axis
-    rco, rci = s[Yl].split(rc, factor=32)
-    houter, hinner = s[Yl].split(hid, factor=h_loop_split)
-    s[Yl].reorder(n, houter, hinner, wid, kid, rco, hoff, woff, koff, rci)
-
-    s[Xl].compute_at(s[Yl], houter)
+    rco, rci = s[Yl].split(rc, factor=block_C)
+    hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
+    s[Yl].reorder(n, hoo, hoi, wo, ko, rco, hi, wi, ki, rci)
+    s[Xl].compute_at(s[Yl], hoo)
 
     binds = {}
     if storage_scope and storage_scope != "global":
@@ -294,7 +292,7 @@ def conv2d_packed_filter_nhwhwc(
     stride,
     padding,
     dtype,
-    h_loop_split,
+    h_split_factor,
     storage_scope="global",
 ):
     """
@@ -307,7 +305,7 @@ def conv2d_packed_filter_nhwhwc(
     assert kernel_size == tuple(shape_oihw8i32o4i[2:4])
 
     block_shape = get_block_shape()
-    block_H, block_W, _ = block_shape
+    block_H, block_W, block_C = block_shape
     shape = get_packed_activation_layout(shape_nhwc, block_shape, packed_C=False)
     logical_output_shape = get_conv2d_nhwc_shape(
         shape_nhwc,
@@ -385,23 +383,22 @@ def conv2d_packed_filter_nhwhwc(
     Yl = s.cache_write(Y, storage_scope)
 
     n, ho, wo, hi, wi, k = s[Y].op.axis
-    # rh, rw, rc = s[Y].op.reduce_axis
-    ko, ki = s[Y].split(k, factor=32)
-    s[Y].reorder(n, ho, wo, ko, hi, wi, ki)
-    ho1, ho2 = s[Y].split(ho, factor=h_loop_split)
-    s[Yl].compute_at(s[Y], ho1)
+    ko, ki = s[Y].split(k, factor=block_C)
+    hoo, hoi = s[Y].split(ho, factor=h_split_factor)
+    s[Y].reorder(n, hoo, hoi, wo, ko, hi, wi, ki)
+    s[Yl].compute_at(s[Y], hoo)
     # s[Fl].compute_at(s[Y], ho)
 
     n, ho, wo, hi, wi, k = s[Yl].op.axis
     rh, rw, rc = s[Yl].op.reduce_axis
-    ko, ki = s[Yl].split(k, factor=32)
-    rco, rci = s[Yl].split(rc, factor=32)
-    s[Yl].reorder(n, ho, wo, ko, rco, hi, wi, ki, rci)
-    ho1, ho2 = s[Yl].split(ho, factor=h_loop_split)
-    s[Xl].compute_at(s[Yl], ho1)
+    ko, ki = s[Yl].split(k, factor=block_C)
+    rco, rci = s[Yl].split(rc, factor=block_C)
+    hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
+    s[Yl].reorder(n, hoo, hoi, wo, ko, rco, hi, wi, ki, rci)
+    s[Xl].compute_at(s[Yl], hoo)
 
     n, ho, wo, hi, wi, c = s[Xl].op.axis
-    co, ci = s[Xl].split(c, factor=32)
+    co, ci = s[Xl].split(c, factor=block_C)
     s[Xl].reorder(n, ho, wo, co, hi, wi, ci)
 
     binds = {}
@@ -423,7 +420,7 @@ class BaseConv2d:
     stride = tvm.testing.parameter(1)
     pad = tvm.testing.parameter(0, 1)
     dtype = tvm.testing.parameter("float32")
-    h_loop_split = tvm.testing.parameter(1, 2)
+    h_split_factor = tvm.testing.parameter(1, 2)
 
 
 class TestConv2dLogical(BaseConv2d):
@@ -465,7 +462,7 @@ class TestConv2dPackedFilter(BaseConv2d):
         pad,
         dtype,
         target,
-        h_loop_split,
+        h_split_factor,
     ):
         inputs = [
             np.random.uniform(0, 255, size=shape_nhwc).astype(dtype),
@@ -486,7 +483,7 @@ class TestConv2dPackedFilter(BaseConv2d):
             stride=(stride, stride),
             padding=(pad, pad, pad, pad),
             dtype=dtype,
-            h_loop_split=h_loop_split,
+            h_split_factor=h_split_factor,
         )
         return output, ref_output
 
