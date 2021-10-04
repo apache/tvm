@@ -19,6 +19,7 @@
 
 """Code emission for the STM32 targets."""
 
+import contextlib
 import json
 import os
 import re
@@ -439,17 +440,17 @@ class CodeEmitter(object):
            The quantization information for model inputs/outputs.
         """
 
-        for key in self.graph_:
+        for key in self._graph:
             if key == "nodes":
-                self._nodes = self.graph_["nodes"]
+                self._nodes = self._graph["nodes"]
             elif key == "arg_nodes":
-                self._arg_nodes = self.graph_["arg_nodes"]
+                self._arg_nodes = self._graph["arg_nodes"]
             elif key == "node_row_ptr":
-                self._node_row_ptr = self.graph_["node_row_ptr"]
+                self._node_row_ptr = self._graph["node_row_ptr"]
             elif key == "heads":
-                self._outputs = self.graph_["heads"]
+                self._outputs = self._graph["heads"]
             elif key == "attrs":
-                self._attrs = self.graph_["attrs"]
+                self._attrs = self._graph["attrs"]
             elif key == "metadata":
                 continue
             else:
@@ -509,9 +510,9 @@ class CodeEmitter(object):
                 src = fin.read()
                 src_files.append(src)
 
-        self.graph_ = graph_dict
+        self._graph = graph_dict
         self._params = params_dict
-        self.lib_ = src_files
+        self._lib = src_files
 
         self._parse_model(quantization)
 
@@ -540,9 +541,9 @@ class CodeEmitter(object):
         for k in sorted(tmp_params.keys()):
             params_dict[k] = tmp_params[k]
 
-        self.graph_ = json.loads(graph)
+        self._graph = json.loads(graph)
         self._params = params_dict
-        self.lib_ = module.get_lib()
+        self._lib = module.get_lib()
 
         self._parse_model(quantization)
 
@@ -1309,16 +1310,16 @@ class CodeEmitter(object):
         model_name = model_name.lower()
 
         # Write the C code: we can parse the string
-        if isinstance(self.lib_, list):
+        if isinstance(self._lib, list):
             # List of strings from Model Library Format C files
-            for idx, src in enumerate(self.lib_):
+            for idx, src in enumerate(self._lib):
                 code = _preprocess_code(src)
                 filename = os.path.join(dest_dir, f"{model_name}_lib{idx}.c")
                 with open(filename, "w") as fout:
                     fout.write(code)
         else:
             # a TVM RuntimeGraphFactory
-            src = self.lib_.get_source(fmt="c")
+            src = self._lib.get_source(fmt="c")
             code = _preprocess_code(src)
             filename = os.path.join(dest_dir, f"{model_name}_lib.c")
             with open(filename, "w") as fout:
@@ -1332,7 +1333,7 @@ class CodeEmitter(object):
 
         # Write the .json
         graph_name = os.path.join(dest_dir, model_name + ".json")
-        json_string = json.dumps(self.graph_, indent=4)
+        json_string = json.dumps(self._graph, indent=4)
         with open(graph_name, "w") as f:
             print(json_string, file=f)
 
@@ -1342,28 +1343,25 @@ class CodeEmitter(object):
         model_h_name = os.path.join(dest_dir, model_name + ".h")
         model_c_name = os.path.join(dest_dir, model_name + ".c")
 
-        data_h = open(data_h_name, "w")
-        data_c = open(data_c_name, "w")
-        out_h = open(model_h_name, "w")
-        out_c = open(model_c_name, "w")
+        with contextlib.ExitStack() as exit_stack:
 
-        # emit X[c,h]
+            # emit X[c,h]
 
-        self._emit_params_data(model_name, data_h, data_c)
+            data_h = exit_stack.enter_context(open(data_h_name, "w"))
+            data_c = exit_stack.enter_context(open(data_c_name, "w"))
+            out_h = exit_stack.enter_context(open(model_h_name, "w"))
+            out_c = exit_stack.enter_context(open(model_c_name, "w"))
 
-        self._emit_open(model_name, out_h, out_c)
-        self._emit_params_buffers(model_name, out_c)
-        self._emit_activation_buffers(model_name, out_c)
-        self._emit_network(model_name, out_c)
+            self._emit_params_data(model_name, data_h, data_c)
 
-        self._emit_init(model_name, out_c)
-        self._emit_create_destroy(model_name, out_h, out_c)
-        self._emit_run(model_name, out_h, out_c)
+            self._emit_open(model_name, out_h, out_c)
+            self._emit_params_buffers(model_name, out_c)
+            self._emit_activation_buffers(model_name, out_c)
+            self._emit_network(model_name, out_c)
 
-        self._emit_close(model_name, out_h, out_c)
+            self._emit_init(model_name, out_c)
+            self._emit_create_destroy(model_name, out_h, out_c)
+            self._emit_run(model_name, out_h, out_c)
 
-        # Close files
-        out_c.close()
-        out_h.close()
-        data_c.close()
-        data_h.close()
+            self._emit_close(model_name, out_h, out_c)
+

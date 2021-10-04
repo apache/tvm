@@ -34,8 +34,6 @@ import conftest
 
 NUM_ITERATIONS = 10
 
-BUILD_DIR = "build"
-
 # =========================================================
 #   get_data
 # =========================================================
@@ -376,14 +374,16 @@ def check_result(tflite_results, tvm_results):
 #   test_mnist
 # ========================================================
 def test_mnist():
+    DEBUG = False
+    tempdir_root = None
+    if DEBUG:
+        tempdir_root = os.path.join(curr_path, f"workspace", "test_mnist", datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"))
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     model_path = os.path.join(curr_path, "models/mnist.tflite")
-    build_dir = os.path.join(curr_path, BUILD_DIR)
-    if not os.path.exists(build_dir):
-        os.makedirs(build_dir)
+    build_dir = tvm.contrib.utils.tempdir(tempdir_root)
     model_url = "https://storage.googleapis.com/download.tensorflow.org/models/tflite/digit_classifier/mnist.tflite"
     download(model_url, model_path)
-    check_network(build_dir, "mnist", model_path, build_dir)
+    check_network(build_dir.path, "mnist", model_path, build_dir.path)
 
 
 if __name__ == "__main__":
