@@ -23,6 +23,10 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/stack_allocator.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define WORKSPACE_SIZE (16384 * 1024)
 __attribute__((section("ethosu_scratch"))) static uint8_t g_aot_memory[WORKSPACE_SIZE];
 
@@ -50,3 +54,7 @@ void TVMLogf(const char* msg, ...) {
 }
 
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) { return 0; }
+
+#ifdef __cplusplus
+}
+#endif

@@ -39,6 +39,12 @@ int main(int argc, char** argv) {
   StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
 
   printf("Running inference\n");
+  struct tvmgen_default_outputs outputs = {
+      .output = output,
+  };
+  struct tvmgen_default_inputs inputs = {
+      .input = input,
+  };
   tvmgen_default_run(&inputs, &outputs);
 
   // Calculate index of max value

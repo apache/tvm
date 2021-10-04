@@ -20,10 +20,76 @@ set -e
 set -u
 set -o pipefail
 
+# Show usage
+function show_usage() {
+    cat <<EOF
+Usage: run_demo.sh [--ethosu_driver_path ETHOSU_DRIVER_PATH]
+-h, --help
+    Display this help message.
+--ethosu_driver_path ETHOSU_DRIVER_PATH
+    Set path to Arm(R) Ethos(TM)-U core driver.
+--cmsis_path CMSIS_PATH
+    Set path to CMSIS.
+--ethosu_platform_path ETHOSU_PLATFORM_PATH
+    Set path to Arm(R) Ethos(TM)-U core platform.
+EOF
+}
+
+# Parse arguments
+while (( $# )); do
+    case "$1" in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+
+        --ethosu_driver_path)
+            if [ $# -gt 1 ]
+            then
+                export ETHOSU_DRIVER_PATH="$2"
+                shift 2
+            else
+                echo 'ERROR: --ethosu_driver_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
+        --cmsis_path)
+            if [ $# -gt 1 ]
+            then
+                export CMSIS_PATH="$2"
+                shift 2
+            else
+                echo 'ERROR: --cmsis_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
+        --ethosu_platform_path)
+            if [ $# -gt 1 ]
+            then
+                export ETHOSU_PLATFORM_PATH="$2"
+                shift 2
+            else
+                echo 'ERROR: --ethosu_platform_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
+        -*|--*)
+            echo "Error: Unknown flag: $1" >&2
+            show_usage >&2
+            exit 1
+            ;;
+    esac
+done
+
+
 # Directories
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-driver_dir="${script_dir}/build/ethosu_core_driver/"
-arm_dir="/opt/arm/"
 
 # Make build directory
 mkdir -p build
@@ -40,11 +106,11 @@ tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, \
 tar -xvf module.tar
 
 # Get ImageNet labels
-curl -sSL  https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/lite/java/demo/app/src/main/assets/labels_mobilenet_quant_v1_224.txt \
-    > ./labels_mobilenet_quant_v1_224.txt
+curl -sS  https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/lite/java/demo/app/src/main/assets/labels_mobilenet_quant_v1_224.txt \
+    -o ./labels_mobilenet_quant_v1_224.txt
 
 # Get input image
-curl -sSL https://s3.amazonaws.com/model-server/inputs/kitten.jpg > ./kitten.jpg
+curl -sS https://s3.amazonaws.com/model-server/inputs/kitten.jpg -o ./kitten.jpg
 
 # Create C header files
 cd ..
@@ -56,7 +122,7 @@ cd ${script_dir}
 make
 
 # Run demo executable on the FVP
-${arm_dir}/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/FVP_Corstone_SSE-300_Ethos-U55 -C cpu0.CFGDTCMSZ=15 \
+FVP_Corstone_SSE-300_Ethos-U55 -C cpu0.CFGDTCMSZ=15 \
 -C cpu0.CFGITCMSZ=15 -C mps3_board.uart0.out_file=\"-\" -C mps3_board.uart0.shutdown_tag=\"EXITTHESIM\" \
 -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 \
 -C mps3_board.telnetterminal1.start_telnet=0 -C mps3_board.telnetterminal2.start_telnet=0 -C mps3_board.telnetterminal5.start_telnet=0 \

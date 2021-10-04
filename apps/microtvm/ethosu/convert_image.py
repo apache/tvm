@@ -56,13 +56,6 @@ def create_header_file(name, section, npy_data, output_path):
                 header_file.write(f"\\x{data_hexstr[i:i+2]}")
             header_file.write('";\n\n')
 
-        # Generate code to initialize the struct used by the C API
-        header_file.write(f"struct tvmgen_default_{name} {name} = {{")
-        for tensor_name in npy_data.keys():
-            sanitized_tensor_name = re.sub(r"\W+", "_", tensor_name)
-            header_file.write(f".{sanitized_tensor_name} = {sanitized_tensor_name}, ")
-        header_file.write("};\n\n")
-
 
 def create_headers(image_name):
     """
