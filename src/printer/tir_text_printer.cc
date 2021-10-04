@@ -449,9 +449,8 @@ Doc TIRTextPrinter::VisitStmt_(const BufferRealizeNode* op) {
 Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   Doc doc;
   auto scope = GetPtrStorageScope(op->buffer_var);
-  doc << "allocate(" << Print(op->buffer_var) << ", ";
-  doc << PrintDType(op->dtype) << ", ";
-  doc << Print(op->extents) << "), storage_scope = " << scope;
+  doc << "allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
+      << Print(op->extent) << "), storage_scope = " << scope;
   if (!op->annotations.empty()) {
     std::vector<Doc> attr_docs;
     for (const auto& it : op->annotations) {

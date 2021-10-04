@@ -107,19 +107,14 @@ class DoubleBufferInjector : public StmtExprMutator {
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
       it->second.scope = GetPtrStorageScope(op->buffer_var);
-      it->second.stride = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                                make_const(DataType::Int(32), 1), op->extents) *
-                          op->dtype.lanes();
+      it->second.stride = op->extent * op->dtype.lanes();
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
-      Array<PrimExpr> new_extents{make_const(op->extents[0].dtype(), 2)};
-      for (PrimExpr e : op->extents) {
-        new_extents.push_back(e);
-      }
+      PrimExpr new_extent = mul(make_const(op->extent.dtype(), 2), op->extent);
       ICHECK(it->second.loop != nullptr);
       auto& alloc_nest = loop_allocs_[it->second.loop];
       alloc_nest.emplace_back(
-          Allocate(op->buffer_var, op->dtype, new_extents, op->condition, Evaluate(0)));
+          Allocate(op->buffer_var, op->dtype, new_extent, op->condition, Evaluate(0)));
       return op->body;
     } else {
       return StmtExprMutator::VisitStmt_(op);

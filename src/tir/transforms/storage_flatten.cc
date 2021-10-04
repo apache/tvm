@@ -1134,7 +1134,7 @@ class StorageFlattener : public StmtExprMutator {
 
       // use small alignment for small arrays
       auto dtype = op->buffer->dtype;
-      int32_t const_size = AllocateNode::constant_allocation_size(shape);
+      int32_t const_size = op->buffer->NumElements();
       int align = GetTempAllocaAlignment(dtype, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
@@ -1163,14 +1163,12 @@ class StorageFlattener : public StmtExprMutator {
       if (strides.size() != 0) {
         int first_dim = 0;
         ret = Allocate(e.buffer->data, storage_type,
-                       {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
+                       e.buffer->strides[first_dim] * e.buffer->shape[first_dim],
                        make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       } else {
-        shape = e.buffer->shape;
-        if (shape.size() == 0) {
-          shape.push_back(make_const(DataType::Int(32), 1));
-        }
-        ret = Allocate(e.buffer->data, storage_type, shape,
+        PrimExpr extent = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                                make_const(DataType::Int(32), 1), e.buffer->shape);
+        ret = Allocate(e.buffer->data, storage_type, extent,
                        make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
 

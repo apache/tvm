@@ -55,7 +55,7 @@ class AttrScopeLifter : public StmtMutator {
       // undefine them
       attr_node_ = ObjectRef();
       attr_value_ = PrimExpr();
-      return Allocate(op->buffer_var, op->dtype, op->extents, op->condition, body);
+      return Allocate(op->buffer_var, op->dtype, op->extent, op->condition, body);
     } else {
       return stmt;
     }

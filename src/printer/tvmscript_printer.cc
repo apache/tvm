@@ -764,7 +764,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
   Doc doc;
   auto storage_scope = GetPtrStorageScope(op->buffer_var);
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << tir_prefix_ << ".allocate(" << Print(op->extents) << ", "
+    doc << "with " << tir_prefix_ << ".allocate(" << Print(op->extent) << ", "
         << PrintDType(op->dtype) << ", " << Print(storage_scope);
     if (!is_one(op->condition)) {
       doc << ", " << Print(op->condition);
@@ -777,7 +777,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
     doc << ") as " << Print(op->buffer_var) << ":";
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   } else {
-    doc << Print(op->buffer_var) << " = " << tir_prefix_ << ".allocate(" << Print(op->extents)
+    doc << Print(op->buffer_var) << " = " << tir_prefix_ << ".allocate(" << Print(op->extent)
         << ", " << PrintDType(op->dtype) << ", " << Print(storage_scope);
     if (!is_one(op->condition)) {
       doc << ", " << Print(op->condition);

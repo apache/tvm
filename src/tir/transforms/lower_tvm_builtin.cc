@@ -128,10 +128,7 @@ class BuiltinLower : public StmtExprMutator {
         }
       }
     }
-    PrimExpr total_bytes = make_const(op->extents[0].dtype(), nbytes);
-    for (size_t i = 0; i < op->extents.size(); ++i) {
-      total_bytes = total_bytes * op->extents[i];
-    }
+    PrimExpr total_bytes = make_const(op->extent.dtype(), nbytes) * op->extent;
     ICHECK(device_type_.defined()) << "Unknown device type in current IR";
     ICHECK(device_id_.defined()) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));

@@ -66,7 +66,7 @@ PrimExpr UpdatePointerStorageScope::VisitExpr_(const LoadNode* op) {
 
 Stmt UpdatePointerStorageScope::VisitStmt_(const AllocateNode* op) {
   auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
-  return Allocate(remapped, op->dtype, op->extents, StmtExprMutator::VisitExpr(op->condition),
+  return Allocate(remapped, op->dtype, op->extent, StmtExprMutator::VisitExpr(op->condition),
                   StmtExprMutator::VisitStmt(op->body));
 }
 

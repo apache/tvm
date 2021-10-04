@@ -434,21 +434,17 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       LOG(WARNING) << "Cannot handle vector extent in alloc ";
       return Scalarize(GetRef<Stmt>(op));
     }
-    Array<PrimExpr> extents;
-    for (size_t i = 0; i < op->extents.size(); i++) {
-      PrimExpr new_ext = this->VisitExpr(op->extents[i]);
-      if (new_ext.dtype().is_vector()) {
-        LOG(WARNING) << "Cannot handle vector extent in alloc ";
-        return Scalarize(GetRef<Stmt>(op));
-      }
-      extents.push_back(new_ext);
+    PrimExpr extent = this->VisitExpr(op->extent);
+    if (extent.dtype().is_vector()) {
+      LOG(WARNING) << "Cannot handle vector extent in alloc ";
+      return Scalarize(GetRef<Stmt>(op));
     }
     // place the vector lanes in least significant dimension.
-    extents.push_back(var_lanes_);
+    extent *= var_lanes_;
     // rewrite access to buffer internally.
     Stmt body = VecAllocAccess(op->buffer_var.get(), var_, var_lanes_)(op->body);
     body = this->VisitStmt(body);
-    return Allocate(op->buffer_var, op->dtype, extents, condition, body);
+    return Allocate(op->buffer_var, op->dtype, extent, condition, body);
   }
 
   // scalarize the statment

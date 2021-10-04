@@ -129,6 +129,13 @@ class BufferNode : public Object {
    */
   PrimExpr ElemOffset(Array<PrimExpr> index) const;
 
+  /*! \brief Return number of elements in the buffer
+   *
+   * If the size of the buffer isn't constant, or if the size would
+   * overflow a 32-bit signed integer, return 0.
+   */
+  int32_t NumElements() const;
+
   static constexpr const char* _type_key = "tir.Buffer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;

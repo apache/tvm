@@ -169,7 +169,7 @@ TEST(IRF, StmtVisitor) {
     Stmt body = Evaluate(z);
     DataType dtype = DataType::Float(32);
     Var buffer("b", PointerType(PrimType(dtype)));
-    return Allocate(buffer, dtype, {z, z}, const_true(), body);
+    return Allocate(buffer, dtype, z, const_true(), body);
   };
   v(fmaketest());
   ICHECK_EQ(v.count, 3);
@@ -215,7 +215,7 @@ TEST(IRF, StmtMutator) {
     Stmt body = Evaluate(z);
     DataType dtype = DataType::Float(32);
     Var buffer("b", PointerType(PrimType(dtype)));
-    return Allocate(buffer, dtype, {1, z}, const_true(), body);
+    return Allocate(buffer, dtype, z, const_true(), body);
   };
 
   auto fmakeif = [&]() {
@@ -229,14 +229,14 @@ TEST(IRF, StmtMutator) {
     auto body = fmakealloc();
     Stmt body2 = Evaluate(1);
     Stmt bref = body.as<AllocateNode>()->body;
-    auto* extentptr = body.as<AllocateNode>()->extents.get();
+    auto* extentptr = body.as<AllocateNode>()->extent.get();
     Array<Stmt> arr{std::move(body), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr.get() == arrptr);
     // inplace update body
-    ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(arr[0].as<AllocateNode>()->extents.get() == extentptr);
+    ICHECK(arr[0].as<AllocateNode>()->extent.same_as(x));
+    ICHECK(arr[0].as<AllocateNode>()->extent.get() == extentptr);
     // copy because there is additional refs
     ICHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
     ICHECK(arr[0].as<AllocateNode>()->body.as<EvaluateNode>()->value.same_as(x));
@@ -249,8 +249,8 @@ TEST(IRF, StmtMutator) {
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr.get() != arrptr);
-    ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(!arr2[0].as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(arr[0].as<AllocateNode>()->extent.same_as(x));
+    ICHECK(!arr2[0].as<AllocateNode>()->extent.same_as(x));
     // mutate but no content change.
     arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
@@ -276,7 +276,7 @@ TEST(IRF, StmtMutator) {
     Stmt body = fmakealloc();
     Stmt body2 = Evaluate(1);
     auto* ref2 = body2.get();
-    auto* extentptr = body.as<AllocateNode>()->extents.get();
+    auto* extentptr = body.as<AllocateNode>()->extent.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body});
     body = SeqStmt({body, body2});
@@ -284,7 +284,7 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(body));
     // the seq get flattened
     ICHECK(body.as<SeqStmtNode>()->size() == 3);
-    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() == extentptr);
+    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extent.get() == extentptr);
     ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
 
@@ -292,14 +292,14 @@ TEST(IRF, StmtMutator) {
     // Cannot cow because of bref
     Stmt body = fmakealloc();
     Stmt body2 = Evaluate(1);
-    auto* extentptr = body.as<AllocateNode>()->extents.get();
+    auto* extentptr = body.as<AllocateNode>()->extent.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body});
     auto bref = body;
     body = SeqStmt({body, body2});
     body = v(std::move(body));
     // the seq get flattened
-    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() != extentptr);
+    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extent.get() != extentptr);
   }
 
   {
@@ -317,8 +317,8 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(block_realize));
     // the body should be changed
     Block new_block = body.as<BlockRealizeNode>()->block;
-    ICHECK(new_block->body.as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(new_block->init.as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(new_block->body.as<AllocateNode>()->extent.same_as(x));
+    ICHECK(new_block->init.as<AllocateNode>()->extent.same_as(x));
     ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
     ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
     ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));

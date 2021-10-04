@@ -55,15 +55,7 @@ size_t WorkspaceCalculator::GetByteAlignedSize(size_t non_aligned_size) {
 
 size_t WorkspaceCalculator::CalculateExtentsSize(const AllocateNode* op) {
   size_t element_size_bytes = op->dtype.bytes();
-  size_t num_elements = 1;
-  for (const auto& ext : op->extents) {
-    if (ext->IsInstance<IntImmNode>()) {
-      num_elements *= Downcast<IntImm>(ext)->value;
-    } else {
-      // We cant statically calculate workspace for dynamic shapes
-      num_elements = 0;
-    }
-  }
+  size_t num_elements = op->constant_allocation_size();
   return GetByteAlignedSize(num_elements * element_size_bytes);
 }
 

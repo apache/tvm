@@ -227,7 +227,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    return Allocate(op->buffer_var, op->dtype, {make_const(DataType::Int(32), alloc_size / width_)},
+    return Allocate(op->buffer_var, op->dtype, make_const(DataType::Int(32), alloc_size / width_),
                     op->condition, this->VisitStmt(op->body));
   }
 

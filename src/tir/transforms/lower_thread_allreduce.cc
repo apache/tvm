@@ -53,7 +53,7 @@ class UpdatePointerStorageScopeAllReduce final : public UpdatePointerStorageScop
         // use volatile access to shared buffer.
         body = AttrStmt(remapped, attr::volatile_scope, 1, body);
       }
-      return Allocate(remapped, op->dtype, op->extents, op->condition, body);
+      return Allocate(remapped, op->dtype, op->extent, op->condition, body);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -98,10 +98,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     if (it != alloc_remap_.end()) {
       const AllocateNode* repl = it->second.as<AllocateNode>();
       if (warp_allocs_.count(repl)) {
-        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
+        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extent, repl->condition, op->body);
         new_storage_scopes_[repl->buffer_var.get()] = "local";
       } else {
-        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, op->body);
+        stmt = Allocate(repl->buffer_var, repl->dtype, repl->extent, repl->condition, op->body);
         new_storage_scopes_[repl->buffer_var.get()] = "shared";
       }
       return stmt;
@@ -256,7 +256,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         // Uses a local variable to store the shuffled data.
         // Later on, this allocation will be properly attached to this statement.
         Var var("t" + std::to_string(idx), ptr_type);
-        Stmt s = Allocate(var, types[idx], {PrimExpr(1)}, pred, Evaluate(0));
+        Stmt s = Allocate(var, types[idx], PrimExpr(1), pred, Evaluate(0));
         local_vars.push_back(s);
       }
 
@@ -340,8 +340,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         Var var = shared_bufs[i];
         load_remap_[buffers[i]] = Load(types[i], var, index, pred);
         store_remap_[buffers[i]] = var;
-        Array<PrimExpr> extents{PrimExpr(1)};
-        auto node = Allocate(var, types[i], extents, pred, Evaluate(0));
+        PrimExpr extent(1);
+        auto node = Allocate(var, types[i], extent, pred, Evaluate(0));
         alloc_remap_[buffers[i]] = node;
         warp_allocs_.insert(node.get());
       }
@@ -381,7 +381,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
                  BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent), pred);
         alloc_remap_[buffers[idx]] =
             Allocate(shared_bufs[idx], types[idx],
-                     {PrimExpr(group_extent), PrimExpr(reduce_extent)}, pred, Evaluate(0));
+                     mul(PrimExpr(group_extent), PrimExpr(reduce_extent)), pred, Evaluate(0));
         store_remap_[buffers[idx]] = shared_bufs[idx];
       }
     }
@@ -391,7 +391,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     for (auto var : local_vars) {
       const AllocateNode* repl = var.as<AllocateNode>();
       if (repl) {
-        body = Allocate(repl->buffer_var, repl->dtype, repl->extents, repl->condition, body);
+        body = Allocate(repl->buffer_var, repl->dtype, repl->extent, repl->condition, body);
         new_storage_scopes_[repl->buffer_var.get()] = "local";
       }
     }

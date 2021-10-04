@@ -220,7 +220,7 @@ class BF16LowerRewriter : public StmtExprMutator {
       DataType dtype = DataType::UInt(16, op->dtype.lanes());
       Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype)));
       var_remap_[op->buffer_var] = buffer_var;
-      return VisitStmt(Allocate(buffer_var, dtype, op->extents, op->condition, op->body));
+      return VisitStmt(Allocate(buffer_var, dtype, op->extent, op->condition, op->body));
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }

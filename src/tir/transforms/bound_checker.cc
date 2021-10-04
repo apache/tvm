@@ -61,7 +61,7 @@ class BoundChecker : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     // If the shape was updated we should update the hashtable.
     if (UpdateIsNeeded(op->buffer_var)) {
-      Update(op->buffer_var, op->extents, op->dtype);
+      Update(op->buffer_var, op->extent, op->dtype);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -108,28 +108,14 @@ class BoundChecker : public StmtExprMutator {
     return (buffer_var.defined() && mem_to_shape_.count(buffer_var.get()));
   }
 
-  void Update(const Var& buffer_var, const Array<PrimExpr>& new_shape, const DataType& type) {
+  void Update(const Var& buffer_var, const PrimExpr new_extent, const DataType& type) {
     // Sanity check at first.
-    if (!new_shape.size()) {
+    if (!new_extent.defined() || !new_extent.dtype().is_scalar() || is_negative_const(new_extent)) {
       return;
     }
 
-    for (size_t i = 0; i < new_shape.size(); ++i) {
-      if (!new_shape[0].defined() || !new_shape[i].dtype().is_scalar() ||
-          is_negative_const(new_shape[i])) {
-        return;
-      }
-    }
-
-    // Scalarize the shape.
-    PrimExpr shape =
-        Mul(make_const(DataType::UInt(64), type.lanes()), Cast(DataType::UInt(64), new_shape[0]));
-    for (size_t i = 1; i < new_shape.size(); ++i) {
-      // Cast to unsigned to avoid integer overlow at frist.
-      shape = Mul(shape, Mul(make_const(DataType::UInt(64), type.lanes()),
-                             Cast(DataType::UInt(64), new_shape[i])));
-    }
-    mem_to_shape_[buffer_var.get()] = shape;
+    // Define the extent including lanes.
+    mem_to_shape_[buffer_var.get()] = Mul(make_const(DataType::UInt(64), type.lanes()), new_extent);
   }
 
   bool IndexIsValid(const PrimExpr& index) const {

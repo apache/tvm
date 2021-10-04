@@ -53,7 +53,7 @@ void StmtVisitor::VisitStmt_(const WhileNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const AllocateNode* op) {
-  VisitArray(op->extents, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  this->VisitExpr(op->extent);
   this->VisitStmt(op->body);
   this->VisitExpr(op->condition);
 }
@@ -304,15 +304,15 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
-  Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
+  PrimExpr extent = this->VisitExpr(op->extent);
   Stmt body = this->VisitStmt(op->body);
   PrimExpr condition = this->VisitExpr(op->condition);
 
-  if (extents.same_as(op->extents) && body.same_as(op->body) && condition.same_as(op->condition)) {
+  if (extent.same_as(op->extent) && body.same_as(op->body) && condition.same_as(op->condition)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
-    n->extents = std::move(extents);
+    n->extent = std::move(extent);
     n->body = std::move(body);
     n->condition = std::move(condition);
     return Stmt(n);

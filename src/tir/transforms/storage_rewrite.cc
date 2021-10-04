@@ -551,10 +551,8 @@ class StoragePlanRewriter : public StmtExprMutator {
 
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
-          PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                              make_const(DataType::Int(32), 1), e->allocs[0]->extents);
-          e->new_alloc =
-              Allocate(e->alloc_var, alloc_type, {sz}, e->allocs[0]->condition, Evaluate(0));
+          e->new_alloc = Allocate(e->alloc_var, alloc_type, e->allocs[0]->extent,
+                                  e->allocs[0]->condition, Evaluate(0));
           if (IsSpecialTaggedMemory(e->scope)) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -565,8 +563,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           // Build a merged allocation
           PrimExpr combo_size;
           for (const AllocateNode* op : e->allocs) {
-            PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                                make_const(DataType::Int(32), 1), op->extents);
+            PrimExpr sz = op->extent;
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
@@ -594,8 +591,7 @@ class StoragePlanRewriter : public StmtExprMutator {
             combo_size = combo_size + make_const(DataType::Int(32), 1);
           }
           combo_size = analyzer_.Simplify(combo_size);
-          e->new_alloc =
-              Allocate(e->alloc_var, alloc_type, {combo_size}, const_true(), Evaluate(0));
+          e->new_alloc = Allocate(e->alloc_var, alloc_type, combo_size, const_true(), Evaluate(0));
           if (IsSpecialTaggedMemory(e->scope)) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -636,8 +632,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
     PrimExpr alloc_size =
-        make_const(e->allocs[0]->extents[0].dtype(), (total_bits + type_bits - 1) / type_bits);
-    e->new_alloc = Allocate(e->alloc_var, e->elem_type, {alloc_size}, const_true(), Evaluate(0));
+        make_const(e->allocs[0]->extent.dtype(), (total_bits + type_bits - 1) / type_bits);
+    e->new_alloc = Allocate(e->alloc_var, e->elem_type, alloc_size, const_true(), Evaluate(0));
     if (info.defined()) {
       ICHECK_LE(total_bits, info->max_num_bits)
           << "Allocation exceed bound of memory tag " << e->scope.to_string();
@@ -1025,9 +1021,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AllocateNode* op) final {
-    const Array<PrimExpr>& extents = op->extents;
-    PrimExpr extent = extents[extents.size() - 1];
-    OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateNode);
+    OnArrayDeclaration(op->buffer_var, op->dtype, op->extent, BufferVarInfo::kAllocateNode);
 
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -1342,10 +1336,8 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     int factor = info.new_element_dtype.lanes() / op->dtype.lanes();
 
-    Array<PrimExpr> extents = op->extents;
-    extents.Set(extents.size() - 1,
-                extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
-    return Allocate(new_buffer_var, info.new_element_dtype, extents, op->condition, op->body);
+    PrimExpr extent = op->extent / make_const(op->extent.dtype(), factor);
+    return Allocate(new_buffer_var, info.new_element_dtype, extent, op->condition, op->body);
   }
 
   /* Update the parameters and all remaining variable references

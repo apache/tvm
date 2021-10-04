@@ -224,10 +224,9 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   assign_body = MergeNest(MakeIfNest(output_preds), assign_body);
   Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
-    body = Allocate(res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
+    body = Allocate(res_handles[idx - 1], reduces[idx - 1]->dtype, 1, const_true(), body);
     if (!normal_red.empty()) {
-      body =
-          Allocate(normal_res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
+      body = Allocate(normal_res_handles[idx - 1], reduces[idx - 1]->dtype, 1, const_true(), body);
     }
   }
   body = Substitute(body, value_map);

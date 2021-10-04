@@ -291,6 +291,21 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
   }
 }
 
+int32_t BufferNode::NumElements() const {
+  int64_t result = 1;
+  for (const PrimExpr& dim : shape) {
+    if (const IntImmNode* int_size = dim.as<IntImmNode>()) {
+      result *= int_size->value;
+      if (result > std::numeric_limits<int32_t>::max()) {
+        return 0;
+      }
+    } else {
+      return 0;
+    }
+  }
+  return static_cast<int32_t>(result);
+}
+
 PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();

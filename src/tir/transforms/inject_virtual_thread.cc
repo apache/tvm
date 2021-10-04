@@ -124,9 +124,7 @@ class VarTouchedAnalysis : public StmtVisitor {
   }
   void VisitStmt_(const AllocateNode* op) final {
     ExprTouched tc(touched_var_, false);
-    for (size_t i = 0; i < op->extents.size(); ++i) {
-      tc(op->extents[i]);
-    }
+    tc(op->extent);
     tc.VisitExpr(op->condition);
     Record(op->buffer_var.get(), tc);
     this->VisitStmt(op->body);
@@ -359,44 +357,30 @@ class VTInjector : public StmtExprMutator {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
 
-    bool changed = false;
-    Array<PrimExpr> extents;
-    for (size_t i = 0; i < op->extents.size(); i++) {
-      PrimExpr new_ext = this->VisitExpr(op->extents[i]);
-      if (visit_touched_var_ && !vt_loop_injected_) {
-        return InjectVTLoop(GetRef<Stmt>(op), true);
-      }
-      if (!new_ext.same_as(op->extents[i])) changed = true;
-      extents.push_back(new_ext);
+    PrimExpr extent = this->VisitExpr(op->extent);
+    if (visit_touched_var_ && !vt_loop_injected_) {
+      return InjectVTLoop(GetRef<Stmt>(op), true);
     }
+
     visit_touched_var_ = false;
 
     Stmt body;
     // always rewrite if not allow sharing.
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      PrimExpr stride = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                              make_const(DataType::Int(32), 1), op->extents) *
-                        op->dtype.lanes();
-      Array<PrimExpr> other;
-      other.push_back(make_const(op->extents[0].dtype(), num_threads_));
-      for (PrimExpr e : extents) {
-        other.push_back(e);
-      }
-      extents = other;
-      changed = true;
+      PrimExpr stride = mul(op->extent, op->dtype.lanes());
+      extent = mul(extent, num_threads_);
       // mark this buffer get touched.
       alloc_remap_[op->buffer_var.get()] = stride;
-      // Mutate the body.
-      body = this->VisitStmt(op->body);
-    } else {
-      // Mutate the body.
-      body = this->VisitStmt(op->body);
     }
-    if (!changed && body.same_as(op->body) && condition.same_as(op->condition)) {
+
+    // Mutate the body.
+    body = this->VisitStmt(op->body);
+
+    if (extent.same_as(op->extent) && body.same_as(op->body) && condition.same_as(op->condition)) {
       return GetRef<Stmt>(op);
     } else {
-      return Allocate(op->buffer_var, op->dtype, extents, condition, body);
+      return Allocate(op->buffer_var, op->dtype, extent, condition, body);
     }
   }
 

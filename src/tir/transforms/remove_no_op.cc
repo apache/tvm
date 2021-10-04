@@ -81,7 +81,7 @@ class NoOpRemover : public StmtMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
-    return is_no_op(op->body) ? MakeEvaluate(op->extents) : stmt;
+    return is_no_op(op->body) ? MakeEvaluate(op->extent) : stmt;
   }
 
   Stmt VisitStmt_(const ProducerRealizeNode* op) final {
