@@ -40,7 +40,7 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module Codegen(IRModule mod, Target target) {
+runtime::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()
           ->GetConfig<Bool>("tir.disable_assert", Bool(false))
           .value()) {
@@ -311,7 +311,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   return (*codegen_f)(blob_byte_array, system_lib, target_triple);
 }
 
-TVM_REGISTER_GLOBAL("target.Codegen").set_body_typed(Codegen);
+TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
 // Export two auxiliary function to the runtime namespace.
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);

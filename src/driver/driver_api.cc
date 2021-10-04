@@ -156,7 +156,7 @@ transform::Pass BindTarget(Target target) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "BindTarget", {});
 }
 
-transform::Pass AnnotateEntryFunc(bool b) {
+static transform::Pass AnnotateEntryFunc(bool b) {
   auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(b));
   };
@@ -386,8 +386,8 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
  * Then, it applies transformation on the original module before splitting into separate modules for
  * device and host. Then it also applies transformations on the new splitted modules.
  */
-std::pair<IRModule, IRModule> SplitFuncsToDevHostMods(IRModule mod_mixed, const Target& target_arg,
-                                                      const Target& target_host_arg) {
+std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target& target_arg,
+                                               const Target& target_host_arg) {
   Target target = target_arg, target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&target, &target_host);
 
@@ -468,7 +468,7 @@ runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Ta
 
   for (const auto& it : inputs) {
     if (it.second.defined()) {
-      auto pair = SplitFuncsToDevHostMods(it.second, it.first, target_host);
+      auto pair = SplitMixedModule(it.second, it.first, target_host);
       auto& host_mod = pair.first;
       auto& device_mod = pair.second;
 
@@ -479,11 +479,11 @@ runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Ta
       mhost_all->Update(host_mod);
 
       if (device_mod->functions.size() != 0) {
-        device_modules.push_back(codegen::Codegen(device_mod, it.first));
+        device_modules.push_back(codegen::Build(device_mod, it.first));
       }
     }
   }
-  runtime::Module complete_mod = codegen::Codegen(mhost_all, target_host);
+  runtime::Module complete_mod = codegen::Build(mhost_all, target_host);
   for (const auto& it : device_modules) {
     if (it.operator->()) {
       complete_mod.Import(it);
@@ -529,7 +529,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
 
   for (const auto& it : inputs) {
     if (it.second.defined()) {
-      auto pair = SplitFuncsToDevHostMods(it.second, it.first, target_host);
+      auto pair = SplitMixedModule(it.second, it.first, target_host);
       auto& host_mod = pair.first;
       auto& device_mod = pair.second;
 
@@ -540,12 +540,12 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
       mhost_all->Update(host_mod);
 
       if (device_mod->functions.size() != 0) {
-        device_modules.push_back(codegen::Codegen(device_mod, it.first));
+        device_modules.push_back(codegen::Build(device_mod, it.first));
       }
     }
   }
 
-  runtime::Module mhost = codegen::Codegen(mhost_all, target_host);
+  runtime::Module mhost = codegen::Build(mhost_all, target_host);
   for (const auto& it : device_modules) {
     if (it.operator->()) {
       mhost.Import(it);
