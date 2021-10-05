@@ -74,20 +74,20 @@ jobs:
     - name: Build iOS RPC@MacOS
       if: startsWith(matrix.os, 'macOS')
       run: |
-        CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug \
+        IOS_VERSION = "14.0"
+        CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release \
                      -DCMAKE_SYSTEM_NAME=iOS \
-                     -DCMAKE_SYSTEM_VERSION=14.0 \
+                     -DCMAKE_SYSTEM_VERSION=${IOS_VERSION} \
                      -DCMAKE_OSX_SYSROOT=iphonesimulator \
                      -DCMAKE_OSX_ARCHITECTURES=x86_64 \
                      -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
                      -DCMAKE_BUILD_WITH_INSTALL_NAME_DIR=ON \
-                     -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM=XXXXXXXXXX \
                      -DUSE_IOS_RPC=ON"
 
         mkdir build-ios-simulator
         cd build-ios-simulator
         cmake .. ${CMAKE_FLAGS}
-        cmake --build . --target custom_dso_loader ios_rpc
+        cmake --build . --target ios_rpc
     - name: Test@Win
       if: startsWith(matrix.os, 'windows')
       shell: cmd /C call {0}
@@ -102,8 +102,8 @@ jobs:
       if: startsWith(matrix.os, 'macOS')
       shell: bash -l {0}
       run: >-
-        python -m pip install numpy decorator attrs tornado psutil xgboost cloudpickle &&
+        python -m pip install tornado cloudpickle &&
         export PYTHONPATH=tests/python/contrib:${PYTHONPATH} &&
         export BUNDLE_ID=org.apache.tvmrpc &&
-        export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Debug-iphonesimulator/tvmrpc.app &&
+        export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Release-iphonesimulator/tvmrpc.app &&
         python -m pytest -vrP tests/python/contrib/test_rpc_server_device.py
