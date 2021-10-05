@@ -179,11 +179,32 @@ class LocalRunner(PyRunner):
         evaluator_config: Optional[EvaluatorConfig] = None,
         cooldown_sec: float = 0.0,
         alloc_repeat: int = 1,
-        f_alloc_argument: Optional[str] = None,
-        f_run_evaluator: Optional[str] = None,
-        f_cleanup: Optional[str] = None,
+        f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None] = None,
+        f_run_evaluator: Union[T_RUN_EVALUATOR, str, None] = None,
+        f_cleanup: Union[T_CLEANUP, str, None] = None,
         initializer: Optional[Callable[[], None]] = None,
     ) -> None:
+        """Constructor
+
+        Parameters
+        ----------
+        timeout_sec: float
+            The timeout setting.
+        evaluator_config: EvaluatorConfig
+            The evaluator configuration.
+        cooldown_sec: float
+            The cooldown in seconds.
+        alloc_repeat: int
+            The number of times to random fill the allocation.
+        f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None]
+            The function name to allocate the arguments or the function itself.
+        f_run_evaluator: Union[T_RUN_EVALUATOR, str, None]
+            The function name to run the evaluator or the function itself.
+        f_cleanup: Union[T_CLEANUP, str, None]
+            The function name to cleanup the session or the function itself.
+        initializer: Optional[Callable[[], None]]
+            The initializer function.
+        """
         super().__init__()
         self.timeout_sec = timeout_sec
         self.evaluator_config = EvaluatorConfig._normalized(evaluator_config)

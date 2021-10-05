@@ -455,6 +455,7 @@ def test_meta_schedule_local_runner_time_out():
         "LocalRunner: Timeout, killed after"
     )
     assert runner_result.run_secs is None
+    _clean_build(builder_result.artifact_path)
 
 
 def test_meta_schedule_rpc_runner_exception():
@@ -554,6 +555,7 @@ def test_meta_schedule_local_runner_exception():
         "LocalRunner: An exception occurred\n"
     )
     assert runner_result.run_secs is None
+    _clean_build(builder_result.artifact_path)
 
 
 def test_meta_schedule_runner_matmul_test():
