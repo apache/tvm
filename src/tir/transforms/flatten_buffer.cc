@@ -34,6 +34,10 @@ namespace tvm {
 namespace tir {
 
 PrimExpr BufferArea(const Buffer& buffer) {
+  if (buffer->strides.size()) {
+    ICHECK(buffer->shape.size() == buffer->strides.size());
+    return buffer->strides[0] * buffer->shape[0];
+  }
   PrimExpr area = Integer(1);
   for (const PrimExpr& dim : buffer->shape) {
     area = area * dim;
