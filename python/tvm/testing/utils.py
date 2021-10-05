@@ -82,6 +82,7 @@ import tvm._ffi
 from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
 from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.relay.op.contrib import cmsisnn
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -836,6 +837,19 @@ def requires_hexagon(*args):
         ),
     ]
     return _compose(args, _requires_hexagon)
+
+
+def requires_cmsisnn(*args):
+    """Mark a test as requiring the CMSIS NN library.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [pytest.mark.skipif(not cmsisnn.enabled(), reason="CMSIS NN not enabled")]
+    return _compose(args, requirements)
 
 
 def requires_package(*packages):
