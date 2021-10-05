@@ -406,7 +406,8 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   // We make an assumption here that the overriden host target
   // can be used alongside the default host codegen based on device type
   // this is so the correct code generator is used later instead of overriding the target.
-  // We need better support for inserting multiple kDLCPU targets.
+  // We need better support for inserting multiple kDLCPU targets as our current options
+  // are kDeviceKernelLaunch or not
   Target overriden_host_target = target_host;
   if (target->kind->device_type == target_host->kind->device_type) {
     overriden_host_target = target;
@@ -497,7 +498,9 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
 
   for (const auto& it : inputs) {
     if (it.second.defined()) {
-      auto pair = SplitDevHostFuncs(it.second, it.first, target_host, pass_ctx);
+      const Target& target = it.first;
+      const IRModule& ir_module = it.second;
+      auto pair = SplitDevHostFuncs(ir_module, target, target_host, pass_ctx);
       auto& mhost = pair.first;
       auto& mdevice = pair.second;
 
@@ -506,11 +509,15 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
       ICHECK(mhost_all.defined()) << "The host module must be defined";
 
       // We don't want library modules going back into host codegen
-      // unless they're supposed to
-      if (it.first->kind == target_host->kind) {
-        mhost_all->Update(mhost);
-      } else {
+      // unless they're supposed to. Here if we overrode the target host
+      // to allow lowering previously we check that it's meant to be placed
+      // back into the host Module.
+      bool overrides_host_target = target->kind->device_type == target_host->kind->device_type;
+      bool non_host_target_kind = target->kind != target_host->kind;
+      if (overrides_host_target && non_host_target_kind) {
         device_modules.push_back(codegen::Build(mhost, it.first));
+      } else {
+        mhost_all->Update(mhost);
       }
 
       if (mdevice->functions.size() != 0) {
