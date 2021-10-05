@@ -20,12 +20,13 @@ import sys
 
 import numpy as np
 import pytest
-
+from typing import Any, NamedTuple, Union, Optional, List, Dict
 import tvm
 from tvm import relay
 from tvm.relay import transform
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
+    AOTCompiledTestModel,
     AOT_CORSTONE300_RUNNER,
     generate_ref_data,
     compile_and_run,
@@ -55,15 +56,15 @@ def test_conv2d(groups, weight_shape):
     inputs = OrderedDict([("data", i_data), ("weight", w1_data)])
 
     output_list = generate_ref_data(mod, inputs)
+
     compile_and_run(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
         runner=AOT_CORSTONE300_RUNNER,
         interface_api='c',
         use_unpacked_api=True,
+        target_keys="arm_cpu",
+        target_march="armv7m"
     )
-
-
-#   target_str = f"c -keys=arm_cpu --target-kind=corstone300 -mcpu={platform['mcpu']}  -march={platform['march']} -model={platform['model']} -runtime=c -link-params=1 --executor=aot --unpacked-api=1 --interface-api=c"
 
 
 if __name__ == "__main__":

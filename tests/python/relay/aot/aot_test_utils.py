@@ -549,6 +549,8 @@ def compile_models(
     workspace_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
+    target_keys: str = None,
+    target_march: str = None,
 ) -> List[AOTCompiledTestModel]:
     """
     This method generates runtime.Modules for the tests
@@ -558,6 +560,8 @@ def compile_models(
 
     base_target = "c -runtime=c --link-params --executor=aot"
     extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
+    extra_target += f" -keys={target_keys}" if target_keys else ""
+    extra_target += f" -march={target_march}" if target_march else ""
     target = f"{base_target} {extra_target}"
 
     config = {"tir.disable_vectorize": True}
@@ -699,6 +703,8 @@ def compile_and_run(
     workspace_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     data_linkage: AOTDataLinkage = None,
+    target_keys: str = None,
+    target_march: str = None,
 ):
     """This is a wrapper API to compile and run models as test for AoT"""
     compiled_test_mods = compile_models(
@@ -708,6 +714,8 @@ def compile_and_run(
         workspace_byte_alignment=workspace_byte_alignment,
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
+        target_keys=target_keys,
+        target_march=target_march,
     )
     run_and_check(
         models=compiled_test_mods,
