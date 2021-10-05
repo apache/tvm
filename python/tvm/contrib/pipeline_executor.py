@@ -71,9 +71,8 @@ def build(pipe_configs):
         )
 
         mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
-        # Create a pipeline configuration, 'mod_idx' start from 1, use 'mod_idx - 1' here
-        # to get correct index of 'string_config' which is a list.
-        string_config[mod_idx - 1] = mconf
+        # Create a pipeline configuration, 'mod_idx' start from 0.
+        string_config[mod_idx] = mconf
         libs[mod_idx] = {"lib": lib, "dev": dev}
 
     return PipelineExecutorFactoryModule(libs, string_config)
@@ -176,7 +175,7 @@ class PipelineConfig(object):
             if isinstance(self.io_owner, PipelineConfig.ModuleWrapper):
                 return self.io_owner.idx
 
-            return 0
+            return -1
 
         def is_global_interface(self):
             """The global interface is the interface visible to the caller which use a pipeline
@@ -509,7 +508,7 @@ class PipelineConfig(object):
             mlist += temp_list
 
         for mod, i in zip(mlist, range(len(mlist))):
-            self.mod_wrapper[mod].set_idx_name(i + 1)
+            self.mod_wrapper[mod].set_idx_name(i)
 
     def get_mod_idx(self, mod):
         # Return the module index.

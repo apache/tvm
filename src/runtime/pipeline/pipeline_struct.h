@@ -22,9 +22,11 @@
 #include <dlpack/dlpack.h>
 #include <dmlc/json.h>
 
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <vector>
+#define GLOBAL_MODULE_INDEX -1
 /*!
  * \brief All binding information of a output interface.
  */
@@ -42,9 +44,9 @@ struct OutputBindings {
   bool IsGlobalOutput() const {
     int num_output = 0;
     for (auto binding : bindings) {
-      /* output is global output when value is 0.
+      /* output is global output when value is GLOBAL_MODULE_INDEX.
        */
-      num_output += (binding.first == 0);
+      num_output += (binding.first == GLOBAL_MODULE_INDEX);
     }
     /* If this output is a global output then there is only one such output in map.*/
     ICHECK(num_output <= 1);
@@ -60,7 +62,7 @@ struct OutputBindings {
       std::string key;
       reader->BeginObject();
       std::string input_name;
-      int mod_idx = -1;
+      int mod_idx = std::numeric_limits<int>::min();
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_idx") {
           reader->Read(&mod_idx);
@@ -69,7 +71,9 @@ struct OutputBindings {
           reader->Read(&input_name);
         }
       }
-      ICHECK(mod_idx >= 0);
+      // mod_idx == -1 means this module is global module, then the input or output
+      // is the whole pipeline input or output.
+      ICHECK(mod_idx >= -1);
       bindings[mod_idx] = input_name;
     }
   }

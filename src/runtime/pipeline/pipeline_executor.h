@@ -85,7 +85,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
     while (reader->NextArrayItem()) {
       std::string key;
       reader->BeginObject();
-      int mod_idx = 0;
+      int mod_idx = -1;
       std::string lib_name;
       std::string json_name;
       std::string params_name;
@@ -107,7 +107,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
         }
       }
       // Check if mod_idx is read successfully.
-      ICHECK(mod_idx > 0);
+      ICHECK(mod_idx >= 0);
       // Check if the output is read successfully.
       ICHECK(!output.Empty());
       pipeline_config_.Insert(mod_idx, output);

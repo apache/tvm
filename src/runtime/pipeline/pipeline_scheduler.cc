@@ -91,9 +91,8 @@ std::vector<Module> PipelineScheduler::PipelineCreateGraphModules(const ModuleCo
     auto load_params = graph_module.GetFunction("load_params");
     load_params(params_arr);
 
-    // Put a graph executor module into the vector. because 'config.first' start from 1, use
-    // 'config.first - 1' here to get the correct index value of module in the vector.
-    ret[config.first - 1] = graph_module;
+    // Put a graph executor module into the vector.
+    ret[config.first] = graph_module;
   }
   return ret;
 }
