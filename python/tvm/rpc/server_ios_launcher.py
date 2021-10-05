@@ -26,11 +26,17 @@ class RPCServerMode(Enum):
 
 
 def get_list_of_available_simulators() -> Dict[AnyStr, List]:
-    proc = subprocess.Popen("xcrun simctl list devices available --json", shell=True,
-                            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    proc = subprocess.Popen(
+        "xcrun simctl list devices available --json",
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+    )
     out, err = proc.communicate()
     available_simulators = json.loads(out)["devices"]
-    available_simulators = {key: value for key, value in available_simulators.items() if value != []}
+    available_simulators = {
+        key: value for key, value in available_simulators.items() if value != []
+    }
     return available_simulators
 
 
@@ -40,7 +46,9 @@ def grep_by_system(available_devices: Dict[AnyStr, List], system_name: OSName) -
             if target in item:
                 return i
         raise ValueError("Search field doesn't content target")
+
     keys = list(available_devices.keys())
+
     return available_devices[keys[find_index_of_substr(keys, system_name.value)]]
 
 
@@ -67,32 +75,47 @@ def shutdown_device(udid: AnyStr) -> None:
 def deploy_bundle_to_simulator(udid: AnyStr, bundle_path: AnyStr) -> None:
     ret_code = os.system(f"xcrun simctl install {udid} {bundle_path}")
     if ret_code != 0:
-        raise RuntimeError(f"Failed to deploy bundle <{bundle_path}> to device with unique id: {udid}")
+        raise RuntimeError(
+            f"Failed to deploy bundle <{bundle_path}> to device with unique id: {udid}"
+        )
 
 
 def delete_bundle_from_simulator(udid: AnyStr, bundle_id: AnyStr) -> None:
     ret_code = os.system(f"xcrun simctl uninstall {udid} {bundle_id}")
     if ret_code != 0:
-        raise RuntimeError(f"Failed to uninstall bundle <{bundle_id}> from device with unique id: {udid}")
+        raise RuntimeError(
+            f"Failed to uninstall bundle <{bundle_id}> from device with unique id: {udid}"
+        )
 
 
-def launch_ios_rpc(udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr):
-    cmd = (f"xcrun simctl launch --console {udid} {bundle_id}"
-           f" --immediate_connect"
-           f" --host_url={host_url}"
-           f" --host_port={host_port}"
-           f" --key={key}"
-           f" --server_mode={mode}"
-           f" --verbose")
-    proc = subprocess.Popen(cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
-                            universal_newlines=True)
+def launch_ios_rpc(
+    udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr
+):
+    cmd = (
+        f"xcrun simctl launch --console {udid} {bundle_id}"
+        f" --immediate_connect"
+        f" --host_url={host_url}"
+        f" --host_port={host_port}"
+        f" --key={key}"
+        f" --server_mode={mode}"
+        f" --verbose"
+    )
+    proc = subprocess.Popen(
+        cmd.split(" "),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+        universal_newlines=True,
+    )
     return proc
 
 
 def terminate_ios_rpc(udid: AnyStr, bundle_id: AnyStr) -> None:
     ret_code = os.system(f"xcrun simctl terminate {udid} {bundle_id}")
     if ret_code != 0:
-        raise RuntimeError(f"Failed to terminate bundle <{bundle_id}> from device with unique id: {udid}")
+        raise RuntimeError(
+            f"Failed to terminate bundle <{bundle_id}> from device with unique id: {udid}"
+        )
 
 
 def is_booted(udid: AnyStr) -> bool:
@@ -133,9 +156,11 @@ class ServerIOSLauncher:
         if not ServerIOSLauncher.booted_devices:
             self._boot_or_find_booted_device()
 
-        self.udid = get_device_uid(self.external_booted_device
-                                   if self.external_booted_device is not None
-                                   else ServerIOSLauncher.booted_devices[-1])
+        self.udid = get_device_uid(
+            self.external_booted_device
+            if self.external_booted_device is not None
+            else ServerIOSLauncher.booted_devices[-1]
+        )
 
         self.bundle_was_deployed = False
         deploy_bundle_to_simulator(self.udid, self.bundle_path)
@@ -143,8 +168,9 @@ class ServerIOSLauncher:
 
         self.server_was_started = False
         self.launch_process = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
-        self._wait_launch_complete(waiting_time=30,
-                                   should_print_host_and_port=mode == RPCServerMode.standalone.value)
+        self._wait_launch_complete(
+            waiting_time=30, should_print_host_and_port=mode == RPCServerMode.standalone.value
+        )
         self.server_was_started = True
 
     def terminate(self):
@@ -185,7 +211,9 @@ class ServerIOSLauncher:
             raise ValueError(f"No available simulators for target system: {target_system.value}")
         target_devices = grep_by_device(target_devices, target_device_type)
         if not target_devices:
-            raise ValueError(f"No available simulators for target device type: {target_device_type.value}")
+            raise ValueError(
+                f"No available simulators for target device type: {target_device_type.value}"
+            )
 
         maybe_booted = check_booted_device(target_devices)
         if maybe_booted != {}:
@@ -207,7 +235,7 @@ class ServerIOSLauncher:
         def watchdog():
             hz = 10
             for _ in range(waiting_time * hz):
-                time.sleep(1. / hz)
+                time.sleep(1.0 / hz)
                 if switch_have_data.on:
                     break
             if not switch_have_data.on:
@@ -240,12 +268,12 @@ class ServerIOSLauncher:
 
             found = str(line).find(marker_server_ip)
             if found != -1:
-                ip = str(line)[found + len(marker_server_ip):].rstrip("\n")
+                ip = str(line)[found + len(marker_server_ip) :].rstrip("\n")
                 host = ip
 
             found = str(line).find(marker_server_port)
             if found != -1:
-                port = str(line)[found + len(marker_server_port):].rstrip("\n")
+                port = str(line)[found + len(marker_server_port) :].rstrip("\n")
                 port = int(port)
 
             if str(line).find(marker_connected) != -1:
@@ -270,7 +298,9 @@ class ServerIOSContextManager:
         self.__ios_rpc_server_launcher = None
 
     def __enter__(self):
-        self.__ios_rpc_server_launcher = ServerIOSLauncher(self.__mode, self.__host, self.__port, self.__key)
+        self.__ios_rpc_server_launcher = ServerIOSLauncher(
+            self.__mode, self.__host, self.__port, self.__key
+        )
         return self.__ios_rpc_server_launcher
 
     def __exit__(self, exc_type, exc_val, exc_tb):

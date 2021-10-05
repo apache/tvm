@@ -31,7 +31,7 @@ DTYPE = "float32"
 np.random.seed(0)
 
 
-@pytest.fixture(scope='session', autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def setup_and_teardown_actions():
     # No setup actions
     yield
@@ -43,12 +43,16 @@ def setup_rpc_standalone_configuration(f):
     """
     Host  --  RPC server
     """
+
     def wrapper():
-        with server_ios_launcher.ServerIOSContextManager(mode=server_ios_launcher.RPCServerMode.standalone.value,
-                                                         host=HOST_URL,
-                                                         port=HOST_PORT,
-                                                         key=DEVICE_KEY) as ios_server:
+        with server_ios_launcher.ServerIOSContextManager(
+            mode=server_ios_launcher.RPCServerMode.standalone.value,
+            host=HOST_URL,
+            port=HOST_PORT,
+            key=DEVICE_KEY,
+        ) as ios_server:
             f(host=ios_server.host, port=ios_server.port)
+
     return wrapper
 
 
@@ -56,14 +60,18 @@ def setup_rpc_proxy_configuration(f):
     """
     Host -- Proxy -- RPC server
     """
+
     def wrapper():
         proxy_server = proxy.Proxy(host=HOST_URL, port=HOST_PORT)
-        with server_ios_launcher.ServerIOSContextManager(mode=server_ios_launcher.RPCServerMode.proxy.value,
-                                                         host=proxy_server.host,
-                                                         port=proxy_server.port,
-                                                         key=DEVICE_KEY):
+        with server_ios_launcher.ServerIOSContextManager(
+            mode=server_ios_launcher.RPCServerMode.proxy.value,
+            host=proxy_server.host,
+            port=proxy_server.port,
+            key=DEVICE_KEY,
+        ):
             f(host=proxy_server.host, port=proxy_server.port)
         proxy_server.terminate()
+
     return wrapper
 
 
@@ -73,14 +81,18 @@ def setup_rpc_tracker_configuration(f):
          /     \
     Host   --   RPC server
     """
+
     def wrapper():
         tracker_server = tracker.Tracker(host=HOST_URL, port=HOST_PORT, silent=True)
-        with server_ios_launcher.ServerIOSContextManager(mode=server_ios_launcher.RPCServerMode.tracker.value,
-                                                         host=tracker_server.host,
-                                                         port=tracker_server.port,
-                                                         key=DEVICE_KEY):
+        with server_ios_launcher.ServerIOSContextManager(
+            mode=server_ios_launcher.RPCServerMode.tracker.value,
+            host=tracker_server.host,
+            port=tracker_server.port,
+            key=DEVICE_KEY,
+        ):
             f(host=tracker_server.host, port=tracker_server.port)
         tracker_server.terminate()
+
     return wrapper
 
 
@@ -90,24 +102,30 @@ def setup_rpc_tracker_via_proxy_configuration(f):
          /     \
     Host   --   Proxy -- RPC server
     """
+
     def wrapper():
         tracker_server = tracker.Tracker(host=HOST_URL, port=HOST_PORT, silent=True)
-        proxy_server_tracker = proxy.Proxy(host=HOST_URL, port=8888, tracker_addr=(tracker_server.host, tracker_server.port))
-        with server_ios_launcher.ServerIOSContextManager(mode=server_ios_launcher.RPCServerMode.proxy.value,
-                                                         host=proxy_server_tracker.host,
-                                                         port=proxy_server_tracker.port,
-                                                         key=DEVICE_KEY):
+        proxy_server_tracker = proxy.Proxy(
+            host=HOST_URL, port=8888, tracker_addr=(tracker_server.host, tracker_server.port)
+        )
+        with server_ios_launcher.ServerIOSContextManager(
+            mode=server_ios_launcher.RPCServerMode.proxy.value,
+            host=proxy_server_tracker.host,
+            port=proxy_server_tracker.port,
+            key=DEVICE_KEY,
+        ):
             f(host=tracker_server.host, port=tracker_server.port)
         proxy_server_tracker.terminate()
         tracker_server.terminate()
+
     return wrapper
 
 
 def wrapper_for_call_function_with_timeout(timeout, func, args=(), kwargs=None):
     def wrapper(*_args, **_kwargs):
         """
-            This wrapper is needed because the cloudpicle
-            cannot serialize objects that contain pointers (RPCSession)
+        This wrapper is needed because the cloudpicle
+        cannot serialize objects that contain pointers (RPCSession)
         """
         func(*_args, **_kwargs)
         return StatusKind.COMPLETE
@@ -124,8 +142,9 @@ def try_create_remote_session(session_factory, args=(), kwargs=None):
         successful_attempt = True
         results = []
         for _ in range(2):
-            ret = wrapper_for_call_function_with_timeout(timeout=10, func=session_factory,
-                                                         args=args, kwargs=kwargs)
+            ret = wrapper_for_call_function_with_timeout(
+                timeout=10, func=session_factory, args=args, kwargs=kwargs
+            )
             results.append(ret)
         if not np.all(np.array(results) == StatusKind.COMPLETE):
             raise ValueError("One or more sessions ended incorrectly.")
@@ -175,21 +194,27 @@ def test_rpc_standalone(host, port):
 @pytest.mark.dependency()
 @setup_rpc_proxy_configuration
 def test_rpc_proxy(host, port):
-    status_ok = try_create_remote_session(session_factory=rpc.connect, args=(host, port, DEVICE_KEY))
+    status_ok = try_create_remote_session(
+        session_factory=rpc.connect, args=(host, port, DEVICE_KEY)
+    )
     assert status_ok
 
 
 @pytest.mark.dependency()
 @setup_rpc_tracker_configuration
 def test_rpc_tracker(host, port):
-    status_ok = try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
+    status_ok = try_create_remote_session(
+        session_factory=request_remote, args=(DEVICE_KEY, host, port)
+    )
     assert status_ok
 
 
 @pytest.mark.dependency()
 @setup_rpc_tracker_via_proxy_configuration
 def test_rpc_tracker_via_proxy(host, port):
-    status_ok = try_create_remote_session(session_factory=request_remote, args=(DEVICE_KEY, host, port))
+    status_ok = try_create_remote_session(
+        session_factory=request_remote, args=(DEVICE_KEY, host, port)
+    )
     assert status_ok
 
 
@@ -240,8 +265,9 @@ def test_basic_functionality_of_rpc_session(host, port):
 
     # Check correct download
     downloaded_lib = remote_session.download(DSO_NAME)
-    assert downloaded_lib == bytearray(open(path_dso, "rb").read()),\
-        "The downloaded module does not match the loaded module"
+    assert downloaded_lib == bytearray(
+        open(path_dso, "rb").read()
+    ), "The downloaded module does not match the loaded module"
 
     # Check correct remote computing
     lib = remote_session.load_module(DSO_NAME)
@@ -322,22 +348,21 @@ def test_check_auto_schedule_tuning(host, port):
     try:
         status_ok = True
         measure_runner = auto_scheduler.RPCRunner(
-            DEVICE_KEY, host, port,
+            DEVICE_KEY,
+            host,
+            port,
             min_repeat_ms=1,
             timeout=10,
-            n_parallel=multiprocessing.cpu_count()
+            n_parallel=multiprocessing.cpu_count(),
         )
-        builder = auto_scheduler.LocalBuilder(
-            timeout=10,
-            build_func=ios_create_dylib
-        )
+        builder = auto_scheduler.LocalBuilder(timeout=10, build_func=ios_create_dylib)
         tune_option = auto_scheduler.TuningOptions(
             builder=builder,
             num_measure_trials=2,
             num_measures_per_round=1,
             runner=measure_runner,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-            verbose=2
+            verbose=2,
         )
 
         tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
@@ -349,8 +374,10 @@ def test_check_auto_schedule_tuning(host, port):
         tuning_statistic = list(load_records(log_file))
         for measure_input, measure_result in tuning_statistic:
             if measure_result.error_no != MeasureErrorNo.NO_ERROR:
-                raise ValueError(f"Error for MeasureResult. Error code: {measure_result.error_no},"
-                                 f" for details see MeasureErrorNO.")
+                raise ValueError(
+                    f"Error for MeasureResult. Error code: {measure_result.error_no},"
+                    f" for details see MeasureErrorNO."
+                )
 
     except Exception as e:
         status_ok = False
@@ -359,7 +386,7 @@ def test_check_auto_schedule_tuning(host, port):
     assert status_ok, "Tuning failed, see logs."
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_rpc_standalone()
     test_rpc_proxy()
     test_rpc_tracker()
