@@ -401,7 +401,7 @@ class GraphModule(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
-            )(device.device_type, device.device_id, *args)
+            )(device.device_type % rpc_base.RPC_SESS_MASK, device.device_id, *args)
         if kwargs:
             self.set_input(**kwargs)
         return self.module.time_evaluator(

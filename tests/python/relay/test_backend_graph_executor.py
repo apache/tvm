@@ -361,13 +361,13 @@ def test_benchmark_end_to_end(dev, target):
     assert len(result.results) == 2
 
 
-@tvm.testing.requires_llvm
+@tvm.testing.requires_cuda
 def test_benchmark_end_to_end_rpc():
     server = rpc.Server("127.0.0.1")
     remote = rpc.connect(server.host, server.port)
 
     mod, params = mlp.get_workload(1)
-    lib = relay.build(mod, target="llvm", params=params)
+    lib = relay.build(mod, target="cuda", params=params)
 
     temp = utils.tempdir()
     path = temp.relpath("library.so")
@@ -375,7 +375,7 @@ def test_benchmark_end_to_end_rpc():
     remote.upload(path)
     rlib = remote.load_module("library.so")
 
-    dev = remote.cpu()
+    dev = remote.device("cuda")
     exe = graph_executor.create(lib.get_graph_json(), rlib, dev)
 
     data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
