@@ -17,8 +17,8 @@
 
 .. _deploy-and-integration:
 
-Deploy and Integration
-======================
+Deploy Models and Integrate TVM
+===============================
 
 This page contains guidelines on how to deploy TVM to various platforms
 as well as how to integrate it with your project.
@@ -176,4 +176,14 @@ target device without relying on RPC. See the following resources on how to do s
    vitis_ai
    bnns
 
+Additional Deployment How-Tos
+-----------------------------
 
+We have also developed a number of how-tos targeting specific devices, with
+working Python code that can be viewed in a Jupyter notebook. These how-tos
+describe how to prepare and deploy models to many of the supported backends.
+
+.. toctree::
+   :maxdepth: 1
+
+   ../deploy_models/index

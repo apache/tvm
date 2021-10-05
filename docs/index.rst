@@ -66,7 +66,6 @@ driving its costs down.
    :maxdepth: 1
    :caption: Reference Guide
 
-   reference/deploy/index
    reference/langref/index
    reference/api/python/index
    reference/api/links

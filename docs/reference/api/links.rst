@@ -15,10 +15,11 @@
     specific language governing permissions and limitations
     under the License.
 
-Links to Other API References
-=============================
+Other APIs
+==========
 
-This page contains links to API references that are build with different doc build system.
+This page contains links to API references that are built with different doc
+build system.
 
 * `C++ doyxgen API <doxygen/index.html>`_
 * `Typescript typedoc API <typedoc/index.html>`_

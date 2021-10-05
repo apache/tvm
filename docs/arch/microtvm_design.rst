@@ -13,6 +13,8 @@
     specific language governing permissions and limitations
     under the License.
 
+.. _microtvm-design:
+
 **************************
 microTVM Design Document
 **************************

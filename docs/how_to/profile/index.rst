@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-Profiling Deep Learning Models
-====================================
+Profile Models
+==============
 
 .. toctree::
    :maxdepth: 1

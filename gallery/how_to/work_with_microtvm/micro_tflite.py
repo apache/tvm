@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _microTVM-with-TFLite:
+
 microTVM with TFLite Models
 ===========================
 **Author**: `Tom Gall <https://github.com/tom-gall>`_

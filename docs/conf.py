@@ -226,17 +226,17 @@ gallery_dirs = [
 ]
 
 examples_dirs = [
-        tvm_path.joinpath("gallery/tutorial"),
-        tvm_path.joinpath("gallery/how_to/compile_models"),
-        tvm_path.joinpath("gallery/how_to/deploy_models"),
-        tvm_path.joinpath("gallery/how_to/work_with_relay"),
-        tvm_path.joinpath("gallery/how_to/work_with_schedules"),
-        tvm_path.joinpath("gallery/how_to/optimize_operators"),
-        tvm_path.joinpath("gallery/how_to/tune_with_autotvm"),
-        tvm_path.joinpath("gallery/how_to/tune_with_autoscheduler"),
-        tvm_path.joinpath("gallery/how_to/work_with_microtvm"),
-        tvm_path.joinpath("gallery/how_to/extend_tvm"),
-        tvm_path.joinpath("vta/tutorials"),
+    tvm_path.joinpath("gallery/tutorial"),
+    tvm_path.joinpath("gallery/how_to/compile_models"),
+    tvm_path.joinpath("gallery/how_to/deploy_models"),
+    tvm_path.joinpath("gallery/how_to/work_with_relay"),
+    tvm_path.joinpath("gallery/how_to/work_with_schedules"),
+    tvm_path.joinpath("gallery/how_to/optimize_operators"),
+    tvm_path.joinpath("gallery/how_to/tune_with_autotvm"),
+    tvm_path.joinpath("gallery/how_to/tune_with_autoscheduler"),
+    tvm_path.joinpath("gallery/how_to/work_with_microtvm"),
+    tvm_path.joinpath("gallery/how_to/extend_tvm"),
+    tvm_path.joinpath("vta/tutorials"),
 ]
 
 subsection_order = ExplicitOrder(

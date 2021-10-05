@@ -55,7 +55,7 @@ tutorials to get started with microTVM:
 1. :ref:`Start the microTVM Reference VM <tutorial-micro-reference-vm>`. The microTVM tutorials
    depend on Zephyr and on a compiler toolchain for your hardware. The reference VM is a convenient
    way to install those dependencies.
-2. Try the :doc:`microTVM with TFLite Tutorial </tutorials/micro/micro_tflite>`.
+2. Try the :ref:`microTVM with TFLite Tutorial <microTVM-with-TFLite>`.
 3. Try running a more complex `CIFAR10-CNN model <https://github.com/areusch/microtvm-blogpost-eval>`_.
 
 
@@ -63,7 +63,7 @@ How microTVM Works
 ~~~~~~~~~~~~~~~~~~
 
 
-You can read more about the design of these pieces at the :doc:`microTVM Design Document </dev/microtvm_design>`.
+You can read more about the design of these pieces at the :ref:`microTVM Design Document <microTVM-design>`.
 
 
 Help and Discussion

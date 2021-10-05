@@ -28,5 +28,4 @@ various areas of the TVM stack.
    relay_add_op
    relay_add_pass
    relay_bring_your_own_codegen
-   codebase_walkthrough
    pytest_target_parametrization
