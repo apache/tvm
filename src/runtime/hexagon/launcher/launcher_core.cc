@@ -162,8 +162,7 @@ tvm::runtime::Module load_module(const std::string& file_name) {
 }
 
 tvm::runtime::Module create_graph_executor(const std::string& graph_json,
-                                           tvm::runtime::Module graph_module,
-                                           tvm::runtime::Device device) {
+                                           tvm::runtime::Module graph_module, tvm::Device device) {
   std::string launcher_name = "tvm.graph_executor.create";
 
   const tvm::runtime::PackedFunc create_executor = get_runtime_func(launcher_name);
