@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Dict, List, AnyStr
 
 
-class SimulatorSystem(Enum):
+class OSName(Enum):
     iOS = "iOS"
     tvOS = "tvOS"
     watchOS = "watchOS"
@@ -34,7 +34,7 @@ def get_list_of_available_simulators() -> Dict[AnyStr, List]:
     return available_simulators
 
 
-def grep_by_system(available_devices: Dict[AnyStr, List], system_name: SimulatorSystem) -> List[Dict]:
+def grep_by_system(available_devices: Dict[AnyStr, List], system_name: OSName) -> List[Dict]:
     def find_index_of_substr(search_field: List[AnyStr], target: AnyStr) -> int:
         for i, item in enumerate(search_field):
             if target in item:
@@ -175,7 +175,7 @@ class ServerIOSLauncher:
         ServerIOSLauncher.booted_devices = []
 
     def _boot_or_find_booted_device(self):
-        target_system = SimulatorSystem.iOS
+        target_system = OSName.iOS
         target_device_type = IOSDevice.iPhone
         available_devices = get_list_of_available_simulators()
         if not available_devices:
