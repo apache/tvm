@@ -228,6 +228,9 @@ set(USE_ETHOSN OFF)
 # otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
 
+# Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
+set(USE_ETHOSU OFF)
+
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
