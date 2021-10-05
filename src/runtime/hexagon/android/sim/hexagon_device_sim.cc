@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-#include "../hexagon_module.h"
+#include "../hexagon_device.h"
 #include "HexagonWrapper.h"
 #include "hexagon_sim_proto.h"
 
