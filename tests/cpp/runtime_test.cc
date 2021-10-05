@@ -86,14 +86,20 @@ TEST(Runtime, ZeroCopy) {
   if (!reg) {
     LOG(FATAL) << "no _Register";
   }
+  auto reset = tvm::runtime::Registry::Get("ir.OpResetAttr");
+  if (!reset) {
+    LOG(FATAL) << "Reset is not defined.";
+  }
   auto fs = tvm::runtime::Registry::Get("runtime_test.strategy");
   if (!fs) {
     LOG(FATAL) << "No test_strategy registered.";
   }
-  auto fgeneric = GenericFunc::Get("runtime_test.strategy_generic").set_default(*fs);
+  auto fgeneric = GenericFunc::Get("runtime_test.strategy_generic").set_default(*fs, true);
+  (*reset)(add_op, "FTVMStrategy");
   (*reg)("add", "FTVMStrategy", fgeneric, 10);
   Array<Integer> dep;
   dep.push_back(0);
+  (*reset)(add_op, "TShapeDataDependent");
   (*reg)("add", "TShapeDataDependent", dep, 10);
   // build
   auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
