@@ -94,13 +94,13 @@ class PipelineModule(object):
         self.load_functions()
 
     def load_library(self, config_file_name):
-        """Import files to create pipeline executor.
+        """Import files to create a pipeline executor.
 
         Parameters
         ----------
         config_file_name : str
-            The configuration file path, the configuration file contains the
-            disk path of the parameter file, library file and JSON file。
+            Path and name of the configuration file, the configuration file contains the
+            disk path of the parameter file, library file, and JSON file.
         """
         # Create an empty PipelineExecutorFactoryModule.
         pipeline_factory = PipelineExecutorFactoryModule()
@@ -123,7 +123,7 @@ class PipelineModule(object):
             The number of outputs.
         """
         if not self._get_num_outputs:
-            raise RuntimeError(f"The pipeline executor has not been initialized.")
+            raise RuntimeError(f"The pipeline executor might not have been initialized.")
         return self._get_num_outputs()
 
 
@@ -179,7 +179,7 @@ class PipelineConfig(object):
             return -1
 
         def is_pipeline_executor_interface(self):
-            """The pipeline interface is the interface visible to the caller which use a pipeline
+            """The pipeline interface is the interface visible to the caller uses a pipeline
             executor, the pipeline input interface is responsible for passing parameters to the
             internal module interface, and the pipeline output interface is responsible for
             outputting the results computed by the pipeline executor to a caller.
@@ -219,9 +219,9 @@ class PipelineConfig(object):
 
         def connect(self, binding):
             """Connect the current interface to the destination interface.
-            Correct connections are as follows: 1. pipeline input connected to module input,
-            2. module output connected to pipline output, 3. module output connected to
-            module input.
+            Correct connections are as follows: 1. the pipeline input connected to a module input,
+            2. the module output connected to a pipeline output, 3. the module output connected to
+            a module input.
 
             Parameters
             ----------
@@ -545,8 +545,8 @@ class PipelineExecutorFactoryModule(object):
             "tvm.pipeline_executor.create", allow_missing=True
         )
         self.module = None
-        # Only create pipeline executor when pipeline_libs, mods_config and
-        # self.pipeline_create are not None.
+        # Only create the pipeline executor when the value of pipeline_libs, mods_config, and
+        # self.pipeline_create is valid.
         if pipeline_libs and mods_config and self.pipeline_create:
             graph_executors, config = self.graph_executor_create(pipeline_libs, mods_config)
             self.module = self.pipeline_create(graph_executors, config)
@@ -571,15 +571,14 @@ class PipelineExecutorFactoryModule(object):
             The Modudle configuration.
         """
 
-        # Modules need to be stored in the list named 'mods' in index order.
+        # Should store modules in the list named 'mods' in index order.
         mods = [None for _ in range(len(pipeline_mods))]
         for lib_index in pipeline_mods:
             pipeline_lib = pipeline_mods[lib_index]["lib"]
             dev = pipeline_mods[lib_index]["dev"]
             lib = graph_executor.GraphModule(pipeline_lib["default"](dev))
-            # Return a module list sorted by lib_index, because lib_index start from 1, use
-            # 'lib_index - 1' here to get the correct index value of module in list.
-            mods[lib_index - 1] = lib.module
+            # Return a module list sorted by lib_index.
+            mods[lib_index] = lib.module
 
         return mods, json.dumps(mod_config)
 
@@ -589,7 +588,7 @@ class PipelineExecutorFactoryModule(object):
         Parameters
         ----------
         directory_path : str
-            The directory to which these files are exported.
+            Export the files to this directory.
         """
         if not self.pipeline_libs:
             raise RuntimeError(f"The pipeline executor has not been initialized.")
@@ -599,10 +598,10 @@ class PipelineExecutorFactoryModule(object):
             raise RuntimeError(f"The directory {directory_path} does not exist.")
         # Create a configuration copy for export.
         export_conf = self.mods_config.copy()
-        # Export the library, JSON and parameter into files, then export these files path
-        # into a configuraton file.
+        # Export the library, JSON, and parameter into files, then export these files path
+        # into a configuration file.
         for lib_index in self.pipeline_libs:
-            mconf = export_conf[lib_index - 1]
+            mconf = export_conf[lib_index]
             mconf["lib_name"] = "{}/lib{}.so".format(directory_path, lib_index)
             mconf["json_name"] = "{}/json{}".format(directory_path, lib_index)
             mconf["params_name"] = "{}/params{}".format(directory_path, lib_index)
@@ -611,9 +610,9 @@ class PipelineExecutorFactoryModule(object):
                 self.pipeline_libs[lib_index]["dev"].device_id,
             )
 
-            # Get the graph, lib and parameters from GraphExecutorFactoryModule.
+            # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
             graph, lib, params = self.pipeline_libs[lib_index]["lib"]
-            # Export the lib, graph and parameters to disk.
+            # Export the lib, graph, and parameters to disk.
             lib.export_library(mconf["lib_name"])
             with open(mconf["json_name"], "w") as file_handle:
                 file_handle.write(graph)
@@ -634,7 +633,7 @@ class PipelineExecutorFactoryModule(object):
         ----------
         config_file_name : str
             The configuration file path, the configuration file contains the
-            disk path of the parameter file, library file and JSON file。
+            disk path of the parameter file, library file, and JSON file.
         """
         if self.module:
             raise RuntimeError(f"The pipeline executor has already been initialized.")

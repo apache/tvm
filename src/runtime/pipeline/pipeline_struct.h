@@ -32,19 +32,20 @@
  */
 struct OutputBindings {
   /*!\brief Output interface binding information, 'int' is the index of the module that
-   *  use this output data as the input interface data, 'string' is the input interface name
+   *  uses this output data as the input interface data, 'string' is the input interface name
    *  of the module.
    */
   std::unordered_map<int, std::string> bindings;
   /*!
-   * \brief If there is one PipelineExecutor binding in bindings, then current output is
+   * \brief If there is one PipelineExecutor binding in bindings, then the current output is
    *  PipelineExecutor interface.
    * \return Whether this output interface is PipelineExecutor output interface.
    */
   bool IsGlobalOutput() const {
     int num_output = 0;
     for (auto binding : bindings) {
-      /* output is PipelineExecutor output when value is PIPELINE_EXECUTOR_INDEX.
+      /* The output is a PipelineExecutor output when the index value
+       * equal PIPELINE_EXECUTOR_INDEX.
        */
       num_output += (binding.first == PIPELINE_EXECUTOR_INDEX);
     }
@@ -53,8 +54,8 @@ struct OutputBindings {
     return num_output == 1;
   }
   /*!
-   * \brief Create module interface map from JSONReader.
-   * \param reader Json reader.
+   * \brief Create a module interface map from JSONReader.
+   * \param reader JSON reader.
    */
   void Load(dmlc::JSONReader* reader) {
     reader->BeginArray();
@@ -71,9 +72,8 @@ struct OutputBindings {
           reader->Read(&input_name);
         }
       }
-      // mod_idx == -1 means this module is global module, then the input or output
-      // is the whole pipeline input or output.
-      ICHECK(mod_idx >= -1);
+      // The value of 'mod_idx' should larger than PIPELINE_EXECUTOR_INDEX.
+      ICHECK(mod_idx >= PIPELINE_EXECUTOR_INDEX);
       bindings[mod_idx] = input_name;
     }
   }
@@ -93,9 +93,9 @@ struct OutputMap {
    * \return Return true to indicate that this class has not been successfully loaded.
    */
   bool Empty() { return output_binding_map.empty(); }
-  /*! \brief Global output is the final outputs of pipeline, this function is used to
-   *   get how many global outputs are in this Outputmap
-   *  \return Number of global outputs.
+  /*! \brief The pipeline outputs is the final outputs of pipeline, this function is used to
+   *   get how many pipeline outputs are in this Outputmap
+   *  \return Number of pipeline outputs.
    */
   size_t GetGlobalOutputNum(void) const {
     size_t num_output = 0;
@@ -106,7 +106,7 @@ struct OutputMap {
   }
 
   /*!
-   * \brief Create output binding map from JSONReader.
+   * \brief Create a output binding map from JSONReader.
    * \param reader Json reader.
    */
   void Load(dmlc::JSONReader* reader) {
@@ -130,7 +130,7 @@ struct OutputMap {
   }
 };
 /*!
- * \brief Binding or dependency information of each module output interface.
+ * \brief The binding or dependency information of each module output interface.
  */
 struct PipelineConfig {
   /*!\brief The module index is the key, this variable records all module pipeline configuration

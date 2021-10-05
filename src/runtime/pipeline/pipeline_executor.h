@@ -50,7 +50,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    */
   const char* type_key() const final { return "PipelineExecutor"; }
   /*!
-   * \brief Initialize the pipeline executor with module array and json text.
+   * \brief Initialize the pipeline executor with module array and JSON text.
    * \param modules The module list used for building pipeline.
    * \param pipeline_json The configuration of modules dependencies.
    */
@@ -73,7 +73,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
  private:
   /*!\brief The class used to execute pipeline logic.*/
   PipelineScheduler pipeline_function_;
-  /*!\brief The Dependency information of each graph runtime module of pipeline.*/
+  /*!\brief The Dependency information of each graph runtime module of the pipeline.*/
   PipelineConfig pipeline_config_;
   /*!\brief The Module information used to create graph runtime.*/
   ModuleConfig mod_config_;

@@ -43,11 +43,11 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
 /*!
  * \brief Initialize the pipeline executor with a list of modules to be pipelined
  *  and config in JSON format.
- * \param modules The module list used for building pipeline.
+ * \param modules The module list used for building the pipeline.
  * \param pipeline_json The configuration of modules dependencies.
  */
 void PipelineExecutor::Init(const Array<Module>& modules, const std::string& pipeline_json) {
-  // Use JSONReader to load pipeline configuration from file.
+  // Use JSONReader to load pipeline configuration.
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
