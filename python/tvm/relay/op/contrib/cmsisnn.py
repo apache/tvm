@@ -24,6 +24,10 @@ from ...dataflow_pattern import is_constant, is_op, wildcard
 from .register import register_pattern_table
 
 
+def enabled():
+    return bool(tvm.get_global_func("relay.ext.cmsisnn", True))
+
+
 def partition_for_cmsisnn(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators on Cortex-M using CMSIS-NN
