@@ -279,6 +279,9 @@ set(USE_FALLBACK_STL_MAP OFF)
 set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
 
+# Whether to build the hexagon launcher
+set(USE_HEXAGON_LAUNCHER OFF)
+
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
