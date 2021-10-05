@@ -213,6 +213,7 @@ def get_scalar(x, params, dtype="float32"):
 
 
 def flatten_to_nd(x, x_shape, nd=3):
+    """Helper to flatten multi dimensional arrays to specific dimension"""
     ndims = infer_shape(x_shape)[0]
     if ndims == nd:
         return x

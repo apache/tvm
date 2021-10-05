@@ -1311,13 +1311,15 @@ def test_matmulinteger16(target, dev):
         model = helper.make_model(graph, producer_name="matmuli16_test")
         verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
 
-    # Working tests
-    verify_matmulinteger16((2, 4, 3), (1, 3, 4), (2, 4, 4))
-    verify_matmulinteger16((1, 4, 3), (2, 3, 4), (2, 4, 4))
+    # 2D computation to verify matmul op
     verify_matmulinteger16((4, 3), (3, 4), (4, 4))
     verify_matmulinteger16((5, 7), (7, 8), (5, 8))
-    verify_matmulinteger16((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4))
-    verify_matmulinteger16((2, 4, 3), (3, 4), (2, 4, 4))
+    # Verify 3D matmul using batch_matmul op
+    verify_matmulinteger16((2, 4, 3), (1, 3, 4), (2, 4, 4))
+    verify_matmulinteger16((1, 4, 3), (2, 3, 4), (2, 4, 4))
+    # Test implicit broadcasting
+    verify_matmulinteger16((2, 3, 5, 3), (2, 3, 3, 5), (2, 3, 5, 5))
+    verify_matmulinteger16((2, 7, 3), (3, 7), (2, 7, 7))
     verify_matmulinteger16((2, 3, 4, 3), (3, 4), (2, 3, 4, 4))
 
 
