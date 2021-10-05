@@ -210,6 +210,43 @@ def flattened_multi_alloc_func(a: T.handle, d: T.handle) -> None:
         D.data[i] = T.load("float32", C, i) * 2.0
 
 
+@T.prim_func
+def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
+    for i0 in range(0, 4):
+        with T.block([]):
+            T.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
+            T.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
+            B = T.alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
+            for i1 in range(0, 4):
+                for j in range(0, 16):
+                    with T.block() as []:
+                        T.reads(A[i0 * 4 + i1, j])
+                        T.writes(B[i1, j])
+                        B[i1, j] = A[i0 * 4 + i1, j] + 1.0
+            for i1 in range(0, 4):
+                for j in range(0, 16):
+                    with T.block() as []:
+                        T.reads(B[i1, j])
+                        T.writes(C[i0 * 4 + i1, j])
+                        C[i0 * 4 + i1, j] = B[i1, j] * 2.0
+
+
+@T.prim_func
+def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
+    for i0 in T.serial(0, 4):
+        B_new = T.allocate([68], "float32", "global")
+        for i1 in T.serial(0, 4):
+            for j in T.serial(0, 16):
+                B_new[i1 * 17 + j] = T.load("float32", A.data, i0 * 64 + i1 * 16 + j) + 1.0
+        for i1 in T.serial(0, 4):
+            for j in T.serial(0, 16):
+                C.data[i0 * 64 + i1 * 16 + j] = T.load("float32", B_new, i1 * 17 + j) * 2.0
+
+
 def test_elementwise():
     _check(compacted_elementwise_func, flattened_elementwise_func)
 
@@ -234,6 +271,10 @@ def test_multi_alloc():
     _check(compacted_multi_alloc_func, flattened_multi_alloc_func)
 
 
+def test_strided_buffer():
+    _check(compacted_strided_buffer_func, flattened_strided_buffer_func)
+
+
 def test_lower_te():
     x = te.placeholder((1,))
     y = te.compute((1,), lambda i: x[i] + 2)
@@ -250,4 +291,5 @@ if __name__ == "__main__":
     test_predicate()
     test_unit_loops()
     test_multi_alloc()
+    test_strided_buffer()
     test_lower_te()
