@@ -598,7 +598,7 @@ class VirtualMachine(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
-            )(func_name, device.device_type, device.device_id, *packed_args)
+            )(func_name, device.device_type % RPC_SESS_MASK, device.device_id, *packed_args)
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         return self.module.time_evaluator(
