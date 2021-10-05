@@ -16,170 +16,96 @@
     under the License.
 
 
-Vitis-AI Integration
+Vitis AI Integration
 ====================
 
-`Vitis-AI <https://github.com/Xilinx/Vitis-AI>`__ is Xilinx's
+`Vitis AI <https://github.com/Xilinx/Vitis-AI>`__ is Xilinx's
 development stack for hardware-accelerated AI inference on Xilinx
 platforms, including both edge devices and Alveo cards. It consists of
 optimized IP, tools, libraries, models, and example designs. It is
 designed with high efficiency and ease of use in mind, unleashing the
 full potential of AI acceleration on Xilinx FPGA and ACAP.
 
-The current Vitis-AI Byoc flow inside TVM enables acceleration of Neural
-Network model inference on edge and cloud. The identifiers for the
-supported edge and cloud Deep Learning Processor Units (DPU's) are
-DPUCZDX8G respectively DPUCADX8G. DPUCZDX8G and DPUCADX8G are hardware
-accelerators for convolutional neural networks (CNN's) on top of the
-Xilinx `Zynq Ultrascale+
-MPSoc <https://www.xilinx.com/products/silicon-devices/soc/zynq-ultrascale-mpsoc.html>`__
-respectively
-`Alveo <https://www.xilinx.com/products/boards-and-kits/alveo.html>`__
-(U200/U250) platforms. For more information about the DPU identifiers
-see the section on `DPU naming information <#dpu-naming-information>`__.
+The current Vitis AI flow inside TVM enables acceleration of Neural
+Network model inference on edge and cloud with the `Zynq Ultrascale+
+MPSoc <https://www.xilinx.com/products/silicon-devices/soc/zynq-ultrascale-mpsoc.html>`__, 
+`Alveo <https://www.xilinx.com/products/boards-and-kits/alveo.html>`__ 
+and `Versal <https://www.xilinx.com/products/silicon-devices/acap/versal.html>`__ platforms. 
+The identifiers for the supported edge and cloud Deep Learning Processor Units (DPU's) are:
 
-On this page you will find information on how to
-`build <#build-instructions>`__ TVM with Vitis-AI and on how to `get
-started <#getting-started>`__ with an example.
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
+| **Target Board**                                                                        | **DPU ID**            | **TVM Target ID**          |
++=========================================================================================+=======================+============================+
+| `ZCU104 <https://www.xilinx.com/products/boards-and-kits/zcu104.html>`__                | DPUCZDX8G             | DPUCZDX8G-zcu104           |
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
+| `ZCU102 <https://www.xilinx.com/products/boards-and-kits/ek-u1-zcu102-g.html>`__        | DPUCZDX8G             | DPUCZDX8G-zcu102           |
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
+| `Kria KV260 <https://www.xilinx.com/products/som/kria/kv260-vision-starter-kit.html>`__ | DPUCZDX8G             | DPUCZDX8G-kv260            |
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
+| `VCK190 <https://www.xilinx.com/products/boards-and-kits/vck190.html>`__                | DPUCVDX8G             | DPUCVDX8G                  |
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+ 
+| `VCK5000 <https://www.xilinx.com/products/boards-and-kits/vck5000.html>`__              | DPUCVDX8H             | DPUCVDX8H                  |
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
+| `U200 <https://www.xilinx.com/products/boards-and-kits/alveo/u200.html>`__              | DPUCADF8H             | DPUCADF8H                  |
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
+| `U250 <https://www.xilinx.com/products/boards-and-kits/alveo/u250.html>`__              | DPUCADF8H             | DPUCADF8H                  |
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
+| `U50 <https://www.xilinx.com/products/boards-and-kits/alveo/u50.html>`__                | DPUCAHX8H / DPUCAHX8L | DPUCAHX8H-u50 / DPUCAHX8L  |
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
+| `U280 <https://www.xilinx.com/products/boards-and-kits/alveo/u280.html>`__              | DPUCAHX8H / DPUCAHX8L | DPUCAHX8H-u280 / DPUCAHX8L | 
++-----------------------------------------------------------------------------------------+-----------------------+----------------------------+
 
-DPU naming information
-----------------------
+For more information about the DPU identifiers see following table:
 
-+---------------------------------+-----------------+-------------------------------------------------------------------------+------------------------------------------------------------+---------------------------------------------------+--------------------------------------------------------------------------+
-| DPU                             | Application     | HW Platform                                                             | Quantization Method                                        | Quantization Bitwidth                             | Design Target                                                            |
-+=================================+=================+=========================================================================+============================================================+===================================================+==========================================================================+
-| Deep Learning Processing Unit   | C: CNN R: RNN   | AD: Alveo DDR AH: Alveo HBM VD: Versal DDR with AIE & PL ZD: Zynq DDR   | X: DECENT I: Integer threshold F: Float threshold R: RNN   | 4: 4-bit 8: 8-bit 16: 16-bit M: Mixed Precision   | G: General purpose H: High throughput L: Low latency C: Cost optimized   |
-+---------------------------------+-----------------+-------------------------------------------------------------------------+------------------------------------------------------------+---------------------------------------------------+--------------------------------------------------------------------------+
++-------------------+-------------+--------------------------------+------------------------+------------------------+------------------------+
+| DPU               | Application | HW Platform                    | Quantization Method    | Quantization Bitwidth  | Design Target          |
++===================+=============+================================+========================+========================+========================+
+| | Deep Learning   | | C: CNN    | | AD: Alveo DDR                | | X: DECENT            | | 4: 4-bit             | | G: General purpose   |
+| | Processing Unit | | R: RNN    | | AH: Alveo HBM                | | I: Integer threshold | | 8: 8-bit             | | H: High throughput   |
+|                   |             | | VD: Versal DDR with AIE & PL | | F: Float threshold   | | 16: 16-bit           | | L: Low latency       |
+|                   |             | | ZD: Zynq DDR                 | | R: RNN               | | M: Mixed Precision   | | C: Cost optimized    |
++-------------------+-------------+--------------------------------+------------------------+------------------------+------------------------+
 
-Build instructions
+On this page you will find information on how to `setup <#setup-instructions>`__ TVM with Vitis AI 
+on different platforms (Zynq, Alveo, Versal) and on how to get started with `Compiling a Model <#compiling-a-model>`__ 
+and executing on different platforms: `Inference <#inference>`__.
+
+System Requirements
+-------------------
+
+The `Vitis AI System Requirements page <https://github.com/Xilinx/Vitis-AI/blob/master/docs/learn/system_requirements.md>`__ 
+lists the system requirements for running docker containers as well as doing executing on Alveo cards. 
+For edge devices (e.g. Zynq), deploying models requires a host machine for compiling models using the TVM with Vitis AI flow, 
+and an edge device for running the compiled models. The host system requirements are the same as specified in the link above.
+
+Setup instructions
 ------------------
 
-This section lists the instructions for building TVM with Vitis-AI for
-both `cloud <#cloud-dpucadx8g>`__ and `edge <#edge-dpuczdx8g>`__.
+This section provide the instructions for setting up the TVM with Vitis AI flow for both cloud and edge. 
+TVM with Vitis AI support is provided through a docker container. The provided scripts and Dockerfile 
+compiles TVM and Vitis AI into a single image.
 
-Cloud (DPUCADX8G)
-~~~~~~~~~~~~~~~~~
-
-For Vitis-AI acceleration in the cloud TVM has to be built on top of the
-Xilinx Alveo platform.
-
-System requirements
-^^^^^^^^^^^^^^^^^^^
-
-The following table lists system requirements for running docker
-containers as well as Alveo cards.
-
-+-----------------------------------------------------+----------------------------------------------------------+
-| **Component**                                       | **Requirement**                                          |
-+=====================================================+==========================================================+
-| Motherboard                                         | PCI Express 3.0-compliant with one dual-width x16 slot   |
-+-----------------------------------------------------+----------------------------------------------------------+
-| System Power Supply                                 | 225W                                                     |
-+-----------------------------------------------------+----------------------------------------------------------+
-| Operating System                                    | Ubuntu 16.04, 18.04                                      |
-+-----------------------------------------------------+----------------------------------------------------------+
-|                                                     | CentOS 7.4, 7.5                                          |
-+-----------------------------------------------------+----------------------------------------------------------+
-|                                                     | RHEL 7.4, 7.5                                            |
-+-----------------------------------------------------+----------------------------------------------------------+
-| CPU                                                 | Intel i3/i5/i7/i9/Xeon 64-bit CPU                        |
-+-----------------------------------------------------+----------------------------------------------------------+
-| GPU (Optional to accelerate quantization)           | NVIDIA GPU with a compute capability > 3.0               |
-+-----------------------------------------------------+----------------------------------------------------------+
-| CUDA Driver (Optional to accelerate quantization)   | nvidia-410                                               |
-+-----------------------------------------------------+----------------------------------------------------------+
-| FPGA                                                | Xilinx Alveo U200 or U250                                |
-+-----------------------------------------------------+----------------------------------------------------------+
-| Docker Version                                      | 19.03.1                                                  |
-+-----------------------------------------------------+----------------------------------------------------------+
-
-Hardware setup and docker build
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-1. Clone the Vitis AI repository:
-
-   .. code:: bash
-
-      git clone --recurse-submodules https://github.com/Xilinx/Vitis-AI
-
-2. Install Docker, and add the user to the docker group. Link the user
-   to docker installation instructions from the following docker's
-   website:
-
-
-   -  https://docs.docker.com/install/linux/docker-ce/ubuntu/
-   -  https://docs.docker.com/install/linux/docker-ce/centos/
-   -  https://docs.docker.com/install/linux/linux-postinstall/
-
-3. Download the latest Vitis AI Docker with the following command. This container runs on CPU.
-
-   .. code:: bash
-
-      docker pull xilinx/vitis-ai:latest
-
-   To accelerate the quantization, you can optionally use the Vitis-AI GPU docker image. Use the below commands to build the Vitis-AI GPU docker container:
-
-   .. code:: bash
-
-      cd Vitis-AI/docker
-      ./docker_build_gpu.sh
-
-4. Set up Vitis AI to target Alveo cards. To target Alveo cards with
-   Vitis AI for machine learning workloads, you must install the
-   following software components:
-
-   -  Xilinx Runtime (XRT)
-   -  Alveo Deployment Shells (DSAs)
-   -  Xilinx Resource Manager (XRM) (xbutler)
-   -  Xilinx Overlaybins (Accelerators to Dynamically Load - binary
-      programming files)
-
-   While it is possible to install all of these software components
-   individually, a script has been provided to automatically install
-   them at once. To do so:
-
-   -  Run the following commands:
-
-      .. code:: bash
-
-         cd Vitis-AI/alveo/packages
-         sudo su
-         ./install.sh
-
-   -  Power cycle the system.
-
-5. Clone tvm repo and pyxir repo
+1. Clone TVM repo
 
    .. code:: bash
 
       git clone --recursive https://github.com/apache/tvm.git
-      git clone --recursive https://github.com/Xilinx/pyxir.git
-
-6. Build and start the tvm runtime Vitis-AI Docker Container.
+      cd tvm
+      
+2. Build and start the TVM - Vitis AI docker container.
 
    .. code:: bash
 
-      ./tvm/docker/build.sh demo_vitis_ai bash
-      ./tvm/docker/bash.sh tvm.demo_vitis_ai
+      ./docker/build.sh demo_vitis_ai bash
+      ./docker/bash.sh tvm.demo_vitis_ai
 
-      #Setup inside container
-      source /opt/xilinx/xrt/setup.sh
-      . $VAI_ROOT/conda/etc/profile.d/conda.sh
+      # Setup inside container
       conda activate vitis-ai-tensorflow
 
-7. Install PyXIR
+3. Build TVM inside the container with Vitis AI (inside tvm directory)
 
    .. code:: bash
 
-     cd pyxir
-     python3 setup.py install --use_vai_rt_dpucadx8g --user
-
-
-8. Build TVM inside the container with Vitis-AI
-
-   .. code:: bash
-
-      cd tvm
       mkdir build
       cp cmake/config.cmake build
       cd build
@@ -188,182 +114,105 @@ Hardware setup and docker build
       cmake ..
       make -j$(nproc)
 
-9.  Install TVM
+4.  Install TVM
 
     .. code:: bash
 
-      cd tvm/python
+      cd ../python
       pip3 install -e . --user
 
-Edge (DPUCZDX8G)
-~~~~~~~~~~~~~~~~
+Inside this docker container you can now compile models for both cloud and edge targets.
+To run on cloud Alveo or Versal VCK5000 cards inside the docker container, please follow the  
+`Alveo <#alveo-setup>`__ respectively  `Versal VCK5000 <#versal-vck5000-setup>`__ setup instructions.
+To setup your Zynq or Versal VCK190 evaluation board for inference, please follow
+the `Zynq <#zynq-setup>`__ respectively `Versal VCK190 <#versal-vck190-setup>`__ instructions.
 
+Alveo Setup
+~~~~~~~~~~~
 
-For edge deployment we make use of two systems referred to as host and
-edge. The `host <#host-requirements>`__ system is responsible for
-quantization and compilation of the neural network model in a first
-offline step. Afterwards, the model will de deployed on the
-`edge <#edge-requirements>`__ system.
+Check out following page for setup information: `Alveo Setup <https://github.com/Xilinx/Vitis-AI/blob/v1.4/setup/alveo/README.md>`__.
 
-Host requirements
-^^^^^^^^^^^^^^^^^
+After setup, you can select the right DPU inside the docker container in the following way:
 
-The following table lists system requirements for running the TVM -
-Vitis-AI docker container.
+.. code:: bash
+      
+      cd /workspace
+      git clone --branch v1.4 --single-branch --recursive https://github.com/Xilinx/Vitis-AI.git
+      cd Vitis-AI/setup/alveo
+      source setup.sh [DPU-IDENTIFIER]
+      
+The DPU identifier for this can be found in the second column of the DPU Targets table at the top of this page.
 
-+-----------------------------------------------------+----------------------------------------------+
-| **Component**                                       | **Requirement**                              |
-+=====================================================+==============================================+
-| Operating System                                    | Ubuntu 16.04, 18.04                          |
-+-----------------------------------------------------+----------------------------------------------+
-|                                                     | CentOS 7.4, 7.5                              |
-+-----------------------------------------------------+----------------------------------------------+
-|                                                     | RHEL 7.4, 7.5                                |
-+-----------------------------------------------------+----------------------------------------------+
-| CPU                                                 | Intel i3/i5/i7/i9/Xeon 64-bit CPU            |
-+-----------------------------------------------------+----------------------------------------------+
-| GPU (Optional to accelerate quantization)           | NVIDIA GPU with a compute capability > 3.0   |
-+-----------------------------------------------------+----------------------------------------------+
-| CUDA Driver (Optional to accelerate quantization)   | nvidia-410                                   |
-+-----------------------------------------------------+----------------------------------------------+
-| FPGA                                                | Not necessary on host                        |
-+-----------------------------------------------------+----------------------------------------------+
-| Docker Version                                      | 19.03.1                                      |
-+-----------------------------------------------------+----------------------------------------------+
+Versal VCK5000 Setup
+~~~~~~~~~~~~~~~~~~~~
 
-Host setup and docker build
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Check out following page for setup information: `VCK5000 Setup <https://github.com/Xilinx/Vitis-AI/blob/v1.4/setup/vck5000/README.md>`__.
 
-1. Clone tvm repo
+After setup, you can select the right DPU inside the docker container in the following way:
 
-   .. code:: bash
+.. code:: bash
+      
+      cd /workspace
+      git clone --branch v1.4 --single-branch --recursive https://github.com/Xilinx/Vitis-AI.git
+      cd Vitis-AI/setup/vck5000
+      source setup.sh
 
-      git clone --recursive https://github.com/apache/tvm.git
-2. Build and start the tvm runtime Vitis-AI Docker Container.
+Zynq Setup
+~~~~~~~~~~
 
-   .. code:: bash
+For the Zynq target (DPUCZDX8G) the compilation stage will run inside the docker on a host machine. 
+This doesn't require any specific setup except for building the TVM - Vitis AI docker. For executing the model, 
+the Zynq board will first have to be set up and more information on that can be found here.
 
-      cd tvm
-      ./tvm/docker/build.sh demo_vitis_ai bash
-      ./tvm/docker/bash.sh tvm.demo_vitis_ai
+1. Download the Petalinux image for your target:
+    - `ZCU104 <https://www.xilinx.com/member/forms/download/design-license-xef.html?filename=xilinx-zcu104-dpu-v2021.1-v1.4.0.img.gz>`__
+    - `ZCU102 <https://www.xilinx.com/member/forms/download/design-license-xef.html?filename=xilinx-zcu102-dpu-v2021.1-v1.4.0.img.gz>`__
+    - `Kria KV260 <https://www.xilinx.com/member/forms/download/design-license-xef.html?filename=xilinx-kv260-dpu-v2020.2-v1.4.0.img.gz>`__
+2. Use Etcher software to burn the image file onto the SD card.
+3. Insert the SD card with the image into the destination board.
+4. Plug in the power and boot the board using the serial port to operate on the system.
+5. Set up the IP information of the board using the serial port. For more details on step 1 to 5, please refer to `Setting Up The Evaluation Board <https://www.xilinx.com/html_docs/vitis_ai/1_4/installation.html#ariaid-title8>`__.
+6. Create 4GB of swap space on the board
 
-      #Setup inside container
-      . $VAI_ROOT/conda/etc/profile.d/conda.sh
-      conda activate vitis-ai-tensorflow
+.. code:: bash
+    
+      fallocate -l 4G /swapfile
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      echo "/swapfile swap swap defaults 0 0" > /etc/fstab
+      
+7. Install hdf5 dependency (will take between 30 min and 1 hour to finish)
+      
+.. code:: bash
+    
+      cd /tmp && \
+        wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.7/src/hdf5-1.10.7.tar.gz && \
+        tar -zxvf hdf5-1.10.7.tar.gz && \
+        cd hdf5-1.10.7 && \
+        ./configure --prefix=/usr && \
+        make -j$(nproc) && \
+        make install && \
+        cd /tmp && rm -rf hdf5-1.10.7*
+        
+8. Install Python dependencies
 
-3. Install PyXIR
+.. code:: bash
+    
+      pip3 install Cython==0.29.23 h5py==2.10.0 pillow
 
-   .. code:: bash
+9. Install PyXIR 
 
-      git clone --recursive https://github.com/Xilinx/pyxir.git
+.. code:: bash
+    
+      git clone --recursive --branch rel-v0.3.1 --single-branch https://github.com/Xilinx/pyxir.git
       cd pyxir
-      python3 setup.py install --user
+      sudo python3 setup.py install --use_vart_edge_dpu
+      
+10. Build and install TVM with Vitis AI
 
-
-4. Build TVM inside the container with Vitis-AI.
-
-   .. code:: bash
-
-      cd tvm
-      mkdir build
-      cp cmake/config.cmake build
-      cd build
-      echo set\(USE_LLVM ON\) >> config.cmake
-      echo set\(USE_VITIS_AI ON\) >> config.cmake
-      cmake ..
-      make -j$(nproc)
-
-5. Install TVM
-
-   .. code:: bash
-
-      cd tvm/python
-      pip3 install -e . --user
-
-Edge requirements
-^^^^^^^^^^^^^^^^^
-
-The DPUCZDX8G can be deployed on the `Zynq Ultrascale+
-MPSoc <https://www.xilinx.com/products/silicon-devices/soc/zynq-ultrascale-mpsoc.html>`__
-platform. The following development boards can be used out-of-the-box:
-
-+--------------------+----------------------+-----------------------------------------------------------------------+
-| **Target board**   | **TVM identifier**   | **Info**                                                              |
-+====================+======================+=======================================================================+
-| Ultra96            | DPUCZDX8G-ultra96    | https://www.xilinx.com/products/boards-and-kits/1-vad4rl.html         |
-+--------------------+----------------------+-----------------------------------------------------------------------+
-| ZCU104             | DPUCZDX8G-zcu104     | https://www.xilinx.com/products/boards-and-kits/zcu104.html           |
-+--------------------+----------------------+-----------------------------------------------------------------------+
-| ZCU102             | DPUCZDX8G-zcu102     | https://www.xilinx.com/products/boards-and-kits/ek-u1-zcu102-g.html   |
-+--------------------+----------------------+-----------------------------------------------------------------------+
-
-Edge hardware setup
-^^^^^^^^^^^^^^^^^^^
-.. note::
-
-  This section provides instructions for setting up with the `Pynq <http://www.pynq.io/>`__ platform but
-  Petalinux based flows are also supported.
-
-1. Download the Pynq v2.6 image for your target (use Z1 or Z2 for
-   Ultra96 target depending on board version) Link to image:
-   https://github.com/Xilinx/PYNQ/releases/tag/v2.6.0
-2. Follow Pynq instructions for setting up the board: `pynq
-   setup <https://pynq.readthedocs.io/en/latest/getting_started.html>`__
-3. After connecting to the board, make sure to run as root. **Execute**
-   ``su``
-4. Set up DPU on Pynq:
-
-    .. code:: bash
-
-     git clone --branch v1.2.0 --recursive --shallow-submodules https://github.com/Xilinx/DPU-PYNQ.git
-     cd DPU-PYNQ/upgrade
-     make
-     pip3 install pynq-dpu==1.2.0
-
-5. Run the following command to download the DPU bitstream:
-
-   .. code:: bash
-
-     python3 -c 'from pynq_dpu import DpuOverlay ; overlay = DpuOverlay("dpu.bit")'
-
-6. Check whether the DPU kernel is alive:
-
-   .. code:: bash
-
-     dexplorer -w
-
-Edge TVM setup
-^^^^^^^^^^^^^^
-
-.. note::
-
-  When working on Petalinux instead of Pynq, the following steps might take more manual work (e.g building
-  hdf5 from source). Also, TVM has a scipy dependency which you then might have to build from source or
-  circumvent. We don't depend on scipy in our flow.
-
-Building TVM depends on the Xilinx
-`PyXIR <https://github.com/Xilinx/pyxir>`__ package. PyXIR acts as an
-interface between TVM and Vitis-AI tools.
-
-1. First install the PyXIR h5py and pydot dependencies:
-
-   .. code:: bash
-
-      apt-get install libhdf5-dev
-      pip3 install pydot==1.4.1 h5py==2.8.0
-
-2. Install PyXIR
-
-   .. code:: bash
-
-      git clone --recursive https://github.com/Xilinx/pyxir.git
-      cd pyxir
-      sudo python3 setup.py install --use_vai_rt_dpuczdx8g
-
-3. Build TVM with Vitis-AI
-
-   .. code:: bash
-
+.. code:: bash
+    
       git clone --recursive https://github.com/apache/tvm
       cd tvm
       mkdir build
@@ -373,36 +222,105 @@ interface between TVM and Vitis-AI tools.
       echo set\(USE_VITIS_AI ON\) >> config.cmake
       cmake ..
       make tvm_runtime -j$(nproc)
+      cd ../python
+      pip3 install --no-deps  -e .
 
-4. Install TVM
+11. Check whether the setup was successful in the Python shell:
 
-   .. code:: bash
-
-      cd tvm/python
-      pip3 install -e .
-
-5. Check whether the setup was successful in the Python shell:
-
-   .. code:: bash
+.. code:: bash
 
       python3 -c 'import pyxir; import tvm'
+      
+.. note::
+
+    You might see a warning about the 'cpu-tf' runtime not being found. This warning is
+    expected on the board and can be ignored.
+    
+      
+Versal VCK190 Setup
+~~~~~~~~~~~~~~~~~~~
+
+For the Versal VCK190 setup, please follow the instructions for `Zynq Setup <#zynq-setup>`__,
+but now use the `VCK190 image <https://www.xilinx.com/member/forms/download/design-license-xef.html?filename=xilinx-vck190-dpu-v2020.2-v1.4.0.img.gz>`__
+in step 1. The other steps are the same.
+    
+
+Compiling a Model
+-----------------
+
+The TVM with Vitis AI flow contains two stages: Compilation and Inference. 
+During the compilation a user can choose a model to compile for the cloud or 
+edge target devices that are currently supported. Once a model is compiled, 
+the generated files can be used to run the model on a the specified target 
+device during the `Inference <#inference>`__ stage. Currently, the TVM with 
+Vitis AI flow supported a selected number of Xilinx data center and edge devices.
+
+In this section we walk through the typical flow for compiling models with Vitis AI
+inside TVM.
+
+**Imports**
+
+Make sure to import PyXIR and the DPU target (``import pyxir.contrib.target.DPUCADF8H`` for DPUCADF8H):
+
+.. code:: python
+
+   import pyxir
+   import pyxir.contrib.target.DPUCADF8H
+
+   import tvm
+   import tvm.relay as relay
+   from tvm.contrib.target import vitis_ai
+   from tvm.contrib import utils, graph_executor
+   from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
+   
+**Declare the Target**
+
+.. code:: python
+
+   tvm_target = 'llvm'
+   dpu_target = 'DPUCADF8H' # options: 'DPUCADF8H', 'DPUCAHX8H-u50', 'DPUCAHX8H-u280', 'DPUCAHX8L', 'DPUCVDX8H', 'DPUCZDX8G-zcu104', 'DPUCZDX8G-zcu102', 'DPUCZDX8G-kv260'
+   
+The TVM with Vitis AI flow currently supports the DPU targets listed in 
+the table at the top of this page. Once the appropriate targets are defined, 
+we invoke the TVM compiler to build the graph for the specified target.
+
+**Import the Model**
+
+Example code to import an MXNet model:
+
+.. code:: python
+
+   mod, params = relay.frontend.from_mxnet(block, input_shape)
+   
+
+**Partition the Model**   
+
+After importing the model, we utilize the Relay API to annotate the Relay expression for the provided DPU target and partition the graph.
+
+.. code:: python
+
+    mod = partition_for_vitis_ai(mod, params, dpu=dpu_target)
 
 
-Getting started
----------------
+**Build the Model**   
 
-This section shows how to use TVM with Vitis-AI. For this it's important
-to understand that neural network models are quantized for Vitis-AI
-execution in fixed point arithmetic. The approach we take here is to
-quantize on-the-fly using the first N inputs as explained in the next
-section.
+The partitioned model is passed to the TVM compiler to generate the runtime libraries for the TVM Runtime.
 
-On-the-fly quantization
-~~~~~~~~~~~~~~~~~~~~~~~
+.. code:: python
+
+    export_rt_mod_file = os.path.join(os.getcwd(), 'vitis_ai.rtmod')
+    build_options = {
+        'dpu': dpu_target,
+        'export_runtime_module': export_rt_mod_file
+    }
+    with tvm.transform.PassContext(opt_level=3, config={'relay.ext.vitis_ai.options': build_options}):
+        lib = relay.build(mod, tvm_target, params=params)
+
+**Quantize the Model**
 
 Usually, to be able to accelerate inference of Neural Network models
-with Vitis-AI DPU accelerators, those models need to quantized upfront.
-In TVM - Vitis-AI flow, we make use of on-the-fly quantization to remove
+with Vitis AI DPU accelerators, those models need to quantized upfront.
+In TVM - Vitis AI flow, we make use of on-the-fly quantization to remove
 this additional preprocessing step. In this flow, one doesn't need to
 quantize his/her model upfront but can make use of the typical inference
 execution calls (module.run) to quantize the model on-the-fly using the
@@ -412,78 +330,8 @@ inference will be accelerated for all next inputs. Note that the edge
 flow deviates slightly from the explained flow in that inference won't
 be accelerated after the first N inputs but the model will have been
 quantized and compiled and can be moved to the edge device for
-deployment. Please check out the `edge <#Edge%20usage>`__ usage
-instructions below for more information.
-
-Config/Settings
-~~~~~~~~~~~~~~~
-
-A couple of environment variables can be used to customize the Vitis-AI
-Byoc flow.
-
-+----------------------------+----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| **Environment Variable**   | **Default if unset**                   | **Explanation**                                                                                                                                                                                                                                                                                                                            |
-+============================+========================================+============================================================================================================================================================================================================================================================================================================================================+
-| PX\_QUANT\_SIZE            | 128                                    | The number of inputs that will be used for quantization (necessary for Vitis-AI acceleration)                                                                                                                                                                                                                                              |
-+----------------------------+----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| PX\_BUILD\_DIR             | Use the on-the-fly quantization flow   | Loads the quantization and compilation information from the provided build directory and immediately starts Vitis-AI hardware acceleration. This configuration can be used if the model has been executed before using on-the-fly quantization during which the quantization and comilation information was cached in a build directory.   |
-+----------------------------+----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-
-Cloud usage
-~~~~~~~~~~~
-
-This section shows how to accelerate a convolutional neural network
-model in TVM with Vitis-AI on the cloud.
-
-To be able to target the Vitis-AI cloud DPUCADX8G we first have
-to import the DPU target in PyXIR. This PyXIR package is the interface being
-used by TVM to integrate with the Vitis-AI stack. Additionaly, import
-the typical TVM and Relay modules and the Vitis-AI contrib module inside
-TVM.
-
-.. code:: python
-
-   import pyxir
-   import pyxir.contrib.target.DPUCADX8G
-
-   import tvm
-   import tvm.relay as relay
-   from tvm.contrib.target import vitis_ai
-   from tvm.contrib import utils, graph_executor
-   from tvm.relay.build_module import bind_params_by_name
-   from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
-
-After importing a convolutional neural network model using the usual
-Relay API's, annotate the Relay expression for the given Vitis-AI DPU
-target and partition the graph.
-
-.. code:: python
-   
-   dpu = 'DPUCADX8G'
-   mod = partition_for_vitis_ai(mod, params, dpu)
-
-Now, we can build the TVM runtime library for executing the model. The
-TVM target is 'llvm' as the operations that can't be handled by the DPU
-are executed on the CPU. The Vitis-AI DPU is DPUCADX8G as we are
-targeting the cloud DPU and this DPU identifier is passed as a config to the TVM
-build call.
-
-.. code:: python
-
-   target = 'llvm'
-
-   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options': {'dpu': dpu}}):
-      lib = relay.build(mod, target, params=params)
-
-As one more step before we can accelerate a model with Vitis-AI in TVM
-we have to quantize and compile the model for execution on the DPU. We
-make use of on-the-fly quantization for this. Using this method one
-doesn’t need to quantize their model upfront and can make use of the
-typical inference execution calls (module.run) to calibrate the model
-on-the-fly using the first N inputs that are provided. After the first N
-iterations, computations will be accelerated on the DPU. So now we will
-feed N inputs to the TVM runtime module. Note that these first N inputs
-will take a substantial amount of time.
+deployment. Please check out the `Running on Zynq <#running-on-zynq>`__ 
+section below for more information.
 
 .. code:: python
 
@@ -496,198 +344,121 @@ will take a substantial amount of time.
       module.set_input(input_name, inputs[i])
       module.run()
 
-Afterwards, inference will be accelerated on the DPU.
+By default, the number of images used for quantization is set to 128. 
+You could change the number of images used for On-The-Fly Quantization 
+with the PX_QUANT_SIZE environment variable. For example, execute the 
+following line in the terminal before calling the compilation script 
+to reduce the quantization calibration dataset to eight images. 
+This can be used for quick testing.
 
-.. code:: python
+.. code:: bash
 
-   module.set_input(name, data)
-   module.run()
-
-To save and load the built module, one can use the typical TVM API's:
+    export PX_QUANT_SIZE=8
+    
+Lastly, we store the compiled output from the TVM compiler on disk for 
+running the model on the target device. This happens as follows for 
+cloud DPU's (Alveo, VCK5000):
 
 .. code:: python
 
    lib_path = "deploy_lib.so"
    lib.export_library(lib_path)
-
-Load the module from compiled files and run inference
+   
+   
+For edge targets (Zynq, VCK190) we have to rebuild for aarch64. To do this 
+we first have to normally export the module to also serialize the Vitis AI 
+runtime module (vitis_ai.rtmod). We will load this runtime module again 
+afterwards to rebuild and export for aarch64.
 
 .. code:: python
 
-   # load the module into memory
-   loaded_lib = tvm.runtime.load_module(lib_path)
+    temp = utils.tempdir()
+    lib.export_library(temp.relpath("tvm_lib.so"))
 
-   module = graph_executor.GraphModule(lib["default"](tvm.cpu()))
-   module.set_input(name, data)
-   module.run()
+    # Build and export lib for aarch64 target
+    tvm_target = tvm.target.arm_cpu('ultra96')
+    lib_kwargs = {
+       'fcompile': contrib.cc.create_shared,
+       'cc': "/usr/aarch64-linux-gnu/bin/ld"
+    }
 
-Edge usage
-~~~~~~~~~~
+    build_options = {
+        'load_runtime_module': export_rt_mod_file
+    }
+    with tvm.transform.PassContext(opt_level=3, config={'relay.ext.vitis_ai.options': build_options}):
+         lib_edge = relay.build(mod, tvm_target, params=params)
 
-This section shows how to accelerate a convolutional neural network
-model in TVM with Vitis-AI at the edge. The first couple of steps will
-have to be run on the host machine and take care of quantization and
-compilation for deployment at the edge.
+    lib_edge.export_library('deploy_lib_edge.so', **lib_kwargs)
 
-A complete ResNet 18 example can be found `here <https://github.com/Xilinx/pyxir/tree/master/examples/tvm>`__.
 
-Host steps
-^^^^^^^^^^
+This concludes the tutorial to compile a model using TVM with Vitis AI.
+For instructions on how to run a compiled model please refer to the next section.
 
-To be able to target the Vitis-AI cloud DPUCZDX8G we first have
-to import the DPU target in PyXIR. This PyXIR package is the interface being
-used by TVM to integrate with the Vitis-AI stack. Additionaly, import
-the typical TVM and Relay modules and the Vitis-AI contrib module inside
-TVM.
+Inference
+---------
+
+The TVM with Vitis AI flow contains two stages: Compilation and Inference. 
+During the compilation a user can choose to compile a model for any of the 
+target devices that are currently supported. Once a model is compiled, the 
+generated files can be used to run the model on a target device during the 
+Inference stage.
+
+Check out the `Running on Alveo and VCK5000 <#running-on-alveo-and-vck5000>`__
+and `Running on Zynq and VCK190 <#running-on-zynq-and-vck190>`__ sections for 
+doing inference on cloud accelerator cards respectively edge boards.
+
+Running on Alveo and VCK5000
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After having followed the steps in the `Compiling a Model <#compiling-a-model>`__ 
+section, you can continue running on new inputs inside the docker for accelerated
+inference:
+
+.. code:: python
+
+    module.set_input(input_name, inputs[i])
+    module.run()
+    
+Alternatively, you can load the exported runtime module (the deploy_lib.so 
+exported in  `Compiling a Model <#compiling-a-model>`__):
 
 .. code:: python
 
    import pyxir
-   import pyxir.contrib.target.DPUCZDX8G
-
    import tvm
-   import tvm.relay as relay
-   from tvm.contrib.target import vitis_ai
-   from tvm.contrib import utils, graph_executor
-   from tvm.relay.build_module import bind_params_by_name
-   from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
+   from tvm.contrib import graph_executor
 
-After importing a convolutional neural network model using the usual
-Relay API's, annotate the Relay expression for the given Vitis-AI DPU
-and partition the graph.
+   dev = tvm.cpu()
+   
+   # input_name = ...
+   # input_data = ...
+
+   # load the module into memory
+   lib = tvm.runtime.load_module("deploy_lib.so")
+
+   module = graph_executor.GraphModule(lib["default"](dev))
+   module.set_input(input_name, input_data)
+   module.run()
+    
+Running on Zynq and VCK190
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Before proceeding, please follow the  `Zynq <#zynq-setup>`__ or 
+`Versal VCK190 <#versal-vck190-setup>`__ setup instructions.
+
+Prior to running a model on the board, you need to compile the model for 
+your target evaluation board and transfer the compiled model on to the board. 
+Please refer to the `Compiling a Model <#compiling-a-model>`__ section for 
+information on how to compile a model.
+
+Afterwards, you will have to transfer the compiled model (deploy_lib_edge.so) 
+to the evaluation board. Then, on the board you can use the typical
+"load_module" and "module.run" APIs to execute. For this, please make sure to 
+run the script as root (execute ``su`` in terminal to log into root).
 
 .. note::
 
-    We recommend converting DPU convolutions' data layouts to NHWC and CPU convolutions'
-    data layouts to NCHW for best DPU and out of the box CPU performance. You can use the
-    ConvertLayout transformation pass two times to achieve this as demonstrated in the code
-    block underneath. You can also leave the CPU convolution layouts in NHWC and tune ARM CPU
-    performance for this data layout to avoid the layout transformation overheads introduced by
-    executing DPU convolutions in NHWC and CPU convolutions in NCHW
-    (check out the `AutoScheduling <https://tvm.apache.org/docs/tutorials/index.html#autoscheduler-template-free-auto-scheduling>`__
-    and `AutoTuning <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_arm.html>`__
-    tutorials for this).
-
-.. code:: python
-
-   mod["main"] = bind_params_by_name(mod["main"], params)
-   
-   # For edge DPU we recommend converting the convolutions' data layout
-   #    to NHWC for best performance. Therefore, we first convert the layouts
-   #    of all convolutions to NHWC before partitioning. Afterwards, we can
-   #    convert any remaining convolutions (to be executed on CPU) back to NCHW.
-   desired_layouts = {'nn.conv2d': ['NHWC', 'default']}
-   seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
-                                   relay.transform.ConvertLayout(desired_layouts),
-                                   relay.transform.FoldConstant()])
-   with tvm.transform.PassContext(opt_level=3):
-       mod = seq(mod)
-   
-   dpu = 'DPUCZDX8G-zcu104'
-   # Annotate and partition the Relay expression for the given DPU
-   mod = partition_for_vitis_ai(mod, params, dpu)
-   
-   # After partitioning we recommend transforming the remaining convolutions
-   #    (that will be executed on CPU, if any) back to NCHW data layout
-   #    for best CPU performance
-   desired_layouts = {'nn.conv2d': ['NCHW', 'default']}
-   seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
-                                   relay.transform.ConvertLayout(desired_layouts),
-                                   relay.transform.FoldConstant()])
-   with tvm.transform.PassContext(opt_level=3):
-       mod = seq(mod)
-
-Now, we can build the TVM runtime library for executing the model. The
-TVM target is 'llvm' as the operations that can't be handled by the DPU
-are executed on the CPU. At this point that means the CPU on the host machine.
-The Vitis-AI DPU identifier is DPUCZDX8G-zcu104 as we are targeting the edge DPU
-on the ZCU104 board and this identifier is passed as a config to the TVM
-build call. Note that different identifiers can be passed for different
-DPU's, see `edge DPU's info <#edge-requirements>`__. Additionally, we
-provide the 'export_runtime_module' config that points to a file to which we
-can export the Vitis-AI runtime module. We have to do this because we will
-first be compiling and quantizing the model on the host machine before building
-the model for edge deployment. As you will see later on, the exported runtime
-module will be passed to the edge build so that the Vitis-AI runtime module
-can be included.
-
-.. code:: python
-
-   target = 'llvm'
-   export_rt_mod_file = "vitis_ai.rtmod"
-   
-   build_options = {
-      'dpu': dpu,
-      'export_runtime_module': export_rt_mod_file
-   }
-   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options': build_options}):
-      lib = relay.build(mod, target, params=params)
-
-We will quantize and compile the model for execution on the DPU using on-the-fly
-quantization on the host machine. This makes use of TVM inference calls
-(module.run) to quantize the model on the host with the first N inputs.
-
-.. code:: python
-
-   module = graph_executor.GraphModule(lib["default"](tvm.cpu()))
-
-   # First N (default = 128) inputs are used for quantization calibration and will
-   # be executed on the CPU
-   # This config can be changed by setting the 'PX_QUANT_SIZE' (e.g. export PX_QUANT_SIZE=64)
-   for i in range(128):
-      module.set_input(input_name, inputs[i])
-      module.run()
-
-Save the TVM lib module so that the Vitis-AI runtime module will also be exported
-(to the 'export_runtime_module' path we previously passed as a config).
-
-.. code:: python
-
-   from tvm.contrib import utils
-
-   temp = utils.tempdir()
-   lib.export_library(temp.relpath("tvm_lib.so"))
-
-After quantizing and compiling the model for Vitis-AI acceleration using the
-first N inputs we can build the model for execution on the ARM edge device.
-Here we pass the previously exported Vitis-AI runtime module so it can be included
-in the TVM build.
-
-.. code:: python
-
-   # Export lib for aarch64 target
-   target = tvm.target.arm_cpu('ultra96')
-   lib_kwargs = {
-        'fcompile': contrib.cc.create_shared,
-        'cc': "/usr/aarch64-linux-gnu/bin/ld"
-   }
-   
-   build_options = {
-        'load_runtime_module': export_rt_mod_file
-   }
-   with tvm.transform.PassContext(opt_level=3, config={'relay.ext.vitis_ai.options': build_options}):
-        lib_arm = relay.build(mod, target, params=params)
-
-   lib_dpuv2.export_library('tvm_dpu_arm.so', **lib_kwargs)
-
-Now, move the TVM build files (tvm\_dpu\_arm.json, tvm\_dpu\_arm.so,
-tvm\_dpu\_arm.params) to the edge device. For information on setting
-up the edge device check out the `edge setup <#edge-dpuczdx8g>`__
-section.
-
-Edge steps
-^^^^^^^^^^
-
-After setting up TVM with Vitis-AI on the edge device, you can now load
-the TVM runtime module into memory and feed inputs for inference. A nearly
-complete runtiem script can be found underneath. Make sure to run the script
-as root (execute ``su`` in terminal to log into root).
-
-
-.. note::
-
-    You will see a warning about the 'cpu-tf' runtime not being found. This warning is
-    expected on the board and can be ignored. Note also that you **shouldn't** import the
+    Note also that you **shouldn't** import the
     PyXIR DPU targets in the run script (``import pyxir.contrib.target.DPUCZDX8G``).
 
 .. code:: python
@@ -702,8 +473,10 @@ as root (execute ``su`` in terminal to log into root).
    # input_data = ...
 
    # load the module into memory
-   lib = tvm.runtime.load_module("tvm_dpu_arm.so")
+   lib = tvm.runtime.load_module("deploy_lib_edge.so")
 
    module = graph_executor.GraphModule(lib["default"](dev))
    module.set_input(input_name, input_data)
    module.run()
+   
+

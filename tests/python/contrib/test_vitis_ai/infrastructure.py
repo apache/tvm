@@ -68,7 +68,7 @@ def skip_test():
 def build_module(
     mod,
     target,
-    dpu_target="DPUCADX8G",
+    dpu_target="DPUCADF8H",
     params=None,
     enable_vitis_ai=True,
     tvm_ops=0,
@@ -123,10 +123,17 @@ def extract_vitis_ai_modules(module):
 
 
 def verify_codegen(
-    module, num_vitis_ai_modules=1, params=None, target="llvm", dpu_target="DPUCADX8G"
+    module, num_vitis_ai_modules=1, params=None, target="llvm", tvm_ops=0, dpu_target="DPUCADX8G"
 ):
     """Check Vitis-AI codegen against a known good output."""
-    module = build_module(module, target, params=params, dpu_target=dpu_target)
+    module = build_module(
+        module,
+        target,
+        params=params,
+        dpu_target=dpu_target,
+        tvm_ops=tvm_ops,
+        vitis_ai_partitions=num_vitis_ai_modules,
+    )
     vitis_ai_modules = extract_vitis_ai_modules(module)
 
     assert len(vitis_ai_modules) == num_vitis_ai_modules, (
