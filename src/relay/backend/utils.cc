@@ -26,6 +26,8 @@
 
 #include <tvm/relay/qnn/transform.h>
 
+#include "te_compiler.h"
+
 namespace tvm {
 namespace relay {
 namespace backend {
@@ -40,6 +42,42 @@ StorageInfo::StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceT
   n->storage_sizes_in_bytes = std::move(storage_sizes_in_bytes);
   data_ = std::move(n);
 }
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<StorageInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto* node = ref.as<StorageInfoNode>();
+      p->stream << "StorageInfoNode(\n"
+                << "  storage_ids=[";
+      for (auto id : node->storage_ids) {
+        p->stream << id << ", ";
+      }
+      p->stream << "],\n  device_types=[";
+      for (auto device_type : node->device_types) {
+        p->stream << device_type << ", ";
+      }
+      p->stream << "],\n  storage_size_in_bytes=[";
+      for (auto bytes : node->storage_sizes_in_bytes) {
+        p->stream << bytes << ", ";
+      }
+      p->stream << "])";
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfo")
+    .set_body_typed([](const Array<Integer>& sids, const Array<Integer>& dev_types,
+                       const Array<Integer>& sizes_in_bytes) {
+      std::vector<int64_t> sids_v, sizes_v;
+      std::vector<DLDeviceType> dev_types_v;
+      for (auto s : sids) {
+        sids_v.push_back(s);
+      }
+      for (auto d : dev_types) {
+        dev_types_v.push_back(static_cast<DLDeviceType>(static_cast<int64_t>(d)));
+      }
+      for (auto s : sizes_in_bytes) {
+        sizes_v.push_back(s);
+      }
+      return StorageInfo(sids_v, dev_types_v, sizes_v);
+    });
 
 TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageIds").set_body_typed([](StorageInfo si) {
   Array<tvm::Integer> ids;
@@ -73,6 +111,12 @@ StaticMemoryPlan::StaticMemoryPlan(Map<Expr, StorageInfo> expr_to_storage_info) 
   data_ = std::move(n);
 }
 
+TVM_REGISTER_GLOBAL("relay.ir.StaticMemoryPlan")
+    .set_body_typed([](const Map<Expr, StorageInfo>& expr_to_storage_info) {
+      return StaticMemoryPlan(expr_to_storage_info);
+    });
+
+// TODO(mbs): Cf GetMemorySizeBytes in aot_executor_codegen.cc
 int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
   if (expr_type->IsInstance<TupleTypeNode>()) {
     auto tuple_type = Downcast<TupleType>(expr_type);
@@ -185,6 +229,41 @@ Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is
   pass_seqs.push_back(transform::FastMath());
   pass_seqs.push_back(transform::FoldConstant());
   return pass_seqs;
+}
+
+std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual>
+TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map) {
+  std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> std_map;
+  for (auto kv : input_map) {
+    std_map[kv.first] = kv.second;
+  }
+  return std_map;
+}
+
+Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
+    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map) {
+  Map<Target, IRModule> tvm_map;
+  for (auto kv : input_map) {
+    tvm_map.Set(kv.first, kv.second);
+  }
+  return tvm_map;
+}
+
+void UpdateAutoSchedulerOpWeights(tec::TECompiler compiler) {
+  if (IsAutoSchedulerEnabled()) {
+    const auto* te_compiler_update_weights =
+        runtime::Registry::Get("auto_scheduler.relay_integration.te_compiler_update_weights");
+
+    ICHECK(te_compiler_update_weights != nullptr)
+        << "auto_scheduler.relay_integration.te_compiler_update_weights";
+
+    Map<String, tvm::Integer> weight_map;
+
+    for (auto pair : compiler->GetOpWeights()) {
+      weight_map.Set(pair.first, pair.second);
+    }
+    (*te_compiler_update_weights)(weight_map);
+  }
 }
 
 }  // namespace backend

@@ -233,12 +233,7 @@ def run_relay_graph(mod, params, shape_dict, target, dev):
     m.run()
     tvm_output = m.get_output(0)
 
-    ftimer = m.module.time_evaluator("run", dev, repeat=5, number=5)
-    prof_res = np.array(ftimer().results) * 1000
-    print(
-        "%-20s %-19s (%s)"
-        % ("Runtime:", "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res))
-    )
+    print(m.benchmark(dev, repeat=5, number=5))
     return tvm_output
 
 

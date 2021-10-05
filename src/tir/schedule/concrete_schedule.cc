@@ -18,16 +18,19 @@
  */
 #include "./concrete_schedule.h"
 
+#include <random>
+
 namespace tvm {
 namespace tir {
 
-Schedule Schedule::Concrete(IRModule mod, int debug_mask,
-                            ScheduleErrorRenderLevel error_render_level) {
+Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                            int debug_mask, ScheduleErrorRenderLevel error_render_level) {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
   n->state_ = ScheduleState(mod, debug_mask);
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
+  support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
   return Schedule(std::move(n));
 }
 
@@ -208,6 +211,27 @@ Schedule ConcreteScheduleNode::Copy() const {
   }
 
 /******** Schedule: Schedule: Sampling ********/
+
+void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState seed) {
+  if (seed == -1) {
+    seed = std::random_device()();
+  }
+  support::LinearCongruentialEngine(&rand_state_).Seed(seed);
+}
+
+support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
+  return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
+}
+
+ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
+                                               const Array<FloatImm>& probs,
+                                               Optional<Integer> decision) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
+  TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
+  throw;
+}
+
 /******** Schedule: Get blocks & loops ********/
 
 BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
@@ -390,7 +414,66 @@ void ConcreteScheduleNode::Unroll(const LoopRV& loop_rv) {
 }
 
 /******** Schedule: Insert cache stages ********/
+
+BlockRV ConcreteScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer_index,
+                                        const String& storage_scope) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::CacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope);
+  TVM_TIR_SCHEDULE_END("cache-read", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
+BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                                         const String& storage_scope) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::CacheWrite(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
+  TVM_TIR_SCHEDULE_END("cache-write", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
 /******** Schedule: Compute location ********/
+
+void ConcreteScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                     bool preserve_unit_loops) {
+  static StmtSRef inline_mark = StmtSRef::InlineMark();
+  static StmtSRef root_mark = StmtSRef::RootMark();
+  StmtSRef loop_sref = this->GetSRef(loop_rv);
+  if (loop_sref.same_as(root_mark)) {
+    // do nothing
+  } else if (loop_sref.same_as(inline_mark)) {
+    TVM_TIR_SCHEDULE_BEGIN();
+    tir::ComputeInline(state_, this->GetSRef(block_rv));
+    TVM_TIR_SCHEDULE_END("compute-at", this->error_render_level_);
+  } else {
+    TVM_TIR_SCHEDULE_BEGIN();
+    tir::ComputeAt(state_, this->GetSRef(block_rv), loop_sref, preserve_unit_loops);
+    TVM_TIR_SCHEDULE_END("compute-at", this->error_render_level_);
+  }
+  this->state_->DebugVerify();
+}
+
+void ConcreteScheduleNode::ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                            bool preserve_unit_loops) {
+  static StmtSRef inline_mark = StmtSRef::InlineMark();
+  static StmtSRef root_mark = StmtSRef::RootMark();
+  StmtSRef loop_sref = this->GetSRef(loop_rv);
+  if (loop_sref.same_as(root_mark)) {
+    // do nothing
+  } else if (loop_sref.same_as(inline_mark)) {
+    TVM_TIR_SCHEDULE_BEGIN();
+    tir::ReverseComputeInline(state_, this->GetSRef(block_rv));
+    TVM_TIR_SCHEDULE_END("reverse-compute-at", this->error_render_level_);
+  } else {
+    TVM_TIR_SCHEDULE_BEGIN();
+    tir::ReverseComputeAt(state_, this->GetSRef(block_rv), loop_sref, preserve_unit_loops);
+    TVM_TIR_SCHEDULE_END("reverse-compute-at", this->error_render_level_);
+  }
+  this->state_->DebugVerify();
+}
 
 void ConcreteScheduleNode::ComputeInline(const BlockRV& block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
@@ -417,6 +500,15 @@ void ConcreteScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_inde
 }
 
 /******** Schedule: Reduction ********/
+
+BlockRV ConcreteScheduleNode::DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::DecomposeReduction(state_, this->GetSRef(block_rv), this->GetSRef(loop_rv));
+  TVM_TIR_SCHEDULE_END("decompose-reduction", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
 
 BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
   StmtSRef result{nullptr};

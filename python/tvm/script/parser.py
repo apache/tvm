@@ -24,25 +24,28 @@ use for error reporting.
 import json
 import operator
 import inspect
-from typing import Union
+from typing import Any, Callable, Dict, List, Optional, Union
 from synr import ast, Transformer, to_ast
 
 import tvm
 from tvm import IRModule
 from tvm._ffi.base import TVMError
 from tvm.ir import GlobalVar
+from tvm.ir.function import BaseFunc
+from tvm.tir.function import PrimFunc
+from . import _ffi_api
+from . import tir
 
-from . import context_maintainer, ty
-from .context_maintainer import BlockInfo
+from .context_maintainer import BlockInfo, ContextMaintainer
 from .meta_unparser import MetaUnparser
 from .registry import Registry
-from .intrin import Intrin
-from .special_stmt import SpecialStmt
-from .scope_handler import ScopeHandler, WithScopeHandler, ForScopeHandler
-from . import _ffi_api
 from .diagnostics import TVMDiagnosticCtx
 from .utils import tvm_span_from_synr, synr_span_from_tvm, call_with_error_reporting
-from .node import Slice, BufferSlice
+
+from .tir.intrin import Intrin
+from .tir.node import Slice, BufferSlice
+from .tir.scope_handler import ScopeHandler, WithScopeHandler, ForScopeHandler
+from .tir.special_stmt import SpecialStmt
 
 
 class CallArgumentReader(object):
@@ -151,17 +154,18 @@ class TVMScriptParser(Transformer):
         ast.BuiltinOp.Not: tvm.tir.Not,
     }
 
-    def __init__(self, base_lienno):
+    def __init__(self, base_lienno, tir_namespace):
         self.context = None
 
         self.base_lineno = base_lienno
         self.current_lineno = 0
         self.current_col_offset = 0
+        self.tir_namespace = tir_namespace
         self.meta = None
 
     def init_function_parsing_env(self):
         """Initialize function parsing environment"""
-        self.context = context_maintainer.ContextMaintainer(self.report_error)  # scope emitter
+        self.context = ContextMaintainer(self.report_error)  # scope emitter
 
     def init_meta(self, meta_dict):
         if meta_dict is not None:
@@ -184,6 +188,10 @@ class TVMScriptParser(Transformer):
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
 
         return transform_res
+
+    def match_tir_namespace(self, identifier: str) -> bool:
+        """Check if the namespace is equal to tvm.script.tir"""
+        return identifier in self.tir_namespace
 
     def report_error(self, message: str, span: Union[ast.Span, tvm.ir.Span]):
         """Report an error occuring at a location.
@@ -324,18 +332,19 @@ class TVMScriptParser(Transformer):
 
             import tvm
 
-            @tvm.script.tir
+            @tvm.script.ir_module
             class MyMod():
-               def A(...):
-                  ...
-
-               def B(...):
-                   ...
+                @T.prim_func
+                def A(...):
+                    ...
+                @T.prim_func
+                def B(...):
+                    ...
 
                 __tvm_meta__ = ...
 
             # returns an IRModule
-            mod = MyMod()
+            mod = MyMod
         """
         if len(node.funcs) == 1:
             return self.transform(next(iter(node.funcs.values())))
@@ -360,11 +369,11 @@ class TVMScriptParser(Transformer):
         -------
         .. code-block:: python
 
-            @tvm.script.tir
+            @tvm.script.ir_module
             class MyClass:
                 __tvm_meta__ = {}
                 def A():
-                    tir.evaluate(0)
+                    T.evaluate(0)
         """
         if len(node.assignments) == 1:
             if not (
@@ -384,7 +393,7 @@ class TVMScriptParser(Transformer):
                 ast.Span.union([x.span for x in node.assignments[1:]]),
             )
 
-        return create_module(
+        return IRModule(
             {GlobalVar(name): self.transform(func) for name, func in node.funcs.items()}
         )
 
@@ -405,12 +414,24 @@ class TVMScriptParser(Transformer):
         -------
         .. code-block:: python
 
-            @tvm.script.tir
-            def my_function(x: ty.handle):  # 1. Argument types
-                tir.func_attr({"global_symbol": "mmult"})  # 2. Function attributes
+            @T.prim_func
+            def my_function(x: T.handle):  # 1. Argument types
+                T.func_attr({"global_symbol": "mmult"})  # 2. Function attributes
                 X_1 = tir.buffer_bind(x, [1024, 1024])  # 3. Buffer binding
-                tir.evaluate(0)  # 4. This function returns 0
+                T.evaluate(0)  # 4. This function returns 0
         """
+
+        def check_decorator(decorators: List[ast.Expr]) -> bool:
+            """Check the decorator is `T.prim_func"""
+            if len(decorators) != 1:
+                return False
+            d: ast.Expr = decorators[0]
+            return (
+                isinstance(d, ast.Attr)
+                and isinstance(d.object, ast.Var)
+                and self.match_tir_namespace(d.object.id.name)
+                and d.field.name == "prim_func"
+            )
 
         self.init_function_parsing_env()
         self.context.enter_scope(nodes=node.body.stmts)
@@ -420,6 +441,12 @@ class TVMScriptParser(Transformer):
             arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
             self.context.update_symbol(arg.name, arg_var, node)
             self.context.func_params.append(arg_var)
+
+        if not check_decorator(node.decorators):
+            self.report_error(
+                "All functions should be decorated by `T.prim_func`",
+                node.span,
+            )
 
         # New Scope : Implicit root block
         # Each function contains an implicit root block in TensorIR,
@@ -437,10 +464,11 @@ class TVMScriptParser(Transformer):
 
         # return a tir.PrimFunc
         dict_attr = self.context.func_dict_attr
+        ret_type = self.parse_type(node.ret_type, node) if node.ret_type is not None else None
         func = tvm.tir.PrimFunc(
             self.context.func_params,
             body,
-            ret_type=self.parse_type(node.ret_type, node),
+            ret_type,
             buffer_map=self.context.func_buffer_map,
             attrs=tvm.ir.make_node("DictAttrs", **dict_attr) if dict_attr else None,
             span=tvm_span_from_synr(node.span),
@@ -468,13 +496,13 @@ class TVMScriptParser(Transformer):
 
         By now 3 patterns of Assign is supported:
             1. special stmts with return value
-                1.1 Buffer = tir.match_buffer()/tir.buffer_decl()
-                1.2 Var = tir.var()
-                1.3 Var = tir.env_thread()
+                1.1 Buffer = T.match_buffer()/T.buffer_decl()
+                1.2 Var = T.var()
+                1.3 Var = T.env_thread()
             2. (BufferStore) Buffer[PrimExpr, PrimExpr, ..., PrimExpr] = PrimExpr
             3. (Store)       Var[PrimExpr] = PrimExpr
             4. with scope handlers with concise scoping and var def
-                4.1 var = tir.allocate()
+                4.1 var = T.allocate()
         """
 
         if isinstance(node.rhs, ast.Call):
@@ -536,7 +564,7 @@ class TVMScriptParser(Transformer):
             if len(indexes) != 1:
                 self.report_error(
                     f"Store is only allowed with one index, but {len(indexes)} were provided.",
-                    tvm.ir.Span.union([x.span for x in indexes]),
+                    node.params[1].span,
                 )
             # Store
             return tvm.tir.Store(
@@ -550,7 +578,7 @@ class TVMScriptParser(Transformer):
     def transform_Assert(self, node):
         """Assert visitor
 
-        Pattern corresponds to concise mode of :code:`with tir.Assert()`.
+        Pattern corresponds to concise mode of :code:`with T.Assert()`.
         """
 
         condition = self.transform(node.condition)
@@ -568,8 +596,8 @@ class TVMScriptParser(Transformer):
             For(expr target, expr iter, stmt* body, stmt* orelse, string? type_comment)
         By now 1 pattern of For is supported:
             1. for scope handler
-                for name in tir.serial()/tir.parallel()/tir.vectorized()/tir.unroll()/tir.range()/
-                            tir.grid()/tir.thread_binding()
+                for name in T.serial()/T.parallel()/T.vectorized()/T.unroll()/tir.range()/
+                            T.grid()/T.thread_binding()
         """
 
         if not isinstance(node.rhs, ast.Call):
@@ -594,6 +622,19 @@ class TVMScriptParser(Transformer):
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
         return res
 
+    def transform_While(self, node):
+        """While visitor
+        AST abstract grammar:
+            While(expr condition, stmt* body)
+        """
+        condition = self.transform(node.condition)
+        # body
+        self.context.enter_scope(nodes=node.body.stmts)
+        body = self.parse_body(node)
+        self.context.exit_scope()
+
+        return tvm.tir.While(condition, body, span=tvm_span_from_synr(node.span))
+
     def transform_With(self, node):
         """With visitor
         AST abstract grammar:
@@ -601,9 +642,9 @@ class TVMScriptParser(Transformer):
             withitem = (expr context_expr, expr? optional_vars)
         By now 2 patterns of With is supported:
             1. with scope handler with symbol def
-                with tir.block(*axes)/tir.allocate() as targets:
+                with T.block(*axes)/T.allocate() as targets:
             2. with scope handler without symbol def
-                with tir.let()/tir.Assert()/tir.attr()/tir.realize()
+                with T.let()/T.Assert()/T.attr()/T.realize()
         """
 
         if not isinstance(node.rhs, ast.Call):
@@ -723,10 +764,10 @@ class TVMScriptParser(Transformer):
         --------
         .. code-block:: python
 
-            @tvm.script.tir
+            @T.prim_func
             def f():
-                A = tir.buffer_decl([10, 10])
-                tir.realize(A[1:2, 1:2], "")  # This is an UnassignedCall
+                A = T.buffer_decl([10, 10])
+                T.realize(A[1:2, 1:2], "")  # This is an UnassignedCall
                 A[1, 1] = 2  # This is also an UnassignedCall
         """
         # Only allowed builtin operator that can be a statement is x[1] = 3 i.e. subscript assign.
@@ -742,9 +783,9 @@ class TVMScriptParser(Transformer):
         func = self.transform(node.call.func_name)
         arg_list = self.parse_arg_list(func, node.call)
 
-        if isinstance(func, tvm.script.scope_handler.AssertHandler):
+        if isinstance(func, tir.scope_handler.AssertHandler):
             self.report_error(
-                "A standalone `tir.Assert` is not allowed. Use `assert condition, message` "
+                "A standalone `T.Assert` is not allowed. Use `assert condition, message` "
                 "instead.",
                 node.call.func_name.span,
             )
@@ -852,7 +893,7 @@ class TVMScriptParser(Transformer):
         """
 
         if isinstance(node.object, ast.Var):
-            if node.object.id.name == "tir":
+            if self.match_tir_namespace(node.object.id.name):
                 func_name = "tir." + node.field.name
                 res = Registry.lookup(func_name)
                 if res is not None:
@@ -882,16 +923,18 @@ class TVMScriptParser(Transformer):
         """Visitor for field access of the form `x.y` for types.
 
         We have two cases here:
-        1. If the type is of the form `ty.something`, we look up the type in
-           the `ty` namespace in this module.
+        1. If the type is of the form `T.something`, we look up the type in
+           the `tir` namespace in this module.
         2. If the type is of the form `tvm.x.something` then we look up
            `tvm.x.something` in this modules namespace.
         """
         if isinstance(node.object, ast.TypeVar):
-            if node.object.id.name == "ty":
-                if not hasattr(ty, node.field.name):
-                    self.report_error(f"Invalid type annotation `ty.{node.field.name}`.", node.span)
-                return getattr(ty, node.field.name)
+            if self.match_tir_namespace(node.object.id.name):
+                if not hasattr(tir, node.field.name):
+                    self.report_error(
+                        f"Invalid type annotation `tir.{node.field.name}`.", node.span
+                    )
+                return getattr(tir, node.field.name)
 
         symbol = self.transform(node.object)
         if symbol is None:
@@ -981,108 +1024,63 @@ class TVMScriptParser(Transformer):
         )
 
 
-def from_source(src):
-    """Parse function or string into TIR.
+def get_tir_namespace(script: Union[Callable, type]) -> List[str]:
+    assert inspect.isfunction(script) or inspect.isclass(script)
+    env: Dict[str, Any] = script.__globals__
+    return [key for key in env.keys() if env[key] == tir]
+
+
+def from_source(
+    input_func: Union[str, Callable], tir_prefix: Optional[List[str]] = None
+) -> Union[PrimFunc, IRModule]:
+    """Parse function or string into PrimFunc or IRModule.
 
     If possible, pass the TVM script in as a function so that line numbers and
     filename will be accurate.
 
     Parameters
     ----------
-    src : [str, function, class]
-        Pruned source of original script
+    input_module : Union[str, Callable]
+        The python function to be parsed.
+
+    tir_prefix : Optional[List[str]]
+        The tir prefix list. Only works for str input, default by "tir" and "T".
 
     Returns
     -------
-    functions : PrimFunc or IRModule
-        The PrimFunc or IRModule in IR.
+    output : Union[Function, Module]
+        The Function or Module in IR.
     """
-    if isinstance(src, str):
-        start_line = 0
+    if isinstance(input_func, str):
+        tir_prefix = ["T", "tir"] if tir_prefix is None else tir_prefix
+        return to_ast(input_func, TVMDiagnosticCtx(), TVMScriptParser(0, tir_prefix))
+    elif inspect.isfunction(input_func):
+        _, start_line = inspect.getsourcelines(input_func)
+        env: Dict[str, Any] = input_func.__globals__
+        namespace = [key for key in env.keys() if env[key] == tir]
+        parser = TVMScriptParser(start_line, namespace)
+        result = to_ast(input_func, TVMDiagnosticCtx(), parser)
+        return result
     else:
-        _, start_line = inspect.getsourcelines(src)
-    parser = TVMScriptParser(start_line)
-    return to_ast(src, TVMDiagnosticCtx(), parser)
+        raise TypeError("Only function definitions are supported.")
 
 
-def create_module(functions=None):
-    """Construct a module from list of functions.
-
-    Parameters
-    -----------
-    functions: Optional[dict].
-        Map of GlobalVar or str to PrimFunc
-
-    Returns
-    -------
-    mod : IRModule
-        An IRModule containing the passed definitions
-    """
-
-    return IRModule(functions=functions)
-
-
-def asscript(input_ir, show_meta=False):
-    """Transform a PrimFunc or IRModule to python syntax script
+def ir_module(input_module: type) -> IRModule:
+    """Decorate a python class as tvm IRModule.
 
     Parameters
     ----------
-    input_ir : Union[PrimFunc, IRModule]
-        The PrimFunc or IRModule to be dumped
-
-    show_meta : bool
-        Whether show meta
+    input_module : type
+        The python class to be parsed.
 
     Returns
     -------
-    script : str
-        The Python script
+    output : IRModule
+        The result IRModule.
     """
-
-    return _ffi_api.AsTVMScript(input_ir, show_meta)
-
-
-def tir(script_in):
-    """Decorate a python function or class as tvm script.
-
-    The tvm function or parsing support parsing to the internal TIR.
-
-    Returns
-    -------
-    output : Union[Function, Module]
-        The Function or Module in IR.
-    """
-
-    if inspect.isfunction(script_in):
-        result = from_source(script_in)
-    elif inspect.isclass(script_in):
-        result = TVMScriptClass(script_in)
-    else:
-        raise TypeError("Only function and class definitions are supported.")
-    result.__name__ = script_in.__name__
-    result.__qualname__ = script_in.__qualname__
-    return result
-
-
-def module(script_in):
-    """Decorate a python function or class as tvm script.
-
-    Alias for tvm.script.tir for now.
-
-    Returns
-    -------
-    output : Union[Function, Module]
-        The Function or Module in IR.
-    """
-    return tir(script_in)
-
-
-class TVMScriptClass:
-    """Helper class for decorating a class"""
-
-    def __init__(self, script_in):
-        self.script = script_in
-
-    def __call__(self, *args, **kwargs):
-        # call the parser to transform tvm script into TIR
-        return from_source(self.script)
+    if inspect.isclass(input_module):
+        func_dict = {
+            name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
+        }
+        return IRModule(func_dict)
+    raise TypeError("Only class definitions are supported.")

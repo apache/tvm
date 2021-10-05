@@ -358,17 +358,26 @@ class LoopsNotAChainError : public ScheduleError {
 
 class DependentLoopError : public ScheduleError {
  public:
-  explicit DependentLoopError(IRModule mod, For loop, String inner_var)
-      : mod_(mod), loop_(std::move(loop)), inner_var_(std::move(inner_var)) {}
+  enum class PrimitiveKind { kFuse, kReorder };
+  explicit DependentLoopError(IRModule mod, For loop, String inner_var, PrimitiveKind kind)
+      : mod_(mod), loop_(std::move(loop)), inner_var_(std::move(inner_var)), kind_(kind) {}
 
   String FastErrorString() const final {
-    return "ScheduleError: An outer loop's `min` or `extent` is dependent on an inner loop "
-           "in the new order";
+    if (kind_ == PrimitiveKind::kReorder) {
+      return "ScheduleError: An outer loop's `min` or `extent` is dependent on an inner loop "
+             "in the new order";
+    } else {
+      return "ScheduleError: A loop's `extent` is dependent on another loop";
+    }
   }
 
   String DetailRenderTemplate() const final {
-    return "Outer Loop {0}'s `min` or `extent` is dependent on an inner loop " + inner_var_ +
-           " in the new order";
+    if (kind_ == PrimitiveKind::kReorder) {
+      return "Outer Loop {0}'s `min` or `extent` is dependent on an inner loop " + inner_var_ +
+             " in the new order";
+    } else {
+      return "A loop {0}'s `extent` is dependent on another loop " + inner_var_;
+    }
   }
 
   IRModule mod() const final { return mod_; }
@@ -377,6 +386,7 @@ class DependentLoopError : public ScheduleError {
   IRModule mod_;
   For loop_;
   String inner_var_;
+  PrimitiveKind kind_;
 };
 
 Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
@@ -450,6 +460,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   StmtSRef outer_loop_sref{nullptr};
   const ForNode* outer_loop = nullptr;
   arith::Analyzer analyzer;
+  std::unordered_set<const VarNode*> outer_loop_vars;
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {
     const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
@@ -469,6 +480,19 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
     if (!analyzer.CanProve(loop->min == 0)) {
       throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
     }
+    const VarNode* used_var = nullptr;
+    auto f_contain = [&outer_loop_vars, &used_var](const VarNode* var) {
+      if (outer_loop_vars.count(var)) {
+        used_var = var;
+        return true;
+      }
+      return false;
+    };
+    if (UsesVar(loop->extent, f_contain)) {
+      throw DependentLoopError(self->mod, GetRef<For>(loop), used_var->name_hint,
+                               DependentLoopError::PrimitiveKind::kFuse);
+    }
+    outer_loop_vars.insert(loop->loop_var.get());
     loops.push_back(loop);
   }
   // Step 2. Create fused loop var and replace the original loop vars
@@ -651,7 +675,8 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
       return false;
     };
     if (UsesVar(copy->min, f_contain) || UsesVar(copy->extent, f_contain)) {
-      throw DependentLoopError(self->mod, GetRef<For>(copy), used_var->name_hint);
+      throw DependentLoopError(self->mod, GetRef<For>(copy), used_var->name_hint,
+                               DependentLoopError::PrimitiveKind::kReorder);
     }
     inner_vars.insert(copy->loop_var.get());
     new_loop = For(std::move(n));
@@ -687,7 +712,7 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   self->Replace(GetRef<StmtSRef>(top), new_loop, {});
 }
 
-/******** Instruction Registration ********/
+/******** InstructionKind Registration ********/
 
 struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   static constexpr const char* kName = "Split";

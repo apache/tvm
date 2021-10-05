@@ -23,7 +23,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm import topi
-from tvm.contrib import utils
+from tvm.contrib import utils, clang
 import numpy as np
 import ctypes
 import math
@@ -816,6 +816,73 @@ def test_llvm_gpu_lower_atomic():
         ref = np.zeros((size,)).astype(A.dtype)
         ref[0] = size
         tvm.testing.assert_allclose(a.numpy(), ref, rtol=1e-5)
+
+
+@tvm.testing.requires_llvm
+def test_llvm_order_functions():
+    """Check that functions in the LLVM module are ordered alphabetically."""
+
+    # Note: the order is alphabetical because that's a predictable ordering. Any predictable
+    # ordering will work fine, but if the ordering changes, this test will need to be updated.
+    def make_call_extern(caller, callee):
+        # Create a function:
+        #   float32 caller(float32 v) { return callee(v); }
+        ib = tvm.tir.ir_builder.create()
+        v = tvm.te.var("v", dtype="float32")
+        t = tvm.tir.call_extern("float32", callee, v)
+        ib.emit(t)
+        return tvm.tir.PrimFunc([v], ib.get()).with_attr("global_symbol", caller)
+
+    # Create some functions in a random order.
+    functions = {
+        "Danny": make_call_extern("Danny", "Dave"),
+        "Sammy": make_call_extern("Sammy", "Eve"),
+        "Kirby": make_call_extern("Kirby", "Fred"),
+    }
+    mod = tvm.IRModule(functions=functions)
+    ir_text = tvm.build(mod, None, target="llvm").get_source("ll")
+    matches = re.findall(r"^define[^@]*@([a-zA-Z_][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
+    assert matches == sorted(matches)
+
+
+@tvm.testing.requires_llvm
+def test_llvm_import():
+    """all-platform-minimal-test: check shell dependent clang behavior."""
+    # extern "C" is necessary to get the correct signature
+    cc_code = """
+    extern "C" float my_add(float x, float y) {
+      return x + y;
+    }
+    """
+    n = 10
+    A = te.placeholder((n,), name="A")
+    B = te.compute(
+        (n,), lambda *i: tvm.tir.call_pure_extern("float32", "my_add", A(*i), 1.0), name="B"
+    )
+
+    def check_llvm(use_file):
+        if not clang.find_clang(required=False):
+            print("skip because clang is not available")
+            return
+        temp = utils.tempdir()
+        ll_path = temp.relpath("temp.ll")
+        ll_code = clang.create_llvm(cc_code, output=ll_path)
+        s = te.create_schedule(B.op)
+        if use_file:
+            s[B].pragma(s[B].op.axis[0], "import_llvm", ll_path)
+        else:
+            s[B].pragma(s[B].op.axis[0], "import_llvm", ll_code)
+        # BUILD and invoke the kernel.
+        f = tvm.build(s, [A, B], "llvm")
+        dev = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        f(a, b)
+        tvm.testing.assert_allclose(b.numpy(), a.numpy() + 1.0)
+
+    check_llvm(use_file=True)
+    check_llvm(use_file=False)
 
 
 if __name__ == "__main__":

@@ -1104,6 +1104,29 @@ def concatenate(data, axis):
     return _make.concatenate(Tuple(data), axis)
 
 
+def einsum(data, equation):
+    """Evaluates the Einstein summation convention on data
+
+    Parameters
+    ----------
+    data : Union(List[relay.Expr], Tuple[relay.Expr])
+        A list of tensors.
+    equation : str
+        The einsum expression string.
+
+    Returns
+    -------
+    result : relay.Expr
+        The output tensor from the einsum op.
+    """
+    data = list(data)
+    if not data:
+        raise ValueError("relay.einsum requires data to be non-empty.")
+    if not isinstance(equation, str):
+        raise ValueError("einsum `equation` must be a str")
+    return _make.einsum(Tuple(data), equation)
+
+
 def stack(data, axis):
     """Join a sequence of arrays along a new axis.
 

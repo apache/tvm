@@ -118,6 +118,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK(exec_) << "The executable is not created yet.";
+
       std::string func_name = args[0];
       auto git = exec_->global_map.find(func_name);
       ICHECK(git != exec_->global_map.end())
@@ -139,6 +140,26 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       PackedFunc invoke = GetFunction("invoke", sptr_to_self);
       TVMRetValue rv_;
       invoke.CallPacked(args, &rv_);
+    });
+  } else if (name == "invoke_return_to_device") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      Device host{static_cast<DLDeviceType>(args[1].operator int()), args[2].operator int()};
+
+      SetInput(args[0].operator std::string(), args, 3);
+      PackedFunc invoke = GetFunction("invoke", sptr_to_self);
+      TVMRetValue rv_;
+      invoke.CallPacked(args, &rv_);  // Invoke only uses the first arg, so the rest of the args
+                                      // should not cause an issue
+      if (rv_.type_code() == kTVMObjectHandle) {
+        ADT adt = Downcast<ADT>(rv_.operator ObjectRef());
+        std::vector<ObjectRef> transfered;
+        for (size_t i = 0; i < adt.size(); i++) {
+          transfered.push_back(CopyTo(adt[i], host));
+        }
+        *rv = ADT(adt.tag(), transfered);
+      } else {
+        *rv = CopyTo(rv_, host);
+      }
     });
   } else if (name == "get_output") {
     return TypedPackedFunc<NDArray(int64_t)>([this](int64_t index) {
@@ -191,45 +212,47 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       this->Init(devices, alloc_types);
     });
   } else if (name == "set_input") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK(exec_) << "The executable is not created yet.";
-      std::string func_name = args[0];
-      auto gvit = exec_->global_map.find(func_name);
-      ICHECK(gvit != exec_->global_map.end()) << "Cannot find function " << func_name;
-      auto func_index = gvit->second;
-      const auto& vm_func = exec_->functions[func_index];
-      const auto& param_names = vm_func.params;
-      ICHECK_EQ(args.size() - 1, param_names.size())
-          << "The number of provided parameters doesn't match the number of arguments";
-      ICHECK_EQ(param_names.size(), vm_func.params_device_type.size())
-          << "The number of provided parameters doesn't match the number of assigned devices";
-      std::vector<ObjectRef> func_args(param_names.size());
-      for (int i = 1; i < args.size(); ++i) {
-        Index device_type = vm_func.params_device_type[i - 1];
-        Device dev = GetDevice(device_type);
-
-        if (args[i].type_code() == kTVMDLTensorHandle) {
-          // Automatically convert input DLTensors to NDArray
-          DLTensor* tensor = args[i];
-          std::vector<int64_t> shape;
-          for (int64_t i = 0; i < tensor->ndim; i++) {
-            shape.push_back(tensor->shape[i]);
-          }
-          NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
-          ary.CopyFrom(tensor);
-          func_args[i - 1] = ary;
-        } else {
-          ObjectRef obj = CopyTo(args[i], dev);
-          func_args[i - 1] = obj;
-        }
-      }
-      inputs_.erase(func_name);
-      inputs_.emplace(func_name, func_args);
-    });
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
+}
+
+void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
+  ICHECK(exec_) << "The executable is not created yet.";
+  auto gvit = exec_->global_map.find(func_name);
+  ICHECK(gvit != exec_->global_map.end()) << "Cannot find function " << func_name;
+  auto func_index = gvit->second;
+  const auto& vm_func = exec_->functions[func_index];
+  const auto& param_names = vm_func.params;
+  ICHECK_EQ(args.size() - offset, param_names.size())
+      << "The number of provided parameters doesn't match the number of arguments";
+  ICHECK_EQ(param_names.size(), vm_func.params_device_type.size())
+      << "The number of provided parameters doesn't match the number of assigned devices";
+  std::vector<ObjectRef> func_args(param_names.size());
+  for (int i = offset; i < args.size(); ++i) {
+    DLDeviceType device_type = vm_func.params_device_type[i - offset];
+    Device dev = GetDevice(device_type);
+
+    if (args[i].type_code() == kTVMDLTensorHandle) {
+      // Automatically convert input DLTensors to NDArray
+      DLTensor* tensor = args[i];
+      std::vector<int64_t> shape;
+      for (int64_t i = 0; i < tensor->ndim; i++) {
+        shape.push_back(tensor->shape[i]);
+      }
+      NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
+      ary.CopyFrom(tensor);
+      func_args[i - offset] = ary;
+    } else {
+      ObjectRef obj = CopyTo(args[i], dev);
+      func_args[i - offset] = obj;
+    }
+  }
+  inputs_.erase(func_name);
+  inputs_.emplace(func_name, func_args);
 }
 
 inline Device VirtualMachine::GetDevice(Index device_type) const {
@@ -641,7 +664,7 @@ void VirtualMachine::RunLoop() {
         NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
         const DLTensor* dl_tensor = shape_tensor.operator->();
         ICHECK_EQ(dl_tensor->dtype.code, 0u);
-        ICHECK_EQ(dl_tensor->dtype.bits, 64);
+        ICHECK_EQ(dl_tensor->dtype.bits, 64u);
         int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
         int64_t ndim = shape_tensor->shape[0];
         std::vector<int64_t> shape(dims, dims + ndim);

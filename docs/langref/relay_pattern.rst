@@ -476,6 +476,8 @@ is required to be run before the callback.
 The function ``def callback(self, pre, post, node_map)`` will be invoked when the rewriter matches
 ``self.pattern``. ``node_map`` is a dictionary mapping from pattern nodes to matched nodes in the graph.
 
+The callback function will be invoked recursively on the returned pattern until the pattern stops changing. As a result, if ``self.pattern`` matches any part of the graph that the callback returned, the rewriter will run in a loop. If you want to avoid multiple rewrites, you can pass a ``rewrite_once=True`` parameter to the constructor.
+
 Pattern Partitioning
 ********************
 

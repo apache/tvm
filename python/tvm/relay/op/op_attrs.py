@@ -74,6 +74,11 @@ class DenseAttrs(Attrs):
     """Attributes for nn.dense"""
 
 
+@tvm._ffi.register_object("relay.attrs.DensePackAttrs")
+class DensePackAttrs(Attrs):
+    """Attributes for nn.contrib_dense_pack"""
+
+
 @tvm._ffi.register_object("relay.attrs.BatchMatmulAttrs")
 class BatchMatmulAttrs(Attrs):
     """Attributes for nn.batch_matmul"""

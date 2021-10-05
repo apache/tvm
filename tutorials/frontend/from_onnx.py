@@ -27,7 +27,7 @@ A quick solution is to install protobuf compiler, and
 
 .. code-block:: bash
 
-    pip install onnx --user
+    pip install --user onnx onnxoptimizer
 
 or please refer to official site.
 https://github.com/onnx/onnx
@@ -92,13 +92,15 @@ shape_dict = {input_name: x.shape}
 mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
 with tvm.transform.PassContext(opt_level=1):
-    compiled = relay.build_module.create_executor("graph", mod, tvm.cpu(0), target).evaluate()
+    executor = relay.build_module.create_executor(
+        "graph", mod, tvm.cpu(0), target, params
+    ).evaluate()
 
 ######################################################################
 # Execute on TVM
 # ---------------------------------------------
 dtype = "float32"
-tvm_output = compiled(tvm.nd.array(x.astype(dtype)), **params).numpy()
+tvm_output = executor(tvm.nd.array(x.astype(dtype))).numpy()
 
 ######################################################################
 # Display results

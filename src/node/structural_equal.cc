@@ -19,6 +19,7 @@
 /*!
  * \file src/node/structural_equal.cc
  */
+#include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
@@ -119,8 +120,10 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
   // Check the result.
   bool CheckResult(bool result, const ObjectRef& lhs, const ObjectRef& rhs) {
     if (assert_mode_ && !result) {
-      LOG(FATAL) << "ValueError: StructuralEqual check failed, caused by\n"
-                 << "lhs = " << lhs << "\nrhs = " << rhs;
+      LOG(FATAL) << "ValueError: StructuralEqual check failed, caused by lhs:" << std::endl
+                 << PrettyPrint(lhs) << std::endl
+                 << "and rhs:" << std::endl
+                 << PrettyPrint(rhs);
     }
     return result;
   }

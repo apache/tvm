@@ -20,7 +20,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
@@ -56,10 +56,8 @@ def _get_model(
     return req, params
 
 
+@requires_ethosn
 def test_fullyconnected():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 1024), 71, 0.580, 79, 1.498),
         ((1, 4096), 166, 1.724, 117, 0.180),
@@ -91,10 +89,8 @@ def test_fullyconnected():
         tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_fullyconnected_failure():
-    if not ethosn_available():
-        return
-
     trials = [
         (
             (1, 64),

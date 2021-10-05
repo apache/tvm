@@ -45,18 +45,55 @@
 namespace tvm {
 namespace tir {
 
+enum class ExprPrecedence : int {
+  /*! \brief Identity(e.g., IntImm, Var) and function call(e.g., floordiv, min) */
+  kIdentity = 0,
+  /*!
+   * \brief Multiplication(*), division(/), and remainder(%)
+   * \note floorDiv, floorMod is marked as kIdentity since they are function calls.
+   */
+  kMultiplicationDivision = 1,
+  /*! \brief Addition(+) and subtraction(-) */
+  kAdditionSubtraction = 2,
+  /*! \brief For relational operators < and <= and > and >= respectively */
+  kRelational = 3,
+  /*! \brief For equality operators = and != respectively */
+  kEquality = 4,
+  /*! \brief And(&&) */
+  kAnd = 5,
+  /*! \brief Or(||) */
+  kOr = 6,
+  /*! \brief Unknown precedence */
+  kUnknown = 7,
+};
+
+/*!
+ * \brief The printer for TVMScript
+ * \details The printer obtain the precedence of the top-level operation when printing each
+ *          subexpression to decide whether or not parentheses is needed.
+ */
 class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
-                         public ExprFunctor<Doc(const PrimExpr&)>,
+                         public ExprFunctor<Doc(const PrimExpr&, ExprPrecedence*)>,
                          public TypeFunctor<Doc(const Type&)> {
  public:
-  explicit TVMScriptPrinter(bool show_meta,
+  explicit TVMScriptPrinter(const String& tir_prefix, bool show_meta,
                             runtime::TypedPackedFunc<std::string(Stmt)> annotate = nullptr)
-      : show_meta_(show_meta), annotate_(std::move(annotate)), meta_collector_(&meta_) {}
+      : tir_prefix_(tir_prefix),
+        show_meta_(show_meta),
+        annotate_(std::move(annotate)),
+        meta_collector_(&meta_) {}
 
-  /*! \brief Print the node */
+  /*!
+   * \brief Print the node.
+   * \param node The node to be printed.
+   * \param out_precedence The operator precedence of node if it's a PrimExpr,
+   *        so we can simplify the bracket.
+   */
   TVM_DLL Doc Print(const ObjectRef& node);
 
  private:
+  /*! \brief The tir prefix */
+  String tir_prefix_;
   /*! \brief whether show meta data */
   bool show_meta_;
   /*! \brief additional comment function */
@@ -68,12 +105,12 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief map from Function to GlobalVar */
   std::unordered_map<const BaseFuncNode*, GlobalVar> func2var_;
   /*! \brief var collector (var defined by For/Loop/Block) */
-  std::unordered_set<const VarNode*> var_not_in_headers;
+  std::unordered_set<const VarNode*> var_not_in_headers_;
   /*!
    * \brief buffer collector
    *        (buffer defined in BufferMap, BufferAllocation and MatchBufferRegion)
    */
-  std::unordered_set<const BufferNode*> buf_not_in_headers;
+  std::unordered_set<const BufferNode*> buf_not_in_headers_;
   /*! \brief Map from Var to thread env name */
   std::unordered_map<Var, String, ObjectPtrHash, ObjectPtrEqual> var_env_map_;
   /*! \brief Map from Var to Doc */
@@ -93,40 +130,40 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief loop stack without annotations */
   std::vector<For> loop_stack_;
 
-  Doc VisitExpr_(const CastNode* op) override;
-  Doc VisitExpr_(const VarNode* op) override;
-  Doc VisitExpr_(const AddNode* op) override;
-  Doc VisitExpr_(const SubNode* op) override;
-  Doc VisitExpr_(const MulNode* op) override;
-  Doc VisitExpr_(const DivNode* op) override;
-  Doc VisitExpr_(const ModNode* op) override;
-  Doc VisitExpr_(const FloorDivNode* op) override;
-  Doc VisitExpr_(const FloorModNode* op) override;
-  Doc VisitExpr_(const MinNode* op) override;
-  Doc VisitExpr_(const MaxNode* op) override;
-  Doc VisitExpr_(const EQNode* op) override;
-  Doc VisitExpr_(const NENode* op) override;
-  Doc VisitExpr_(const LTNode* op) override;
-  Doc VisitExpr_(const LENode* op) override;
-  Doc VisitExpr_(const GTNode* op) override;
-  Doc VisitExpr_(const GENode* op) override;
-  Doc VisitExpr_(const AndNode* op) override;
-  Doc VisitExpr_(const OrNode* op) override;
-  Doc VisitExpr_(const NotNode* op) override;
-  Doc VisitExpr_(const SelectNode* op) override;
-  Doc VisitExpr_(const IntImmNode* op) override;
-  Doc VisitExpr_(const FloatImmNode* op) override;
-  Doc VisitExpr_(const StringImmNode* op) override;
-  Doc VisitExpr_(const ProducerLoadNode* op) override;
-  Doc VisitExpr_(const BufferLoadNode* op) override;
-  Doc VisitExpr_(const LoadNode* op) override;
-  Doc VisitExpr_(const RampNode* op) override;
-  Doc VisitExpr_(const BroadcastNode* op) override;
-  Doc VisitExpr_(const LetNode* op) override;
-  Doc VisitExpr_(const CallNode* op) override;
-  Doc VisitExpr_(const ShuffleNode* op) override;
-  Doc VisitExpr_(const ReduceNode* op) override;
-  Doc VisitExprDefault_(const Object* op) override;
+  Doc VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const VarNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const AddNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const SubNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const MulNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const DivNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const ModNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const FloorDivNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const FloorModNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const MinNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const MaxNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const EQNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const NENode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const LTNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const LENode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const GTNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const GENode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const AndNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const OrNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const NotNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const SelectNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const FloatImmNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const ProducerLoadNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const LoadNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const RampNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const BroadcastNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const LetNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const CallNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const ShuffleNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const ReduceNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExprDefault_(const Object* op, ExprPrecedence* out_precedence) override;
 
   Doc VisitStmt_(const LetStmtNode* op) override;
   Doc VisitStmt_(const AttrStmtNode* op) override;
@@ -138,6 +175,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const ForNode* op) override;
+  Doc VisitStmt_(const WhileNode* op) override;
   Doc VisitStmt_(const PrefetchNode* op) override;
   Doc VisitStmt_(const EvaluateNode* op) override;
   Doc VisitStmt_(const BlockRealizeNode* op) override;
@@ -155,6 +193,9 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintArray(const ArrayNode* op);
   Doc PrintBuffer(const BufferNode* op);
   Doc AllocBufferDeclaration(const Buffer& buf);
+  Doc PrintBlockVar(const BlockNode* op);
+  Doc PrintBlockAttr(const BlockRealizeNode* op);
+  Doc PrintBlockBody(const BlockNode* op);
   Doc PrintBufferRegion(const BufferRegionNode* op);
   Doc PrintMatchBufferRegion(const MatchBufferRegionNode* op);
   Doc PrintAnnotations(const Map<String, ObjectRef>& annotations);
@@ -163,6 +204,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc GetUniqueName(std::string prefix);
   Doc AllocVar(const Var& var);
   Doc AllocBuf(const Buffer& buffer);
+  void TryDeallocVar(const Var& var);
 
   /*! Helper functions for loop printing. */
   /*!
@@ -170,7 +212,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * \param loop The for loop to be printed
    */
   Doc PrintLoop(const For& loop);
-  /*! \brief Print all simple loops in stack into one line using tir.grid(). */
+  /*! \brief Print all simple loops in stack into one line using tir_prefix_.grid(). */
   Doc PrintLoopStack();
 
   /*!
@@ -232,7 +274,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * \param data The pointer to hold the data.
    */
   template <typename T>
-  static Doc PrintConstScalar(DataType dtype, const T* data) {
+  Doc PrintConstScalar(DataType dtype, const T* data) const {
     Doc doc;
     std::ostringstream os;
     if (dtype.is_float() || dtype.is_float16() || dtype.is_bfloat16()) {
@@ -244,7 +286,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     } else if (dtype == DataType::Bool()) {
       doc << Doc::Text(data[0] ? "True" : "False");
     } else {
-      doc << "tir." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str()) << ")";
+      doc << tir_prefix_ << "." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str())
+          << ")";
     }
     return doc;
   }
@@ -254,7 +297,7 @@ Doc TVMScriptPrinter::GetUniqueName(std::string prefix) {
   std::replace(prefix.begin(), prefix.end(), '.', '_');
   std::string unique_prefix = prefix;
   auto it = name_alloc_map_.find(prefix);
-  if (it != name_alloc_map_.end()) {
+  if (it != name_alloc_map_.end() && it->second >= 0) {
     while (name_alloc_map_.count(unique_prefix = prefix + "_" + std::to_string(++it->second)) > 0) {
     }
   }
@@ -278,38 +321,41 @@ Doc TVMScriptPrinter::AllocVar(const Var& var) {
 
 Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   Doc doc = Print(buf->shape);
-  if (!runtime::TypeEqual(buf->dtype, DataType::Float(32))) {
-    doc << ", dtype=" << PrintDType(buf->dtype);
-  }
+  bool print_factor_explicitly = false;
+  doc << ", dtype=" << PrintDType(buf->dtype);
   if (memo_var_.find(buf->data) != memo_var_.end()) {
     doc << ", data=" << Print(buf->data);
   } else {
     // implicitly define data
     memo_var_[buf->data] = Doc::Text(memo_buf_[buf].str() + ".data");
-    var_not_in_headers.insert(buf->data.get());
+    var_not_in_headers_.insert(buf->data.get());
   }
   if (!buf->strides.empty()) {
     doc << ", strides=" << Print(buf->strides);
   }
-  if (buf->offset_factor != 0 && buf->elem_offset->IsInstance<VarNode>()) {
+  if (buf->elem_offset->IsInstance<VarNode>()) {
     Var elem_offset = Downcast<Var>(buf->elem_offset);
     if (memo_var_.find(elem_offset) != memo_var_.end()) {
       doc << ", elem_offset=" << Print(buf->elem_offset);
     } else {
       // implicitly define elem_offset
       memo_var_[elem_offset] = Doc::Text(memo_buf_[buf].str() + ".elem_offset");
-      var_not_in_headers.insert(elem_offset.get());
+      var_not_in_headers_.insert(elem_offset.get());
+      print_factor_explicitly = true;
     }
-  } else {
-    doc << ", elem_offset=" << Print(buf->elem_offset);
+  } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
+    IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
+    if (elem_offset->value != 0) {
+      doc << ", elem_offset=" << Print(buf->elem_offset);
+    }
   }
   if (buf.scope() != "global") {
     doc << ", scope=" << Doc::StrLiteral(buf.scope());
   }
-  if (buf->data_alignment != -1) {
+  if (buf->data_alignment != runtime::kAllocAlignment) {
     doc << ", align=" << buf->data_alignment;
   }
-  if (buf->offset_factor != 0) {
+  if (buf->offset_factor != 1 || print_factor_explicitly) {
     doc << ", offset_factor=" << buf->offset_factor;
   }
   if (buf->buffer_type != 1) {
@@ -333,12 +379,39 @@ Doc TVMScriptPrinter::AllocBuf(const Buffer& buffer) {
   return val;
 }
 
+/*!
+ * \brief Try to dealloc vars out of space and leave the index to coming vars.
+ * \note It is not a necessary step.
+ */
+void TVMScriptPrinter::TryDeallocVar(const Var& var) {
+  auto it = memo_var_.find(var);
+  ICHECK(it != memo_var_.end());
+  std::string print_name = it->second.str();
+
+  std::string name_hint = var->name_hint.operator std::string();
+  if (name_hint.length() == 0 || !std::isalpha(name_hint[0])) {
+    name_hint = "v" + name_hint;
+  }
+  std::replace(name_hint.begin(), name_hint.end(), '.', '_');
+
+  auto it2 = name_alloc_map_.find(name_hint);
+  // Skip it if we can not find the name_hint in name_alloc_map_.
+  if (it2 == name_alloc_map_.end()) return;
+  if (it2->second > 0) {
+    name_hint = name_hint + '_' + std::to_string(it2->second);
+  }
+  // Skip it if the name_hint is not equal to how it should be printed.
+  if (name_hint != print_name) return;
+  // Free the conresponding name_alloc_map_ index
+  --it2->second;
+}
+
 Doc TVMScriptPrinter::PrintMatchBufferRegion(const MatchBufferRegionNode* op) {
   const Buffer& buf = op->buffer;
-  buf_not_in_headers.insert(buf.get());
+  buf_not_in_headers_.insert(buf.get());
 
-  Doc doc = Print(op->buffer) << " = tir.match_buffer(" << Print(op->source) << ", "
-                              << memo_buf_decl_[op->buffer] << ")";
+  Doc doc = Print(op->buffer) << " = " << tir_prefix_ << ".match_buffer(" << Print(op->source)
+                              << ", " << memo_buf_decl_[op->buffer] << ")";
   return doc;
 }
 
@@ -347,7 +420,8 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
   if (node->IsInstance<StmtNode>()) {
     return PrintOptionalInfo(Downcast<Stmt>(node)) << VisitStmt(Downcast<Stmt>(node));
   } else if (node->IsInstance<PrimExprNode>()) {
-    return VisitExpr(Downcast<PrimExpr>(node));
+    ExprPrecedence t = ExprPrecedence::kUnknown;
+    return VisitExpr(Downcast<PrimExpr>(node), &t);
   } else if (node->IsInstance<TypeNode>()) {
     return VisitType(Downcast<Type>(node));
   } else if (node->IsInstance<PrimFuncNode>()) {
@@ -374,7 +448,7 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
   }
 }
 
-Doc TVMScriptPrinter::VisitExprDefault_(const Object* op) {
+Doc TVMScriptPrinter::VisitExprDefault_(const Object* op, ExprPrecedence* out_precedence) {
   LOG(FATAL) << "Do not know how to print " << op->GetTypeKey();
   return Doc();
 }
@@ -384,92 +458,125 @@ Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
   return Doc();
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   return PrintConstScalar<int64_t>(op->dtype, &(op->value));
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const FloatImmNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const FloatImmNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   return PrintConstScalar<double>(op->dtype, &(op->value));
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op) { return Doc::StrLiteral(op->value); }
+Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
+  return Doc::StrLiteral(op->value);
+}
 
-Doc TVMScriptPrinter::VisitExpr_(const CastNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
+  doc << tir_prefix_ << ".cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const VarNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const VarNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   const Var& var = GetRef<Var>(op);
   return meta_.InMeta(var) ? meta_.GetMetaNode(var) : AllocVar(GetRef<Var>(op));
 }
 
-#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString)      \
-  Doc TVMScriptPrinter::VisitExpr_(const OpName* op) {             \
-    Doc doc;                                                       \
-    doc << '(' << Print(op->a) << OpString << Print(op->b) << ")"; \
-    return doc;                                                    \
+#define TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OpName, OpString, OpPrecedence)            \
+  Doc TVMScriptPrinter::VisitExpr_(const OpName* op, ExprPrecedence* out_precedence) { \
+    Doc doc;                                                                           \
+    ExprPrecedence lhs_precedence = ExprPrecedence::kUnknown;                          \
+    ExprPrecedence rhs_precedence = ExprPrecedence::kUnknown;                          \
+    /* Get children expr out_precedence */                                             \
+    Doc lhs_doc = VisitExpr(op->a, &lhs_precedence);                                   \
+    Doc rhs_doc = VisitExpr(op->b, &rhs_precedence);                                   \
+    ICHECK(lhs_precedence != ExprPrecedence::kUnknown);                                \
+    ICHECK(rhs_precedence != ExprPrecedence::kUnknown);                                \
+    /* Update out_precedence of current node. */                                       \
+    *out_precedence = OpPrecedence;                                                    \
+    if (lhs_precedence > OpPrecedence) {                                               \
+      doc << "(" << lhs_doc << ")";                                                    \
+    } else {                                                                           \
+      doc << lhs_doc;                                                                  \
+    }                                                                                  \
+    doc << OpString;                                                                   \
+    if (rhs_precedence >= OpPrecedence) {                                              \
+      doc << "(" << rhs_doc << ")";                                                    \
+    } else {                                                                           \
+      doc << rhs_doc;                                                                  \
+    }                                                                                  \
+    return doc;                                                                        \
   }
 
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, "*")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(ModNode, " % ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(EQNode, " == ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LENode, " <= ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GTNode, " > ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GENode, " >= ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ")
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ")
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(ModNode, " % ", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", ExprPrecedence::kAdditionSubtraction)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", ExprPrecedence::kAdditionSubtraction)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LENode, " <= ", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GTNode, " > ", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(GENode, " >= ", ExprPrecedence::kRelational)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(EQNode, " == ", ExprPrecedence::kEquality)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", ExprPrecedence::kEquality)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", ExprPrecedence::kAnd)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", ExprPrecedence::kOr)
 
-Doc TVMScriptPrinter::VisitExpr_(const FloorDivNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const FloorDivNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.floordiv(" << Print(op->a) << ", " << Print(op->b) << ")";
+  doc << tir_prefix_ << ".floordiv(" << Print(op->a) << ", " << Print(op->b) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const FloorModNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const FloorModNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.floormod(" << Print(op->a) << ", " << Print(op->b) << ")";
+  doc << tir_prefix_ << ".floormod(" << Print(op->a) << ", " << Print(op->b) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const MinNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const MinNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.min(" << Print(op->a) << ", " << Print(op->b) << ")";
+  doc << tir_prefix_ << ".min(" << Print(op->a) << ", " << Print(op->b) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const MaxNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const MaxNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.max(" << Print(op->a) << ", " << Print(op->b) << ")";
+  doc << tir_prefix_ << ".max(" << Print(op->a) << ", " << Print(op->b) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const NotNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const NotNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "not (" << Print(op->a) << ")";
+  doc << "not(" << Print(op->a) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const SelectNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const SelectNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.Select(" << Print(op->condition) << ", " << Print(op->true_value) << ", "
+  doc << tir_prefix_ << ".Select(" << Print(op->condition) << ", " << Print(op->true_value) << ", "
       << Print(op->false_value) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const ProducerLoadNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const ProducerLoadNode* op, ExprPrecedence* out_precedence) {
   LOG(FATAL) << "Cannot print a tir.ProducerLoad as it is not valid in TIR Primfuncs. You need to "
                 "lower this function first.";
   return Doc();
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
   if (op->indices.size() == 0) {
     doc << Print(op->buffer) << "[()]";
@@ -479,13 +586,14 @@ Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op) {
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const LoadNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const LoadNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
   if (op->dtype == DataType::Float(32) && is_one(op->predicate) &&
       op->buffer_var->dtype == DataType::Float(32)) {
     doc << Print(op->buffer_var) << "[" << Print(op->index) << "]";
   } else {
-    doc << "tir.load(" << PrintDType(op->dtype) << ", " << Print(op->buffer_var) << ", "
+    doc << tir_prefix_ << ".load(" << PrintDType(op->dtype) << ", " << Print(op->buffer_var) << ", "
         << Print(op->index);
     if (!is_one(op->predicate) || op->dtype.lanes() != 1) {
       doc << ", " << Print(op->predicate);
@@ -495,28 +603,38 @@ Doc TVMScriptPrinter::VisitExpr_(const LoadNode* op) {
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const RampNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const RampNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.ramp(" << Print(op->base) << ", " << Print(op->stride) << ", " << op->lanes << ")";
+  doc << tir_prefix_ << ".ramp(" << Print(op->base) << ", " << Print(op->stride) << ", "
+      << op->lanes << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const BroadcastNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const BroadcastNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.broadcast(" << Print(op->value) << ", " << op->lanes << ")";
+  doc << tir_prefix_ << ".broadcast(" << Print(op->value) << ", " << op->lanes << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const LetNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const LetNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.let(" << Print(op->var) << ", " << Print(op->value) << ", " << Print(op->body) << ")";
+  doc << tir_prefix_ << ".let(" << Print(op->var) << ", " << Print(op->value) << ", "
+      << Print(op->body) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const CallNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const CallNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
   if (auto* ptr_op = op->op.as<OpNode>()) {
-    doc << Doc::Text(ptr_op->name) << "(";
+    std::string name = ptr_op->name;
+    if (name.find("tir.") == 0) {
+      name = tir_prefix_ + "." + name.substr(4);
+    }
+    doc << name << "(";
   } else {
     auto* op_gvar = op->op.as<GlobalVarNode>();
     ICHECK(op_gvar != nullptr);
@@ -531,15 +649,17 @@ Doc TVMScriptPrinter::VisitExpr_(const CallNode* op) {
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const ShuffleNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const ShuffleNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.shuffle(" << Print(op->vectors) << ", " << Print(op->indices) << ")";
+  doc << tir_prefix_ << ".shuffle(" << Print(op->vectors) << ", " << Print(op->indices) << ")";
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitExpr_(const ReduceNode* op) {
+Doc TVMScriptPrinter::VisitExpr_(const ReduceNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << "tir.reduce(" << Print(op->combiner) << ", " << Print(op->source) << ", "
+  doc << tir_prefix_ << ".reduce(" << Print(op->combiner) << ", " << Print(op->source) << ", "
       << Print(op->axis) << ", " << op->value_index << ")";
   return doc;
 }
@@ -547,10 +667,10 @@ Doc TVMScriptPrinter::VisitExpr_(const ReduceNode* op) {
 Doc TVMScriptPrinter::VisitStmt_(const LetStmtNode* op) {
   Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with tir.let(" << Print(op->var) << ", " << Print(op->value) << "):";
+    doc << "with " << tir_prefix_ << ".let(" << Print(op->var) << ", " << Print(op->value) << "):";
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   } else {
-    if (memo_var_.find(op->var) == memo_var_.end()) var_not_in_headers.insert(op->var.get());
+    if (memo_var_.find(op->var) == memo_var_.end()) var_not_in_headers_.insert(op->var.get());
     doc << Print(op->var) << ": " << Print(GetType(op->var)) << " = " << Print(op->value)
         << Doc::NewLine() << PrintBody(op->body);
   }
@@ -565,15 +685,15 @@ Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
     const auto* realize = Downcast<BufferRealize>(op->body).get();
     if (realize->buffer.same_as(op->node)) {
       if (current_num_ != num_child_ - 1) {
-        doc << "with tir.realize(" << Print(realize->buffer) << Print(realize->bounds) << ", "
-            << Print(op->value);
+        doc << "with " << tir_prefix_ << ".realize(" << Print(realize->buffer)
+            << Print(realize->bounds) << ", " << Print(op->value);
         if (!is_one(realize->condition)) {
           doc << ", " << Print(realize->condition);
         }
         doc << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(realize->body));
       } else {
-        doc << "tir.realize(" << Print(realize->buffer) << Print(realize->bounds) << ", "
-            << Print(op->value);
+        doc << tir_prefix_ << ".realize(" << Print(realize->buffer) << Print(realize->bounds)
+            << ", " << Print(op->value);
         if (!is_one(realize->condition)) {
           doc << ", " << Print(realize->condition);
         }
@@ -586,25 +706,28 @@ Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
   if (op->node->IsInstance<IterVarNode>() &&
       (op->attr_key == "thread_extent" || op->attr_key == "virtual_thread")) {
     const auto* iter_var = Downcast<IterVar>(op->node).get();
-    var_not_in_headers.insert(iter_var->var.get());
+    var_not_in_headers_.insert(iter_var->var.get());
     var_env_map_[iter_var->var] = iter_var->thread_tag;
     if (current_num_ != num_child_ - 1) {
-      doc << "with tir.launch_thread(" << Print(iter_var->var) << ", " << Print(op->value) << "):";
+      doc << "with " << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", "
+          << Print(op->value) << "):";
       doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
     } else {
-      doc << "tir.launch_thread(" << Print(iter_var->var) << ", " << Print(op->value) << ")";
+      doc << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", " << Print(op->value)
+          << ")";
       doc << Doc::NewLine() << PrintBody(op->body);
     }
+    TryDeallocVar(iter_var->var);
     return doc;
   }
   // default
   if (current_num_ != num_child_ - 1) {
-    doc << "with tir.attr(" << Print(op->node) << ", " << Doc::StrLiteral(op->attr_key) << ", "
-        << Print(op->value) << "):";
+    doc << "with " << tir_prefix_ << ".attr(" << Print(op->node) << ", "
+        << Doc::StrLiteral(op->attr_key) << ", " << Print(op->value) << "):";
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   } else {
-    doc << "tir.attr(" << Print(op->node) << ", " << Doc::StrLiteral(op->attr_key) << ", "
-        << Print(op->value) << ")";
+    doc << tir_prefix_ << ".attr(" << Print(op->node) << ", " << Doc::StrLiteral(op->attr_key)
+        << ", " << Print(op->value) << ")";
     doc << Doc::NewLine() << PrintBody(op->body);
   }
   return doc;
@@ -613,7 +736,8 @@ Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
 Doc TVMScriptPrinter::VisitStmt_(const AssertStmtNode* op) {
   Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with tir.Assert(" << Print(op->condition) << ", " << Print(op->message) << "):";
+    doc << "with " << tir_prefix_ << ".Assert(" << Print(op->condition) << ", "
+        << Print(op->message) << "):";
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   } else {
     doc << "assert " << Print(op->condition) << ", " << Print(op->message);
@@ -624,7 +748,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AssertStmtNode* op) {
 
 Doc TVMScriptPrinter::VisitStmt_(const StoreNode* op) {
   Doc doc;
-  doc << "tir.store(" << Print(op->buffer_var) << ", " << Print(op->index) << ", "
+  doc << tir_prefix_ << ".store(" << Print(op->buffer_var) << ", " << Print(op->index) << ", "
       << Print(op->value) << ", " << Print(op->predicate) << ")";
   return doc;
 }
@@ -636,25 +760,26 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
-  var_not_in_headers.insert(op->buffer_var.get());
+  var_not_in_headers_.insert(op->buffer_var.get());
   Doc doc;
   auto storage_scope = GetPtrStorageScope(op->buffer_var);
   if (current_num_ != num_child_ - 1) {
-    doc << "with tir.allocate(" << Print(op->extents) << ", " << PrintDType(op->dtype) << ", "
-        << Print(storage_scope);
+    doc << "with " << tir_prefix_ << ".allocate(" << Print(op->extents) << ", "
+        << PrintDType(op->dtype) << ", " << Print(storage_scope);
     if (!is_one(op->condition)) {
       doc << ", " << Print(op->condition);
     }
     doc << ") as " << Print(op->buffer_var) << ":";
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   } else {
-    doc << Print(op->buffer_var) << " = tir.allocate(" << Print(op->extents) << ", "
-        << PrintDType(op->dtype) << ", " << Print(storage_scope);
+    doc << Print(op->buffer_var) << " = " << tir_prefix_ << ".allocate(" << Print(op->extents)
+        << ", " << PrintDType(op->dtype) << ", " << Print(storage_scope);
     if (!is_one(op->condition)) {
       doc << ", " << Print(op->condition);
     }
     doc << ")" << Doc::NewLine() << PrintBody(op->body);
   }
+  TryDeallocVar(op->buffer_var);
   return doc;
 }
 
@@ -679,18 +804,22 @@ Doc TVMScriptPrinter::VisitStmt_(const SeqStmtNode* op) {
 
 Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
   Doc doc;
-  doc << "tir.evaluate(" << Print(op->value) << ")";
+  doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
   return doc;
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
-  var_not_in_headers.insert(op->loop_var.get());
+  var_not_in_headers_.insert(op->loop_var.get());
   const auto* body = op->body.as<ForNode>();
   bool simple_loop = op->kind == ForKind::kSerial && op->annotations.empty() && is_zero(op->min);
   if (simple_loop) loop_stack_.push_back(GetRef<For>(op));
   // It is a loop that can be compressed, let the loops below print it out
-  if (simple_loop && body != nullptr) return Print(GetRef<For>(body));
+  if (simple_loop && body != nullptr) {
+    Doc result = Print(GetRef<For>(body));
+    TryDeallocVar(op->loop_var);
+    return result;
+  }
   // It is a loop that can not be compressed
   bool print_above = !loop_stack_.empty();
   // print loops above if needed
@@ -707,24 +836,32 @@ Doc TVMScriptPrinter::VisitStmt_(const ForNode* op) {
   } else {
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   }
+  TryDeallocVar(op->loop_var);
   return doc;
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const PrefetchNode* op) {
   Doc doc;
-  doc << "tir.prefetch(" << Print(op->buffer) << ", " << Print(op->bounds) << ")";
+  doc << tir_prefix_ << ".prefetch(" << Print(op->buffer) << ", " << Print(op->bounds) << ")";
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const WhileNode* op) {
+  Doc doc;
+  doc << "while " << Print(op->condition) << ":";
+  doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   return doc;
 }
 
 Doc TVMScriptPrinter::VisitType_(const PrimTypeNode* node) {
   Doc doc;
-  doc << "ty." << runtime::DLDataType2String(node->dtype);
+  doc << tir_prefix_ << "." << runtime::DLDataType2String(node->dtype);
   return doc;
 }
 
 Doc TVMScriptPrinter::VisitType_(const PointerTypeNode* node) {
   Doc doc;
-  doc << "ty.Ptr[";
+  doc << tir_prefix_ << ".Ptr[";
   if (!node->storage_scope.empty()) {
     doc << node->storage_scope << " ";
   }
@@ -740,7 +877,7 @@ Doc TVMScriptPrinter::VisitType_(const TupleTypeNode* node) {
     for (Type field : node->fields) {
       fields.push_back(Print(field));
     }
-    return Doc::Text("ty.Tuple[") << Doc::Concat(fields) << "]";
+    return Doc::Text(tir_prefix_ + ".Tuple[") << Doc::Concat(fields) << "]";
   }
 }
 
@@ -754,18 +891,16 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferStoreNode* op) {
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
-  const auto* block_op = op->block.as<BlockNode>();
-  // print block name and block vars
+Doc TVMScriptPrinter::PrintBlockVar(const BlockNode* op) {
   Doc doc;
-  doc << "with tir.block([";
+  doc << "with " << tir_prefix_ << ".block([";
   std::vector<Doc> block_var_docs;
-  for (const auto& iter_var : block_op->iter_vars) {
+  for (const auto& iter_var : op->iter_vars) {
     Doc block_var_doc;
     if (is_zero(iter_var->dom->min) && iter_var->iter_type == kDataPar) {
       block_var_doc << Print(iter_var->dom->extent);
     } else {
-      block_var_doc << "tir.";
+      block_var_doc << tir_prefix_ << ".";
       switch (iter_var->iter_type) {
         case kDataPar:
           block_var_doc << "range";
@@ -788,51 +923,76 @@ Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
     }
     block_var_docs.push_back(block_var_doc);
   }
-  doc << PrintSep(block_var_docs, Doc::Text(", ")) << "], ";
-  doc << Doc::StrLiteral(block_op->name_hint) << ")";
+  doc << PrintSep(block_var_docs, Doc::Text(", ")) << "]";
+  if (!op->name_hint.empty()) {
+    doc << ", " << Doc::StrLiteral(op->name_hint);
+  }
+  doc << ")";
   std::vector<Doc> block_var_names;
-  for (const auto& iter_var : block_op->iter_vars) {
-    var_not_in_headers.insert(iter_var->var.get());
+  for (const auto& iter_var : op->iter_vars) {
+    var_not_in_headers_.insert(iter_var->var.get());
     block_var_names.push_back(Print(iter_var->var));
   }
   if (!block_var_names.empty()) {
     doc << " as [" << PrintSep(block_var_names, Doc::Text(", ")) << "]";
   }
   doc << ":";
+  return doc;
+}
+
+Doc TVMScriptPrinter::PrintBlockAttr(const BlockRealizeNode* op) {
+  const auto* block_op = op->block.as<BlockNode>();
   Doc block_attr_doc;
   // print predicate, binding, read/write tensor region, annotations
   if (!is_one(op->predicate)) {
-    block_attr_doc << Doc::NewLine() << "tir.where(" << Print(op->predicate) << ")";
+    block_attr_doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
   }
   for (size_t i = 0; i < block_op->iter_vars.size(); ++i)
-    block_attr_doc << Doc::NewLine() << "tir.bind(" << Print(block_op->iter_vars[i]->var) << ", "
-                   << Print(op->iter_values[i]) << ")";
-  block_attr_doc << Doc::NewLine() << "tir.reads(" << Print(block_op->reads) << ")";
-  block_attr_doc << Doc::NewLine() << "tir.writes(" << Print(block_op->writes) << ")";
+    block_attr_doc << Doc::NewLine() << tir_prefix_ << ".bind("
+                   << Print(block_op->iter_vars[i]->var) << ", " << Print(op->iter_values[i])
+                   << ")";
+  block_attr_doc << Doc::NewLine() << tir_prefix_ << ".reads(" << Print(block_op->reads) << ")";
+  block_attr_doc << Doc::NewLine() << tir_prefix_ << ".writes(" << Print(block_op->writes) << ")";
   if (!block_op->annotations.empty()) {
-    block_attr_doc << Doc::NewLine() << "tir.block_attr({";
+    block_attr_doc << Doc::NewLine() << tir_prefix_ << ".block_attr({";
     block_attr_doc << PrintAnnotations(block_op->annotations);
     block_attr_doc << "})";
   }
-  // print body
+  return block_attr_doc;
+}
+
+Doc TVMScriptPrinter::PrintBlockBody(const BlockNode* op) {
   Doc body;
-  body << Doc::NewLine();
-  for (const auto& alloc_buf : block_op->alloc_buffers) {
-    buf_not_in_headers.insert(alloc_buf.get());
-    body << Print(alloc_buf) << " = tir.alloc_buffer(" << memo_buf_decl_[alloc_buf] << ")"
-         << Doc::NewLine();
+  for (const auto& alloc_buf : op->alloc_buffers) {
+    buf_not_in_headers_.insert(alloc_buf.get());
+    body << Print(alloc_buf) << " = " << tir_prefix_ << ".alloc_buffer("
+         << memo_buf_decl_[alloc_buf] << ")" << Doc::NewLine();
   }
-  for (const auto& match_buf : block_op->match_buffers) {
+  for (const auto& match_buf : op->match_buffers) {
     body << Print(match_buf) << Doc::NewLine();
   }
-  if (block_op->init.defined()) {
+  if (op->init.defined()) {
     Doc init_block;
-    init_block << "with tir.init():";
-    init_block << Doc::Indent(4, Doc::NewLine() << PrintBody(block_op->init.value()));
+    init_block << "with " << tir_prefix_ << ".init():";
+    init_block << Doc::Indent(4, Doc::NewLine() << PrintBody(op->init.value()));
     body << init_block << Doc::NewLine();
   }
-  body << PrintBody(block_op->body);
-  doc << Doc::Indent(4, block_attr_doc << body);
+  body << PrintBody(op->body);
+  return body;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
+  const auto* block_op = op->block.as<BlockNode>();
+  // print block name and block vars
+  Doc doc = PrintBlockVar(block_op);
+  // print predicate, binding, read/write tensor region, annotations
+  Doc block_attr_doc = PrintBlockAttr(op);
+  // print body
+  Doc body = PrintBlockBody(block_op);
+  doc << Doc::Indent(4, block_attr_doc << Doc::NewLine() << body);
+  for (const auto& iter_var : block_op->iter_vars) {
+    TryDeallocVar(iter_var->var);
+  }
   return doc;
 }
 
@@ -866,6 +1026,7 @@ Doc TVMScriptPrinter::PrintBody(const Stmt& body) {
 Doc TVMScriptPrinter::PrintIRModule(const IRModule& module) {
   auto* op = module.operator->();
   Doc doc;
+  doc << "@tvm.script.ir_module" << Doc::NewLine();
   doc << "class Module:";
   for (const auto& x : op->functions) {
     func2var_[x.second.operator->()] = x.first;
@@ -890,42 +1051,55 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   memo_buf_.clear();
   memo_buf_decl_.clear();
   memo_reducer_.clear();
-  var_not_in_headers.clear();
-  buf_not_in_headers.clear();
+  var_not_in_headers_.clear();
+  buf_not_in_headers_.clear();
   // print signature
   Doc doc;
+  doc << "@" << tir_prefix_ << ".prim_func" << Doc::NewLine();
   doc << "def " << (func2var_.find(op) == func2var_.end() ? "func" : func2var_[op]->name_hint)
       << "(";
   std::vector<Doc> params;
   for (const auto& param : op->params) {
-    var_not_in_headers.insert(param.get());
+    var_not_in_headers_.insert(param.get());
     params.push_back(Print(param) << ": " << Print(GetType(param)));
   }
   doc << PrintSep(params, Doc::Text(", ")) << ") -> " << Print(primFunc->ret_type) << ":";
 
   Doc body = Doc::NewLine();
   // print buffer_bind
-  for (const auto& it : op->buffer_map) {
-    buf_not_in_headers.insert(it.second.get());
-    body << Print(it.second) << " = tir.match_buffer(";
-    body << Print(it.first) << ", " << memo_buf_decl_[it.second];
+  for (const auto& param : op->params) {
+    auto it = op->buffer_map.find(param);
+    if (it == op->buffer_map.end()) continue;
+    buf_not_in_headers_.insert((*it).second.get());
+    body << Print((*it).second) << " = " << tir_prefix_ << ".match_buffer(";
+    body << Print((*it).first) << ", " << memo_buf_decl_[(*it).second];
     body << ")" << Doc::NewLine();
   }
   // print comm_reducer
   for (const auto& it : memo_reducer_) {
-    body << it.second << " = tir.comm_reducer(";
-    var_not_in_headers.insert(it.first->lhs[0].get());
-    var_not_in_headers.insert(it.first->rhs[0].get());
+    body << it.second << " = .comm_reducer(";
+    var_not_in_headers_.insert(it.first->lhs[0].get());
+    var_not_in_headers_.insert(it.first->rhs[0].get());
     body << "lambda " << Print(it.first->lhs[0]) << ", " << Print(it.first->rhs[0]) << ": "
          << Print(it.first->result[0]) << ", " << Print(it.first->identity_element[0]);
     body << ")" << Doc::NewLine();
   }
   // print body
-  body << "# body" << Doc::NewLine() << PrintBody(op->body);
+  body << "# body" << Doc::NewLine();
+  if (op->body->IsInstance<BlockRealizeNode>() &&
+      op->body.as<BlockRealizeNode>()->iter_values.empty()) {
+    // Skip print root block
+    body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
+    const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
+    body << PrintBlockBody(block);
+  } else {
+    body << PrintBody(op->body);
+  }
   // print func attrs
   Doc header_attr;
   if (primFunc->attrs.defined()) {
-    header_attr << Doc::NewLine() << "# function attr dict" << Doc::NewLine() << "tir.func_attr({";
+    header_attr << Doc::NewLine() << "# function attr dict" << Doc::NewLine() << tir_prefix_
+                << ".func_attr({";
     std::vector<Doc> attrs;
     for (const auto& it : op->attrs->dict) {
       attrs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
@@ -936,7 +1110,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   Doc header_buf;
   std::vector<const BufferNode*> bufs;
   for (const auto& it : memo_buf_) {
-    if (buf_not_in_headers.find(it.first.get()) == buf_not_in_headers.end()) {
+    if (buf_not_in_headers_.find(it.first.get()) == buf_not_in_headers_.end()) {
       bufs.push_back(it.first.get());
     }
   }
@@ -946,7 +1120,8 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
       return memo_buf_[GetRef<Buffer>(a)].str() < memo_buf_[GetRef<Buffer>(b)].str();
     });
     for (const auto& buf : bufs) {
-      header_buf << Doc::NewLine() << Print(GetRef<Buffer>(buf)) << " = tir.buffer_decl(";
+      header_buf << Doc::NewLine() << Print(GetRef<Buffer>(buf)) << " = " << tir_prefix_
+                 << ".buffer_decl(";
       header_buf << memo_buf_decl_[GetRef<Buffer>(buf)] << ")";
     }
   }
@@ -954,14 +1129,14 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   Doc header_var;
   std::vector<const VarNode*> vars;
   for (const auto& it : memo_var_) {
-    if (var_not_in_headers.find(it.first.get()) == var_not_in_headers.end()) {
+    if (var_not_in_headers_.find(it.first.get()) == var_not_in_headers_.end()) {
       vars.push_back(it.first.get());
     }
   }
   if (!var_env_map_.empty()) {
     header_var << Doc::NewLine() << "# var definition";
     for (const auto& it : var_env_map_) {
-      header_var << Doc::NewLine() << Print(it.first) << " = tir.env_thread("
+      header_var << Doc::NewLine() << Print(it.first) << " = " << tir_prefix_ << ".env_thread("
                  << Doc::StrLiteral(it.second) << ")";
     }
   }
@@ -974,11 +1149,12 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
       if (auto* ptr_type = type.as<PointerTypeNode>()) {
         auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
         ICHECK(prim_type);
-        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = tir.buffer_var(";
+        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = " << tir_prefix_
+                   << ".buffer_var(";
         header_var << PrintDType(prim_type->dtype) << ", "
                    << Doc::StrLiteral(ptr_type->storage_scope) << ")";
       } else {
-        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = tir.var(";
+        header_var << Doc::NewLine() << Print(GetRef<Var>(var)) << " = " << tir_prefix_ << ".var(";
         header_var << PrintDType(var->dtype) << ")";
       }
     }
@@ -1002,7 +1178,7 @@ Doc TVMScriptPrinter::PrintArray(const ArrayNode* op) {
 
 Doc TVMScriptPrinter::PrintIterVar(const IterVarNode* op) {
   Doc doc;
-  doc << "tir.iter_var(" << Print(op->var);
+  doc << tir_prefix_ << ".iter_var(" << Print(op->var);
   if (op->dom.defined()) {
     doc << ", [" << Print(op->dom) << "], ";
   } else {
@@ -1032,7 +1208,7 @@ Doc TVMScriptPrinter::PrintBufferRegion(const BufferRegionNode* op) {
       if (i != 0) doc << ", ";
       const auto& range = op->region[i];
       if (!is_one(range->extent)) {
-        doc << Print(range->min) << ":" << Print(range->min + range->extent);
+        doc << Print(range->min) << " : " << Print(range->min + range->extent);
       } else {
         doc << Print(range->min);
       }
@@ -1061,15 +1237,15 @@ Doc TVMScriptPrinter::PrintAnnotations(const Map<String, ObjectRef>& annotations
 
 Doc TVMScriptPrinter::PrintLoop(const For& loop) {
   Doc res;
-  res << "for " << Print(loop->loop_var)
-      << " in tir." + std::string(ForKind2String(loop->kind)) + "(" << Print(loop->min) << ", "
+  res << "for " << Print(loop->loop_var) << " in " << tir_prefix_
+      << "." + std::string(ForKind2String(loop->kind)) + "(" << Print(loop->min) << ", "
       << Print(loop->min + loop->extent);
   if (loop->thread_binding.defined()) {
-    res << ", thread = ";
+    res << ", thread=";
     res << Print(loop->thread_binding.value()->thread_tag);
   }
   if (!loop->annotations.empty()) {
-    res << ", annotation = {";
+    res << ", annotations={";
     res << PrintAnnotations(loop->annotations);
     res << "}";
   }
@@ -1087,15 +1263,15 @@ Doc TVMScriptPrinter::PrintLoopStack() {
       vars.push_back(Print(loop->loop_var));
       extents.push_back(Print(loop->extent));
     }
-    res << "for " << PrintSep(vars, Doc::Text(", ")) << " in tir.grid("
+    res << "for " << PrintSep(vars, Doc::Text(", ")) << " in " << tir_prefix_ << ".grid("
         << PrintSep(extents, Doc::Text(", ")) << "):";
   }
   return res;
 }
 
-String AsTVMScript(const ObjectRef& mod, bool show_meta) {
+String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  return "@tvm.script.tir\n" + TVMScriptPrinter(show_meta).Print(mod).str() + "\n";
+  return TVMScriptPrinter(tir_prefix, show_meta).Print(mod).str() + "\n";
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);

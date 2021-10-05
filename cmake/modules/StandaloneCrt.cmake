@@ -132,26 +132,16 @@ if(USE_MICRO)
           PUBLIC_HEADER "${crt_headers}")
     endforeach()
 
-    # Standalone CRT tests
-    file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*_test.cc)
-    find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
-    find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
-
     # Create the `crttest` target if we can find GTest.  If not, we create dummy
     # targets that give the user an informative error message.
     if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-      foreach(__srcpath ${TEST_SRCS})
-        get_filename_component(__srcname ${__srcpath} NAME)
-        string(REPLACE ".cc" "" __execname ${__srcname})
-        add_executable(${__execname} ${__srcpath})
-        list(APPEND TEST_EXECS ${__execname})
-        target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/micro)
-        target_compile_options(${__execname} PRIVATE -pthread)
-        target_link_libraries(${__execname} ${cmake_crt_libraries} ${GTEST_LIB} pthread)
-        set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
-        set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-      endforeach()
-      add_custom_target(crttest DEPENDS ${TEST_EXECS})
+      file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
+      add_executable(crttest ${TEST_SRCS})
+      target_include_directories(crttest SYSTEM PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/micro)
+      target_link_libraries(crttest PRIVATE ${cmake_crt_libraries} ${GTEST_LIB} gtest_main pthread dl)
+      set_target_properties(crttest PROPERTIES EXCLUDE_FROM_ALL 1)
+      set_target_properties(crttest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+      gtest_discover_tests(crttest)
     elseif(NOT GTEST_INCLUDE_DIR)
       add_custom_target(crttest
           COMMAND echo "Missing Google Test headers in include path"

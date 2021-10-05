@@ -19,6 +19,7 @@
 #ifndef TVM_TIR_SCHEDULE_SCHEDULE_H_
 #define TVM_TIR_SCHEDULE_SCHEDULE_H_
 
+#include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
 #include <tvm/tir/schedule/trace.h>
 
@@ -118,9 +119,9 @@ class ScheduleNode : public runtime::Object {
    * \brief Seed the randomness
    * \param seed The new random seed, -1 if use device random, otherwise non-negative
    */
-  virtual void Seed(int64_t seed = -1) {
-    LOG(FATAL) << "ValueError: The schedule cannot be seeded because no randomness is allowed";
-  }
+  virtual void Seed(support::LinearCongruentialEngine::TRandState seed = -1) = 0;
+  /*! \brief Fork the random state */
+  virtual support::LinearCongruentialEngine::TRandState ForkSeed() = 0;
 
  public:
   /******** Lookup/Remove random variables ********/
@@ -184,6 +185,16 @@ class ScheduleNode : public runtime::Object {
 
  public:
   /******** Schedule: Sampling ********/
+  /*!
+   * \brief Sample an integer given the probability distribution
+   * \param candidates The candidates
+   * \param probs The probability distribution of the candidates
+   * \param decision The sampling decision
+   * \return The random variable sampled from candidates
+   */
+  virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                   Optional<Integer> decision = NullOpt) = 0;
+
   /******** Schedule: Get blocks & loops ********/
   /*!
    * \brief Retrieve a block in a specific function with its name
@@ -205,6 +216,7 @@ class ScheduleNode : public runtime::Object {
    * 1) The loops can't have annotations or thread bindings.
    * 2) The (i+1)-th loop must be the only child of the i-th loop.
    * 3) All loops must start with 0.
+   * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
    * \param loop_rvs The loops to be fused
    * \return The new loop after fusion
    */
@@ -271,7 +283,64 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void Unroll(const LoopRV& loop_rv) = 0;
   /******** Schedule: Insert cache stages ********/
+  /*!
+   * \brief Create a block that reads a buffer region into a read cache. It requires:
+   * 1) There is at most one block who writes the buffer in the scope.
+   * 2) The scope block have stage-pipeline property.
+   * \param block_rv The consumer block of the target buffer.
+   * \param read_buffer_index The index of the buffer in block's read region.
+   * \param storage_scope The target storage scope.
+   * \return The cache stage block.
+   */
+  virtual BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
+                            const String& storage_scope) = 0;
+  /*!
+   * \brief Create a block that writes a buffer region into a write cache. It requires:
+   * 1) There is only one block who writes the target buffer.
+   * 2) The scope block have stage-pipeline property.
+   * \param block_rv The producer of the buffer
+   * \param write_buffer_index The index of the buffer in block's write region
+   * \param storage_scope The target storage scope
+   * \return The cache stage block.
+   */
+  virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                             const String& storage_scope) = 0;
   /******** Schedule: Compute location ********/
+  /*!
+   * \brief Move a producer block under the specific loop, and regenerate the
+   * loops induced by the block so that the buffer region produced by the producer block could
+   * cover those regions consumed by its consumer blocks under the given loop. It requires:
+   * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+   * 2) The scope block has stage-pipeline property
+   * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+   * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+   * reduction block
+   * 4) The block is not an output block with regard to the scope block, i.e. the buffers written by
+   * the block are allocated under the scope block
+   * 5) All the consumers of the block are under the given loop
+   * \param block_rv The block to be moved
+   * \param loop_rv The loop where the block to be moved under
+   * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   */
+  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                         bool preserve_unit_loops) = 0;
+  /*!
+   * \brief Move a consumer block under the specific loop, and regenerate the
+   * loops induced by the block so that the buffer region consumed by the consumer block could
+   * cover those regions produced by its producer blocks under the given loop. It requires:
+   * 1) `block` and `loop` are under the same scope, `loop` is not the ancestor of `block`
+   * 2) The scope block has stage-pipeline property
+   * 3) The subtree of the scope block, where the given block is in, satisfies the compact dataflow
+   * condition. i.e. all the blocks in the scope block's subtree must be either complete block or
+   * reduction block
+   * 4) All the producers of the block are under the given loop
+   *
+   * \param block_rv The block to be moved
+   * \param loop_rv The loop where the block to be moved under
+   * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   */
+  virtual void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+                                bool preserve_unit_loops) = 0;
   /*!
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer
@@ -296,6 +365,22 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void ReverseComputeInline(const BlockRV& block) = 0;
   /******** Schedule: Reduction ********/
+  /*!
+   * \brief Decompose a reduction block into two separate blocks.
+   * a) The init block, which is translated from the init statement of the reduction block;
+   * b) The update block, which is the original block without init statement.
+   *
+   * The init block is inserted right before the given loop.
+   *
+   * The schedule primitive requires:
+   * 1) The input block is a reduction block.
+   * 2) The input loop is the ancestor of the block.
+   * 3) The input loop is not lower than all the loops related to reduce block var.
+   * \param block_rv The reduction block to be decomposed
+   * \param loop_rv The loop above which the init block is inserted before.
+   * \return The init block
+   */
+  virtual BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
   /*!
    * \brief Factorize an associative reduction block by the specified loop.
    * \details An associative reduction cannot be parallelized directly,
@@ -356,6 +441,7 @@ class Schedule : public runtime::ObjectRef {
   /*!
    * \brief Construct a concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
+   * \param seed The seed value for schedule's random state
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
@@ -365,11 +451,12 @@ class Schedule : public runtime::ObjectRef {
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Concrete(IRModule mod, int debug_mask,
-                                   ScheduleErrorRenderLevel error_render_level);
+  TVM_DLL static Schedule Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                                   int debug_mask, ScheduleErrorRenderLevel error_render_level);
   /*!
    * \brief Construct a traced concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
+   * \param seed The seed value for schedule's random state
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
@@ -379,8 +466,8 @@ class Schedule : public runtime::ObjectRef {
    * 1) VerifySRefTree
    * 2) VerifyCachedFlags
    */
-  TVM_DLL static Schedule Traced(IRModule mod, int debug_mask,
-                                 ScheduleErrorRenderLevel error_render_level);
+  TVM_DLL static Schedule Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
+                                 int debug_mask, ScheduleErrorRenderLevel error_render_level);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 

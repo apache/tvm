@@ -35,9 +35,9 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 
+#include "../op/annotation/annotation.h"
 #include "../transforms/pass_utils.h"
-#include "compile_engine.h"
-#include "te_compiler.h"
+#include "./te_compiler.h"
 
 namespace tvm {
 namespace relay {
@@ -53,7 +53,11 @@ namespace {
 struct PairHash {
   template <typename T1, typename T2>
   std::size_t operator()(const std::pair<T1, T2>& k) const {
-    return std::hash<T1>()(k.first) ^ std::hash<T2>()(k.second);
+    return dmlc::HashCombine(std::hash<T1>()(k.first), std::hash<T2>()(k.second));
+  }
+  template <typename T2>
+  std::size_t operator()(const std::pair<Target, T2>& k) const {
+    return dmlc::HashCombine(ObjectHash()(k.first), std::hash<T2>()(k.second));
   }
 };
 
@@ -288,13 +292,8 @@ InterpreterState::InterpreterState(Expr current_expr, InterpreterState::Stack st
 class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                     PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
-  // TODO(mbs): Collapse mod and per_target_module once IRModule subsumes LoweredModule.
-  Interpreter(IRModule mod, Map<String, IRModule> per_target_module, Device device, Target target)
-      : mod_(mod),
-        per_target_module_(per_target_module),
-        device_(device),
-        target_(target),
-        debug_op_(Op::Get("debug")) {}
+  Interpreter(IRModule unified_mod, Device device, Target target)
+      : unified_mod_(unified_mod), device_(device), target_(target), debug_op_(Op::Get("debug")) {}
 
   template <typename T>
   T WithFrame(const Frame& fr, const std::function<T()>& f) {
@@ -311,7 +310,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   ObjectRef VisitExpr_(const VarNode* var_node) final { return Lookup(GetRef<Var>(var_node)); }
 
   ObjectRef VisitExpr_(const GlobalVarNode* op) final {
-    return Eval(mod_->Lookup(GetRef<GlobalVar>(op)));
+    return Eval(unified_mod_->Lookup(GetRef<GlobalVar>(op)));
   }
 
   ObjectRef VisitExpr_(const OpNode* id) override {
@@ -373,7 +372,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
    */
   PackedFunc TIRToPackedFunc(const GlobalVar& tir_fn_var, const Array<GlobalVar>& all_tir_fn_vars,
                              Target target) {
-    std::pair<std::string, std::string> packed_func_key(target->str(), tir_fn_var->name_hint);
+    std::pair<Target, std::string> packed_func_key(target, tir_fn_var->name_hint);
     auto packed_itr = compiled_packed_funcs_.find(packed_func_key);
     if (packed_itr != compiled_packed_funcs_.end()) {
       // Already compiled.
@@ -382,8 +381,11 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     // Project out just the function(s) we need.
     IRModule lowered_projected_mod;
-    auto mod_itr = per_target_module_.find(target->str());
-    ICHECK(mod_itr != per_target_module_.end())
+    Map<Target, IRModule> per_target_module = tec::GetPerTargetModules(unified_mod_);
+    std::unordered_map<Target, IRModule, backend::TargetStrHash, backend::TargetStrEqual>
+        per_target_module_std_map = backend::TargetModuleMapToTargetStrModuleMap(per_target_module);
+    auto mod_itr = per_target_module_std_map.find(target);
+    ICHECK(mod_itr != per_target_module_std_map.end())
         << "No target module for target '" << target->str() << "'";
     const IRModule& target_module = (*mod_itr).second;
     for (const auto& var : all_tir_fn_vars) {
@@ -407,7 +409,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       PackedFunc packed_func = runtime_module.GetFunction(var->name_hint);
       ICHECK(packed_func != nullptr) << "No packed function for global var '" << var->name_hint
                                      << "' in compiled module for target '" << target->str() << "'";
-      compiled_packed_funcs_.emplace(std::make_pair(target->str(), var->name_hint), packed_func);
+      compiled_packed_funcs_.emplace(std::make_pair(target, var->name_hint), packed_func);
     }
 
     // Return just what we need for this call.
@@ -437,7 +439,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                                    const Array<GlobalVar>& all_prim_shape_fn_vars,
                                    const Array<Integer>& prim_shape_fn_states,
                                    size_t num_shape_inputs, size_t num_shape_outputs,
-                                   const std::vector<ObjectRef>& args) {
+                                   Target prim_shape_target, const std::vector<ObjectRef>& args) {
     ICHECK(prim_shape_fn_var.defined());
     ICHECK(prim_shape_fn_states.defined());
     ICHECK(prim_shape_fn_var->checked_type().defined());
@@ -458,11 +460,10 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     Device shape_device;
     shape_device.device_type = kDLCPU;
     shape_device.device_id = 0;
-    Target shape_target("llvm");
 
     // 'Compile' the TIR shape function to appropriate callable form.
     PackedFunc packed_shape_func =
-        TIRToPackedFunc(prim_shape_fn_var, all_prim_shape_fn_vars, shape_target);
+        TIRToPackedFunc(prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_target);
 
     size_t arity = num_shape_inputs + num_shape_outputs;
     std::vector<TVMValue> values(arity);
@@ -479,13 +480,13 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       // flattened form of this arg. Does that match what lowering actually does?
       int64_t state = prim_shape_fn_states[i]->value;
       for (const auto& nd_array : FlattenADT(args[i])) {
-        if (state & kNeedInputData) {
+        if (state & tec::kNeedInputData) {
           auto arr = nd_array.CopyTo(shape_device);
           inputs[arg_counter] = arr;
           setter(arg_counter, arr);
           ++arg_counter;
         }
-        if (state & kNeedInputShape) {
+        if (state & tec::kNeedInputShape) {
           int64_t ndim = nd_array.Shape().size();
           NDArray shape_arr;
           if (ndim == 0) {
@@ -540,7 +541,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
    *
    * @param prim_fn_var Global bound to lowered primitive.
    * @param all_prim_fn_vars  All globals references by lowered primitive, plus prim_fn_var itself.
-   * @param prim_shape_fn_var Global bound to lowered shape function for primitive, if neeeded.
+   * @param prim_shape_fn_var Global bound to lowered shape function for primitive, if needed.
    * @param all_prim_shape_fn_vars All globals references by lowered shape function, plus
    * prim_shape_fn_var itself.
    * @param prim_shape_fn_states Records whether shape and/or data is needed by the dynamic
@@ -551,16 +552,17 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
    * @return Result of primitive.
    */
   ObjectRef InvokePrimitiveOp(const GlobalVar& prim_fn_var, const Array<GlobalVar> all_prim_fn_vars,
-                              const GlobalVar& prim_shape_fn_var,
+                              Target prim_target, const GlobalVar& prim_shape_fn_var,
                               const Array<GlobalVar>& all_prim_shape_fn_vars,
                               const Array<Integer>& prim_shape_fn_states, size_t num_shape_inputs,
-                              size_t num_shape_outputs, const std::vector<ObjectRef>& args) {
+                              size_t num_shape_outputs, Target prim_shape_target,
+                              const std::vector<ObjectRef>& args) {
     ICHECK(prim_fn_var->checked_type().defined());
     const FuncTypeNode* ftn = prim_fn_var->checked_type().as<FuncTypeNode>();
     ICHECK(ftn);
 
     // 'Compile' the TIR primitive to appropriate callable form (on the desired target).
-    PackedFunc packed_func = TIRToPackedFunc(prim_fn_var, all_prim_fn_vars, target_);
+    PackedFunc packed_func = TIRToPackedFunc(prim_fn_var, all_prim_fn_vars, prim_target);
 
     // Argument tuples are flattened.
     std::vector<NDArray> arg_nd_arrays = FlattenADTs(args);
@@ -594,7 +596,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       ICHECK(prim_shape_fn_states.defined());
       runtime_shapes =
           ComputeDynamicShape(prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
-                              num_shape_inputs, num_shape_outputs, args);
+                              num_shape_inputs, num_shape_outputs, prim_shape_target, args);
       ICHECK_EQ(runtime_shapes.size(), result_tensor_types.size());
     }
 
@@ -674,26 +676,33 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     return WithFrame<ObjectRef>(Frame(locals), [&]() { return Eval(func->body); });
   }
 
-  ObjectRef VisitExpr_(const CallNode* call) final {
+  ObjectRef VisitExpr_(const CallNode* call_node) final {
     std::vector<ObjectRef> args;
-    for (auto arg : call->args) {
+    for (auto arg : call_node->args) {
       args.push_back(Eval(arg));
     }
 
+    if (call_node->op == OnDeviceOp()) {
+      // Special case: The call 'on_device(expr)' denotes that expr should be executed on
+      // a particular device. We can ignore this during interpretation.
+      ICHECK_EQ(call_node->args.size(), 1UL);
+      return args[0];
+    }
+
     // We should not find calls to operators after running fusion and lowering.
-    if (const OpNode* op_node = call->op.as<OpNode>()) {
+    if (const OpNode* op_node = call_node->op.as<OpNode>()) {
       LOG(FATAL) << "found " << op_node->name
                  << "; operators should have been removed by previous passes; try "
                     "fusing and lowering";
     }
 
-    if (const ConstructorNode* con = call->op.as<ConstructorNode>()) {
+    if (const ConstructorNode* con = call_node->op.as<ConstructorNode>()) {
       // Special case: ADT constructor
       return ConstructorValue(con->tag, args, GetRef<Constructor>(con));
     }
 
-    if (const GlobalVarNode* gvn = call->op.as<GlobalVarNode>()) {
-      if (const TIRCallAttrs* attrs = call->attrs.as<TIRCallAttrs>()) {
+    if (const GlobalVarNode* gvn = call_node->op.as<GlobalVarNode>()) {
+      if (const TIRCallAttrs* attrs = call_node->attrs.as<TIRCallAttrs>()) {
         // Special case: Call a lowered TIR function.
         // TODO(mbs): Make calling convention first-class in Relay.
         Array<GlobalVar> all_prim_fn_vars;
@@ -725,15 +734,14 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
               Downcast<Integer>(attrs->metadata.at("prim_shape_fn_num_outputs"))->value);
         }
 
-        // Special case: Call TIR primitive.
-        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars, prim_shape_fn_var,
-                                 all_prim_shape_fn_vars, prim_shape_fn_states, num_shape_inputs,
-                                 num_shape_outputs, args);
+        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars, target_,
+                                 prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
+                                 num_shape_inputs, num_shape_outputs, cpu_target_, args);
       }
     }
 
     // Now we just evaluate and expect to find a closure.
-    ObjectRef fn_val = Eval(call->op);
+    ObjectRef fn_val = Eval(call_node->op);
     if (const InterpreterClosureObj* closure_node = fn_val.as<InterpreterClosureObj>()) {
       auto closure = GetRef<InterpreterClosure>(closure_node);
       return Invoke(closure, args);
@@ -761,7 +769,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   ObjectRef VisitExpr_(const TupleGetItemNode* op) final {
     ObjectRef val = Eval(op->tuple);
     const auto* adt_obj = val.as<ADTObj>();
-    ICHECK(adt_obj) << "interal error: when evaluating TupleGetItem expected an ADT value";
+    ICHECK(adt_obj) << "internal error: when evaluating TupleGetItem expected an ADT value";
     auto adt = GetRef<ADT>(adt_obj);
     ICHECK_LT(static_cast<size_t>(op->index), adt.size()) << "internal error: index out of bounds";
     return adt[op->index];
@@ -868,22 +876,21 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
  private:
-  // Main module. All expressions are eval'ed w.r.t. the definitions in this module. This module
-  // may contain calls to TIR functions bound in a per_target_module_ below.
-  IRModule mod_;
-  // Map from target key to lowered TIR functions derived from mod_.
-  // Note that primitives are implicitly executed on target_, while shape functions are implicitly
-  // executed on the default 'cpu' host. Thus this map has at most two entries.
-  Map<String, IRModule> per_target_module_;
+  // Unified module. Functions are annotated with their target.
+  // All expressions are eval'ed w.r.t. the definitions in this module.
+  // This module contains functions that used to be in main_module and the per_target_module (TIR
+  // functions) in one module.
+  IRModule unified_mod_;
   // Cached packed functions for the primitives and shape functions, keyed by target and
   // global var name.
-  std::unordered_map<std::pair<std::string, std::string>, PackedFunc, PairHash>
-      compiled_packed_funcs_;
+  std::unordered_map<std::pair<Target, std::string>, PackedFunc, PairHash> compiled_packed_funcs_;
   // Unique device on which primitives (but not shape functions) will be executed.
   // (For simplicity we only run the interpreter on a single device.)
   Device device_;
   // Unique target describing how to compile for primitives (but not shape functions).
   Target target_;
+  // Default 'CPU' target for shape primitives.
+  Target cpu_target_{"llvm"};
   // Call stack.
   Stack stack_;
   // The distinguished 'debug' operator, which is handled specially.
@@ -895,37 +902,37 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * rewritten \p mod and target-specific modules containing bindings for all TIR primitive
  * functions needed by the rewritten module.
  */
-std::pair<IRModule, Map<String, IRModule>> Prepare(IRModule mod, Device device, Target target) {
+IRModule Prepare(IRModule mod, Device device, Target target) {
+  // Things to initialize to pass into tec::LowerTEPass
+  // We only have one device-specific target.
+  tec::TargetMap targets = {{device.device_type, target}};
+  if (device.device_type != kDLCPU) {
+    // However some primitives (eg dynamic shape functions) must always execute on the CPU,
+    // so make sure we have a target for that.
+    targets.emplace(kDLCPU, Target("llvm"));
+  }
+
   // Run minimal transforms on module to establish invariants needed by interpreter.
-  transform::Sequential seq({transform::SimplifyInference(),
-                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
-                             // attribute.
-                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
-                             // eta expand to support constructors in argument position
-                             transform::EtaExpand(
-                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
-                             transform::InferType()});
+  transform::Sequential seq(
+      {transform::SimplifyInference(),
+       // Figure out which devices should be used to execute.
+       transform::PlanDevices(device.device_type),
+       // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
+       // attribute.
+       transform::FuseOps(/*fuse_opt_level=*/0),
+       // Use ANF to reduce number of cases to handle.
+       transform::ToANormalForm(),
+       // eta expand to support constructors in argument position.
+       transform::EtaExpand(
+           /*expand_constructor=*/true, /*expand_global_var=*/false),
+       transform::InferType(),
+       tec::LowerTEPass(targets, /*module_name=*/"intrp", [](Function func) { /* no-op */ })});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);
   mod = seq(mod);
 
-  // We only have one device-specific target.
-  tec::TargetMap targets = {{device.device_type, target}};
-
-  // All calls to primitives will use the unique target.
-  tec::DeviceMap device_map;
-
-  // No need for a memory plan.
-  backend::StaticMemoryPlan memory_plan; /*=nullptr*/
-
-  // Lower all primitive functions reachable from expr.
-  // TODO(mbs): This should be just another pass in seq above, which requires LoweredModule to
-  // be merged into IRModule.
-  LoweredModule lowered_module =
-      tec::LowerTE(mod, targets, device_map, memory_plan, /*module_name=*/"intrp",
-                   [](Function func) { /* no-op */ });
-  return {lowered_module.main_module, lowered_module.per_target_module};
+  return mod;
 }
 
 /*! \brief Check if an expression could be changed by \p Prepare.
@@ -971,6 +978,9 @@ class NeedsPreparationVisitor : public ExprVisitor {
 
 TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, Device device,
                                                      Target target) {
+  VLOG_CONTEXT << "EvalFunction";
+  VLOG(1) << "evaling module:\n" << PrettyPrint(mod) << "and expression:\n" << PrettyPrint(expr);
+
   //
   // Step 1: Prepare mod.
   //
@@ -1014,11 +1024,9 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     // and can just eval it directly.
     expr_to_eval = expr;
   }
-  std::pair<IRModule, Map<String, IRModule>> main_and_lowered =
-      Prepare(mod_with_expr, device, target);
-  std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(
-      /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
-      target);
+  IRModule lowered_mod = Prepare(mod_with_expr, device, target);
+
+  std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(lowered_mod, device, target);
 
   //
   // Step 2: Evaluate target function to a closure.
@@ -1030,6 +1038,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     ICHECK(closure->func.defined());
 
     return TypedPackedFunc<ObjectRef(Array<Expr>)>([intrp, closure](Array<Expr> args) {
+      VLOG_CONTEXT << "EvalFunction::Apply";
+      VLOG(1) << "evaling closure with " << args.size() << " arguments";
       //
       // Step 3: Apply closure to arguments.
       //
@@ -1057,12 +1067,11 @@ ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
                std::unordered_set<String> import_set, Device device, Target target) {
   std::pair<IRModule, GlobalVar> mod_and_global =
       IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
-  std::pair<IRModule, Map<String, IRModule>> main_and_lowered =
-      Prepare(mod_and_global.first, device, target);
-  Interpreter intrp(
-      /*mod=*/main_and_lowered.first, /*per_target_module=*/main_and_lowered.second, device,
-      target);
-  Expr expr_to_eval = main_and_lowered.first->GetGlobalVar(mod_and_global.second->name_hint);
+
+  IRModule mod = Prepare(mod_and_global.first, device, target);
+
+  Interpreter intrp(mod, device, target);
+  Expr expr_to_eval = mod->GetGlobalVar(mod_and_global.second->name_hint);
   if (expr.as<BaseFuncNode>() == nullptr) {
     // TODO(mbs): IRModule::FromExpr will implicitly close over the free vars of expr
     // unless it is a function, so we must reverse that in the expression to eval.
