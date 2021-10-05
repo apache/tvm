@@ -155,16 +155,16 @@ struct PipelineConfig {
  * \brief The informations used to initialize the graph executor module, the information
  *  come from the export library function call.
  */
-struct ModuleInformation {
-  ModuleInformation(const std::string& lib, const std::string& json, const std::string& params,
-                    const std::string& device)
+struct GraphModuleLoadInfo {
+  GraphModuleLoadInfo(const std::string& lib, const std::string& json, const std::string& params,
+                      const std::string& device)
       : lib_name(lib), json_name(json), params_name(params), dev(device) {}
-  ModuleInformation() { ; }
+  GraphModuleLoadInfo() { ; }
   std::string lib_name;
   std::string json_name;
   std::string params_name;
   std::string dev;
 };
 /*! The Module information of each module.The 'int' is module index. */
-using ModuleConfig = std::unordered_map<int, ModuleInformation>;
+using ModuleConfig = std::unordered_map<int, GraphModuleLoadInfo>;
 #endif  //  TVM_RUNTIME_PIPELINE_PIPELINE_STRUCT_H_

@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import os
 import numpy as np
 import tvm
 import tvm.testing
@@ -232,7 +233,11 @@ def test_pipeline():
                 pipeline_mod_factory = pipeline_executor.build(pipe_config)
 
             # Export the parameter configuration to a file.
-            config_file_name = pipeline_mod_factory.export_library()
+            directory_path = tvm.contrib.utils.tempdir().temp_dir
+            # If the directory does not exist, create the directory.
+            if not os.path.exists(directory_path):
+                os.makedirs(directory_path)
+            config_file_name = pipeline_mod_factory.export_library(directory_path)
 
             # Use the output of build to create and initialize PipelineModule.
             pipeline_module = pipeline_executor.PipelineModule(pipeline_mod_factory)
@@ -240,7 +245,7 @@ def test_pipeline():
 
             # Use the import function to create and initialize PipelineModule.
             pipeline_module_test = pipeline_executor.PipelineModule()
-            pipeline_module_test.import_from_library(config_file_name)
+            pipeline_module_test.load_library(config_file_name)
             assert pipeline_module_test.get_num_outputs() == 2
 
 

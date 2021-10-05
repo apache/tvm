@@ -35,12 +35,14 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumOutputs(); });
   } else {
+    LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc();
   }
   return nullptr;
 }
 /*!
- * \brief Initialize the pipeline executor with module array and json text.
+ * \brief Initialize the pipeline executor with a list of modules to be pipelined
+ *  and config in JSON format.
  * \param modules The module list used for building pipeline.
  * \param pipeline_json The configuration of modules dependencies.
  */

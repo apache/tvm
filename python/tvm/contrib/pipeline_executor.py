@@ -94,7 +94,7 @@ class PipelineModule(object):
         # Get the packed functions from the pipeline executor.
         self.load_functions()
 
-    def import_from_library(self, config_file_name):
+    def load_library(self, config_file_name):
         """Import files to create pipeline executor.
 
         Parameters
@@ -103,10 +103,10 @@ class PipelineModule(object):
             The configuration file path, the configuration file contains the
             disk path of the parameter file, library file and JSON file。
         """
-        # Create a empty PipelineExecutorFactoryModule.
+        # Create an empty PipelineExecutorFactoryModule.
         pipeline_factory = PipelineExecutorFactoryModule()
         # Load the configuration file to initialize a PipelineExecutorFactoryModule.
-        pipeline_factory.import_from_library(config_file_name)
+        pipeline_factory.load_library(config_file_name)
         self.module = pipeline_factory.module
         # Get packed functions from the pipeline executor.
         self.load_functions()
@@ -542,12 +542,12 @@ class PipelineExecutorFactoryModule(object):
         self.pipeline_libs = pipeline_libs
         self.mods_config = mods_config
         self.pipeline_create = tvm._ffi.get_global_func(
-            "tvm.pipeline_executor.create", allow_missing=False
+            "tvm.pipeline_executor.create", allow_missing=True
         )
         self.module = None
         # Only create pipeline executor when pipeline_libs, mods_config and
         # self.pipeline_create are not None.
-        if pipeline_libs and mods_config:
+        if pipeline_libs and mods_config and self.pipeline_create:
             graph_executors, config = self.graph_executor_create(pipeline_libs, mods_config)
             self.module = self.pipeline_create(graph_executors, config)
 
@@ -583,7 +583,7 @@ class PipelineExecutorFactoryModule(object):
 
         return mods, json.dumps(mod_config)
 
-    def export_library(self, directory_path=None):
+    def export_library(self, directory_path):
         """Export the pipeline executor into disk files.
 
         Parameters
@@ -594,14 +594,9 @@ class PipelineExecutorFactoryModule(object):
         if not self.pipeline_libs:
             raise RuntimeError(f"The pipeline executor has not been initialized.")
 
-        # If the directory_path is not set, use the temporary path as the file storage
-        # directory_path.
-        if not directory_path:
-            directory_path = tvm.contrib.utils.tempdir().temp_dir
-
-        # If the directory does not exist, create the directory.
+        # Check if the directory_path exists.
         if not os.path.exists(directory_path):
-            os.makedirs(directory_path)
+            raise RuntimeError(f"The directory {directory_path} does not exist.")
         # Create a configuration copy for export.
         export_conf = self.mods_config.copy()
         # Export the library, JSON and parameter into files, then export these files path
@@ -632,7 +627,7 @@ class PipelineExecutorFactoryModule(object):
 
         return conf_file_name
 
-    def import_from_library(self, config_file_name):
+    def load_library(self, config_file_name):
         """Load configuration file to create and initialize pipeline executor.
 
         Parameters

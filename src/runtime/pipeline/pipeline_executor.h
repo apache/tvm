@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 
-#include "pipeline_function.h"
+#include "pipeline_scheduler.h"
 namespace tvm {
 namespace runtime {
 /*!
@@ -71,13 +71,13 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   int NumOutputs() const { return num_outputs_; }
 
  private:
-  /*!\brief The class used to execute pipeline logic*/
-  PipelineFunction pipeline_function_;
+  /*!\brief The class used to execute pipeline logic.*/
+  PipelineScheduler pipeline_function_;
   /*!\brief The Dependency information of each graph runtime module of pipeline.*/
   PipelineConfig pipeline_config_;
-  /*!\brief The Module information that can get used to create graph runtime.*/
+  /*!\brief The Module information used to create graph runtime.*/
   ModuleConfig mod_config_;
-  /*!\birief How many outputs are in this pipeline executor.*/
+  /*!\brief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
   /*!\brief Json loader.*/
   void Load(dmlc::JSONReader* reader) {
@@ -94,24 +94,15 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_idx") {
           reader->Read(&mod_idx);
-        }
-        if (key == "lib_name") {
+        } else if (key == "lib_name") {
           reader->Read(&lib_name);
-        }
-
-        if (key == "json_name") {
+        } else if (key == "json_name") {
           reader->Read(&json_name);
-        }
-
-        if (key == "params_name") {
+        } else if (key == "params_name") {
           reader->Read(&params_name);
-        }
-
-        if (key == "dev") {
+        } else if (key == "dev") {
           reader->Read(&dev);
-        }
-
-        if (key == "output") {
+        } else if (key == "output") {
           reader->Read(&output);
         }
       }
@@ -122,7 +113,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
       pipeline_config_.Insert(mod_idx, output);
       // Check if there is lib, json and params information.
       if (!lib_name.empty() && !json_name.empty() && !params_name.empty()) {
-        mod_config_[mod_idx] = ModuleInformation(lib_name, json_name, params_name, dev);
+        mod_config_[mod_idx] = GraphModuleLoadInfo(lib_name, json_name, params_name, dev);
       }
     }
   }
