@@ -107,9 +107,9 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
         }
       }
       // Check if mod_idx is read successfully.
-      ICHECK(mod_idx >= 0);
+      ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
       // Check if the output is read successfully.
-      ICHECK(!output.Empty());
+      ICHECK(!output.Empty()) << "Invalid output binding result.";
       pipeline_config_.Insert(mod_idx, output);
       // Check if there is lib, json and params information.
       if (!lib_name.empty() && !json_name.empty() && !params_name.empty()) {

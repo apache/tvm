@@ -26,7 +26,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#define GLOBAL_MODULE_INDEX -1
+#define PIPELINE_EXECUTOR_INDEX -1
 /*!
  * \brief All binding information of a output interface.
  */
@@ -37,16 +37,16 @@ struct OutputBindings {
    */
   std::unordered_map<int, std::string> bindings;
   /*!
-   * \brief If there is one global binding in bindings, then current output is
-   *  global interface.
-   * \return Whether this output interface is global output interface.
+   * \brief If there is one PipelineExecutor binding in bindings, then current output is
+   *  PipelineExecutor interface.
+   * \return Whether this output interface is PipelineExecutor output interface.
    */
   bool IsGlobalOutput() const {
     int num_output = 0;
     for (auto binding : bindings) {
-      /* output is global output when value is GLOBAL_MODULE_INDEX.
+      /* output is PipelineExecutor output when value is PIPELINE_EXECUTOR_INDEX.
        */
-      num_output += (binding.first == GLOBAL_MODULE_INDEX);
+      num_output += (binding.first == PIPELINE_EXECUTOR_INDEX);
     }
     /* If this output is a global output then there is only one such output in map.*/
     ICHECK(num_output <= 1);

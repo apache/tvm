@@ -180,10 +180,12 @@ def test_pipeline():
 
             pipe_config = pipeline_executor.PipelineConfig()
 
-            # The global input named "data_0" will be connected to a input named "data_0" of mod1.
+            # The pipeline input named "data_0" will be connected to a input named "data_0"
+            # of mod1.
             pipe_config["input"]["data_0"].connect(pipe_config[mod1]["input"]["data_0"])
 
-            # The global Input named "data_1" will be connected to a input named "data_1" of mod2.
+            # The pipeline Input named "data_1" will be connected to a input named "data_1"
+            # of mod2.
             pipe_config["input"]["data_1"].connect(pipe_config[mod2]["input"]["data_1"])
 
             # The mod1 output[0] will be connected to a input named "data_0" of mod2.
@@ -195,10 +197,10 @@ def test_pipeline():
             # The mod2 output[2] will be connected to a input named "data_1" of mod3.
             pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
 
-            # The mod1 output[2] will be connected to global output[1].
+            # The mod1 output[2] will be connected to pipeline output[0].
             pipe_config[mod1]["output"][2].connect(pipe_config["output"]["0"])
 
-            # The mod3 output[0] will be connected to global output[2].
+            # The mod3 output[0] will be connected to pipeline output[1].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
             # Print configueration (print(pipe_config)), the result looks like following.
             #
@@ -246,7 +248,7 @@ def test_pipeline():
             # Use the import function to create and initialize PipelineModule.
             pipeline_module_test = pipeline_executor.PipelineModule()
             pipeline_module_test.load_library(config_file_name)
-            assert pipeline_module_test.get_num_outputs() == 2
+            assert pipeline_module_test.num_outputs == 2
 
 
 if __name__ == "__main__":

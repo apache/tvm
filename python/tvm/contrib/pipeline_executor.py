@@ -114,7 +114,8 @@ class PipelineModule(object):
         # Get functions from the pipeline executor.
         self._get_num_outputs = self.module["get_num_outputs"] if self.module else None
 
-    def get_num_outputs(self):
+    @property
+    def num_outputs(self):
         """Get the number of outputs.
         Returns
         -------
@@ -177,10 +178,10 @@ class PipelineConfig(object):
 
             return -1
 
-        def is_global_interface(self):
-            """The global interface is the interface visible to the caller which use a pipeline
-            executor, the global input interface is responsible for passing parameters to the
-            internal module interface, and the global output interface is responsible for
+        def is_pipeline_executor_interface(self):
+            """The pipeline interface is the interface visible to the caller which use a pipeline
+            executor, the pipeline input interface is responsible for passing parameters to the
+            internal module interface, and the pipeline output interface is responsible for
             outputting the results computed by the pipeline executor to a caller.
             """
             return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
@@ -218,8 +219,8 @@ class PipelineConfig(object):
 
         def connect(self, binding):
             """Connect the current interface to the destination interface.
-            Correct connections are as follows: 1. global input connected to module input,
-            2. module output connected to global output, 3. module output connected to
+            Correct connections are as follows: 1. pipeline input connected to module input,
+            2. module output connected to pipline output, 3. module output connected to
             module input.
 
             Parameters
@@ -232,31 +233,31 @@ class PipelineConfig(object):
             if self.io_owner == binding.io_owner:
                 raise RuntimeError(f"Can not bind itself.")
 
-            if not self.is_global_interface() and self.io_type == "input":
+            if not self.is_pipeline_executor_interface() and self.io_type == "input":
                 raise RuntimeError(f"Module can only bind from output interface!")
 
             if (
-                not self.is_global_interface()
-                and not binding.is_global_interface()
+                not self.is_pipeline_executor_interface()
+                and not binding.is_pipeline_executor_interface()
                 and binding.io_type == "output"
             ):
                 raise RuntimeError(f"Can not bind module output with another module output!")
 
             if (
-                not self.is_global_interface()
-                and binding.is_global_interface()
+                not self.is_pipeline_executor_interface()
+                and binding.is_pipeline_executor_interface()
                 and binding.io_type == "input"
             ):
-                raise RuntimeError(f"Can not bind module output with global input!")
+                raise RuntimeError(f"Can not bind module output with pipeline input!")
 
-            if self.is_global_interface() and self.io_type == "output":
+            if self.is_pipeline_executor_interface() and self.io_type == "output":
                 raise RuntimeError(f"Global output can not be used as binding start point.")
 
-            if self.is_global_interface() and binding.io_type != "input":
+            if self.is_pipeline_executor_interface() and binding.io_type != "input":
                 raise RuntimeError(f"Global input can only bind with module input.")
 
             self.bindings.append(binding)
-            if not self.is_global_interface():
+            if not self.is_pipeline_executor_interface():
                 # Check whether the data types of the source and destination are the same.
                 if (
                     isinstance(binding.io_owner, PipelineConfig.ModuleWrapper)
