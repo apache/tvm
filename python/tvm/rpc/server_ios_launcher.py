@@ -1,5 +1,7 @@
 import os
 import json
+import time
+import threading
 import subprocess
 from enum import Enum
 from typing import Dict, List, AnyStr
@@ -62,53 +64,16 @@ def shutdown_device(udid: AnyStr) -> None:
         raise RuntimeError(f"Failed to shut down device with unique id: {udid}")
 
 
-def deploy_bundle_to_simulator(udid: AnyStr, bundle_path: AnyStr) -> bool:
+def deploy_bundle_to_simulator(udid: AnyStr, bundle_path: AnyStr) -> None:
     ret_code = os.system(f"xcrun simctl install {udid} {bundle_path}")
     if ret_code != 0:
         raise RuntimeError(f"Failed to deploy bundle <{bundle_path}> to device with unique id: {udid}")
-    return True
 
 
 def delete_bundle_from_simulator(udid: AnyStr, bundle_id: AnyStr) -> None:
     ret_code = os.system(f"xcrun simctl uninstall {udid} {bundle_id}")
     if ret_code != 0:
         raise RuntimeError(f"Failed to uninstall bundle <{bundle_id}> from device with unique id: {udid}")
-
-
-def wait_launch_complete(proc, should_print_host_and_port=False):
-    marker_stopped = "PROCESS_STOPPED"
-    marker_callstack = "First throw call stack"
-    marker_connected = "[IOS-RPC] STATE: 2"  # 0 means state Tracker/Proxy is connected
-    marker_server_ip = "[IOS-RPC] IP: "
-    marker_server_port = "[IOS-RPC] PORT: "
-
-    host, port = None, None
-    for line in proc.stdout:
-        found = str(line).find(marker_stopped)
-        if found != -1:
-            raise RuntimeError("[ERROR] Crash during RCP Server launch.. ")
-
-        found = str(line).find(marker_callstack)
-        if found != -1:
-            raise RuntimeError("[ERROR] Crash during RCP Server launch.. ")
-
-        found = str(line).find(marker_server_ip)
-        if found != -1:
-            ip = str(line)[found + len(marker_server_ip):].rstrip("\n")
-            host = ip
-
-        found = str(line).find(marker_server_port)
-        if found != -1:
-            port = str(line)[found + len(marker_server_port):].rstrip("\n")
-            port = int(port)
-
-        if str(line).find(marker_connected) != -1:
-            # rpc server reports that it successfully connected
-            break
-
-    if should_print_host_and_port and (host is None and port is None):
-        raise RuntimeError("No messages with actual host and port.")
-    return host, port
 
 
 def launch_ios_rpc(udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr):
@@ -121,9 +86,7 @@ def launch_ios_rpc(udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port:
            f" --verbose")
     proc = subprocess.Popen(cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
                             universal_newlines=True)
-    actual_host, actual_port = wait_launch_complete(proc,
-                                                    should_print_host_and_port=mode == RPCServerMode.standalone.value)
-    return True, actual_host, actual_port
+    return proc
 
 
 def terminate_ios_rpc(udid: AnyStr, bundle_id: AnyStr) -> None:
@@ -163,8 +126,9 @@ class ServerIOSLauncher:
     bundle_path = os.environ["BUNDLE_PATH"]
 
     def __init__(self, mode, host, port, key):
-        self.bundle_was_deployed = None
-        self.server_was_started = None
+        self.host = host
+        self.port = port
+
         self.external_booted_device = None
         if not ServerIOSLauncher.booted_devices:
             self._boot_or_find_booted_device()
@@ -172,16 +136,22 @@ class ServerIOSLauncher:
         self.udid = get_device_uid(self.external_booted_device
                                    if self.external_booted_device is not None
                                    else ServerIOSLauncher.booted_devices[-1])
-        self.bundle_was_deployed = deploy_bundle_to_simulator(self.udid, self.bundle_path)
-        self.server_was_started, _, actual_port = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
 
-        self.host = host
-        self.port = port if mode != RPCServerMode.standalone.value else actual_port
+        self.bundle_was_deployed = False
+        deploy_bundle_to_simulator(self.udid, self.bundle_path)
+        self.bundle_was_deployed = True
+
+        self.server_was_started = False
+        self.launch_process = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
+        self._wait_launch_complete(waiting_time=30,
+                                   should_print_host_and_port=mode == RPCServerMode.standalone.value)
+        self.server_was_started = True
 
     def terminate(self):
         if self.server_was_started:
             try:
                 terminate_ios_rpc(self.udid, self.bundle_id)
+                self.launch_process.terminate()
                 self.server_was_started = False
             except Exception as e:
                 print(e)
@@ -225,6 +195,70 @@ class ServerIOSLauncher:
             target_device = target_devices[-1 if take_latest_model else 0]
             boot_device(get_device_uid(target_device))
             ServerIOSLauncher.booted_devices.append(target_device)
+
+    def _wait_launch_complete(self, waiting_time, should_print_host_and_port=False):
+        class Switch:
+            def __init__(self):
+                self.on = False
+
+            def to_switch(self):
+                self.on = not self.on
+
+        def watchdog():
+            hz = 10
+            for _ in range(waiting_time * hz):
+                time.sleep(1. / hz)
+                if switch_have_data.on:
+                    break
+            if not switch_have_data.on:
+                self.launch_process.terminate()
+                switch_process_was_terminated.to_switch()
+
+        switch_have_data = Switch()
+        switch_process_was_terminated = Switch()
+        watchdog_thread = threading.Thread(target=watchdog)
+
+        marker_stopped = "PROCESS_STOPPED"
+        marker_callstack = "First throw call stack"
+        marker_connected = "[IOS-RPC] STATE: 2"  # 0 means state Tracker/Proxy is connected
+        marker_server_ip = "[IOS-RPC] IP: "
+        marker_server_port = "[IOS-RPC] PORT: "
+
+        host, port = None, None
+        watchdog_thread.start()
+        for line in self.launch_process.stdout:
+            if not switch_have_data.on:
+                switch_have_data.to_switch()
+
+            found = str(line).find(marker_stopped)
+            if found != -1:
+                raise RuntimeError("[ERROR] Crash during RCP Server launch.. ")
+
+            found = str(line).find(marker_callstack)
+            if found != -1:
+                raise RuntimeError("[ERROR] Crash during RCP Server launch.. ")
+
+            found = str(line).find(marker_server_ip)
+            if found != -1:
+                ip = str(line)[found + len(marker_server_ip):].rstrip("\n")
+                host = ip
+
+            found = str(line).find(marker_server_port)
+            if found != -1:
+                port = str(line)[found + len(marker_server_port):].rstrip("\n")
+                port = int(port)
+
+            if str(line).find(marker_connected) != -1:
+                # rpc server reports that it successfully connected
+                break
+        watchdog_thread.join()
+
+        if switch_process_was_terminated.on:
+            raise TimeoutError("Can't get a response from the iOS Server.")
+        if should_print_host_and_port:
+            if host is None or port is None:
+                raise RuntimeError("No messages with actual host and port.")
+            self.port = port
 
 
 class ServerIOSContextManager:
