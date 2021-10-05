@@ -168,7 +168,7 @@ def test_forward_arg_max_min():
         def forward(self, inputs):
             return inputs.argmin(axis=2, keepdim=True)
 
-    input_shapes = [[256], [10, 128], [100, 500, 200], [1, 3, 224, 224]]
+    input_shapes = [[256], [5, 28], [10, 5, 4], [1, 3, 8, 8]]
     for input_shape in input_shapes:
         input_data = paddle.rand(input_shape, dtype="float32")
         verify_model(ArgMax(), input_data=input_data)
@@ -202,7 +202,7 @@ def test_forward_argsort():
         def forward(self, inputs):
             return paddle.argsort(inputs, axis=-1, descending=True)
 
-    input_shapes = [[256], [10, 20], [10, 10, 3], [1, 3, 5, 5]]
+    input_shapes = [[256], [10, 20], [10, 5, 3], [1, 3, 5, 5]]
     for input_shape in input_shapes:
         # Avoid duplicate elements in the array which will bring
         # different results with different sort algorithms
@@ -323,7 +323,7 @@ def test_forward_check_tensor():
         def forward(self, inputs):
             return paddle.cast(paddle.isinf(inputs), "int32")
 
-    input_shapes = [[32], [8, 128], [2, 128, 256], [2, 3, 224, 224], [2, 2, 3, 229, 229]]
+    input_shapes = [[32], [8, 32], [2, 5, 20], [2, 3, 8, 8], [2, 2, 3, 6, 6]]
     for input_shape in input_shapes:
         input_data = paddle.rand(input_shape, dtype="float32")
         verify_model(IsFinite(), input_data=input_data)
@@ -417,7 +417,7 @@ def test_forward_dot():
         def forward(self, x, y):
             return paddle.dot(x, y)
 
-    input_shapes = [[128], [8, 128]]
+    input_shapes = [[128], [8, 24]]
     for input_shape in input_shapes:
         x_data = paddle.rand(input_shape, dtype="float32")
         y_data = paddle.rand(input_shape, dtype="float32")
@@ -457,8 +457,8 @@ def test_forward_elemwise():
     api_list = [
         "equal",
     ]
-    x_shapes = [[128], [8, 128], [8, 200, 300], [2, 3, 229, 229], [2, 3, 3, 224, 224]]
-    y_shapes = [[1], [8, 128], [8, 1, 1], [2, 3, 229, 229], [2, 3, 3, 224, 1]]
+    x_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
+    y_shapes = [[1], [8, 20], [4, 1, 1], [2, 3, 8, 8], [2, 3, 3, 9, 1]]
     for x_shape, y_shape in zip(x_shapes, y_shapes):
         x_data = paddle.randint(1, 1000, x_shape, dtype="int32")
         y_data = paddle.randint(1, 1000, y_shape, dtype="int32")
@@ -474,11 +474,11 @@ def test_forward_expand():
 
     @paddle.jit.to_static
     def expand2(inputs):
-        return paddle.expand(inputs, shape=[3, 1, 8, 256])
+        return paddle.expand(inputs, shape=[2, 1, 4, 16])
 
     @paddle.jit.to_static
     def expand3(inputs):
-        return paddle.expand(inputs, shape=[5, 1, 3, 224, 224])
+        return paddle.expand(inputs, shape=[2, 1, 3, 7, 7])
 
     @paddle.jit.to_static
     def expand4(inputs):
@@ -487,21 +487,21 @@ def test_forward_expand():
 
     @paddle.jit.to_static
     def expand5(inputs):
-        shape = paddle.to_tensor(np.array([3, 1, 8, 256]).astype("int32"))
+        shape = paddle.to_tensor(np.array([2, 1, 4, 16]).astype("int32"))
         return paddle.expand(inputs, shape=shape)
 
     @paddle.jit.to_static
     def expand6(inputs):
-        shape = paddle.to_tensor(np.array([5, 1, 3, 224, 224]).astype("int32"))
+        shape = paddle.to_tensor(np.array([2, 1, 3, 7, 7]).astype("int32"))
         return paddle.expand(inputs, shape=shape)
 
     data = paddle.rand([128], dtype="float32")
     verify_model(expand1, input_data=[data])
     verify_model(expand4, input_data=[data])
-    data = paddle.rand([8, 256], dtype="float32")
+    data = paddle.rand([4, 16], dtype="float32")
     verify_model(expand2, input_data=[data])
     verify_model(expand5, input_data=[data])
-    data = paddle.rand([1, 3, 224, 224], dtype="float32")
+    data = paddle.rand([1, 3, 7, 7], dtype="float32")
     verify_model(expand3, input_data=[data])
     verify_model(expand6, input_data=[data])
 
@@ -639,8 +639,8 @@ def test_forward_logical_api():
             z = self.func(x, y, out=out)
             return paddle.cast(z, "int32")
 
-    x_shapes = [[128], [8, 128], [8, 200, 300], [2, 3, 229, 229], [2, 3, 3, 224, 224]]
-    y_shapes = [[1], [8, 128], [8, 1, 1], [2, 3, 229, 229], [2, 3, 3, 224, 1]]
+    x_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
+    y_shapes = [[1], [8, 20], [4, 1, 1], [2, 3, 8, 8], [2, 3, 3, 9, 1]]
     for x_shape, y_shape in zip(x_shapes, y_shapes):
         x_data = paddle.randint(0, 2, x_shape).astype("bool")
         y_data = paddle.randint(0, 2, y_shape).astype("bool")
@@ -847,7 +847,7 @@ def test_forward_math_api():
         "relu",
         "tanh",
     ]
-    input_shapes = [[128], [2, 256], [1000, 128, 32], [7, 3, 256, 256]]
+    input_shapes = [[128], [2, 100], [10, 2, 5], [7, 3, 4, 1]]
     for input_shape in input_shapes:
         input_data = paddle.rand(input_shape, dtype="float32")
         for api_name in api_list:
