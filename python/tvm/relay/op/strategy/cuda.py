@@ -739,7 +739,7 @@ def matmul_strategy_cuda(attrs, inputs, out_type, target):
 
     if target.kind.name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
-            wrap_compute_matmul(topi.cuda.matmul_cublas),
+            wrap_compute_matmul(topi.cuda.matmul_cublas, need_tensor_b_copy=False),
             wrap_topi_schedule(topi.cuda.schedule_matmul_cublas),
             name="matmul_cublas.cuda",
             plevel=25,
@@ -811,7 +811,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                     )
     if target.kind.name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
-            wrap_compute_dense(topi.cuda.dense_cublas),
+            wrap_compute_dense(topi.cuda.dense_cublas, need_tensor_b_copy=False),
             wrap_topi_schedule(topi.cuda.schedule_dense_cublas),
             name="dense_cublas.cuda",
             plevel=25,
