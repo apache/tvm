@@ -74,7 +74,7 @@ jobs:
     - name: Build iOS RPC@MacOS
       if: startsWith(matrix.os, 'macOS')
       run: |
-        IOS_VERSION = "14.0"
+        IOS_VERSION="14.0"
         CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release \
                      -DCMAKE_SYSTEM_NAME=iOS \
                      -DCMAKE_SYSTEM_VERSION=${IOS_VERSION} \
