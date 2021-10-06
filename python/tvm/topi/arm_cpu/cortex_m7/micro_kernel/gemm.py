@@ -126,21 +126,9 @@ def gemm_MxKxN_impl(M, K, N, uniq_id):
     bb_pad_size = N * K
     # code reference: CMSIS-NN paper (https://arxiv.org/abs/1801.06601)
     cc_code = f"""
-#include "cortex_m7_defines.h"
-
-#ifdef GROVETY_OP_BENCHMARK
-
-#ifdef __cplusplus
-extern "C"
-#endif // __cplusplus
-void perf_timer_start(uint32_t op_id);
-
-#ifdef __cplusplus
-extern "C"
-#endif // __cplusplus
-void perf_timer_stop(uint32_t op_id);
-
-#endif // GROVETY_OP_BENCHMARK
+#ifndef   __STATIC_FORCEINLINE
+  #define __STATIC_FORCEINLINE  __attribute__((always_inline)) static inline
+#endif
 
 #ifdef __cplusplus
 extern "C"
@@ -215,10 +203,6 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
   int16_t bb_pad[{bb_pad_size}];
   int32_t retcode = 0;
 
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_start(0);
-#endif
-
   if ( {M} < 16 || {N} < 16 ) {{
     retcode = gemm_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
     goto out;
@@ -252,9 +236,6 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
     gemm_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_stop(0);
-#endif
   return retcode;
 }}
 
@@ -329,10 +310,6 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
   int16_t bb_pad[{bb_pad_size}];
   int32_t retcode = 0;
 
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_start(0);
-#endif
-
   if ( {M} < 16 || {N} < 16 ) {{
     retcode = gemm_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
     goto out;
@@ -363,9 +340,6 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
     gemm_{M}x{N}_update_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_stop(0);
-#endif
   return retcode;
 }}
 
@@ -418,10 +392,6 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     int A_stride, int B_stride, int C_stride) {{
   int32_t retcode = 0;
 
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_start(0);
-#endif
-
   if ( {M} < 2 || {N} < 2 ) {{
     retcode = gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
     goto out;
@@ -451,9 +421,6 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     gemm16_{M}x{N}_body_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_stop(0);
-#endif
   return retcode;
 }}
 
@@ -502,10 +469,6 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     int A_stride, int B_stride, int C_stride) {{
   int32_t retcode = 0;
 
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_start(0);
-#endif
-
   if ( {M} < 2 || {N} < 2 ) {{
     retcode = gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
     goto out;
@@ -516,9 +479,9 @@ extern "C"
 #endif
 __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{  
+    int A_stride, int B_stride, int C_stride) {{
   if ( {M} < 2 || {N} < 2 )
-    return gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);  
+    return gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
 
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
@@ -538,9 +501,6 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     gemm16_{M}x{N}_update_rest_{uniq_id}({K}, aa, bb, cc, A_stride, B_stride, C_stride);
 
 out:
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_stop(0);
-#endif
   return retcode;
 }}
 

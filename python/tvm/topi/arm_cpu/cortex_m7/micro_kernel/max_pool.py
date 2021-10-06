@@ -79,22 +79,10 @@ def intrin_max(shape, in_dtype, out_dtype):
 def max_impl(uniq_id):
     """Emit C code for pool impl."""
     cc_code = f"""
-#include "cortex_m7_defines.h"
 
-#ifdef GROVETY_OP_BENCHMARK
-
-#ifdef __cplusplus
-extern "C"
-#endif // __cplusplus
-void perf_timer_start(uint32_t op_id);
-
-#ifdef __cplusplus
-extern "C"
-#endif // __cplusplus
-void perf_timer_stop(uint32_t op_id);
-
-#endif // GROVETY_OP_BENCHMARK
-
+#ifndef   __STATIC_FORCEINLINE
+  #define __STATIC_FORCEINLINE  __attribute__((always_inline)) static inline
+#endif
 
 #ifdef __cplusplus
 extern "C"
@@ -130,10 +118,6 @@ __STATIC_FORCEINLINE int32_t max8_{uniq_id}(
   int una_arg = (int32_t)arg & 0x3, una_res = (int32_t)res & 0x3;
   int32_t retcode = 0;
 
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_start(1);
-#endif
-
   if ( N < 4 || ((una_arg || una_res) && una_arg != una_res) ) {{
     retcode = max8_loop_{uniq_id}(arg, res, N);
     goto out;
@@ -165,10 +149,6 @@ __STATIC_FORCEINLINE int32_t max8_{uniq_id}(
   }}
 
 out:
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_stop(1);
-#endif
-
   return retcode;
 }}
     """
