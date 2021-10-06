@@ -551,6 +551,17 @@ def test_dense():
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
+@tvm.testing.uses_gpu
+def test_dense_same_args_compile():
+    for dtype in ["float32", "int8"]:
+        x = relay.var("x", shape=(32, 64), dtype=dtype)
+        f = relay.Function([x], relay.nn.dense(x, x))
+        m = tvm.IRModule.from_expr(f)
+
+        for target, _ in tvm.testing.enabled_targets():
+            tvm.relay.build(m, target=target)
+
+
 def test_dense_dtype():
     data_dtype = "uint8"
     weight_dtype = "int8"
