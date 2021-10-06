@@ -495,6 +495,16 @@ def test_tir_allocate():
     assert allocate.annotations["attr1"] == "foo"
     assert allocate.annotations["attr2"] == "bar"
 
+    # make sure we can print using TIRTextPrinter
+    func = tvm.tir.PrimFunc([], allocate)
+    output = func.astext()
+    assert (
+        output.find(
+            'allocate(buffer: Pointer(global int8), int8, [2, 2]), storage_scope = global, annotations = {"attr2": "bar", "attr1": "foo"})'
+        )
+        != -1
+    )
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
