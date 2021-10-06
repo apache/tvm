@@ -165,12 +165,11 @@ TVM_DLL Pass ToANormalForm();
 /*!
  * \brief ToANormalForm but on incomplete graph.
  *
- * \param maybe_mod optional module holding definitions for global vars in \p expr
  * \param expr the graph.
  *
  * \return The transformed program.
  */
-TVM_DLL Expr ToANormalForm(const Optional<IRModule>& maybe_mod, const Expr& expr);
+TVM_DLL Expr ToANormalForm(const Expr& expr);
 
 /*!
  * \brief Turn an expression into continuation passing style(CPS).

@@ -293,7 +293,7 @@ struct ReverseAD : ExprMutator {
           return Call(bpv, {});
         });
         Expr nbp = Function({}, nbp_body, TupleType::Empty(), {});
-        ll->Push(RefWrite(bp, transform::ToANormalForm(mod, nbp)));
+        ll->Push(RefWrite(bp, transform::ToANormalForm(nbp)));
         // TODO(@M.K.): ToANF should be called on rev. Enhance ToANF for that.
         return ret;
       });
