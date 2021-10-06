@@ -29,6 +29,7 @@ import numpy as np
 from tvm import rpc
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
+from tvm.rpc.proxy import Proxy
 
 
 if __name__ == "__main__":
@@ -538,3 +539,42 @@ def test_rpc_tracker_request():
     proc2.join()
     server.terminate()
     tracker.terminate()
+
+
+@tvm.testing.requires_rpc
+def test_rpc_tracker_via_proxy():
+    device_key = "test_device"
+
+    tracker_server = Tracker(port=9000, port_end=9100)
+    proxy_server = Proxy(
+        host=tracker_server.host,
+        port=8888,
+        port_end=8988,
+        tracker_addr=(tracker_server.host, tracker_server.port),
+    )
+
+    server1 = rpc.Server(
+        host=proxy_server.host,
+        port=proxy_server.port,
+        key=device_key,
+        tracker_addr=(tracker_server.host, tracker_server.port),
+        is_proxy=True,
+    )
+    time.sleep(0.1)
+    server2 = rpc.Server(
+        host=proxy_server.host,
+        port=proxy_server.port,
+        key=device_key,
+        tracker_addr=(tracker_server.host, tracker_server.port),
+        is_proxy=True,
+    )
+    time.sleep(0.1)
+
+    client = rpc.connect_tracker(tracker_server.host, tracker_server.port)
+    summary = client.summary()
+    assert summary["queue_info"][device_key]["free"] == 2
+
+    server2.terminate()
+    server1.terminate()
+    proxy_server.terminate()
+    tracker_server.terminate()
