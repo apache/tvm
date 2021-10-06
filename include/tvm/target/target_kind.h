@@ -202,6 +202,12 @@ class TargetKindRegEntry {
    */
   TVM_DLL static Array<String> ListTargetKinds();
   /*!
+   * \brief Get all supported option names and types for a given Target kind.
+   * \return Map of option name to type
+   */
+  TVM_DLL static Map<String, String> ListTargetKindOptions(const TargetKind& kind);
+
+  /*!
    * \brief Register or get a new entry.
    * \param target_kind_name The name of the TargetKind.
    * \return the corresponding entry.
