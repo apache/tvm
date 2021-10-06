@@ -511,6 +511,15 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
     It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone application.
     """
     file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
+    np_type_to_c = {
+        "int8": "int8_t",
+        "uint8": "uint8_t",
+        "int16": "int16_t",
+        "uint16": "uint16_t",
+        "int32": "int32_t",
+        "uint32": "uint32_t",
+        "float32": "float",
+    }
     # create header file
     raw_path = file_path.with_suffix(".h").resolve()
     with open(raw_path, "w") as header_file:
@@ -521,14 +530,7 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
 
         emit_data_linkage(header_file, data_linkage)
 
-        if npy_data.dtype == "int8":
-            header_file.write(f"int8_t {tensor_name}[] =")
-        elif npy_data.dtype == "int32":
-            header_file.write(f"int32_t {tensor_name}[] = ")
-        elif npy_data.dtype == "uint8":
-            header_file.write(f"uint8_t {tensor_name}[] = ")
-        elif npy_data.dtype == "float32":
-            header_file.write(f"float {tensor_name}[] = ")
+        header_file.write(f"{np_type_to_c[str(npy_data.dtype)]} {tensor_name}[] =")
 
         header_file.write("{")
         for i in np.ndindex(npy_data.shape):
