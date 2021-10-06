@@ -50,7 +50,8 @@ void PipelineExecutor::Init(const Array<Module>& modules, const std::string& pip
   // Use JSONReader to load pipeline configuration.
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
-  this->Load(&reader);
+  // When the value of 'modules' is empty, here need to load the modules from JSON.
+  this->Load(&reader, modules.empty());
   // Initialize the pipeline function class used for pipeline thread pool management
   // and schedule etc. This function returns the number of output.
   num_outputs_ = pipeline_function_.PipelineInit(modules, pipeline_config_, mod_config_);

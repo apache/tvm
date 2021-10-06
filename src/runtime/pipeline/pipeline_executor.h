@@ -80,7 +80,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!\brief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
   /*!\brief Json loader.*/
-  void Load(dmlc::JSONReader* reader) {
+  void Load(dmlc::JSONReader* reader, bool load_module = false) {
     reader->BeginArray();
     while (reader->NextArrayItem()) {
       std::string key;
@@ -104,6 +104,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
           reader->Read(&dev);
         } else if (key == "output") {
           reader->Read(&output);
+        } else {
+          LOG(FATAL) << "do not support key " << key;
         }
       }
       // Check if mod_idx is read successfully.
@@ -111,8 +113,11 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
       // Check if the output is read successfully.
       ICHECK(!output.Empty()) << "Invalid output binding result.";
       pipeline_config_.Insert(mod_idx, output);
-      // Check if there is lib, json and params information.
-      if (!lib_name.empty() && !json_name.empty() && !params_name.empty()) {
+      // Load the lib, json, and params information.
+      if (load_module) {
+        ICHECK(!lib_name.empty()) << "lib_name is empty.";
+        ICHECK(!json_name.empty()) << "json_name is empty.";
+        ICHECK(!params_name.empty()) << "params_name is empty.";
         mod_config_[mod_idx] = GraphModuleLoadInfo(lib_name, json_name, params_name, dev);
       }
     }

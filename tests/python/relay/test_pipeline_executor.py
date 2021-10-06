@@ -246,8 +246,7 @@ def test_pipeline():
             assert pipeline_module
 
             # Use the import function to create and initialize PipelineModule.
-            pipeline_module_test = pipeline_executor.PipelineModule()
-            pipeline_module_test.load_library(config_file_name)
+            pipeline_module_test = pipeline_executor.PipelineModule.load_library(config_file_name)
             assert pipeline_module_test.num_outputs == 2
 
 
