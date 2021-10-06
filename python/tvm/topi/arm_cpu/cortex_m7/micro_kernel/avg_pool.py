@@ -22,6 +22,7 @@ import string
 
 import tvm
 from tvm import te
+from . import common
 
 
 def intrin_sum(shape, in_dtype, out_dtype):
@@ -83,11 +84,7 @@ def intrin_sum(shape, in_dtype, out_dtype):
 
 def sum_impl(N, uniq_id):
     """Emit C code for sum impl."""
-    cc_code = f"""
-
-#ifndef   __STATIC_FORCEINLINE
-  #define __STATIC_FORCEINLINE  __attribute__((always_inline)) static inline
-#endif
+    cc_code = common.cc_code + f"""
 
 #ifdef __cplusplus
 extern "C"
@@ -135,5 +132,6 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
 
   return 0;
 }}
+
 """
     return cc_code

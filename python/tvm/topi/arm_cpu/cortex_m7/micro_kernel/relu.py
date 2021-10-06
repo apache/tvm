@@ -72,5 +72,6 @@ __STATIC_FORCEINLINE int32_t relu_{M}x{N}_{uniq_id}(
 
   return 0;
 }}
-    """
+
+"""
     return cc_code

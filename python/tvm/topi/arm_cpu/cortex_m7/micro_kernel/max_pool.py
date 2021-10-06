@@ -22,7 +22,7 @@ import string
 
 import tvm
 from tvm import te
-
+from . import common
 
 def intrin_max(shape, in_dtype, out_dtype):
     UNIQ_ID_LEN = 8
@@ -78,11 +78,8 @@ def intrin_max(shape, in_dtype, out_dtype):
 
 def max_impl(uniq_id):
     """Emit C code for pool impl."""
-    cc_code = f"""
+    cc_code = common.cc_code + f"""
 
-#ifndef   __STATIC_FORCEINLINE
-  #define __STATIC_FORCEINLINE  __attribute__((always_inline)) static inline
-#endif
 
 #ifdef __cplusplus
 extern "C"
@@ -151,5 +148,6 @@ __STATIC_FORCEINLINE int32_t max8_{uniq_id}(
 out:
   return retcode;
 }}
-    """
+
+"""
     return cc_code
