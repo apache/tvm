@@ -72,7 +72,9 @@ struct OutputBindings {
           reader->Read(&input_name);
         }
       }
-      // The value of 'mod_idx' should larger than PIPELINE_EXECUTOR_INDEX.
+      // In this level 'Load' that reading the output binding , the module can be
+      // a 'PipelineExecutor', hence the value of 'mod_idx' should start from
+      // PIPELINE_EXECUTOR_INDEX.
       ICHECK(mod_idx >= PIPELINE_EXECUTOR_INDEX);
       bindings[mod_idx] = input_name;
     }

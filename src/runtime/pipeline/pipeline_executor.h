@@ -108,7 +108,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      // Check if mod_idx is read successfully.
+      // Check if mod_idx is read successfully, in this level reading there is no any moudle
+      // is PipelineExecutor, hence the mod_idx should start from 0.
       ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
       // Check if the output is read successfully.
       ICHECK(!output.Empty()) << "Invalid output binding result.";
