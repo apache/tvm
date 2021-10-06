@@ -227,7 +227,7 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg);
 Scope LCA(Scope lhs, Scope rhs);
 
 // For basic block normal form.
-Expr ToBasicBlockNormalFormAux(const Optional<IRModule>& maybe_mod, const Expr& e);
+Expr ToBasicBlockNormalFormAux(const Expr& e);
 
 // ToANormalForm for expressions and as a Pass are declared in transform.h
 

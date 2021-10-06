@@ -149,25 +149,31 @@ namespace {
  */
 class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::LexicalOnDeviceMixin {
  public:
-  static Expr ToANormalForm(const Optional<IRModule>& maybe_mod, const Expr& e,
-                            const DependencyGraph& dg, NodeScopeMap* node_scope) {
-    Fill fi(maybe_mod, dg, node_scope, nullptr);
+  static Expr ToANormalForm(const Expr& e, const DependencyGraph& dg, NodeScopeMap* node_scope) {
+    Fill fi(dg, node_scope, nullptr);
     return fi.GetScope(e)->let_list->Get(fi.VisitExpr(e));
   }
 
   // For basic block normal form, bind expressions only if the original expression's scope
   // should be lifted
-  static Expr ToBasicBlockNormalForm(const Optional<IRModule>& maybe_mod, const Expr& e,
-                                     const DependencyGraph& dg, NodeScopeMap* node_scope,
-                                     ExprSet* lifted) {
-    Fill fi(maybe_mod, dg, node_scope, lifted);
+  static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
+                                     NodeScopeMap* node_scope, ExprSet* lifted) {
+    Fill fi(dg, node_scope, lifted);
     return fi.GetScope(e)->let_list->Get(fi.VisitExpr(e));
   }
 
  private:
-  Fill(const Optional<IRModule>& maybe_mod, const DependencyGraph& dg, NodeScopeMap* node_scope,
-       ExprSet* include_set)
-      : transform::LexicalOnDeviceMixin(maybe_mod),
+  // Note: Conversion to ANF needn't care about the devices for global vars since all that can
+  // happen with them is to go from:
+  //    ...@g...
+  // to:
+  //    let %x = @g;
+  //    ...
+  //    ...%x...
+  // In that case the code will ask  for the device for @g, get kInvalidDeviceType, then
+  // MaybeOnDevice @g, which is always a no-op.
+  Fill(const DependencyGraph& dg, NodeScopeMap* node_scope, ExprSet* include_set)
+      : transform::LexicalOnDeviceMixin(Optional<IRModule>()),
         dg_(dg),
         node_scope_(node_scope),
         include_set_(include_set) {}
@@ -373,7 +379,7 @@ IRModule ModuleToANormalForm(const IRModule& mod) {
     if (const auto* n = it.second.as<FunctionNode>()) {
       if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
       Function func = GetRef<Function>(n);
-      Function ret = Downcast<Function>(transform::ToANormalForm(mod, func));
+      Function ret = Downcast<Function>(transform::ToANormalForm(func));
       ICHECK_EQ(FreeVars(ret).size(), 0) << "rewritten:" << std::endl
                                          << PrettyPrint(ret) << std::endl
                                          << "should not have free vars: " << FreeVars(ret);
@@ -394,7 +400,7 @@ IRModule ModuleToANormalForm(const IRModule& mod) {
 
 }  // namespace
 
-Expr ToBasicBlockNormalFormAux(const Optional<IRModule>& maybe_mod, const Expr& e) {
+Expr ToBasicBlockNormalFormAux(const Expr& e) {
   // calculate all the dependency between nodes.
   support::Arena arena;
   DependencyGraph dg = DependencyGraph::Create(&arena, e);
@@ -403,12 +409,12 @@ Expr ToBasicBlockNormalFormAux(const Optional<IRModule>& maybe_mod, const Expr& 
    * We also record the set of expressions whose scope is lifted.
    */
   std::pair<NodeScopeMap, ExprSet> scopes = CalcScope(dg);
-  return Fill::ToBasicBlockNormalForm(maybe_mod, e, dg, &scopes.first, &scopes.second);
+  return Fill::ToBasicBlockNormalForm(e, dg, &scopes.first, &scopes.second);
 }
 
 namespace transform {
 
-Expr ToANormalForm(const Optional<IRModule>& maybe_mod, const Expr& e) {
+Expr ToANormalForm(const Expr& e) {
   /* When you lift a lambda, what is inside is also being lift.
    *
    * So we must determine the scope of the lambda before determining the scope of it's body.
@@ -431,7 +437,7 @@ Expr ToANormalForm(const Optional<IRModule>& maybe_mod, const Expr& e) {
    * We do an additional pass to fill all the LetList and we are done.
    */
   std::pair<NodeScopeMap, ExprSet> scopes = CalcScope(dg);
-  return Fill::ToANormalForm(maybe_mod, e, dg, &scopes.first);
+  return Fill::ToANormalForm(e, dg, &scopes.first);
 }
 
 Pass ToANormalForm() {
@@ -445,7 +451,7 @@ TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm").set_body_typed([]() {
 });
 
 TVM_REGISTER_GLOBAL("relay._transform.ToANormalFormExpr").set_body_typed([](const Expr& e) {
-  return ToANormalForm(Optional<IRModule>(), e);
+  return ToANormalForm(e);
 });
 
 }  // namespace transform
