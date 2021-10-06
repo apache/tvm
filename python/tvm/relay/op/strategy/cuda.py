@@ -846,7 +846,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
         )
     if target.kind.name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas),
+            wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas, need_tensor_b_copy=False),
             wrap_topi_schedule(topi.generic.schedule_extern),
             name="batch_matmul_cublas.cuda",
             plevel=15,

@@ -105,6 +105,8 @@ def schedule_batch_matmul(cfg, outs):
         if "batch_matmul" in op.tag:
             C = op.output(0)
             A, B = op.input_tensors
+            if B.op.tag == "tensor_b_copy":
+                s[B].compute_inline()
             _, M, K = get_const_tuple(A.shape)
             _, _, N = get_const_tuple(C.shape)
 

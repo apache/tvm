@@ -338,6 +338,8 @@ _dp4a = dp4a("shared", "shared", "local")
 
 def _schedule_batch_matmul_int8(cfg, s, output):
     input_x, input_y = s[output].op.input_tensors
+    if input_y.op.tag == "tensor_b_copy":
+        s[input_y].compute_inline()
 
     B, M, K = get_const_tuple(input_x.shape)
     _, N, _ = get_const_tuple(input_y.shape)

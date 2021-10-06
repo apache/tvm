@@ -68,9 +68,6 @@ def batch_matmul(
         3-D with shape [batch, M, N]
     """
     assert len(tensor_a.shape) == 3, "tensor_a only support 3-dim"
-    if tensor_a == tensor_b:
-        tensor_b = te.compute(tensor_a.shape, lambda b, m, n: tensor_a[b, m, n], tag="tensor_b_copy")
-
     if transpose_a:
         XB, XK, XI = get_const_tuple(tensor_a.shape)
     else:
