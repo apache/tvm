@@ -51,9 +51,8 @@ if curr_path.name == "_staging":
 else:
     tvm_path = Path(os.pardir)
 
-
-sys.path.insert(0, str(tvm_path / "python"))
-sys.path.insert(0, str(tvm_path / "vta" / "python"))
+sys.path.insert(0, str(tvm_path.resolve() / "python"))
+sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
 
 # -- General configuration ------------------------------------------------
 
@@ -209,7 +208,19 @@ intersphinx_mapping = {
 
 from sphinx_gallery.sorting import ExplicitOrder
 
-examples_dirs = [tvm_path.joinpath("tutorials"), tvm_path.joinpath("vta", "tutorials")]
+examples_dirs = [
+    tvm_path.joinpath("gallery", "tutorial"),
+    tvm_path.joinpath("gallery", "how_to", "compile_models"),
+    tvm_path.joinpath("gallery", "how_to", "deploy_models"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_relay"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_schedules"),
+    tvm_path.joinpath("gallery", "how_to", "optimize_operators"),
+    tvm_path.joinpath("gallery", "how_to", "tune_with_autotvm"),
+    tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
+    tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
+    tvm_path.joinpath("vta", "tutorials"),
+]
 
 gallery_dirs = [
     "tutorial",
@@ -223,20 +234,6 @@ gallery_dirs = [
     "how_to/work_with_microtvm",
     "how_to/extend_tvm",
     "topic/vta/tutorials",
-]
-
-examples_dirs = [
-    tvm_path.joinpath("gallery/tutorial"),
-    tvm_path.joinpath("gallery/how_to/compile_models"),
-    tvm_path.joinpath("gallery/how_to/deploy_models"),
-    tvm_path.joinpath("gallery/how_to/work_with_relay"),
-    tvm_path.joinpath("gallery/how_to/work_with_schedules"),
-    tvm_path.joinpath("gallery/how_to/optimize_operators"),
-    tvm_path.joinpath("gallery/how_to/tune_with_autotvm"),
-    tvm_path.joinpath("gallery/how_to/tune_with_autoscheduler"),
-    tvm_path.joinpath("gallery/how_to/work_with_microtvm"),
-    tvm_path.joinpath("gallery/how_to/extend_tvm"),
-    tvm_path.joinpath("vta/tutorials"),
 ]
 
 subsection_order = ExplicitOrder(

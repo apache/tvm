@@ -34,19 +34,18 @@ trap cleanup 0
 
 # cleanup old states
 rm -rf docs/_build
+rm -rf docs/_staging
 mkdir -p docs/_build/html
+mkdir -p docs/_staging/html
 rm -rf docs/gen_modules
 rm -rf docs/doxygen
 
 # prepare auto scheduler tutorials
-rm -rf tutorials/auto_scheduler/*.json
-rm -rf tutorials/get_started/*.json
-cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/auto_scheduler
-cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/get_started
+rm -rf gallery/how_to/tune_with_auto_scheduler/*.json
+rm -rf gallery/tutorial/*.json
+cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/how_to/tune_with_autoscheduler
+cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/tutorial
 
-# remove stale tutorials and always build from scratch.
-rm -rf docs/tutorials
-rm -rf docs/vta/tutorials
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
