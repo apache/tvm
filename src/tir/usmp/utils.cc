@@ -110,17 +110,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-Array<BufferInfo> CreateArrayBufferInfo(const Map<Stmt, BufferInfo>& buffer_info_map) {
+Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map) {
   Array<BufferInfo> ret;
   for (const auto& kv : buffer_info_map) {
-    auto buffer_info = kv.second;
+    auto buffer_info = kv.first;
     ret.push_back(buffer_info);
   }
   return ret;
 }
 
 TVM_REGISTER_GLOBAL("tir.usmp.CreateArrayBufferInfo")
-    .set_body_typed([](Map<Stmt, BufferInfo> buffer_info_map) {
+    .set_body_typed([](Map<BufferInfo, Stmt> buffer_info_map) {
       return (CreateArrayBufferInfo(buffer_info_map));
     });
 

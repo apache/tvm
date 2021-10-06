@@ -43,7 +43,7 @@ class BufferInfoExtractor : public StmtExprVisitor {
     // Pushing a scope info for the initial body of the main function
     scope_stack.push(ScopeInfo());
   }
-  Map<tir::Stmt, BufferInfo> operator()(const PrimFunc& func);
+  Map<BufferInfo, tir::Stmt> operator()(const PrimFunc& func);
 
  private:
   void VisitStmt(const Stmt& n) override;
@@ -56,7 +56,7 @@ class BufferInfoExtractor : public StmtExprVisitor {
 
   void UpdateAliases(const Array<PrimExpr>& args, const PrimFunc& func);
 
-  Map<tir::Stmt, BufferInfo> buffer_info_map;
+  Map<BufferInfo, tir::Stmt> buffer_info_map;
   Map<tir::Stmt, Integer> buffer_info_start_stmt_idx;
   Map<tir::Stmt, Integer> buffer_info_end_stmt_idx;
   Map<tir::Var, tir::Stmt> allocate_var_to_stmt_map;
@@ -117,7 +117,7 @@ void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
       auto buffer_info = BufferInfo(op->buffer_var->name_hint, size_bytes, pool_candidates);
       auto allocate = GetRef<Allocate>(op);
       allocate_var_to_stmt_map.Set(op->buffer_var, allocate);
-      buffer_info_map.Set(allocate, buffer_info);
+      buffer_info_map.Set(buffer_info, allocate);
     }
   }
   StmtExprVisitor::VisitStmt(op->body);
@@ -200,16 +200,16 @@ void BufferInfoExtractor::VisitExpr_(const CallNode* op) {
   }
 }
 
-Map<tir::Stmt, BufferInfo> BufferInfoExtractor::operator()(const PrimFunc& main_func) {
+Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_func) {
   this->VisitStmt(main_func->body);
 
   enum LivenessEventType { START = 0, END = 1 };
   struct LivenessEvent {
     size_t tick;
     LivenessEventType le_type;
-    Allocate allocate;
+    BufferInfo buffer_info;
     bool operator==(const LivenessEvent& other) {
-      if (tick == other.tick && le_type == other.le_type && allocate == other.allocate) {
+      if (tick == other.tick && le_type == other.le_type && buffer_info == other.buffer_info) {
         return true;
       }
       return false;
@@ -218,22 +218,23 @@ Map<tir::Stmt, BufferInfo> BufferInfoExtractor::operator()(const PrimFunc& main_
 
   std::vector<LivenessEvent> le_events;
   for (const auto& kv : buffer_info_map) {
-    if (!kv.first->IsInstance<AllocateNode>()) {
+    if (!kv.second->IsInstance<AllocateNode>()) {
       continue;
     }
-    auto allocate = Downcast<Allocate>(kv.first);
+    auto allocate = Downcast<Allocate>(kv.second);
+    auto buffer_info = Downcast<BufferInfo>(kv.first);
     // If the allocate is not used; we remove it from the analysis
     if (buffer_info_start_stmt_idx.count(allocate) == 0) {
       continue;
     }
     LivenessEvent le_event_start;
-    le_event_start.allocate = allocate;
+    le_event_start.buffer_info = buffer_info;
     le_event_start.le_type = START;
     le_event_start.tick = buffer_info_start_stmt_idx[allocate];
     le_events.push_back(le_event_start);
 
     LivenessEvent le_event_end;
-    le_event_end.allocate = allocate;
+    le_event_end.buffer_info = buffer_info;
     le_event_end.le_type = END;
     le_event_end.tick = buffer_info_end_stmt_idx[allocate];
     le_events.push_back(le_event_end);
@@ -248,23 +249,23 @@ Map<tir::Stmt, BufferInfo> BufferInfoExtractor::operator()(const PrimFunc& main_
               }
               return false;
             });
-  std::unordered_set<Allocate, ObjectPtrHash, ObjectPtrEqual> open_set;
+  std::unordered_set<BufferInfo, ObjectPtrHash, ObjectPtrEqual> open_set;
   for (const auto& le_event : le_events) {
     if (le_event.le_type == START) {
-      for (const auto& open_allocate : open_set) {
-        buffer_info_map[open_allocate]->conflicts.push_back(buffer_info_map[le_event.allocate]);
-        buffer_info_map[le_event.allocate]->conflicts.push_back(buffer_info_map[open_allocate]);
+      for (const auto& open_buffer_info : open_set) {
+        open_buffer_info->conflicts.push_back(le_event.buffer_info);
+        le_event.buffer_info->conflicts.push_back(open_buffer_info);
       }
-      open_set.insert(le_event.allocate);
+      open_set.insert(le_event.buffer_info);
     } else {
       ICHECK(le_event.le_type == END);
-      open_set.erase(le_event.allocate);
+      open_set.erase(le_event.buffer_info);
     }
   }
   return this->buffer_info_map;
 }
 
-Map<tir::Stmt, BufferInfo> ExtractBufferInfo(const PrimFunc& main_func, const IRModule& mod) {
+Map<BufferInfo, tir::Stmt> ExtractBufferInfo(const PrimFunc& main_func, const IRModule& mod) {
   return BufferInfoExtractor(mod)(main_func);
 }
 

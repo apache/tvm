@@ -30,7 +30,7 @@ def _replace_stmt_with_buf_var_names(buffer_info_map):
     """helper to replace tir.allocates with buffer names"""
     new_buffer_info_map = dict()
     for k, v in buffer_info_map.items():
-        new_buffer_info_map[k.buffer_var.name] = v
+        new_buffer_info_map[v.buffer_var.name] = k
     return new_buffer_info_map
 
 
