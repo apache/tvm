@@ -34,8 +34,6 @@
 #include <mutex>
 #include <stack>
 
-#include "../relay/backend/te_compiler.h"
-
 namespace tvm {
 
 // Register build pipeline related options
