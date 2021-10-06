@@ -53,7 +53,7 @@ def _get_allocates(primfunc):
     return allocates
 
 
-def assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
+def _assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
     """helper to assing poolinfos to allocate nodes in a tir.PrimFunc"""
 
     def set_poolinfos(stmt):
@@ -70,12 +70,12 @@ def assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
     return primfunc.with_body(stmt_functor.ir_transform(primfunc.body, None, set_poolinfos))
 
 
-def assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
+def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
     """helper to assing poolinfos to allocate nodes in a IRModule"""
     ret = tvm.IRModule()
     for global_var, basefunc in mod.functions.items():
         if isinstance(basefunc, tvm.tir.PrimFunc):
-            ret[global_var] = assign_poolinfos_to_allocates_in_primfunc(basefunc, pool_infos)
+            ret[global_var] = _assign_poolinfos_to_allocates_in_primfunc(basefunc, pool_infos)
     return ret
 
 
@@ -158,7 +158,7 @@ def test_linear():
         pool_name="slow_memory", target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS}
     )
     tir_mod = LinearStructure
-    tir_mod = assign_poolinfos_to_allocates_in_irmodule(
+    tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         tir_mod, [fast_memory_pool, slow_memory_pool]
     )
     buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(
@@ -274,7 +274,7 @@ def test_parallel_serial_mixed_for_loops():
         target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
     )
     all_serial_tir_mod = AllSerialForLoops
-    all_serial_tir_mod = assign_poolinfos_to_allocates_in_irmodule(
+    all_serial_tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         all_serial_tir_mod, [global_ws_pool]
     )
     main_func = all_serial_tir_mod["tvmgen_default_run_model"]
@@ -287,7 +287,7 @@ def test_parallel_serial_mixed_for_loops():
         assert name in ["dummy_allocate", "Conv2dOutput_8", "PaddedInput_8"]
 
     parallel_serial_mixed_tir_mod = ParallelSerialMixedForLoops
-    parallel_serial_mixed_tir_mod = assign_poolinfos_to_allocates_in_irmodule(
+    parallel_serial_mixed_tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         parallel_serial_mixed_tir_mod, [global_ws_pool]
     )
     main_func = parallel_serial_mixed_tir_mod["tvmgen_default_run_model"]
@@ -634,7 +634,7 @@ def test_inception_structure():
         target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
     )
     tir_mod = InceptionStructure
-    tir_mod = assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
+    tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
     main_func = tir_mod["tvmgen_default_run_model"]
     buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
     buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)

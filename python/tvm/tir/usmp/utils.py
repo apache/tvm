@@ -17,7 +17,7 @@
 """USMP Utilities and Data Structures"""
 # pylint: disable=invalid-name
 
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -25,51 +25,6 @@ from tvm.target import Target
 from . import _ffi_api
 
 CANDIDATE_MEMORY_POOL_ATTR = "candidate_memory_pools"
-
-
-@register_object("tir.usmp.BufferInfo")
-class BufferInfo(Object):
-    """BufferInfo object holds information related to buffers
-    that are associated with tir.allocates and tir.allocate_consts
-    that will be used with USMP
-
-    Parameters
-    ----------
-    name_hint : str
-        The name associated with the buffer (derived from TIR)
-
-    size_bytes : int
-        The size in bytes
-
-    alignment : int
-        The byte alignment required in the workspace memory
-
-    """
-
-    def __init__(
-        self,
-        name_hint: str,
-        size_bytes: int,
-        alignment: int = None,
-    ):
-        self.__init_handle_by_constructor__(
-            _ffi_api.BufferInfo,  # type: ignore # pylint: disable=no-member
-            name_hint,
-            size_bytes,
-            alignment,
-        )
-
-    def set_pool_candidates(self, pool_candidates: list):
-        """Sets the pool candidate names"""
-        _ffi_api.BufferInfoSetPoolCandidates(self, pool_candidates)
-
-    def set_pool_offsets(self, pool_name: str, pool_offset: int):
-        """Sets the pool offset by name"""
-        _ffi_api.BufferInfoSetPoolOffset(self, pool_name, pool_offset)
-
-    def set_conflicts(self, conflicts: list):
-        """Sets the the conflicting array of buffer info objects"""
-        _ffi_api.BufferInfoSetConflicts(self, conflicts)
 
 
 @register_object("tir.usmp.PoolInfo")
@@ -107,6 +62,56 @@ class PoolInfo(Object):
             target_access,
             size_hint_bytes,
         )
+
+
+@register_object("tir.usmp.BufferInfo")
+class BufferInfo(Object):
+    """BufferInfo object holds information related to buffers
+    that are associated with tir.allocates and tir.allocate_consts
+    that will be used with USMP
+
+    Parameters
+    ----------
+    name_hint : str
+        The name associated with the buffer (derived from TIR)
+
+    size_bytes : int
+        The size in bytes
+
+    pool_candidates : List[PoolInfo]
+        The list of candidates pools this buffer could be placed
+
+    alignment : Optional[int]
+        The byte alignment required in the workspace memory
+
+    """
+
+    def __init__(
+        self,
+        name_hint: str,
+        size_bytes: int,
+        pool_candidates: List[PoolInfo],
+        alignment: Optional[int] = None,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BufferInfo,  # type: ignore # pylint: disable=no-member
+            name_hint,
+            size_bytes,
+            pool_candidates,
+            alignment,
+        )
+
+    def set_pool_candidates(self, pool_candidates: list):
+        """Sets the pool candidate names"""
+        _ffi_api.BufferInfoSetPoolCandidates(self, pool_candidates)
+
+    def set_pool_offsets(self, pool_name: str, pool_offset: int):
+        """Sets the pool offset by name"""
+        _ffi_api.BufferInfoSetPoolOffset(self, pool_name, pool_offset)
+
+    def set_conflicts(self, conflicts: list):
+        """Sets the the conflicting array of buffer info objects"""
+        _ffi_api.BufferInfoSetConflicts(self, conflicts)
 
 
 @register_object("tir.usmp.PoolAllocation")
