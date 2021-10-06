@@ -22,6 +22,8 @@ import string
 
 import tvm
 from tvm import te
+from . import common
+
 
 ##########################
 # MxKxN MatMul Intrinsic #
@@ -125,10 +127,8 @@ def gemm_MxKxN_impl(M, K, N, uniq_id):
     # aa_pad_size = M * K
     bb_pad_size = N * K
     # code reference: CMSIS-NN paper (https://arxiv.org/abs/1801.06601)
-    cc_code = f"""
-#ifndef   __STATIC_FORCEINLINE
-  #define __STATIC_FORCEINLINE  __attribute__((always_inline)) static inline
-#endif
+    cc_code = common.cc_code + f"""
+
 
 #ifdef __cplusplus
 extern "C"
@@ -239,7 +239,6 @@ out:
   return retcode;
 }}
 
-
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -343,8 +342,6 @@ out:
   return retcode;
 }}
 
-
-
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -424,7 +421,6 @@ out:
   return retcode;
 }}
 
-
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -474,15 +470,6 @@ __STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     goto out;
   }}
 
-#ifdef __cplusplus
-extern "C"
-#endif
-__STATIC_FORCEINLINE int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
-    int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
-  if ( {M} < 2 || {N} < 2 )
-    return gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(aa, bb, cc, A_stride, B_stride, C_stride);
-
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t *aa_ptr = (int32_t *) &aa[i*A_stride];
@@ -504,8 +491,6 @@ out:
   return retcode;
 }}
 
-
-
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -517,5 +502,6 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_reset_{uniq_id}(int32_t *cc, int C
   }}
   return 0;
 }}
-    """
+
+"""
     return cc_code
