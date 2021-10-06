@@ -555,7 +555,8 @@ def test_dense():
 def test_dense_same_args_compile():
     for dtype in ["float32", "int8"]:
         x = relay.var("x", shape=(32, 64), dtype=dtype)
-        f = relay.Function([x], relay.nn.dense(x, x))
+        out_dtype = "int32" if dtype == "int8" else "float32"
+        f = relay.Function([x], relay.nn.dense(x, x, out_dtype=out_dtype))
         m = tvm.IRModule.from_expr(f)
 
         for target, _ in tvm.testing.enabled_targets():
