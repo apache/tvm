@@ -62,6 +62,9 @@ def matmul(
     """
     # TODO(jcf94): Add multi-dim support for tensor_a
     assert len(tensor_a.shape) == 2, "only support 2-dim matmul"
+    if tensor_a == tensor_b:
+        tensor_b = te.compute(tensor_a.shape, lambda m, n: tensor_a[m, n], tag="tensor_b_copy")
+
     if bias is not None:
         assert len(bias.shape) == 1
     if out_dtype is None:
