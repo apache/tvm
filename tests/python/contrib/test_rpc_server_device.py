@@ -33,6 +33,8 @@ np.random.seed(0)
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_and_teardown_actions():
+    """Setup and teardown actions for pytest."""
+
     # No setup actions
     yield
     # Teardown actions:
@@ -122,6 +124,8 @@ def setup_rpc_tracker_via_proxy_configuration(f):
 
 
 def wrapper_for_call_function_with_timeout(timeout, func, args=(), kwargs=None):
+    """Wrapper for call_func_with_timeout."""
+
     def wrapper(*_args, **_kwargs):
         """
         This wrapper is needed because the cloudpicle
@@ -138,6 +142,8 @@ def wrapper_for_call_function_with_timeout(timeout, func, args=(), kwargs=None):
 
 
 def try_create_remote_session(session_factory, args=(), kwargs=None):
+    """Deadlock-safe RPC Session creation."""
+
     try:
         successful_attempt = True
         results = []
@@ -162,12 +168,16 @@ ios_create_dylib.output_format = "dylib"
 
 
 def export_lib(lib):
+    """Export lib to temporary directory."""
+
     path_dso = TEMPORARY_DIRECTORY.relpath(DSO_NAME)
     lib.export_library(path_dso, fcompile=ios_create_dylib)
     return path_dso
 
 
 def get_add_relay_module(a_numpy, b_numpy):
+    """Get simple relay module that add two tensors."""
+
     a = relay.var("a", shape=a_numpy.shape, dtype=DTYPE)
     b = relay.var("b", shape=b_numpy.shape, dtype=DTYPE)
     params = {}
@@ -176,6 +186,8 @@ def get_add_relay_module(a_numpy, b_numpy):
 
 
 def get_add_module(target):
+    """Get simple module that add two tensors."""
+
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")

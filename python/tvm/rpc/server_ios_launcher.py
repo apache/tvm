@@ -8,24 +8,36 @@ from typing import Dict, List, AnyStr
 
 
 class OSName(Enum):
+    """The names of the operating systems available on the simulator."""
+
     iOS = "iOS"
     tvOS = "tvOS"
     watchOS = "watchOS"
 
 
 class IOSDevice(Enum):
+    """The names of available iOS devices."""
+
     iPhone = "iPhone"
     iPod = "iPod"
     iPad = "iPad"
 
 
 class RPCServerMode(Enum):
+    """Server modes available in the iOS RPC application."""
+
     standalone = "standalone"
     proxy = "proxy"
     tracker = "tracker"
 
 
 def get_list_of_available_simulators() -> Dict[AnyStr, List]:
+    """
+    List of simulators available on the system. Simulators are presented as a dictionary.
+    The dictionary key is the name of the operating system of the simulator.
+    The dictionary value is a list of all simulators with a given operating system.
+    """
+
     proc = subprocess.Popen(
         "xcrun simctl list devices available --json",
         shell=True,
@@ -41,6 +53,8 @@ def get_list_of_available_simulators() -> Dict[AnyStr, List]:
 
 
 def grep_by_system(available_devices: Dict[AnyStr, List], system_name: OSName) -> List[Dict]:
+    """Search for simulators that use the target operating system."""
+
     def find_index_of_substr(search_field: List[AnyStr], target: AnyStr) -> int:
         for i, item in enumerate(search_field):
             if target in item:
@@ -53,26 +67,36 @@ def grep_by_system(available_devices: Dict[AnyStr, List], system_name: OSName) -
 
 
 def grep_by_device(available_devices: List[Dict], device_name: IOSDevice) -> List[Dict]:
+    """Search for simulators that emulate a given device."""
+
     return [item for item in available_devices if device_name.value in item["name"]]
 
 
 def get_device_uid(target_device: Dict) -> AnyStr:
+    """Get a unique device ID."""
+
     return target_device["udid"]
 
 
 def boot_device(udid: AnyStr) -> None:
+    """Boot the device by its unique ID."""
+
     os.system(f"xcrun simctl boot {udid}")
     if not is_booted(udid):
         raise RuntimeError(f"Failed to boot device with unique id: {udid}")
 
 
 def shutdown_device(udid: AnyStr) -> None:
+    """Shutdown the device by its unique ID."""
+
     os.system(f"xcrun simctl shutdown {udid}")
     if not is_turned_off(udid):
         raise RuntimeError(f"Failed to shut down device with unique id: {udid}")
 
 
 def deploy_bundle_to_simulator(udid: AnyStr, bundle_path: AnyStr) -> None:
+    """Deploy iOS RPC bundle <bundle_path> to simulator with its unique ID <udid>."""
+
     ret_code = os.system(f"xcrun simctl install {udid} {bundle_path}")
     if ret_code != 0:
         raise RuntimeError(
@@ -81,6 +105,8 @@ def deploy_bundle_to_simulator(udid: AnyStr, bundle_path: AnyStr) -> None:
 
 
 def delete_bundle_from_simulator(udid: AnyStr, bundle_id: AnyStr) -> None:
+    """Delete iOS RPC bundle <bundle_id> from simulator with its unique ID <udid>."""
+
     ret_code = os.system(f"xcrun simctl uninstall {udid} {bundle_id}")
     if ret_code != 0:
         raise RuntimeError(
@@ -91,6 +117,28 @@ def delete_bundle_from_simulator(udid: AnyStr, bundle_id: AnyStr) -> None:
 def launch_ios_rpc(
     udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr
 ):
+    """
+    Launch iOS RPC application on simulator with No UI interconnection.
+
+    udid : str
+        Unique device ID.
+
+    bundle_id : str
+        iOS RPC bundle ID.
+
+    host_url : str
+        The tracker/proxy address.
+
+    host_port : int
+        The tracker/proxy port.
+
+    key : str
+        The key used to identify the device type in tracker.
+
+    mode : str
+        Server mode. See RPCServerMode.
+    """
+
     cmd = (
         f"xcrun simctl launch --console {udid} {bundle_id}"
         f" --immediate_connect"
@@ -111,6 +159,8 @@ def launch_ios_rpc(
 
 
 def terminate_ios_rpc(udid: AnyStr, bundle_id: AnyStr) -> None:
+    """Terminate iOS RPC application."""
+
     ret_code = os.system(f"xcrun simctl terminate {udid} {bundle_id}")
     if ret_code != 0:
         raise RuntimeError(
@@ -119,16 +169,22 @@ def terminate_ios_rpc(udid: AnyStr, bundle_id: AnyStr) -> None:
 
 
 def is_booted(udid: AnyStr) -> bool:
+    """Check that the device has booted."""
+
     device = find_device(udid)
     return device["state"] == "Booted"
 
 
 def is_turned_off(udid: AnyStr) -> bool:
+    """Check that the device has turned off."""
+
     device = find_device(udid)
     return device["state"] == "Shutdown"
 
 
 def check_booted_device(devices: List[Dict]) -> Dict:
+    """Check if there is already a booted device. If so, return this device."""
+
     for device in devices:
         if device["state"] == "Booted":
             return device
@@ -136,6 +192,8 @@ def check_booted_device(devices: List[Dict]) -> Dict:
 
 
 def find_device(udid: AnyStr) -> Dict:
+    """Find device by its unique ID."""
+
     available_devices = get_list_of_available_simulators()
     for devices in available_devices.values():
         for device in devices:
@@ -144,6 +202,22 @@ def find_device(udid: AnyStr) -> Dict:
 
 
 class ServerIOSLauncher:
+    """
+    Python wrapper for launch iOS RPC to simulator.
+
+    mode : str
+        Server mode. See RPCServerMode.
+
+    host : str
+        The tracker/proxy address.
+
+    port : int
+        The tracker/proxy port.
+
+    key : str
+        The key used to identify the device type in tracker.
+    """
+
     booted_devices = []
     bundle_id = os.environ["BUNDLE_ID"]
     bundle_path = os.environ["BUNDLE_PATH"]
@@ -174,6 +248,8 @@ class ServerIOSLauncher:
         self.server_was_started = True
 
     def terminate(self):
+        """Terminate iOS RPC server."""
+
         if self.server_was_started:
             try:
                 terminate_ios_rpc(self.udid, self.bundle_id)
@@ -193,6 +269,8 @@ class ServerIOSLauncher:
 
     @staticmethod
     def shutdown_booted_devices():
+        """Shutdown simulators that have been booted using this class."""
+
         for device_meta in ServerIOSLauncher.booted_devices:
             try:
                 shutdown_device(get_device_uid(device_meta))
@@ -201,6 +279,12 @@ class ServerIOSLauncher:
         ServerIOSLauncher.booted_devices = []
 
     def _boot_or_find_booted_device(self):
+        """
+        Boot the required simulator if there is no suitable booted simulator among the available simulators.
+        If there is a suitable booted simulator,
+        then take it as a simulator to which the iOS RPC application will be deployed.
+        """
+
         target_system = OSName.iOS
         target_device_type = IOSDevice.iPhone
         available_devices = get_list_of_available_simulators()
@@ -225,6 +309,8 @@ class ServerIOSLauncher:
             ServerIOSLauncher.booted_devices.append(target_device)
 
     def _wait_launch_complete(self, waiting_time, should_print_host_and_port=False):
+        """Wait for the iOS RPC server to start."""
+
         class Switch:
             def __init__(self):
                 self.on = False
@@ -290,6 +376,12 @@ class ServerIOSLauncher:
 
 
 class ServerIOSContextManager:
+    """
+    Context manager for ServerIOSLauncher.
+    To work with ServerIOSLauncher, it is preferable to use this class
+    so that the terminate method is called in any case.
+    """
+
     def __init__(self, mode, host, port, key):
         self.__mode = mode
         self.__host = host
