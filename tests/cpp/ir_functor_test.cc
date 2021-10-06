@@ -169,7 +169,7 @@ TEST(IRF, StmtVisitor) {
     Stmt body = Evaluate(z);
     DataType dtype = DataType::Float(32);
     Var buffer("b", PointerType(PrimType(dtype)));
-    return Allocate(buffer, dtype, z, const_true(), body);
+    return Allocate(buffer, dtype, z * z, const_true(), body);
   };
   v(fmaketest());
   ICHECK_EQ(v.count, 3);
@@ -218,6 +218,14 @@ TEST(IRF, StmtMutator) {
     return Allocate(buffer, dtype, z, const_true(), body);
   };
 
+  auto fmakealloc_seq_body = [&]() {
+    auto z = x + 1;
+    Stmt body = Evaluate(z);
+    DataType dtype = DataType::Float(32);
+    Var buffer("b", PointerType(PrimType(dtype)));
+    return Allocate(buffer, dtype, z, const_true(), SeqStmt({body, body, body}));
+  };
+
   auto fmakeif = [&]() {
     auto z = x + 1;
     Stmt body = Evaluate(z);
@@ -225,23 +233,38 @@ TEST(IRF, StmtMutator) {
   };
 
   MyVisitor v;
+
   {
-    auto body = fmakealloc();
-    Stmt body2 = Evaluate(1);
-    Stmt bref = body.as<AllocateNode>()->body;
-    auto* extentptr = body.as<AllocateNode>()->extent.get();
-    Array<Stmt> arr{std::move(body), body2, body2};
-    auto* arrptr = arr.get();
-    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr.get() == arrptr);
-    // inplace update body
-    ICHECK(arr[0].as<AllocateNode>()->extent.same_as(x));
-    ICHECK(arr[0].as<AllocateNode>()->extent.get() == extentptr);
-    // copy because there is additional refs
-    ICHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
-    ICHECK(arr[0].as<AllocateNode>()->body.as<EvaluateNode>()->value.same_as(x));
-    ICHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
+    // Inplace update of a CopyOnWrite body if there are no additional references.
+    auto before = fmakealloc_seq_body();
+    const AllocateNode* alloc_ptr = before.as<AllocateNode>();
+    const SeqStmtNode* before_body_ptr = before.as<AllocateNode>()->body.as<SeqStmtNode>();
+    auto after = v(std::move(before));
+
+    // We get the same AllocateNode, and the same SeqStmt inside it.
+    ICHECK_EQ(after.get(), alloc_ptr);
+    auto after_body_ptr = after.as<AllocateNode>()->body.as<SeqStmtNode>();
+    ICHECK_EQ(after_body_ptr, before_body_ptr);
+    // Verify that the change did actually happen.
+    ICHECK(after_body_ptr->seq[0].as<EvaluateNode>()->value.same_as(x));
   }
+
+  {
+    // Copy a CopyOnWrite body if there are additional references.
+    auto before = fmakealloc_seq_body();
+    auto extra_ref = before.as<AllocateNode>()->body;
+    const AllocateNode* alloc_ptr = before.as<AllocateNode>();
+    const SeqStmtNode* before_body_ptr = before.as<AllocateNode>()->body.as<SeqStmtNode>();
+    auto after = v(std::move(before));
+
+    // We get the same AllocateNode, but a different SeqStmt inside it.
+    ICHECK_EQ(after.get(), alloc_ptr);
+    auto after_body_ptr = after.as<AllocateNode>()->body.as<SeqStmtNode>();
+    ICHECK_NE(after_body_ptr, before_body_ptr);
+    // Verify that the change did actually happen.
+    ICHECK(after_body_ptr->seq[0].as<EvaluateNode>()->value.same_as(x));
+  }
+
   {
     Array<Stmt> arr{fmakealloc()};
     // mutate array get reference by another one, triiger copy.
@@ -265,7 +288,6 @@ TEST(IRF, StmtMutator) {
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     ICHECK(arr2.get() == arr.get());
   }
-
   {
     auto body =
         Evaluate(Call(DataType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
@@ -274,9 +296,9 @@ TEST(IRF, StmtMutator) {
   }
   {
     Stmt body = fmakealloc();
+    auto* ref1 = body.get();
     Stmt body2 = Evaluate(1);
     auto* ref2 = body2.get();
-    auto* extentptr = body.as<AllocateNode>()->extent.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body});
     body = SeqStmt({body, body2});
@@ -284,7 +306,7 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(body));
     // the seq get flattened
     ICHECK(body.as<SeqStmtNode>()->size() == 3);
-    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extent.get() == extentptr);
+    ICHECK(body.as<SeqStmtNode>()->seq[0].get() == ref1);
     ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
 
