@@ -31,3 +31,5 @@ run_pytest ctypes python-microtvm-zephyr tests/micro/zephyr --zephyr-board=qemu_
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests
 run_pytest ctypes python-microtvm-arduino-nano33ble tests/micro/arduino  --test-build-only --arduino-board=nano33ble
 run_pytest ctypes python-microtvm-arduino-due tests/micro/arduino  --test-build-only --arduino-board=due
+
+run_pytest ctypes python-microtvm-stm32 tests/micro/stm32
