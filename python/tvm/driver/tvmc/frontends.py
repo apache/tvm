@@ -265,12 +265,38 @@ class PyTorchFrontend(Frontend):
         return relay.frontend.from_pytorch(traced_model, input_shapes, **kwargs)
 
 
+class PaddleFrontend(Frontend):
+    """PaddlePaddle frontend for TVMC"""
+
+    @staticmethod
+    def name():
+        return "paddle"
+
+    @staticmethod
+    def suffixes():
+        return ["pdmodel", "pdiparams"]
+
+    def load(self, path, shape_dict=None, **kwargs):
+        # pylint: disable=C0415
+        import paddle
+
+        paddle.enable_static()
+        paddle.disable_signal_handler()
+
+        # pylint: disable=E1101
+        exe = paddle.static.Executor(paddle.CPUPlace())
+        prog, _, _ = paddle.static.load_inference_model(path, exe)
+
+        return relay.frontend.from_paddle(prog, shape_dict=shape_dict, **kwargs)
+
+
 ALL_FRONTENDS = [
     KerasFrontend,
     OnnxFrontend,
     TensorflowFrontend,
     TFLiteFrontend,
     PyTorchFrontend,
+    PaddleFrontend,
 ]
 
 

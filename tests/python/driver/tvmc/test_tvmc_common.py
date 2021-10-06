@@ -75,6 +75,31 @@ def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
     assert any(layout_transform_calls), "Expected 'layout_transform NCWH->NHWC' not found"
 
 
+def test_compile_paddle_module_nchw_to_nhwc(paddle_resnet50):
+    # some CI environments wont offer Paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+
+    tvmc_model = tvmc.frontends.load_model(paddle_resnet50, "paddle")
+    before = tvmc_model.mod
+
+    expected_layout = "NHWC"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NCHW"
+                and node.attrs.dst_layout == "NHWC"
+            )
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert any(layout_transform_calls), "Expected 'layout_transform NCWH->NHWC' not found"
+
+
 def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer TFLite, so skip in case it is not present
     pytest.importorskip("tflite")

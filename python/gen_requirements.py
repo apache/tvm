@@ -146,6 +146,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "future",  # Hidden dependency of torch.
                 "onnx",
                 "onnxruntime",
+                "paddlepaddle",
                 "tensorflow",
                 "tflite",
                 "torch",
