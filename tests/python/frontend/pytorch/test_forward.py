@@ -1602,6 +1602,8 @@ def test_forward_linear():
     verify_model(LinearNoBias(), input_data=[input2d, weight1d])
     # 3D input, 2D weight, no bias
     verify_model(LinearNoBias(), input_data=[input3d, weight3x2])
+    # 3D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input3d, weight2d, bias1d])
 
     verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
 
