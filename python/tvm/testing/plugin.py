@@ -49,6 +49,7 @@ MARKERS = {
     "llvm": "mark a test as requiring llvm",
     "ethosn": "mark a test as requiring ethosn",
     "hexagon": "mark a test as requiring hexagon",
+    "corstone300": "mark a test as requiring Corstone300 FVP",
 }
 
 

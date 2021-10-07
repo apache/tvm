@@ -374,6 +374,9 @@ def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
         attrs["kernel_layout"],
         attrs["groups"],
     )
+
+    # Use int8 for Cortex-M7
+    target = tvm.target.Target.current(allow_none=False)
     use_int8_on_arm = (not is_depthwise) and is_aarch64_arm() and attrs["data_layout"] == "NHWC"
     if use_int8_on_arm or is_fast_int8_on_arm():
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)

@@ -14,27 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Defines functions to analyze available opcodes in the ARM ISA."""
+# pylint: disable=invalid-name, unused-variable
+"""Schedule for pooling operators"""
+import tvm
+from tvm import te
+from tvm import autotvm
 
-import argparse
-
-ARM_ISA_MAP = {
-    "armv7e-m": ["SMLAD", "SSUB8", "SEL"],
-    "armv8-m": ["SMLAD", "SSUB8", "SEL"]
-}
-
-
-class IsaAnalyzer(object):
-    def __init__(self, target):
-        self.target = target
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("-mcpu", type=str)
-        parser.add_argument("-march", type=str)
-        args, _ = parser.parse_known_args(str(target).split())
-
-        self._isa_map = ARM_ISA_MAP[args.march] if args.march in ARM_ISA_MAP else []
+from .cortex_m7.pool import direct_simd
 
 
-    def __contains__(self, instruction):
-        return instruction in self._isa_map
+def schedule_pool(outs, layout):
+    """Create schedule for avgpool/maxpool with direct_simd"""
+    return direct_simd.pool_direct_simd_schedule(outs, layout)
+

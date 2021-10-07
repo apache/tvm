@@ -49,6 +49,20 @@ def schedule_concatenate_arm_cpu(_, outs, target):
         return topi.arm_cpu.schedule_concatenate(outs)
 
 
+@schedule_pool.register(["arm_cpu", "micro_dev"])
+def schedule_pool_arm_cpu(attrs, outs, target):
+    """schedule pooling ops arm cpu"""
+    layout = attrs.layout
+    isa = arm_isa.IsaAnalyzer(target)
+    avg_pool = hasattr(attrs, "count_include_pad")
+    with target:
+        if avg_pool and (layout == "NCW" or layout == "NCHW") and "SMLAD" in isa or \
+                not avg_pool and "SSUB8" in isa and "SEL" in isa and (layout == "NWC" or layout == "NHWC"):
+            return topi.arm_cpu.schedule_pool(outs, layout)
+        else:
+            return topi.generic.schedule_pool(outs, layout)
+
+
 @conv2d_strategy.register(["arm_cpu", "micro_dev"])
 def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d arm cpu strategy"""
@@ -414,4 +428,66 @@ def schedule_bitserial_dense_arm_cpu(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_dense),
         name="bitserial_dense.arm_cpu",
     )
+    return strategy
+
+
+@dense_strategy.register(["arm_cpu", "micro_dev"])
+def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
+    """dense arm cpu strategy"""
+    strategy = _op.OpStrategy()
+    isa = arm_isa.IsaAnalyzer(target)
+    if "SMLAD" in isa:
+        strategy.add_implementation(
+            wrap_compute_dense(topi.nn.dense),
+            wrap_topi_schedule(topi.arm_cpu.schedule_dense_direct_simd),
+            name="dense_direct_simd.micro_dev",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_dense(topi.nn.dense),
+            wrap_topi_schedule(topi.generic.schedule_dense),
+            name="dense.generic",
+        )
+    return strategy
+
+
+@conv1d_strategy.register("arm_cpu")
+def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """conv1d strategy"""
+    strategy = _op.OpStrategy()
+    layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
+    dilation = get_const_tuple(attrs.dilation)
+    if dilation[0] < 1:
+        raise ValueError("dilation should be a positive value")
+
+    isa = arm_isa.IsaAnalyzer(target)
+
+    if kernel_layout == "WOI":
+        if layout == "NWC" and "SMLAD" in isa:
+            strategy.add_implementation(
+                wrap_compute_conv1d(topi.arm_cpu.conv1d_direct_simd),
+                wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_direct_simd),
+                name="conv1d_direct_simd.micro_dev",
+            )
+        else:
+            raise RuntimeError(
+                "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(kernel_layout, layout)
+            )
+    elif layout == "NCW":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.conv1d_ncw),
+            wrap_topi_schedule(topi.generic.schedule_conv1d_ncw),
+            name="conv1d_ncw.generic",
+        )
+    elif layout == "NWC":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.conv1d_nwc),
+            wrap_topi_schedule(topi.generic.schedule_conv1d_nwc),
+            name="conv1d_nwc.generic",
+        )
+    else:
+        raise RuntimeError(
+            "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(kernel_layout, layout)
+        )
     return strategy

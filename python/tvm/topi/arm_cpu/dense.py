@@ -14,27 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Defines functions to analyze available opcodes in the ARM ISA."""
+# pylint: disable=invalid-name, unused-variable, no-else-return, unused-argument, import-outside-toplevel
+"""Dense schedule for ARM CPU"""
 
-import argparse
-
-ARM_ISA_MAP = {
-    "armv7e-m": ["SMLAD", "SSUB8", "SEL"],
-    "armv8-m": ["SMLAD", "SSUB8", "SEL"]
-}
+from .cortex_m7.dense import direct_simd
 
 
-class IsaAnalyzer(object):
-    def __init__(self, target):
-        self.target = target
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("-mcpu", type=str)
-        parser.add_argument("-march", type=str)
-        args, _ = parser.parse_known_args(str(target).split())
-
-        self._isa_map = ARM_ISA_MAP[args.march] if args.march in ARM_ISA_MAP else []
-
-
-    def __contains__(self, instruction):
-        return instruction in self._isa_map
+def schedule_dense_direct_simd(outs):
+    """Create schedule for dense_direct_simd"""
+    return direct_simd.dense_direct_simd_schedule(outs)

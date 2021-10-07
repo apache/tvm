@@ -17,6 +17,7 @@
 
 import sys
 import tvm
+import pytest
 
 collect_ignore = []
 if sys.platform.startswith("win"):
@@ -40,3 +41,22 @@ if sys.platform.startswith("win"):
 
 if tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON":
     collect_ignore.append("unittest/test_micro_transport.py")
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--corstone300", action="store_true", default=False, help="Run Corstone-300 FVP tests"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    skip_corstone300 = pytest.mark.skip(reason="Need --corstone300 option to run")
+    skip_non_corstone300 = pytest.mark.skip(reason="Test shold be marked 'corstone300' to run")
+
+    for item in items:
+        if config.getoption("--corstone300"):
+            if not "corstone300" in item.keywords:
+                item.add_marker(skip_non_corstone300)
+        else:
+            if "corstone300" in item.keywords:
+                item.add_marker(skip_corstone300)
