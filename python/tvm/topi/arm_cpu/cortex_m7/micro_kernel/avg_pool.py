@@ -104,18 +104,17 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
     long arr_offset) {{
   int n;
   int32_t *p32;
-  int32_t res;
+  int32_t res = *res16;
 
 #ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(2);
 #endif
 
   if ( arr_offset % 4 != 0 ) {{
-    res = *arr;
+    res += *arr;
     p32 = (int32_t *)(&arr[1]);
     n = {N} - 1;
   }} else {{
-    res = 0;
     p32 = (int32_t *)arr;
     n = {N};
   }}
