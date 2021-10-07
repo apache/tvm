@@ -258,6 +258,15 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
 
+    char* fast_math_flag_setting = getenv("TVM_FAST_MATH_FLAG");
+    bool fast_math_flag;
+    if (fast_math_flag_setting != nullptr) {
+      fast_math_flag = atoi(fast_math_flag_setting);
+    } else {
+      fast_math_flag = false;
+    }
+    cg->SetFastMathFlag(fast_math_flag);
+
     cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
 
     if (entry_func.length() != 0) {

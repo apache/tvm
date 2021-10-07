@@ -77,6 +77,12 @@ void CodeGenLLVM::Init(const std::string& module_name, llvm::TargetMachine* tm,
   this->InitTarget(tm);
 }
 
+void CodeGenLLVM::SetFastMathFlag(bool flag) {
+  llvm::FastMathFlags fmf;
+  fmf.setFast(flag);
+  builder_->setFastMathFlags(fmf);
+}
+
 void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
   module_->setTargetTriple(tm->getTargetTriple().str());
   module_->setDataLayout(tm->createDataLayout());
