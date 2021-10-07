@@ -154,7 +154,7 @@ def pipeline_graph(expr, indices):
 def run_modules(mod_configs, dev, target, dname, data, iMod, iName, iData):
     mod_input = {}
     final_output = {}
-    indx = 1
+    indx = 0
     for mod in mod_configs:
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target)
@@ -253,9 +253,9 @@ def run_pipeline(target):
     # third output is final output, second output for mod3, first for mod2
     # input
     mconfig1["pipeline"] = {
-        "mod_indx": 1,
+        "mod_indx": 0,
         "output": [
-            {"output_indx": 0, "dependent": [{"mod_indx": 2, "input_name": "x"}]},
+            {"output_indx": 0, "dependent": [{"mod_indx": 1, "input_name": "x"}]},
         ],
     }
     mod_config[mods[0]] = mconfig1
@@ -264,9 +264,9 @@ def run_pipeline(target):
     mconfig2["target"] = "llvm"
     mconfig2["dev"] = tvm.cpu(0)
     mconfig2["pipeline"] = {
-        "mod_indx": 2,
+        "mod_indx": 1,
         "output": [
-            {"output_indx": 0, "dependent": [{"mod_indx": 3, "input_name": "x"}]},
+            {"output_indx": 0, "dependent": [{"mod_indx": 2, "input_name": "x"}]},
         ],
     }
     mod_config[mods[1]] = mconfig2
@@ -276,8 +276,8 @@ def run_pipeline(target):
     mconfig3["dev"] = tvm.cpu(0)
 
     mconfig3["pipeline"] = {
-        "mod_indx": 3,
-        "output": [{"output_indx": 0, "dependent": [{"mod_indx": 0, "input_name": "1"}]}],
+        "mod_indx": 2,
+        "output": [{"output_indx": 0, "dependent": [{"mod_indx": -1, "input_name": "1"}]}],
     }
     mod_config[mods[2]] = mconfig3
 

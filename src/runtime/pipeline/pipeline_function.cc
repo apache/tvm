@@ -60,8 +60,9 @@ pipeline_name_to_indx(const Array<Module>& graphRuntimes,
   for (auto outConf : pConfStr) {
     for (auto conf : outConf.second) {
       int modIndx = conf.first;
-      if (modIndx) {
-        auto mGetIndex = ((Module)graphRuntimes[modIndx - 1]).GetFunction("get_input_index");
+      // -1 is global module/pipelineexecutor
+      if (modIndx >= 0) {
+        auto mGetIndex = ((Module)graphRuntimes[modIndx]).GetFunction("get_input_index");
         confRet[outConf.first][modIndx] = (static_cast<int>(mGetIndex(conf.second))) + 1;
       } else {
         confRet[outConf.first][modIndx] = stoi(conf.second);
@@ -123,7 +124,7 @@ vector<Module> pipeline_graph_runtime(Array<Module> modules, const MOD_CONF& mod
       load_params(params_arr);
 
       // put into return vector
-      ret[mconf.first - 1] = graphModule;
+      ret[mconf.first] = graphModule;
     }
   }
   return ret;
@@ -138,7 +139,7 @@ size_t pipeline_init(Array<Module> modules, SHARED_RUNTIME_VEC* runtimes,
     QUEUE* sub_queue = createQueue<SLOT>(NULL, SUB_Q_SIZE);
     /* runtimeIndx start from 1.
      */
-    int runtimeIndx = i + 1;
+    int runtimeIndx = i;
     /* get dependency configuration information.
      */
     auto pConf = pipeline_name_to_indx(graphRuntimes, pipeline_conf.at(runtimeIndx));
@@ -148,8 +149,8 @@ size_t pipeline_init(Array<Module> modules, SHARED_RUNTIME_VEC* runtimes,
     /* set prev and next for RuntimeItem, runtime need these information to
      * poll data from prev and do notification for next.
      */
-    if (i > 0) {
-      (*runtimes)[i - 1]->next = (*runtimes)[i];
+    if (i < len - 1) {
+      (*runtimes)[i]->next = (*runtimes)[i + 1];
     }
     if (i == len - 1) {
       (*runtimes)[i]->next = (*runtimes)[0];
@@ -160,7 +161,7 @@ size_t pipeline_init(Array<Module> modules, SHARED_RUNTIME_VEC* runtimes,
       for (auto depMap : pConf) {
         /* output is final output when dependent number is 0.
          */
-        outputNum += depMap.second.find(0) != depMap.second.end();
+        outputNum += depMap.second.find(-1) != depMap.second.end();
       }
     } else {
       outputNum += runItem->runtimePtr->NumOutputs();

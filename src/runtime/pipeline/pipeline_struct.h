@@ -102,7 +102,7 @@ class Dependent {
       bFinal = true;
       outputIndx = inputIndx - 1;
     } else {
-      dependent[modIndx - 1] = inputIndx;
+      dependent[modIndx] = inputIndx;
     }
     depNum++;
   }
@@ -112,7 +112,7 @@ class Dependent {
   int GetDepModInputIndx(const int modIndx) { return dependent[modIndx - 1]; }
 
   void RemoveDependentRef(const int modIndx) {
-    dependent[modIndx - 1] = 0;
+    dependent[modIndx] = 0;
     depNum--;
   }
 
