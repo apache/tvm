@@ -77,14 +77,14 @@ void BufferInfoExtractor::VisitStmt(const Stmt& n) {
   StmtExprVisitor::VisitStmt(n);
 }
 
-size_t static CalculateExtentsSize(const AllocateNode* op) {
+static size_t CalculateExtentsSize(const AllocateNode* op) {
   size_t element_size_bytes = op->dtype.bytes();
   size_t num_elements = 1;
   for (const auto& ext : op->extents) {
     if (ext->IsInstance<IntImmNode>()) {
       num_elements *= Downcast<IntImm>(ext)->value;
     } else {
-      // We cant statically calculate workspace for dynamic shapes
+      // We can't statically calculate workspace for dynamic shapes
       num_elements = 0;
     }
   }
