@@ -38,10 +38,10 @@ class BufferInfoExtractor : public StmtExprVisitor {
  public:
   explicit BufferInfoExtractor(const IRModule& module) : module_(module) {
     for (const auto& gv_func : module_->functions) {
-      functions.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
+      functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
     }
     // Pushing a scope info for the initial body of the main function
-    scope_stack.push(ScopeInfo());
+    scope_stack_.push(ScopeInfo());
   }
   Map<BufferInfo, tir::Stmt> operator()(const PrimFunc& func);
 
@@ -56,24 +56,24 @@ class BufferInfoExtractor : public StmtExprVisitor {
 
   void UpdateAliases(const Array<PrimExpr>& args, const PrimFunc& func);
 
-  Map<BufferInfo, tir::Stmt> buffer_info_map;
-  Map<tir::Stmt, Integer> buffer_info_start_stmt_idx;
-  Map<tir::Stmt, Integer> buffer_info_end_stmt_idx;
-  Map<tir::Var, tir::Stmt> allocate_var_to_stmt_map;
+  Map<BufferInfo, tir::Stmt> buffer_info_map_;
+  Map<tir::Stmt, Integer> buffer_info_start_stmt_idx_;
+  Map<tir::Stmt, Integer> buffer_info_end_stmt_idx_;
+  Map<tir::Var, tir::Stmt> allocate_var_to_stmt_map_;
 
   std::unordered_set<Stmt, ObjectPtrHash, ObjectPtrEqual> currently_live_allocates;
-  int current_stmt_idx = 0;
+  int current_stmt_idx_ = 0;
   struct ScopeInfo {
     For for_loop;
   };
-  std::stack<ScopeInfo> scope_stack;
+  std::stack<ScopeInfo> scope_stack_;
 
-  Map<String, PrimFunc> functions;
+  Map<String, PrimFunc> functions_;
   IRModule module_;
 };
 
 void BufferInfoExtractor::VisitStmt(const Stmt& n) {
-  current_stmt_idx += 1;
+  current_stmt_idx_ += 1;
   StmtExprVisitor::VisitStmt(n);
 }
 
@@ -92,7 +92,7 @@ static size_t CalculateExtentsSize(const AllocateNode* op) {
 }
 
 void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
-  const auto& currect_scope_info = scope_stack.top();
+  const auto& currect_scope_info = scope_stack_.top();
   const auto& type = Downcast<PointerType>(op->buffer_var->type_annotation);
   const auto& storage_scope = type->storage_scope;
 
@@ -116,8 +116,8 @@ void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
              "un-restricted pool is assigned";
       auto buffer_info = BufferInfo(op->buffer_var->name_hint, size_bytes, pool_candidates);
       auto allocate = GetRef<Allocate>(op);
-      allocate_var_to_stmt_map.Set(op->buffer_var, allocate);
-      buffer_info_map.Set(buffer_info, allocate);
+      allocate_var_to_stmt_map_.Set(op->buffer_var, allocate);
+      buffer_info_map_.Set(buffer_info, allocate);
     }
   }
   StmtExprVisitor::VisitStmt(op->body);
@@ -127,9 +127,9 @@ void BufferInfoExtractor::VisitStmt_(const ForNode* op) {
   ScopeInfo si{
       GetRef<For>(op),
   };
-  scope_stack.push(si);
+  scope_stack_.push(si);
   StmtExprVisitor::VisitStmt_(op);
-  scope_stack.pop();
+  scope_stack_.pop();
 }
 
 void BufferInfoExtractor::VisitExpr_(const LoadNode* op) {
@@ -144,12 +144,12 @@ void BufferInfoExtractor::VisitStmt_(const StoreNode* op) {
 
 void BufferInfoExtractor::VisitExpr_(const VarNode* op) {
   auto var = GetRef<Var>(op);
-  if (allocate_var_to_stmt_map.count(var)) {
-    auto allocate = allocate_var_to_stmt_map[var];
-    if (buffer_info_start_stmt_idx.count(allocate) == 0) {
-      buffer_info_start_stmt_idx.Set(allocate, current_stmt_idx);
+  if (allocate_var_to_stmt_map_.count(var)) {
+    auto allocate = allocate_var_to_stmt_map_[var];
+    if (buffer_info_start_stmt_idx_.count(allocate) == 0) {
+      buffer_info_start_stmt_idx_.Set(allocate, current_stmt_idx_);
     }
-    buffer_info_end_stmt_idx.Set(allocate, current_stmt_idx);
+    buffer_info_end_stmt_idx_.Set(allocate, current_stmt_idx_);
   }
   StmtExprVisitor::VisitExpr_(op);
 }
@@ -173,13 +173,13 @@ void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimF
     // to the original allocate
     if (arg->IsInstance<LoadNode>()) {
       auto load = Downcast<Load>(arg);
-      if (allocate_var_to_stmt_map.count(load->buffer_var)) {
-        allocate_var_to_stmt_map.Set(param_buf, allocate_var_to_stmt_map[load->buffer_var]);
+      if (allocate_var_to_stmt_map_.count(load->buffer_var)) {
+        allocate_var_to_stmt_map_.Set(param_buf, allocate_var_to_stmt_map_[load->buffer_var]);
       }
     } else if (arg->IsInstance<VarNode>()) {
       auto var = Downcast<Var>(arg);
-      if (allocate_var_to_stmt_map.count(var)) {
-        allocate_var_to_stmt_map.Set(param_buf, allocate_var_to_stmt_map[var]);
+      if (allocate_var_to_stmt_map_.count(var)) {
+        allocate_var_to_stmt_map_.Set(param_buf, allocate_var_to_stmt_map_[var]);
       }
     }
   }
@@ -187,7 +187,7 @@ void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimF
 
 void BufferInfoExtractor::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::call_extern())) {
-    auto func = functions.at(Downcast<StringImm>(op->args[0])->value);
+    auto func = functions_.at(Downcast<StringImm>(op->args[0])->value);
     auto actual_args = Array<PrimExpr>(op->args.begin() + 1, op->args.end());
     this->UpdateAliases(actual_args, func);
     this->VisitStmt(func->body);
@@ -217,26 +217,26 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
   };
 
   std::vector<LivenessEvent> le_events;
-  for (const auto& kv : buffer_info_map) {
+  for (const auto& kv : buffer_info_map_) {
     if (!kv.second->IsInstance<AllocateNode>()) {
       continue;
     }
     auto allocate = Downcast<Allocate>(kv.second);
     auto buffer_info = Downcast<BufferInfo>(kv.first);
     // If the allocate is not used; we remove it from the analysis
-    if (buffer_info_start_stmt_idx.count(allocate) == 0) {
+    if (buffer_info_start_stmt_idx_.count(allocate) == 0) {
       continue;
     }
     LivenessEvent le_event_start;
     le_event_start.buffer_info = buffer_info;
     le_event_start.le_type = START;
-    le_event_start.tick = buffer_info_start_stmt_idx[allocate];
+    le_event_start.tick = buffer_info_start_stmt_idx_[allocate];
     le_events.push_back(le_event_start);
 
     LivenessEvent le_event_end;
     le_event_end.buffer_info = buffer_info;
     le_event_end.le_type = END;
-    le_event_end.tick = buffer_info_end_stmt_idx[allocate];
+    le_event_end.tick = buffer_info_end_stmt_idx_[allocate];
     le_events.push_back(le_event_end);
   }
 
@@ -262,7 +262,7 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
       open_set.erase(le_event.buffer_info);
     }
   }
-  return this->buffer_info_map;
+  return this->buffer_info_map_;
 }
 
 Map<BufferInfo, tir::Stmt> ExtractBufferInfo(const PrimFunc& main_func, const IRModule& mod) {
