@@ -206,7 +206,7 @@ BOARD = "qemu_x86"
 # Now, compile the model for the target:
 
 with tvm.transform.PassContext(
-    opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["FuseOps", "AlterOpLayout"]
+    opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
 ):
     module = relay.build(mod, target=TARGET, params=params)
 
