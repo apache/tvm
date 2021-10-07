@@ -3086,5 +3086,48 @@ def test_primfunc_with_allocate_annotations():
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
 
+@T.prim_func
+def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [], dtype="float32")
+    B = T.match_buffer(b, [], dtype="float32")
+    # body
+    # tir.with block("root")
+    C = T.alloc_buffer([], dtype="float32")
+    A[()] = T.float32(2)
+    C[()] = A[()] + B[()]
+    B[()] = C[()]
+
+
+@T.prim_func
+def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
+    with T.block(iter_vars=(), name="root"):
+        A = T.match_buffer(a, (), "float32")
+        C = T.alloc_buffer((), "float32")
+        B = T.match_buffer(b, (), "float32")
+        A[()] = 2.0
+        C[()] = A[()] + B[()]
+        B[()] = C[()]
+
+
+def test_alloc_zero_dim_buffer():
+    # Fail
+    func = alloc_zero_dim_buffer
+    rt_mod = tvm.build(func, "llvm")
+
+
+def test_alloc_zero_dim_buffer_block():
+    # Work
+    func = alloc_zero_dim_buffer_block
+    rt_mod = tvm.build(func, "llvm")
+
+
+def test_alloc_zero_dim_buffer_block_round_trip():
+    # Fail
+    func = alloc_zero_dim_buffer_block
+    rt_func = tvm.script.from_source(tvm.script.asscript(func, True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+    rt_mod = tvm.build(rt_func, "llvm")
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
