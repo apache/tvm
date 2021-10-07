@@ -16,62 +16,19 @@
 # under the License.
 
 cmake_minimum_required(VERSION 3.2)
-project(HexagonLauncher C CXX)
+project(HexagonLauncherRPCSkel C CXX)
 
-if(NOT "${FASTRPC_LIBS}" STREQUAL "SKEL" AND
-   NOT "${FASTRPC_LIBS}" STREQUAL "STUB")
-  message(SEND_ERROR "Please set FASTRPC_LIBS to either SKEL or STUB")
-endif()
-
-if(NOT DEFINED USE_HEXAGON_SDK)
-  message(SEND_ERROR "Please set USE_HEXAGON_SDK to the location of Hexagon SDK")
-endif()
-if (NOT DEFINED USE_HEXAGON_ARCH)
-  message(SEND_ERROR "Please set USE_HEXAGON_ARCH to the Hexagon architecture version")
-endif()
-
-include(ExternalProject)
-include(../../../cmake/modules/HexagonSDK.cmake)
-
-find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
-
-include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_REMOTE_ROOT})
-
-set(QAIC_EXE "${HEXAGON_QAIC_EXE}")
-foreach(INCDIR IN LISTS HEXAGON_SDK_INCLUDES HEXAGON_REMOTE_ROOT)
-  list(APPEND QAIC_FLAGS "-I${INCDIR}")
-endforeach()
-
-set(LAUNCHER_SRC "${CMAKE_CURRENT_SOURCE_DIR}")
-set(CMAKE_SKIP_RPATH TRUE)
-
-# Qaic for the domain header.
-#
-# Don't add paths to these filenames, or otherwise cmake may spontaneously
-# add -o option to the qaic invocation (with an undesirable path).
-set(LAUNCHER_RPC_IDL "../launcher_rpc.idl")
-set(LAUNCHER_RPC_H "launcher_rpc.h")
-set(LAUNCHER_RPC_SKEL_C "launcher_rpc_skel.c")
-set(LAUNCHER_RPC_STUB_C "launcher_rpc_stub.c")
+include("${CMAKE_CURRENT_SOURCE_DIR}/../HexagonLauncher.cmake")
 
 add_custom_command(
-  OUTPUT ${LAUNCHER_RPC_SKEL_C} ${LAUNCHER_RPC_STUB_C}
-    "${LAUNCHER_SRC}/${LAUNCHER_RPC_H}"
+  OUTPUT ${LAUNCHER_RPC_SKEL_C} ${LAUNCHER_RPC_H}
   COMMAND ${QAIC_EXE} ${QAIC_FLAGS}
-    "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
-  COMMAND ${CMAKE_COMMAND} -E rename "${LAUNCHER_RPC_H}"
-    "${LAUNCHER_SRC}/${LAUNCHER_RPC_H}"
+  "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
   MAIN_DEPENDENCY "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
 )
 
-
 include_directories(SYSTEM ${HEXAGON_QURT_INCLUDES})
-include_directories(
-  "${LAUNCHER_SRC}"
-  "${LAUNCHER_SRC}/../../../include"
-  "${LAUNCHER_SRC}/../../../3rdparty/dlpack/include"
-  "${LAUNCHER_SRC}/../../../3rdparty/dmlc-core/include"
-)
+
 link_directories(${HEXAGON_QURT_LIBS})
 
 add_definitions(-D_MACH_I32=int)
@@ -88,8 +45,8 @@ set(CMAKE_C_FLAGS "${EXTRA_COMP_FLAGS_STR} ${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${EXTRA_COMP_FLAGS_STR} ${CMAKE_CXX_FLAGS}")
 
 set(SKEL_SRCS
-  "../launcher_core.cc"
-  "../launcher_hexagon.cc"
+  "${LAUNCHER_SRC}/launcher_core.cc"
+  "${LAUNCHER_SRC}/launcher_hexagon.cc"
 )
 add_library(launcher_rpc_skel SHARED
   "${LAUNCHER_SRC}/${LAUNCHER_RPC_H}"
@@ -97,9 +54,8 @@ add_library(launcher_rpc_skel SHARED
   "${SKEL_SRCS}"
 )
 
-
 ExternalProject_Add(static_hexagon_tvm_runtime
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/../../../"
+  SOURCE_DIR "${TVM_SOURCE_DIR}"
   BUILD_COMMAND $(MAKE) runtime
   CMAKE_ARGS
   "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"

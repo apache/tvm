@@ -93,7 +93,7 @@ if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
 
   set(LAUNCHER_BINARY_DIR "${CMAKE_BINARY_DIR}/launcher")
   ExternalProject_Add(launcher_android
-    SOURCE_DIR "${CMAKE_SOURCE_DIR}/apps/hexagon_launcher"
+    SOURCE_DIR "${CMAKE_SOURCE_DIR}/apps/hexagon_launcher/cmake/android"
     INSTALL_DIR "${LAUNCHER_BINARY_DIR}"
     BUILD_ALWAYS ON
     CMAKE_ARGS
@@ -112,7 +112,7 @@ if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
     DEPENDEES install
   )
   ExternalProject_Add(launcher_hexagon
-    SOURCE_DIR "${CMAKE_SOURCE_DIR}/apps/hexagon_launcher/rpc_skel"
+    SOURCE_DIR "${CMAKE_SOURCE_DIR}/apps/hexagon_launcher/cmake/hexagon"
     INSTALL_DIR "${LAUNCHER_BINARY_DIR}"
     BUILD_ALWAYS ON
     CMAKE_ARGS
