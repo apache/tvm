@@ -96,7 +96,7 @@ def dense_tensorcore_cuda(data, weight, bias=None, out_dtype=None):
 def _schedule_dense_tensorcore(cfg, s, C):
     """Schedule dense operator using Tensorcore"""
     A, B = s[C].op.input_tensors
-    if B.op.tag == "tensor_b_copy":
+    if B.op.input_tensors[0] == A:
         s[B].compute_inline()
     batch, out_dim = get_const_tuple(C.shape)
     data_dtype = A.dtype

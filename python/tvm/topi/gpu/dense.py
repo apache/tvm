@@ -81,7 +81,7 @@ def schedule_matmul_default(cfg, outs):
 
 def _schedule_dense_small_batch(cfg, s, C):
     A, weights = C.op.input_tensors
-    if weights.op.tag == "tensor_b_copy":
+    if weights.op.input_tensors[0] == A:
         s[weights].compute_inline()
 
     _, in_dim_weights = get_const_tuple(weights.shape)
@@ -144,7 +144,7 @@ def schedule_dense_large_batch(cfg, outs):
 def _schedule_dense_large_batch(cfg, s, C):
     """Schedule float32/64 dense with large batch size"""
     A, B = C.op.input_tensors
-    if B.op.tag == "tensor_b_copy":
+    if B.op.input_tensors[0] == A:
         s[B].compute_inline()
     batch, in_dim = get_const_tuple(A.shape)
     out_dim, _ = get_const_tuple(B.shape)

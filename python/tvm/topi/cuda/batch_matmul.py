@@ -93,7 +93,7 @@ def schedule_batch_matmul(cfg, outs):
     def _schedule(cfg, op):
         C = op.output(0)
         A, B = s[C].op.input_tensors
-        if B.op.tag == "tensor_b_copy":
+        if B.op.input_tensors[0] == A:
             s[B].compute_inline()
         _, M, N = get_const_tuple(C.shape)
         AA = s.cache_read(A, "shared", [C])
@@ -338,7 +338,7 @@ _dp4a = dp4a("shared", "shared", "local")
 
 def _schedule_batch_matmul_int8(cfg, s, output):
     input_x, input_y = s[output].op.input_tensors
-    if input_y.op.tag == "tensor_b_copy":
+    if input_y.op.input_tensors[0] == input_x:
         s[input_y].compute_inline()
 
     B, M, K = get_const_tuple(input_x.shape)
