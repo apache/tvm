@@ -104,19 +104,18 @@ def test_conv1d(dtype):
 
 
 @tvm.testing.requires_corstone300
-@pytest.mark.parametrize("dtype", ["int8"])
-def test_dense(dtype):
+def test_dense():
     """Test a subgraph with a single dense operator."""
     ishape = (1, 32)
     wshape = (64, 32)
 
-    input0 = relay.var("input", relay.TensorType(ishape, dtype))
+    input0 = relay.var("input", relay.TensorType(ishape, "int8"))
     dense_f = relay.op.nn.batch_flatten(input0)
-    weight0 = relay.const(np.random.randint(low=-10, high=10, size=wshape, dtype=dtype))
+    weight0 = relay.const(np.random.randint(low=-10, high=10, size=wshape, dtype="int8"))
     out = relay.op.nn.dense(dense_f, weight0, out_dtype="int32")
 
     mod = tvm.IRModule.from_expr(relay.Function([input0], out))
-    inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype=dtype)}
+    inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype="int8")}
     output_list = generate_ref_data(mod, inputs)
 
     compile_and_run(
@@ -132,15 +131,16 @@ def test_dense(dtype):
 
 
 @tvm.testing.requires_corstone300
-@pytest.mark.parametrize("dtype,ishape", [("int8", (1, 32, 32, 1))])
-def test_maxpool_2d(dtype, ishape):
+def test_maxpool_2d():
     """Test a subgraph with a single maxpool_2d operator."""
 
-    input0 = relay.var("input", relay.TensorType(ishape, dtype))
+    ishape = (1, 32, 32, 1)
+
+    input0 = relay.var("input", relay.TensorType(ishape, "int8"))
     out = relay.op.nn.max_pool2d(input0, (3, 3), layout="NHWC")
 
     mod = tvm.IRModule.from_expr(relay.Function([input0], out))
-    inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype=dtype)}
+    inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype="int8")}
     output_list = generate_ref_data(mod, inputs)
 
     compile_and_run(
@@ -156,15 +156,15 @@ def test_maxpool_2d(dtype, ishape):
 
 
 @tvm.testing.requires_corstone300
-@pytest.mark.parametrize("dtype,ishape", [("int8", (1, 32, 32))])
-def test_maxpool_1d(dtype, ishape):
+def test_maxpool_1d():
     """Test a subgraph with a single maxpool_1d operator."""
+    ishape = (1, 32, 32)
 
-    input0 = relay.var("input", relay.TensorType(ishape, dtype))
+    input0 = relay.var("input", relay.TensorType(ishape, "int8"))
     out = relay.op.nn.max_pool1d(input0, (3,), layout="NWC", strides=2)
 
     mod = tvm.IRModule.from_expr(relay.Function([input0], out))
-    inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype=dtype)}
+    inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype="int8")}
     output_list = generate_ref_data(mod, inputs)
 
     compile_and_run(
@@ -193,11 +193,12 @@ def test_avgpool_2d():
     out1 = relay.op.nn.avg_pool2d(input1, pool_size=(3, 3), layout="NCHW")
     mod = tvm.IRModule.from_expr(relay.Function([input1], out1))
 
-    inputs = {"input": np.random.randint(low=-10, high=10, size=ishape, dtype="int32")}
+    input_data = np.random.randint(low=-128, high=127, size=ishape, dtype="int32")
+    inputs = {"input": input_data}
     output_list = generate_ref_data(ref_mod, inputs)
 
     compile_and_run(
-        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        AOTTestModel(module=mod, inputs={"input": input_data.astype(dtype="int16")}, outputs=output_list),
         runner=AOT_CORSTONE300_RUNNER,
         interface_api='c',
         use_unpacked_api=True,
@@ -210,27 +211,25 @@ def test_avgpool_2d():
 
 
 @tvm.testing.requires_corstone300
-# @pytest.mark.parametrize("dtype,ishape", [("int32", ])
 def test_avgpool_1d():
     """Test a subgraph with a single avgpool_1d operator."""
 
     ishape = (1, 32, 32)
 
-    input0 = relay.var("input0", relay.TensorType(ishape, "int32"))
-    ap1d0 = relay.op.nn.avg_pool1d(input0, (3,), layout="NCW", strides=2)
-    out0 = relay.op.transpose(ap1d0, (0, 2, 1))
+    input0 = relay.var("input", relay.TensorType(ishape, "int32"))
+    out0 = relay.op.nn.avg_pool1d(input0, (3,), layout="NCW", strides=2)
     ref_mod = tvm.IRModule.from_expr(relay.Function([input0], out0))
 
-    input1 = relay.var("input0", relay.TensorType(ishape, "int16"))
-    ap1d1 = relay.op.nn.avg_pool1d(input1, (3,), layout="NCW", strides=2)
-    out1 = relay.op.transpose(ap1d1, (0, 2, 1))
+    input1 = relay.var("input", relay.TensorType(ishape, "int16"))
+    out1 = relay.op.nn.avg_pool1d(input1, (3,), layout="NCW", strides=2)
     mod = tvm.IRModule.from_expr(relay.Function([input1], out1))
 
-    inputs = {"input0": np.random.randint(low=-128, high=127, size=ishape, dtype="int16")}
+    input_data = np.random.randint(low=-10, high=10, size=ishape, dtype="int32")
+    inputs = {"input": input_data}
     output_list = generate_ref_data(ref_mod, inputs)
 
     compile_and_run(
-        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        AOTTestModel(module=mod, inputs={"input": input_data.astype(dtype="int16")}, outputs=output_list),
         runner=AOT_CORSTONE300_RUNNER,
         interface_api='c',
         use_unpacked_api=True,
