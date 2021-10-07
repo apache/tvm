@@ -265,7 +265,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     } else {
       fast_math_flag = false;
     }
-    cg->SetFastMathFlag(fast_math_flag);
+    // For testing purposes only
+    // cg->SetFastMathFlag(fast_math_flag);
+    cg->SetFastMathFlag(true);
 
     cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
 
