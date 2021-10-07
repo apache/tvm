@@ -37,6 +37,8 @@ namespace ethosu {
 namespace cascader {
 
 class Plan;
+class MemoryRegion;
+class Proposal;
 
 /*!
  * \brief Determine the Pareto optimal points.
@@ -64,6 +66,8 @@ std::vector<T> ThinVector(const std::vector<T>& vec, size_t max_size);
  * and cycles.
  */
 std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans);
+
+std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_t max_proposals);
 
 }  // namespace cascader
 }  // namespace ethosu

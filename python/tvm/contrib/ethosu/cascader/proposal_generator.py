@@ -14,34 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Pareto optimisation functions for the NPU cascader."""
-from typing import List
-
-from tvm import Object
+"""Algorithms to generate Proposals for a Graph."""
+from typing import List, Dict, FrozenSet
 
 from . import _ffi_api
+from .cascader_options import CascaderOptions
 from .plan import Plan
 from .proposal import Proposal
-from .tensor_config import MemoryRegion
+from .graph import CascaderGraph, Part
 
 
-def _get_pareto_frontier(costs: List[List[float]]) -> List[bool]:
-    for i, cost in enumerate(costs):
-        for j, value in enumerate(cost):
-            costs[i][j] = float(value)
-
-    return [bool(v) for v in _ffi_api.GetParetoFrontier(costs)]
-
-
-def _thin_vector(vec: List[Object], max_size: int) -> List[Object]:
-    return list(_ffi_api.ThinVector(vec, max_size))
-
-
-def _pareto_cull_plans(plans: List[Plan], max_plans: int) -> List[Plan]:
-    return list(_ffi_api.ParetoCullPlans(plans, max_plans))
-
-
-def pareto_cull_proposals(
-    proposals: List[Proposal], cascade_region: MemoryRegion, max_proposals: int
+def generate_proposals(
+    graph: CascaderGraph,
+    home_map: Dict[FrozenSet[Part], List[Plan]],
+    options: CascaderOptions,
 ) -> List[Proposal]:
-    return list(_ffi_api.ParetoCullProposals(proposals, cascade_region, max_proposals))
+    return list(
+        _ffi_api.GenerateProposals(
+            graph,
+            home_map,
+            options,
+        )
+    )
