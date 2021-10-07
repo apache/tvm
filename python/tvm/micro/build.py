@@ -24,7 +24,6 @@ import pathlib
 import contextlib
 
 from typing import Union
-
 from .._ffi import libinfo
 from .. import rpc as _rpc
 
@@ -33,9 +32,6 @@ _LOG = logging.getLogger(__name__)
 
 
 STANDALONE_CRT_DIR = None
-
-
-AUTOTVM_DEBUG_BASE_PATH = "autotvm_debug"
 
 
 class CrtNotFoundError(Exception):
@@ -81,13 +77,9 @@ class AutoTvmModuleLoader:
     """
 
     def __init__(
-        self,
-        template_project_dir: Union[pathlib.Path, str],
-        project_options: dict = None,
-        debug: bool = False,
+        self, template_project_dir: Union[pathlib.Path, str], project_options: dict = None
     ):
         self._project_options = project_options
-        self._debug = debug
 
         if isinstance(template_project_dir, (pathlib.Path, str)):
             self._template_project_dir = str(template_project_dir)
@@ -99,10 +91,6 @@ class AutoTvmModuleLoader:
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
 
-        debug_base_path = None
-        if self._debug:
-            debug_base_path = str(AUTOTVM_DEBUG_BASE_PATH)
-
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
         remote = tracker.request(
             remote_kw["device_key"],
@@ -112,7 +100,6 @@ class AutoTvmModuleLoader:
                 "tvm.micro.compile_and_create_micro_session",
                 build_result_bin,
                 self._template_project_dir,
-                debug_base_path,
                 json.dumps(self._project_options),
             ],
         )
