@@ -394,7 +394,8 @@ Unresolved Questions
 How do we handle dynamic shapes?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-TODO
+Dynamic shape support is ongoing work in TVM as we upgrade Relay, TVM's compiler.  For the most recent updates on
+dynamic shape support, we recommend following updates in TVM's Discuss forum (https://discuss.tvm.apache.org/).
 
 How can we modify the VM to support JIT compilation of certain code paths?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
