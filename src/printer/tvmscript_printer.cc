@@ -769,6 +769,11 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
     if (!is_one(op->condition)) {
       doc << ", " << Print(op->condition);
     }
+    if (!op->annotations.empty()) {
+      doc << ", annotations={";
+      doc << PrintAnnotations(op->annotations);
+      doc << "}";
+    }
     doc << ") as " << Print(op->buffer_var) << ":";
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   } else {
@@ -776,6 +781,11 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
         << ", " << PrintDType(op->dtype) << ", " << Print(storage_scope);
     if (!is_one(op->condition)) {
       doc << ", " << Print(op->condition);
+    }
+    if (!op->annotations.empty()) {
+      doc << ", annotations={";
+      doc << PrintAnnotations(op->annotations);
+      doc << "}";
     }
     doc << ")" << Doc::NewLine() << PrintBody(op->body);
   }

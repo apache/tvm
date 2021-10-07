@@ -473,5 +473,38 @@ def test_block_blockrealize():
     assert output.find("with init()") != -1
 
 
+def test_tir_allocate():
+    dtype = "int8"
+    storage_scope = "global"
+    ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
+    a = te.var("buffer", ptype)
+    allocate = tvm.tir.Allocate(
+        buffer_var=a,
+        dtype=dtype,
+        extents=[2, 2],
+        condition=tvm.get_global_func("tir.const_true")(dtype, None),
+        body=tvm.tir.Evaluate(2 + 1),
+        annotations={
+            "attr1": "foo",
+            "attr2": "bar",
+        },
+    )
+    assert allocate.buffer_var == a
+    assert allocate.dtype == "int8"
+    assert list(allocate.extents) == [2, 2]
+    assert allocate.annotations["attr1"] == "foo"
+    assert allocate.annotations["attr2"] == "bar"
+
+    # make sure we can print using TIRTextPrinter
+    func = tvm.tir.PrimFunc([], allocate)
+    output = func.astext()
+    assert (
+        output.find(
+            'allocate(buffer: Pointer(global int8), int8, [2, 2]), storage_scope = global, annotations = {"attr2": "bar", "attr1": "foo"})'
+        )
+        != -1
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
