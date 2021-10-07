@@ -29,7 +29,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
     """Lower a schedule to TIR for the Arm(R) Ethos(TM)-U NPU target.
 
     The resulting TIR module will contain a single function
-    that consists of a sequence of tir.extern_calls to NPU
+    that consists of a sequence of tir.call_extern to NPU
     operations.
 
     Parameters
