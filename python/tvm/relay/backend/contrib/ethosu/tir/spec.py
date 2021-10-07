@@ -261,3 +261,24 @@ class SerialPooling(SerializableFormat):
         self.padding = padding
         self.activation = activation
         self.upscale = upscale
+
+
+class SerialBinaryElementwise(SerializableFormat):
+    """Specialization class to retrieve arguments of
+    a ethosu.binary_elementwise tir extern call on a predefined ordering"""
+
+    def __init__(
+        self,
+        ifm: SerialFeatureMap,
+        ifm2: SerialFeatureMap,
+        ofm: SerialFeatureMap,
+        operator_type: str,
+        reversed_operands: bool,
+        activation: SerialActivation,
+    ):
+        self.ifm = ifm
+        self.ifm2 = ifm2
+        self.ofm = ofm
+        self.operator_type = operator_type
+        self.reversed_operands = reversed_operands
+        self.activation = activation

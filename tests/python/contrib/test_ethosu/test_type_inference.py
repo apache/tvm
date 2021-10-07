@@ -24,6 +24,7 @@ from tvm.relay.testing import run_opt_pass
 from .infra import make_ethosu_conv2d
 from .infra import make_ethosu_depthwise_conv2d
 from .infra import make_ethosu_pooling
+from .infra import make_ethosu_binary_elementwise
 
 
 @pytest.mark.parametrize(
@@ -167,6 +168,116 @@ def test_ethosu_pooling_invalid_dtype():
         padding,
     )
     func = relay.Function([ifm], pooling)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+@pytest.mark.parametrize(
+    "ifm_shape, ifm_layout", [((1, 4, 5, 33), "NHWC"), ((1, 4, 3, 5, 16), "NHCWB16")]
+)
+@pytest.mark.parametrize(
+    "ofm_shape, ofm_layout", [((1, 4, 5, 33), "NHWC"), ((1, 4, 3, 5, 16), "NHCWB16")]
+)
+def test_ethosu_binary_elementwise_type_inference(
+    ifm_shape,
+    ifm_layout,
+    ofm_shape,
+    ofm_layout,
+):
+    dtype = "int8"
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+    ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=dtype)
+    operator_type = "ADD"
+    ofm_channels = 33
+    binary_elementwise = make_ethosu_binary_elementwise(
+        ifm,
+        ifm2,
+        ofm_channels,
+        operator_type,
+        dtype,
+        ifm_layout=ifm_layout,
+        ifm2_layout=ifm_layout,
+        ofm_layout=ofm_layout,
+    )
+    func = relay.Function([ifm, ifm2], binary_elementwise)
+    func = run_opt_pass(func, relay.transform.InferType())
+    assert tuple(func.body.checked_type.shape) == ofm_shape
+    assert func.body.checked_type.dtype == dtype
+
+
+def test_ethosu_binary_elementwise_invalid_operator_type():
+    invalid_operator_type = "A"
+    ifm_shape = [1, 4, 5, 33]
+    dtype = "int8"
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+    ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=dtype)
+    ofm_channels = 33
+    binary_elementwise = make_ethosu_binary_elementwise(
+        ifm,
+        ifm2,
+        ofm_channels,
+        invalid_operator_type,
+        dtype,
+    )
+    func = relay.Function([ifm, ifm2], binary_elementwise)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+def test_ethosu_binary_elementwise_invalid_data_types():
+    dtype = "int8"
+    dtype2 = "int32"
+    operator_type = "ADD"
+    ifm_shape = [1, 4, 5, 33]
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+    ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=dtype2)
+    ofm_channels = 33
+    binary_elementwise = make_ethosu_binary_elementwise(
+        ifm,
+        ifm2,
+        ofm_channels,
+        operator_type,
+        dtype,
+    )
+    func = relay.Function([ifm, ifm2], binary_elementwise)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+@pytest.mark.parametrize("operator_type", ["MIN", "MAX"])
+def test_ethosu_binary_elementwise_min_max_invalid_data_type(operator_type):
+    invalid_dtype = "int32"
+    ifm_shape = [1, 4, 5, 33]
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=invalid_dtype)
+    ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=invalid_dtype)
+    ofm_channels = 33
+    binary_elementwise = make_ethosu_binary_elementwise(
+        ifm,
+        ifm2,
+        ofm_channels,
+        operator_type,
+        invalid_dtype,
+    )
+    func = relay.Function([ifm, ifm2], binary_elementwise)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+@pytest.mark.parametrize("invalid_dtype", ["int8", "uint8"])
+@pytest.mark.parametrize("operator_type", ["RHS", "SHR"])
+def test_ethosu_binary_elementwise_shift_invalid_data_type(invalid_dtype, operator_type):
+    ifm_shape = [1, 4, 5, 33]
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=invalid_dtype)
+    ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=invalid_dtype)
+    ofm_channels = 33
+    binary_elementwise = make_ethosu_binary_elementwise(
+        ifm,
+        ifm2,
+        ofm_channels,
+        operator_type,
+        invalid_dtype,
+    )
+    func = relay.Function([ifm, ifm2], binary_elementwise)
     with pytest.raises(TVMError):
         run_opt_pass(func, relay.transform.InferType())
 

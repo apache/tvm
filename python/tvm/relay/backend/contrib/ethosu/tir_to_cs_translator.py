@@ -213,7 +213,10 @@ def assign_addresses(buffer_info, npu_ops):
         buffer = npu_fm.tiles.addresses[0].buffer_var
         assert buffer in buffer_addresses.keys()
         address, buffer_type = buffer_addresses[buffer]
-        npu_fm.tiles.addresses[0] = address
+        index = npu_fm.tiles.addresses[0].index * (
+            np.iinfo(np.dtype(npu_fm.tiles.addresses[0])).bits // 8
+        )
+        npu_fm.tiles.addresses[0] = address + int(index)
         npu_fm.region = _REGION_MAP[buffer_type]
         return npu_fm
 
@@ -304,6 +307,7 @@ def translate_ethosu_tir_call_extern(tir_call_extern):
         "ethosu_copy": translate_ethosu_copy,
         "ethosu_depthwise_conv2d": translate_ethosu_depthwise_conv2d,
         "ethosu_pooling": translate_ethosu_pooling,
+        "ethosu_binary_elementwise": translate_ethosu_binary_elementwise,
     }
     ext_call_type = tir_call_extern.args[0].value
     assert ext_call_type in supported_call_extern.keys(), f"{ext_call_type} is not yet supported"
@@ -482,6 +486,7 @@ def _create_npu_feature_map(serial_feature_map: spec.SerialFeatureMap) -> vapi.N
     }
     layout = str(serial_feature_map.layout.value)
     data_type = str(serial_feature_map.data_type.value)
+    date_type_bytes = np.iinfo(np.dtype(data_type)).bits // 8
     assert layout in layout_map.keys()
     assert data_type in datatype_map.keys()
     nfm = vapi.NpuFeatureMap()
@@ -507,9 +512,9 @@ def _create_npu_feature_map(serial_feature_map: spec.SerialFeatureMap) -> vapi.N
     )
     nfm.layout = layout_map[layout]
     nfm.strides = vapi.NpuShape3D(
-        int(serial_feature_map.stride_h),
-        int(serial_feature_map.stride_w),
-        int(serial_feature_map.stride_c),
+        int(serial_feature_map.stride_h.value) * date_type_bytes,
+        int(serial_feature_map.stride_w.value) * date_type_bytes,
+        int(serial_feature_map.stride_c.value) * date_type_bytes,
     )
     return nfm
 
@@ -677,3 +682,66 @@ def _create_npu_op_pooling(serial_pooling: spec.SerialPooling):
     npu_pooling_op.block_config = block_config
 
     return npu_pooling_op
+
+
+def translate_ethosu_binary_elementwise(
+    tir_call_extern: tvm.tir.Call,
+) -> vapi.NpuElementWiseOperation:
+    """This function will translate a TIR call_extern
+    as produced by NPU Relay to TIR compilation.
+
+    Parameters
+    ----------
+    tir_call_extern : tvm.tir.Call
+        This should be a TIR call_extern that has agreed upon ordering
+        for TIR Compiler. See SerialBinaryElementwise in
+        tvm/relay/backend/contrib/ethosu/tir/spec.py for the ordering.
+
+    Returns
+    -------
+    ethosu.vela.api.NpuElementWiseOperation
+        The vela object containing the params of ethosu_binary_elementwise
+    """
+    serial_object = spec.create_serial_object(
+        spec.SerialBinaryElementwise, tir_call_extern.args[1:]
+    )
+    return _create_npu_op_binary_elementwise(serial_object)
+
+
+def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBinaryElementwise):
+    operator_type = serial_binary_elementwise.operator_type
+    if operator_type == "ADD":
+        op = vapi.NpuElementWiseOp.ADD
+    elif operator_type == "SUB":
+        op = vapi.NpuElementWiseOp.SUB
+    elif operator_type == "MUL":
+        op = vapi.NpuElementWiseOp.MUL
+    elif operator_type == "MIN":
+        op = vapi.NpuElementWiseOp.MIN
+    elif operator_type == "MAX":
+        op = vapi.NpuElementWiseOp.MAX
+    elif operator_type == "SHR":
+        op = vapi.NpuElementWiseOp.SHR
+    elif operator_type == "SHL":
+        op = vapi.NpuElementWiseOp.SHL
+
+    npu_binary_elementwise_op = vapi.NpuElementWiseOperation(op)
+    npu_binary_elementwise_op.ifm = _create_npu_feature_map(serial_binary_elementwise.ifm)
+    npu_binary_elementwise_op.ifm2 = _create_npu_feature_map(serial_binary_elementwise.ifm2)
+    npu_binary_elementwise_op.ofm = _create_npu_feature_map(serial_binary_elementwise.ofm)
+    npu_binary_elementwise_op.reversed_operands = serial_binary_elementwise.reversed_operands
+
+    npu_binary_elementwise_op.activation = _create_npu_activation(
+        serial_binary_elementwise.activation
+    )
+    if (
+        npu_binary_elementwise_op.activation
+        and npu_binary_elementwise_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+    ):
+        _convert_clip_bounds(npu_binary_elementwise_op)
+
+    target_accel_config = vela_api.get_accelerator_config()
+    block_config = vela_api.get_optimal_block_config(npu_binary_elementwise_op, target_accel_config)
+    npu_binary_elementwise_op.block_config = block_config
+
+    return npu_binary_elementwise_op

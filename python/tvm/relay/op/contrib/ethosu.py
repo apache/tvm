@@ -40,6 +40,7 @@ try:
     from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
     from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
     from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+    from tvm.relay.backend.contrib.ethosu.util import BinaryElementwiseArgs
     from tvm.relay.backend.contrib.ethosu.util import get_dim_value
 except ImportError:
     vapi = None
@@ -99,9 +100,8 @@ def check_strides(strides: List[int]) -> bool:
     return True
 
 
-def check_valid_dtypes(tensor_params: List[TensorParams]) -> bool:
+def check_valid_dtypes(tensor_params: List[TensorParams], supported_dtypes: List[type]) -> bool:
     """This function checks whether dtypes are supported by the NPU"""
-    supported_dtypes = (np.uint8, np.int8)
     for tep in tensor_params:
         # Check for dtypes
         if np.dtype(tep.dtype) not in supported_dtypes:
@@ -248,7 +248,7 @@ class QnnConv2DParams:
         This function checks whether QnnConv2D has compatible attributes with the NPU
         """
         tensor_params = [self.weights, self.ifm, self.ofm]
-        if not check_valid_dtypes(tensor_params):
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
             return False
         if not check_weights(self.weights, self.dilation):
             return False
@@ -287,7 +287,7 @@ class QnnDepthwiseConv2DParams(QnnConv2DParams):
         Checks whether QnnDepthwiseConv2D + activation function has compatible attributes with HW
         """
         tensor_params = [self.weights, self.ifm, self.ofm]
-        if not check_valid_dtypes(tensor_params):
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
             return False
         if not check_weights(self.weights, self.dilation):
             return False
@@ -373,7 +373,7 @@ class MaxPool2DParams:
         This function checks whether MaxPool2D has compatible attributes with the NPU
         """
         tensor_params = [self.ifm, self.ofm]
-        if not check_valid_dtypes(tensor_params):
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
             return False
         if self.ifm.dtype != self.ofm.dtype:
             return False
@@ -432,7 +432,7 @@ class AvgPool2DParams:
         This function checks whether AvgPool2D has compatible attributes with the NPU
         """
         tensor_params = [self.ifm, self.ofm]
-        if not check_valid_dtypes(tensor_params):
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
             return False
         if self.ifm.dtype != self.ofm.dtype:
             return False
@@ -454,6 +454,316 @@ def qnn_avgpool2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     pattern = is_op("cast")(wildcard())
     pattern = is_op("nn.avg_pool2d")(pattern)
     pattern = is_op("cast")(pattern)
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
+class BinaryElementwiseParams:
+    """
+    This class will parse a call to a ethosu.binary_elementwise composite function
+    and extract the parameter information.
+    """
+
+    def __init__(self, func_body: Call, operator_type: str, has_quantization_parameters: bool):
+        clip = None
+        if str(func_body.op) == "clip":
+            clip = func_body
+            binary_op = clip.args[0]
+        else:
+            binary_op = func_body
+
+        layout = "NHWC"
+
+        if has_quantization_parameters:
+            self.ifm = TensorParams(
+                binary_op.args[BinaryElementwiseArgs.ifm.value],
+                layout,
+                binary_op.args[BinaryElementwiseArgs.ifm_scale.value],
+                binary_op.args[BinaryElementwiseArgs.ifm_zero_point.value],
+            )
+            self.ifm2 = TensorParams(
+                binary_op.args[BinaryElementwiseArgs.ifm2.value],
+                layout,
+                binary_op.args[BinaryElementwiseArgs.ifm2_scale.value],
+                binary_op.args[BinaryElementwiseArgs.ifm2_zero_point.value],
+            )
+            self.ofm = TensorParams(
+                binary_op,
+                layout,
+                binary_op.args[BinaryElementwiseArgs.ofm_scale.value],
+                binary_op.args[BinaryElementwiseArgs.ofm_zero_point.value],
+            )
+        else:
+            self.ifm = TensorParams(
+                binary_op.args[BinaryElementwiseArgs.ifm.value],
+                layout,
+            )
+            self.ifm2 = TensorParams(
+                binary_op.args[BinaryElementwiseArgs.ifm2.value],
+                layout,
+            )
+            self.ofm = TensorParams(
+                binary_op,
+                layout,
+            )
+        self.activation = clip
+        self.operator_type = operator_type
+
+        def brodcastable(x, y):
+            for i in range(1, 4):
+                if x.shape[i] == y.shape[i] or y.shape[i] == 1:
+                    continue
+                return False
+            return True
+
+        if brodcastable(self.ifm, self.ifm2):
+            self.reversed_operands = False
+            self.valid_broadcast = True
+        elif brodcastable(self.ifm2, self.ifm):
+            self.reversed_operands = True
+            self.ifm, self.ifm2 = self.ifm2, self.ifm
+            self.valid_broadcast = True
+        else:
+            self.valid_broadcast = False
+
+    def is_valid(self):
+        """
+        This function checks whether BinaryElementwise has compatible attributes with the NPU
+        """
+        if np.dtype(self.ofm) == np.int32 and self.activation is not None:
+            return False
+        if len(self.ifm.shape) != 4 or len(self.ifm2.shape) != 4:
+            return False
+        if self.ifm.shape[0] != 1 or self.ifm2.shape[0] != 1:
+            return False
+        if not self.valid_broadcast:
+            return False
+        return True
+
+
+class AddParams(BinaryElementwiseParams):
+    """
+    This class will parse a call to a ethosu.binary_elementwise Add composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.add"
+
+    def __init__(self, func_body: Call):
+        BinaryElementwiseParams.__init__(self, func_body, "ADD", True)
+
+    def is_valid(self):
+        """
+        This function checks whether Add has compatible attributes with the NPU
+        """
+        if not super().is_valid():
+            return False
+        if not check_valid_dtypes(
+            [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8, np.int32]
+        ):
+            return False
+        return True
+
+
+def qnn_add_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for qnn.add with optional fused RELU activation.
+    """
+    pattern = is_op("qnn.add")(
+        wildcard(),
+        wildcard(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+    )
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
+class SubParams(BinaryElementwiseParams):
+    """
+    This class will parse a call to a ethosu.binary_elementwise Sub composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.sub"
+
+    def __init__(self, func_body: Call):
+        BinaryElementwiseParams.__init__(self, func_body, "SUB", True)
+
+    def is_valid(self):
+        """
+        This function checks whether Sub has compatible attributes with the NPU
+        """
+        if not super().is_valid():
+            return False
+        if not check_valid_dtypes(
+            [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8, np.int32]
+        ):
+            return False
+        return True
+
+
+def qnn_subtract_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for qnn.subtract with optional fused RELU activation.
+    """
+    pattern = is_op("qnn.subtract")(
+        wildcard(),
+        wildcard(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+    )
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
+class MulParams(BinaryElementwiseParams):
+    """
+    This class will parse a call to a ethosu.binary_elementwise Mul composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.mul"
+
+    def __init__(self, func_body: Call):
+        BinaryElementwiseParams.__init__(self, func_body, "MUL", True)
+
+    def is_valid(self):
+        """
+        This function checks whether Mul has compatible attributes with the NPU
+        """
+        if not super().is_valid():
+            return False
+        if not check_valid_dtypes(
+            [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8, np.int32]
+        ):
+            return False
+        return True
+
+
+def qnn_mul_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for qnn.mul with optional fused RELU activation.
+    """
+    pattern = is_op("qnn.mul")(
+        wildcard(),
+        wildcard(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+    )
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
+class MinParams(BinaryElementwiseParams):
+    """
+    This class will parse a call to a ethosu.binary_elementwise Min composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.min"
+
+    def __init__(self, func_body: Call):
+        BinaryElementwiseParams.__init__(self, func_body, "MIN", False)
+
+    def is_valid(self):
+        """
+        This function checks whether Min has compatible attributes with the NPU
+        """
+        if not super().is_valid():
+            return False
+        if self.ifm.dtype != self.ifm2.dtype:
+            return False
+        if not check_valid_dtypes(
+            [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
+        ):
+            return False
+        return True
+
+
+def minimum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for minimum with optional fused RELU activation.
+    """
+    pattern = is_op("minimum")(wildcard(), wildcard())
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
+class MaxParams(BinaryElementwiseParams):
+    """
+    This class will parse a call to a ethosu.binary_elementwise Max composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.max"
+
+    def __init__(self, func_body: Call):
+        BinaryElementwiseParams.__init__(self, func_body, "MAX", False)
+
+    def is_valid(self):
+        """
+        This function checks whether Max has compatible attributes with the NPU
+        """
+        if not super().is_valid():
+            return False
+        if self.ifm.dtype != self.ifm2.dtype:
+            return False
+        if not check_valid_dtypes(
+            [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
+        ):
+            return False
+        return True
+
+
+def maximum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for maximum with optional fused RELU activation.
+    """
+    pattern = is_op("maximum")(wildcard(), wildcard())
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
+class ShlParams(BinaryElementwiseParams):
+    """
+    This class will parse a call to a ethosu.binary_elementwise Shl composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.shl"
+
+    def __init__(self, func_body: Call):
+        BinaryElementwiseParams.__init__(self, func_body, "SHL", False)
+
+    def is_valid(self):
+        """
+        This function checks whether Shl has compatible attributes with the NPU
+        """
+        if not super().is_valid():
+            return False
+        if not check_valid_dtypes([self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.int32]):
+            return False
+        return True
+
+
+def shl_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for left_shift with optional fused RELU activation.
+    """
+    pattern = is_op("left_shift")(wildcard(), wildcard())
     pattern = pattern.optional(is_op("clip"))
     return pattern
 
@@ -480,6 +790,36 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             AvgPool2DParams.composite_name,
             qnn_avgpool2d_pattern(),
             lambda pat: AvgPool2DParams(pat).is_valid(),
+        ),
+        (
+            AddParams.composite_name,
+            qnn_add_pattern(),
+            lambda pat: AddParams(pat).is_valid(),
+        ),
+        (
+            SubParams.composite_name,
+            qnn_subtract_pattern(),
+            lambda pat: SubParams(pat).is_valid(),
+        ),
+        (
+            MulParams.composite_name,
+            qnn_mul_pattern(),
+            lambda pat: MulParams(pat).is_valid(),
+        ),
+        (
+            MinParams.composite_name,
+            minimum_pattern(),
+            lambda pat: MinParams(pat).is_valid(),
+        ),
+        (
+            MaxParams.composite_name,
+            maximum_pattern(),
+            lambda pat: MaxParams(pat).is_valid(),
+        ),
+        (
+            ShlParams.composite_name,
+            shl_pattern(),
+            lambda pat: ShlParams(pat).is_valid(),
         ),
     ]
 

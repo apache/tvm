@@ -75,6 +75,21 @@ class ClipArgs(Enum):
     A_MAX = 2
 
 
+class BinaryElementwiseArgs(Enum):
+    """This is a helper enums to access the correct index
+    of binary elementwise arguments
+    """
+
+    ifm = 0
+    ifm2 = 1
+    ifm_scale = 2
+    ifm_zero_point = 3
+    ifm2_scale = 4
+    ifm2_zero_point = 5
+    ofm_scale = 6
+    ofm_zero_point = 7
+
+
 def is_composite_func(func: relay.Function, name: str) -> bool:
     """
     This method checks whether the call is to

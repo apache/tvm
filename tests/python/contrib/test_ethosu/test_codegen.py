@@ -343,5 +343,256 @@ def test_ethosu_pooling(
     infra.verify_source(compiled_models, accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("operator_type", ["ADD", "SUB", "MUL", "MIN", "MAX"])
+@pytest.mark.parametrize(
+    "ifm_shape, ifm2_shape",
+    [
+        ([1, 2, 3, 4], [1, 2, 3, 4]),
+        ([1, 2, 3, 4], [1, 1, 3, 1]),
+        ([1, 1, 3, 1], [1, 2, 3, 4]),
+    ],
+)
+@pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
+def test_ethosu_binary_elementwise(
+    accel_type,
+    operator_type,
+    ifm_shape,
+    ifm2_shape,
+    activation_function,
+):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        tf.config.run_functions_eagerly(True)
+
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, lhs, rhs):
+                if operator_type == "ADD":
+                    op = tf.math.add(lhs, rhs)
+                elif operator_type == "SUB":
+                    op = tf.math.subtract(lhs, rhs)
+                elif operator_type == "MUL":
+                    op = tf.math.multiply(lhs, rhs)
+                elif operator_type == "MIN":
+                    op = tf.math.minimum(lhs, rhs)
+                elif operator_type == "MAX":
+                    op = tf.math.maximum(lhs, rhs)
+                if activation_function == "RELU":
+                    op = tf.nn.relu(op)
+                return op
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32), tf.TensorSpec(ifm2_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                data2 = np.random.rand(*tuple(ifm2_shape)) * 2
+                yield [data.astype(np.float32), data2.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"ifm": ifm_shape, "ifm2": ifm2_shape},
+        dtype_dict={"ifm": dtype, "ifm2": dtype},
+    )
+    mod = partition_for_ethosu(mod, params)
+
+    # Generate reference data
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
+
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+        output_tolerance=1 if operator_type == "MAX" else 0,
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_models, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape, ifm2_shape",
+    [
+        ([1, 2, 3, 4], [1, 2, 3, 4]),
+        ([1, 2, 3, 4], [1, 1, 3, 1]),
+        ([1, 1, 3, 1], [1, 2, 3, 4]),
+    ],
+)
+def test_ethosu_left_shift_binary_elemwise(
+    accel_type,
+    ifm_shape,
+    ifm2_shape,
+):
+    dtype = "int32"
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm2 = relay.var("ifm2", shape=ifm2_shape, dtype=dtype)
+        c1 = relay.left_shift(ifm, ifm2)
+        f = relay.Function([ifm, ifm2], c1)
+        mod = tvm.IRModule()
+        mod["main"] = f
+        return mod
+
+    relay_mod = create_model()
+    mod = partition_for_ethosu(relay_mod)
+
+    # Generate reference data
+    in_min, in_max = util.get_range_for_dtype_str(dtype)
+    input_data = {
+        "ifm": np.random.randint(in_min, high=in_max, size=ifm_shape, dtype=dtype),
+        "ifm2": np.random.randint(0, high=32, size=ifm2_shape, dtype=dtype),
+    }
+    output_data = generate_ref_data(relay_mod, input_data)
+
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_models, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape, ifm2_shape, reversed_operands",
+    [
+        ([1, 2, 3, 4], [1, 2, 3, 4], False),
+        ([1, 2, 3, 1], [1, 1, 3, 1], False),
+        ([1, 1, 3, 1], [1, 2, 3, 1], True),
+    ],
+)
+def test_ethosu_right_shift_binary_elemwise(ifm_shape, ifm2_shape, reversed_operands, accel_type):
+    dtype = "int32"
+
+    def create_model():
+        ofm_channels = max(ifm_shape[3], ifm2_shape[3])
+        ifm_count = int(np.prod(ifm_shape))
+        ifm2_count = int(np.prod(ifm2_shape))
+
+        # Create a "partitioned" Relay function
+        ifms = relay.var("ifms", shape=[ifm_count + ifm2_count], dtype=dtype)
+        split = relay.split(ifms, [ifm_count])
+        ifm = relay.reshape(split[0], newshape=ifm_shape)
+        ifm2 = relay.reshape(split[1], newshape=ifm2_shape)
+        shr_op = infra.make_ethosu_binary_elementwise(
+            ifm, ifm2, ofm_channels, "SHR", dtype, reversed_operands
+        )
+
+        glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
+        func = (
+            relay.Function([ifms], shr_op)
+            .with_attr("Inline", 1)
+            .with_attr("Compiler", "ethosu")
+            .with_attr("global_symbol", "tvmgen_default_ethosu_main_0")
+            .with_attr("Primitive", 1)
+        )
+        mod = tvm.IRModule()
+        mod[glb_ethosu] = func
+        mod = relay.transform.InferType()(mod)
+
+        # Main
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm2 = relay.var("ifm2", shape=ifm2_shape, dtype=dtype)
+        call = relay.Call(
+            glb_ethosu,
+            [
+                relay.concatenate(
+                    data=(
+                        relay.reshape(ifm, newshape=ifm_count),
+                        relay.reshape(ifm2, newshape=ifm2_count),
+                    ),
+                    axis=0,
+                )
+            ],
+        )
+        mod["main"] = relay.Function([ifm, ifm2], call)
+        mod = relay.transform.InferType()(mod)
+        return mod
+
+    mod = create_model()
+
+    # Generate reference data
+    in_min, in_max = util.get_range_for_dtype_str(dtype)
+    in_min, in_max = 18, 19
+    lhs = np.random.randint(in_min, high=in_max, size=ifm_shape, dtype=dtype)
+    rhs = np.random.randint(1, high=2, size=ifm2_shape, dtype=dtype)
+    input_data = {
+        "ifm": lhs,
+        "ifm2": rhs,
+    }
+
+    if reversed_operands:
+        lhs = np.broadcast_to(lhs, ifm2_shape)
+        lhs, rhs = rhs, lhs
+    else:
+        rhs = np.broadcast_to(rhs, ifm_shape)
+
+    def rounding_right_shift(lhs, rhs):
+        r = 1 << (rhs - 1)
+        return (lhs + r) >> rhs
+
+    output_data = np.array(
+        [rounding_right_shift(x[0], x[1]) for x in zip(lhs.flat, rhs.flat)]
+    ).astype("int32")
+
+    compiled_model = infra.build_source(mod, input_data, [output_data], accel_type)
+
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

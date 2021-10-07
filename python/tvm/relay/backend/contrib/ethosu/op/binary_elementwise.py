@@ -15,99 +15,101 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
-"""Relay operators for pooling for Arm(R) Ethos(TM)-U NPU"""
-from typing import Tuple
-
+"""Relay operators for binary elementwise operators for Arm(R) Ethos(TM)-U NPU"""
 import tvm
 from tvm.relay.op import _make
 from tvm.topi.generic import schedule_injective
 from tvm.relay.op.op import OpStrategy
 from tvm.relay.op import strategy as _strategy
 
-from ..te import pooling_compute
+from ..te import binary_elementwise_compute
 
 
-def _extract_ethosu_pooling_params(attrs, args):
-    """Get the parameters necessary to construct a ethosu_pooling compute TE
-    from a ethosu_pooling Relay call."""
+def _extract_ethosu_binary_elementwise_params(attrs, args):
+    """Get the parameters necessary to construct a ethosu_binary_elementwise compute TE
+    from a ethosu_binary_elementwise Relay call."""
     ifm = args[0]
-    lut = args[1]
-    pooling_type = attrs.pooling_type
+    ifm2 = args[1]
+    lut = args[2]
+    operator_type = attrs.operator_type
     ifm_scale = attrs.ifm_scale
     ifm_zero_point = attrs.ifm_zero_point
+    ifm2_scale = attrs.ifm2_scale
+    ifm2_zero_point = attrs.ifm2_zero_point
     ofm_scale = attrs.ofm_scale
     ofm_zero_point = attrs.ofm_zero_point
-    pool_shape = attrs.pool_shape
     ofm_channels = attrs.ofm_channels
-    strides = attrs.strides
-    padding = attrs.padding
+    reversed_operands = attrs.reversed_operands
     activation = attrs.activation
     clip_min = attrs.clip_min
     clip_max = attrs.clip_max
-    upscale = attrs.upscale
     ifm_layout = attrs.ifm_layout
+    ifm2_layout = attrs.ifm2_layout
     ofm_layout = attrs.ofm_layout
 
     return (
         ifm,
+        ifm2,
         lut,
-        pooling_type,
+        operator_type,
         ifm_scale,
         ifm_zero_point,
+        ifm2_scale,
+        ifm2_zero_point,
         ofm_scale,
         ofm_zero_point,
-        pool_shape,
         ofm_channels,
-        strides,
-        padding,
+        reversed_operands,
         activation,
         clip_min,
         clip_max,
-        upscale,
         ifm_layout,
+        ifm2_layout,
         ofm_layout,
     )
 
 
-@tvm.ir.register_op_attr("contrib.ethosu.pooling", "FTVMCompute")
-def create_ethosu_pooling_compute(attrs, args, out_type):
-    """Create an ethosu_pooling compute op."""
-    params = _extract_ethosu_pooling_params(attrs, args)
-    op = pooling_compute(*params)
+@tvm.ir.register_op_attr("contrib.ethosu.binary_elementwise", "FTVMCompute")
+def create_ethosu_binary_elementwise_compute(attrs, args, out_type):
+    """Create an ethosu_binary_elementwise compute op."""
+    params = _extract_ethosu_binary_elementwise_params(attrs, args)
+    op = binary_elementwise_compute(*params)
     return [op]
 
 
-@tvm.ir.register_op_attr("contrib.ethosu.pooling", "FTVMStrategy")
-def pooling_strategy_ethosu(attrs, inputs, out_type, target):
+@tvm.ir.register_op_attr("contrib.ethosu.binary_elementwise", "FTVMStrategy")
+def binary_elementwise_strategy_ethosu(attrs, inputs, out_type, target):
     strategy = OpStrategy()
     strategy.add_implementation(
-        create_ethosu_pooling_compute,
+        create_ethosu_binary_elementwise_compute,
         _strategy.wrap_topi_schedule(schedule_injective),
-        name="ethosu_pooling",
+        name="ethosu_binary_elementwise",
     )
     return strategy
 
 
-def ethosu_pooling(
+def ethosu_binary_elementwise(
     ifm: tvm.relay.Expr,
+    ifm2: tvm.relay.Expr,
     lut: tvm.relay.Expr,
-    pooling_type: str,
+    operator_type: str,
     ifm_scale: float,
     ifm_zero_point: int,
+    ifm2_scale: float,
+    ifm2_zero_point: int,
     ofm_scale: float,
     ofm_zero_point: int,
-    pool_shape: Tuple[int, int],
     ofm_channels: int,
-    strides: Tuple[int, int] = (1, 1),
-    padding: Tuple[int, int, int, int] = (0, 0, 0, 0),
+    reversed_operands: bool,
+    ofm_dtype: str,
     activation: str = "NONE",
     clip_min: int = 0,
     clip_max: int = 0,
-    upscale: str = "NONE",
     ifm_layout: str = "NHWC",
+    ifm2_layout: str = "NHWC",
     ofm_layout: str = "NHWC",
 ) -> tvm.relay.Call:
-    """This is a quantized 2D pooling operation as supported by
+    """This is a quantized binary elementwise operation as supported by
     the NPU. It accepts either NHWC or NHCWB16 format
     for the input data.
 
@@ -115,26 +117,46 @@ def ethosu_pooling(
     ----------
     ifm : tvm.relay.Expr
         The Input Feature Map tensor (IFM).
+    ifm2 : tvm.relay.Expr
+        The Input Feature Map tensor 2 (IFM2).
     lut : tvm.relay.Expr
-         The look-up table of values to use if activation = "LUT".
-    pooling_type: str
-        The type of the pooling. "AVG" - average pool,   "MAX" - max pool.
+        The look-up table of values to use if activation = "LUT".
+    operator_type: str
+        The type of the binary elementwise operator.
+            "ADD"
+            "SUB"
+            "MUL"
+            "MIN"
+            "MAX"
+            "SHR"
+            "SHL"
     ifm_scale : float
         The quantization scale for the Input Feature Map tensor.
     ifm_zero_point : int
         The quantization zero point for the Input Feature Map tensor.
+    ifm2_scale : float
+        The quantization scale for the Input Feature Map tensor 2.
+    ifm2_zero_point : int
+        The quantization zero point for the Input Feature Map tensor 2.
     ofm_scale : float
         The quantization scale for the Output Feature Map tensor.
     ofm_zero_point : int
        The quantization zero point for the Output Feature Map tensor.
-    pool_shape : tuple of int
-        The 2 dimensional pool shape as (pool_shape_height, pool_shape_width).
     ofm_channels : int
-        The number of the Output Feature Map channels
-    strides : tuple of int, optional
-        The 2 dimensional strides as (stride_height, stride_width).
-    padding : tuple of int, optional
-        The 4 dimensional padding as (pad_top, pad_left, pad_bottom, pad_right).
+        The number of the Output Feature Map channels.
+    reversed_operands : bool
+        True if IFM2 is the first operand and IFM is the second operand.
+    ofm_dtype: str
+        The Output Feature Map tensor type.
+        MUL, ADD, SUB {IFM}->{OFM}:
+          {uint8, int8 int32} -> {uint8, int8, int32}, any pairing
+        MAX, MIN:
+          IFM and OFM must be of the same type, one of:
+          {int8, uint8}
+        SHR {IFM}->{OFM}:
+          {int32}->{int8, uint8, int32}, any pairing"
+        SHL:
+          {int32}->{int32} only
     activation : str, optional
         The activation function to use.
             "NONE" - no activation function.
@@ -142,41 +164,43 @@ def ethosu_pooling(
             "TANH" - tanh activation function.
             "SIGMOID" - sigmoid activation function.
             "LUT" - use a look-up table to perform the activation function.
+        Available activations for activation type:
+            {int8, uint8}: "NONE", "CLIP", "TANH", "SIGMOID", "LUT"
+            {int32}: "NONE"
     clip_min : int, optional
         The minimum clipping value if activation = "CLIP".
     clip_max : int, optional
         The maximum clipping value if activation = "CLIP".
-    upscale: str, optional
-        The 2x2 upscaling mode to apply to the Input Feature Map tensor.
-            "NONE" - no upscaling.
-            "NEAREST" - upscale using nearest neighbour.
-            "ZEROS" - upscale using zeros.
     ifm_layout : str, optional
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
+    ifm2_layout : str, optional
+        The layout of the Input Feature Map tensor 2. Can be "NHWC" or "NHCWB16".
     ofm_layout : str, optional
         The layout of the Output Feature Map tensor. Can be "NHWC" or "NHCWB16".
 
     Returns
     -------
     out : tvm.relay.Call
-        A call to the ethosu_pooling op.
+        A call to the ethosu_binary_elementwise op.
     """
-    return _make.ethosu_pooling(
+    return _make.ethosu_binary_elementwise(
         ifm,
+        ifm2,
         lut,
-        pooling_type,
+        operator_type,
         ifm_scale,
         ifm_zero_point,
+        ifm2_scale,
+        ifm2_zero_point,
         ofm_scale,
         ofm_zero_point,
-        pool_shape,
         ofm_channels,
-        strides,
-        padding,
+        reversed_operands,
         activation,
         clip_min,
         clip_max,
-        upscale,
         ifm_layout,
+        ifm2_layout,
         ofm_layout,
+        ofm_dtype,
     )

@@ -33,6 +33,17 @@ namespace op {
 namespace contrib {
 namespace ethosu {
 
+/*! \brief Infer the output tensor shape for binary elementwise operators.
+ * \param ifm_shape The shape of Input Feature Map.
+ * \param ifm_layout The layout of the IFM (NHWC or NHCWB16).
+ * \param ofm_layout The layout of the OFM (NHWC or NHCWB16).
+ * \param ofm_channels The number of Output Feature Map channels.
+ * \return The shape of the output tensor.
+ */
+Array<IndexExpr> EthosuInferBinaryElementwiseOutputShape(Array<IndexExpr> ifm_shape,
+                                                         String ifm_layout, String ofm_layout,
+                                                         IndexExpr ofm_channels);
+
 /*! \brief Infer the output tensor shape for convolution and pooling operators.
  * \param ifm_shape The shape of Input Feature Map.
  * \param ifm_layout The layout of the IFM (NHWC or NHCWB16).
