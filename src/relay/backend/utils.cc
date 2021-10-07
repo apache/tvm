@@ -43,6 +43,25 @@ StorageInfo::StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceT
   data_ = std::move(n);
 }
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<StorageInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto* node = ref.as<StorageInfoNode>();
+      p->stream << "StorageInfoNode(\n"
+                << "  storage_ids=[";
+      for (auto id : node->storage_ids) {
+        p->stream << id << ", ";
+      }
+      p->stream << "],\n  device_types=[";
+      for (auto device_type : node->device_types) {
+        p->stream << device_type << ", ";
+      }
+      p->stream << "],\n  storage_size_in_bytes=[";
+      for (auto bytes : node->storage_sizes_in_bytes) {
+        p->stream << bytes << ", ";
+      }
+      p->stream << "])";
+    });
+
 TVM_REGISTER_GLOBAL("relay.ir.StorageInfo")
     .set_body_typed([](const Array<Integer>& sids, const Array<Integer>& dev_types,
                        const Array<Integer>& sizes_in_bytes) {
@@ -97,6 +116,7 @@ TVM_REGISTER_GLOBAL("relay.ir.StaticMemoryPlan")
       return StaticMemoryPlan(expr_to_storage_info);
     });
 
+// TODO(mbs): Cf GetMemorySizeBytes in aot_executor_codegen.cc
 int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
   if (expr_type->IsInstance<TupleTypeNode>()) {
     auto tuple_type = Downcast<TupleType>(expr_type);

@@ -216,6 +216,7 @@ class ScheduleNode : public runtime::Object {
    * 1) The loops can't have annotations or thread bindings.
    * 2) The (i+1)-th loop must be the only child of the i-th loop.
    * 3) All loops must start with 0.
+   * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
    * \param loop_rvs The loops to be fused
    * \return The new loop after fusion
    */
@@ -364,6 +365,22 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void ReverseComputeInline(const BlockRV& block) = 0;
   /******** Schedule: Reduction ********/
+  /*!
+   * \brief Decompose a reduction block into two separate blocks.
+   * a) The init block, which is translated from the init statement of the reduction block;
+   * b) The update block, which is the original block without init statement.
+   *
+   * The init block is inserted right before the given loop.
+   *
+   * The schedule primitive requires:
+   * 1) The input block is a reduction block.
+   * 2) The input loop is the ancestor of the block.
+   * 3) The input loop is not lower than all the loops related to reduce block var.
+   * \param block_rv The reduction block to be decomposed
+   * \param loop_rv The loop above which the init block is inserted before.
+   * \return The init block
+   */
+  virtual BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
   /*!
    * \brief Factorize an associative reduction block by the specified loop.
    * \details An associative reduction cannot be parallelized directly,

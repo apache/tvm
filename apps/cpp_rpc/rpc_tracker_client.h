@@ -58,6 +58,11 @@ class TrackerClient {
         dis_(0.0, 1.0) {
     if (custom_addr_.empty()) {
       custom_addr_ = "null";
+    } else {
+      // Since custom_addr_ can be either the json value null which is not surrounded by quotes
+      // or a string containing the custom value which json does required to be quoted then we
+      // need to set custom_addr_ to be a string containing the quotes here.
+      custom_addr_ = "\"" + custom_addr_ + "\"";
     }
   }
   /*!

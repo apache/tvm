@@ -16,74 +16,72 @@
 # under the License.
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 
 
-@tvm.script.tir
-def buffer_load_store_func(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-    B = tir.match_buffer(b, (128, 128), "float32")
-    C = tir.alloc_buffer((128, 128), "float32")
-    D = tir.alloc_buffer((128, 128), "float32")
-    with tir.block([128, 128]) as [i, j]:
-        A[i, j] = tir.float32(0)
-    with tir.block([32, 32, tir.reduce_axis(0, 32)]) as [i, j, k]:
-        with tir.init():
-            for ii, jj in tir.grid(4, 4):
+@T.prim_func
+def buffer_load_store_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), "float32")
+    B = T.match_buffer(b, (128, 128), "float32")
+    C = T.alloc_buffer((128, 128), "float32")
+    D = T.alloc_buffer((128, 128), "float32")
+    with T.block([128, 128]) as [i, j]:
+        A[i, j] = T.float32(0)
+    with T.block([32, 32, T.reduce_axis(0, 32)]) as [i, j, k]:
+        with T.init():
+            for ii, jj in T.grid(4, 4):
                 B[i * 4 + ii, j * 4 + jj] = A[i * 4 + ii, j * 4 + jj]
-        for ii, jj in tir.grid(4, 4):
+        for ii, jj in T.grid(4, 4):
             for kk in range(0, 4):
                 B[i * 4 + ii, j * 4 + jj] += C[i * 4 + ii, k * 4 + kk]
             for kk in range(0, 4):
                 B[i * 4 + ii, j * 4 + jj] += D[j * 4 + jj, k * 4 + kk] * C[i * 4 + ii, k * 4 + kk]
 
 
-@tvm.script.tir
-def buffer_opaque_access(b: ty.handle, c: ty.handle) -> None:
-    B = tir.match_buffer(b, [16, 16], "float32")
-    C = tir.match_buffer(c, [16, 16], "float32")
+@T.prim_func
+def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
+    B = T.match_buffer(b, [16, 16], "float32")
+    C = T.match_buffer(c, [16, 16], "float32")
 
-    with tir.block([]):
-        tir.reads([])
-        tir.writes(B[0:16, 0:16])
-        A = tir.allocate([256], "float32", "global")
-        for i, j in tir.grid(16, 16):
-            tir.store(A, i * 16 + j, 1)
+    with T.block([]):
+        T.reads([])
+        T.writes(B[0:16, 0:16])
+        A = T.allocate([256], "float32", "global")
+        for i, j in T.grid(16, 16):
+            T.store(A, i * 16 + j, 1)
         for i in range(0, 16):
             for j in range(0, 16):
-                tir.evaluate(tir.load("float32", A, i * 16 + j))
+                T.evaluate(T.load("float32", A, i * 16 + j))
             for j in range(0, 16):
-                tir.evaluate(
-                    tir.tvm_fill_fragment(B.data, 16, 16, 16, 0, tir.float32(0), dtype="handle")
-                )
+                T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, T.float32(0), dtype="handle"))
 
-    for i, j in tir.grid(16, 16):
-        with tir.block([16, 16]) as [vi, vj]:
-            tir.bind(vi, i)
-            tir.bind(vj, j)
+    for i, j in T.grid(16, 16):
+        with T.block([16, 16]) as [vi, vj]:
+            T.bind(vi, i)
+            T.bind(vj, j)
             C[vi, vj] = B[vi, vj]
 
 
-@tvm.script.tir
-def lca_is_func_root(a: ty.handle) -> None:
-    A = tir.match_buffer(a, [0, 0], "float32")
+@T.prim_func
+def lca_is_func_root(a: T.handle) -> None:
+    A = T.match_buffer(a, [0, 0], "float32")
     A.data[0] = 1.0
 
 
-@tvm.script.tir
-def match_buffer_func(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-    B = tir.match_buffer(b, (128, 128), "float32")
-    with tir.block([8, 8], "block") as [vi, vj]:
-        tir.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
-        tir.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        B0 = tir.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
-        B1 = tir.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
-        with tir.block([16, 16], "AAA") as [i, j]:
-            AA = tir.match_buffer(A[i, j], ())
+@T.prim_func
+def match_buffer_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), "float32")
+    B = T.match_buffer(b, (128, 128), "float32")
+    with T.block([8, 8], "block") as [vi, vj]:
+        T.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
+        T.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+        B0 = T.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
+        B1 = T.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
+        with T.block([16, 16], "AAA") as [i, j]:
+            AA = T.match_buffer(A[i, j], ())
             AA[()] = 1.0
-        tir.evaluate(B0.data)
-        tir.evaluate(B1.data)
+        T.evaluate(B0.data)
+        T.evaluate(B1.data)
 
 
 def test_buffer_load_store():

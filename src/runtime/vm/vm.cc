@@ -233,7 +233,7 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
       << "The number of provided parameters doesn't match the number of assigned devices";
   std::vector<ObjectRef> func_args(param_names.size());
   for (int i = offset; i < args.size(); ++i) {
-    Index device_type = vm_func.params_device_type[i - offset];
+    DLDeviceType device_type = vm_func.params_device_type[i - offset];
     Device dev = GetDevice(device_type);
 
     if (args[i].type_code() == kTVMDLTensorHandle) {
@@ -664,7 +664,7 @@ void VirtualMachine::RunLoop() {
         NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
         const DLTensor* dl_tensor = shape_tensor.operator->();
         ICHECK_EQ(dl_tensor->dtype.code, 0u);
-        ICHECK_EQ(dl_tensor->dtype.bits, 64);
+        ICHECK_EQ(dl_tensor->dtype.bits, 64u);
         int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
         int64_t ndim = shape_tensor->shape[0];
         std::vector<int64_t> shape(dims, dims + ndim);
