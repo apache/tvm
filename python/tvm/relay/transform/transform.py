@@ -544,27 +544,6 @@ def MergeCompilerRegions():
     return _ffi_api.MergeCompilerRegions()
 
 
-def RewriteAnnotatedOps(fallback_device):
-    """Rewrite the annotated program where annotation operators, e.g.
-    `on_deivce`, mark which device an expression should be scheduled to.
-    This pass helps heterogeneous execution where different operators may need
-    to be allocated on various devices.
-
-    Parameters
-    ----------
-    fallback_device : int
-        The fallback device type. It is also used as the default device for
-        operators with no annotated device.
-
-    Returns
-    -------
-    ret: tvm.transform.Pass
-        The registered pass that rewrites an expression with annotated
-        `on_device` operators.
-    """
-    return _ffi_api.RewriteDeviceAnnotation(fallback_device)
-
-
 def ToANormalForm():
     """Turn Graph Normal Form expression into A Normal Form Expression.
     The scope of the root expression is the global scope.
@@ -1165,6 +1144,16 @@ def SimplifyExpr():
         The registered SimplifyExpr pass.
     """
     return _ffi_api.SimplifyExpr()
+
+
+def PlanDevices(default_device):
+    """
+    Uses existing "on_device" and "device_copy" CallNodes to infer the device on which
+    every Relay sub-expression should run (and the result stored). Captures the result of that
+    analysis using new "on_device" and "device_copy" CallNodes. Note that the device_id of
+    the default_device is ignored.
+    """
+    return _ffi_api.PlanDevices(default_device)
 
 
 def FoldExplicitPadding():

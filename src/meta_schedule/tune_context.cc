@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./tune_context.h"
-
 #include <random>
 #include <utility>
+
+#include "./utils.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -28,6 +28,7 @@ namespace meta_schedule {
  * \brief Constructor function of TuneContext class.
  * \param mod The mod to be optimized.
  * \param target The target to be optimized for.
+ * \param space_generator The design space generator.
  * \param task_name The name of the tuning task.
  * \param rand_state The random state.
  * \param num_threads The number of threads to be used.
@@ -35,18 +36,25 @@ namespace meta_schedule {
  */
 TuneContext::TuneContext(Optional<IRModule> mod,                                    //
                          Optional<Target> target,                                   //
+                         Optional<SpaceGenerator> space_generator,                  //
+                         Optional<SearchStrategy> search_strategy,                  //
                          Optional<String> task_name,                                //
                          support::LinearCongruentialEngine::TRandState rand_state,  //
                          int num_threads) {
   ObjectPtr<TuneContextNode> n = make_object<TuneContextNode>();
   n->mod = mod;
   n->target = target;
+  n->space_generator = space_generator;
+  n->search_strategy = search_strategy;
   n->task_name = task_name;
   if (rand_state == -1) {
     rand_state = std::random_device()();
   }
   support::LinearCongruentialEngine(&n->rand_state).Seed(rand_state);
   n->num_threads = num_threads;
+  n->is_stopped = false;
+  n->runner_futures = NullOpt;
+  n->measure_candidates = NullOpt;
   data_ = std::move(n);
 }
 
@@ -55,10 +63,13 @@ TVM_REGISTER_NODE_TYPE(TuneContextNode);
 TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
     .set_body_typed([](Optional<IRModule> mod,                                    //
                        Optional<Target> target,                                   //
+                       Optional<SpaceGenerator> space_generator,                  //
+                       Optional<SearchStrategy> search_strategy,                  //
                        Optional<String> task_name,                                //
                        support::LinearCongruentialEngine::TRandState rand_state,  //
                        int num_threads) -> TuneContext {
-      return TuneContext(mod, target, task_name, rand_state, num_threads);
+      return TuneContext(mod, target, space_generator, search_strategy, task_name, rand_state,
+                         num_threads);
     });
 }  // namespace meta_schedule
 }  // namespace tvm
