@@ -1287,8 +1287,8 @@ def test_matmulinteger16(target, dev):
     def verify_matmulinteger16(a_shape, b_shape, out_shape):
         a_dtype = "int16"
         b_dtype = "int16"
-        low = -10
-        high = 10
+        low = np.iinfo(np.int16).min
+        high = np.iinfo(np.int16).max
 
         a_proto = TensorProto.INT16
         b_proto = TensorProto.INT16
