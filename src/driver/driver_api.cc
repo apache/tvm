@@ -393,6 +393,9 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
 
   ICHECK(mod_mixed.defined()) << "This module must be defined";
 
+  VLOG_CONTEXT << target->str();
+  VLOG(0) << "Executing module pass with opt level: ";
+
   mod_mixed = OptimizeMixedModule(mod_mixed, target);
 
   auto host_mod = OptimizeHostModule(mod_mixed, target_host);
@@ -401,10 +404,13 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
 
   // some final misc checks.
   auto keys = target->GetKeys();
+
+  // CheckAndUpdateHostConsistency(&target, &target_host);
+
   bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
   if (target_is_gpu && device_mod->functions.size() == 0) {
-    LOG(WARNING) << "Specified target " << target->str()
-                 << " but cannot find device code. Did you forget to bind?";
+    DLOG(WARNING) << "Specified target " << target->str()
+                  << " but cannot find device code. Did you forget to bind?";
   }
 
   return {host_mod, device_mod};
@@ -459,8 +465,20 @@ runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Ta
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
   if (!target_host.defined()) {
+    for (const auto& it : inputs) {
+      if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
+        target_host = it.first;
+        break;
+      }
+    }
+  }
+
+  if (!target_host.defined()) {
     target_host = DefaultTargetHost(target_host);
   }
+
+  // Update target host for all targets
+  CheckAndUpdateHostConsistency(&inputs, &target_host);
 
   IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
 
@@ -483,6 +501,7 @@ runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Ta
       }
     }
   }
+
   runtime::Module complete_mod = codegen::Build(mhost_all, target_host);
   for (const auto& it : device_modules) {
     if (it.operator->()) {
@@ -587,14 +606,14 @@ IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
 
   mixed_pass_list.push_back(BindTarget(target));
 
+  mixed_pass_list.push_back(tir::transform::VerifyMemory());
+  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
+
   bool is_entry_func = false;
   if (mixed_mod->functions.size() == 1) {
     is_entry_func = pass_ctx->GetConfig<Bool>("tir.is_entry_func", Bool(true)).value();
     mixed_pass_list.push_back(AnnotateEntryFunc(is_entry_func));
   }
-
-  mixed_pass_list.push_back(tir::transform::VerifyMemory());
-  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
@@ -663,8 +682,8 @@ IRModule OptimizeDeviceModule(IRModule mixed_mod, Target target) {
   device_pass_list.push_back(tir::transform::LowerWarpMemory());
   device_pass_list.push_back(tir::transform::Simplify());
   device_pass_list.push_back(tir::transform::LowerCustomDatatypes());
-  device_pass_list.push_back(tir::transform::LowerIntrin());
   device_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
+  device_pass_list.push_back(tir::transform::LowerIntrin());
 
   auto device_opt_mod = transform::Sequential(device_pass_list);
 

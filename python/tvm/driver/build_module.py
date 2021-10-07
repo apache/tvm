@@ -127,7 +127,8 @@ def lower(
         return ffi.lower_primfunc(inp, name, simple_mode)
     if isinstance(inp, schedule.Schedule):
         return ffi.lower_schedule(inp, args, name, binds, simple_mode)
-    raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
+    raise ValueError(
+        "Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
 def build(
@@ -142,7 +143,8 @@ def build(
     for devices coupled with target information.
     Parameters
     ----------
-    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule,
+        tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function.
@@ -195,20 +197,66 @@ def build(
     See the note on :any:`tvm.target` on target string format.
     """
 
-    if isinstance(inputs, (schedule.Schedule, tvm.IRModule, PrimFunc)):
-        # TODO(@mikepapadim) replace with te_lower
+    # if isinstance(inputs, (schedule.Schedule, tvm.IRModule, PrimFunc)):
+    #     # TODO(@mikepapadim) replace with te_lower
+    #     input_mod = lower(inputs, args, name=name, binds=binds)
+    # elif isinstance(inputs, (list, tuple, container.Array)):
+    #     merged_mod = tvm.IRModule({})
+    #     for x in inputs:
+    #         merged_mod.update(lower(x))
+    #     input_mod = merged_mod
+    # elif not isinstance(inputs, (dict, container.Map)):
+    #     raise ValueError(
+    #         f"Inputs must be Schedule, PrimFunc, IRModule or dict of target to IRModule, "
+    #         f"but got {type(inputs)}."
+    #     )
+
+    # # starts here
+    # if not isinstance(inputs, (dict, container.Map)):
+    #     target = Target.current() if target is None else target
+    #     target = target if target else "llvm"
+    #     target_input_mod = {target: input_mod}
+    # else:
+    #     target_input_mod = inputs
+
+    # for tar, mod in target_input_mod.items():
+    #     if not isinstance(tar, (str, Target)):
+    #         raise ValueError(
+    #             "The key of inputs must be str or " "Target when inputs is dict.")
+    #     if not isinstance(mod, tvm.IRModule):
+    #         raise ValueError(
+    #             "inputs must be Schedule, IRModule," "or dict of str to IRModule.")
+
+    # target_input_mod, target_host = Target.check_and_update_host_consist(
+    #     target_input_mod, target_host
+    # )
+
+    # if not target_host:
+    #     for tar, mod in target_input_mod.items():
+    #         tar = Target(tar)
+    #         device_type = ndarray.device(tar.kind.name, 0).device_type
+    #         if device_type == ndarray.cpu(0).device_type:
+    #             target_host = tar
+    #             break
+    # if not target_host:
+    #     target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
+
+    if isinstance(inputs, schedule.Schedule):
+        if args is None:
+            raise ValueError("args must be given for build from schedule")
         input_mod = lower(inputs, args, name=name, binds=binds)
     elif isinstance(inputs, (list, tuple, container.Array)):
         merged_mod = tvm.IRModule({})
         for x in inputs:
             merged_mod.update(lower(x))
         input_mod = merged_mod
+    elif isinstance(inputs, (tvm.IRModule, PrimFunc)):
+        input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
-            f"Inputs must be Schedule, PrimFunc, IRModule or dict of target to IRModule, "
+            f"Inputs must be Schedule, IRModule or dict of target to IRModule, "
             f"but got {type(inputs)}."
         )
-
     # starts here
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
@@ -219,9 +267,11 @@ def build(
 
     for tar, mod in target_input_mod.items():
         if not isinstance(tar, (str, Target)):
-            raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
+            raise ValueError(
+                "The key of inputs must be str or " "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
-            raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
+            raise ValueError(
+                "inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host
@@ -237,7 +287,15 @@ def build(
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
+
     rt_mod_host = _driver_ffi.finalize_module(target_input_mod, target_host)
+
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
 
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
@@ -249,13 +307,15 @@ def build(
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateCSourceCrtMetadataModule"
             )
-            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_csource_crt_metadata_module(
+                [rt_mod_host], target_host)
 
         elif target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
-            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_llvm_crt_metadata_module(
+                [rt_mod_host], target_host)
     else:
         to_return = rt_mod_host
 
