@@ -35,6 +35,9 @@
  * ToCVariableStyle(PrefixGeneratedName(CombineNames({"model", "Devices"})))
  * // tvmgen_model_devices
  *
+ * ToCConstantStyle(PrefixGeneratedName(CombineNames({"model", "Devices"})))
+ * // TVMGEN_MODEL_DEVICES
+ *
  */
 
 #include <tvm/runtime/container/array.h>
@@ -67,6 +70,14 @@ std::string ToCFunctionStyle(const std::string& original_name);
  * \return Transformed function in the C variable style
  */
 std::string ToCVariableStyle(const std::string& original_name);
+
+/*!
+ * \brief Transform a name to the C constant style assuming it is
+ * appropriately constructed using the prefixing functions
+ * \param name Original name
+ * \return Transformed function in the C constant style
+ */
+std::string ToCConstantStyle(const std::string& original_name);
 
 /*!
  * \brief Combine names together for use as a generated name
