@@ -1176,10 +1176,19 @@ def gather_nd_shape_func(attrs, inputs, _):
     return [_gather_nd_shape(inputs[0], inputs[1], convert(batch_dims), convert(index_rank))]
 
 
+@script
+def _gather_shape(data_shape, indices_shape, axis):
+    out_shape = output_tensor((1,), "int64")
+    for i in range(data_shape.shape[0]):
+        if i != axis:
+            assert data_shape[i] == indices_shape[i], "data and indices size at non-gather axes must be the same"
+        out_shape[i] = indices_shape[i]
+    return out_shape
+
+
 @_reg.register_shape_func("gather", False)
 def gather_shape_func(attrs, inputs, _):
     """
     Shape func for gather operator.
     """
-    indices_shape = inputs[1]
-    return [te.compute((1,), lambda i: indices_shape[i])]
+    return [_gather_shape(inputs[0], inputs[1], attrs.axis)]
