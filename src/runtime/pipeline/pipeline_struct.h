@@ -145,6 +145,12 @@ struct PipelineConfig {
   }
 
   void Insert(int key, const OutputMap& map) { config[key] = map; }
+
+  /*!\brief This function is used to verify whether config is loaded successfully.
+   * \return Return true to indicate that this class has not been successfully loaded.
+   */
+  bool Empty() { return config.empty(); }
+
   /*!
    * \brief Get the number of global outputs that is the outputs of entire pipeline.
    * \return How much output does the entire pipeline have.

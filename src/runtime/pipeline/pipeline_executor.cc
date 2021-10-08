@@ -40,32 +40,109 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
   }
   return nullptr;
 }
+
+/*!
+ * \brief Use the mod_config information to create a graph runtime list.
+ * \param mod_config The config information that generates by the export library function call.
+ */
+std::vector<Module> PipelineExecutor::CreateGraphModules(const ModuleConfig& mod_config) {
+  const PackedFunc* graph_executor_create = Registry::Get("tvm.graph_executor.create");
+  std::vector<Module> ret;
+  ret.resize(mod_config.size());
+  for (auto config : mod_config) {
+    // Load library.
+    auto lib = Module::LoadFromFile(config.second.lib_name.c_str());
+
+    // Read json.
+    std::ifstream ifJson(config.second.json_name.c_str());
+    if (ifJson.fail()) {
+      LOG(FATAL) << "json file not found!";
+    }
+    const std::string json((std::istreambuf_iterator<char>(ifJson)),
+                           std::istreambuf_iterator<char>());
+
+    // Create a graph executor.
+    std::istringstream istr(config.second.dev);
+    std::string str;
+    int device_type = 1, device_id = 0;
+    while (getline(istr, str, ';')) {
+      std::istringstream istr_dev(str);
+      std::string str_temp;
+      if (getline(istr_dev, str_temp)) {
+        device_type = stoi(str_temp);
+      }
+      if (getline(istr_dev, str_temp)) {
+        device_id = stoi(str_temp);
+      }
+    }
+    Module graph_module = (*graph_executor_create)(json, lib, device_type, device_id);
+
+    // Load parameters.
+    TVMByteArray params_arr;
+    std::ifstream if_param(config.second.params_name.c_str());
+    if (if_param.fail()) {
+      LOG(FATAL) << "params file not found!";
+    }
+    const std::string params((std::istreambuf_iterator<char>(if_param)),
+                             std::istreambuf_iterator<char>());
+    params_arr.data = params.c_str();
+    params_arr.size = params.length();
+    auto load_params = graph_module.GetFunction("load_params");
+    load_params(params_arr);
+
+    // Put a graph executor module into the vector.
+    ret[config.first] = graph_module;
+  }
+  return ret;
+}
+
 /*!
  * \brief Initialize the pipeline executor with a list of modules to be pipelined
  *  and config in JSON format.
  * \param modules The module list used for building the pipeline.
  * \param pipeline_json The configuration of modules dependencies.
  */
-void PipelineExecutor::Init(const Array<Module>& modules, const std::string& pipeline_json) {
+void PipelineExecutor::Init(const std::vector<Module>& modules, const std::string& pipeline_json) {
+  ICHECK(!modules.empty()) << "The graph executor module list is empty.";
   // Use JSONReader to load pipeline configuration.
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
-  // When the value of 'modules' is empty, here need to load the modules from JSON.
-  this->Load(&reader, modules.empty());
+  PipelineConfig& pipeline_config = this->LoadPipelineConfig(&reader);
+  ICHECK(!pipeline_config.Empty()) << "The pipeline config information is empty.";
   // Initialize the pipeline function class used for pipeline thread pool management
   // and schedule etc. This function returns the number of output.
-  num_outputs_ = pipeline_function_.PipelineInit(modules, pipeline_config_, mod_config_);
+  num_outputs_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config);
   return;
 }
 
 Module PipelineExecutorCreate(const Array<Module>& m, const std::string& pipeline_json) {
+  ICHECK(!m.empty()) << "The module list is empty.";
   auto exec = make_object<PipelineExecutor>();
-  exec->Init(m, pipeline_json);
+  std::vector<Module> graph_modules;
+  for (auto mod : m) {
+    graph_modules.push_back(mod);
+  }
+  exec->Init(graph_modules, pipeline_json);
+  return Module(exec);
+}
+
+Module PipelineExecutorLoad(const std::string& load_json, const std::string& pipeline_json) {
+  auto exec = make_object<PipelineExecutor>();
+  std::istringstream is(load_json);
+  dmlc::JSONReader reader(&is);
+  ModuleConfig& mod_config = exec->LoadModuleConfig(&reader);
+  ICHECK(!mod_config.empty()) << "The module config is empty.";
+  std::vector<Module> modules = exec->CreateGraphModules(mod_config);
+  exec->Init(modules, pipeline_json);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.pipeline_executor.create").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = PipelineExecutorCreate(args[0], args[1]);
+});
+
+TVM_REGISTER_GLOBAL("tvm.pipeline_executor.load").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = PipelineExecutorLoad(args[0], args[1]);
 });
 }  // namespace runtime
 }  // namespace tvm

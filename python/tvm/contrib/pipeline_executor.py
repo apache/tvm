@@ -83,14 +83,27 @@ class PipelineModule(object):
 
     Parameters
     ----------
-    module : PipelineExecutorFactoryModule
-        Common interface for pipeline executor factory modules.
+    module : PipelineExecutorFactoryModule/Module
+        Common interface for pipeline executor factory modules or Module.
     """
 
     def __init__(self, module):
-        self.module = module.module
+        if isinstance(module, PipelineExecutorFactoryModule):
+            self.module = module.module
+        else:
+            self.module = module
         # Get the packed functions from the pipeline executor.
         self._get_num_outputs = self.module["get_num_outputs"]
+
+    @property
+    def num_outputs(self):
+        """Get the number of outputs.
+        Returns
+        -------
+        count : int
+            The number of outputs.
+        """
+        return self._get_num_outputs()
 
     @staticmethod
     def load_library(config_file_name):
@@ -102,19 +115,28 @@ class PipelineModule(object):
             Path and name of the configuration file, the configuration file contains the
             disk path of the parameter file, library file, and JSON file.
         """
-        # Load the configuration file to initialize a PipelineExecutorFactoryModule.
-        pipeline_factory = PipelineExecutorFactoryModule.load_library(config_file_name)
-        return PipelineModule(pipeline_factory)
+        config = ""
+        with open(config_file_name, "r") as file_handle:
+            config = file_handle.read()
+        config = json.loads(config)
+        if "load_config" not in config or "pipeline_config" not in config:
+            raise RuntimeError(f"Config file format is wrong.")
 
-    @property
-    def num_outputs(self):
-        """Get the number of outputs.
-        Returns
-        -------
-        count : int
-            The number of outputs.
-        """
-        return self._get_num_outputs()
+        # The config file use to load library, prameters, and JSON files.
+        load_config = ""
+        with open(config["load_config"], "r") as file_handle:
+            load_config = file_handle.read()
+
+        # The config file use to load pipeline compute config.
+        pipeline_config = ""
+        with open(config["pipeline_config"], "r") as file_handle:
+            pipeline_config = file_handle.read()
+
+        # Load a PipelineExecutor from the disk files.
+        load_library = tvm._ffi.get_global_func("tvm.pipeline_executor.load", allow_missing=False)
+        module = load_library(load_config, pipeline_config)
+
+        return PipelineModule(module)
 
 
 class PipelineConfig(object):
@@ -581,16 +603,22 @@ class PipelineExecutorFactoryModule(object):
         # Check if the directory_path exists.
         if not os.path.exists(directory_path):
             raise RuntimeError(f"The directory {directory_path} does not exist.")
-        # Create a configuration copy for export.
-        export_conf = self.mods_config.copy()
+        # Create an load configuration.
+        load_config_file_name = "{}/load_config".format(directory_path)
+        pipeline_config_file_name = "{}/pipeline_config".format(directory_path)
+        config = {}
+        config["load_config"] = load_config_file_name
+        config["pipeline_config"] = pipeline_config_file_name
+        load_config = []
         # Export the library, JSON, and parameter into files, then export these files path
         # into a configuration file.
         for lib_index in self.pipeline_mods:
-            mconf = export_conf[lib_index]
-            mconf["lib_name"] = "{}/lib{}.so".format(directory_path, lib_index)
-            mconf["json_name"] = "{}/json{}".format(directory_path, lib_index)
-            mconf["params_name"] = "{}/params{}".format(directory_path, lib_index)
-            mconf["dev"] = "{},{}".format(
+            mconfig = {}
+            mconfig["mod_idx"] = lib_index
+            mconfig["lib_name"] = "{}/lib{}.so".format(directory_path, lib_index)
+            mconfig["json_name"] = "{}/json{}".format(directory_path, lib_index)
+            mconfig["params_name"] = "{}/params{}".format(directory_path, lib_index)
+            mconfig["dev"] = "{},{}".format(
                 self.pipeline_mods[lib_index]["dev"].device_type,
                 self.pipeline_mods[lib_index]["dev"].device_id,
             )
@@ -598,31 +626,25 @@ class PipelineExecutorFactoryModule(object):
             # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
             graph, lib, params = self.pipeline_mods[lib_index]["lib"]
             # Export the lib, graph, and parameters to disk.
-            lib.export_library(mconf["lib_name"])
-            with open(mconf["json_name"], "w") as file_handle:
+            lib.export_library(mconfig["lib_name"])
+            with open(mconfig["json_name"], "w") as file_handle:
                 file_handle.write(graph)
-            with open(mconf["params_name"], "wb") as file_handle:
+            with open(mconfig["params_name"], "wb") as file_handle:
                 file_handle.write(relay.save_param_dict(params))
 
+            load_config.append(mconfig)
+
         # Export the configuration file to disk.
-        conf_file_name = "{}/config".format(directory_path)
-        with open(conf_file_name, "w") as file_handle:
-            file_handle.write(json.dumps(export_conf))
+        with open(load_config_file_name, "w") as file_handle:
+            file_handle.write(json.dumps(load_config))
 
-        return conf_file_name
+        # Export the pipeline configuration file to disk.
+        with open(pipeline_config_file_name, "w") as file_handle:
+            file_handle.write(json.dumps(self.mods_config))
 
-    @staticmethod
-    def load_library(config_file_name):
-        """Load configuration file to create and initialize pipeline executor.
+        # Export the configuration file to disk.
+        config_file_name = "{}/config".format(directory_path)
+        with open(config_file_name, "w") as file_handle:
+            file_handle.write(json.dumps(config))
 
-        Parameters
-        ----------
-        config_file_name : str
-            The configuration file path, the configuration file contains the
-            disk path of the parameter file, library file, and JSON file.
-        """
-        load_config = ""
-        with open(config_file_name, "r") as file_handle:
-            load_config = file_handle.read()
-
-        return PipelineExecutorFactoryModule([], json.loads(load_config))
+        return config_file_name
