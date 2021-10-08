@@ -30,6 +30,7 @@
 #define TVM_DRIVER_DRIVER_API_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/transform.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/support/with.h>
 #include <tvm/target/target.h>
@@ -43,30 +44,34 @@
 #include <vector>
 
 namespace tvm {
+using tvm::transform::Pass;
+
 /*!
- * \brief Returns the optimized IRModule for original fused module (pre split) that contains device
- * and host code.
+ * \brief Configures and returns the composite Pass for the fused module (pre split) that contains
+ * device and host code.
  * \param mixed_mod The original mixed module.
  * \param target The device Target.
- * \return The result optimized mixed module.
+ * \return The composite Pass for the fused module.
 //  */
-IRModule MixedModulePassManager(IRModule mixed_mod, Target target);
+TVM_DLL transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target);
 
 /*!
- * \brief Returns the optimized IRModule for the device Target after device/host from mixed module.
+ * \brief Configures and returns the composite Pass for the device Target after device/host from
+ * mixed module.
  * \param mixed_mod The optimized mixed module.
  * \param target The device Target.
- * \return The result optimized device module.
+ * \return The composite Pass for the device module.
  */
-IRModule DeviceModulePassManager(IRModule mixed_mod, Target target);
+TVM_DLL transform::Sequential DeviceModulePassManager(IRModule mixed_mod, Target target);
 
 /*!
- * \brief Returns the optimized IRModule for the host Target after device/host from mixed module.
+ * \brief Configures and returns the composite Pass for the host Target after device/host from mixed
+ * module.
  * \param mixed_mod The optimized mixed module.
  * \param target_host The host Target.
- * \return The result optimized host module.
+ * \return The composite Pass for the host module.
  */
-IRModule HostModulePassManager(IRModule mixed_mod, Target target_host);
+TVM_DLL transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host);
 
 /*!
  * \brief Lower an IRModule (optimize with it with the pass list defined in CreatePassList)
@@ -160,6 +165,7 @@ TVM_DLL runtime::Module build(const Map<Target, IRModule>& input, const Target& 
  * \return The built module that contains code for different processors.
  */
 TVM_DLL runtime::Module build(const Map<String, IRModule>& input, const Target& target_host);
+
 }  // namespace tvm
 
 #endif  // TVM_DRIVER_DRIVER_API_H_

@@ -49,6 +49,7 @@ using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 using tvm::Array;
+using tvm::transform::Pass;
 
 bool LLVMEnabled() {
   const runtime::PackedFunc* pf = runtime::Registry::Get("target.build.llvm");
@@ -159,7 +160,7 @@ transform::Pass BindTarget(Target target) {
 
 static transform::Pass AnnotateEntryFunc(bool b) {
   auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
-    return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(b));
+    return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
   };
   return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
 }
@@ -272,6 +273,11 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
 IRModule LowerWithPassList(IRModule mod, Array<tvm::transform::Pass> pass_list) {
   auto optimize = tvm::transform::Sequential(pass_list);
   mod = optimize(std::move(mod));
+  return mod;
+}
+
+IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
+  mod = seq(std::move(mod));
   return mod;
 }
 
@@ -394,11 +400,11 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
 
   ICHECK(mod_mixed.defined()) << "This module must be defined";
 
-  mod_mixed = MixedModulePassManager(mod_mixed, target);
+  mod_mixed = ApplyPasses(mod_mixed, MixedModulePassManager(mod_mixed, target));
 
-  IRModule host_mod = HostModulePassManager(mod_mixed, target_host);
+  IRModule host_mod = ApplyPasses(mod_mixed, HostModulePassManager(mod_mixed, target_host));
 
-  IRModule device_mod = DeviceModulePassManager(mod_mixed, target);
+  IRModule device_mod = ApplyPasses(mod_mixed, DeviceModulePassManager(mod_mixed, target));
 
   auto keys = target->GetKeys();
 
@@ -555,20 +561,18 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   return build(inputs, target_host);
 }
 
-IRModule MixedModulePassManager(IRModule mixed_mod, Target target) {
+transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
-  Array<tvm::transform::Pass> mixed_pass_list;
+  Array<Pass> mixed_pass_list;
 
   mixed_pass_list.push_back(BindTarget(target));
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
   mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
-  bool is_entry_func = false;
   if (mixed_mod->functions.size() == 1) {
-    is_entry_func = pass_ctx->GetConfig<Bool>("tir.is_entry_func", Bool(true)).value();
-    mixed_pass_list.push_back(AnnotateEntryFunc(is_entry_func));
+    mixed_pass_list.push_back(AnnotateEntryFunc(true));
   }
 
   bool detect_global_barrier =
@@ -589,10 +593,15 @@ IRModule MixedModulePassManager(IRModule mixed_mod, Target target) {
   }
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
 
-  return LowerWithPassList(mixed_mod, mixed_pass_list);
+  return transform::Sequential(mixed_pass_list);
 }
 
-IRModule HostModulePassManager(IRModule mixed_mod, Target target_host) {
+TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
+    .set_body_typed([](IRModule mixed_mod, Target target) {
+      return MixedModulePassManager(mixed_mod, target);
+    });
+
+transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host) {
   Array<tvm::transform::Pass> host_pass_list;
   host_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
     return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
@@ -609,11 +618,16 @@ IRModule HostModulePassManager(IRModule mixed_mod, Target target_host) {
   host_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
   host_pass_list.push_back(tir::transform::CombineContextCall());
 
-  return LowerWithPassList(mixed_mod, host_pass_list);
+  return transform::Sequential(host_pass_list);
 }
 
-IRModule DeviceModulePassManager(IRModule mixed_mod, Target target) {
-  Array<transform::Pass> device_pass_list;
+TVM_REGISTER_GLOBAL("driver.host_mod_passes")
+    .set_body_typed([](IRModule mixed_mod, Target target_host) {
+      return HostModulePassManager(mixed_mod, target_host);
+    });
+
+transform::Sequential DeviceModulePassManager(IRModule mixed_mod, Target target) {
+  Array<Pass> device_pass_list;
   device_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
     return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
            CallingConv::kDeviceKernelLaunch;
@@ -627,7 +641,12 @@ IRModule DeviceModulePassManager(IRModule mixed_mod, Target target) {
   device_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
   device_pass_list.push_back(tir::transform::LowerIntrin());
 
-  return LowerWithPassList(mixed_mod, device_pass_list);
+  return transform::Sequential(device_pass_list);
 }
+
+TVM_REGISTER_GLOBAL("driver.device_mod_passes")
+    .set_body_typed([](IRModule mixed_mod, Target target_host) {
+      return DeviceModulePassManager(mixed_mod, target_host);
+    });
 
 }  // namespace tvm
