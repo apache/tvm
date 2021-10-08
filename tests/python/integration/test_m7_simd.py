@@ -205,7 +205,6 @@ def test_avgpool_2d():
         target_opts={
             "-keys": "arm_cpu",
             "-march": "armv7e-m",
-            "-mcpu": "cortex-m7",
         },
     )
 
@@ -236,7 +235,6 @@ def test_avgpool_1d():
         target_opts={
             "-keys": "arm_cpu",
             "-march": "armv7e-m",
-            "-mcpu": "cortex-m7",
         },
     )
 
