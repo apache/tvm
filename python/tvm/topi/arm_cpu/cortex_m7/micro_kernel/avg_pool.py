@@ -25,7 +25,7 @@ from tvm import te
 from . import common
 
 
-def intrin_sum(shape, in_dtype, out_dtype):
+def intrin_sum(shape, in_dtype, out_dtype, reset=False):
     UNIQ_ID_LEN = 8
     uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
     func_prefix = "sum16"
@@ -38,9 +38,10 @@ def intrin_sum(shape, in_dtype, out_dtype):
     k = te.reduce_axis((0, width), name="rc")
 
     def get_slice(indices, k):
-      slice = list(indices)
-      slice[-1] = slice[-1] + k
-      return tuple(slice)
+        slice = list(indices)
+        slice[-1] = slice[-1] + k
+        return tuple(slice)
+
     z = te.compute((1,) * len(shape), lambda *i: te.sum(x[get_slice(i, k)], axis=[k]).astype(out_dtype))
 
     def _intrin_func(ins, outs):
@@ -54,13 +55,14 @@ def intrin_sum(shape, in_dtype, out_dtype):
                                     f"{func_prefix}_{width}_{uniq_id}",
                                     aa.access_ptr("r"),
                                     cc.access_ptr("w"),
-                                    aa.elem_offset))
+                                    aa.elem_offset,
+                                    1 if reset else 0))
             return ib.get()
 
         def _reduce_reset():
             ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_extern(cc.dtype,
-                                        f"{func_prefix}_{width}_reset_{uniq_id}",
+                                        f"{func_prefix}_reset_{uniq_id}",
                                         cc.access_ptr("w")))
             return ib.get()
 
@@ -89,9 +91,9 @@ def sum_impl(N, uniq_id):
 #ifdef __cplusplus
 extern "C"
 #endif // __cplusplus
-__STATIC_FORCEINLINE int32_t sum16_{N}_reset_{uniq_id}(
+__STATIC_FORCEINLINE int32_t sum16_reset_{uniq_id}(
     int16_t *res) {{
-  memset(res, (int16_t)0, {N} * sizeof(*res));
+  *res = (int16_t)0;
   return 0;
 }}
 
@@ -101,10 +103,11 @@ extern "C"
 __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
     int16_t *arr,
     int16_t *res16,
-    long arr_offset) {{
+    long arr_offset,
+    int reset) {{
   int n;
   int32_t *p32;
-  int32_t res = *res16;
+  int32_t res = reset ? 0 : *res16;
 
 #ifdef GROVETY_OP_BENCHMARK
   perf_timer_start(2);

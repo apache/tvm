@@ -78,7 +78,7 @@ def schedule_avgpool_1d_ncw(s, op):
     k, = s[op].op.reduce_axis
     pool_w = k.dom.extent.value
 
-    sum, uniq_id = intrin_sum((1, 1, pool_w), data_vec.dtype, output.dtype)
+    sum, uniq_id = intrin_sum((1, 1, pool_w), data_vec.dtype, output.dtype, reset=True)
     s[op].tensorize(k, sum)
     s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
 
