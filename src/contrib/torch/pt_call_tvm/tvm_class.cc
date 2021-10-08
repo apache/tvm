@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <dlpack/dlpack.h>
 #include <torch/custom_class.h>
 #include <torch/script.h>
-#include <dlpack/dlpack.h>
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>

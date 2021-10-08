@@ -25,8 +25,8 @@
 #ifndef TVM_CONTRIB_TORCH_UTILS_H_
 #define TVM_CONTRIB_TORCH_UTILS_H_
 
-#include <torch/script.h>
 #include <dlpack/dlpack.h>
+#include <torch/script.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #ifdef PT_TVMDSOOP_ENABLE_GPU
