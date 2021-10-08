@@ -131,12 +131,11 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       Type resolved = this->VisitType(rhs->resolved_type, lhs->resolved_type);
 
       if (!resolved.defined()) {
-        solver_->Emit(
-            Diagnostic::Error(this->span)
-            << "The Relay type checker is unable to show the following types match.\n"
-            << "In particular "
-            << "`" << PrettyPrint(lhs->resolved_type) << "` does not match `"
-            << PrettyPrint(rhs->resolved_type) << "`");
+        solver_->Emit(Diagnostic::Error(this->span)
+            	      << "The Relay type checker is unable to show the following types match.\n"
+            	      << "In particular "
+            	      << "`" << PrettyPrint(lhs->resolved_type) << "` does not match `"
+                      << PrettyPrint(rhs->resolved_type) << "`");
         return lhs->resolved_type;
       } else {
         TypeNode* top = solver_->GetTypeNode(resolved);
@@ -234,10 +233,10 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     tvm::Array<IndexExpr> shape;
     if (tt1->shape.size() != tt2->shape.size()) {
       this->solver_->Emit(Diagnostic::Error(this->span)
-                                   << "tensor type `" << PrettyPrint(tt1) << "` has "
-                                   << tt1->shape.size() << " dimensions, while `"
-                                   << PrettyPrint(tt2) << "` has " << tt2->shape.size()
-                                   << " dimensions");
+                          << "tensor type `" << PrettyPrint(tt1) << "` has "
+                          << tt1->shape.size() << " dimensions, while `"
+                          << PrettyPrint(tt2) << "` has " << tt2->shape.size()
+                          << " dimensions");
       return Type(nullptr);
     }
 
