@@ -26,15 +26,15 @@
 #define TVM_CONTRIB_TORCH_UTILS_H_
 
 #include <torch/script.h>
-// clang-format off
-#include "unset_log_macros.h"
-// clang-format on
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #ifdef PT_TVMDSOOP_ENABLE_GPU
 #include <cuda_runtime.h>
 #endif
+
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace contrib {
