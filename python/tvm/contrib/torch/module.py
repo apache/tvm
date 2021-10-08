@@ -16,8 +16,8 @@
 # under the License.
 
 """Module container of PyTorch custom class"""
-import torch
 from typing import List
+import torch
 
 
 class GraphModule(torch.nn.Module):

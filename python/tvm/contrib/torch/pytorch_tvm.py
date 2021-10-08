@@ -19,7 +19,6 @@
 """`compile` api that convert torch module to torch tvm module"""
 import os
 import tvm
-from tvm.relay.op.tensor import exp
 import tvm.testing
 from tvm import relay, autotvm
 from tvm.runtime import load_module
@@ -38,16 +37,17 @@ def tune_tasks(
     log_filename="tuning.log",
     use_transfer_learning=True,
 ):
+    """Tune tasks and generate tuning log to file"""
     # create tmp log file
     tmp_log_file = log_filename + ".tmp"
     if os.path.exists(tmp_log_file):
         os.remove(tmp_log_file)
 
     for i, tsk in enumerate(reversed(tasks)):
-        prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
+        prefix = f"[Task {i + 1:2d}/{len(tasks):2d}] "
 
         # create tuner
-        if tuner == "xgb" or tuner == "xgb-rank":
+        if tuner in ("xgb", "sgb-rank"):
             tuner_obj = XGBTuner(tsk, loss_type="rank")
         elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=100)
@@ -80,6 +80,7 @@ def tune_tasks(
 
 
 def get_tuning_opt(log_file="tuning.log", n_trial=200):
+    """Returns tuning options"""
     tuning_opt = {
         "log_filename": log_file,
         "tuner": "random",
@@ -97,6 +98,8 @@ tvm_assets = ["mod.so", "graph.json", "params"]
 
 
 class PyTorchTVMModule:
+    """Helper class for compiling pytorch module to tvm module"""
+
     def __init__(self) -> None:
         self.script_module = None
         self.input_infos = None
@@ -155,15 +158,16 @@ class PyTorchTVMModule:
             os.makedirs(export_dir)
         self.export_dir = export_dir
         self.tvm_lib.export_library(os.path.join(export_dir, tvm_assets[0]))
-        with open(os.path.join(export_dir, tvm_assets[1]), "w") as fout:
+        with open(os.path.join(export_dir, tvm_assets[1]), "w", encoding="utf8") as fout:
             fout.write(self.tvm_graph)
         with open(os.path.join(export_dir, tvm_assets[2]), "wb") as fout:
             fout.write(relay.save_param_dict(self.tvm_params))
 
     def load_tvm(self, export_dir):
+        """Load tvm module from export directory"""
         self.export_dir = export_dir
         self.tvm_lib = load_module(os.path.join(export_dir, tvm_assets[0]))
-        with open(os.path.join(export_dir, tvm_assets[1]), "r") as f:
+        with open(os.path.join(export_dir, tvm_assets[1]), "r", encoding="utf8") as f:
             self.tvm_graph = f.read()
         with open(os.path.join(export_dir, tvm_assets[2]), "rb") as f:
             self.tvm_params = relay.load_param_dict(f.read())
@@ -184,7 +188,7 @@ class PyTorchTVMModule:
         return mod
 
 
-def compile(script_module, option):
+def compile(script_module, option):  # pylint: disable=redefined-builtin
     """
     option = {
         "input_infos": [

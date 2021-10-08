@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Module container of Pytorch custom class"""
-from tvm._ffi import libinfo
 import os
 import platform
 import torch
+from tvm._ffi import libinfo
+from tvm.relay.frontend import pytorch
 
 
 def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
@@ -37,12 +38,12 @@ def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
 
 _load_platform_specific_library()
 
-from . import module  # nopep8
-
+from . import module  # nopep8, pylint: disable=wrong-import-position
 
 GraphModule = module.GraphModule
 VMModule = module.VMModule
 TraceTvmModule = module.TraceTvmModule
 
-
-from .pytorch_tvm import PyTorchTVMModule, compile  # nopep8
+from . import pytorch_tvm  # nopep8, pylint: disable=wrong-import-position
+PyTorchTVMModule = pytorch_tvm.PyTorchTVMModule
+compile = pytorch_tvm.compile  # pylint: disable=redefined-builtin
