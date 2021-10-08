@@ -102,8 +102,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      // Check if mod_idx is read successfully, in this level reading there is no any moudle
-      // is PipelineExecutor, hence the mod_idx should start from 0.
+      // Check if mod_idx is read successfully, in this level reading there all the moudles
+      // are graph executor modules, hence the mod_idx should start from 0.
       ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
       // Load the lib, json, and params information.
       ICHECK(!lib_name.empty()) << "lib_name is empty.";
