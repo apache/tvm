@@ -83,7 +83,7 @@ class PipelineModule(object):
 
     Parameters
     ----------
-    module : PipelineExecutorFactoryModule/Module
+    module : Union[PipelineExecutorFactoryModule, Module]
         Common interface for pipeline executor factory modules or Module.
     """
 
@@ -120,15 +120,15 @@ class PipelineModule(object):
             config = file_handle.read()
         config = json.loads(config)
         if "load_config" not in config or "pipeline_config" not in config:
-            raise RuntimeError(f"Config file format is wrong.")
+            raise RuntimeError(
+                '"load_config" or "pipeline_config" is missing in %s' % config_file_name
+            )
 
         # The config file use to load library, prameters, and JSON files.
-        load_config = ""
         with open(config["load_config"], "r") as file_handle:
             load_config = file_handle.read()
 
         # The config file use to load pipeline compute config.
-        pipeline_config = ""
         with open(config["pipeline_config"], "r") as file_handle:
             pipeline_config = file_handle.read()
 
@@ -636,15 +636,15 @@ class PipelineExecutorFactoryModule(object):
 
         # Export the configuration file to disk.
         with open(load_config_file_name, "w") as file_handle:
-            file_handle.write(json.dumps(load_config))
+            json.dump(load_config, file_handle)
 
         # Export the pipeline configuration file to disk.
         with open(pipeline_config_file_name, "w") as file_handle:
-            file_handle.write(json.dumps(self.mods_config))
+            json.dump(self.mods_config, file_handle)
 
         # Export the configuration file to disk.
         config_file_name = "{}/config".format(directory_path)
         with open(config_file_name, "w") as file_handle:
-            file_handle.write(json.dumps(config))
+            json.dump(config, file_handle)
 
         return config_file_name
