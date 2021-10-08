@@ -325,6 +325,35 @@ def opaque_access_split(a: T.handle, b: T.handle) -> None:
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj), dtype="handle"))
 
 
+@T.prim_func
+def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (127, 128))
+    B = T.match_buffer(b, (127, 128))
+    for i in T.serial(0, 4):
+        for j, k in T.grid(T.min(31, 126 - i * 32) + 1, 128):
+            with T.block([127, 128], "B") as [vi, vj]:
+                T.bind(vi, i * 32 + j)
+                T.bind(vj, k)
+                B[vi, vj] = A[vi, vj]
+
+
+@T.prim_func
+def elementwise_not_affine_fused(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [127, 128])
+    B = T.match_buffer(b, [127, 128])
+    for i in T.grid(4):
+        for j_k_fused in T.serial(0, T.min(31, 126 - i * 32) * 128 + 128):
+            with T.block([127, 128], "B") as [vi, vj]:
+                T.bind(
+                    vi,
+                    i * 32 + T.floormod(T.floordiv(j_k_fused, 128), T.min(31, 126 - i * 32) + 1),
+                )
+                T.bind(vj, T.floormod(j_k_fused, 128))
+                T.reads([A[vi, vj]])
+                T.writes([B[vi, vj]])
+                B[vi, vj] = A[vi, vj]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -474,6 +503,15 @@ def test_fuse_fail_with_dependent_loops():
     i, j, _ = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.fuse(i, j)
+
+
+def test_fuse_not_affine():
+    sch = tir.Schedule(elementwise_not_affine, debug_mask="all")
+    block_b = sch.get_block("B")
+    _, j, k = sch.get_loops(block_b)
+    sch.fuse(j, k)
+    tvm.ir.assert_structural_equal(elementwise_not_affine_fused, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=elementwise_not_affine)
 
 
 if __name__ == "__main__":

@@ -19,9 +19,10 @@
 
 import sys
 
-import numpy as np
 import pytest
+import numpy as np
 
+import tvm.testing
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib import cmsisnn
@@ -74,6 +75,8 @@ def convert_to_relay(
 
 
 @skip_if_no_reference_system
+@tvm.testing.requires_package("tflite")
+@tvm.testing.requires_cmsisnn
 def test_cnn_small():
     # download the model
     base_url = "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8"

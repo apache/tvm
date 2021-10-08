@@ -1116,8 +1116,16 @@ class OperatorConverter(object):
 
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = relay_op(in_expr)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+        out = relay_op(in_expr)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_abs(self, op):
@@ -1186,10 +1194,6 @@ class OperatorConverter(object):
 
     def convert_rsqrt(self, op):
         """Convert TFLite RSQRT"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized RSQRT operator is not supported yet."
-            )
         return self._convert_unary_elemwise(_op.rsqrt, op)
 
     def convert_neg(self, op):

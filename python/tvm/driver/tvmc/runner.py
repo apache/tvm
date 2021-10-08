@@ -20,6 +20,7 @@ Provides support to run compiled networks both locally and remotely.
 import json
 import logging
 from typing import Dict, List, Optional, Union
+from tarfile import ReadError
 
 import numpy as np
 import tvm
@@ -115,7 +116,14 @@ def drive_run(args):
     except IOError as ex:
         raise TVMCException("Error loading inputs file: %s" % ex)
 
-    tvmc_package = TVMCPackage(package_path=args.FILE)
+    try:
+        tvmc_package = TVMCPackage(package_path=args.FILE)
+    except IsADirectoryError:
+        raise TVMCException(f"File {args.FILE} must be an archive, not a directory.")
+    except FileNotFoundError:
+        raise TVMCException(f"File {args.FILE} does not exist.")
+    except ReadError:
+        raise TVMCException(f"Could not read model from archive {args.FILE}!")
 
     result = run_module(
         tvmc_package,

@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import relay
+from tvm import relay, TVMError
 from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
@@ -613,7 +613,7 @@ def test_name_sanitiser_name_clash():
     inputs = {"input::-1": x_data, "input::-2": y_data, "input:--2": t_data}
     output_list = generate_ref_data(func, inputs)
 
-    with pytest.raises(ValueError, match="Sanitized input tensor name clash"):
+    with pytest.raises(TVMError, match="Sanitized input tensor name clash"):
         compile_and_run(
             AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
             test_runner,
