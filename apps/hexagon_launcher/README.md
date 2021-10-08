@@ -53,6 +53,7 @@ cmake -DCMAKE_MAKE_PROGRAM=make \
       -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
       -DANDROID_PLATFORM=android-28 \
       -DANDROID_ABI=arm64-v8a \
+      -DUSE_HEXAGON_ARCH=v68 \
       -DUSE_HEXAGON_SDK=/path/to/hexagon/SDK \
       -DUSE_HEXAGON_TOOLCHAIN=/path/to/hexagon/Toolchain/ ..
 ```
