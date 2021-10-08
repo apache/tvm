@@ -45,5 +45,6 @@ VMModule = module.VMModule
 TraceTvmModule = module.TraceTvmModule
 
 from . import pytorch_tvm  # nopep8, pylint: disable=wrong-import-position
+
 PyTorchTVMModule = pytorch_tvm.PyTorchTVMModule
 compile = pytorch_tvm.compile  # pylint: disable=redefined-builtin
