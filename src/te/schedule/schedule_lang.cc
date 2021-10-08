@@ -429,6 +429,13 @@ Stage& Stage::rolling_buffer() {
   self->rolling_buffer = true;
   return *this;
 }
+Stage& Stage::transform_layout(const Array<Var>& initial_indices,
+                               const Array<PrimExpr>& final_indices) {
+  StageNode* self = operator->();
+
+  self->layout_transforms.push_back(IndexMap(initial_indices, final_indices));
+  return *this;
+}
 
 Stage CopyStage(const Stage& s) {
   ObjectPtr<StageNode> n = make_object<StageNode>(*s.operator->());
@@ -894,6 +901,8 @@ TVM_REGISTER_GLOBAL("te.StageStorageAlign").set_body_method(&Stage::storage_alig
 TVM_REGISTER_GLOBAL("te.StageDoubleBuffer").set_body_method(&Stage::double_buffer);
 
 TVM_REGISTER_GLOBAL("te.StageRollingBuffer").set_body_method(&Stage::rolling_buffer);
+
+TVM_REGISTER_GLOBAL("te.StageTransformLayout").set_body_method(&Stage::transform_layout);
 
 TVM_REGISTER_GLOBAL("te.ScheduleNormalize").set_body_method(&Schedule::normalize);
 
