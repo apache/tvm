@@ -52,6 +52,7 @@ tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
+tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -385,12 +386,22 @@ if(USE_PROFILER)
 endif(USE_PROFILER)
 
 # Enable ctest if gtest is available
-find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
-find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
-if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-  enable_testing()
-  include(CTest)
-  include(GoogleTest)
+if(USE_GTEST)
+  # Check env var for backward compatibility. A better way to specify package
+  # locations is to use CMAKE_PREFIX_PATH or other standard cmake mechanism
+  # (see cmake documentation for `find_package`).
+  set(GTEST_ROOT "$ENV{GTEST_LIB}")
+  if("${USE_GTEST}" STREQUAL "AUTO")
+    # If USE_GTEST is AUTO, treat GTest as optional: enable if found.
+    find_package(GTest)
+  elseif("${USE_GTEST}" MATCHES ${IS_TRUE_PATTERN})
+    # USE_GTEST is set to ON, TRUE, etc. Treat GTest as a required package.
+    find_package(GTest REQUIRED)
+  endif()
+  if(GTEST_FOUND)
+    enable_testing()
+    include(CTest)
+  endif()
 endif()
 
 if(USE_PIPELINE_EXECUTOR)
@@ -585,22 +596,13 @@ endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
-if(GTEST_INCLUDE_DIR AND GTEST_LIB)
+if(GTEST_FOUND)
   file(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
   add_executable(cpptest ${TEST_SRCS})
-  target_include_directories(cpptest SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
-  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} gtest_main pthread dl)
+  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   gtest_discover_tests(cpptest)
-elseif(NOT GTEST_INCLUDE_DIR)
-  add_custom_target(cpptest
-      COMMAND echo "Missing Google Test headers in include path"
-      COMMAND exit 1)
-elseif(NOT GTEST_LIB)
-  add_custom_target(cpptest
-      COMMAND echo "Missing Google Test library"
-      COMMAND exit 1)
 endif()
 
 # Custom targets
