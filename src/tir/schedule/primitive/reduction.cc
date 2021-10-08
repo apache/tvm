@@ -1004,13 +1004,17 @@ Stmt CreateLoopOutsideRfactorBlock(BlockRealize rf_block_realize, const Array<Fo
     new_loop_var_map[old_loop->loop_var.get()] = new_loop_var;
   }
 
-  // Step 2. Update the iter bindings of the rfactor block.
+  // Step 2. Update the iter bindings and predicate of the rfactor block.
   Array<PrimExpr> new_bindings;
   new_bindings.reserve(rf_block_realize->iter_values.size());
   for (const PrimExpr& old_binding : rf_block_realize->iter_values) {
     new_bindings.push_back(Substitute(old_binding, new_loop_var_map));
   }
-  rf_block_realize.CopyOnWrite()->iter_values = new_bindings;
+  {
+    BlockRealizeNode* p_rf_block_realize = rf_block_realize.CopyOnWrite();
+    p_rf_block_realize->iter_values = new_bindings;
+    p_rf_block_realize->predicate = Substitute(rf_block_realize->predicate, new_loop_var_map);
+  }
 
   // Step 3. Wrap `rf_block_realize` with outer loops.
   Stmt rf_body = rf_block_realize;
