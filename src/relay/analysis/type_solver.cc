@@ -132,9 +132,9 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
       if (!resolved.defined()) {
         solver_->Emit(Diagnostic::Error(this->span)
-            	      << "The Relay type checker is unable to show the following types match.\n"
-            	      << "In particular "
-            	      << "`" << PrettyPrint(lhs->resolved_type) << "` does not match `"
+                      << "The Relay type checker is unable to show the following types match.\n"
+                      << "In particular "
+                      << "`" << PrettyPrint(lhs->resolved_type) << "` does not match `"
                       << PrettyPrint(rhs->resolved_type) << "`");
         return lhs->resolved_type;
       } else {
