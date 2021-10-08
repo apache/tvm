@@ -338,7 +338,7 @@ class TrackerServerHandler(object):
         self._connections.remove(conn)
         if "key" in conn._info:
             for value in conn.put_values:
-                _, host, port, key = value
+                _, _, _, key = value
                 rpc_key = key.split(":")[0]
                 self._scheduler_map[rpc_key].remove(value)
 
