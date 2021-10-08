@@ -26,6 +26,7 @@
 #include <tvm/auto_scheduler/feature.h>
 #include <tvm/auto_scheduler/measure.h>
 #include <tvm/auto_scheduler/measure_record.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/te/operation.h>
@@ -41,15 +42,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../driver/utils.h"
 #include "search_policy/utils.h"
 #include "utils.h"
-
-namespace tvm {
-// import the function from driver_api.cc
-void GetBinds(const Array<te::Tensor>& args, bool compact,
-              const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-              Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list);
-}  // namespace tvm
 
 namespace tvm {
 namespace auto_scheduler {
@@ -1269,22 +1264,14 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
 
   std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
   sch = sch.normalize_for_feature_extraction();
-  auto bounds = te::InferBound(sch);
 
   try {
-    auto stmt = te::ScheduleOps(sch, bounds, false);
-    Map<te::Tensor, te::Buffer> out_binds;
-    Array<ObjectRef> out_arg_list;
-    bool compact = te::VerifyCompactBuffer(stmt);
     const std::string& name = "main";
     GlobalVar global_var(name);
 
-    // Copied from driver_api.cc::lower
     auto pass_ctx = tvm::transform::PassContext::Current();
-    GetBinds(tensors, compact, std::unordered_map<te::Tensor, te::Buffer>(), &out_binds,
-             &out_arg_list);
-    tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
-    f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
+    tir::PrimFunc f = ScheduleToPrimFunc(sch, Array<ObjectRef>{tensors.begin(), tensors.end()},
+                                         name, std::unordered_map<te::Tensor, te::Buffer>());
 
     bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
     bool disable_vectorize =

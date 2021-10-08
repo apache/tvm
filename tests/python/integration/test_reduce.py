@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import numpy as np
 
 import tvm
 from tvm import te, topi
-import numpy as np
+from tvm.driver.build_module import schedule_to_primfunc
 import tvm.testing
 import tvm.topi.testing
 
@@ -532,9 +533,7 @@ def test_reduce_storage_reuse():
     target = tvm.target.Target("cuda")
 
     def run_passes(sch, args):
-        bounds = tvm.te.schedule.InferBound(sch)
-        stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
-        func = tvm.te.schedule.SchedulePostProcToPrimFunc(args, stmt, None)
+        func = schedule_to_primfunc(sch, args)
         mod = tvm.IRModule.from_expr(func)
         mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
         return tvm.transform.Sequential(

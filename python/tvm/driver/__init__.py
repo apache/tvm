@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 """Namespace for driver APIs"""
-from .build_module import lower, build
+from .build_module import lower, build, schedule_to_primfunc

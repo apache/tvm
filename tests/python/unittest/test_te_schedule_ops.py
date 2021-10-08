@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
 from tvm import te
-import numpy as np
+from tvm.driver.build_module import schedule_to_primfunc
 
 
 def test_schedule0():
@@ -26,10 +28,7 @@ def test_schedule0():
     A1 = te.compute((m, l), lambda i, j: A[i, j], name="A1")
     s = te.create_schedule(A1.op)
 
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A1], stmt, None)
+    func = schedule_to_primfunc(s, [A, A1])
     assert isinstance(func, tvm.tir.PrimFunc)
 
 
@@ -42,11 +41,8 @@ def test_schedule1():
     s = te.create_schedule(A1.op)
     xo, xi = s[A1].split(A1.op.axis[0], 8)
     s[A1].pragma(xo, "auto_unroll_max_step", 10)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A1], stmt, None)
+    func = schedule_to_primfunc(s, [A, A1])
     assert isinstance(func, tvm.tir.PrimFunc)
 
 
@@ -60,10 +56,8 @@ def test_schedule2():
     s = te.create_schedule(A2.op)
     xo, xi = s[A2].split(A2.op.axis[0], 8)
     s[A1].compute_at(s[A2], xo)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
+
+    func = schedule_to_primfunc(s, [A, A2])
     assert isinstance(func, tvm.tir.PrimFunc)
 
 

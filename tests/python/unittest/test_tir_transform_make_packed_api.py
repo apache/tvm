@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy
+
 import tvm
 from tvm import te
-import numpy
+from tvm.driver.build_module import schedule_to_primfunc
 
 
 def test_makeapi():
@@ -27,9 +29,7 @@ def test_makeapi():
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     s = te.create_schedule(C.op)
 
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([n, A, B, C], stmt, None)
+    func = schedule_to_primfunc(s, [n, A, B, C])
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     mod = tvm.tir.transform.Apply(

@@ -34,6 +34,8 @@
 #include <mutex>
 #include <stack>
 
+#include "utils.h"
+
 namespace tvm {
 
 // Register build pipeline related options
@@ -44,6 +46,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 
 using runtime::PackedFunc;
 using runtime::TVMArgs;
@@ -287,31 +290,18 @@ IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
   return mod;
 }
 
+// Convert te schedule to IRModule
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                           const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  // Convert te schedule to IRModule
-  Array<ObjectRef> out_arg_list;
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-
   sch = sch.normalize();
 
-  // Before TIR transformation.
-  Map<tir::IterVar, Range> bounds = te::InferBound(sch);
-  tir::Stmt stmt = te::ScheduleOps(sch, std::move(bounds), false);
-  bool compact = te::VerifyCompactBuffer(stmt);
-
-  Map<te::Tensor, tir::Buffer> out_binds;
-  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
-
-  // Build the function
-  // At this point binds is only te::Tensors
-  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
-  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
+  tir::PrimFunc f = ScheduleToPrimFunc(sch, args, name, binds);
 
   // Mark this schedule as being converted from an TE schedule. Makes sure that
   // the correct TE passes are run.
   f = WithAttr(std::move(f), "from_legacy_te_schedule", Bool(true));
 
+  transform::PassContext pass_ctx = transform::PassContext::Current();
   bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
 
   if (noalias) {
@@ -325,13 +315,49 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
                        const Map<te::Tensor, tir::Buffer>& binds) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
-      if (binds.get() != nullptr) {
+      if (binds.defined()) {
         for (auto kv : binds) {
           c_binds.insert({kv.first, kv.second});
         }
       }
       IRModule mod = ScheduleToModule(std::move(sch), args, name, c_binds);
       return mod;
+    });
+
+tir::PrimFunc ScheduleToPrimFunc(te::Schedule sch, const Array<ObjectRef>& args,
+                                 const std::string& name,
+                                 const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  bool debug_keep_trivial_loop =
+      pass_ctx->GetConfig<Bool>("tir.debug_keep_trivial_loop", Bool(false)).value();
+
+  // Before TIR transformation.
+  tir::Stmt stmt = te::ScheduleOps(sch, te::InferBound(sch), debug_keep_trivial_loop);
+  bool compact = te::VerifyCompactBuffer(stmt);
+
+  Map<te::Tensor, tir::Buffer> out_binds;
+  Array<ObjectRef> out_arg_list;
+  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
+
+  // Build the function, converting from te::Tensor to tir::Buffer
+  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
+  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
+
+  return f;
+}
+
+TVM_REGISTER_GLOBAL("driver.schedule_to_primfunc")
+    .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
+                       const Map<te::Tensor, tir::Buffer>& binds) {
+      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
+      // Check to make sure binds is not null before doing the conversion;
+      if (binds.defined()) {
+        for (auto kv : binds) {
+          c_binds.insert({kv.first, kv.second});
+        }
+      }
+      tir::PrimFunc func = ScheduleToPrimFunc(std::move(sch), args, name, c_binds);
+      return func;
     });
 
 IRModule LowerModule(IRModule mod, bool simple_mode) {

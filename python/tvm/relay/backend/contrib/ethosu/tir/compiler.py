@@ -19,7 +19,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprMutator
-from tvm.driver.build_module import get_binds
+from tvm.driver.build_module import schedule_to_primfunc
 
 from .passes import ReplaceOperators, RemoveZeroStores, EncodeConstants
 from .scheduler import schedule
@@ -64,22 +64,18 @@ def lower_ethosu(sch, args, const_dict, name="main"):
             "no_unroll_loop_with_extent_one": True,
         },
         "tir.UnrollLoop": {"auto_max_depth": -1},
+        "tir.debug_keep_trivial_loop": True,
     }
     # Merge two configs
     curr_cfg = {**curr_cfg, **tir_compiler_cfg}
 
     sch = sch.normalize()
-    bounds = tvm.te.schedule.InferBound(sch)
-    stmt = tvm.te.schedule.ScheduleOps(sch, bounds, True)
 
-    compact = tvm.te.schedule.VerifyCompactBuffer(stmt)
-    binds, arg_list = get_binds(args, compact, None)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
-
-    func = func.with_attr("global_symbol", name)
-    func = func.with_attr("tir.noalias", True)
-    mod = tvm.IRModule({name: func})
     with tvm.transform.PassContext(config=curr_cfg):
+        func = schedule_to_primfunc(sch, args, name)
+        func = func.with_attr("tir.noalias", True)
+        mod = tvm.IRModule({name: func})
+
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
         mod = tvm.tir.transform.UnrollLoop()(mod)

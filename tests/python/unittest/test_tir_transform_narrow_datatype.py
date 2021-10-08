@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
-from tvm import relay
+from tvm import te, relay
+from tvm.driver.build_module import schedule_to_primfunc
 from tvm.tir import const
 
 
@@ -39,10 +39,8 @@ def lower_sch(sch, args, target_bits):
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
     sch = sch.normalize()
-    bounds = te.schedule.InferBound(sch)
-    stmt = te.schedule.ScheduleOps(sch, bounds)
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc(args, stmt, None)
+    func = schedule_to_primfunc(sch, args)
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     return tvm.tir.transform.NarrowDataType(target_bits)(mod)["main"].body

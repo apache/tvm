@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.driver.build_module import schedule_to_primfunc
 
 
 def test_copy2d():
@@ -53,10 +54,7 @@ def test_copy_pad():
     )
     s = te.create_schedule(B.op)
     s[B].pragma(B.op.axis[0], "memcpy")
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
+    func = schedule_to_primfunc(s, [A, B])
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
@@ -77,10 +75,7 @@ def test_single_point_test():
     B = te.compute((1,), lambda i: A[i], name="B")
     s = te.create_schedule(B.op)
     s[B].pragma(B.op.axis[0], "memcpy")
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
+    func = schedule_to_primfunc(s, [A, B])
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
@@ -105,10 +100,8 @@ def test_copy_pad_split():
     xo, xi = s[B].split(B.op.axis[0], factor=4)
     s[Apad].compute_at(s[B], xo)
     s[Apad].pragma(s[Apad].op.axis[0], "memcpy")
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
+    func = schedule_to_primfunc(s, [A, B])
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod._move())
     mod = tvm.tir.transform.Simplify()(mod._move())
