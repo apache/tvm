@@ -269,7 +269,7 @@ class QnnDepthwiseConv2DParams(QnnConv2DParams):
     # The hardware only supports padding upto the numbers as follows
     padding_bounds = [31, 31, 32, 32]
 
-    def __init__(self, func_body):
+    def __init__(self, func_body: tvm.relay.expr.Call):
         QnnConv2DParams.__init__(self, func_body)
 
     def is_valid(self):

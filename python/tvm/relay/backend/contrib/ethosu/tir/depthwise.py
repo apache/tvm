@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Extract information from the depthwise convolution operators in TIR."""
+from typing import Dict, Tuple
 import tvm
 from ..vela_api import SCALE_BIAS_LENGTH
-from typing import Dict
 from .utils import get_outer_loops, get_op_attrs, get_base_address, get_loads, get_stores
 from .dma import get_ifm_params, get_ofm_params
 from .spec import (
@@ -33,7 +33,7 @@ def get_depthwise_conv2d_params(
     stmt: tvm.tir.AttrStmt,
     producers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
     consumers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
-):
+) -> Tuple[Serial2DDepthwise, tvm.tir.Var, tvm.tir.Var]:
     """Get the parameters necessary to construct a call_extern for a depthwise_conv2d.
 
     Parameters
