@@ -39,7 +39,6 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     decl_stream << "#include <stdio.h>\n";
     decl_stream << "#include <stdlib.h>\n";
     decl_stream << "#include <dlpack/dlpack.h>\n";
-    decl_stream << "#include <tvm/runtime/crt/module.h>\n";
     decl_stream << "#include <arm_nnfunctions.h>\n";
     decl_stream << "#include <arm_nn_types.h>\n";
     CodeGenCHost::Init(output_ssa, emit_asserts, target_str);

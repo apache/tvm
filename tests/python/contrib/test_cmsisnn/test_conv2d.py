@@ -67,7 +67,7 @@ def make_model(
     w_index = weight_format.index("W")
     kernel_h = kernel_shape[h_index]
     kernel_w = kernel_shape[w_index]
-    a = relay.var("input", shape=shape, dtype=dtype)
+    invar = relay.var("input", shape=shape, dtype=dtype)
     p = (0, 0, 0, 0)
     if padding == "SAME":
         p = get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
@@ -91,7 +91,7 @@ def make_model(
     )
     weight_const = relay.const(w, kernel_dtype)
     conv = relay.qnn.op.conv2d(
-        a,
+        invar,
         weight_const,
         input_zero_point=relay.const(input_zero_point, "int32"),
         kernel_zero_point=relay.const(kernel_zero_point, "int32"),
@@ -107,6 +107,7 @@ def make_model(
         padding=p,
         out_dtype="int32",
     )
+<<<<<<< HEAD
     b = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
     bias_const = relay.const(b, "int32")
     last_op = relay.nn.bias_add(conv, bias_const, axis=3) if enable_bias else conv
