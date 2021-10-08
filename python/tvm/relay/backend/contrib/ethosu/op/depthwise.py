@@ -24,12 +24,12 @@ from tvm.topi.generic import schedule_injective
 from tvm.relay.op.op import OpStrategy
 from tvm.relay.op import strategy as _strategy
 
-from ..te import depthwise2d_compute
+from ..te import depthwise_conv2d_compute
 
 
-def _extract_ethosu_depthwise2d_params(attrs, args):
-    """Get the parameters necessary to construct a ethosu_depthwise2d compute TE
-    from a ethosu_depthwise2d Relay call."""
+def _extract_ethosu_depthwise_conv2d_params(attrs, args):
+    """Get the parameters necessary to construct a ethosu_depthwise_conv2d compute TE
+    from a ethosu_depthwise_conv2d Relay call."""
     ifm = args[0]
     weight = args[1]
     scale_bias = args[2]
@@ -71,26 +71,26 @@ def _extract_ethosu_depthwise2d_params(attrs, args):
     )
 
 
-@tvm.ir.register_op_attr("contrib.ethosu.depthwise2d", "FTVMCompute")
-def create_ethosu_depthwise2d_compute(attrs, args, out_type):
-    """Create an ethosu_depthwise2d compute op."""
-    params = _extract_ethosu_depthwise2d_params(attrs, args)
-    op = depthwise2d_compute(*params)
+@tvm.ir.register_op_attr("contrib.ethosu.depthwise_conv2d", "FTVMCompute")
+def create_ethosu_depthwise_conv2d_compute(attrs, args, out_type):
+    """Create an ethosu_depthwise_conv2d compute op."""
+    params = _extract_ethosu_depthwise_conv2d_params(attrs, args)
+    op = depthwise_conv2d_compute(*params)
     return [op]
 
 
-@tvm.ir.register_op_attr("contrib.ethosu.depthwise2d", "FTVMStrategy")
-def depthwise2d_strategy_ethosu(attrs, inputs, out_type, target):
+@tvm.ir.register_op_attr("contrib.ethosu.depthwise_conv2d", "FTVMStrategy")
+def depthwise_conv2d_strategy_ethosu(attrs, inputs, out_type, target):
     strategy = OpStrategy()
     strategy.add_implementation(
-        create_ethosu_depthwise2d_compute,
+        create_ethosu_depthwise_conv2d_compute,
         _strategy.wrap_topi_schedule(schedule_injective),
-        name="ethosu_depthwise2d",
+        name="ethosu_depthwise_conv2d",
     )
     return strategy
 
 
-def ethosu_depthwise2d(
+def ethosu_depthwise_conv2d(
     ifm: tvm.relay.Expr,
     weight: tvm.relay.Expr,
     scale_bias: tvm.relay.Expr,
@@ -178,10 +178,10 @@ def ethosu_depthwise2d(
     Returns
     -------
     out : tvm.relay.Call
-        A call to the ethosu_depthwise2d op.
+        A call to the ethosu_depthwise_conv2d op.
 
     """
-    return _make.ethosu_depthwise2d(
+    return _make.ethosu_depthwise_conv2d(
         ifm,
         weight,
         scale_bias,

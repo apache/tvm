@@ -18,6 +18,7 @@
 """Extract information from the depthwise convolution operators in TIR."""
 import tvm
 from ..vela_api import SCALE_BIAS_LENGTH
+from typing import Dict
 from .utils import get_outer_loops, get_op_attrs, get_base_address, get_loads, get_stores
 from .dma import get_ifm_params, get_ofm_params
 from .spec import (
@@ -28,17 +29,21 @@ from .spec import (
 )
 
 
-def get_depthwise2d_params(stmt, producers, consumers):
-    """Get the parameters necessary to construct a call_extern for a depthwise2d.
+def get_depthwise_conv2d_params(
+    stmt: tvm.tir.AttrStmt,
+    producers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
+    consumers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
+):
+    """Get the parameters necessary to construct a call_extern for a depthwise_conv2d.
 
     Parameters
     ----------
     stmt : tvm.tir.AttrStmt
         The outermost attribute statement of a depthwise loop nest.
-    producers : dict of tvm.tir.Var to tvm.tir.AttrStmt
+    producers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
         A dictionary to associate pointers with the loop nest
         that produces their values.
-    consumers : dict of tvm.tir.Var to tvm.tir.AttrStmt
+    consumers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
         A dictionary to associate pointers with the loop nest
         that consumes their values.
 

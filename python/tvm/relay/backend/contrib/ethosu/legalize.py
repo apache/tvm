@@ -208,19 +208,21 @@ class LegalizeEthosUConv2D:
         pass
 
 
-class EthosuDepthwise2DRewriter(DFPatternCallback):
-    """Convert ethosu.qnn_depthwise2d composite functions to ethosu_depthwise2d operators"""
+class EthosuDepthwiseConv2DRewriter(DFPatternCallback):
+    """Convert ethosu.qnn_depthwise_conv2d composite functions to ethosu_depthwise_conv2d operators"""
 
     def __init__(self):
         super().__init__(require_type=True)
         self.pattern = (
-            wildcard().has_attr({"Composite": ethosu_patterns.QnnDepthwise2DParams.composite_name})
+            wildcard().has_attr(
+                {"Composite": ethosu_patterns.QnnDepthwiseConv2DParams.composite_name}
+            )
         )(wildcard())
 
     def callback(
         self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
     ) -> tvm.relay.Expr:
-        params = ethosu_patterns.QnnDepthwise2DParams(post.op.body)
+        params = ethosu_patterns.QnnDepthwiseConv2DParams(post.op.body)
         params.ifm.tensor = post.args[0]
         channels_map = {
             "NHWC": 3,
@@ -242,7 +244,7 @@ class EthosuDepthwise2DRewriter(DFPatternCallback):
         clip_min = 0
         clip_max = 0
         if params.activation:
-            activation = ethosu_patterns.QnnDepthwise2DParams.activation_map[
+            activation = ethosu_patterns.QnnDepthwiseConv2DParams.activation_map[
                 params.activation.op.name
             ]
             if activation == "CLIP":
@@ -257,7 +259,7 @@ class EthosuDepthwise2DRewriter(DFPatternCallback):
             is_activation_tanh_or_sigmoid=activation in ["TANH", "SIGMOID"],
         )
 
-        ethosu_depthwise2d = ethosu_ops.ethosu_depthwise2d(
+        ethosu_depthwise_conv2d = ethosu_ops.ethosu_depthwise_conv2d(
             post.args[0],  # IFM
             relay.const(weights_values_ohwi, params.weights.values.dtype),
             relay.const(scale_bias, "uint8"),
@@ -279,18 +281,18 @@ class EthosuDepthwise2DRewriter(DFPatternCallback):
             ifm_layout=str(params.ifm.layout),
             ofm_layout=str(params.ofm.layout),
         )
-        return ethosu_depthwise2d
+        return ethosu_depthwise_conv2d
 
 
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosUDepthwiseConv2D:
-    """This is the pass that wraps the EthosUDepthwise2DRewriter"""
+    """This is the pass that wraps the EthosUDepthwiseConv2DRewriter"""
 
     def transform_module(
         self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
-            func = rewrite(EthosuDepthwise2DRewriter(), func)
+            func = rewrite(EthosuDepthwiseConv2DRewriter(), func)
             mod.update_func(global_var, func)
         return mod
 

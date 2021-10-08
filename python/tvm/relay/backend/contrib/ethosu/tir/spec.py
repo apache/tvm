@@ -203,7 +203,7 @@ class Serial2DConvolution(SerializableFormat):
 
 class Serial2DDepthwise(SerializableFormat):
     """Specialization class to retrieve arguments of
-    a ethosu.depthwise2d TIR extern call on a predefined ordering"""
+    a ethosu.depthwise_conv2d TIR extern call on a predefined ordering"""
 
     def __init__(
         self,

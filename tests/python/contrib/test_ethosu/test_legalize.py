@@ -21,6 +21,7 @@ import pytest
 pytest.importorskip("ethosu.vela")
 import numpy as np
 import tensorflow as tf
+import tflite.Model
 
 import tvm
 from tvm import relay
@@ -34,6 +35,9 @@ from . import infra
 
 
 def partition_ethosu_by_table(mod, pattern_table):
+    """In case only the legalization part is supported for an operator, we don't
+    want to add the operator's pattern to the pattern table so that the compiler
+    wouldn't attempt to offload an operator without full stack support."""
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.MergeComposite(pattern_table)(mod)
     mod = relay.transform.AnnotateTarget("ethosu")(mod)
@@ -353,7 +357,7 @@ def test_ethosu_conv2d_legalize_errors():
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("activation", ["RELU", None])
-def test_tflite_depthwise2d_legalize(
+def test_tflite_depthwise_conv_2d_legalize(
     ifm_shape, kernel_shape, padding, strides, dilation, activation
 ):
     dtype = "int8"
@@ -361,7 +365,7 @@ def test_tflite_depthwise2d_legalize(
     def create_tflite_graph():
         class Model(tf.Module):
             @tf.function
-            def depthwise2d(self, x):
+            def depthwise_conv2d(self, x):
                 weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
                 weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
                 # The input strides to the TensorFlow API needs to be of shape 1x4
@@ -374,7 +378,7 @@ def test_tflite_depthwise2d_legalize(
                 return op
 
         model = Model()
-        concrete_func = model.depthwise2d.get_concrete_function(
+        concrete_func = model.depthwise_conv2d.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
 
@@ -435,21 +439,26 @@ def test_tflite_depthwise2d_legalize(
 
     depthwise_pattern_table = [
         (
-            "ethosu.depthwise2d",
-            ethosu.qnn_depthwise2d_pattern(),
-            lambda pat: ethosu.QnnDepthwise2DParams(pat).is_valid(),
+            ethosu.QnnDepthwiseConv2DParams.composite_name,
+            ethosu.qnn_depthwise_conv2d_pattern(),
+            lambda pat: ethosu.QnnDepthwiseConv2DParams(pat).is_valid(),
         )
     ]
 
-    tflite_model = create_tflite_graph()
-    tflite_mod = infra.parse_tflite_model(tflite_model)
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
-    mod, params = infra.parse_relay_tflite_model(tflite_mod, "input", ifm_shape, dtype)
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
     mod["main"] = bind_params_by_name(mod["main"], params)
     mod = partition_ethosu_by_table(mod, depthwise_pattern_table)
 
     mod["tvmgen_default_ethosu_main_0"] = dataflow_pattern.rewrite(
-        legalize.EthosuDepthwise2DRewriter(), mod["tvmgen_default_ethosu_main_0"]
+        legalize.EthosuDepthwiseConv2DRewriter(), mod["tvmgen_default_ethosu_main_0"]
     )
     verify(mod["tvmgen_default_ethosu_main_0"])
 

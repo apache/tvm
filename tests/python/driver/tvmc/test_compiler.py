@@ -471,7 +471,7 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
                 for name in mlf_package.getnames()
                 if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
             ]
-            assert len(c_source_files) == 17
+            assert len(c_source_files) == 4
 
 
 @mock.patch("tvm.relay.build")

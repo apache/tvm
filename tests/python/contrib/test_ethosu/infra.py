@@ -68,26 +68,6 @@ class VelaArtifacts:
         self.npu_ops = set()
 
 
-def parse_relay_tflite_model(tflite_model, input_tensor, input_shape, input_dtype):
-    mod_, params_ = relay.frontend.from_tflite(
-        tflite_model,
-        shape_dict={input_tensor: input_shape},
-        dtype_dict={input_tensor: input_dtype},
-    )
-    return mod_, params_
-
-
-def parse_tflite_model(model_file):
-    try:
-        import tflite
-
-        return tflite.Model.GetRootAsModel(model_file, 0)
-    except AttributeError:
-        import tflite.Model
-
-        return tflite.Model.Model.GetRootAsModel(model_file, 0)
-
-
 def print_payload(payload):
     cmds = deserialize_command_stream(payload)
     for cmd_val in cmds:
@@ -332,7 +312,7 @@ def generate_weights_data(shape, dtype):
 
 
 def get_convolutional_args(call, include_buffers=False, remove_constants=False):
-    """A method to extract the arguments from conv2d or depthwise2d extern call."""
+    """A method to extract the arguments from conv2d or depthwise_conv2d extern call."""
     args = call.args
     conv_args = []
     remove_indices = [0]
@@ -437,7 +417,7 @@ def make_ethosu_conv2d(
     return conv
 
 
-def make_ethosu_depthwise2d(
+def make_ethosu_depthwise_conv2d(
     ifm,
     channels,
     kernel_shape,
@@ -457,7 +437,7 @@ def make_ethosu_depthwise2d(
     scale_bias = relay.const(scale_bias_data, dtype="uint8")
     weight_data = generate_weights_data(weight_shape, weight_dtype)
     weight = relay.const(weight_data, dtype=weight_dtype)
-    depthwise = ethosu_ops.ethosu_depthwise2d(
+    depthwise = ethosu_ops.ethosu_depthwise_conv2d(
         ifm,
         weight,
         scale_bias,

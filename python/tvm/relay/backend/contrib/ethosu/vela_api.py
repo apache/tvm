@@ -132,7 +132,7 @@ def encode_weights(tir_extern_call, values, accel_type):
     """
     supported_ops = {
         "ethosu_conv2d": tirtocs.translate_ethosu_conv2d,
-        "ethosu_depthwise2d": tirtocs.translate_ethosu_depthwise2d,
+        "ethosu_depthwise_conv2d": tirtocs.translate_ethosu_depthwise_conv2d,
     }
     op = str(tir_extern_call.args[0].value)
     assert op in supported_ops.keys()
@@ -140,7 +140,7 @@ def encode_weights(tir_extern_call, values, accel_type):
     block_config = get_optimal_block_config(npu_op, accel_type)
     # The weight layout is assumed to be flat OHWI, always.
     assert len(values.shape) == 1
-    is_depthwise = op == "ethosu_depthwise2d"
+    is_depthwise = op == "ethosu_depthwise_conv2d"
     shape_ohwi = (
         npu_op.ofm.shape.depth,
         npu_op.kernel.height,

@@ -19,6 +19,7 @@ import pytest
 
 pytest.importorskip("ethosu.vela")
 import numpy as np
+import tflite.Model
 
 import tvm
 import tensorflow as tf
@@ -173,7 +174,7 @@ def test_ethosu_conv2d(accel_type):
 )
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 2)), ((3, 2), (1, 1))])
-def test_tflite_depthwise2d(
+def test_tflite_depthwise_conv2d(
     accel_type,
     ifm_shape,
     kernel_shape,
@@ -189,7 +190,7 @@ def test_tflite_depthwise2d(
 
         class Model(tf.Module):
             @tf.function
-            def depthwise2d(self, x):
+            def depthwise_conv2d(self, x):
                 weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
                 weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
                 # The input strides to the TensorFlow API needs to be of shape 1x4
@@ -202,7 +203,7 @@ def test_tflite_depthwise2d(
                 return op
 
         model = Model()
-        concrete_func = model.depthwise2d.get_concrete_function(
+        concrete_func = model.depthwise_conv2d.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
 
@@ -221,14 +222,18 @@ def test_tflite_depthwise2d(
         tflite_model = converter.convert()
         return tflite_model
 
-    tflite_model = create_tflite_graph()
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
-    tflite_mod = infra.parse_tflite_model(tflite_model)
-    relay_module, params = infra.parse_relay_tflite_model(tflite_mod, "input", ifm_shape, dtype)
+    relay_module, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
     mod = partition_for_ethosu(relay_module, params)
 
     # Generate reference data
-    input_data, output_data = infra.generate_ref_data_tflite(tflite_model)
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
 
     compiled_models = infra.build_source(
         mod,

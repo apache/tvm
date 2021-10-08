@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
 import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
-from .infra import make_ethosu_depthwise2d, get_convolutional_args
-
-import pytest
+from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
 
 
 @pytest.mark.parametrize(
@@ -50,7 +52,7 @@ import pytest
         ],
     ],
 )
-def test_depthwise2d_single(trial):
+def test_depthwise_conv2d_single(trial):
     def _get_func(
         ifm_shape,
         channels,
@@ -63,7 +65,7 @@ def test_depthwise2d_single(trial):
         ofm_layout,
     ):
         ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
-        depthwise = make_ethosu_depthwise2d(
+        depthwise = make_ethosu_depthwise_conv2d(
             ifm,
             channels,
             kernel_shape,

@@ -22,7 +22,7 @@ from tvm import te
 from .dma import dma_ofm_compute, dma_ifm_compute
 
 
-def depthwise2d_compute(
+def depthwise_conv2d_compute(
     ifm: te.Tensor,
     weight: te.Tensor,
     scale_bias: te.Tensor,
@@ -97,7 +97,7 @@ def depthwise2d_compute(
         The OFM tensor.
 
     """
-    assert ifm.shape[0] == 1
+    assert ifm.shape[0] == 1, f"Only batch size 1 is supported"
     assert ifm_layout in {"NHWC", "NHCWB16"}
     assert ofm_layout in {"NHWC", "NHCWB16"}
 
@@ -116,8 +116,8 @@ def depthwise2d_compute(
     rh = te.reduce_axis((0, kernel_h), name="ry")
     rw = te.reduce_axis((0, kernel_w), name="rx")
 
-    depthwise2d_attrs = {
-        "op": "ethosu_depthwise2d",
+    depthwise_conv2d_attrs = {
+        "op": "ethosu_depthwise_conv2d",
         "weight_zero_point": weight_zero_point,
         "activation": activation,
         "upscale": upscale,
@@ -140,8 +140,8 @@ def depthwise2d_compute(
             + (scale_bias[cc, 0] * scale_bias[cc, 9]).astype(ifm.dtype),
             axis=[rh, rw],
         ),
-        name="ethosu_depthwise2d",
-        attrs=depthwise2d_attrs,
+        name="ethosu_depthwise_conv2d",
+        attrs=depthwise_conv2d_attrs,
     )
 
     # Compute operation for the OFM DMA pipeline

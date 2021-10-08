@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from .infra import make_ethosu_conv2d
-from .infra import make_ethosu_depthwise2d
-
-import pytest
+from .infra import make_ethosu_depthwise_conv2d
 
 
 @pytest.mark.parametrize(
@@ -63,7 +65,7 @@ def test_ethosu_conv2d_type_inference(
 @pytest.mark.parametrize(
     "ofm_shape, ofm_layout", [((1, 44, 37, 55), "NHWC"), ((1, 44, 4, 37, 16), "NHCWB16")]
 )
-def test_ethosu_depthwise2d_type_inference(
+def test_ethosu_depthwise_conv2d_type_inference(
     ifm_shape,
     ifm_layout,
     ofm_shape,
@@ -75,7 +77,7 @@ def test_ethosu_depthwise2d_type_inference(
     strides = (1, 2)
     dilation = (2, 1)
     ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
-    depthwise2d = make_ethosu_depthwise2d(
+    depthwise_conv2d = make_ethosu_depthwise_conv2d(
         ifm,
         channels,
         kernel_shape,
@@ -85,7 +87,7 @@ def test_ethosu_depthwise2d_type_inference(
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
     )
-    f = relay.Function([ifm], depthwise2d)
+    f = relay.Function([ifm], depthwise_conv2d)
     f = run_opt_pass(f, relay.transform.InferType())
     assert tuple(f.body.checked_type.shape) == ofm_shape
 

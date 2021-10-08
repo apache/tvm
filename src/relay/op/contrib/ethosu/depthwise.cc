@@ -38,7 +38,7 @@ namespace contrib {
 namespace ethosu {
 
 /*! \brief Attributes used by the Ethos(TM)-U NPU depthwise operator */
-struct EthosuDepthwise2DAttrs : public tvm::AttrsNode<EthosuDepthwise2DAttrs> {
+struct EthosuDepthwiseConv2DAttrs : public tvm::AttrsNode<EthosuDepthwiseConv2DAttrs> {
   double ifm_scale;
   int ifm_zero_point;
   int weight_zero_point;
@@ -56,7 +56,7 @@ struct EthosuDepthwise2DAttrs : public tvm::AttrsNode<EthosuDepthwise2DAttrs> {
   String ifm_layout;
   String ofm_layout;
 
-  TVM_DECLARE_ATTRS(EthosuDepthwise2DAttrs, "relay.attrs.EthosuDepthwise2DAttrs") {
+  TVM_DECLARE_ATTRS(EthosuDepthwiseConv2DAttrs, "relay.attrs.EthosuDepthwiseConv2DAttrs") {
     TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
     TVM_ATTR_FIELD(ifm_zero_point)
         .describe("The quantization zero point for the Output Feature Map tensor.");
@@ -111,25 +111,27 @@ struct EthosuDepthwise2DAttrs : public tvm::AttrsNode<EthosuDepthwise2DAttrs> {
   }
 };
 
-TVM_REGISTER_NODE_TYPE(EthosuDepthwise2DAttrs);
+TVM_REGISTER_NODE_TYPE(EthosuDepthwiseConv2DAttrs);
 
-bool EthosuDepthwise2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                          const TypeReporter& reporter) {
+bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                              const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 5);
   const auto* ifm = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   const auto* scale_bias = types[2].as<TensorTypeNode>();
   if (ifm == nullptr || weight == nullptr) return false;
 
-  const auto* param = attrs.as<EthosuDepthwise2DAttrs>();
-  ICHECK(param != nullptr) << "EthosuDepthwise2DAttrs cannot be nullptr.";
+  const auto* param = attrs.as<EthosuDepthwiseConv2DAttrs>();
+  ICHECK(param != nullptr) << "EthosuDepthwiseConv2DAttrs cannot be nullptr.";
   ICHECK(ifm->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_depthwise2d type(uint8) or type(int8) for ifm but was " << ifm->dtype;
+      << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for ifm but was "
+      << ifm->dtype;
   ICHECK(weight->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_depthwise2d type(uint8) or type(int8) for weight but was "
+      << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for weight but was "
       << weight->dtype;
   ICHECK(scale_bias->dtype == DataType::UInt(8))
-      << "Expected ethosu_depthwise2d type(uint8) for scale_bias but was " << scale_bias->dtype;
+      << "Expected ethosu_depthwise_conv2d type(uint8) for scale_bias but was "
+      << scale_bias->dtype;
 
   // Collect the ifm, weight and ofm tensors for using in the inference function
   Array<Type> tensor_types = {types[0], types[1], types[4]};
@@ -149,14 +151,14 @@ bool EthosuDepthwise2DRel(const Array<Type>& types, int num_inputs, const Attrs&
   return true;
 }
 
-Expr MakeEthosuDepthwise2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut, double ifm_scale,
-                           int ifm_zero_point, int weight_zero_point, double ofm_scale,
-                           int ofm_zero_point, Array<IndexExpr> kernel_shape,
-                           IndexExpr ofm_channels, Array<IndexExpr> strides,
-                           Array<IndexExpr> padding, Array<IndexExpr> dilation, String activation,
-                           int clip_min, int clip_max, String upscale, String ifm_layout,
-                           String ofm_layout) {
-  auto attrs = make_object<EthosuDepthwise2DAttrs>();
+Expr MakeEthosuDepthwiseConv2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut, double ifm_scale,
+                               int ifm_zero_point, int weight_zero_point, double ofm_scale,
+                               int ofm_zero_point, Array<IndexExpr> kernel_shape,
+                               IndexExpr ofm_channels, Array<IndexExpr> strides,
+                               Array<IndexExpr> padding, Array<IndexExpr> dilation,
+                               String activation, int clip_min, int clip_max, String upscale,
+                               String ifm_layout, String ofm_layout) {
+  auto attrs = make_object<EthosuDepthwiseConv2DAttrs>();
   attrs->ifm_scale = ifm_scale;
   attrs->ifm_zero_point = ifm_zero_point;
   attrs->weight_zero_point = weight_zero_point;
@@ -173,13 +175,14 @@ Expr MakeEthosuDepthwise2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut, dou
   attrs->upscale = std::move(upscale);
   attrs->ifm_layout = std::move(ifm_layout);
   attrs->ofm_layout = std::move(ofm_layout);
-  static const Op& op = Op::Get("contrib.ethosu.depthwise2d");
+  static const Op& op = Op::Get("contrib.ethosu.depthwise_conv2d");
   return Call(op, {ifm, weight, scale_bias, lut}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.ethosu_depthwise2d").set_body_typed(MakeEthosuDepthwise2D);
+TVM_REGISTER_GLOBAL("relay.op._make.ethosu_depthwise_conv2d")
+    .set_body_typed(MakeEthosuDepthwiseConv2D);
 
-RELAY_REGISTER_OP("contrib.ethosu.depthwise2d")
+RELAY_REGISTER_OP("contrib.ethosu.depthwise_conv2d")
     .describe(R"code(Arm(R) Ethos(TM)-U NPU 2D quantized depthwise operator.
 
 This Relay operator corresponds to the hardware-implemented quantized
@@ -193,14 +196,14 @@ for the input data (input feature map, or IFM) and OHWI format for the kernel we
 - **ofm**: (1, ofm_height, ofm_width, ofm_channels)
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<EthosuDepthwise2DAttrs>()
+    .set_attrs_type<EthosuDepthwiseConv2DAttrs>()
     .set_num_inputs(4)
     .add_argument("ifm", "Tensor", "The Input Feature Map tensor (IFM).")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .add_argument("scale_bias", "Tensor", "The packed per-channel weight scale and bias tensor.")
     .add_argument("lut", "Tensor", "The look-up table values to use if activation = 'LUT'")
     .set_support_level(11)
-    .add_type_rel("EthosuDepthwise2D", EthosuDepthwise2DRel);
+    .add_type_rel("EthosuDepthwiseConv2D", EthosuDepthwiseConv2DRel);
 
 }  // namespace ethosu
 }  // namespace contrib

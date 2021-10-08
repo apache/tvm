@@ -498,44 +498,46 @@ def test_translate_ethosu_conv2d():
 
 
 # fmt: off
-"""A ethosu_depthwise2d tir testcase for the translator"""
+"""A ethosu_depthwise_conv2d tir testcase for the translator"""
 @tvm.script.ir_module
-class SingleEthosuDepthwise2D:
+class SingleEthosuDepthwiseConv2D:
     @T.prim_func
-    def main(placeholder: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, ethosu_depthwise2d: T.handle) -> None:
+    def main(placeholder: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, ethosu_depthwise_conv2d: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_4 = T.match_buffer(placeholder_1, [3, 3, 2, 1], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         placeholder_5 = T.match_buffer(placeholder_2, [3, 10], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         placeholder_3 = T.match_buffer(placeholder, [1, 8, 8, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
-        ethosu_depthwise2d_1 = T.match_buffer(ethosu_depthwise2d, [1, 6, 7, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
+        ethosu_depthwise_conv2d_1 = T.match_buffer(ethosu_depthwise_conv2d, [1, 6, 7, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
         # body
-        T.evaluate(T.call_extern("ethosu_depthwise2d", "int8", 8, 8, 3, 8, 0, 8, T.load("int8", placeholder_3.data, 0), 0, 0, 0, T.float32(0.6), 11, "NHWC", 24, 3, 1, "int8", 6, 7, 3, 6, 0, 7, T.load("int8", ethosu_depthwise2d_1.data, 0), 0, 0, 0, T.float32(0.26), 15, "NHWC", 21, 3, 1, 2, 3, 1, 1, 1, 1, T.load("int8", placeholder_4.data, 0), 18, 13, T.load("uint8", placeholder_5.data, 0), 30, 0, 0, 0, 0, "CLIP", 15, 105, "NONE", dtype="int8"))
+        T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 8, 8, 3, 8, 0, 8, T.load("int8", placeholder_3.data, 0), 0, 0, 0, T.float32(0.6), 11, "NHWC", 24, 3, 1, "int8", 6, 7, 3, 6, 0, 7, T.load("int8", ethosu_depthwise_conv2d_1.data, 0), 0, 0, 0, T.float32(0.26), 15, "NHWC", 21, 3, 1, 2, 3, 1, 1, 1, 1, T.load("int8", placeholder_4.data, 0), 18, 13, T.load("uint8", placeholder_5.data, 0), 30, 0, 0, 0, 0, "CLIP", 15, 105, "NONE", dtype="int8"))
     __tvm_meta__ = None
 # fmt: on
 
 
-def test_translate_ethosu_depthwise2d():
-    def extract_ethosu_depthwise2d_extern_call(mod):
+def test_translate_ethosu_depthwise_conv2d():
+    def extract_ethosu_depthwise_conv2d_extern_call(mod):
         # There should only be a single function
         assert len(mod.functions.items()) == 1
         primfunc = mod.functions.items()[0][1]
 
-        ethosu_depthwise2d_calls = list()
+        ethosu_depthwise_conv2d_calls = list()
 
-        def populate_ethosu_depthwise2d_calls(stmt):
+        def populate_ethosu_depthwise_conv2d_calls(stmt):
             if (
                 isinstance(stmt, tvm.tir.Call)
                 and stmt.op.name == "tir.call_extern"
-                and stmt.args[0] == "ethosu_depthwise2d"
+                and stmt.args[0] == "ethosu_depthwise_conv2d"
             ):
-                ethosu_depthwise2d_calls.append(stmt)
+                ethosu_depthwise_conv2d_calls.append(stmt)
 
-        stmt_functor.post_order_visit(primfunc.body, populate_ethosu_depthwise2d_calls)
-        return ethosu_depthwise2d_calls[0]
+        stmt_functor.post_order_visit(primfunc.body, populate_ethosu_depthwise_conv2d_calls)
+        return ethosu_depthwise_conv2d_calls[0]
 
-    depthwise2d_call = extract_ethosu_depthwise2d_extern_call(SingleEthosuDepthwise2D)
-    npu_op, w_zero_point = tir_to_cs_translator.translate_ethosu_depthwise2d(depthwise2d_call)
+    depthwise_conv2d_call = extract_ethosu_depthwise_conv2d_extern_call(SingleEthosuDepthwiseConv2D)
+    npu_op, w_zero_point = tir_to_cs_translator.translate_ethosu_depthwise_conv2d(
+        depthwise_conv2d_call
+    )
 
     assert npu_op.ifm.data_type == vapi.NpuDataType.INT8
     assert npu_op.ifm.shape == vapi.NpuShape3D(8, 8, 3)

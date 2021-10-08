@@ -17,4 +17,4 @@
 "Relay operators for the Arm(R) Ethos(TM)-U NPU"
 
 from .convolution import ethosu_conv2d
-from .depthwise import ethosu_depthwise2d
+from .depthwise import ethosu_depthwise_conv2d
