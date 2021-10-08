@@ -74,5 +74,31 @@ def test_forward_mobilenet_v1(accel_type, enable_usmp):
     infra.verify_source(compiled_models, accel_type)
 
 
+def test_forward_mobilenet_v2(accel_type="ethos-u55-256"):
+    """Test the Mobilenet V2 TF Lite model."""
+    np.random.seed(23)
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/"
+        "tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
+        "mobilenet_v2_1.0_224_quant.tflite",
+    )
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    input_tensor = "input"
+    input_dtype = "uint8"
+    input_shape = (1, 224, 224, 3)
+    in_min, in_max = util.get_range_for_dtype_str(input_dtype)
+    input_data = np.random.randint(in_min, high=in_max, size=input_shape, dtype=input_dtype)
+    relay_mod, params = convert_to_relay(tflite_model_buf)
+    input_data = {input_tensor: input_data}
+    output_data = generate_ref_data(relay_mod, input_data)
+
+    mod = partition_for_ethosu(relay_mod, params)
+    compiled_models = infra.build_source(
+        mod, input_data, output_data, accel_type, output_tolerance=10
+    )
+    infra.verify_source(compiled_models, accel_type)
+
+
 if __name__ == "__main__":
-    test_forward_mobilenet_v1()
+    test_forward_mobilenet_v1(ACCEL_TYPES[0])
