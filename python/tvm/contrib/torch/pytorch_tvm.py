@@ -94,7 +94,7 @@ def get_tuning_opt(log_file="tuning.log", n_trial=200):
     return tuning_opt
 
 
-tvm_assets = ["mod.so", "graph.json", "params"]
+TVM_ASSETS = ["mod.so", "graph.json", "params"]
 
 
 class PyTorchTVMModule:
@@ -157,19 +157,19 @@ class PyTorchTVMModule:
         if not os.path.isdir(export_dir):
             os.makedirs(export_dir)
         self.export_dir = export_dir
-        self.tvm_lib.export_library(os.path.join(export_dir, tvm_assets[0]))
-        with open(os.path.join(export_dir, tvm_assets[1]), "w", encoding="utf8") as fout:
+        self.tvm_lib.export_library(os.path.join(export_dir, TVM_ASSETS[0]))
+        with open(os.path.join(export_dir, TVM_ASSETS[1]), "w", encoding="utf8") as fout:
             fout.write(self.tvm_graph)
-        with open(os.path.join(export_dir, tvm_assets[2]), "wb") as fout:
+        with open(os.path.join(export_dir, TVM_ASSETS[2]), "wb") as fout:
             fout.write(relay.save_param_dict(self.tvm_params))
 
     def load_tvm(self, export_dir):
         """Load tvm module from export directory"""
         self.export_dir = export_dir
-        self.tvm_lib = load_module(os.path.join(export_dir, tvm_assets[0]))
-        with open(os.path.join(export_dir, tvm_assets[1]), "r", encoding="utf8") as f:
+        self.tvm_lib = load_module(os.path.join(export_dir, TVM_ASSETS[0]))
+        with open(os.path.join(export_dir, TVM_ASSETS[1]), "r", encoding="utf8") as f:
             self.tvm_graph = f.read()
-        with open(os.path.join(export_dir, tvm_assets[2]), "rb") as f:
+        with open(os.path.join(export_dir, TVM_ASSETS[2]), "rb") as f:
             self.tvm_params = relay.load_param_dict(f.read())
 
         self.tvm_module = graph_executor.create(self.tvm_graph, self.tvm_lib, device=self.dev)
@@ -181,7 +181,7 @@ class PyTorchTVMModule:
         input_infos = input_infos or self.input_infos
         assert input_infos
         assert len(input_infos) == num_inputs
-        assets = [os.path.join(self.export_dir, i) for i in tvm_assets]
+        assets = [os.path.join(self.export_dir, i) for i in TVM_ASSETS]
         input_shapes = [i[1] for i in input_infos]
         mod = GraphModule(num_inputs=num_inputs, num_outputs=num_outputs).to(self.target)
         mod.init(input_shapes, *assets)
