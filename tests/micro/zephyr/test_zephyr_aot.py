@@ -32,7 +32,7 @@ from tvm.micro.project_api import server
 import tvm.relay as relay
 
 from tvm.contrib.download import download_testdata
-from tvm.micro.interface_api import generate_c_interface_header
+from tvm.micro.model_library_format import generate_c_interface_header
 
 import test_utils
 

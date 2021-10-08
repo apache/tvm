@@ -34,7 +34,7 @@ import tvm.testing
 from tvm import relay
 
 from tvm.contrib.download import download_testdata
-from tvm.micro.interface_api import generate_c_interface_header
+from tvm.micro.model_library_format import generate_c_interface_header
 
 import conftest
 
