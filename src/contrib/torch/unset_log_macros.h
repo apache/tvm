@@ -22,8 +22,8 @@
  * \brief Undef some macros to resolve conflicts between dmlc logging and pytorch
  */
 
-#ifndef TVM_CONTRIB_PT_OP_UNSET_LOG_MACROS_H_
-#define TVM_CONTRIB_PT_OP_UNSET_LOG_MACROS_H_
+#ifndef TVM_CONTRIB_TORCH_UNSET_LOG_MACROS_H_
+#define TVM_CONTRIB_TORCH_UNSET_LOG_MACROS_H_
 #ifdef LOG
 #undef LOG
 #endif
@@ -89,4 +89,4 @@
 #undef DLOG_IF
 #endif
 
-#endif  // TVM_CONTRIB_PT_OP_UNSET_LOG_MACROS_H_
+#endif  // TVM_CONTRIB_TORCH_UNSET_LOG_MACROS_H_

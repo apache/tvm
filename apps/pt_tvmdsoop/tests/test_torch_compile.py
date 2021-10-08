@@ -16,11 +16,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test script for pt custom class module"""
+"""Test script for torch module"""
 import torch
 import time
 from torchvision.models import resnet50
-from tvm.contrib.pt_op import compile
+from tvm.contrib.torch import compile
 
 
 model = resnet50().half().cuda()
@@ -43,7 +43,7 @@ option = {
     "default_dtype": "float16",
     "export_dir": "pytorch_compiled",
     "num_outputs": 1,
-    "tuning_n_trials": 20,  # set zero to skip tuning
+    "tuning_n_trials": 0,  # set zero to skip tuning
     "tuning_log_file": "tuning.log",
 }
 

@@ -22,8 +22,8 @@
  * \brief Util functions for pytorch tvm interaction.
  */
 
-#ifndef TVM_CONTRIB_PT_OP_UTILS_H_
-#define TVM_CONTRIB_PT_OP_UTILS_H_
+#ifndef TVM_CONTRIB_TORCH_UTILS_H_
+#define TVM_CONTRIB_TORCH_UTILS_H_
 
 #include <torch/script.h>
 // clang-format off
@@ -32,7 +32,7 @@
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#ifdef PT_TVMCLASS_ENABLE_GPU
+#ifdef PT_TVMDSOOP_ENABLE_GPU
 #include <cuda_runtime.h>
 #endif
 
@@ -189,7 +189,7 @@ class TensorAsBuf {
     }
     if (device_type_ == kDLCPU) {
       memcpy(origin_buf_, buf_ + offset_, size_);
-#ifdef PT_TVMCLASS_ENABLE_GPU
+#ifdef PT_TVMDSOOP_ENABLE_GPU
     } else if (device_type_ == kDLCUDA) {
       cudaMemcpy(origin_buf_, buf_ + offset_, size_, cudaMemcpyDeviceToDevice);
 #endif
@@ -205,7 +205,7 @@ class TensorAsBuf {
     }
     if (device_type_ == kDLCPU) {
       memcpy(buf_ + offset_, origin_buf_, size_);
-#ifdef PT_TVMCLASS_ENABLE_GPU
+#ifdef PT_TVMDSOOP_ENABLE_GPU
     } else if (device_type_ == kDLCUDA) {
       cudaMemcpy(buf_ + offset_, origin_buf_, size_, cudaMemcpyDeviceToDevice);
 #endif
@@ -260,6 +260,5 @@ class TensorAsBuf {
 };
 }  // namespace pytorch
 }  // namespace contrib
-
 }  // namespace tvm
-#endif  // TVM_CONTRIB_PT_OP_UTILS_H_
+#endif  // TVM_CONTRIB_TORCH_UTILS_H_

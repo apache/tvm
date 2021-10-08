@@ -644,8 +644,8 @@ using SerializeTuple =
     std::tuple<int64_t, int64_t, std::string, c10::Dict<std::string, std::string>>;
 
 /***** registries *****/
-static auto __tvm_class_graph_runtime_registry =
-    torch::jit::class_<TvmGraphRuntimeClass>("tvm_class", "TvmGraphModule")
+static auto __tvm_dsoop_graph_runtime_registry =
+    torch::jit::class_<TvmGraphRuntimeClass>("tvm_dsoop", "TvmGraphModule")
         .def(torch::init<const int64_t, const int64_t, const std::string&>())
         .def("load_tvm_module", &TvmGraphRuntimeClass::LoadTvmModule)
         .def("forward", &TvmGraphRuntimeClass::forward)
@@ -664,8 +664,8 @@ static auto __tvm_class_graph_runtime_registry =
               return ptr;
             });
 
-static auto __tvm_class_vm_runtime_registry =
-    torch::jit::class_<TvmVMRuntimeClass>("tvm_class", "TvmVMModule")
+static auto __tvm_dsoop_vm_runtime_registry =
+    torch::jit::class_<TvmVMRuntimeClass>("tvm_dsoop", "TvmVMModule")
         .def(torch::init<const int64_t, const int64_t, const std::string&>())
         .def("load_tvm_module", &TvmVMRuntimeClass::LoadTvmModule)
         .def("forward", &TvmVMRuntimeClass::forward)
@@ -685,7 +685,7 @@ static auto __tvm_class_vm_runtime_registry =
             });
 
 static auto __tvm_shape_repr_fn_registry =
-    torch::RegisterOperators("tvm_class::tvm_shape_repr", &BaseTvmClass::TvmShapeRepr);
+    torch::RegisterOperators("tvm_dsoop::tvm_shape_repr", &BaseTvmClass::TvmShapeRepr);
 }  // namespace pytorch
 }  // namespace contrib
 }  // namespace tvm

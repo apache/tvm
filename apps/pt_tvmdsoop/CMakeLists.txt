@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 cmake_minimum_required(VERSION 3.2)
-project(pt_tvmclass C CXX)
+project(pt_tvmdsoop C CXX)
 
-set(BUILD_PTCLASS_ONLY ON)
+set(BUILD_PT_TVMDSOOP_ONLY ON)
 set(CMAKE_CURRENT_SOURCE_DIR ${TVM_ROOT})
 set(CMAKE_CURRENT_BINARY_DIR ${TVM_ROOT}/build)
 
@@ -31,4 +31,4 @@ include(${TVM_ROOT}/cmake/utils/Utils.cmake)
 include(${TVM_ROOT}/cmake/utils/FindCUDA.cmake)
 include(${TVM_ROOT}/cmake/modules/CUDA.cmake)
 
-include(${TVM_ROOT}/cmake/modules/contrib/PT_TVMCLASS.cmake)
+include(${TVM_ROOT}/cmake/modules/contrib/PT_TVMDSOOP.cmake)

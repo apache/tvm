@@ -1,4 +1,4 @@
-if(NOT USE_PT_TVMCLASS STREQUAL "OFF")
+if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
   find_package(Python3 COMPONENTS Interpreter Development)
   include_directories(${Python3_INCLUDE_DIRS})
 
@@ -17,7 +17,7 @@ if(NOT USE_PT_TVMCLASS STREQUAL "OFF")
   set(PT_LINK_FLAGS_STR "-L${PT_PATH}/lib -l:libtorch.so -l:libtorch_python.so")
 
   if(NOT USE_CUDA STREQUAL "OFF")
-    add_definitions(-DPT_TVMCLASS_ENABLE_GPU)
+    add_definitions(-DPT_TVMDSOOP_ENABLE_GPU)
   endif()
 
 
@@ -26,15 +26,14 @@ if(NOT USE_PT_TVMCLASS STREQUAL "OFF")
   separate_arguments(PT_LINK_FLAGS UNIX_COMMAND ${PT_LINK_FLAGS_STR})
 
 
-  set(LIBRARY_NAME tvm_torch_class)
-  # set(STATIC_NAME tvm_torch_class_static)
-  file(GLOB_RECURSE PTTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/pt_op/**/*.cc)
+  set(LIBRARY_NAME pt_tvmdsoop)
+  file(GLOB_RECURSE PTTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/**/*.cc)
   add_library(${LIBRARY_NAME} SHARED ${PTTVM_SRCS})
   # add_library(${STATIC_NAME} STATIC ${PTTVM_SRCS})
   # set(PTTVM_LINK_FLAGS -ltvm -ltvm_runtime -L${CMAKE_CURRENT_BINARY_DIR})
   set(PTTVM_LINK_FLAGS -ltvm -L${CMAKE_CURRENT_BINARY_DIR})
 
-  if (NOT BUILD_PTCLASS_ONLY STREQUAL "ON")
+  if (NOT BUILD_PT_TVMDSOOP_ONLY STREQUAL "ON")
     add_dependencies(${LIBRARY_NAME} tvm) 
   endif()
   # add_dependencies(${LIBRARY_NAME} tvm)

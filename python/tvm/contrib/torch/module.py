@@ -26,7 +26,7 @@ class GraphModule(torch.nn.Module):
 
     @classmethod
     def shape_repr(cls, input_shapes):
-        return torch.ops.tvm_class.tvm_shape_repr(input_shapes)
+        return torch.ops.tvm_dsoop.tvm_shape_repr(input_shapes)
 
     def __init__(self, num_inputs, num_outputs, device=None):
         super().__init__()
@@ -35,7 +35,7 @@ class GraphModule(torch.nn.Module):
 
         if device is not None:
             self.to(device)
-        self.engine = torch.classes.tvm_class.TvmGraphModule(num_inputs, num_outputs, self.device)
+        self.engine = torch.classes.tvm_dsoop.TvmGraphModule(num_inputs, num_outputs, self.device)
 
     def init(self, input_shapes, lib_path, graph_path, params_path):
         r"""Load tvm module"""
@@ -64,7 +64,7 @@ class VMModule(torch.nn.Module):
 
     @classmethod
     def shape_repr(cls, input_shapes):
-        return torch.ops.tvm_class.tvm_shape_repr(input_shapes)
+        return torch.ops.tvm_dsoop.tvm_shape_repr(input_shapes)
 
     def __init__(self, num_inputs, num_outputs, device=None):
         super().__init__()
@@ -73,7 +73,7 @@ class VMModule(torch.nn.Module):
 
         if device is not None:
             self.to(device)
-        self.engine = torch.classes.tvm_class.TvmVMModule(num_inputs, num_outputs, self.device)
+        self.engine = torch.classes.tvm_dsoop.TvmVMModule(num_inputs, num_outputs, self.device)
 
     def init(self, input_shapes, lib_path, code_path):
         r"""Load tvm module"""
@@ -104,10 +104,11 @@ class TraceTvmModule(torch.nn.Module):
     arbitrary number of inputs
 
     Example:
-        tvm_module = pt_op.GraphModule(1, 1, 'cuda:0')
+        import tvm.contrib.torch
+        tvm_module = tvm.contrib.torch.GraphModule(1, 1, 'cuda:0')
         tvm_module.init(input_shapes, lib_path, graph_path, params_path)
 
-        trace_wrapper = pt_op.TraceGraphModule(torch.jit.script(tvm_module))
+        trace_wrapper = tvm.contrib.torch.TraceGraphModule(torch.jit.script(tvm_module))
         traced = torch.jit.trace(trace_wrapper, example_inputs)
     """
 

@@ -16,7 +16,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test script for pt custom class module"""
+"""Test script for torch module"""
 import tempfile
 import os
 import logging
@@ -25,7 +25,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import te, relay
-from tvm.contrib import pt_op
+import tvm.contrib.torch
 from tvm.contrib import graph_runtime
 
 
@@ -75,7 +75,7 @@ def test_use_pt_graph_module():
         """test add lib with Pytorch wrapper"""
         print('\n############## Test on device:', device, '#################')
         export_dir = build_export_graph(device)
-        engine = pt_op.module.GraphModule(num_inputs=2, num_outputs=1).to(device)
+        engine = tvm.contrib.torch.GraphModule(num_inputs=2, num_outputs=1).to(device)
 
         x = np.random.rand(10, 5).astype("float32")
         y = np.random.rand(1, 5).astype("float32")

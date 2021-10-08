@@ -16,14 +16,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test script for tf op module"""
+"""Test script for torch module"""
 import os
 import torch
 import time
 import numpy as np
 import tvm
 import tvm.testing
-from tvm.contrib.pt_op import PyTorchTVMModule, compile
+import tempfile
+from tvm.contrib.torch import PyTorchTVMModule, compile
 
 
 class Model(torch.nn.Module):
@@ -47,14 +48,15 @@ model_jit = torch.jit.script(model)
 print(model_jit.graph)
 input_shapes = [("x", list(x.shape)), ("y", list(y.shape))]
 dtype = "float16"
-export_dir = "pytorch_compiled"
+export_dir = tempfile.mkdtemp("pytorch_compiled")
+print('tmp export_dir:', export_dir)
 
 
 mod = PyTorchTVMModule()
 print("Converting...")
 mod.from_pytorch(model_jit, input_shapes, dtype)
 
-log_file = "tuning.log"
+log_file = os.path.join(export_dir, "tuning.log")
 if not os.path.exists(log_file):
     print("Tuning...")
     mod.tune_tvm(log_file=log_file, n_trial=20)

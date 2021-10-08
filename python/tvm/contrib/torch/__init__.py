@@ -21,7 +21,7 @@ import platform
 import torch
 
 
-def _load_platform_specific_library(lib_name="libtvm_torch_class"):
+def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
     system = platform.system()
     if system == "Darwin":
         lib_file_name = lib_name + ".dylib"
