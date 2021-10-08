@@ -665,12 +665,12 @@ class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
     Type checked_type = solver_->Resolve(it->second.checked_type);
 
     if (checked_type.as<IncompleteTypeNode>() != nullptr) {
-      /*this->solver_->diag_ctx_.Emit(
+      this->solver_->Emit(
           Diagnostic::Error(op->span)
           << "The type inference pass was unable to infer a type for this expression.\n"
           << "This usually occurs when an operator call is under constrained in some way,"
           << " check other reported errors for hints of what may of happened.");
-    */}
+    }
 
     Expr new_e = post.defined() ? post : ExprMutator::VisitExpr_(op);
     // new_call and new_var's code is only going to be valid for VarNode/CallNode.
