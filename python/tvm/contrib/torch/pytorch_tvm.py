@@ -1,3 +1,22 @@
+#!/usr/bin/env python
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""`compile` api that convert torch module to torch tvm module"""
 import os
 import tvm
 from tvm.relay.op.tensor import exp
@@ -101,7 +120,7 @@ class PyTorchTVMModule():
 
     def tune_tvm(self, log_file="tuning.log", n_trial=200):
         self.tasks = autotvm.task.extract_from_program(
-                self.mod["main"], target=self.target, params=self.params,
+            self.mod["main"], target=self.target, params=self.params,
         )
         self.log_file = log_file
         tuning_opt = get_tuning_opt(log_file, n_trial)
@@ -116,7 +135,8 @@ class PyTorchTVMModule():
         # compile kernels with history best records
         with autotvm.apply_history_best(self.log_file):
             with tvm.transform.PassContext(opt_level=3):
-                self.tvm_graph, self.tvm_lib, self.tvm_params = relay.build(self.mod, target=self.target, params=self.params)
+                self.tvm_graph, self.tvm_lib, self.tvm_params = relay.build(
+                    self.mod, target=self.target, params=self.params)
 
         if not debug_runtime:
             self.tvm_module = graph_executor.create(self.tvm_graph, self.tvm_lib, device=self.dev)
