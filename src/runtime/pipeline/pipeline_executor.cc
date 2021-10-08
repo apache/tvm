@@ -56,7 +56,7 @@ std::vector<Module> PipelineExecutor::CreateGraphModules(const ModuleConfig& mod
     // Read json.
     std::ifstream ifJson(config.second.json_name.c_str());
     if (ifJson.fail()) {
-      LOG(FATAL) << "json file not found!";
+      LOG(FATAL) << "json file not found: " << config.second.json_name;
     }
     const std::string json((std::istreambuf_iterator<char>(ifJson)),
                            std::istreambuf_iterator<char>());
@@ -79,9 +79,10 @@ std::vector<Module> PipelineExecutor::CreateGraphModules(const ModuleConfig& mod
 
     // Load parameters.
     TVMByteArray params_arr;
-    std::ifstream if_param(config.second.params_name.c_str());
+    const char* params_file_name = config.second.params_name.c_str();
+    std::ifstream if_param(params_file_name);
     if (if_param.fail()) {
-      LOG(FATAL) << "params file not found!";
+      LOG(FATAL) << "params file not found: " << params_file_name;
     }
     const std::string params((std::istreambuf_iterator<char>(if_param)),
                              std::istreambuf_iterator<char>());

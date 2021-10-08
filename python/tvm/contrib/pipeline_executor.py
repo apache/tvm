@@ -115,7 +115,6 @@ class PipelineModule(object):
             Path and name of the configuration file, the configuration file contains the
             disk path of the parameter file, library file, and JSON file.
         """
-        config = ""
         with open(config_file_name, "r") as file_handle:
             config = file_handle.read()
         config = json.loads(config)
