@@ -48,6 +48,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
 using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
+using tvm::Array;
 
 bool LLVMEnabled() {
   const runtime::PackedFunc* pf = runtime::Registry::Get("target.build.llvm");
@@ -393,19 +394,15 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
 
   ICHECK(mod_mixed.defined()) << "This module must be defined";
 
-  VLOG_CONTEXT << target->str();
-  VLOG(0) << "Executing module pass with opt level: ";
+  mod_mixed = MixedModulePassManager(mod_mixed, target);
 
-  mod_mixed = OptimizeMixedModule(mod_mixed, target);
+  IRModule host_mod = HostModulePassManager(mod_mixed, target_host);
 
-  auto host_mod = OptimizeHostModule(mod_mixed, target_host);
+  IRModule device_mod = DeviceModulePassManager(mod_mixed, target);
 
-  auto device_mod = OptimizeDeviceModule(mod_mixed, target);
-
-  // some final misc checks.
   auto keys = target->GetKeys();
 
-  // CheckAndUpdateHostConsistency(&target, &target_host);
+  CheckAndUpdateHostConsistency(&target, &target_host);
 
   bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
   if (target_is_gpu && device_mod->functions.size() == 0) {
@@ -415,47 +412,6 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
 
   return {host_mod, device_mod};
 }
-
-std::pair<Target, Target> TargetTypeMangling(const Map<Target, IRModule>& inputs_arg, Target target,
-                                             Target target_host_arg) {
-  Target target_input_mod, target_host;
-
-  target = !target.defined() ? target.Current() : target;
-
-  std::vector<runtime::Module> device_modules;
-  Map<Target, IRModule> inputs = inputs_arg;
-  target_host = target_host_arg;
-
-  CheckAndUpdateHostConsistency(&inputs, &target_host);
-
-  if (!target_host.defined()) {
-    for (const auto& it : inputs) {
-      if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
-        target_host = it.first;
-        break;
-      }
-    }
-  }
-
-  if (!target_host.defined()) {
-    target_host = DefaultTargetHost(target_host);
-  }
-  CheckAndUpdateHostConsistency(&inputs, &target_host);
-
-  return {target_input_mod, target_host};
-}
-
-TVM_REGISTER_GLOBAL("driver.target_mangling")
-    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target target,
-                       Target target_host_arg) {
-      return TargetTypeMangling(inputs_arg, target, target_host_arg).first;
-    });
-
-TVM_REGISTER_GLOBAL("driver.host_target_mangling")
-    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target target,
-                       Target target_host_arg) {
-      return TargetTypeMangling(inputs_arg, target, target_host_arg).second;
-    });
 
 runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Target& host_target) {
   std::vector<runtime::Module> device_modules;
@@ -599,10 +555,10 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   return build(inputs, target_host);
 }
 
-IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
+IRModule MixedModulePassManager(IRModule mixed_mod, Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
-  Array<transform::Pass> mixed_pass_list;
+  Array<tvm::transform::Pass> mixed_pass_list;
 
   mixed_pass_list.push_back(BindTarget(target));
 
@@ -633,28 +589,17 @@ IRModule OptimizeMixedModule(IRModule mixed_mod, Target target) {
   }
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
 
-  auto opt_mixed = transform::Sequential(mixed_pass_list);
-  return opt_mixed(std::move(mixed_mod));
+  return LowerWithPassList(mixed_mod, mixed_pass_list);
 }
 
-TVM_REGISTER_GLOBAL("driver.get_mod_mixed").set_body_typed([](IRModule mod, Target target) {
-  return OptimizeMixedModule(mod, target);
-});
-
-TVM_REGISTER_GLOBAL("driver.get_device_mod").set_body_typed([](IRModule mod, Target target) {
-  return OptimizeDeviceModule(mod, target);
-});
-
-TVM_REGISTER_GLOBAL("driver.get_host_mod").set_body_typed([](IRModule mod, Target target_host) {
-  return OptimizeHostModule(mod, target_host);
-});
-
-IRModule OptimizeHostModule(IRModule mixed_mod, Target target_host) {
-  Array<transform::Pass> host_pass_list;
+IRModule HostModulePassManager(IRModule mixed_mod, Target target_host) {
+  Array<tvm::transform::Pass> host_pass_list;
   host_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
     return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
            CallingConv::kDeviceKernelLaunch;
   }));
+
+  ICHECK(mixed_mod.defined()) << "This module must be defined";
 
   host_pass_list.push_back(BindTarget(target_host));
 
@@ -664,13 +609,10 @@ IRModule OptimizeHostModule(IRModule mixed_mod, Target target_host) {
   host_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
   host_pass_list.push_back(tir::transform::CombineContextCall());
 
-  auto host_module = transform::Sequential(host_pass_list);
-  ICHECK(mixed_mod.defined()) << "This module must be defined";
-
-  return host_module(mixed_mod);
+  return LowerWithPassList(mixed_mod, host_pass_list);
 }
 
-IRModule OptimizeDeviceModule(IRModule mixed_mod, Target target) {
+IRModule DeviceModulePassManager(IRModule mixed_mod, Target target) {
   Array<transform::Pass> device_pass_list;
   device_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
     return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
@@ -685,11 +627,7 @@ IRModule OptimizeDeviceModule(IRModule mixed_mod, Target target) {
   device_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
   device_pass_list.push_back(tir::transform::LowerIntrin());
 
-  auto device_opt_mod = transform::Sequential(device_pass_list);
-
-  auto mdevice = device_opt_mod(mixed_mod);
-
-  return device_opt_mod(mixed_mod);
+  return LowerWithPassList(mixed_mod, device_pass_list);
 }
 
 }  // namespace tvm
