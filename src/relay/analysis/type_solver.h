@@ -94,7 +94,7 @@ class TypeSolver {
    * \brief Report a diagnostic.
    * \param diag The diagnostic to report.
    */
-  void Emit(const Diagnostic& diag) { diag_ctx_.Emit(diag); };
+  void Emit(const Diagnostic& diag) { diag_ctx_.Emit(diag); }
 
  private:
   class OccursChecker;
