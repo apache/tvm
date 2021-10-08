@@ -186,7 +186,6 @@ def test_tflite_depthwise_conv2d(
     dtype = "int8"
 
     def create_tflite_graph():
-
         class Model(tf.Module):
             @tf.function
             def depthwise_conv2d(self, x):
