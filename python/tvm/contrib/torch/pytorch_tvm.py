@@ -96,7 +96,7 @@ def get_tuning_opt(log_file="tuning.log", n_trial=200):
 tvm_assets = ["mod.so", "graph.json", "params"]
 
 
-class PyTorchTVMModule():
+class PyTorchTVMModule:
     def __init__(self) -> None:
         self.script_module = None
         self.input_infos = None
@@ -116,11 +116,15 @@ class PyTorchTVMModule():
         self.script_module = script_module
         self.input_infos = input_infos
         self.default_dtype = default_dtype
-        self.mod, self.params = relay.frontend.from_pytorch(script_module, input_infos, default_dtype=default_dtype)
+        self.mod, self.params = relay.frontend.from_pytorch(
+            script_module, input_infos, default_dtype=default_dtype
+        )
 
     def tune_tvm(self, log_file="tuning.log", n_trial=200):
         self.tasks = autotvm.task.extract_from_program(
-            self.mod["main"], target=self.target, params=self.params,
+            self.mod["main"],
+            target=self.target,
+            params=self.params,
         )
         self.log_file = log_file
         tuning_opt = get_tuning_opt(log_file, n_trial)
@@ -136,7 +140,8 @@ class PyTorchTVMModule():
         with autotvm.apply_history_best(self.log_file):
             with tvm.transform.PassContext(opt_level=3):
                 self.tvm_graph, self.tvm_lib, self.tvm_params = relay.build(
-                    self.mod, target=self.target, params=self.params)
+                    self.mod, target=self.target, params=self.params
+                )
 
         if not debug_runtime:
             self.tvm_module = graph_executor.create(self.tvm_graph, self.tvm_lib, device=self.dev)
@@ -150,17 +155,17 @@ class PyTorchTVMModule():
             os.makedirs(export_dir)
         self.export_dir = export_dir
         self.tvm_lib.export_library(os.path.join(export_dir, tvm_assets[0]))
-        with open(os.path.join(export_dir, tvm_assets[1]), 'w') as fout:
+        with open(os.path.join(export_dir, tvm_assets[1]), "w") as fout:
             fout.write(self.tvm_graph)
-        with open(os.path.join(export_dir, tvm_assets[2]), 'wb') as fout:
+        with open(os.path.join(export_dir, tvm_assets[2]), "wb") as fout:
             fout.write(relay.save_param_dict(self.tvm_params))
 
     def load_tvm(self, export_dir):
         self.export_dir = export_dir
         self.tvm_lib = load_module(os.path.join(export_dir, tvm_assets[0]))
-        with open(os.path.join(export_dir, tvm_assets[1]), 'r') as f:
+        with open(os.path.join(export_dir, tvm_assets[1]), "r") as f:
             self.tvm_graph = f.read()
-        with open(os.path.join(export_dir, tvm_assets[2]), 'rb') as f:
+        with open(os.path.join(export_dir, tvm_assets[2]), "rb") as f:
             self.tvm_params = relay.load_param_dict(f.read())
 
         self.tvm_module = graph_executor.create(self.tvm_graph, self.tvm_lib, device=self.dev)
@@ -181,19 +186,19 @@ class PyTorchTVMModule():
 
 def compile(script_module, option):
     """
-        option = {
-            "input_infos": [
-                ("x", (1, 3, 244, 244)),
-            ],
-            "default_dtype": "float16",
-            "export_dir": "pytorch_compiled",
-            "num_outputs": 1,
-            "tuning_n_trials": 20,  # set zero to skip tuning
-            "tuning_log_file": "tuning.log",
-        }
-        script_module = torch.jit.script(model)
-        pytorch_tvm_module = compile(script_module, option)
-        pytorch_tvm_module("model_tvm.pt")
+    option = {
+        "input_infos": [
+            ("x", (1, 3, 244, 244)),
+        ],
+        "default_dtype": "float16",
+        "export_dir": "pytorch_compiled",
+        "num_outputs": 1,
+        "tuning_n_trials": 20,  # set zero to skip tuning
+        "tuning_log_file": "tuning.log",
+    }
+    script_module = torch.jit.script(model)
+    pytorch_tvm_module = compile(script_module, option)
+    pytorch_tvm_module("model_tvm.pt")
     """
     mod = PyTorchTVMModule()
     print("Converting...")

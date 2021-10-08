@@ -44,11 +44,11 @@ def test_use_pt_graph_module():
         params = {"y": y_data}
 
         pt_device = torch.device(device)
-        if pt_device.type == 'cuda':
-            target = 'cuda'
+        if pt_device.type == "cuda":
+            target = "cuda"
             ctx = tvm.cuda(pt_device.index)
         else:
-            target = 'llvm'
+            target = "llvm"
             ctx = tvm.cpu(0)
 
         graph, lib, params = relay.build(tvm.IRModule.from_expr(func), target=target, params=params)
@@ -64,16 +64,16 @@ def test_use_pt_graph_module():
         tvm_assets = ["mod.so", "graph.json", "params"]
         export_dir = tempfile.mkdtemp("tvm_export")
         lib.export_library(os.path.join(export_dir, tvm_assets[0]))
-        with open(os.path.join(export_dir, tvm_assets[1]), 'w') as fout:
+        with open(os.path.join(export_dir, tvm_assets[1]), "w") as fout:
             fout.write(graph)
-        with open(os.path.join(export_dir, tvm_assets[2]), 'wb') as fout:
+        with open(os.path.join(export_dir, tvm_assets[2]), "wb") as fout:
             fout.write(relay.save_param_dict(params))
 
         return export_dir
 
     def test_pt_run(device, trace=True, to_device=None, inp_on_cuda=False):
         """test add lib with Pytorch wrapper"""
-        print('\n############## Test on device:', device, '#################')
+        print("\n############## Test on device:", device, "#################")
         export_dir = build_export_graph(device)
         engine = tvm.contrib.torch.GraphModule(num_inputs=2, num_outputs=1).to(device)
 
@@ -81,13 +81,14 @@ def test_use_pt_graph_module():
         y = np.random.rand(1, 5).astype("float32")
 
         expect = np.exp(y + x)
+
         def get_inputs_by_device(device):
             inps = [torch.Tensor(x), torch.Tensor(y)]
-            if device == 'cpu':
+            if device == "cpu":
                 return inps
             else:
-                device_type, device_id = device.split(':')
-                assert device_type == 'cuda'
+                device_type, device_id = device.split(":")
+                assert device_type == "cuda"
                 return [inp.cuda(int(device_id)) for inp in inps]
 
         tvm_assets = ["mod.so", "graph.json", "params"]
@@ -98,10 +99,10 @@ def test_use_pt_graph_module():
         tvm.testing.assert_allclose(outputs[0].cpu(), expect, atol=1e-5, rtol=1e-5)
 
         if trace:
-            print('\n################ Test trace and load #################')
+            print("\n################ Test trace and load #################")
             scripted = torch.jit.script(engine)
             scripted_dir = tempfile.mkdtemp("scripted")
-            scripted_path = os.path.join(scripted_dir, 'model.pt')
+            scripted_path = os.path.join(scripted_dir, "model.pt")
             scripted.save(scripted_path)
             loaded = torch.jit.load(scripted_path)
             outputs = loaded.forward(get_inputs_by_device(device))
@@ -110,14 +111,18 @@ def test_use_pt_graph_module():
             del loaded
 
         if to_device:
-            print('\n################ Test move from [{}] to [{}] #################'.format(device, to_device))
+            print(
+                "\n################ Test move from [{}] to [{}] #################".format(
+                    device, to_device
+                )
+            )
             engine = engine.to(to_device)
             outputs = engine.forward(get_inputs_by_device(to_device))
             tvm.testing.assert_allclose(outputs[0].cpu(), expect, atol=1e-5, rtol=1e-5)
         del engine
 
-    test_pt_run(device='cuda:0', trace=True, to_device='cuda:1', inp_on_cuda=True)
-    test_pt_run(device='cpu', trace=True, inp_on_cuda=False)
+    test_pt_run(device="cuda:0", trace=True, to_device="cuda:1", inp_on_cuda=True)
+    test_pt_run(device="cpu", trace=True, inp_on_cuda=False)
 
 
 if __name__ == "__main__":

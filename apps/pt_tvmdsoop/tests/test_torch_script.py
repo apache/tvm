@@ -49,7 +49,7 @@ print(model_jit.graph)
 input_shapes = [("x", list(x.shape)), ("y", list(y.shape))]
 dtype = "float16"
 export_dir = tempfile.mkdtemp("pytorch_compiled")
-print('tmp export_dir:', export_dir)
+print("tmp export_dir:", export_dir)
 
 
 mod = PyTorchTVMModule()
@@ -108,10 +108,9 @@ class EnsembleModel(torch.nn.Module):
 print("Exporting...")
 scripted = torch.jit.script(EnsembleModel())
 print(scripted.graph)
-scripted_path = os.path.join(export_dir, 'model_tvm.pt')
+scripted_path = os.path.join(export_dir, "model_tvm.pt")
 scripted.save(scripted_path)
 
 
 # print(o == outputs[0])
 # print(o - outputs[0])
-
