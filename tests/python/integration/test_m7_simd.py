@@ -28,26 +28,38 @@ from tests.python.relay.aot.aot_test_utils import (
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.parametrize(
+    "data_shape_nhwc, kernel_size, num_filter, strides, padding",
+    [
+        ((1, 32, 32, 1), (3, 3), 12, 1, 0),
+        ((1, 32, 10, 3), (3, 3), 16, 1, 0),
+        ((1, 49, 10, 1), (10, 4), 64, (2, 1), (4, 1, 5, 1)),
+        # TOFIX: https://github.com/apache/tvm/issues/9226
+        # ((1, 49, 10, 1), (10, 4), 64, (2, 2), (4, 1, 5, 1)),
+    ]
+)
 @pytest.mark.parametrize("dtype", ["int8", "int16"])
-def test_conv2d(dtype):
+def test_conv2d(data_shape_nhwc, kernel_size, num_filter, strides, padding, dtype):
     """Test a subgraph with a single conv2d operator."""
-    ishape = (1, 32, 32, 1)
-    wshape = (3, 3, 1, 12)
+    ishape = data_shape_nhwc
+    wshape = (*kernel_size, data_shape_nhwc[-1], num_filter)
 
     weight_data = np.random.randint(low=-10, high=10, size=wshape, dtype=dtype)
 
     input0 = relay.var("input", relay.TensorType(ishape, dtype))
     weight0 = relay.const(weight_data)
-    out0 = relay.op.nn.conv2d(input0, weight0, kernel_size=(3, 3),
-        data_layout="NHWC", kernel_layout="HWIO",
-        out_dtype="int32", out_layout="NHWC")
+    out0 = relay.op.nn.conv2d(input0, weight0, kernel_size=kernel_size,
+                              strides=strides, padding=padding,
+                              data_layout="NHWC", kernel_layout="HWIO",
+                              out_dtype="int32", out_layout="NHWC")
     ref_mod = tvm.IRModule.from_expr(relay.Function([input0], out0))
 
     input1 = relay.var("input", relay.TensorType(ishape, dtype))
     weight1 = relay.const(np.moveaxis(weight_data, 2, -1))
-    out1 = relay.op.nn.conv2d(input1, weight1, kernel_size=(3, 3),
-        data_layout="NHWC", kernel_layout="HWOI",
-        out_dtype="int32", out_layout="NHWC")
+    out1 = relay.op.nn.conv2d(input1, weight1, kernel_size=kernel_size,
+                              strides=strides, padding=padding,
+                              data_layout="NHWC", kernel_layout="HWOI",
+                              out_dtype="int32", out_layout="NHWC")
     mod = tvm.IRModule.from_expr(relay.Function([input1], out1))
 
     inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype=dtype)}
@@ -66,26 +78,35 @@ def test_conv2d(dtype):
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.parametrize(
+    "data_shape_nwc, kernel_size, num_filter, strides, padding",
+    [
+        ((1, 32, 12), 3, 16, 1, 0),
+        ((3, 12, 10), 4, 24, 1, 0),
+    ]
+)
 @pytest.mark.parametrize("dtype", ["int8", "int16"])
-def test_conv1d(dtype):
+def test_conv1d(data_shape_nwc, kernel_size, num_filter, strides, padding, dtype):
     """Test a subgraph with a single conv1d operator."""
-    ishape = (1, 32, 32)
-    wshape = (32, 32, 32)
+    ishape = data_shape_nwc
+    wshape = (kernel_size, data_shape_nwc[-1], num_filter)
 
     weight_data = np.random.randint(low=-10, high=10, size=wshape, dtype=dtype)
 
     input0 = relay.var("input", relay.TensorType(ishape, dtype))
     weight0 = relay.const(weight_data)
     out0 = relay.op.nn.conv1d(input0, weight0,
-        data_layout="NWC", kernel_layout="WIO",
-        out_dtype="int32", out_layout="NWC")
+                              strides=strides, padding=padding,
+                              data_layout="NWC", kernel_layout="WIO",
+                              out_dtype="int32", out_layout="NWC")
     ref_mod = tvm.IRModule.from_expr(relay.Function([input0], out0))
 
     input1 = relay.var("input", relay.TensorType(ishape, dtype))
     weight1 = relay.const(np.moveaxis(weight_data, 1, -1))
     out1 = relay.op.nn.conv1d(input1, weight1,
-        data_layout="NWC", kernel_layout="WOI",
-        out_dtype="int32", out_layout="NWC")
+                              strides=strides, padding=padding,
+                              data_layout="NWC", kernel_layout="WOI",
+                              out_dtype="int32", out_layout="NWC")
     mod = tvm.IRModule.from_expr(relay.Function([input1], out1))
 
     inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype=dtype)}
@@ -104,10 +125,17 @@ def test_conv1d(dtype):
 
 
 @tvm.testing.requires_corstone300
-def test_dense():
+@pytest.mark.parametrize(
+    "M, K, N",
+    [
+        (1, 32, 64),
+        (3, 12, 10),
+    ]
+)
+def test_dense(M, K, N):
     """Test a subgraph with a single dense operator."""
-    ishape = (1, 32)
-    wshape = (64, 32)
+    ishape = (M, K)
+    wshape = (N, K)
 
     input0 = relay.var("input", relay.TensorType(ishape, "int8"))
     dense_f = relay.op.nn.batch_flatten(input0)
@@ -131,13 +159,21 @@ def test_dense():
 
 
 @tvm.testing.requires_corstone300
-def test_maxpool_2d():
+@pytest.mark.parametrize(
+    "data_shape_nhwc, pool_size, strides, padding",
+    [
+        ((1, 32, 32, 1), (3, 3), 1, 0),
+        ((1, 32, 20, 4), (3, 3), (2, 2), 0),
+    ]
+)
+def test_maxpool_2d(data_shape_nhwc, pool_size, strides, padding):
     """Test a subgraph with a single maxpool_2d operator."""
 
-    ishape = (1, 32, 32, 1)
+    ishape = data_shape_nhwc
 
     input0 = relay.var("input", relay.TensorType(ishape, "int8"))
-    out = relay.op.nn.max_pool2d(input0, (3, 3), layout="NHWC")
+    out = relay.op.nn.max_pool2d(input0, pool_size, layout="NHWC",
+                                 strides=strides, padding=padding)
 
     mod = tvm.IRModule.from_expr(relay.Function([input0], out))
     inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype="int8")}
@@ -156,12 +192,20 @@ def test_maxpool_2d():
 
 
 @tvm.testing.requires_corstone300
-def test_maxpool_1d():
+@pytest.mark.parametrize(
+    "data_shape_nwc, pool_size, strides, padding",
+    [
+        ((1, 32, 1), 3, 1, 0),
+        ((1, 20, 4), 3, 2, 0),
+    ]
+)
+def test_maxpool_1d(data_shape_nwc, pool_size, strides, padding):
     """Test a subgraph with a single maxpool_1d operator."""
-    ishape = (1, 32, 32)
+    ishape = data_shape_nwc
 
     input0 = relay.var("input", relay.TensorType(ishape, "int8"))
-    out = relay.op.nn.max_pool1d(input0, (3,), layout="NWC", strides=2)
+    out = relay.op.nn.max_pool1d(input0, pool_size, layout="NWC",
+                                 strides=strides, padding=padding)
 
     mod = tvm.IRModule.from_expr(relay.Function([input0], out))
     inputs = {"input": np.random.randint(low=-128, high=127, size=ishape, dtype="int8")}
@@ -180,17 +224,26 @@ def test_maxpool_1d():
 
 
 @tvm.testing.requires_corstone300
-def test_avgpool_2d():
+@pytest.mark.parametrize(
+    "data_shape_nchw, pool_size, strides, padding",
+    [
+        ((1, 1, 32, 32), (3, 3), 1, 0),
+        ((1, 4, 32, 20), (3, 3), (2, 2), 0),
+    ]
+)
+def test_avgpool_2d(data_shape_nchw, pool_size, strides, padding):
     """Test a subgraph with a single avgpool_2d operator."""
 
-    ishape = (1, 1, 64, 64)
+    ishape = data_shape_nchw
 
     input0 = relay.var("input", relay.TensorType(ishape, "int32"))
-    out0 = relay.nn.avg_pool2d(input0, pool_size=(3, 3), layout="NCHW")
+    out0 = relay.nn.avg_pool2d(input0, pool_size, layout="NCHW",
+                               strides=strides, padding=padding)
     ref_mod = tvm.IRModule.from_expr(relay.Function([input0], out0))
 
     input1 = relay.var("input", relay.TensorType(ishape, "int16"))
-    out1 = relay.op.nn.avg_pool2d(input1, pool_size=(3, 3), layout="NCHW")
+    out1 = relay.op.nn.avg_pool2d(input1, pool_size, layout="NCHW",
+                                  strides=strides, padding=padding)
     mod = tvm.IRModule.from_expr(relay.Function([input1], out1))
 
     input_data = np.random.randint(low=-128, high=127, size=ishape, dtype="int32")
@@ -210,17 +263,26 @@ def test_avgpool_2d():
 
 
 @tvm.testing.requires_corstone300
-def test_avgpool_1d():
+@pytest.mark.parametrize(
+    "data_shape_ncw, pool_size, strides, padding",
+    [
+        ((1, 1, 32), 3, 1, 0),
+        ((1, 4, 20), 3, 2, 2),
+    ]
+)
+def test_avgpool_1d(data_shape_ncw, pool_size, strides, padding):
     """Test a subgraph with a single avgpool_1d operator."""
 
-    ishape = (1, 32, 32)
+    ishape = data_shape_ncw
 
     input0 = relay.var("input", relay.TensorType(ishape, "int32"))
-    out0 = relay.op.nn.avg_pool1d(input0, (3,), layout="NCW", strides=2)
+    out0 = relay.op.nn.avg_pool1d(input0, pool_size, layout="NCW",
+                                  strides=strides, padding=padding)
     ref_mod = tvm.IRModule.from_expr(relay.Function([input0], out0))
 
     input1 = relay.var("input", relay.TensorType(ishape, "int16"))
-    out1 = relay.op.nn.avg_pool1d(input1, (3,), layout="NCW", strides=2)
+    out1 = relay.op.nn.avg_pool1d(input1, pool_size, layout="NCW",
+                                  strides=strides, padding=padding)
     mod = tvm.IRModule.from_expr(relay.Function([input1], out1))
 
     input_data = np.random.randint(low=-10, high=10, size=ishape, dtype="int32")
