@@ -209,7 +209,8 @@ class LegalizeEthosUConv2D:
 
 
 class EthosuDepthwiseConv2DRewriter(DFPatternCallback):
-    """Convert ethosu.qnn_depthwise_conv2d composite functions to ethosu_depthwise_conv2d operators"""
+    """Convert ethosu.qnn_depthwise_conv2d composite functions to ethosu_depthwise_conv2d
+    operators"""
 
     def __init__(self):
         super().__init__(require_type=True)

@@ -471,6 +471,9 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
                 for name in mlf_package.getnames()
                 if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
             ]
+            # The number of c_source_files is the number of fused subgraphs that
+            # get offloaded to the NPU. E.g. conv2d->depthwise_conv2d->conv2d gets offloaded
+            # as a single subgraph if both of these operators are supported by the NPU
             assert len(c_source_files) == 4
 
 
