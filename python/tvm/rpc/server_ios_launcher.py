@@ -1,3 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""
+Python wrapper for running a RPC Server through iOS RPC
+on the iOS simulator using the simctl command line tool.
+"""
+# pylint: disable=invalid-name
 import os
 import json
 import time
@@ -38,17 +59,17 @@ def get_list_of_available_simulators() -> Dict[AnyStr, List]:
     The dictionary value is a list of all simulators with a given operating system.
     """
 
-    proc = subprocess.Popen(
+    with subprocess.Popen(
         "xcrun simctl list devices available --json",
         shell=True,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
-    )
-    out, err = proc.communicate()
-    available_simulators = json.loads(out)["devices"]
-    available_simulators = {
-        key: value for key, value in available_simulators.items() if value != []
-    }
+    ) as proc:
+        out, _ = proc.communicate()
+        available_simulators = json.loads(out)["devices"]
+        available_simulators = {
+            key: value for key, value in available_simulators.items() if value != []
+        }
     return available_simulators
 
 
@@ -116,7 +137,7 @@ def delete_bundle_from_simulator(udid: AnyStr, bundle_id: AnyStr) -> None:
 
 def launch_ios_rpc(
     udid: AnyStr, bundle_id: AnyStr, host_url: AnyStr, host_port: int, key: AnyStr, mode: AnyStr
-):
+):  # pylint: disable=too-many-arguments, consider-using-with
     """
     Launch iOS RPC application on simulator with No UI interconnection.
 
@@ -194,11 +215,13 @@ def check_booted_device(devices: List[Dict]) -> Dict:
 def find_device(udid: AnyStr) -> Dict:
     """Find device by its unique ID."""
 
+    return_value = {}
     available_devices = get_list_of_available_simulators()
     for devices in available_devices.values():
         for device in devices:
             if device["udid"] == udid:
-                return device
+                return_value = device
+    return return_value
 
 
 class ServerIOSLauncher:
@@ -243,7 +266,7 @@ class ServerIOSLauncher:
         self.server_was_started = False
         self.launch_process = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
         self._wait_launch_complete(
-            waiting_time=30, should_print_host_and_port=mode == RPCServerMode.standalone.value
+            waiting_time=60, should_print_host_and_port=mode == RPCServerMode.standalone.value
         )
         self.server_was_started = True
 
@@ -255,13 +278,13 @@ class ServerIOSLauncher:
                 terminate_ios_rpc(self.udid, self.bundle_id)
                 self.launch_process.terminate()
                 self.server_was_started = False
-            except Exception as e:
+            except RuntimeError as e:
                 print(e)
         if self.bundle_was_deployed:
             try:
                 delete_bundle_from_simulator(self.udid, self.bundle_id)
                 self.bundle_was_deployed = False
-            except Exception as e:
+            except RuntimeError as e:
                 print(e)
 
     def __del__(self):
@@ -274,14 +297,14 @@ class ServerIOSLauncher:
         for device_meta in ServerIOSLauncher.booted_devices:
             try:
                 shutdown_device(get_device_uid(device_meta))
-            except Exception as e:
+            except RuntimeError as e:
                 print(e)
         ServerIOSLauncher.booted_devices = []
 
     def _boot_or_find_booted_device(self):
         """
-        Boot the required simulator if there is no suitable booted simulator among the available simulators.
-        If there is a suitable booted simulator,
+        Boot the required simulator if there is no suitable booted simulator
+        among the available simulators. If there is a suitable booted simulator,
         then take it as a simulator to which the iOS RPC application will be deployed.
         """
 
@@ -289,7 +312,7 @@ class ServerIOSLauncher:
         target_device_type = IOSDevice.iPhone
         available_devices = get_list_of_available_simulators()
         if not available_devices:
-            raise ValueError(f"No devices available in this environment")
+            raise ValueError("No devices available in this environment")
         target_devices = grep_by_system(available_devices, target_system)
         if not target_devices:
             raise ValueError(f"No available simulators for target system: {target_system.value}")
@@ -309,14 +332,23 @@ class ServerIOSLauncher:
             ServerIOSLauncher.booted_devices.append(target_device)
 
     def _wait_launch_complete(self, waiting_time, should_print_host_and_port=False):
+        # pylint: disable=too-many-locals
         """Wait for the iOS RPC server to start."""
 
         class Switch:
+            """A simple helper class for boolean switching."""
+
             def __init__(self):
-                self.on = False
+                self._on = False
 
             def to_switch(self):
-                self.on = not self.on
+                """Switch flag."""
+                self._on = not self._on
+
+            @property
+            def on(self):
+                """Flag of this switch."""
+                return self._on
 
         def watchdog():
             hz = 10

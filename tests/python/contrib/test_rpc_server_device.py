@@ -1,6 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""iOS RPC Server tests."""
+# pylint: disable=invalid-name, no-value-for-parameter, missing-function-docstring
+import multiprocessing
 import pytest
 import numpy as np
-import multiprocessing
 
 import tvm.testing
 import tvm.relay.testing
@@ -154,13 +172,13 @@ def try_create_remote_session(session_factory, args=(), kwargs=None):
             results.append(ret)
         if not np.all(np.array(results) == StatusKind.COMPLETE):
             raise ValueError("One or more sessions ended incorrectly.")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         successful_attempt = False
         print(e)
     return successful_attempt
 
 
-def ios_create_dylib(output, objects, **kwargs):
+def ios_create_dylib(output, objects, **kwargs):  # pylint: disable=unused-argument
     xcode.create_dylib(output, objects, arch=ARCH, sdk=SDK)
 
 
@@ -279,9 +297,10 @@ def test_basic_functionality_of_rpc_session(host, port):
 
     # Check correct download
     downloaded_lib = remote_session.download(DSO_NAME)
-    assert downloaded_lib == bytearray(
-        open(path_dso, "rb").read()
-    ), "The downloaded module does not match the loaded module"
+    with open(path_dso, "rb") as source_lib_file:
+        assert downloaded_lib == bytearray(
+            source_lib_file.read()
+        ), "The downloaded module does not match the loaded module"
 
     # Check correct remote computing
     lib = remote_session.load_module(DSO_NAME)
@@ -313,7 +332,7 @@ def test_cleanup_workspace_after_session_end(host, port):
     try:
         remote_session.download(DSO_NAME)
         status_ok = False
-    except Exception as _:
+    except Exception as _:  # pylint: disable=broad-except
         status_ok = True
 
     # Assert
@@ -354,7 +373,7 @@ def test_graph_executor_remote_run(host, port):
 
 @pytest.mark.dependency(depends=["test_rpc_tracker"])
 @setup_rpc_tracker_configuration
-def test_check_auto_schedule_tuning(host, port):
+def test_check_auto_schedule_tuning(host, port):  # pylint: disable=too-many-locals
     log_file = TEMPORARY_DIRECTORY.relpath("ios_tuning_stat.log")
     target = tvm.target.Target(target=f"llvm -mtriple={ARCH}-apple-darwin")
     mod, params = relay.testing.mlp.get_workload(batch_size=4, image_shape=(1, 4, 4))
@@ -386,14 +405,14 @@ def test_check_auto_schedule_tuning(host, port):
 
         # Check tuning log
         tuning_statistic = list(load_records(log_file))
-        for measure_input, measure_result in tuning_statistic:
+        for _, measure_result in tuning_statistic:
             if measure_result.error_no != MeasureErrorNo.NO_ERROR:
                 raise ValueError(
                     f"Error for MeasureResult. Error code: {measure_result.error_no},"
                     f" for details see MeasureErrorNO."
                 )
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         status_ok = False
         print(e)
 
