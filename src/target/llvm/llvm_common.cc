@@ -106,10 +106,13 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
 #if TVM_LLVM_VERSION < 50
   opt.LessPreciseFPMADOption = true;
 #endif
+  // Turn on all flags which trade FP precision for speed
   opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
-  opt.UnsafeFPMath = false;
-  opt.NoInfsFPMath = false;
+  opt.UnsafeFPMath = true;
+  opt.NoInfsFPMath = true;
   opt.NoNaNsFPMath = true;
+  opt.NoTrappingFPMath = true;
+  opt.NoSignedZerosFPMath = true;
   if (soft_float_abi) {
     opt.FloatABIType = llvm::FloatABI::Soft;
   } else {
@@ -139,8 +142,8 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
     ICHECK(allow_null) << err << " target_triple=" << target_triple;
     return nullptr;
   }
-  llvm::TargetMachine* tm =
-      llvm_target->createTargetMachine(target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
+  llvm::TargetMachine* tm = llvm_target->createTargetMachine(
+      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_, llvm::None, llvm::CodeGenOpt::Aggressive);
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 
