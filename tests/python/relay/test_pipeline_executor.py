@@ -129,7 +129,7 @@ def get_manual_conf(mods, target):
 def test_pipe_config_check():
     # This function is used to trigger runtime error by applying wrong logic connection.
 
-    # Get the three pipeline modules here.
+    # Get these three pipeline modules here.
     (mod1, mod2, mod3), dshape = get_mannual_mod()
 
     # The input or output name is illegal and expects a runtime error.
