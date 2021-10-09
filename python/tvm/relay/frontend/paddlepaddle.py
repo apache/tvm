@@ -389,8 +389,9 @@ def convert_feed(g, op, block):
 
     if block is not None:
         ipt_name = op.output("Out")[0]
-        dtype = op.attr("dtype")
-        dtype = _convert_dtype_value(dtype)
+        ipt_shape = block.var(ipt_name).shape
+        ipt_dtype = block.var(ipt_name).dtype
+        ipt_dtype = str(ipt_dtype).strip().split(".")[1]
     else:
         ipt_shape = op.shape
         ipt_dtype = str(op.dtype).strip().split(".")[1]
