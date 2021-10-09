@@ -31,7 +31,7 @@ _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
 
 
-def create(graph_json_str, libmod, device, dump_root=None):
+def create(graph_json_str, libmod, device, dump_root=None, number=10, repeat=1, min_repeat_ms=1):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -50,6 +50,18 @@ def create(graph_json_str, libmod, device, dump_root=None):
     dump_root : str
         To select which folder the outputs should be kept.
         None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
+    number : int
+        Number of times to run the inner loop of the timing code. This inner loop is run in
+        between the timer starting and stopping. In order to amortize any timing overhead,
+        `number` should be increased when the runtime of the function is small (less than a 1/10
+        of a millisecond).
+    repeat : int
+        Number of times to run the outer loop of the timing code. The output will
+        contain `repeat` number of datapoints.
+    min_repeat_ms : Optional[float]
+        If set, the inner loop will be run until it takes longer than `min_repeat_ms`
+        milliseconds. This can be used to ensure that the function is run enough to get an
+        accurate measurement.
     Returns
     -------
     graph_module : GraphModuleDebug
@@ -68,7 +80,7 @@ def create(graph_json_str, libmod, device, dump_root=None):
             "Please set '(USE_PROFILER ON)' in " "config.cmake and rebuild TVM to enable debug mode"
         )
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
-    return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root)
+    return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root, number, repeat, min_repeat_ms)
 
 
 class GraphModuleDebug(graph_executor.GraphModule):
@@ -93,9 +105,26 @@ class GraphModuleDebug(graph_executor.GraphModule):
     dump_root : str
         To select which folder the outputs should be kept.
         None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
+    number : int
+        Number of times to run the inner loop of the timing code. This inner loop is run in
+        between the timer starting and stopping. In order to amortize any timing overhead,
+        `number` should be increased when the runtime of the function is small (less than a 1/10
+        of a millisecond).
+    repeat : int
+        Number of times to run the outer loop of the timing code. The output will
+        contain `repeat` number of datapoints.
+    min_repeat_ms : Optional[float]
+        If set, the inner loop will be run until it takes longer than `min_repeat_ms`
+        milliseconds. This can be used to ensure that the function is run enough to get an
+        accurate measurement.
     """
 
-    def __init__(self, module, device, graph_json_str, dump_root):
+    def __init__(
+        self, module, device, graph_json_str, dump_root, number=10, repeat=1, min_repeat_ms=1
+    ):
+        self.number = number
+        self.repeat = repeat
+        self.min_repeat_ms = min_repeat_ms
         self._dump_root = dump_root
         self._dump_path = None
         self._run_individual = module["run_individual"]
@@ -214,7 +243,9 @@ class GraphModuleDebug(graph_executor.GraphModule):
 
         """
         # Get timing.
-        self.debug_datum._time_list = [[float(t)] for t in self.run_individual(10, 1, 1)]
+        self.debug_datum._time_list = [
+            [float(t)] for t in self.run_individual(self.number, self.repeat, self.min_repeat_ms)
+        ]
 
         # Get outputs.
         self._run_per_layer()
