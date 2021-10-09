@@ -28,8 +28,8 @@ cleanup()
 trap cleanup 0
 
 # cleanup cache
-rm -rf docs/tutorials
-rm -rf docs/vta/tutorials
+rm -rf docs/_staging
+rm -rf docs/_build
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 

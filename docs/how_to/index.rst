@@ -15,26 +15,25 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _installation:
+How To Guides
+=============
 
-Installing TVM
-==============
-
-TVM is still pre-1.0 release software, meaning that it is under active
-development and is changing quickly. Because of this, it is best to
-:ref:`install TVM from source <install_from_source>` to guarantee you
-have the latest features and bug fixes. If you are interested in deploying to
-mobile or embedded devices, you do not need to install the entire TVM stack on
-your device. Instead, you only need the runtime and can install using the
-:ref:`deployment and integration guide <deploy-and-integration>`.
-
-If you would like to quickly try out TVM or run some demo and tutorials, you
-can :ref:`install from Docker <docker-images>`, or install using the
-third-party :doc:`TLCPack Python and Conda packages <tlcpack>`
+These user-focused "how to" guides are designed to help you find answers to
+specific questions, like "How do I compile a model?" or "How to I optimize a
+schedule with tesor expressions?"
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   from_source
-   docker
-   tlcpack
+   compile_models/index
+   deploy/index
+   work_with_relay/index
+   work_with_schedules/index
+   optimize_operators/index
+   tune_with_autotvm/index
+   tune_with_autoscheduler/index
+   work_with_microtvm/index
+   extend_tvm/index
+   profile/index
+   ../errors
+   ../faq
