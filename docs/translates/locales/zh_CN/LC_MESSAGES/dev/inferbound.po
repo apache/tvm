@@ -270,6 +270,8 @@ msgid ""
 "InferRootBound for the root_iter_vars, and set the Ranges of all other "
 "IterVars in the stage."
 msgstr ""
+"PassDownDomain 的目的是获取 InferRootBound 为 root_iter_var 产生的 Range ，并为阶段中所有其他  "
+"IterVar 设置 Range。"
 
 #: ../../_staging/dev/inferbound.rst:178
 msgid ""

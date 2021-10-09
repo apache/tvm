@@ -208,8 +208,8 @@ msgid ""
 "include some form of documentations for internal APIs that are used in "
 "multiple places, see also F4."
 msgstr ""
-"F3:面向用户的API文档:面向公共用户的API和关键模块接口的文档是必需的。这包括API，出现在公共接口中的数据结构(例如`include/tvm`和面向用户的python"
-" API)。我们通常鼓励有良好文档记录的代码和为在多个地方使用的内部API提供某种形式的文档，参考F4。"
+"F3:面向用户的API文档:面向公共用户的API和关键模块接口的文档是必需的。这包括API，出现在公共接口中的数据结构(例如 `include/tvm`"
+" 和面向用户的python API)。我们通常鼓励有良好文档记录的代码和为在多个地方使用的内部API提供某种形式的文档，参考F4。"
 
 #: ../../_staging/contribute/code_review.rst:112
 msgid ""

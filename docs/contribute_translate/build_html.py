@@ -1,5 +1,6 @@
 import json
 import os,sys
+import datetime
 
 base_dir=os.path.dirname(__file__)
 sys.path.append(base_dir)
@@ -43,6 +44,12 @@ def CreateTableLine(titles,data) ->str:
                                   .replace("$IMPACT_2", str(int(data[titles.index("Match (60-64%)")])+int(data[titles.index("Match (65-69%)")])+int(data[titles.index("Match (70-74%)")])+int(data[titles.index("Match (75-79%)")])+int(data[titles.index("Match (80-84%)")])))\
                                  .replace("$IMPACT_3", str(int(data[titles.index("Match (85-89%)")])+int(data[titles.index("Match (90-94%)")]))).replace("$IMPACT_4", str(int(data[titles.index("Match (95-99%)")])+int(data[titles.index("Match (100%)")])))
 
+with open(os.path.join(base_dir,"translator_data.csv"), "r") as f:
+    for line in f:
+        if '<' in line:
+            print("fail to download the new csv from transifex.com, the contribute page will not update.")
+            exit(1)
+
 # 从csdv读取数据
 datas = []
 with open(os.path.join(base_dir,"translator_data.csv"), "r") as f:
@@ -58,6 +65,6 @@ for i in range(len(datas)):
     table_lines +=CreateTableLine(titles,datas[i])
 
 with open(os.path.join(base_dir,"declaration_zh_CN.html"), "w",encoding='utf-8') as fw:
-    fw.write(html_page.replace("$WEBSITE",website).replace("$MIRROR_WEBSITE",mirror_website).replace("$TABLEDATAS",table_lines))
+    fw.write(html_page.replace("$WEBSITE",website).replace("$MIRROR_WEBSITE",mirror_website).replace("$TABLEDATAS",table_lines).replace("$UPDATETIME",str(datetime.date.today() - datetime.timedelta(days=1))))
 
 print("the contribute HTML is built in ",os.path.join(base_dir,"declaration_zh_CN.html"))

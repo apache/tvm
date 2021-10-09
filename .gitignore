@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.S
+# docs
+docs/*.png
+docs/transifex_identify.json
 # C extensions
 *.so
 *.ll
