@@ -49,7 +49,8 @@ InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs,
   ICHECK(attrs_ptr);
   ObjectPtr<T> params = make_object<T>(*attrs_ptr);
 
-  if (new_in_layouts.defined()) {
+  // set to new_in_layouts[0].name() only when params->layout == ""
+  if ((params->layout == "") && new_in_layouts.defined()) {
     // Set the pool with the new layout.
     ICHECK_EQ(new_in_layouts.size(), 1);
     params->layout = new_in_layouts[0].name();

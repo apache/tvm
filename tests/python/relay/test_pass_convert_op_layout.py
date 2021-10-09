@@ -234,9 +234,9 @@ def test_conv_bias_pool_convert_layout():
         # a useless tuple, which will be eliminated
         y = relay.Tuple([y])[0]
         y = relay.nn.relu(y)
-        y = relay.nn.max_pool2d(y, pool_size=(2, 2))
-        y = relay.cast(y, "int32")
         y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout="NHWC")
+        y = relay.cast(y, "int32")
         y = relay.nn.batch_flatten(y)
         y = relay.Function(analysis.free_vars(y), y)
         return y
@@ -245,7 +245,7 @@ def test_conv_bias_pool_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
 
 
 def test_conv_concat_convert_layout():
@@ -330,7 +330,7 @@ def test_deformable_conv_bias_pool_convert_layout():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    def expected(N, CI, H, W, CO, KH, KW, OH, OW, src_layout, dst_layout):
+    def expected(N, CI, H, W, CO, KH, KW, OH, OW, src_layout, dst_layout, max_pool_layout=None):
         layout_map = {"src": {}, "dst": {}}
         if src_layout == "NCHW":
             nchw = layout_map["src"]
@@ -386,11 +386,10 @@ def test_deformable_conv_bias_pool_convert_layout():
         )
         y = relay.add(y, bias)
         y = relay.nn.relu(y)
-        y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout=layout_map["dst"]["data_layout"])
+        if max_pool_layout != layout_map["dst"]["data_layout"]:
+            y = relay.layout_transform(y, layout_map["dst"]["data_layout"], max_pool_layout)
+        y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout=max_pool_layout)
         y = relay.cast(y, "int32")
-        y = relay.layout_transform(
-            y, layout_map["dst"]["data_layout"], layout_map["src"]["data_layout"]
-        )
         y = relay.nn.batch_flatten(y)
         y = relay.Function(analysis.free_vars(y), y)
         return y
@@ -398,16 +397,22 @@ def test_deformable_conv_bias_pool_convert_layout():
     # NHWC -> NCHW
     a = before(1, 3, 224, 224, 32, 3, 3, "NHWC")
     a = run_opt_pass(a, transform.ConvertLayout({"nn.deformable_conv2d": ["NCHW", "default"]}))
+    # - in the before() func, its last argument "NHWC" is also the layout of max_pool
     b = run_opt_pass(
-        expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NHWC", "NCHW"), transform.InferType()
+        # max_pool has its own layout argument
+        expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NHWC", "NCHW", max_pool_layout="NHWC"),
+        transform.InferType(),
     )
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
 
     # NCHW -> NHWC
     a = before(1, 3, 224, 224, 32, 3, 3, "NCHW")
     a = run_opt_pass(a, transform.ConvertLayout({"nn.deformable_conv2d": ["NHWC", "default"]}))
+    # - in the before() func, its last argument "NCHW" is also the layout of max_pool
     b = run_opt_pass(
-        expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NCHW", "NHWC"), transform.InferType()
+        # max_pool has its own layout argument
+        expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NCHW", "NHWC", max_pool_layout="NCHW"),
+        transform.InferType(),
     )
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
@@ -691,15 +696,15 @@ def test_resnet_convert_layout():
         y2 = relay.nn.conv2d(x, weight2, channels=32, kernel_size=(1, 1))
         y2 = relay.nn.relu(y2)
         y = y + y2
-        y = relay.nn.global_max_pool2d(y)
         y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.nn.global_max_pool2d(y, layout="NHWC")
         return relay.Function(analysis.free_vars(y), y)
 
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
 
 
 def test_scalar_convert_layout():
