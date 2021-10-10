@@ -1,0 +1,122 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:38+0000\n"
+"Last-Translator: a_flying_fish <a_flying_fish@outlook.com>, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/faq.rst:20
+msgid "Frequently Asked Questions"
+msgstr "常见提问"
+
+#: ../../_staging/faq.rst:24
+msgid "How to Install"
+msgstr "如何安装 TVM"
+
+#: ../../_staging/faq.rst:25
+msgid "See :ref:`installation`."
+msgstr "查看 :ref:`installation`."
+
+#: ../../_staging/faq.rst:29
+msgid "How to add a new Hardware Backend"
+msgstr "如何添加新的硬件后端"
+
+#: ../../_staging/faq.rst:31
+msgid ""
+"If the hardware backend has LLVM support, then we can directly generate the "
+"code by setting the correct target triple as in :py:mod:`~tvm.target`."
+msgstr "如果硬件后端具有 LLVM 支持，则我们可以直接生成代码，将正确的目标设置为 :py:mod:`~tvm.target`。"
+
+#: ../../_staging/faq.rst:33
+msgid ""
+"If the target hardware is a GPU, try to use the cuda, opencl or vulkan "
+"backend."
+msgstr "如果目标硬件是 GPU，请尝试使用 CUDA、OpenCL 或 Vulkan 后端。"
+
+#: ../../_staging/faq.rst:34
+msgid ""
+"If the target hardware is a special accelerator, checkout :ref:`vta-index` "
+"and :ref:`relay-bring-your-own-codegen`."
+msgstr ""
+"如果目标硬件是一个特殊的加速器，参阅 :ref:`vta-index` 和 :ref:`relay-bring-your-own-codegen` 。"
+
+#: ../../_staging/faq.rst:36
+msgid ""
+"For all of the above cases, You may want to add target specific optimization"
+" templates using AutoTVM, see :ref:`tutorials-autotvm-sec`."
+msgstr "对于上述所有案例，您可能需要使用 AutoTVM 添加特定目标优化模板，请参阅 :ref:`tutorials-autotvm-sec`。"
+
+#: ../../_staging/faq.rst:38
+msgid ""
+"Besides using LLVM's vectorization, we can also embed micro-kernels to "
+"leverage hardware intrinsics, see :ref:`tutorials-tensorize`."
+msgstr "除了使用LLVM的矢量化，我们还可以嵌入微内核来利用硬件的固有特性，查看 :ref:`tutorials-tensorize`。"
+
+#: ../../_staging/faq.rst:43
+msgid "TVM's relation to Other IR/DSL Projects"
+msgstr "TVM 与其他 IR/DSL 项目的关系"
+
+#: ../../_staging/faq.rst:44
+msgid ""
+"There are usually two levels of abstractions of IR in the deep learning "
+"systems. TensorFlow's XLA and Intel's ngraph both use a computation graph "
+"representation. This representation is high level, and can be helpful to "
+"perform generic optimizations such as memory reuse, layout transformation "
+"and automatic differentiation."
+msgstr ""
+"深度学习系统中通常有两个级别的 IR 抽象。TensorFlow 的 XLA 和英特尔的 ngraph "
+"都使用计算图表示。此表示是高水平的，有助于执行通用优化，例如内存复用、层级转换和自动分化。"
+
+#: ../../_staging/faq.rst:49
+msgid ""
+"TVM adopts a low-level representation, that explicitly express the choice of"
+" memory layout, parallelization pattern, locality and hardware primitives "
+"etc. This level of IR is closer to directly target hardwares. The low-level "
+"IR adopts ideas from existing image processing languages like Halide, "
+"darkroom and loop transformation tools like loopy and polyhedra-based "
+"analysis. We specifically focus on expressing deep learning workloads (e.g. "
+"recurrence), optimization for different hardware backends and embedding with"
+" frameworks to provide end-to-end compilation stack."
+msgstr ""
+"TVM 采用低级表示，明确表达内存布局、并行模式、区域性和硬件原语等选择。此级别的 IR 更直接靠近目标硬件。低级 IR 采用现有的包括 "
+"Halide、darkroom 及 "
+"循环转换工具（例如基于环形和多面体分析）在内的图像处理语言。我们特别注重表达深度学习工作负载（例如：重复）、优化不同硬件后端以及嵌入框架来提供端到端编译堆栈。"
+
+#: ../../_staging/faq.rst:60
+msgid "TVM's relation to libDNN, cuDNN"
+msgstr "TVM 与 libDNN、cuDNN 的关系"
+
+#: ../../_staging/faq.rst:61
+msgid ""
+"TVM can incorporate these libraries as external calls. One goal of TVM is to"
+" be able to generate high-performing kernels. We will evolve TVM an "
+"incremental manner as we learn from the techniques of manual kernel crafting"
+" and add these as primitives in DSL. See also top for recipes of operators "
+"in TVM."
+msgstr ""
+"TVM 可以以外部调用的方式混用这些库，其目标是能够生成高性能的内核。我们将以增量的方式发展 "
+"TVM，正如我们从手动构建内核的技术中所了解的并将它们作为原语添加到DSL中。另请参阅 TVM 中操作的高级方法。"
+
+#: ../../_staging/faq.rst:68
+msgid "Security"
+msgstr "安全"
+
+#: ../../_staging/faq.rst:69
+msgid "See :ref:`dev-security`"
+msgstr "查看 :ref:`dev-security`"
