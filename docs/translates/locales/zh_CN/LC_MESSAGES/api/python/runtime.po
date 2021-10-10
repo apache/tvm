@@ -1,0 +1,1680 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# 长德 司, 2021
+# JiaKui Hu, 2021
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:39+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/api/python/runtime.rst:19
+msgid "tvm.runtime"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of tvm.runtime:1
+msgid "TVM runtime namespace."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of tvm.runtime:1
+msgid "**Classes:**"
+msgstr "**Classes:**"
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`PackedFunc <tvm.runtime.PackedFunc>`\\ \\(handle\\, is\\_global\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1
+msgid "The PackedFunc object used in TVM."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`Object <tvm.runtime.Object>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/runtime/object.pydocstring of
+#: tvm.runtime.object.Object:1
+msgid "Base class for all tvm's runtime objects."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`ObjectGeneric <tvm.runtime.ObjectGeneric>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/runtime/object_generic.pydocstring of
+#: tvm.runtime.object_generic.ObjectGeneric:1
+msgid "Base class for all classes that can be converted to object."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`DataType <tvm.runtime.DataType>`\\ \\(type\\_str\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.DataType:1
+msgid "TVM datatype structure"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`DataTypeCode <tvm.runtime.DataTypeCode>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.DataTypeCode:1
+msgid "DataType code in DLTensor."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`Device <tvm.runtime.Device>`\\ \\(device\\_type\\, device\\_id\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1
+msgid "TVM device strucure."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`Module <tvm.runtime.Module>`\\ \\(handle\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1
+msgid "Runtime Module."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`Report <tvm.runtime.Report>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report:1
+msgid "A container for information gathered during a profiling run."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+msgid ":obj:`String <tvm.runtime.String>`\\ \\(content\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime:1:<autosummary>:1
+#: ../../../python/tvm/runtime/container.pydocstring of
+#: tvm.runtime.container.String:1
+msgid "TVM runtime.String object, represented as a python str."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of tvm.runtime:1
+msgid "**Functions:**"
+msgstr "**Functions:**"
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ""
+":obj:`convert_to_object <tvm.runtime.convert_to_object>`\\ \\(value\\[\\, "
+"span\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert_to_object:1
+msgid "Convert a Python value to corresponding object type."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`convert <tvm.runtime.convert>`\\ \\(value\\[\\, span\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert:1
+msgid "Convert value to TVM object or function."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`const <tvm.runtime.const>`\\ \\(value\\[\\, dtype\\, span\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.const:1
+msgid "construct a constant"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`device <tvm.runtime.device>`\\ \\(dev\\_type\\[\\, dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:1
+msgid "Construct a TVM device with given device type and id."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`cpu <tvm.runtime.cpu>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:1
+msgid "Construct a CPU device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`cuda <tvm.runtime.cuda>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.cuda:1 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.gpu:1
+msgid "Construct a CUDA GPU device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`gpu <tvm.runtime.gpu>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`opencl <tvm.runtime.opencl>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.opencl:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.opencl:1
+msgid "Construct a OpenCL device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`cl <tvm.runtime.cl>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`vulkan <tvm.runtime.vulkan>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vulkan:1
+msgid "Construct a Vulkan device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`metal <tvm.runtime.metal>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:1
+msgid "Construct a metal device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`mtl <tvm.runtime.mtl>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`vpi <tvm.runtime.vpi>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vpi:1
+msgid "Construct a VPI simulated device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`rocm <tvm.runtime.rocm>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.rocm:1
+msgid "Construct a ROCM device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`ext_dev <tvm.runtime.ext_dev>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.ext_dev:1
+msgid "Construct a extension device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`load_module <tvm.runtime.load_module>`\\ \\(path\\[\\, fmt\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.load_module:1
+msgid "Load module from file."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`enabled <tvm.runtime.enabled>`\\ \\(target\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.enabled:1
+msgid "Whether module runtime is enabled for target"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`system_lib <tvm.runtime.system_lib>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.system_lib:1
+msgid "Get system-wide library module singleton."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`save_param_dict <tvm.runtime.save_param_dict>`\\ \\(params\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.save_param_dict:1
+msgid "Save parameter dictionary to binary bytes."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+msgid ":obj:`load_param_dict <tvm.runtime.load_param_dict>`\\ \\(param\\_bytes\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:1:<autosummary>:1
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.load_param_dict:1
+msgid "Load parameter dictionary to binary bytes."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:3
+msgid ""
+"Function plays an key role to bridge front and backend in TVM. Function "
+"provide a type-erased interface, you can call function with positional "
+"arguments."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:6
+msgid ""
+"The compiled module returns Function. TVM backend also registers and exposes"
+" its API as Functions."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:9
+msgid ""
+"The following are list of common usage scenario of tvm.runtime.PackedFunc."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:11
+msgid "Automatic exposure of C++ API into python"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:12
+msgid "To call PackedFunc from python side"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:13
+msgid "To call python callbacks to inspect results in generated code"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:14
+msgid "Bring python hook into C++ backend"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:19
+msgid ":obj:`tvm.register_func`"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:19
+msgid "How to register global function."
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:21
+msgid ":obj:`tvm.get_global_func`"
+msgstr ""
+
+#: ../../../python/tvm/runtime/packed_func.pydocstring of
+#: tvm.runtime.packed_func.PackedFunc:22
+msgid "How to get global function."
+msgstr ""
+
+#: ../../../python/tvm/runtime/object_generic.pydocstring of
+#: tvm.runtime.object_generic.ObjectGeneric:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report:1
+msgid "**Methods:**"
+msgstr ""
+
+#: ../../../python/tvm/runtime/object_generic.pydocstring of
+#: tvm.runtime.object_generic.ObjectGeneric.asobject:1:<autosummary>:1
+msgid ":obj:`asobject <tvm.runtime.ObjectGeneric.asobject>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/object_generic.pydocstring of
+#: tvm.runtime.object_generic.ObjectGeneric.asobject:1:<autosummary>:1
+#: ../../../python/tvm/runtime/object_generic.pydocstring of
+#: tvm.runtime.object_generic.ObjectGeneric.asobject:1
+msgid "Convert value to object"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:3
+msgid ""
+"Typically constructed using convenience function :meth:`tvm.runtime.device`."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:6
+msgid ""
+"Exposes uniform interface to device-specific APIs such as CUDA or OpenCL.  "
+"Some properties may return None depending on whether an API exposes that "
+"particular property."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1
+msgid "**Attributes:**"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ":obj:`exist <tvm.runtime.Device.exist>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1
+msgid "Whether this device exists."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ""
+":obj:`max_threads_per_block <tvm.runtime.Device.max_threads_per_block>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_threads_per_block:1
+msgid "Maximum number of threads on each block."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ":obj:`warp_size <tvm.runtime.Device.warp_size>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.warp_size:1
+msgid "Number of threads that execute concurrently."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ""
+":obj:`max_shared_memory_per_block "
+"<tvm.runtime.Device.max_shared_memory_per_block>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_shared_memory_per_block:1
+msgid "Total amount of shared memory per block in bytes."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ":obj:`compute_version <tvm.runtime.Device.compute_version>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.compute_version:1
+msgid "Get compute version number as string."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ":obj:`device_name <tvm.runtime.Device.device_name>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.device_name:1
+msgid "Return the vendor-specific name of device."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ":obj:`max_clock_rate <tvm.runtime.Device.max_clock_rate>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_clock_rate:1
+msgid "Return the max clock frequency of device (kHz)."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ""
+":obj:`multi_processor_count <tvm.runtime.Device.multi_processor_count>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.multi_processor_count:1
+msgid "Return the number of compute units in the device."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ""
+":obj:`max_thread_dimensions <tvm.runtime.Device.max_thread_dimensions>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_thread_dimensions:1
+msgid "Return the maximum size of each thread axis"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ":obj:`api_version <tvm.runtime.Device.api_version>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.api_version:1
+msgid "Returns version number of the SDK used to compile TVM."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+msgid ":obj:`driver_version <tvm.runtime.Device.driver_version>`\\"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.driver_version:1
+msgid "Returns version number of the driver"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1:<autosummary>:1
+msgid ":obj:`create_raw_stream <tvm.runtime.Device.create_raw_stream>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.create_raw_stream:1
+msgid "Create a new runtime stream at the context."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1:<autosummary>:1
+msgid ":obj:`free_raw_stream <tvm.runtime.Device.free_raw_stream>`\\ \\(stream\\)"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.free_raw_stream:1
+msgid "Free a created stream handle."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1:<autosummary>:1
+msgid ":obj:`set_raw_stream <tvm.runtime.Device.set_raw_stream>`\\ \\(stream\\)"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.set_raw_stream:1
+msgid "Set a created stream handle."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1:<autosummary>:1
+msgid ":obj:`sync <tvm.runtime.Device.sync>`\\ \\(\\[stream\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.sync:1
+msgid "Synchronize until jobs finished at the context."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:3
+msgid ""
+"Returns True if TVM has support for the device, if the physical device is "
+"present, and the device is accessible through appropriate drivers (e.g. "
+"cuda/vulkan)."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_threads_per_block:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.warp_size:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_shared_memory_per_block:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.compute_version:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.device_name:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_clock_rate:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.multi_processor_count:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_thread_dimensions:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.api_version:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.driver_version:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.create_raw_stream:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_function:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_source:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.imported_modules:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:0
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:0
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.json:0
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.from_json:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert_to_object:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.const:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.cuda:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.gpu:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.opencl:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.opencl:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vulkan:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vpi:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.rocm:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.ext_dev:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.load_module:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.enabled:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.system_lib:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.save_param_dict:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.load_param_dict:0
+msgid "Returns"
+msgstr "返回"
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:7
+msgid "**exist** -- True if the device exists"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.exist:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_threads_per_block:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.warp_size:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_shared_memory_per_block:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.compute_version:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.device_name:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_clock_rate:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.multi_processor_count:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_thread_dimensions:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.api_version:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.driver_version:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.create_raw_stream:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_function:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_source:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.imported_modules:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:0
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:0
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.json:0
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.from_json:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert_to_object:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.const:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.cuda:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.gpu:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.opencl:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.opencl:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vulkan:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vpi:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.rocm:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.ext_dev:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.load_module:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.enabled:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.system_lib:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.save_param_dict:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.load_param_dict:0
+msgid "Return type"
+msgstr "返回的数据类型"
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_threads_per_block:3
+msgid ""
+"Returns device value for cuda, metal, rocm, opencl, and vulkan devices.  "
+"Returns remote device value for RPC devices. Returns None for all other "
+"devices."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_threads_per_block:7
+msgid "**max_threads_per_block** -- The number of threads on each block"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.warp_size:3
+msgid ""
+"Returns device value for for cuda, rocm, and vulkan.  Returns 1 for metal "
+"and opencl devices, regardless of the physical device.  Returns remote "
+"device value for RPC devices.  Returns None for all other devices."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.warp_size:8
+msgid "**warp_size** -- Number of threads that execute concurrently"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_shared_memory_per_block:3
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.compute_version:6
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.device_name:3
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_thread_dimensions:3
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.api_version:6
+msgid ""
+"Returns device value for cuda, rocm, opencl, and vulkan. Returns remote "
+"device value for RPC devices.  Returns None for all other devices."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_shared_memory_per_block:7
+msgid ""
+"**max_shared_memory_per_block** -- Total amount of shared memory per block "
+"in bytes"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.compute_version:3
+msgid ""
+"Returns maximum API version (e.g. CUDA/OpenCL/Vulkan) supported by the "
+"device."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.compute_version:10
+msgid "**version** -- The version string in `major.minor` format."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.device_name:7
+msgid "**device_name** -- The name of the device."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_clock_rate:3
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.multi_processor_count:3
+msgid ""
+"Returns device value for cuda, rocm, and opencl.  Returns remote device "
+"value for RPC devices.  Returns None for all other devices."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_clock_rate:7
+msgid "**max_clock_rate** -- The maximum clock frequency of the device (kHz)"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.multi_processor_count:7
+msgid ""
+"**multi_processor_count** -- Thee number of compute units in the device"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.max_thread_dimensions:7
+msgid ""
+"**dims** -- The maximum length of threadIdx.x, threadIdx.y, threadIdx.z"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.api_version:3
+msgid "For example, CUDA_VERSION for cuda or VK_HEADER_VERSION for Vulkan."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.api_version:10
+msgid "**version** -- The version of the SDK"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.driver_version:3
+msgid ""
+"Returns driver vendor's internal version number. (e.g. \"450.408.256\" for "
+"nvidia-driver-450)"
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.driver_version:6
+msgid ""
+"Returns device value for opencl and vulkan.  Returns remote device value for"
+" RPC devices.  Returns None for all other devices."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm.runtime.Device.driver_version:10
+msgid "**version** -- The version string in `major.minor.patch` format."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.create_raw_stream:3
+msgid "User should free the stream after use."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.create_raw_stream:5
+msgid "**stream** -- The created runtime stream."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.free_raw_stream:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.set_raw_stream:0
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.sync:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_function:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.import_module:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_source:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.save:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:0
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:0
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.from_json:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert_to_object:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.const:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.cuda:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.gpu:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.opencl:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.opencl:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vulkan:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vpi:0 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.rocm:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.ext_dev:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.load_module:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.enabled:0
+#: ../../../python/tvm/runtime/container.pydocstring of
+#: tvm.runtime.container.String:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.save_param_dict:0
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.load_param_dict:0
+msgid "Parameters"
+msgstr "参数"
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.free_raw_stream:3
+msgid "The stream which should to be released."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.set_raw_stream:3
+msgid "The stream which should to be set to the device."
+msgstr ""
+
+#: ../../../python/tvm/_ffi/runtime_ctypes.pydocstring of
+#: tvm._ffi.runtime_ctypes.Device.sync:3
+msgid "Jobs in this stream should be finished."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1:<autosummary>:1
+msgid ":obj:`entry_func <tvm.runtime.Module.entry_func>`\\"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1
+msgid "Get the entry function"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1:<autosummary>:1
+msgid ":obj:`type_key <tvm.runtime.Module.type_key>`\\"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.type_key:1
+msgid "Get type key of the module."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1:<autosummary>:1
+msgid ":obj:`imported_modules <tvm.runtime.Module.imported_modules>`\\"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.imported_modules:1
+msgid "Get imported modules"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+msgid ""
+":obj:`get_function <tvm.runtime.Module.get_function>`\\ \\(name\\[\\, "
+"query\\_imports\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_function:1
+msgid "Get function from the module."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+msgid ":obj:`import_module <tvm.runtime.Module.import_module>`\\ \\(module\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.import_module:1
+msgid "Add module to the import list of current one."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+msgid ":obj:`get_source <tvm.runtime.Module.get_source>`\\ \\(\\[fmt\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_source:1
+msgid "Get source code from module, if available."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+msgid ":obj:`save <tvm.runtime.Module.save>`\\ \\(file\\_name\\[\\, fmt\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.save:1
+msgid "Save the module to file."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+msgid ""
+":obj:`time_evaluator <tvm.runtime.Module.time_evaluator>`\\ "
+"\\(func\\_name\\, dev\\[\\, number\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:1
+msgid "Get an evaluator that measures time cost of running function."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+msgid ""
+":obj:`export_library <tvm.runtime.Module.export_library>`\\ "
+"\\(file\\_name\\[\\, fcompile\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:1:<autosummary>:1
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:1
+msgid ""
+"Export the module and all imported modules into a single device library."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.entry_func:3
+msgid "**f** -- The entry function if exist"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_function:3
+msgid "The name of the function"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_function:5
+msgid "Whether also query modules imported by this module."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_function:8
+msgid "**f** -- The result function."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.import_module:3
+msgid "The other module."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_source:3
+msgid "The specified format."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.get_source:6
+msgid "**source** -- The result source code."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.Module.imported_modules:3
+msgid "**modules** -- The module"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.save:3
+msgid "This do not save the dependent device modules. See also export_shared"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.save:6
+msgid "The name of the file."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.save:8
+msgid "The format of the file."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.save:13
+msgid ":obj:`runtime.Module.export_library`"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.save:14
+msgid "export the module to shared library."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:3
+msgid "The name of the function in the module."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:5
+msgid "The device we should run this function on."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:7
+msgid ""
+"The number of times to run this function for taking average. We call these "
+"runs as one `repeat` of measurement."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:10
+msgid ""
+"The number of times to repeat the measurement. In total, the function will "
+"be invoked (1 + number x repeat) times, where the first one is warm up and "
+"will be discarded. The returned result contains `repeat` costs, each of "
+"which is an average of `number` costs."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:16
+msgid ""
+"The minimum duration of one `repeat` in milliseconds. By default, one "
+"`repeat` contains `number` runs. If this parameter is set, the parameters "
+"`number` will be dynamically adjusted to meet the minimum duration "
+"requirement of one `repeat`. i.e., When the run time of one `repeat` falls "
+"below this time, the `number` parameter will be automatically increased."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:23
+msgid ""
+"The preprocess function name we want to execute before executing the time "
+"evaluator."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:28
+msgid ""
+"The function will be invoked  (1 + number x repeat) times, with the first "
+"call discarded in case there is lazy initialization."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.time_evaluator:31
+msgid ""
+"**ftimer** -- The function that takes same argument as func and returns a "
+"BenchmarkResult. The ProfileResult reports `repeat` time costs in seconds."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:3
+msgid ""
+"This function only works on host LLVM modules, other runtime::Module "
+"subclasses will work with this API but they must support implement the save "
+"and load mechanisms of modules completely including saving from streams and "
+"files. This will pack your non-shared library module into a single shared "
+"library which can later be loaded by TVM."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:9
+msgid "The name of the shared library."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:11
+msgid ""
+"The compilation function to use create the final library object during "
+"export.  For example, when fcompile=_cc.create_shared, or when it is not "
+"supplied but module is \"llvm,\" this is used to link all produced artifacts"
+" into a final dynamic library.  This behavior is controlled by the type of "
+"object exported. If fcompile has attribute object_format, will compile host "
+"library to that format. Otherwise, will use default format \"o\"."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:11
+msgid ""
+"The compilation function to use create the final library object during "
+"export."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:14
+msgid ""
+"For example, when fcompile=_cc.create_shared, or when it is not supplied but"
+" module is \"llvm,\" this is used to link all produced artifacts into a "
+"final dynamic library."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:18
+msgid ""
+"This behavior is controlled by the type of object exported. If fcompile has "
+"attribute object_format, will compile host library to that format. "
+"Otherwise, will use default format \"o\"."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:22
+msgid ""
+"The path of the directory used to create the intermediate artifacts when "
+"exporting the module. If this is not provided a temporary dir will be "
+"created."
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:26
+msgid "Additional arguments passed to fcompile"
+msgstr ""
+
+#: ../../../python/tvm/runtime/module.pydocstring of
+#: tvm.runtime.module.Module.export_library:29
+msgid ""
+"**result of fcompile()** -- If the compilation function returns an artifact "
+"it would be returned via export_library, if any."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report:5
+msgid "Per-call profiling metrics (function name, runtime, device, ...)."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report:0
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report:0
+msgid "type"
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report:7
+msgid "Array[Dict[str, Object]]"
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report:11
+msgid "Per-device metrics collected over the entire run."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report:13
+msgid "Dict[Device, Dict[str, Object]]"
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:1:<autosummary>:1
+msgid ":obj:`csv <tvm.runtime.Report.csv>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:1:<autosummary>:1
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:1
+msgid "Convert this profiling report into CSV format."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:1:<autosummary>:1
+msgid ":obj:`json <tvm.runtime.Report.json>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:1:<autosummary>:1
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.json:1
+msgid "Convert this profiling report into JSON format."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:1:<autosummary>:1
+msgid ":obj:`from_json <tvm.runtime.Report.from_json>`\\ \\(s\\)"
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:1:<autosummary>:1
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.from_json:1
+msgid "Deserialize a report from JSON."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:3
+msgid "This only includes calls and not overall metrics."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.csv:5
+msgid "**csv** -- `calls` in CSV format."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.json:3
+msgid "Example output:"
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.json:50
+msgid "**json** -- Formatted JSON"
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.from_json:3
+msgid "Report serialize via :py:meth:`json`."
+msgstr ""
+
+#: ../../../python/tvm/runtime/profiling/__init__.pydocstring of
+#: tvm.runtime.profiling.Report.from_json:6
+msgid "**report** -- The deserialized report."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert_to_object:3
+msgid "The value to be inspected."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert_to_object:5
+msgid "The location of this itervar in the source code."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert_to_object:8
+msgid "**obj** -- The corresponding object value."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert:5
+msgid "The location of this statement in the source code."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.convert:8
+msgid "**tvm_val** -- Converted value in TVM"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.const:3
+msgid "The content of the constant number."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.const:5
+msgid "The data type."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.const:7
+msgid "The location of the constant value in the source."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.object_generic.const:10
+msgid "**const_val** -- The result expression."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:3
+msgid "The device type mask or name of the device."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:5
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:3 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.cuda:3
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.gpu:6 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.opencl:3
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.opencl:3
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vulkan:3
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:3
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:3
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vpi:3 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.rocm:3
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.ext_dev:3
+msgid "The integer device id"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:8
+msgid "**dev** -- The corresponding device."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:12
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.enabled:10
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.save_param_dict:13
+msgid "Examples"
+msgstr "样例"
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.device:13
+msgid ""
+"Device can be used to create reflection of device by string representation "
+"of the device type."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:6 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.cuda:6
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.gpu:9 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.opencl:6
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.opencl:6
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vulkan:6
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:6
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.metal:6
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.vpi:6 ../../../python/tvm/runtime/__init__.pydocstring
+#: of tvm.runtime.ndarray.rocm:6
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.ext_dev:6
+msgid "**dev** -- The created device"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.gpu:3
+msgid "deprecated:: 0.9.0 Use :py:func:`tvm.cuda` instead."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.ndarray.ext_dev:11
+msgid ""
+"This API is reserved for quick testing of new device by plugin device API as"
+" ext_dev."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.load_module:3
+msgid "The path to the module file."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.load_module:5
+msgid ""
+"The format of the file, if not specified it will be inferred from suffix of "
+"the file."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.load_module:9
+msgid "**module** -- The loaded module"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.load_module:14
+msgid ""
+"This function will automatically call cc.create_shared if the path is in "
+"format .o or .tar"
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.enabled:3
+msgid "The target device type."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.enabled:6
+msgid "**enabled** -- Whether runtime is enabled."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.enabled:11
+msgid "The following code checks if gpu is enabled."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.system_lib:3
+msgid ""
+"System lib is a global module that contains self register functions in "
+"startup. Unlike normal dso modules which need to be loaded explicitly. It is"
+" useful in environments where dynamic loading api like dlopen is banned."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.system_lib:7
+msgid ""
+"To build system lib function, simply specify target option ```llvm --system-"
+"lib``` The system lib will be available as long as the result code is linked"
+" by the program."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.system_lib:10
+msgid ""
+"The system lib is intended to be linked and loaded during the entire life-"
+"cyle of the program. If you want dynamic loading features, use dso modules "
+"instead."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.module.system_lib:13
+msgid "**module** -- The system-wide library module."
+msgstr ""
+
+#: ../../../python/tvm/runtime/container.pydocstring of
+#: tvm.runtime.container.String:3
+msgid "The content string used to construct the object."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.save_param_dict:3
+msgid ""
+"The result binary bytes can be loaded by the GraphModule with API "
+"\"load_params\"."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.save_param_dict:6
+msgid "The parameter dictionary."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.save_param_dict:9
+msgid "**param_bytes** -- Serialized parameters."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.load_param_dict:3
+msgid "Serialized parameters."
+msgstr ""
+
+#: ../../../python/tvm/runtime/__init__.pydocstring of
+#: tvm.runtime.params.load_param_dict:6
+msgid "**params** -- The parameter dictionary."
+msgstr ""

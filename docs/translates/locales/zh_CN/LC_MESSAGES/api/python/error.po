@@ -1,0 +1,207 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# JiaKui Hu, 2021
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:38+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/api/python/error.rst:19
+msgid "tvm.error"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm.error:1
+msgid "Structured error classes in TVM."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm.error:3
+msgid ""
+"Each error class takes an error message as its input. See the example "
+"sections for for suggested message conventions. To make the code more "
+"readable, we recommended developers to copy the examples and raise errors "
+"with the same message convention."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm.error:10
+msgid "Please also refer to :ref:`error-handling-guide`."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm.error:1
+msgid "**Functions:**"
+msgstr "**Functions:**"
+
+#: ../../../python/tvm/error.pydocstring of tvm.error:1:<autosummary>:1
+msgid ":obj:`register_error <tvm.error.register_error>`\\ \\(\\[func\\_name\\, cls\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm.error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:1
+msgid ""
+"Register an error class so it can be recognized by the ffi error handler."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm.error:1
+msgid "**Exceptions:**"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`TVMError <tvm.error.TVMError>`\\"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/_ffi/base.pydocstring of tvm._ffi.base.TVMError:1
+msgid "Default error thrown by TVM functions."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`InternalError <tvm.error.InternalError>`\\ \\(msg\\)"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of tvm.error.InternalError:1
+msgid "Internal error in the system."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`RPCError <tvm.error.RPCError>`\\"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of tvm.error.RPCError:1
+msgid "Error thrown by the remote server handling the RPC call."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpError <tvm.error.OpError>`\\"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of tvm.error.OpError:1
+msgid "Base class of all operator errors in frontends."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpNotImplemented <tvm.error.OpNotImplemented>`\\"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of tvm.error.OpNotImplemented:1
+msgid "Operator is not implemented."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpAttributeRequired <tvm.error.OpAttributeRequired>`\\"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of tvm.error.OpAttributeRequired:1
+msgid "Required attribute is not found."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpAttributeInvalid <tvm.error.OpAttributeInvalid>`\\"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of tvm.error.OpAttributeInvalid:1
+msgid "Attribute value is invalid when taking in a frontend operator."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpAttributeUnImplemented <tvm.error.OpAttributeUnImplemented>`\\"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of
+#: tvm.error.OpAttributeUnImplemented:1
+msgid "Attribute is not supported in a certain frontend."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`DiagnosticError <tvm.error.DiagnosticError>`\\"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of
+#: tvm._ffi.base.register_error:1:<autosummary>:1
+#: ../../../python/tvm/error.pydocstring of tvm.error.DiagnosticError:1
+msgid "Error diagnostics were reported during the execution of a pass."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:0
+msgid "Parameters"
+msgstr "参数"
+
+#: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:3
+msgid "The name of the error function."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:5
+msgid "The function to create the class"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:0
+msgid "Returns"
+msgstr "返回"
+
+#: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:8
+msgid "**fregister** -- Register function if f is not specified."
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:0
+msgid "Return type"
+msgstr "返回的数据类型"
+
+#: ../../../python/tvm/error.pydocstring of tvm._ffi.base.register_error:12
+#: ../../../python/tvm/error.pydocstring of tvm.error.InternalError:4
+msgid "Examples"
+msgstr "样例"
+
+#: ../../../python/tvm/_ffi/base.pydocstring of tvm._ffi.base.TVMError:3
+msgid ""
+"TVMError will be raised if you do not give any error type specification,"
+msgstr ""
+
+#: ../../../python/tvm/error.pydocstring of tvm.error.OpNotImplemented:4
+#: ../../../python/tvm/error.pydocstring of tvm.error.OpAttributeRequired:4
+#: ../../../python/tvm/error.pydocstring of tvm.error.OpAttributeInvalid:4
+#: ../../../python/tvm/error.pydocstring of
+#: tvm.error.OpAttributeUnImplemented:4
+msgid "Example"
+msgstr "样例"
+
+#: ../../../python/tvm/error.pydocstring of tvm.error.DiagnosticError:3
+msgid "See the configured diagnostic renderer for detailed error information."
+msgstr ""

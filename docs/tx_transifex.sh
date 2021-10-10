@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # tx_transifex.sh [init]/[update]/[push]/[pull]
 
 export LC_ALL=C.UTF-8

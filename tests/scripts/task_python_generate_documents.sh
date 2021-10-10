@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # run as: " ./task_python_generate_documents.sh [0/1] [0/1] [language] "
 # the first [true/false]: re-generate gettext or not
 # the second [true/false]: update locales file or not
@@ -76,14 +78,14 @@ then
 else
     if $2
     then
-        echo "--start to update *.po, execute: sphinx-intl update -p $GETTEXT -l $LANGUAGE."
+        echo "--start to update *.pot, execute: sphinx-intl update -p $GETTEXT -l $LANGUAGE."
         pip3 install sphinx-intl
         sphinx-intl update -p $GETTEXT -l $LANGUAGE
         
         mkdir -p $DOCS/$BUILDDIR
         ln -s $DOCS/$GETTEXT $DOCS/$BUILDDIR/locale
     else
-        echo "--skip update the *.po ."
+        echo "--skip update the *.pot ."
     fi 
 fi
 

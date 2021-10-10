@@ -1,0 +1,343 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# Xiaoyu Zhang, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:43+0000\n"
+"Last-Translator: Xiaoyu Zhang, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:19
+msgid "Python Target Parametrization"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:22
+msgid "Summary"
+msgstr "总结"
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:24
+msgid ""
+"For any supported runtime, TVM should should produce numerically correct "
+"results.  Therefore, when writing unit tests that validate the numeric "
+"output, these unit tests should be run on all supported runtimes.  Since "
+"this is a very common use case, TVM has helper functions to parametrize unit"
+" tests such that they will run on all targets that are enabled and have a "
+"compatible device."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:31
+msgid ""
+"A single python function in the test suite can expand to several "
+"parametrized unit tests, each of which tests a single target device. In "
+"order for a test to be run, all of the following must be true."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:35
+msgid ""
+"The test exists in a file or directory that has been passed to `pytest`."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:38
+msgid ""
+"The pytest marks applied to the function, either explicitly or through "
+"target parametrization, must be compatible with the expression passed to "
+"pytest's `-m` argument."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:42
+msgid ""
+"For parametrized tests using the `target` fixture, the target must appear in"
+" the environment variable `TVM_TEST_TARGETS`."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:45
+msgid ""
+"For parametrized tests using the `target` fixture, the build configuration "
+"in `config.cmake` must enable the corresponding runtime."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:50
+msgid "Unit-Test File Contents"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:54
+msgid ""
+"The recommended method to run a test on multiple targets is by parametrizing"
+" the test.  This can be done explicitly for a fixed list of targets by "
+"decorating with ``@tvm.testing.parametrize_targets('target_1', 'target_2', "
+"...)``, and accepting ``target`` or ``dev`` as function arguments.  The "
+"function will be run once for each target listed, and the success/failure of"
+" each target is reported separately.  If a target cannot be run because it "
+"is disabled in the `config.cmake`, or because no appropriate hardware is "
+"present, then that target will be reported as skipped."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:71
+msgid ""
+"For tests that should run correctly on all targets, the decorator can be "
+"omitted.  Any test that accepts a ``target`` or ``dev`` argument will "
+"automatically be parametrized over all targets specified in "
+"``TVM_TEST_TARGETS``.  The parametrization provides the same "
+"pass/fail/skipped report for each target, while allowing the test suite to "
+"be easily extended to cover additional targets."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:85
+msgid ""
+"The ``@tvm.testing.parametrize_targets`` can also be used as a bare "
+"decorator to explicitly draw attention to the parametrization, but has no "
+"additional effect."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:98
+msgid ""
+"Specific targets can be excluded or marked as expected to fail using the "
+"``@tvm.testing.exclude_targets`` or ``@tvm.testing.known_failing_targets`` "
+"decorators.  For more information on their intended use cases, please see "
+"their docstrings."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:103
+msgid ""
+"In some cases it may be necessary to parametrize across multiple parameters."
+"  For instance, there may be target-specific implementations that should be "
+"tested, where some targets have more than one implementation.  These can be "
+"done by explicitly parametrizing over tuples of arguments, such as shown "
+"below.  In these cases, only the explicitly listed targets will run, but "
+"they will still have the appropriate ``@tvm.testing.requires_RUNTIME`` mark "
+"applied to them."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:123
+msgid ""
+"The parametrization functionality is implemented on top of pytest marks.  "
+"Each test function can be decorated with `pytest marks <pytest-marks>`_ to "
+"include metadata.  The most frequently applied marks are as follows."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:129
+msgid ""
+"``@pytest.mark.gpu`` - Tags a function as using GPU capabilities. This has "
+"no effect on its own, but can be paired with command-line arguments ``-m "
+"gpu`` or ``-m 'not gpu'`` to restrict which tests pytest will executed.  "
+"This should not be called on its own, but is part of other marks used in "
+"unit-tests."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:135
+msgid ""
+"``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  This should be "
+"used to mark a unit tests that may use the GPU, if one is present.  This "
+"decorator is only needed for tests that explicitly loop over "
+"``tvm.testing.enabled_targets()``, but that is no longer the preferred style"
+" of writing unit tests (see below).  When using "
+"``tvm.testing.parametrize_targets()``, this decorator is implicit for GPU "
+"targets, and does not need to be explicitly applied."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:143
+msgid ""
+"``@tvm.testing.requires_gpu`` - Applies ``@tvm.testing.uses_gpu``, and "
+"additionally marks that the test should be skipped (``@pytest.mark.skipif``)"
+" entirely if no GPU is present."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:147
+msgid ""
+"``@tvfm.testing.requires_RUNTIME`` - Several decorators (e.g. "
+"``@tvm.testing.requires_cuda``), each of which skips a test if the specified"
+" runtime cannot be used. A runtime cannot be used if it is disabled in the "
+"``config.cmake``, or if a compatible device is not present. For runtimes "
+"that use the GPU, this includes ``@tvm.testing.requires_gpu``."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:154
+msgid ""
+"When using parametrized targets, each test run is decorated with the "
+"``@tvm.testing.requires_RUNTIME`` that corresponds to the target being used."
+"  As a result, if a target is disabled in ``config.cmake`` or does not have "
+"appropriate hardware to run, it will be explicitly listed as skipped."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:160
+msgid ""
+"There also exists a ``tvm.testing.enabled_targets()`` that returns all "
+"targets that are enabled and runnable on the current machine, based on the "
+"environment variable ``TVM_TEST_TARGETS``, the build configuration, and the "
+"physical hardware present.  Most current tests explictly loop over the "
+"targets returned from ``enabled_targets()``, but it should not be used for "
+"new tests.  The pytest output for this style silently skips runtimes that "
+"are disabled in ``config.cmake``, or do not have a device on which they can "
+"run.  In addition, the test halts on the first target to fail, which is "
+"ambiguous as to whether the error occurs on a particular target, or on every"
+" target."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:181
+msgid "Running locally"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:183
+msgid ""
+"To run the python unit-tests locally, use the command ``pytest`` in the "
+"``${TVM_HOME}`` directory."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:199
+msgid "Environment variables"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:187
+msgid ""
+"``TVM_TEST_TARGETS`` should be a semicolon-separated list of targets to run."
+" If unset, will default to the targets defined in "
+"``tvm.testing.DEFAULT_TEST_TARGETS``."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:191
+msgid ""
+"Note: If ``TVM_TEST_TARGETS`` does not contain any targets that are both "
+"enabled, and have an accessible device of that type, then the tests will "
+"fall back to running on the ``llvm`` target only."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:196
+msgid ""
+"``TVM_LIBRARY_PATH`` should be a path to the ``libtvm.so`` library. This can"
+" be used, for example, to run tests using a debug build. If unset, will "
+"search for ``libtvm.so`` relative to the TVM source directory."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:201
+msgid "Command-line arguments"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:203
+msgid ""
+"Passing a path to a folder or file will run only the unit tests in that "
+"folder or file. This can be useful, for example, to avoid running tests "
+"located in ``tests/python/frontend`` on a system without a specific frontend"
+" installed."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:208
+msgid ""
+"The ``-m`` argument only runs unit tests that are tagged with a specific "
+"pytest marker. The most frequent usage is to use ``m gpu`` to run only tests"
+" that are marked with ``@pytest.mark.gpu`` and use a GPU to run. It can also"
+" be used to run only tests that do not use a GPU, by passing ``m 'not "
+"gpu'``."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:215
+msgid ""
+"Note: This filtering takes place after the selection of targets based on the"
+" ``TVM_TEST_TARGETS`` environment variable.  Even if ``-m gpu`` is "
+"specified, if ``TVM_TEST_TARGETS`` does not contain GPU targets, no GPU "
+"tests will be run."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:221
+msgid "Running in local docker container"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:225
+msgid ""
+"The ``docker/bash.sh`` script can be used to run unit tests inside the same "
+"docker image as is used by the CI.  The first argument should specify which "
+"docker image to run (e.g. ``docker/bash.sh ci_gpu``). Allowed image names "
+"are defined at the top of the Jenkinsfile located in the TVM source "
+"directory, and map to images at `tlcpack`_."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:231
+msgid ""
+"If no additional arguments are given, the docker image will be loaded with "
+"an interactive bash session.  If a script is passed as an optional argument "
+"(e.g. ``docker/bash.sh ci_gpu tests/scripts/task_python_unittest.sh``), then"
+" that script will be executed inside the docker image."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:236
+msgid ""
+"Note: The docker images contain all system dependencies, but do not include "
+"the ``build/config.cmake`` configuration file for those systems.  The TVM "
+"source directory is used as the home directory of the docker image, and so "
+"this will default to using the same config/build directories as the local "
+"config.  One solution is to maintain separate ``build_local`` and "
+"``build_docker`` directories, and make a symlink from ``build`` to the "
+"appropriate folder when entering/exiting docker."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:246
+msgid "Running in CI"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:248
+msgid ""
+"Everything in the CI starts from the task definitions present in the "
+"Jenkinsfile.  This includes defining which docker image gets used, what the "
+"compile-time configuration is, and which tests are included in which stages."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:253
+msgid "Docker images"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:255
+msgid ""
+"Each task of the Jenkinsfile (e.g. 'BUILD: CPU') makes calls to "
+"``docker/bash.sh``.  The argument following the call to docker/bash.sh "
+"defines the docker image in CI, just as it does locally."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:260
+msgid "Compile-time configuration"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:262
+msgid ""
+"The docker image does not have the ``config.cmake`` file built into it, so "
+"this is the first step in each of the ``BUILD`` tasks.  This is done using "
+"the ``tests/scripts/task_config_build_*.sh`` scripts. Which script is used "
+"depends on the build being tested, and is specified in the Jenkinsfile."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:268
+msgid ""
+"Each ``BUILD`` task concludes by packing a library for use in later tests."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:271
+msgid "Which tests run"
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:273
+msgid ""
+"The ``Unit Test`` and ``Integration Test`` stages of the Jenkinsfile "
+"determine how ``pytest`` is called.  Each task starts by unpacking a "
+"compiled library that was previous compiled in the ``BUILD`` stage, then "
+"runs a test script (e.g. ``tests/script/task_python_unittest.sh``).  These "
+"scripts set the files/folders and command-line options that are passed to "
+"``pytest``."
+msgstr ""
+
+#: ../../_staging/dev/pytest_target_parametrization.rst:281
+msgid ""
+"Several of these scripts include the ``-m gpu`` option, which restricts the "
+"tests to only run tests that include the ``@pytest.mark.gpu`` mark."
+msgstr ""

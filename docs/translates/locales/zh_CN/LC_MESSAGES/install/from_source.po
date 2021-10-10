@@ -1,0 +1,497 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# juzi, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:44+0000\n"
+"Last-Translator: juzi, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/install/from_source.rst:21
+msgid "Install from Source"
+msgstr "从源码安装"
+
+#: ../../_staging/install/from_source.rst:22
+msgid ""
+"This page gives instructions on how to build and install the TVM package "
+"from scratch on various systems. It consists of two steps:"
+msgstr "此页面提供了有关如何在各种系统上从头开始编译和安装 TVM 的说明。 它有两个步骤组成："
+
+#: ../../_staging/install/from_source.rst:25
+msgid ""
+"First build the shared library from the C++ codes (`libtvm.so` for linux, "
+"`libtvm.dylib` for macOS and `libtvm.dll` for windows)."
+msgstr ""
+"首先从 C++ 代码编译共享库 （Linux: `libtvm.so`，macOS: `libtvm.dylib`，windows: "
+"`libtvm.dll`）。"
+
+#: ../../_staging/install/from_source.rst:26
+msgid "Setup for the language packages (e.g. Python Package)."
+msgstr "语言包的设置 （例如： Python包）"
+
+#: ../../_staging/install/from_source.rst:28
+msgid ""
+"To get started, download tvm source code from the `Download Page "
+"<https://tvm.apache.org/download>`_."
+msgstr "首先, 从 `下载页 <https://tvm.apache.org/download>`_ 下载 TVM 源代码"
+
+#: ../../_staging/install/from_source.rst:31
+msgid "Developers: Get Source from Github"
+msgstr "开发者： 从 GitHub 获取源码"
+
+#: ../../_staging/install/from_source.rst:32
+msgid ""
+"You can also choose to clone the source repo from github. It is important to"
+" clone the submodules along, with ``--recursive`` option."
+msgstr "您也可以选择从 github 克隆源代码库。 使用 ``--recursive`` 选项克隆子模块很重要"
+
+#: ../../_staging/install/from_source.rst:39
+msgid ""
+"For windows users who use github tools, you can open the git shell, and type"
+" the following command."
+msgstr "对于使用github工具的windows用户，可以打开 git shell，输入以下命令。"
+
+#: ../../_staging/install/from_source.rst:50
+msgid "Build the Shared Library"
+msgstr "编译共享库"
+
+#: ../../_staging/install/from_source.rst:52
+msgid "Our goal is to build the shared libraries:"
+msgstr "我们的目标是编译共享库："
+
+#: ../../_staging/install/from_source.rst:54
+msgid "On Linux the target library are `libtvm.so` and `libtvm_runtime.so`"
+msgstr "在 Linux 上，目标库是 `libtvm.so` 和 `libtvm_runtime.so`"
+
+#: ../../_staging/install/from_source.rst:55
+msgid ""
+"On macOS the target library are `libtvm.dylib` and `libtvm_runtime.dylib`"
+msgstr "在 macOS 上，目标库是 `libtvm.dylib` 和 `libtvm_runtime.dylib` "
+
+#: ../../_staging/install/from_source.rst:56
+msgid ""
+"On Windows the target library are `libtvm.dll` and `libtvm_runtime.dll`"
+msgstr "在 Windows 上，目标库是 `libtvm.dll` 和 `libtvm_runtime.dll`"
+
+#: ../../_staging/install/from_source.rst:58
+msgid ""
+"It is also possible to :ref:`build the runtime <deploy-and-integration>` "
+"library only."
+msgstr "也可以只 :ref:`构建 runtime <deploy-and-integration>` 库。 "
+
+#: ../../_staging/install/from_source.rst:60
+msgid "The minimal building requirements for the ``TVM`` libraries are:"
+msgstr "编译 TVM 库的最低要求是："
+
+#: ../../_staging/install/from_source.rst:62
+msgid "A recent c++ compiler supporting C++ 14 (g++-5 or higher)"
+msgstr "支持 C++ 14（g++-5 或更高）的最新 C++ 编译器"
+
+#: ../../_staging/install/from_source.rst:63
+msgid "CMake 3.5 or higher"
+msgstr "CMake 3.5 版本或者更高版本"
+
+#: ../../_staging/install/from_source.rst:64
+msgid "We highly recommend to build with LLVM to enable all the features."
+msgstr "我们强烈建议使用 LLVM 编译以启用所有功能。"
+
+#: ../../_staging/install/from_source.rst:65
+msgid ""
+"If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are"
+" upgrading from an older version, make sure you purge the older version and "
+"reboot after installation."
+msgstr "如果要使用 CUDA，则需要 CUDA 工具包版本 >= 8.0。如果您是从旧版本升级，请确保清除旧版本并在安装后重新启动。"
+
+#: ../../_staging/install/from_source.rst:66
+msgid ""
+"On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily "
+"install and manage dependencies."
+msgstr "在 macOS 上，您可能需要安装 `Homebrew <https://brew.sh>` 来轻松安装和管理依赖项。"
+
+#: ../../_staging/install/from_source.rst:67
+msgid ""
+"Python is also required. Avoid using Python 3.9.X+ which is not `supported "
+"<https://github.com/apache/tvm/issues/8577>`_. 3.7.X+ and 3.8.X+ should be "
+"well supported however."
+msgstr ""
+"还需要 Python。 避免使用不受 `支持 <https://github.com/apache/tvm/issues/8577>`_ 的 "
+"Python 3.9.X+，3.7.X+ 和 3.8.X+ 应该得到很好的支持。 "
+
+#: ../../_staging/install/from_source.rst:69
+msgid ""
+"To install the these minimal pre-requisites on Ubuntu/Debian like linux "
+"operating systems, execute (in a terminal):"
+msgstr "要在 Ubuntu/Debian 等 linux 操作系统上安装, 请满足这些最小先决条件，请执行（在终端中）:"
+
+#: ../../_staging/install/from_source.rst:77
+msgid ""
+"Use Homebrew to install the required dependencies for macOS running either "
+"the Intel or M1 processors. You must follow the post-installation steps "
+"specified by Homebrew to ensure the dependencies are correctly installed and"
+" configured:"
+msgstr ""
+"使用 Homebrew 为运行 Intel 或 M1 处理器的 macOS 安装所需的依赖项。 您必须遵循 Homebrew "
+"指定的安装后步骤以确保正确安装和配置依赖项： "
+
+#: ../../_staging/install/from_source.rst:87
+msgid ""
+"We use cmake to build the library. The configuration of TVM can be modified "
+"by editing `config.cmake` and/or by passing cmake flags to the command line:"
+msgstr ""
+"我们用 cmake 来建造 library。TVM 的配置可以通过编辑 `config.cmake` 或将 cmake 标志传递到命令行进行修改："
+
+#: ../../_staging/install/from_source.rst:91
+msgid ""
+"First, check the cmake in your system. If you do not have cmake, you can "
+"obtain the latest version from `official website "
+"<https://cmake.org/download/>`_"
+msgstr ""
+"首先，检查系统中的cmake。如果您没有cmake，可以从`官方网站 <https://cmake.org/download/>`_获取最新版本"
+
+#: ../../_staging/install/from_source.rst:93
+msgid ""
+"First create a build directory, copy the ``cmake/config.cmake`` to the "
+"directory."
+msgstr "首先创建一个构建目录，将``cmake/config.cmake``复制到该目录。"
+
+#: ../../_staging/install/from_source.rst:100
+msgid "Edit ``build/config.cmake`` to customize the compilation options"
+msgstr "编辑``build/config.cmake``以自定义编译选项"
+
+#: ../../_staging/install/from_source.rst:102
+msgid ""
+"On macOS, for some versions of Xcode, you need to add ``-lc++abi`` in the "
+"LDFLAGS or you'll get link errors."
+msgstr "在macOS上,对于某些版本的Xcode,您需要在LDFLAGS中添加``-lc++abi``,否则会出现链接错误。"
+
+#: ../../_staging/install/from_source.rst:103
+msgid ""
+"Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend."
+" Do the same for other backends and libraries you want to build for (OpenCL,"
+" RCOM, METAL, VULKAN, ...)."
+msgstr ""
+"将``设置(USE_CUDA OFF)``更改为``设置(USE_CUDA ON)``以启用CUDA后端。对您要构建的其他后端和库(OpenCL, "
+"RCOM, METAL, VULKAN, ...)执行相同的操作。"
+
+#: ../../_staging/install/from_source.rst:105
+msgid ""
+"To help with debugging, ensure the embedded graph executor and debugging "
+"functions are enabled with ``set(USE_GRAPH_EXECUTOR ON)`` and "
+"``set(USE_PROFILER ON)``"
+msgstr ""
+"为了帮助调试，请确保已使用``设置(USE_GRAPH_EXECUTOR ON)``和``设置(USE_PROFILER "
+"ON)``启用嵌入式图形执行器和调试功能``"
+
+#: ../../_staging/install/from_source.rst:106
+msgid ""
+"To debug with IRs, ``set(USE_RELAY_DEBUG ON)`` and set environment variable "
+"`TVM_LOG_DEBUG`."
+msgstr "要使用IRs进行调试, ``设置(USE_RELAY_DEBUG ON)``并设置环境变量`TVM_LOG_DEBUG`。"
+
+#: ../../_staging/install/from_source.rst:112
+msgid ""
+"TVM requires LLVM for for CPU codegen. We highly recommend you to build with"
+" the LLVM support on."
+msgstr ""
+
+#: ../../_staging/install/from_source.rst:114
+msgid ""
+"LLVM 4.0 or higher is needed for build with LLVM. Note that version of LLVM "
+"from default apt may lower than 4.0."
+msgstr "使用LLVM构建需要LLVM 4.0或更高版本。请注意，默认apt的LLVM版本可能低于4.0。"
+
+#: ../../_staging/install/from_source.rst:115
+msgid ""
+"Since LLVM takes long time to build from source, you can download pre-built "
+"version of LLVM from `LLVM Download Page "
+"<http://releases.llvm.org/download.html>`_."
+msgstr ""
+"因为从源代码构建LLVM需要很长时间,所以您可以从`LLVM下载页面<http://releases.llvm.org/download.html>`_.下载预构建版本的LLVM。"
+
+#: ../../_staging/install/from_source.rst:118
+msgid ""
+"Unzip to a certain location, modify ``build/config.cmake`` to add "
+"``set(USE_LLVM /path/to/your/llvm/bin/llvm-config)``"
+msgstr ""
+"解压到一个特定的位置，修改``build/config.cmake``以添加``set(USE_LLVM /path/to/your/llvm/bin"
+"/llvm-config)``"
+
+#: ../../_staging/install/from_source.rst:119
+msgid ""
+"You can also directly set ``set(USE_LLVM ON)`` and let cmake search for a "
+"usable version of LLVM."
+msgstr "您还可以直接设置``set(USE_LLVM ON)``并使用cmake搜索可用版本的LLVM。"
+
+#: ../../_staging/install/from_source.rst:121
+msgid "You can also use `LLVM Nightly Ubuntu Build <https://apt.llvm.org/>`_"
+msgstr "您还可以使用`LLVM Nightly Ubuntu Build <https://apt.llvm.org/>`_"
+
+#: ../../_staging/install/from_source.rst:123
+msgid ""
+"Note that apt-package append ``llvm-config`` with version number. For "
+"example, set ``set(USE_LLVM llvm-config-10)`` if you installed LLVM 10 "
+"package"
+msgstr ""
+"请注意，apt-package会在`llvm-config``后加上版本号。例如，如果您安装了LLVM 10软件包，请设置``set(USE_LLVM "
+"llvm-config-10)``"
+
+#: ../../_staging/install/from_source.rst:126
+msgid "We can then build tvm and related libraries."
+msgstr "接下来我们可以建立tvm和相关的库。"
+
+#: ../../_staging/install/from_source.rst:134
+msgid ""
+"You can also use Ninja build system instead of Unix Makefiles. It can be "
+"faster to build than using Makefiles."
+msgstr "您还可以使用Ninja构建系统而不是Unix Makefiles。Ninja可以比Makefiles更快地进行构建。"
+
+#: ../../_staging/install/from_source.rst:142
+msgid ""
+"There is also a makefile in the top-level tvm directory that can automate "
+"several of these steps.  It will create the build directory, copy the "
+"default ``config.cmake`` to the build directory, run cmake, then run make."
+msgstr ""
+
+#: ../../_staging/install/from_source.rst:147
+msgid ""
+"The build directory can be specified using the environment variable "
+"``TVM_BUILD_PATH``.  If ``TVM_BUILD_PATH`` is unset, the makefile assumes "
+"that the ``build`` directory inside tvm should be used.  Paths specified by "
+"``TVM_BUILD_PATH`` can be either absolute paths or paths relative to the "
+"base tvm directory. ``TVM_BUILD_PATH`` can also be set to a list of space-"
+"separated paths, in which case all paths listed will be built."
+msgstr ""
+"可以使用环境变量``TVM_BUILD_PATH``指定生成目录。如果``TVM_BUILD_PATH``未设置，则makefile假定生成文件使用TVM内的``build``目录。``TVM_BUILD_PATH``指定的路径可以是绝对路径，也可以是相对于基本TVM目录的路径``TVM_BUILD_PATH``也可以设置为空间分隔路径列表，在这种情况下，将生成列出的所有路径。"
+
+#: ../../_staging/install/from_source.rst:155
+msgid ""
+"If an alternate build directory is used, then the environment variable "
+"``TVM_LIBRARY_PATH`` should be set at runtime, pointing to the location of "
+"the compiled ``libtvm.so`` and ``libtvm_runtime.so``.  If not set, tvm will "
+"look relative to the location of the tvm python module.  Unlike "
+"``TVM_BUILD_PATH``, this must be an absolute path."
+msgstr ""
+"如果使用备用生成目录，则应在运行时设置环境变量``TVM_LIBRARY_PATH``，指向编译的``libtvm.so``和``libtvm_runtime.so``的位置。如果未设置，tvm将根据tvm"
+" python module的位置进行查看。与``TVM_BUILD_PATH``不同，这必须是绝对路径。"
+
+#: ../../_staging/install/from_source.rst:176
+msgid ""
+"If everything goes well, we can go to :ref:`python-package-installation`"
+msgstr "如果一切顺利， 我们就可以进入 :ref:`python-package-installation`"
+
+#: ../../_staging/install/from_source.rst:181
+msgid "Building with a Conda Environment"
+msgstr "构建一个 Conda 环境"
+
+#: ../../_staging/install/from_source.rst:183
+msgid ""
+"Conda is a very handy way to the necessary obtain dependencies needed for "
+"running TVM. First, follow the `conda's installation guide "
+"<https://docs.conda.io/projects/conda/en/latest/user-guide/install/>`_ to "
+"install miniconda or anaconda if you do not yet have conda in your system. "
+"Run the following command in a conda environment:"
+msgstr ""
+"Conda 是获取运行 TVM 所需依赖项的一种非常方便的方法。首先，如果您的系统中还没有 `conda`，请按照 `conda` "
+"的安装指南<https://docs.conda.io/projects/conda/en/latest/user-guide/install/>`_ "
+"安装 `miniconda` 或 `anaconda`。在 `conda` 环境中运行以下命令："
+
+#: ../../_staging/install/from_source.rst:194
+msgid ""
+"The above command will install all necessary build dependencies such as "
+"cmake and LLVM. You can then run the standard build process in the last "
+"section."
+msgstr "上面的命令将安装所有必要的构建依赖项，例如cmake和LLVM。然后您可以在最后一节中运行标准构建过程。"
+
+#: ../../_staging/install/from_source.rst:196
+msgid ""
+"If you want to use the compiled binary outside the conda environment, you "
+"can set LLVM to static linking mode ``set(USE_LLVM \"llvm-config --link-"
+"static\")``. In this way, the resulting library won't depend on the dynamic "
+"LLVM libraries in the conda environment."
+msgstr ""
+"如果要在conda环境之外使用编译后的二进制文件，可以将LLVM设置为静态链接模式``set(USE_LLVM \"llvm-config "
+"--link-static\")``。这样，生成的库将不依赖于conda环境中的动态LLVM库。"
+
+#: ../../_staging/install/from_source.rst:200
+msgid ""
+"The above instructions show how to use conda to provide the necessary build "
+"dependencies to build libtvm. If you are already using conda as your package"
+" manager and wish to directly build and install tvm as a conda package, you "
+"can follow the instructions below:"
+msgstr ""
+"上面的说明显示了如何使用conda来提供构建libtvm所需的构建依赖项。如果您已经使用conda作为软件包管理器并且希望直接将tvm作为conda软件包进行构建和安装，则可以按照以下说明进行操作："
+
+#: ../../_staging/install/from_source.rst:210
+msgid "Building on Windows"
+msgstr "基于Windows构建"
+
+#: ../../_staging/install/from_source.rst:211
+msgid ""
+"TVM support build via MSVC using cmake. You will need to ontain a visual "
+"studio compiler. The minimum required VS version is **Visual Studio "
+"Community 2015 Update 3**. We recommend following :ref:`build-with-conda` to"
+" obtain necessary dependencies and get an activated tvm-build environment. "
+"Then you can run the following command to build"
+msgstr ""
+"使用cmake通过MSVC构建TVM支持。您将需要安装visual studio编译器。要求VS最低的版本为**Visual Studio "
+"Community 2015 Update 3**。我们建议:ref:`build-with-"
+"conda`以获得必要的生产环境并激活tvm的构建环境。您可以运行以下命令来生成"
+
+#: ../../_staging/install/from_source.rst:223
+msgid ""
+"The above command generates the solution file under the build directory. You"
+" can then run the following command to build"
+msgstr "上面的命令在build目录下生成解决方案的文件。您可以运行以下指令来生成"
+
+#: ../../_staging/install/from_source.rst:232
+msgid "Building ROCm support"
+msgstr "构建 ROCm 支持"
+
+#: ../../_staging/install/from_source.rst:234
+msgid ""
+"Currently, ROCm is supported only on linux, so all the instructions are "
+"written with linux in mind."
+msgstr "目前，仅linux上支持ROCm，因此所有的指令都是用linux编写的。"
+
+#: ../../_staging/install/from_source.rst:236
+msgid "Set ``set(USE_ROCM ON)``, set ROCM_PATH to the correct path."
+msgstr "设置``set(USE_ROCM ON)``，将ROCM_PATH设置为正确的路径。"
+
+#: ../../_staging/install/from_source.rst:237
+msgid ""
+"You need to first install HIP runtime from ROCm. Make sure the installation "
+"system has ROCm installed in it."
+msgstr "您需要首先从ROCm安装HIP runtime。确保安装系统中已经安装了ROCm。"
+
+#: ../../_staging/install/from_source.rst:238
+msgid ""
+"Install latest stable version of LLVM (v6.0.1), and LLD, make sure "
+"``ld.lld`` is available via command line."
+msgstr "安装最新稳定版本的LLVM（v6.0.1）和LLD，确保``ld.lld``通过命令行可用。"
+
+#: ../../_staging/install/from_source.rst:243
+msgid "Python Package Installation"
+msgstr "Python包安装"
+
+#: ../../_staging/install/from_source.rst:246
+msgid "TVM package"
+msgstr "TVM包"
+
+#: ../../_staging/install/from_source.rst:248
+msgid ""
+"Depending on your development environment, you may want to use a virtual "
+"environment and package manager, such as ``virtualenv`` or ``conda``, to "
+"manage your python packages and dependencies."
+msgstr ""
+"根据您的开发环境，您可能希望使用虚拟环境和包管理器（如``virtualenv``或者``conda``）来管理python的包和生产环境。"
+
+#: ../../_staging/install/from_source.rst:251
+msgid "to install and maintain your python development environment."
+msgstr "安装和维护python开发环境。"
+
+#: ../../_staging/install/from_source.rst:253
+msgid ""
+"The python package is located at `tvm/python` There are two ways to install "
+"the package:"
+msgstr "python软件包位于`tvm/python`中。安装该软件包有两种方法："
+
+#: ../../_staging/install/from_source.rst:268
+msgid "Method 1"
+msgstr "方法 1"
+
+#: ../../_staging/install/from_source.rst:257
+msgid ""
+"This method is **recommended for developers** who may change the codes."
+msgstr "此方法**推荐给可能更改代码的开发人员**。"
+
+#: ../../_staging/install/from_source.rst:259
+msgid ""
+"Set the environment variable `PYTHONPATH` to tell python where to find the "
+"library. For example, assume we cloned `tvm` on the directory `/path/to/tvm`"
+" then we can add the following line in `~/.bashrc`. The changes will be "
+"immediately reflected once you pull the code and rebuild the project (no "
+"need to call ``setup`` again)"
+msgstr ""
+"设置环境变量`PYTHONPATH`来告诉python在哪里可以找到库。例如，假设我们克隆目录`/path/to/tvm`上的`tvm`，那么我们可以在`~/.bashrc`中添加以下行。一旦您提取代码并重建项目，这些更改将立即反映出来（无需再次调用``setup``）"
+
+#: ../../_staging/install/from_source.rst:280
+msgid "Method 2"
+msgstr "方法 2"
+
+#: ../../_staging/install/from_source.rst:271
+msgid "Install TVM python bindings by `setup.py`:"
+msgstr "通过 `setup.py` 安装 TVM python bindings "
+
+#: ../../_staging/install/from_source.rst:283
+msgid "Python dependencies"
+msgstr "Python 依赖项"
+
+#: ../../_staging/install/from_source.rst:285
+msgid ""
+"Note that the ``--user`` flag is not necessary if you're installing to a "
+"managed local environment, like ``virtualenv``."
+msgstr "请注意，如果您要安装到托管本地环境， 如 ``virtualenv``，则不需要  ``--user`` 标志。"
+
+#: ../../_staging/install/from_source.rst:288
+msgid "Necessary dependencies:"
+msgstr "必要的依赖："
+
+#: ../../_staging/install/from_source.rst:294
+msgid "If you want to use RPC Tracker"
+msgstr "如果你想使用 RPC Tracker"
+
+#: ../../_staging/install/from_source.rst:300
+msgid "If you want to use auto-tuning module"
+msgstr "如果要使用 auto-tuning 模块"
+
+#: ../../_staging/install/from_source.rst:306
+msgid ""
+"Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and "
+"xgboost requires some additional dependencies to be installed, including "
+"openblas and its dependencies. Use the following commands to install scipy "
+"and xgboost with the required dependencies and configuration. A workaround "
+"for this is to do the following commands:"
+msgstr ""
+"请注意，在 M1 macs 上，您可能在安装 xgboost / scipy 时遇到问题。 scipy 和 xgboost "
+"需要安装一些额外的依赖项，包括 openblas 及其依赖项。 使用以下命令安装具有所需依赖项和配置的 scipy 和 xgboost。 "
+"解决方法是执行以下命令： "
+
+#: ../../_staging/install/from_source.rst:323
+msgid "Install Contrib Libraries"
+msgstr "安装 Contrib 库"
+
+#: ../../_staging/install/from_source.rst:334
+msgid "Enable C++ Tests"
+msgstr "使用 C++ 测试"
+
+#: ../../_staging/install/from_source.rst:335
+msgid ""
+"We use `Google Test <https://github.com/google/googletest>`_ to drive the "
+"C++ tests in TVM. The easiest way to install GTest is from source."
+msgstr ""
+"我们使用 `Google Test <https://github.com/google/googletest>`_ 来驱动 TVM 中的 C++ "
+"测试。 安装 GTest 的最简单方法是从源代码。"
+
+#: ../../_staging/install/from_source.rst:349
+msgid ""
+"After installing GTest, the C++ tests can be built and started with "
+"``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make "
+"cpptest``."
+msgstr ""
+"安装 GTest 后，可以使用 ``./tests/scripts/task_cpp_unittest.sh`` 或仅使用 ``make "
+"cpptest`` 构建和启动 C++ 测试。"

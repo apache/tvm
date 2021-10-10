@@ -1,0 +1,138 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:44+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/install/nnpack.rst:20
+msgid "NNPACK Contrib Installation"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:22
+msgid ""
+"`NNPACK <https://github.com/Maratyszcza/NNPACK>`_ is an acceleration package"
+" for neural network computations, which can run on x86-64, ARMv7, or ARM64 "
+"architecture CPUs. Using NNPACK, higher-level libraries like _MXNet_ can "
+"speed up the execution on multi-core CPU computers, including laptops and "
+"mobile devices."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:29
+msgid ""
+"AS TVM already has natively tuned schedules, NNPACK is here mainly for "
+"reference and comparison purpose. For regular use prefer native tuned TVM "
+"implementation."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:32
+msgid ""
+"TVM supports NNPACK for forward propagation (inference only) in convolution,"
+" max-pooling, and fully-connected layers. In this document, we give a high "
+"level overview of how to use NNPACK with TVM."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:36
+msgid "Conditions"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:38
+msgid ""
+"The underlying implementation of NNPACK utilizes several acceleration "
+"methods, including fft and winograd. These algorithms work better on some "
+"special `batch size`, `kernel size`, and `stride` settings than on other, so"
+" depending on the context, not all convolution, max-pooling, or fully-"
+"connected layers can be powered by NNPACK. When favorable conditions for "
+"running NNPACKS are not met,"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:44
+msgid ""
+"NNPACK only supports Linux and OS X systems. Windows is not supported at "
+"present."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:47
+msgid "Build/Install NNPACK"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:49
+msgid ""
+"If the trained model meets some conditions of using NNPACK, you can build "
+"TVM with NNPACK support. Follow these simple steps:"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:53
+msgid ""
+"uild NNPACK shared library with the following commands. TVM will link NNPACK"
+" dynamically."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:55
+msgid ""
+"Note: The following NNPACK installation instructions have been tested on "
+"Ubuntu 16.04."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:58
+msgid "Build Ninja"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:60
+msgid ""
+"NNPACK need a recent version of Ninja. So we need to install ninja from "
+"source."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:69
+msgid ""
+"Set the environment variable PATH to tell bash where to find the ninja "
+"executable. For example, assume we cloned ninja on the home directory ~. "
+"then we can added the following line in ~/.bashrc."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:78
+msgid "Build NNPACK"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:80
+msgid ""
+"The new CMAKE version of NNPACK download `Peach "
+"<https://github.com/Maratyszcza/PeachPy>`_ and other dependencies alone"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:82
+msgid ""
+"Note: at least on OS X, running `ninja install` below will overwrite "
+"googletest libraries installed in `/usr/local/lib`. If you build googletest "
+"again to replace the nnpack copy, be sure to pass `-DBUILD_SHARED_LIBS=ON` "
+"to `cmake`."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:104
+msgid "Build TVM with NNPACK support"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:110
+msgid "Set `set(USE_NNPACK ON)` in config.cmake."
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:111
+msgid "Set `NNPACK_PATH` to the $(YOUR_NNPACK_INSTALL_PATH)"
+msgstr ""
+
+#: ../../_staging/install/nnpack.rst:113
+msgid "after configuration use `make` to build TVM"
+msgstr ""

@@ -1,0 +1,78 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:49+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/vta/index.rst:21
+msgid "VTA: Deep Learning Accelerator Stack"
+msgstr ""
+
+#: ../../_staging/vta/index.rst:23
+msgid ""
+"The Versatile Tensor Accelerator (VTA) is an open, generic, and customizable"
+" deep learning accelerator with a complete TVM-based compiler stack. We "
+"designed VTA to expose the most salient and common characteristics of "
+"mainstream deep learning accelerators. Together TVM and VTA form an end-to-"
+"end hardware-software deep learning system stack that includes hardware "
+"design, drivers, a JIT runtime, and an optimizing compiler stack based on "
+"TVM."
+msgstr ""
+
+#: ../../_staging/vta/index.rst:29
+msgid "VTA has the following key features:"
+msgstr ""
+
+#: ../../_staging/vta/index.rst:31
+msgid "Generic, modular, open-source hardware."
+msgstr ""
+
+#: ../../_staging/vta/index.rst:32
+msgid "Streamlined workflow to deploy to FPGAs."
+msgstr ""
+
+#: ../../_staging/vta/index.rst:33
+msgid ""
+"Simulator support to prototype compilation passes on regular workstations."
+msgstr ""
+
+#: ../../_staging/vta/index.rst:34
+msgid ""
+"Pynq-based driver and JIT runtime for both simulated and FPGA hardware back-"
+"end."
+msgstr ""
+
+#: ../../_staging/vta/index.rst:35
+msgid "End to end TVM stack integration."
+msgstr ""
+
+#: ../../_staging/vta/index.rst:37
+msgid "This page contains links to all the resources related to VTA:"
+msgstr ""
+
+#: ../../_staging/vta/index.rst:49
+msgid "Literature"
+msgstr ""
+
+#: ../../_staging/vta/index.rst:51
+msgid "Read the VTA `release blog post`_."
+msgstr ""
+
+#: ../../_staging/vta/index.rst:52
+msgid ""
+"Read the VTA tech report: `An Open Hardware Software Stack for Deep "
+"Learning`_."
+msgstr ""

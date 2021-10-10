@@ -1,0 +1,1516 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# 长德 司, 2021
+# HLearning, 2021
+# JiaKui Hu, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:40+0000\n"
+"Last-Translator: JiaKui Hu, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/api/python/relay/dataflow_pattern.rst:19
+msgid "tvm.relay.dataflow_pattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1
+msgid "The Relay Pattern Language and tooling."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1
+msgid "**Classes:**"
+msgstr "**Classes:**"
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`Callable "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.Callable>`\\ "
+"\\(\\*args\\, \\*\\*kwds\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of typing.Callable:1
+msgid "Callable type; Callable[[int], str] is a function of (int) -> str."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`Dict <tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.Dict>`\\ "
+"\\(\\*args\\, \\*\\*kwds\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`List <tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.List>`\\ "
+"\\(\\*args\\, \\*\\*kwds\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`Expr <tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.Expr>`\\"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid "alias of :class:`tvm.ir.expr.RelayExpr`"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`DFPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern:1
+msgid "Base class of all Patterns."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`ExprPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.ExprPattern>`\\ "
+"\\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.ExprPattern:1
+msgid "A pattern which matches a constant expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`VarPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.VarPattern>`\\ "
+"\\(name\\_hint\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.VarPattern:1
+msgid "A local variable in Relay."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`ConstantPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.ConstantPattern>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.ConstantPattern:1
+msgid "A pattern matching a Relay Constant."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`CallPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.CallPattern>`\\ "
+"\\(op\\, args\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.CallPattern:1
+msgid "A pattern matching a function call node in Relay."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`FunctionPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.FunctionPattern>`\\ "
+"\\(params\\, body\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.FunctionPattern:1
+msgid "A pattern matching a function node in Relay."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`IfPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.IfPattern>`\\ "
+"\\(cond\\, true\\_branch\\, false\\_branch\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.IfPattern:1
+msgid "A patern matching a Relay If."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`LetPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.LetPattern>`\\ "
+"\\(var\\, value\\, body\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.LetPattern:1
+msgid "A patern matching a Relay Let."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`TuplePattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.TuplePattern>`\\ "
+"\\(fields\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TuplePattern:1
+msgid "A patern matching a Relay Tuple."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`TupleGetItemPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.TupleGetItemPattern>`\\"
+" \\(tuple\\_value\\, index\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TupleGetItemPattern:1
+msgid "Get index-th item from a TuplePattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`AltPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.AltPattern>`\\ "
+"\\(left\\, right\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.AltPattern:1
+msgid "Create a Pattern that can match one of two conditions"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`WildcardPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.WildcardPattern>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.WildcardPattern:1
+msgid "A pattern which matches anything."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`TypePattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.TypePattern>`\\ "
+"\\(pattern\\, ttype\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TypePattern:1
+msgid "A pattern that matches another pattern with a certain type annotation."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`DataTypePattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DataTypePattern>`\\ "
+"\\(pattern\\, dtype\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DataTypePattern:1
+msgid "A pattern that matches another pattern with certain data type"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`ShapePattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.ShapePattern>`\\ "
+"\\(pattern\\, shape\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.ShapePattern:1
+msgid "A pattern that matches another pattern with a certain tensor shape"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`AttrPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.AttrPattern>`\\ "
+"\\(pattern\\, attrs\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid "Get match an expression with a certain attributes."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`DominatorPattern "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DominatorPattern>`\\ "
+"\\(parent\\, path\\, child\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DominatorPattern:1
+msgid "Match a domination graph."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+msgid ""
+":obj:`DFPatternCallback "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPatternCallback>`\\"
+" \\(\\[require\\_type\\, rewrite\\_once\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback:1
+msgid "A Callback for Pattern Rewriting."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern:1
+msgid "**Functions:**"
+msgstr "**Functions:**"
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`make_node "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.make_node>`\\ "
+"\\(type\\_key\\, \\*\\*kwargs\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:1
+msgid "Make a new IR node by its type key and fields"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`get <tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.get>`\\ "
+"\\(op\\_name\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.op.op.get:1
+msgid "Get the Op for a given name"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`register_df_node "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.register_df_node>`\\ "
+"\\(\\[type\\_key\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.register_df_node:1
+msgid "Register a Relay node type."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`is_var "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.is_var>`\\ "
+"\\(\\[name\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_var:1
+msgid "Syntatic sugar for creating an optionally named VarPattern."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`is_constant "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.is_constant>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_constant:1
+msgid "Syntatic sugar for creating a ConstantPattern."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`is_expr "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.is_expr>`\\ "
+"\\(expr\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_expr:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple_get_item:1
+msgid "Syntatic sugar for creating an ExprPattern."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`is_op <tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.is_op>`\\"
+" \\(op\\_name\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_op:1
+msgid "Syntatic sugar for creating an operator ExprPattern."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`is_tuple "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.is_tuple>`\\ "
+"\\(fields\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`is_tuple_get_item "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.is_tuple_get_item>`\\"
+" \\(tuple\\_value\\[\\, index\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`is_if <tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.is_if>`\\"
+" \\(cond\\, true\\_branch\\, false\\_branch\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_if:1
+msgid "Syntatic sugar for creating an IfPattern."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`is_let "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.is_let>`\\ \\(var\\, "
+"value\\, body\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_let:1
+msgid "Syntatic sugar for creating a LetPattern."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`wildcard "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.wildcard>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.wildcard:1
+msgid "Syntatic sugar for creating a WildcardPattern."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`has_type "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.has_type>`\\ "
+"\\(ttype\\[\\, pattern\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_type:1
+msgid "Syntatic sugar for creating a TypePattern"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`has_dtype "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.has_dtype>`\\ "
+"\\(dtype\\[\\, pattern\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_dtype:1
+msgid "Syntatic sugar for creating a DataTypePattern"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`has_shape "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.has_shape>`\\ "
+"\\(shape\\[\\, pattern\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_shape:1
+msgid "Syntatic sugar for creating a ShapePattern"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`has_attr "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.has_attr>`\\ "
+"\\(attrs\\[\\, pattern\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_attr:1
+msgid "Syntatic sugar for creating an AttrPattern"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`dominates "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.dominates>`\\ "
+"\\(parent\\, path\\, child\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.dominates:1
+msgid "Syntatic sugar for creating an Dominator pattern"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`match <tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.match>`\\"
+" \\(pattern\\, expr\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.match:1
+msgid "Match a pattern to an expression"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`rewrite "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.rewrite>`\\ "
+"\\(callbacks\\, expr\\[\\, mod\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.rewrite:1
+msgid "Rewrite expression with the given callbacks."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+msgid ""
+":obj:`partition "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.partition>`\\ "
+"\\(pattern\\, expr\\[\\, attrs\\, check\\]\\)"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of
+#: typing.Callable:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:1
+msgid ""
+"Parition the expression into a series of functions that match the pattern"
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of typing.Callable:3
+msgid ""
+"The subscription syntax must always be used with exactly two values: the "
+"argument list and the return type.  The argument list must be a list of "
+"types or ellipsis; the return type must be a single type."
+msgstr ""
+
+#: ../../../../../usr/lib/python3.6/typing.pydocstring of typing.Callable:7
+msgid ""
+"There is no syntax to indicate optional or keyword arguments, such function "
+"types are rarely used as callback types."
+msgstr ""
+
+#: ../../../python/tvm/ir/expr.pydocstring of
+#: tvm.ir.expr.RelayExpr:1:<autosummary>:1
+msgid ""
+":obj:`checked_type "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.Expr.checked_type>`\\"
+msgstr ""
+
+#: ../../../python/tvm/ir/expr.pydocstring of
+#: tvm.ir.expr.RelayExpr:1:<autosummary>:1
+msgid "Get the checked type of tvm.relay.Expr."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.op.op.get:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.register_df_node:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_type:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_dtype:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_shape:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.match:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.partition:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.dominates:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.optional:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_var:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_constant:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_expr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_op:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple_get_item:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_if:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_let:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_type:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_dtype:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_shape:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_attr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.dominates:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.match:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.ExprPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.VarPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.CallPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.FunctionPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.IfPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.LetPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TuplePattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TupleGetItemPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.AltPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TypePattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DataTypePattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.ShapePattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.AttrPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DominatorPattern:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.callback:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.rewrite:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:0
+msgid "Parameters"
+msgstr "参数"
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.register_df_node:3
+msgid "The type key of the node."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:5
+msgid "The fields of the node."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.op.op.get:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_type:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_dtype:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_shape:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.match:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.partition:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.dominates:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.optional:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_var:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_constant:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_expr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_op:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple_get_item:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_if:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_let:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.wildcard:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_type:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_dtype:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_shape:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_attr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.dominates:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.callback:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.rewrite:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:0
+msgid "Returns"
+msgstr "返回"
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:8
+msgid "**node** -- The corresponding IR Node"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.op.op.get:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_type:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_dtype:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_shape:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.match:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.partition:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.dominates:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.optional:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_var:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_constant:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_expr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_op:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple_get_item:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_if:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_let:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.wildcard:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_type:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_dtype:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_shape:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_attr:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.dominates:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.callback:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.rewrite:0
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:0
+msgid "Return type"
+msgstr "返回的数据类型"
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:13
+msgid ""
+"If the created node is instance of AttrsNode, then the creator function will"
+" also run bound checks and default value setup as supported by Attrs."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:18
+msgid "Example"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.ir.attrs.make_node:19
+msgid "The following code constructs a IntImm object"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.op.op.get:3
+msgid "The operator name"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.op.op.get:6
+msgid "**op** -- The op of the corresponding name"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback:1
+msgid "**Methods:**"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+msgid ""
+":obj:`has_attr "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern.has_attr>`\\"
+" \\(attrs\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1
+msgid "Add an attribute constraint to this pattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+msgid ""
+":obj:`has_type "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern.has_type>`\\"
+" \\(ttype\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_type:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_dtype:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_shape:1
+msgid "Add a type constraint to this pattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+msgid ""
+":obj:`has_dtype "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern.has_dtype>`\\"
+" \\(dtype\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+msgid ""
+":obj:`has_shape "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern.has_shape>`\\"
+" \\(shape\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+msgid ""
+":obj:`match "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern.match>`\\ "
+"\\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.match:1
+msgid "Match this pattern to an expression"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+msgid ""
+":obj:`partition "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern.partition>`\\"
+" \\(expr\\[\\, attrs\\, check\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.partition:1
+msgid "Partition the expression into functions defined by this pattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+msgid ""
+":obj:`dominates "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern.dominates>`\\"
+" \\(parent\\[\\, path\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.dominates:1
+msgid "Create a dominator for this pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+msgid ""
+":obj:`optional "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPattern.optional>`\\"
+" \\(option\\_constructor\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.optional:1
+msgid "Create a optional user of this pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_attr:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_attr:8
+msgid "**result** -- The resulting AttrPattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_type:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_type:3
+msgid "The type to match"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_type:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_type:8
+msgid "**result** -- The resulting TypePattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_dtype:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_dtype:3
+msgid "The dtype to match"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_dtype:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_dtype:8
+msgid "**result** -- The resulting DataTypePattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_shape:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_shape:3
+msgid "The shape to match"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.has_shape:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_shape:8
+msgid "**result** -- The resulting ShapePattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.match:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.partition:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.match:5
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.ExprPattern:3
+msgid "The expression to match."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.match:6
+msgid "**result** -- Whether or not the expression matches the pattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.partition:5
+msgid ""
+"A dictionary of Attribute name/values to add to the paritioned function"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.partition:7
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:9
+msgid ""
+"A function to perform more complicated checks on the matched expression. "
+"Returns true if partitioning should proceed, false otherwise."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.partition:11
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:13
+msgid ""
+"**result** -- The Expression with matched subgraphs replaced by function "
+"calls to that subgraph"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.dominates:3
+msgid "The parent pattern this pattern dominates."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.dominates:5
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.dominates:5
+msgid "The fuzzy path pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.dominates:8
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.dominates:10
+msgid "**result** -- The resulting DominatorPattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.optional:3
+msgid ""
+"A function that takes a single Pattern parameter and returns a constructed "
+"pattern matching the option"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPattern.optional:7
+msgid "**result** -- The resulting Pattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_var:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_constant:3
+msgid "The name of the input pattern to match."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_var:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_constant:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_expr:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple_get_item:8
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_if:10
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_let:10
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.wildcard:3
+msgid "**result** -- The resulting pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_expr:3
+msgid "The Relay expression to match."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_op:3
+msgid "The name of the relay op"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_op:6
+msgid "**result** -- The resulting ExprPattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TuplePattern:3
+msgid "The fields in the tuple."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple_get_item:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TupleGetItemPattern:3
+msgid "The input tuple expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_tuple_get_item:5
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TupleGetItemPattern:5
+msgid ""
+"The index to match; Default (None) to match a TupleGetItem with any index."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_if:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.IfPattern:3
+msgid "The pattern describing the condition of If."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_if:5
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.IfPattern:5
+msgid "The pattern describing the true branch of If."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_if:7
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.IfPattern:7
+msgid "The pattern describing the false branch of If."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_let:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.LetPattern:3
+msgid "The pattern describing the variable of Let."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_let:5
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.LetPattern:5
+msgid "The pattern describing the value of Let."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.is_let:7
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.LetPattern:7
+msgid "The pattern describing the body where the binding is in effect."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_type:5
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_dtype:5
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_shape:5
+msgid "The pattern that needs type annotation"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_attr:3
+msgid "The attributes to match"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.has_attr:5
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.match:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.AttrPattern:4
+msgid "The input pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.dominates:3
+msgid "The parent pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.dominates:7
+msgid "The child pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.VarPattern:3
+msgid ""
+"Local variable can be used to declare input arguments to a function, or "
+"intermediate variables."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.VarPattern:6
+msgid ""
+"The name of the variable. Optional, if not provided, the pattern will match "
+"any VarNode."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.VarPattern:9
+msgid "The type annotation on the variable."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.CallPattern:3
+msgid "The operation to be called."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.CallPattern:5
+msgid "The arguments to the call or None to match any arguments."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.FunctionPattern:3
+msgid "The parameters to the Function or None to match any parameters."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.FunctionPattern:5
+msgid "The body fo the Function"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.AltPattern:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.AltPattern:5
+msgid "One possible matching pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TypePattern:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DataTypePattern:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.ShapePattern:3
+msgid "The input pattern that needs type annotation."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.TypePattern:5
+msgid "The type to match."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DataTypePattern:5
+msgid "The dtype to match."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.ShapePattern:5
+msgid "The shape to match."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.AttrPattern:1
+msgid ""
+"Get match an expression with a certain attributes. Currently only supports "
+"Op Attributes, not call Attributes."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.AttrPattern:6
+msgid "The attributes to match."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DominatorPattern:3
+msgid ""
+"The parent, i.e., the single node which produces something, later aggregated"
+" by the child."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DominatorPattern:6
+msgid ""
+"The fuzzy path pattern between parent and child, typically matches "
+"elementwise ops."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DominatorPattern:9
+msgid ""
+"The last node in the domination which is the end user for all nodes in the "
+"path and the parent."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback:3
+msgid ""
+"When rewrite is called on this DFPatternCallback, the backend will find "
+"matches for the pattern, call the callback function, and replace the matched"
+" expression with whatever the callback returns."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback:7
+msgid ""
+"Users are expect to inherit from this class and provide a \"self.pattern\" "
+"to match"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback:9
+msgid "Whether InferType is required to be run before the callback."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback:11
+msgid "If True, run the callback only once."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:1:<autosummary>:1
+msgid ""
+":obj:`rewrite "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPatternCallback.rewrite>`\\"
+" \\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:1
+msgid "Rewrite expression with this callback"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:1:<autosummary>:1
+msgid ""
+":obj:`callback "
+"<tvm.relay.dataflow_pattern.tvm.relay.dataflow_pattern.DFPatternCallback.callback>`\\"
+" \\(pre\\, post\\, node\\_map\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:1:<autosummary>:1
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.callback:1
+msgid "Callback function to use when we found a match to the pattern"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:3
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.rewrite:5
+msgid "The expression to rewrite."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.rewrite:6
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.rewrite:10
+msgid ""
+"**result** -- The Expression with matched subgraphs rewritten by the "
+"callbacks."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.callback:3
+msgid "The matching expression from the original graph."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.callback:5
+msgid "The matching expression with rewritten inputs"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.callback:7
+msgid "The map between patterns and matched expressions"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.DFPatternCallback.callback:10
+msgid ""
+"**result** -- The Expression with matched subgraph rewritten by the callback"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.rewrite:3
+msgid "The input callback or list of callbacks."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.rewrite:7
+msgid "The module that associates with the expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:3
+msgid "The pattern to match"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:5
+msgid "The expression to split into functions"
+msgstr ""
+
+#: ../../../python/tvm/relay/dataflow_pattern/__init__.pydocstring of
+#: tvm.relay.dataflow_pattern.partition:7
+msgid "A dict of attributes to apply to the partitioned function"
+msgstr ""
