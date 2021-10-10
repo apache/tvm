@@ -93,6 +93,11 @@ if $3
 then
     echo "----start to generate html_$LANGUAGE, execute: make -j$MAXPROCESS -e  SPHINXOPTS=\"-D language=\'$LANGUAGE\'\" html  LOCALES=$LOCALES  HTMLFOLD=html_$LANGUAGE"
     mkdir -p $DOCS/html_additions/$LANGUAGE/
+
+    # backup http website
+    rm -r $DOCS/_build/last_html_$LANGUAGE
+    mv $DOCS/_build/html_$LANGUAGE $DOCS/_build/last_html_$LANGUAGE
+
     # Multi-threading may cause errors
     make -e  SPHINXOPTS="-D language='$LANGUAGE'" html  LOCALES=$LOCALES  HTMLFOLD=html_$LANGUAGE
     # fix github pages theme error

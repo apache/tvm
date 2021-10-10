@@ -1,0 +1,769 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# 长德 司, 2021
+# JiaKui Hu, 2021
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:39+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/api/python/rpc.rst:19
+msgid "tvm.rpc"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1
+msgid "Lightweight TVM RPC module."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:3
+msgid ""
+"RPC enables connect to a remote server, upload and launch functions. This is"
+" useful to for cross-compile and remote testing, The compiler stack runs on "
+"local server, while we use RPC server to run on remote runtime which don't "
+"have a compiler available."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:8
+msgid ""
+"The test program compiles the program on local server, upload and run remote"
+" RPC server, get the result back to verify correctness."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1
+msgid "**Classes:**"
+msgstr "**Classes:**"
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+msgid ":obj:`Server <tvm.rpc.Server>`\\ \\(\\[host\\, port\\, port\\_end\\, is\\_proxy\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:1
+msgid "Start RPC server on a separate process."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+msgid ":obj:`RPCSession <tvm.rpc.RPCSession>`\\ \\(sess\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of tvm.rpc.client.RPCSession:1
+msgid "RPC Client session module"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+msgid ":obj:`LocalSession <tvm.rpc.LocalSession>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of tvm.rpc.client.LocalSession:1
+msgid "RPCSession interface backed by local environment."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+msgid ":obj:`PopenSession <tvm.rpc.PopenSession>`\\ \\(binary\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of tvm.rpc.client.PopenSession:1
+msgid "RPCSession interface backed by popen."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+msgid ":obj:`TrackerSession <tvm.rpc.TrackerSession>`\\ \\(addr\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession:1
+msgid "Tracker client session."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc:1
+msgid "**Functions:**"
+msgstr "**Functions:**"
+
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server:1:<autosummary>:1
+msgid ""
+":obj:`connect <tvm.rpc.connect>`\\ \\(url\\, port\\[\\, key\\, "
+"session\\_timeout\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server:1:<autosummary>:1
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:1
+msgid "Connect to RPC Server"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server:1:<autosummary>:1
+msgid ":obj:`connect_tracker <tvm.rpc.connect_tracker>`\\ \\(url\\, port\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server:1:<autosummary>:1
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.client.connect_tracker:1
+msgid "Connect to a RPC tracker"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server:1:<autosummary>:1
+msgid ""
+":obj:`with_minrpc <tvm.rpc.with_minrpc>`\\ \\(compile\\_func\\[\\, server\\,"
+" runtime\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server:1:<autosummary>:1
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.minrpc.with_minrpc:1
+msgid "Attach the compiler function with minrpc related options."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:3
+msgid ""
+"This is a simple python implementation based on multi-processing. It is also"
+" possible to implement a similar C based server with TVM runtime which does "
+"not depend on the python."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:0
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:0
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.client.connect_tracker:0 ../../../python/tvm/rpc/client.pydocstring
+#: of tvm.rpc.client.RPCSession.get_function:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.device:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.upload:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.remove:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.load_module:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download_linked_module:0
+#: ../../../python/tvm/rpc/client.pydocstring of tvm.rpc.client.PopenSession:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession:0 ../../../python/tvm/rpc/client.pydocstring
+#: of tvm.rpc.client.TrackerSession.request:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request_and_run:0
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.minrpc.with_minrpc:0
+msgid "Parameters"
+msgstr "参数"
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:7
+msgid "The host url of the server."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:9
+msgid "The port to be bind to"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:11
+msgid "The end port to search"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:13
+msgid ""
+"Whether the address specified is a proxy. If this is true, the host and port"
+" actually corresponds to the address of the proxy server."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:17
+msgid ""
+"The address of RPC Tracker in tuple(host, ip) format. If is not None, the "
+"server will register itself to the tracker."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:20
+msgid "The key used to identify the device type in tracker."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:22
+msgid "List of additional libraries to be loaded during execution."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:24
+msgid "Custom IP Address to Report to RPC Tracker"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:26
+msgid "Whether run this server in silent mode."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:28
+msgid "Whether forbid fork in multiprocessing."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:30
+msgid "Additional initialization function when starting the server."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:35
+msgid ""
+"The RPC server only sees functions in the tvm namespace. To bring additional"
+" custom functions to the server env, you can use server_init_callback."
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of tvm.rpc.server.Server:1
+#: ../../../python/tvm/rpc/client.pydocstring of tvm.rpc.client.RPCSession:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession:1
+msgid "**Methods:**"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server.terminate:1:<autosummary>:1
+msgid ":obj:`terminate <tvm.rpc.Server.terminate>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server.terminate:1:<autosummary>:1
+#: ../../../python/tvm/rpc/server.pydocstring of
+#: tvm.rpc.server.Server.terminate:1
+msgid "Terminate the server process"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:3
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.client.connect_tracker:3
+msgid "The url of the host"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:5
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.client.connect_tracker:5
+msgid "The port to connect to"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:7
+msgid "Additional key to match server"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:9
+msgid ""
+"The duration of the session in seconds, allows server to kill the connection"
+" when duration is longer than this value. When duration is zero, it means "
+"the request must always be kept alive."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:13
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request:13
+msgid ""
+"List of additional arguments to passed as the remote session constructor. "
+"The first element of the list is always a string specifying the name of the "
+"session constructor, the following args are the positional args to that "
+"function."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:0
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.client.connect_tracker:0 ../../../python/tvm/rpc/client.pydocstring
+#: of tvm.rpc.client.RPCSession.system_lib:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.get_function:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.device:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.load_module:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download_linked_module:0
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.minrpc.with_minrpc:0
+msgid "Returns"
+msgstr "返回"
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:18
+msgid "**sess** -- The connected session."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:0
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.client.connect_tracker:0 ../../../python/tvm/rpc/client.pydocstring
+#: of tvm.rpc.client.RPCSession.system_lib:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.get_function:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.device:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.load_module:0
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download_linked_module:0
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.minrpc.with_minrpc:0
+msgid "Return type"
+msgstr "返回的数据类型"
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:22
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download_linked_module:15
+msgid "Examples"
+msgstr "样例"
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:23
+msgid "Normal usage .. code-block:: python"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:26
+msgid "client = rpc.connect(server_url, server_port, server_key)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of tvm.rpc.client.connect:28
+msgid ""
+"Session_constructor can be used to customize the session in the remote The "
+"following code connects to a remote internal server via a proxy by "
+"constructing another RPCClientSession on the proxy machine and use that as "
+"the serving session of the proxy endpoint."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.client.connect_tracker:8
+msgid "**sess** -- The connected tracker session."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of tvm.rpc.client.RPCSession:3
+msgid "Do not directly create the obhect, call connect"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`system_lib <tvm.rpc.RPCSession.system_lib>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1
+msgid "Get system-wide library module."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`get_function <tvm.rpc.RPCSession.get_function>`\\ \\(name\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.get_function:1
+msgid "Get function from the session."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`device <tvm.rpc.RPCSession.device>`\\ \\(dev\\_type\\[\\, dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.device:1
+msgid "Construct a remote device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`upload <tvm.rpc.RPCSession.upload>`\\ \\(data\\[\\, target\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.upload:1
+msgid "Upload file to remote runtime temp folder"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`download <tvm.rpc.RPCSession.download>`\\ \\(path\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download:1
+msgid "Download file from remote temp folder."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`remove <tvm.rpc.RPCSession.remove>`\\ \\(path\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.remove:1
+msgid "Remove file from remote temp folder."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`load_module <tvm.rpc.RPCSession.load_module>`\\ \\(path\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.load_module:1
+msgid "Load a remote module, the file need to be uploaded first."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ""
+":obj:`download_linked_module <tvm.rpc.RPCSession.download_linked_module>`\\ "
+"\\(path\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download_linked_module:1
+msgid "Link a module in the remote and download it."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`cpu <tvm.rpc.RPCSession.cpu>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.cpu:1
+msgid "Construct CPU device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`cuda <tvm.rpc.RPCSession.cuda>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.cuda:1
+msgid "Construct CUDA GPU device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`cl <tvm.rpc.RPCSession.cl>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.cl:1
+msgid "Construct OpenCL device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`vulkan <tvm.rpc.RPCSession.vulkan>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.vulkan:1
+msgid "Construct Vulkan device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`metal <tvm.rpc.RPCSession.metal>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.metal:1
+msgid "Construct Metal device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`rocm <tvm.rpc.RPCSession.rocm>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.rocm:1
+msgid "Construct ROCm device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`ext_dev <tvm.rpc.RPCSession.ext_dev>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.ext_dev:1
+msgid "Construct extension device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`hexagon <tvm.rpc.RPCSession.hexagon>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.hexagon:1
+msgid "Construct Hexagon device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+msgid ":obj:`webgpu <tvm.rpc.RPCSession.webgpu>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.webgpu:1
+msgid "Construct WebGPU device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:3
+msgid "**module** -- The system-wide library module."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.system_lib:6
+msgid ":obj:`tvm.runtime.system_lib`"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.get_function:3
+msgid "The name of the function"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.get_function:6
+msgid "**f** -- The result function."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.device:8
+msgid "**dev** -- The corresponding encoded remote device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.upload:3
+msgid "The file name or binary in local to upload."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.upload:5
+msgid "The path in remote"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download:3
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.remove:3
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.load_module:3
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download_linked_module:3
+msgid "The relative location to remote temp folder."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download:6
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download_linked_module:6
+msgid "**blob** -- The result blob from the file."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.load_module:6
+msgid "**m** -- The remote module containing remote function."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.RPCSession.download_linked_module:11
+msgid ""
+"This function can be helpful when a linker is not available on the local "
+"client."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of tvm.rpc.client.LocalSession:3
+msgid ""
+"This class can be used to implement functions that need to be ran both "
+"locally and remotely."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of tvm.rpc.client.PopenSession:3
+msgid "The binary to be executed."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession:3
+msgid "The address tuple"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+msgid ":obj:`close <tvm.rpc.TrackerSession.close>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1
+msgid "Close the tracker connection."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+msgid ":obj:`summary <tvm.rpc.TrackerSession.summary>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.summary:1
+msgid "Get the summary dict of the tracker."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+msgid ":obj:`text_summary <tvm.rpc.TrackerSession.text_summary>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.text_summary:1
+msgid "Get a text summary of the tracker."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+msgid ""
+":obj:`request <tvm.rpc.TrackerSession.request>`\\ \\(key\\[\\, priority\\, "
+"session\\_timeout\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request:1
+msgid "Request a new connection from the tracker."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+msgid ""
+":obj:`request_and_run <tvm.rpc.TrackerSession.request_and_run>`\\ \\(key\\, "
+"func\\[\\, priority\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.close:1:<autosummary>:1
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request_and_run:1
+msgid "Request a resource from tracker and run the func."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request:3
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request_and_run:6
+msgid "The type key of the device."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request:5
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request_and_run:10
+msgid "The priority of the request."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request:7
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request_and_run:12
+msgid ""
+"The duration of the session, allows server to kill the connection when "
+"duration is longer than this value. When duration is zero, it means the "
+"request must always be kept alive."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request:11
+msgid "Maximum number of times to retry before give up."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request_and_run:3
+msgid ""
+"This function safe-guard rare server node dropout during execution. In such "
+"case, a new resource will be requested and func will be ran again."
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request_and_run:8
+msgid "A stateless function"
+msgstr ""
+
+#: ../../../python/tvm/rpc/client.pydocstring of
+#: tvm.rpc.client.TrackerSession.request_and_run:16
+msgid "Maximum number of times to retry the function before give up."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.minrpc.with_minrpc:3
+msgid "The compilation function to decorate."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.minrpc.with_minrpc:5
+msgid "The server type."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.minrpc.with_minrpc:7
+msgid "The runtime library."
+msgstr ""
+
+#: ../../../python/tvm/rpc/__init__.pydocstring of
+#: tvm.rpc.minrpc.with_minrpc:10
+msgid "**fcompile** -- The return compilation."
+msgstr ""

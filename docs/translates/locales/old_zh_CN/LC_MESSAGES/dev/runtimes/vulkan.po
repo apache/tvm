@@ -1,0 +1,377 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"PO-Revision-Date: 2021-09-18 07:44+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/dev/runtimes/vulkan.rst:21
+msgid "Vulkan Runtime"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:23
+msgid ""
+"TVM supports using Vulkan compute shaders to execute queries.  Each "
+"computational kernel is compiled into a SPIR-V shader, which can then be "
+"called using the TVM interface."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:30
+msgid "Vulkan Features, Limits"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:34
+msgid ""
+"Since different Vulkan implementations may enable different optional "
+"features or have different physical limits, the code generation must know "
+"which features are available to use.  These correspond to specific Vulkan "
+"capabilities/limits as in :ref:`Vulkan Capabilities Table <tvm-table-vulkan-"
+"capabilities>`. If unspecified, TVM assumes that a capability is not "
+"available, or that a limit is the minimum guaranteed by the Vulkan spec in "
+"the `Required Limits`_ section."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:43
+msgid ""
+"These parameters can be either explicitly specific when defining a "
+":ref:`Target <tvm-target-specific-target>`, or can be queried from a device."
+"  To query from a device, the special parameter ``-from_device=N`` can be "
+"used to query all vulkan device parameters from device id ``N``.  Any "
+"additional parameters explicitly specified will override the parameters "
+"queried from the device."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:52
+#: ../../_staging/dev/runtimes/vulkan.rst:161
+msgid "Vulkan Capabilities"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:56
+#: ../../_staging/dev/runtimes/vulkan.rst:165
+msgid "Target Parameter"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:57
+msgid "Required Vulkan Version/Extension"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:58
+msgid "Parameter Queried"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:59
+msgid "Default Value"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:61
+#: ../../_staging/dev/runtimes/vulkan.rst:169
+msgid "``supported_subgroup_operations``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:62
+msgid "Vulkan 1.1+"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:63
+msgid "``VkPhysicalDeviceSubgroupProperties::supportedOperations``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:64
+msgid "0 (interpreted as `VkSubgroupFeatureFlagBits`_)"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:66
+msgid "``max_push_constants_size``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:68
+msgid "``VkPhysicalDeviceLimits::maxPushConstantsSize``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:69
+msgid "128 bytes"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:71
+msgid "``max_uniform_buffer_range``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:73
+msgid "``VkPhysicalDeviceLimits::maxUniformBufferRange``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:74
+msgid "16384 bytes"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:77
+msgid "``max_storage_buffer_range``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:79
+msgid "``VkPhysicalDeviceLimits::maxStorageBufferRange``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:80
+msgid "2\\ :sup:`27`\\ bytes"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:83
+msgid "``max_per_stage_descriptor_storage_buffer``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:85
+msgid "``VkPhysicalDeviceLimits::maxPerStageDescriptorStorageBuffers``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:86
+msgid "4"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:89
+#: ../../_staging/dev/runtimes/vulkan.rst:173
+msgid "``supports_storage_buffer_storage_class``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:90
+msgid "VK_KHR_storage_buffer_storage_class"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:92
+#: ../../_staging/dev/runtimes/vulkan.rst:98
+#: ../../_staging/dev/runtimes/vulkan.rst:104
+#: ../../_staging/dev/runtimes/vulkan.rst:110
+#: ../../_staging/dev/runtimes/vulkan.rst:116
+#: ../../_staging/dev/runtimes/vulkan.rst:122
+#: ../../_staging/dev/runtimes/vulkan.rst:128
+#: ../../_staging/dev/runtimes/vulkan.rst:134
+msgid "false"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:95
+#: ../../_staging/dev/runtimes/vulkan.rst:177
+msgid "``supports_storage_buffer_8bit_access``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:96
+msgid "VK_KHR_8bit_storage"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:97
+msgid "``VkPhysicalDevice8BitStorageFeaturesKHR::storageBuffer8BitAccess``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:101
+#: ../../_staging/dev/runtimes/vulkan.rst:181
+msgid "``supports_storage_buffer_16bit_access``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:102
+msgid "VK_KHR_16bit_storage"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:103
+msgid "``VkPhysicalDevice16BitStorageFeaturesKHR::storageBuffer16BitAccess``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:107
+#: ../../_staging/dev/runtimes/vulkan.rst:185
+msgid "``supports_float16``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:108
+#: ../../_staging/dev/runtimes/vulkan.rst:120
+msgid "VK_KHR_shader_float16_int8"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:109
+msgid "``VkPhysicalDeviceShaderFloat16Int8FeaturesKHR::shaderFloat16``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:113
+#: ../../_staging/dev/runtimes/vulkan.rst:190
+msgid "``supports_float64``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:115
+msgid "``VkPhysicalDeviceFeatures::shaderFloat64``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:119
+#: ../../_staging/dev/runtimes/vulkan.rst:195
+msgid "``supports_int8``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:121
+msgid "``VkPhysicalDeviceShaderFloat16Int8FeaturesKHR::shaderInt8``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:125
+#: ../../_staging/dev/runtimes/vulkan.rst:200
+msgid "``supports_int16``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:127
+msgid "``VkPhysicalDeviceFeatures::shaderInt16``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:131
+#: ../../_staging/dev/runtimes/vulkan.rst:205
+msgid "``supports_int64``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:133
+msgid "``VkPhysicalDeviceFeatures::shaderInt64``"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:138
+msgid ""
+"As of May 2021, not all Vulkan implementations are supported.  For example, "
+"support for 64-bit integers is required.  If a Vulkan target is not "
+"supported, an error message should be issued during SPIR-V code generation."
+"  Efforts are also underway to remove these requirements and support "
+"additional Vulkan implementations."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:148
+msgid "SPIR-V Capabilities"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:150
+msgid ""
+"Some of the device-specific capabilities also correspond to SPIR-V "
+"capabilities or extensions that must be declared in the shader, or a minimum"
+" SPIR-V version required in order to use a feature.  The TVM-generated "
+"shaders will declare the minimum set of extensions/capabilities and the "
+"minimum allowed version of SPIR-V that are needed to execute the compiled "
+"graph."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:157
+msgid ""
+"If the shader generation requires a capability or extension that is not "
+"enabled in the ``Target``, an exception will be raised."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:166
+msgid "Required SPIR-V Version/Extension"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:167
+msgid "Declared Capability"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:170
+msgid "SPIR-V 1.3+"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:171
+msgid "Varies, see `VkSubgroupFeatureFlagBits`_"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:174
+msgid "SPV_KHR_storage_buffer_storage_class"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:178
+msgid "SPV_KHR_8bit_storage"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:179
+msgid "StorageBuffer8BitAccess"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:182
+msgid "SPV_KHR_16bit_storage"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:183
+msgid "StorageBuffer16BitAccess"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:187
+msgid "Float16"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:192
+msgid "Float64"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:197
+msgid "Int8"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:202
+msgid "Int16"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:207
+msgid "Int64"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:211
+msgid "Vulkan-Specific Environment Variables"
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:213
+msgid ""
+"Both the SPIR-V code generation and the Vulkan runtime have environment "
+"variables that can modify some of the runtime behavior. These are intended "
+"for debugging purposes, both to more easily test specific code paths, and to"
+" output more information as needed.  All boolean flags are true if the "
+"environment variable is set to a non-zero integer.  An unset variable, the "
+"integer zero, or an empty string are all false boolean flags."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:234
+msgid ""
+"``TVM_VULKAN_DISABLE_PUSH_DESCRIPTOR`` - A boolean flag.  If true, TVM will "
+"explicitly allocate descriptors, and will not use the "
+"`VK_KHR_push_descriptor`_ or `VK_KHR_descriptor_update_template`_ "
+"extensions.  If false, TVM will decide whether to use these extensions based"
+" on their availability."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:240
+msgid ""
+"``TVM_VULKAN_DISABLE_DEDICATED_ALLOCATION`` - A boolean flag.  If true, TVM "
+"will not mark memory allocations as being dedicated allocations, and will "
+"not use the `VK_KHR_dedicated_allocation`_ extension.  If false, TVM will "
+"decide whether memory allocations should be marked as dedicated based on the"
+" `VkMemoryDedicatedRequirements`_ for that buffer."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:247
+msgid ""
+"``TVM_VULKAN_ENABLE_VALIDATION_LAYERS`` - A boolean flag.  If true, TVM will"
+" enable `Vulkan validation layers`_ that the device supports.  If false, no "
+"validation layers are enabled."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:251
+msgid ""
+"``TVM_VULKAN_DISABLE_SHADER_VALIDATION`` - A boolean flag.  If true, the "
+"SPIR-V shader validation done with `spvValidate`_ is skipped. If false "
+"(default), all SPIR-V shaders generated by TVM are validated with "
+"`spvValidate`_."
+msgstr ""
+
+#: ../../_staging/dev/runtimes/vulkan.rst:256
+msgid ""
+"``TVM_VULKAN_DEBUG_SHADER_SAVEPATH`` - A path to a directory.  If set to a "
+"non-empty string, the Vulkan codegen will save tir, binary SPIR-V, and "
+"disassembled SPIR-V shaders to this directory, to be used for debugging "
+"purposes."
+msgstr ""
