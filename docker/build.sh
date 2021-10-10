@@ -85,7 +85,7 @@ if [[ "$1" == "--cache-from" ]]; then
     shift 1
     cached_image="$1"
     DOCKER_NO_CACHE_ARG=
-    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from tvm.$CONTAINER_TYPE")
+    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from tvm.$CONTAINER_TYPE:$DOCKER_IMAGE_TAG")
     CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from $cached_image")
     shift 1
 fi
