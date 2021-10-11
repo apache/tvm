@@ -543,6 +543,12 @@ def test_rpc_tracker_request():
 
 @tvm.testing.requires_rpc
 def test_rpc_tracker_via_proxy():
+    """
+         tracker
+         /     \
+    Host   --   Proxy -- RPC server
+    """
+
     device_key = "test_device"
 
     tracker_server = Tracker(port=9000, port_end=9100)
@@ -560,7 +566,6 @@ def test_rpc_tracker_via_proxy():
         tracker_addr=(tracker_server.host, tracker_server.port),
         is_proxy=True,
     )
-    time.sleep(0.1)
     server2 = rpc.Server(
         host=proxy_server.host,
         port=proxy_server.port,
@@ -568,11 +573,10 @@ def test_rpc_tracker_via_proxy():
         tracker_addr=(tracker_server.host, tracker_server.port),
         is_proxy=True,
     )
-    time.sleep(0.1)
 
     client = rpc.connect_tracker(tracker_server.host, tracker_server.port)
-    summary = client.summary()
-    assert summary["queue_info"][device_key]["free"] == 2
+    remote1 = client.request(device_key, session_timeout=30)  # pylint: disable=unused-variable
+    remote2 = client.request(device_key, session_timeout=30)  # pylint: disable=unused-variable
 
     server2.terminate()
     server1.terminate()
