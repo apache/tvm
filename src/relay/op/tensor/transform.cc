@@ -2599,24 +2599,19 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
         params->strides = new_strides;
         layout = new_layout;
       }
-    } else {
+    } else if (old_layout_name.size() <
+               new_layout_name.size()) {  // prohibit transforms such as NCHW4c -> NCHW
       if (params->axes) {
         auto axes = params->axes.value();
         Array<Integer> new_axes;
-
         for (size_t i = 0; i < axes.size(); ++i) {
           auto old_idx = axes[i];
           auto new_idx = new_layout.IndexOf(layout[old_idx]);
           new_axes.push_back(new_idx);
 
           const LayoutAxis& axis = layout[old_idx];
-          if (!axis.IsPrimal()) {
-            // original layout that contains splitted axes is not supported
-            return out_default;
-          }
-
+          ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
-
           if (factor == -1) {
             new_begin.push_back(begin[i]);
             new_end.push_back(end[i]);
@@ -2636,10 +2631,7 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
       } else {
         for (size_t i = 0; i < begin.size(); i++) {
           const LayoutAxis& axis = layout[i];
-          if (!axis.IsPrimal()) {
-            // original layout that contains splitted axes is not supported
-            return out_default;
-          }
+          ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
           if (factor == -1) {
             new_begin.push_back(IntImm(begin[i]->dtype, begin[i]));
