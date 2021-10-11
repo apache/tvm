@@ -130,8 +130,11 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
                 call = relay.Call(node.op, params, node.attrs)
                 mod = tvm.IRModule.from_expr(relay.Function(params, call))
                 relay.backend.compile_engine.get().clear()
+                target_string = (
+                    tvm_target if " -device" in tvm_target else f"{tvm_target} -device=tracing"
+                )
                 build_thread = threading.Thread(
-                    target=relay.build, args=(mod, f"{tvm_target} -device=tracing", None, None)
+                    target=relay.build, args=(mod, target_string, None, None)
                 )
                 build_thread.start()
                 build_thread.join()
@@ -141,7 +144,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
         elif isinstance(node, Function):
             # Ignore root node since it equals to input function expression
             if node != expr:
-                _expr2graph_impl(node, target_ops, node_dict, node_list)
+                _expr2graph_impl(node, target_ops, node_dict, node_list, tvm_target)
             return
         elif isinstance(node, TupleGetItem):
             in_node_idx = node_dict[node.tuple_value]
