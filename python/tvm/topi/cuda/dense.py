@@ -137,6 +137,8 @@ _dp4a = dp4a("shared", "shared", "local")
 
 def _schedule_dense_int8(cfg, s, output):
     data, weight = s[output].op.input_tensors
+    if len(weight.op.input_tensors) == 1 and weight.op.input_tensors[0] == data:
+        s[weight].compute_inline()
 
     batch, in_dim = get_const_tuple(data.shape)
     out_dim, _ = get_const_tuple(weight.shape)

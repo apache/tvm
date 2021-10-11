@@ -62,6 +62,14 @@ std::string ToCVariableStyle(const std::string& original_name) {
   return variable_name;
 }
 
+std::string ToCConstantStyle(const std::string& original_name) {
+  ICHECK_EQ(original_name.find("TVM"), 0) << "Constant not TVM prefixed";
+  std::string constant_name = ToCVariableStyle(original_name);
+
+  std::transform(constant_name.begin(), constant_name.end(), constant_name.begin(), ::toupper);
+  return constant_name;
+}
+
 std::string CombineNames(const Array<String>& names) {
   std::stringstream combine_stream;
   ICHECK(!names.empty()) << "Name segments empty";
@@ -79,22 +87,16 @@ std::string CombineNames(const Array<String>& names) {
 std::string SanitizeName(const std::string& name) {
   ICHECK(!name.empty()) << "Name is empty";
 
-  auto multipleSeparators = [](char before, char after) {
-    return before == '_' && before == after;
-  };
   auto isNotAlnum = [](char c) { return !std::isalnum(c); };
   std::string sanitized_input = name;
   std::replace_if(sanitized_input.begin(), sanitized_input.end(), isNotAlnum, '_');
-
-  sanitized_input.erase(
-      std::unique(sanitized_input.begin(), sanitized_input.end(), multipleSeparators),
-      sanitized_input.end());
 
   return sanitized_input;
 }
 
 TVM_REGISTER_GLOBAL("relay.backend.ToCFunctionStyle").set_body_typed(ToCFunctionStyle);
 TVM_REGISTER_GLOBAL("relay.backend.ToCVariableStyle").set_body_typed(ToCVariableStyle);
+TVM_REGISTER_GLOBAL("relay.backend.ToCConstantStyle").set_body_typed(ToCConstantStyle);
 TVM_REGISTER_GLOBAL("relay.backend.PrefixName").set_body_typed(PrefixName);
 TVM_REGISTER_GLOBAL("relay.backend.PrefixGeneratedName").set_body_typed(PrefixGeneratedName);
 TVM_REGISTER_GLOBAL("relay.backend.SanitizeName").set_body_typed(SanitizeName);

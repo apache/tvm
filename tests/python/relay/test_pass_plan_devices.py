@@ -80,9 +80,8 @@ def exercise(in_mod: tvm.IRModule, expected_mod: tvm.IRModule, reference_func, a
     # Idempotence
     rewrite_and_assert(expected_mod, expected_mod)
     # The VM can compile and possibly even run the module
-    # TODO(mbs): Disabled until VM supports new device planning.
-    # if not (reference_func is None) and not (args is None):
-    #    eval_and_assert(in_mod, reference_func, args)
+    if not (reference_func is None) and not (args is None):
+        eval_and_assert(in_mod, reference_func, args)
 
 
 def test_plain():
@@ -380,10 +379,9 @@ def test_func_result_on_cpu():
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
                       %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32],
                       param_device_types=[1, 1, 2, 2], result_device_type=2) {
-              %0 = fn (%x, %y, param_device_types=[1, 1], result_device_type=1) {
+              let %f = fn (%x, %y, param_device_types=[1, 1], result_device_type=1) {
                 add(%x, %y)
               };
-              let %f = on_device(%0, device_type=1, is_fixed=True);
               %1 = %f(%a, %b);
               %2 = on_device(%1, device_type=1, is_fixed=True);
               %3 = device_copy(%2, src_dev_type=1, dst_dev_type=2);
@@ -564,10 +562,9 @@ def test_shape_func():
             #[version = "0.0.5"] 
             def @main(%x: Tensor[(?), float32], %s: Tensor[(1), int64],
                       param_device_types=[2, 1], result_device_type=1) {
-              %0 = fn (%y: Tensor[(?), float32], param_device_types=[2], result_device_type=2) {
+              let %p = fn (%y: Tensor[(?), float32], param_device_types=[2], result_device_type=2) {
                 nn.relu(%y)
               };
-              let %p = on_device(%0, device_type=2, is_fixed=True);
               %1 = vm.shape_of(%x, dtype="int64");
               %2 = (%1,);
               %3 = (%s,);
@@ -950,17 +947,17 @@ def test_tuple_get_item():
 
 def test_propogation():
     r""" The network and devices are as follows:
-                  x           <--- CPU
+                  x             <--- CPU
                   |
-                 log          <--- CPU
+                negative        <--- CPU
                 /   \
-              log2 log10      <--- GPU
+          negative  negative    <--- GPU
                 \   /
-                 add          <--- GPU
+                 add            <--- GPU
                   |
-                 tan          <--- CPU
+                negative        <--- CPU
                   |
-               <result>       <--- CPU
+               <result>         <--- CPU
     """
 
     def input():
@@ -968,16 +965,16 @@ def test_propogation():
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32]) {
-              %0 = log(%x);
+              %0 = negative(%x);
               %1 = on_device(%0, device_type=1);
-              %2 = log2(%1);
+              %2 = negative(%1);
               %3 = on_device(%0, device_type=1);
-              %4 = log10(%3);
+              %4 = negative(%3);
               %5 = on_device(%2, device_type=2);
               %6 = on_device(%4, device_type=2);
               %7 = add(%5, %6);
               %8 = on_device(%7, device_type=2);
-              %9 = tan(%8);
+              %9 = negative(%8);
               on_device(%9, device_type=1)
             }
         """
@@ -988,24 +985,24 @@ def test_propogation():
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], param_device_types=[1], result_device_type=1) {
-              %0 = log(%x);
+              %0 = negative(%x);
               %1 = on_device(%0, device_type=1, is_fixed=True);
               %2 = device_copy(%1, src_dev_type=1, dst_dev_type=2);
               %3 = on_device(%0, device_type=1, is_fixed=True);
               %4 = device_copy(%3, src_dev_type=1, dst_dev_type=2);
-              %5 = log2(%2);
-              %6 = log10(%4);
+              %5 = negative(%2);
+              %6 = negative(%4);
               %7 = add(%5, %6);
               %8 = on_device(%7, device_type=2, is_fixed=True);
               %9 = device_copy(%8, src_dev_type=2, dst_dev_type=1);
-              tan(%9)
+              negative(%9)
             }
         """
         )
 
     def ref(x):
-        y = np.log(x)
-        return np.tan(np.add(np.log2(y), np.log10(y)))
+        y = np.negative(x)
+        return np.negative(np.add(np.negative(y), np.negative(y)))
 
     exercise(input(), expected(), ref, rands((5, 7), 1))
 
