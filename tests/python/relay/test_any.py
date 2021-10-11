@@ -2087,5 +2087,4 @@ def test_gather():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_gather()
+    pytest.main([__file__])

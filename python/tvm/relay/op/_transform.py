@@ -1178,10 +1178,12 @@ def gather_nd_shape_func(attrs, inputs, _):
 
 @script
 def _gather_shape(data_shape, indices_shape, axis):
-    out_shape = output_tensor((1,), "int64")
+    out_shape = output_tensor((data_shape.shape[0],), "int64")
     for i in range(data_shape.shape[0]):
         if i != axis:
-            assert data_shape[i] == indices_shape[i], "data and indices size at non-gather axes must be the same"
+            assert (
+                data_shape[i] == indices_shape[i]
+            ), "data and indices size at non-gather axes must be the same"
         out_shape[i] = indices_shape[i]
     return out_shape
 
