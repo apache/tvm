@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, no-value-for-parameter
 """Defines relu intrinsics for SIMD relu operation."""
 
+
 def relu_MxN_impl(M, N, uniq_id):
     """Emit C code for relu impl."""
     cc_code = f"""

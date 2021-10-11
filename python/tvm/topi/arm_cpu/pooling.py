@@ -16,9 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable
 """Schedule for pooling operators"""
-import tvm
-from tvm import te
-from tvm import autotvm
 
 from .cortex_m7.pool import direct_simd
 
@@ -26,4 +23,3 @@ from .cortex_m7.pool import direct_simd
 def schedule_pool(outs, layout):
     """Create schedule for avgpool/maxpool with direct_simd"""
     return direct_simd.pool_direct_simd_schedule(outs, layout)
-

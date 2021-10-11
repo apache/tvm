@@ -45,7 +45,10 @@ if tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON":
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--enable-corstone300-tests", action="store_true", default=False, help="Run Corstone-300 FVP tests"
+        "--enable-corstone300-tests",
+        action="store_true",
+        default=False,
+        help="Run Corstone-300 FVP tests",
     )
 
 

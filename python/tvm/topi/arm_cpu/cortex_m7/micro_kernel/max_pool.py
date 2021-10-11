@@ -24,7 +24,9 @@ import tvm
 from tvm import te
 from . import common
 
+
 def intrin_max(shape, in_dtype, out_dtype):
+    """Defines a SIMD-accelerated max pool."""
     UNIQ_ID_LEN = 8
     uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
     func_prefix = "max8"
@@ -43,19 +45,23 @@ def intrin_max(shape, in_dtype, out_dtype):
         def _body():
             ib = tvm.tir.ir_builder.create()
             ib.emit(
-                tvm.tir.call_extern(cc.dtype,
-                                    f"{func_prefix}_{uniq_id}",
-                                    aa.access_ptr("r"),
-                                    cc.access_ptr("w"),
-                                    cc.strides[0]))
+                tvm.tir.call_extern(
+                    cc.dtype,
+                    f"{func_prefix}_{uniq_id}",
+                    aa.access_ptr("r"),
+                    cc.access_ptr("w"),
+                    cc.strides[0],
+                )
+            )
             return ib.get()
 
         def _reduce_reset():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_extern(cc.dtype,
-                                        f"{func_prefix}_reset_{uniq_id}",
-                                        cc.access_ptr("w"),
-                                        cc.strides[0]))
+            ib.emit(
+                tvm.tir.call_extern(
+                    cc.dtype, f"{func_prefix}_reset_{uniq_id}", cc.access_ptr("w"), cc.strides[0]
+                )
+            )
             return ib.get()
 
         def _reduce_update():
@@ -65,9 +71,11 @@ def intrin_max(shape, in_dtype, out_dtype):
 
     binds = {
         t: tvm.tir.decl_buffer(
-            t.shape, t.dtype, t.op.name,
+            t.shape,
+            t.dtype,
+            t.op.name,
             strides=[te.var(f"{t.op.name}_s_{i}") for i in range(0, len(t.shape))],
-            offset_factor=1
+            offset_factor=1,
         )
         for t in [x, z]
     }
@@ -78,7 +86,9 @@ def intrin_max(shape, in_dtype, out_dtype):
 
 def max_impl(uniq_id):
     """Emit C code for pool impl."""
-    cc_code = common.cc_code + f"""
+    cc_code = (
+        common.cc_code
+        + f"""
 
 
 #ifdef __cplusplus
@@ -150,4 +160,5 @@ out:
 }}
 
 """
+    )
     return cc_code

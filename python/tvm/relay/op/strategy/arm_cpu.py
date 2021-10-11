@@ -56,11 +56,17 @@ def schedule_pool_arm_cpu(attrs, outs, target):
     isa = arm_isa.IsaAnalyzer(target)
     avg_pool = hasattr(attrs, "count_include_pad")
     with target:
-        if avg_pool and (layout == "NCW" or layout == "NCHW") and "SMLAD" in isa or \
-                not avg_pool and "SSUB8" in isa and "SEL" in isa and (layout == "NWC" or layout == "NHWC"):
+        if (
+            avg_pool
+            and layout in ("NCW", "NCHW")
+            and "SMLAD" in isa
+            or not avg_pool
+            and "SSUB8" in isa
+            and "SEL" in isa
+            and layout in ("NWC", "NHWC")
+        ):
             return topi.arm_cpu.schedule_pool(outs, layout)
-        else:
-            return topi.generic.schedule_pool(outs, layout)
+        return topi.generic.schedule_pool(outs, layout)
 
 
 @conv2d_strategy.register(["arm_cpu", "micro_dev"])
@@ -472,7 +478,9 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
             )
         else:
             raise RuntimeError(
-                "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(kernel_layout, layout)
+                "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(
+                    kernel_layout, layout
+                )
             )
     elif layout == "NCW":
         strategy.add_implementation(

@@ -127,7 +127,9 @@ def gemm_MxKxN_impl(M, K, N, uniq_id):
     # aa_pad_size = M * K
     bb_pad_size = N * K
     # code reference: CMSIS-NN paper (https://arxiv.org/abs/1801.06601)
-    cc_code = common.cc_code + f"""
+    cc_code = (
+        common.cc_code
+        + f"""
 
 
 #ifdef __cplusplus
@@ -504,4 +506,5 @@ __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_reset_{uniq_id}(int32_t *cc, int C
 }}
 
 """
+    )
     return cc_code

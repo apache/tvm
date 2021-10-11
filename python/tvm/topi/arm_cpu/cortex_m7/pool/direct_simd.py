@@ -20,7 +20,7 @@ import logging
 
 import tvm
 
-from tvm import te, topi
+from tvm import te
 from tvm.topi.utils import traverse_inline
 
 from ..micro_kernel.max_pool import (
@@ -37,6 +37,7 @@ logger = logging.getLogger("topi")
 
 
 def schedule_maxpool_1d_nwc(s, op):
+    """Schedule function for Cortex-M7 SIMD implementation of maxpool 1d NWC layout."""
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
@@ -45,15 +46,16 @@ def schedule_maxpool_1d_nwc(s, op):
         channels = channels.value
 
     n, w, c = s[op].op.axis
-    k, = s[op].op.reduce_axis
+    (k,) = s[op].op.reduce_axis
 
     s[op].reorder(n, w, k, c)
-    max, uniq_id = intrin_max((1, 1, channels), data_vec.dtype, output.dtype)
-    s[op].tensorize(c, max)
+    max_val, uniq_id = intrin_max((1, 1, channels), data_vec.dtype, output.dtype)
+    s[op].tensorize(c, max_val)
     s[output].pragma(n, "import_c", max_impl(uniq_id))
 
 
 def schedule_maxpool_2d_nhwc(s, op):
+    """Schedule function for Cortex-M7 SIMD implementation of maxpool 2d NHWC layout."""
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
@@ -65,34 +67,36 @@ def schedule_maxpool_2d_nhwc(s, op):
     ko, ki = s[op].op.reduce_axis
 
     s[op].reorder(n, h, w, ko, ki, c)
-    max, uniq_id = intrin_max((1, 1, 1, channels), data_vec.dtype, output.dtype)
-    s[op].tensorize(c, max)
+    max_val, uniq_id = intrin_max((1, 1, 1, channels), data_vec.dtype, output.dtype)
+    s[op].tensorize(c, max_val)
     s[output].pragma(n, "import_c", max_impl(uniq_id))
 
 
 def schedule_avgpool_1d_ncw(s, op):
+    """Schedule function for Cortex-M7 SIMD implementation of maxpool 1d NCW layout."""
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
     n, _, _ = s[op].op.axis
-    k, = s[op].op.reduce_axis
+    (k,) = s[op].op.reduce_axis
     pool_w = k.dom.extent.value
 
-    sum, uniq_id = intrin_sum((1, 1, pool_w), data_vec.dtype, output.dtype, reset=True)
-    s[op].tensorize(k, sum)
+    summary, uniq_id = intrin_sum((1, 1, pool_w), data_vec.dtype, output.dtype, reset=True)
+    s[op].tensorize(k, summary)
     s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
 
 
 def schedule_avgpool_2d_nchw(s, op):
+    """Schedule function for Cortex-M7 SIMD implementation of maxpool 2d NCHW layout."""
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
-    n, c, h, w = s[op].op.axis
-    ko, ki = s[op].op.reduce_axis
+    n, _, _, _ = s[op].op.axis
+    _, ki = s[op].op.reduce_axis
     pool_w = ki.dom.extent.value
 
-    sum, uniq_id = intrin_sum((1, 1, 1, pool_w), data_vec.dtype, output.dtype)
-    s[op].tensorize(ki, sum)
+    summary, uniq_id = intrin_sum((1, 1, 1, pool_w), data_vec.dtype, output.dtype)
+    s[op].tensorize(ki, summary)
     s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
 
 
@@ -104,14 +108,14 @@ def pool_direct_simd_schedule(outs, layout):
         in_dtype = op.input_tensors[0].dtype
         if "pool_max" in op.tag:
             if in_dtype != "int8":
-                logger.warning(f"Does not have micro-kernel for {in_dtype} maxpool.")
+                logger.warning("Does not have micro-kernel for %s maxpool.", in_dtype)
             elif layout == "NWC":
                 schedule_maxpool_1d_nwc(s, op)
             elif layout == "NHWC":
                 schedule_maxpool_2d_nhwc(s, op)
         elif "pool_sum" in op.tag:
             if in_dtype != "int16":
-                logger.warning(f"Does not have micro-kernel for {in_dtype} avgpool.")
+                logger.warning("Does not have micro-kernel for %s avgpool.", in_dtype)
             elif layout == "NCW":
                 schedule_avgpool_1d_ncw(s, op)
             elif layout == "NCHW":

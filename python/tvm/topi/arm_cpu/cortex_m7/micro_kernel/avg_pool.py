@@ -26,6 +26,7 @@ from . import common
 
 
 def intrin_sum(shape, in_dtype, out_dtype, reset=False):
+    """Defines a SIMD-accelerated avg pool sum."""
     UNIQ_ID_LEN = 8
     uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
     func_prefix = "sum16"
@@ -38,11 +39,13 @@ def intrin_sum(shape, in_dtype, out_dtype, reset=False):
     k = te.reduce_axis((0, width), name="rc")
 
     def get_slice(indices, k):
-        slice = list(indices)
-        slice[-1] = slice[-1] + k
-        return tuple(slice)
+        s = list(indices)
+        s[-1] = s[-1] + k
+        return tuple(s)
 
-    z = te.compute((1,) * len(shape), lambda *i: te.sum(x[get_slice(i, k)], axis=[k]).astype(out_dtype))
+    z = te.compute(
+        (1,) * len(shape), lambda *i: te.sum(x[get_slice(i, k)], axis=[k]).astype(out_dtype)
+    )
 
     def _intrin_func(ins, outs):
         aa = ins[0]
@@ -51,19 +54,22 @@ def intrin_sum(shape, in_dtype, out_dtype, reset=False):
         def _body():
             ib = tvm.tir.ir_builder.create()
             ib.emit(
-                tvm.tir.call_extern(cc.dtype,
-                                    f"{func_prefix}_{width}_{uniq_id}",
-                                    aa.access_ptr("r"),
-                                    cc.access_ptr("w"),
-                                    aa.elem_offset,
-                                    1 if reset else 0))
+                tvm.tir.call_extern(
+                    cc.dtype,
+                    f"{func_prefix}_{width}_{uniq_id}",
+                    aa.access_ptr("r"),
+                    cc.access_ptr("w"),
+                    aa.elem_offset,
+                    1 if reset else 0,
+                )
+            )
             return ib.get()
 
         def _reduce_reset():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_extern(cc.dtype,
-                                        f"{func_prefix}_reset_{uniq_id}",
-                                        cc.access_ptr("w")))
+            ib.emit(
+                tvm.tir.call_extern(cc.dtype, f"{func_prefix}_reset_{uniq_id}", cc.access_ptr("w"))
+            )
             return ib.get()
 
         def _reduce_update():
@@ -73,9 +79,11 @@ def intrin_sum(shape, in_dtype, out_dtype, reset=False):
 
     binds = {
         t: tvm.tir.decl_buffer(
-            t.shape, t.dtype, t.op.name,
+            t.shape,
+            t.dtype,
+            t.op.name,
             strides=[te.var(f"{t.op.name}_s_{i}") for i in range(0, len(t.shape))],
-            offset_factor=1
+            offset_factor=1,
         )
         for t in [x, z]
     }
@@ -86,7 +94,9 @@ def intrin_sum(shape, in_dtype, out_dtype, reset=False):
 
 def sum_impl(N, uniq_id):
     """Emit C code for sum impl."""
-    cc_code = common.cc_code + f"""
+    cc_code = (
+        common.cc_code
+        + f"""
 
 #ifdef __cplusplus
 extern "C"
@@ -136,4 +146,5 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
 }}
 
 """
+    )
     return cc_code
