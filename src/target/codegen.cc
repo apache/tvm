@@ -47,6 +47,11 @@ runtime::Module Build(IRModule mod, Target target) {
     mod = tir::transform::SkipAssert()(mod);
   }
 
+  auto target_attr_map = tvm::TargetKind::GetAttrMap<FTVMTIRToRuntime>("TIRToRuntime");
+  if (target_attr_map.count(target->kind)) {
+    return target_attr_map[target->kind](mod, target);
+  }
+
   // the build function.
   std::string build_f_name = "target.build." + target->kind->name;
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);

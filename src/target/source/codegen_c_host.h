@@ -35,7 +35,7 @@
 namespace tvm {
 namespace codegen {
 
-class CodeGenCHost final : public CodeGenC {
+class CodeGenCHost : public CodeGenC {
  public:
   CodeGenCHost();
   void Init(bool output_ssa, bool emit_asserts, std::string target_str);
