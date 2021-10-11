@@ -123,10 +123,19 @@ def pooling_compute(
         "upscale": upscale,
     }
 
+    # This is a trick to insert the LUT tensor into the TE graph if LUT is present
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if activation in ("TANH", "LUT") else 0
+
+    # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
+    if activation in ("TANH", "LUT"):
+        pooling_attrs["lut"] = lut
+
     pooling = te.compute(
         (1, ofm_height, ofm_width, ofm_channels),
         lambda nn, hh, ww, cc: te.max(
-            dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc).astype(ifm.dtype),
+            (dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc) + lut_expr).astype(
+                ifm.dtype
+            ),
             axis=[rh, rw],
         ),
         name="ethosu_pooling",
