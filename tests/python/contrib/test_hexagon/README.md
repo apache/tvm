@@ -31,7 +31,7 @@ Documents manual TE schedule to illustrate Hexagon operator slicing.
   * Using input (instead of activation)
   * Using kernel (instead of weight, filter)
   * Using `k` to denote channel-out and `c` or `rc` (reduction channel) to denote channel-in
-  * Using `rh` and `rw` to denote kernel height and width
+  * Using `rh` and `rw` (reduction height / width) to denote kernel height and width
 
 # Calling Convention
 
