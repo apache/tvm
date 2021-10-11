@@ -45,16 +45,16 @@ if tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON":
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--corstone300", action="store_true", default=False, help="Run Corstone-300 FVP tests"
+        "--enable-corstone300-tests", action="store_true", default=False, help="Run Corstone-300 FVP tests"
     )
 
 
 def pytest_collection_modifyitems(config, items):
-    skip_corstone300 = pytest.mark.skip(reason="Need --corstone300 option to run")
+    skip_corstone300 = pytest.mark.skip(reason="Need --enable-corstone300-tests option to run")
     skip_non_corstone300 = pytest.mark.skip(reason="Test shold be marked 'corstone300' to run")
 
     for item in items:
-        if config.getoption("--corstone300"):
+        if config.getoption("--enable-corstone300-tests"):
             if not "corstone300" in item.keywords:
                 item.add_marker(skip_non_corstone300)
         else:
