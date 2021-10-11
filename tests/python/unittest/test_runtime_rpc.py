@@ -29,6 +29,7 @@ import numpy as np
 from tvm import rpc
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
+from tvm.rpc.proxy import Proxy
 
 
 if __name__ == "__main__":
@@ -538,3 +539,46 @@ def test_rpc_tracker_request():
     proc2.join()
     server.terminate()
     tracker.terminate()
+
+
+@tvm.testing.requires_rpc
+def test_rpc_tracker_via_proxy():
+    """
+         tracker
+         /     \
+    Host   --   Proxy -- RPC server
+    """
+
+    device_key = "test_device"
+
+    tracker_server = Tracker(port=9000, port_end=9100)
+    proxy_server = Proxy(
+        host=tracker_server.host,
+        port=8888,
+        port_end=8988,
+        tracker_addr=(tracker_server.host, tracker_server.port),
+    )
+
+    server1 = rpc.Server(
+        host=proxy_server.host,
+        port=proxy_server.port,
+        key=device_key,
+        tracker_addr=(tracker_server.host, tracker_server.port),
+        is_proxy=True,
+    )
+    server2 = rpc.Server(
+        host=proxy_server.host,
+        port=proxy_server.port,
+        key=device_key,
+        tracker_addr=(tracker_server.host, tracker_server.port),
+        is_proxy=True,
+    )
+
+    client = rpc.connect_tracker(tracker_server.host, tracker_server.port)
+    remote1 = client.request(device_key, session_timeout=30)  # pylint: disable=unused-variable
+    remote2 = client.request(device_key, session_timeout=30)  # pylint: disable=unused-variable
+
+    server2.terminate()
+    server1.terminate()
+    proxy_server.terminate()
+    tracker_server.terminate()
