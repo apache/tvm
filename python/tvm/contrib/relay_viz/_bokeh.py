@@ -16,13 +16,25 @@
 # under the License.
 """Bokeh backend for Relay IR Visualizer."""
 import html
-import logging
 import functools
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 import numpy as np
-import pydot
 
-from bokeh.io import output_file, save
+try:
+    import pydot
+except ImportError:
+    _LOGGER.critical("pydot library is required. You might want to run pip install pydot.")
+    raise
+
+try:
+    from bokeh.io import output_file, save
+except ImportError:
+    _LOGGER.critical("bokeh library is required. You might want to run pip install bokeh.")
+    raise
+
 from bokeh.models import (
     ColumnDataSource,
     CustomJS,
@@ -51,11 +63,8 @@ from .plotter import (
 
 from .node_edge_gen import DefaultNodeEdgeGenerator
 
-_LOGGER = logging.getLogger(__name__)
-
-
-class BokehNodeEdgeGenerator(DefaultNodeEdgeGenerator):
-    pass
+# Use default node/edge generator
+BokehNodeEdgeGenerator = DefaultNodeEdgeGenerator
 
 
 class NodeDescriptor:
@@ -199,7 +208,7 @@ class GraphShaper:
 
 
 class BokehGraph(Graph):
-    """Use Bokeh library to plot Relay IR."""
+    """Use Bokeh library to plot networks, i.e. nodes and edges."""
 
     def __init__(self):
         self._pydot_digraph = pydot.Dot(graph_type="digraph")
@@ -451,7 +460,7 @@ class BokehGraph(Graph):
 
 
 class BokehPlotter(Plotter):
-    """Use Bokeh library to plot Relay IR."""
+    """Render and save collections of class BokehGraph."""
 
     def __init__(self):
         self._name_to_graph = {}

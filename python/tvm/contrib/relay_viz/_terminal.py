@@ -17,64 +17,113 @@
 """Visualize Relay IR in AST text-form"""
 
 from collections import deque
+from typing import (
+    Dict,
+    Union,
+    Tuple,
+    List,
+)
+
+import tvm
+from tvm import relay
 
 from .plotter import (
     Plotter,
     Graph,
 )
 
-from .node_edge_gen import DefaultNodeEdgeGenerator
+from .node_edge_gen import (
+    Node,
+    Edge,
+    NodeEdgeGenerator,
+    DefaultNodeEdgeGenerator,
+)
 
 
-class TermNodeEdgeGenerator(DefaultNodeEdgeGenerator):
+class TermNodeEdgeGenerator(NodeEdgeGenerator):
     """Terminal nodes and edges generator."""
 
-    def call_node(self, node, relay_param, node_to_id):
-        node_id = node_to_id[node]
-        graph_info = [node_id, "Call", ""]
-        edge_info = [[node_to_id[node.op], node_id]]
-        args = [node_to_id[arg] for arg in node.args]
-        for arg in args:
-            edge_info.append([arg, node_id])
-        return graph_info, edge_info
+    def __init__(self):
+        self._default_ne_gen = DefaultNodeEdgeGenerator()
 
-    def let_node(self, node, relay_param, node_to_id):
-        node_id = node_to_id[node]
-        graph_info = [node_id, "Let", "(var, val, body)"]
-        edge_info = [[node_to_id[node.var], node_id]]
-        edge_info.append([node_to_id[node.value], node_id])
-        edge_info.append([node_to_id[node.body], node_id])
-        return graph_info, edge_info
+    def get_node_edges(
+        self,
+        node: relay.expr.ExprWithOp,
+        relay_param: Dict[str, tvm.runtime.NDArray],
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[Union[Node, None], List[Edge]]:
+        """Generate node and edges consumed by TermGraph interfaces"""
+        if isinstance(node, relay.Call):
+            return self._call_node(node, node_to_id)
 
-    def global_var_node(self, node, relay_param, node_to_id):
+        if isinstance(node, relay.Let):
+            return self._let_node(node, node_to_id)
+
+        if isinstance(node, relay.GlobalVar):
+            return self._global_var_node(node, node_to_id)
+
+        if isinstance(node, relay.If):
+            return self._if_node(node, node_to_id)
+
+        if isinstance(node, tvm.ir.Op):
+            return self._op_node(node, node_to_id)
+
+        if isinstance(node, relay.Function):
+            return self._function_node(node, node_to_id)
+
+        # otherwise, delegate to the default implementation
+        return self._default_ne_gen.get_node_edges(node, relay_param, node_to_id)
+
+    def _call_node(self, node, node_to_id):
         node_id = node_to_id[node]
-        graph_info = [node_id, "GlobalVar", node.name_hint]
+        node_info = Node(node_id, "Call", "")
+        edge_info = [Edge(node_to_id[node.op], node_id)]
+        for arg in node.args:
+            arg_nid = node_to_id[arg]
+            edge_info.append(Edge(arg_nid, node_id))
+        return node_info, edge_info
+
+    def _let_node(self, node, node_to_id):
+        node_id = node_to_id[node]
+        node_info = Node(node_id, "Let", "(var, val, body)")
+        edge_info = [
+            Edge(node_to_id[node.var], node_id),
+            Edge(node_to_id[node.value], node_id),
+            Edge(node_to_id[node.body], node_id),
+        ]
+        return node_info, edge_info
+
+    def _global_var_node(self, node, node_to_id):
+        node_id = node_to_id[node]
+        node_info = Node(node_id, "GlobalVar", node.name_hint)
         edge_info = []
-        return graph_info, edge_info
+        return node_info, edge_info
 
-    def if_node(self, node, relay_param, node_to_id):
+    def _if_node(self, node, node_to_id):
         node_id = node_to_id[node]
-        graph_info = [node_id, "If", "(cond, true, false)"]
-        edge_info = [[node_to_id[node.cond], node_id]]
-        edge_info.append([node_to_id[node.true_branch], node_id])
-        edge_info.append([node_to_id[node.false_branch], node_id])
-        return graph_info, edge_info
+        node_info = Node(node_id, "If", "(cond, true, false)")
+        edge_info = [
+            Edge(node_to_id[node.cond], node_id),
+            Edge(node_to_id[node.true_branch], node_id),
+            Edge(node_to_id[node.false_branch], node_id),
+        ]
+        return node_info, edge_info
 
-    def op_node(self, node, relay_param, node_to_id):
+    def _op_node(self, node, node_to_id):
         node_id = node_to_id[node]
         op_name = node.name
-        graph_info = [node_id, op_name, ""]
+        node_info = Node(node_id, op_name, "")
         edge_info = []
-        return graph_info, edge_info
+        return node_info, edge_info
 
-    def function_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+    def _function_node(self, node, node_to_id):
         node_id = node_to_id[node]
-        node_info = [node_id, "Func", str(node.params)]
-        edge_info = [[node_to_id[node.body], node_id]]
+        node_info = Node(node_id, "Func", str(node.params))
+        edge_info = [Edge(node_to_id[node.body], node_id)]
         return node_info, edge_info
 
 
-class Node:
+class TermNode:
     def __init__(self, node_type, other_info):
         self.type = node_type
         self.other_info = other_info.replace("\n", ", ")
@@ -98,7 +147,7 @@ class TermGraph(Graph):
         if node_id not in self._graph:
             self._graph[node_id] = []
 
-        node = Node(node_type, node_detail)
+        node = TermNode(node_type, node_detail)
         self._id_to_node[node_id] = node
 
     def edge(self, id_start, id_end):

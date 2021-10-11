@@ -20,10 +20,7 @@ from typing import Union
 
 
 class Graph(abc.ABC):
-    """Abstract class for graph.
-
-    Implement this interface for various graph libraries.
-    """
+    """Abstract class for graph, which is composed of nodes and edges."""
 
     @abc.abstractmethod
     def node(self, node_id: Union[int, str], node_type: str, node_detail: str) -> None:
@@ -31,14 +28,9 @@ class Graph(abc.ABC):
 
         Parameters
         ----------
-        node_id : Union[int, str]
-                        Serve as the ID to the node.
-
-        node_type : str
-                        the type of the node.
-
-        node_detail : str
-                        the description of the node.
+        node_id : Union[int, str], Serve as the ID to the node.
+        node_type : str, the type of the node.
+        node_detail : str, the description of the node.
         """
 
     @abc.abstractmethod
@@ -47,19 +39,13 @@ class Graph(abc.ABC):
 
         Parameters
         ----------
-        id_start : Union[int, str]
-                        the ID to the starting node.
-
-        id_end : Union[int, str]
-                        the ID to the ending node.
+        id_start : Union[int, str], the ID to the starting node.
+        id_end : Union[int, str], the ID to the ending node.
         """
 
 
 class Plotter(abc.ABC):
-    """Abstract class for plotters.
-
-    Implement this interface for various graph libraries.
-    """
+    """Abstract class for plotters, rendering a collection of Graph interface."""
 
     @abc.abstractmethod
     def create_graph(self, name: str) -> Graph:
@@ -80,5 +66,5 @@ class Plotter(abc.ABC):
 
         Parameters
         ----------
-        filename : string
+        filename : string, see the definition of implemented class.
         """

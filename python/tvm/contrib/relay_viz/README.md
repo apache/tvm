@@ -24,6 +24,7 @@ This tool target to visualize Relay IR.
 1. [Requirement](#Requirement)
 2. [Usage](#Usage)
 3. [Credits](#Credits)
+4. [Design and Customization](#Design-and-Customization)
 
 ## Requirement
 
@@ -47,7 +48,7 @@ pip install pydot bokeh==2.3.1
 ```
 from tvm.contrib import relay_viz
 mod, params = tvm.relay.frontend.from_onnx(net, shape_dict)
-vizer = relay_viz.RelayVisualizer(mod, relay_param=params)
+vizer = relay_viz.RelayVisualizer(mod, relay_param=params, backend=PlotterBackend.BOKEH)
 vizer.render("output.html")
 ```
 
@@ -58,3 +59,16 @@ vizer.render("output.html")
 2. https://tvm.apache.org/2020/07/14/bert-pytorch-tvm
 
 3. https://discuss.tvm.apache.org/t/rfc-visualizing-relay-program-as-graph/4825/17
+
+## Design and Customization
+
+This utility is composed of two parts: `node_edge_gen.py` and `plotter.py`.
+
+`plotter.py` define interfaces of `Graph` and `Plotter`. `Plotter` is responsible to render a collection of `Graph`.
+
+`node_edge_gen.py` define interfaces of converting Relay IR modules to nodes/edges consumed by `Graph`. Further, this python module also provide a default implementation for common relay types.
+
+If customization is wanted for a certain relay type, we can implement the `NodeEdgeGenerator` interface, handling that relay type accordingly, and delegate other types to the default implementation. See `_terminal.py` for an example usage.
+
+These two interfaces are glued by the top level class `RelayVisualizer`, which passes a relay module to `NodeEdgeGenerator` and add nodes/edges to `Graph`.
+Then, it render the plot by `Plotter.render()`.

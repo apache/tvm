@@ -40,21 +40,16 @@ class RelayVisualizer:
     def __init__(
         self,
         relay_mod: tvm.IRModule,
-        relay_param: Dict = None,
+        relay_param: Union[None, Dict[str, tvm.runtime.NDArray]] = None,
         backend: Union[PlotterBackend, Tuple[Plotter, NodeEdgeGenerator]] = PlotterBackend.TERMINAL,
     ):
         """Visualize Relay IR.
 
         Parameters
         ----------
-        relay_mod : object
-                        Relay IR module
-        relay_param: dict
-                        Relay parameter dictionary
-        backend: PlotterBackend or a tuple
-                        PlotterBackend: The backend of plotting. Default "terminal"
-                        Tuple: A tuple with two arguments. First is user-defined Plotter,
-                               the second is user-defined NodeEdgeGenerator
+        relay_mod : tvm.IRModule, Relay IR module
+        relay_param: None | Dict[str, tvm.runtime.NDArray], Relay parameter dictionary. Default `None`.
+        backend: PlotterBackend | Tuple[Plotter, NodeEdgeGenerator], Default `PlotterBackend.TERMINAL`.
         """
 
         self._plotter, self._ne_generator = get_plotter_and_generator(backend)
@@ -71,35 +66,33 @@ class RelayVisualizer:
                 graph_names.append(gv_name.name_hint)
 
         node_to_id = {}
+
+        def traverse_expr(node):
+            if node in node_to_id:
+                return
+            node_to_id[node] = len(node_to_id)
+
         for name in graph_names:
-
-            def traverse_expr(node):
-                if node in node_to_id:
-                    return
-                node_to_id[node] = len(node_to_id)
-
+            node_to_id.clear()
             relay.analysis.post_order_visit(relay_mod[name], traverse_expr)
             graph = self._plotter.create_graph(name)
-            self._render(graph, node_to_id, self._relay_param)
-            node_to_id.clear()
+            self._add_nodes(graph, node_to_id, self._relay_param)
 
-    def _render(self, graph, node_to_id, relay_param):
-        """render nodes and edges to the graph.
+    def _add_nodes(self, graph, node_to_id, relay_param):
+        """add nodes and to the graph.
 
         Parameters
         ----------
-        graph : class plotter.Graph
-
-        node_to_id : Dict[relay.expr, int]
-
-        relay_param : Dict[string, NDarray]
+        graph : `plotter.Graph`
+        node_to_id : Dict[relay.expr, str | int]
+        relay_param : Dict[str, tvm.runtime.NDarray]
         """
         for node in node_to_id:
-            graph_info, edge_info = self._ne_generator.get_node_edges(node, relay_param, node_to_id)
-            if graph_info:
-                graph.node(*graph_info)
+            node_info, edge_info = self._ne_generator.get_node_edges(node, relay_param, node_to_id)
+            if node_info is not None:
+                graph.node(node_info.node_id, node_info.node_type, node_info.node_detail)
             for edge in edge_info:
-                graph.edge(*edge)
+                graph.edge(edge.start, edge.end)
 
     def render(self, filename: str = None) -> None:
         self._plotter.render(filename=filename)
@@ -122,8 +115,7 @@ def get_plotter_and_generator(backend):
         raise ValueError(f"Unknown plotter backend {backend}")
 
     # Plotter modules are Lazy-imported to avoid they become a requirement of TVM.
-    # Basically we want to keep them as optional -- users can choose which plotter they want,
-    # and just install libraries required by that plotter.
+    # Basically we want to keep them optional. Users can choose plotters they want to install.
     if backend == PlotterBackend.BOKEH:
         # pylint: disable=import-outside-toplevel
         from ._bokeh import (

@@ -20,6 +20,7 @@ from typing import (
     Dict,
     Union,
     Tuple,
+    List,
 )
 import tvm
 from tvm import relay
@@ -27,8 +28,45 @@ from tvm import relay
 UNKNOWN_TYPE = "unknown"
 
 
+class Node:
+    """Node carry information used by `plotter.Graph` interface."""
+
+    def __init__(self, node_id: Union[int, str], node_type: str, node_detail: str):
+        self._node_id = node_id
+        self._node_type = node_type
+        self._node_detail = node_detail
+
+    @property
+    def node_id(self) -> Union[int, str]:
+        return self._node_id
+
+    @property
+    def node_type(self) -> str:
+        return self._node_type
+
+    @property
+    def node_detail(self) -> str:
+        return self._node_detail
+
+
+class Edge:
+    """Edge for `plotter.Graph` interface."""
+
+    def __init__(self, start_node: Union[int, str], end_node: Union[int, str]):
+        self._start_node = start_node
+        self._end_node = end_node
+
+    @property
+    def start(self) -> Union[int, str]:
+        return self._start_node
+
+    @property
+    def end(self) -> Union[int, str]:
+        return self._end_node
+
+
 class NodeEdgeGenerator(abc.ABC):
-    """Abstract class generating nodes and edgs for Graph interface."""
+    """An interface class to generate nodes and edges information for Graph interfaces."""
 
     @abc.abstractmethod
     def get_node_edges(
@@ -36,14 +74,10 @@ class NodeEdgeGenerator(abc.ABC):
         node: relay.expr.ExprWithOp,
         relay_param: Dict[str, tvm.runtime.NDArray],
         node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
-    ) -> Tuple[list, list]:
-        """Function return node and edges consumed by Graph interface
-        The returned tuple containing two lists, the first list match
-        the interface of Graph.node(), i.e. `node_id`, `node_type`, and `node_detail`.
-        The secon list is the form:
-            [(node_id_start0, node_id_end0), ...]
-        where the tuple `(node_id_start0, node_id_end0)` represent an edge from
-        `node_id_start0` to `node_id_end0`.
+    ) -> Tuple[Union[Node, None], List[Edge]]:
+        """Generate node and edges consumed by Graph interfaces
+        The returned tuple containing Node and a list of Edge instances.
+        Tuple[None, list[]] for null results.
         """
 
 
@@ -57,7 +91,12 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
         self.render_rules = {}
         self.build_rules()
 
-    def var_node(self, node, relay_param, node_to_id):
+    def var_node(
+        self,
+        node: relay.expr.ExprWithOp,
+        relay_param: Dict[str, tvm.runtime.NDArray],
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[Union[Node, None], List[Edge]]:
         """Render rule for a relay var node"""
         node_id = node_to_id[node]
         name_hint = node.name_hint
@@ -72,11 +111,16 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
                 node_detail = "name_hint: {}\ntype_annotation: {}".format(
                     name_hint, node.type_annotation
                 )
-        node_info = [node_id, node_type, node_detail]
+        node_info = Node(node_id, node_type, node_detail)
         edge_info = []
         return node_info, edge_info
 
-    def function_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+    def function_node(
+        self,
+        node: relay.expr.ExprWithOp,
+        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[Union[Node, None], List[Edge]]:
         """Render rule for a relay function node"""
         node_details = []
         name = ""
@@ -87,11 +131,16 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
             if "Composite" in func_attrs.keys():
                 name = func_attrs["Composite"]
         node_id = node_to_id[node]
-        node_info = [node_id, f"Func {name}", "\n".join(node_details)]
-        edge_info = [[node_to_id[node.body], node_id]]
+        node_info = Node(node_id, f"Func {name}", "\n".join(node_details))
+        edge_info = [Edge(node_to_id[node.body], node_id)]
         return node_info, edge_info
 
-    def call_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+    def call_node(
+        self,
+        node: relay.expr.ExprWithOp,
+        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[Union[Node, None], List[Edge]]:
         """Render rule for a relay call node"""
         node_id = node_to_id[node]
         op_name = UNKNOWN_TYPE
@@ -114,51 +163,58 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
         else:
             op_name = str(type(node.op)).split(".")[-1].split("'")[0]
 
-        node_info = [node_id, f"Call {op_name}", "\n".join(node_detail)]
+        node_info = Node(node_id, f"Call {op_name}", "\n".join(node_detail))
         args = [node_to_id[arg] for arg in node.args]
-        edge_info = [[arg, node_id] for arg in args]
+        edge_info = [Edge(arg, node_id) for arg in args]
         return node_info, edge_info
 
-    def let_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+    def let_node(
+        self,
+        node: relay.expr.ExprWithOp,
+        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[Union[Node, None], List[Edge]]:
         node_id = node_to_id[node]
-        node_info = [node_id, "Let", ""]
-        edge_info = [[node_to_id[node.value], node_id]]
-        edge_info.append([node_id, node_to_id[node.var]])
+        node_info = Node(node_id, "Let", "")
+        edge_info = [Edge(node_to_id[node.value], node_id), Edge(node_id, node_to_id[node.var])]
         return node_info, edge_info
 
-    def global_var_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
-        node_info = []
-        edge_info = []
-        return node_info, edge_info
-
-    def if_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
-        node_info = []
-        edge_info = []
-        return node_info, edge_info
-
-    def tuple_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+    def tuple_node(
+        self,
+        node: relay.expr.ExprWithOp,
+        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[Union[Node, None], List[Edge]]:
         node_id = node_to_id[node]
-        node_info = [node_id, "Tuple", ""]
-        edge_info = [[node_to_id[field], node_id] for field in node.fields]
+        node_info = Node(node_id, "Tuple", "")
+        edge_info = [Edge(node_to_id[field], node_id) for field in node.fields]
         return node_info, edge_info
 
-    def tuple_get_item_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+    def tuple_get_item_node(
+        self,
+        node: relay.expr.ExprWithOp,
+        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[Union[Node, None], List[Edge]]:
         node_id = node_to_id[node]
-        node_info = [node_id, "TupleGetItem", "idx: {}".format(node.index)]
-        edge_info = [[node_to_id[node.tuple_value], node_id]]
+        node_info = Node(node_id, "TupleGetItem", "idx: {}".format(node.index))
+        edge_info = [Edge(node_to_id[node.tuple_value], node_id)]
         return node_info, edge_info
 
-    def constant_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
+    def constant_node(
+        self,
+        node: relay.expr.ExprWithOp,
+        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+    ) -> Tuple[Union[Node, None], List[Edge]]:
         node_id = node_to_id[node]
         node_detail = "shape: {}, dtype: {}".format(node.data.shape, node.data.dtype)
-        node_info = [node_id, "Const", "\n".join(node_detail)]
+        node_info = Node(node_id, "Const", "\n".join(node_detail))
         edge_info = []
         return node_info, edge_info
 
-    def op_node(self, node, relay_param, node_to_id):  # pylint: disable=unused-argument
-        node_info = []
-        edge_info = []
-        return node_info, edge_info
+    def null(self, *_) -> Tuple[None, List[Edge]]:
+        return None, []
 
     def build_rules(self):
         self.render_rules = {
@@ -166,12 +222,12 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
             tvm.relay.expr.Call: self.call_node,
             tvm.relay.expr.Let: self.let_node,
             tvm.relay.expr.Var: self.var_node,
-            tvm.relay.expr.GlobalVar: self.global_var_node,
-            tvm.relay.expr.If: self.if_node,
             tvm.relay.expr.Tuple: self.tuple_node,
             tvm.relay.expr.TupleGetItem: self.tuple_get_item_node,
             tvm.relay.expr.Constant: self.constant_node,
-            tvm.ir.Op: self.op_node,
+            tvm.relay.expr.If: self.null,
+            tvm.relay.expr.GlobalVar: self.null,
+            tvm.ir.Op: self.null,
         }
 
     def get_node_edges(
@@ -179,10 +235,12 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
         node: relay.expr.ExprWithOp,
         relay_param: Dict[str, tvm.runtime.NDArray],
         node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
-    ) -> Tuple[list, list]:
+    ) -> Tuple[Union[Node, None], List[Edge]]:
         try:
-            graph_info, edge_info = self.render_rules[type(node)](node, relay_param, node_to_id)
+            node_info, edge_info = self.render_rules[type(node)](node, relay_param, node_to_id)
         except KeyError:
-            graph_info = [node_to_id[node], UNKNOWN_TYPE, f"failed to parse node: {type(node)}"]
+            node_info = Node(
+                node_to_id[node], UNKNOWN_TYPE, f"don't know how to parse {type(node)}"
+            )
             edge_info = []
-        return graph_info, edge_info
+        return node_info, edge_info
