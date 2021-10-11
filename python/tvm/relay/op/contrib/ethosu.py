@@ -192,11 +192,11 @@ class QnnConv2DParams:
         bias_add = requantize_op.args[0]
         qnn_conv2d = bias_add.args[0]
         data_layout = qnn_conv2d.attrs.data_layout
-        kernel_layout = qnn_conv2d.attrs.kernel_layout
+        self.kernel_layout = qnn_conv2d.attrs.kernel_layout
         # We consider the weights & biases as params as it should be a Constant
         self.weights = TensorParams(
             qnn_conv2d.args[QConv2DArgs.WEIGHTS.value],
-            kernel_layout,
+            self.kernel_layout,
             qnn_conv2d.args[QConv2DArgs.WEIGHTS_SCALE.value],
             qnn_conv2d.args[QConv2DArgs.WEIGHTS_ZERO_POINT.value],
         )
@@ -219,16 +219,18 @@ class QnnConv2DParams:
             requantize_op.args[RequantArgs.OFM_SCALE.value],
             requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
-        self.padding = qnn_conv2d.attrs.padding
-        self.strides = qnn_conv2d.attrs.strides
-        self.dilation = qnn_conv2d.attrs.dilation
+        attrs = qnn_conv2d.attrs
+        self.padding = attrs.padding
+        self.strides = attrs.strides
+        self.dilation = attrs.dilation
         self.activation = activation
+        self.channels = attrs.channels
 
         # If groups are equal to channel, its a depthwise_conv2d
-        self.groups = qnn_conv2d.attrs.groups
+        self.groups = attrs.groups
         self.is_depthwise = False
         channels_axis = {"HWIO": 3, "HWOI": 2}
-        if qnn_conv2d.attrs.groups == self.weights.shape[channels_axis[kernel_layout]]:
+        if self.groups == self.weights.shape[channels_axis[self.kernel_layout]]:
             self.is_depthwise = True
 
     def is_valid(self) -> bool:
@@ -253,8 +255,50 @@ class QnnConv2DParams:
         legal_groups = [1, self.ofm.shape[3]]
         if self.groups not in legal_groups:
             return False
-        # This should be a valid QnnDepthwise2DParams, not QnnConv2DParams
+        # This should be a valid QnnDepthwiseConv2DParams, not QnnConv2DParams
         return not self.is_depthwise
+
+
+class QnnDepthwiseConv2DParams(QnnConv2DParams):
+    """
+    This class will parse a call to a ethosu.depthwise_conv2d composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.depthwise_conv2d"
+    # The hardware only supports padding upto the numbers as follows
+    padding_bounds = [31, 31, 32, 32]
+
+    def __init__(self, func_body: tvm.relay.expr.Call):
+        QnnConv2DParams.__init__(self, func_body)
+
+    def is_valid(self):
+        """
+        Checks whether QnnDepthwiseConv2D + activation function has compatible attributes with HW
+        """
+        tensor_params = [self.weights, self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params):
+            return False
+        if not check_weights(self.weights, self.dilation):
+            return False
+        if not check_bias(self.biases):
+            return False
+        if not check_strides(self.strides):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not check_dilation(self.dilation):
+            return False
+        if not check_padding(self.padding, self.padding_bounds):
+            return False
+        if self.weights.layout != "HWOI":
+            return False
+        # only depth multiplier of size 1 is supported
+        if self.weights.shape[3] != 1:
+            return False
+        if not self.is_depthwise:
+            return False
+        return True
 
 
 def qnn_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
@@ -272,6 +316,21 @@ def qnn_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return clip_or_req
 
 
+def qnn_depthwise_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for depthwise qnn.conv2D with optional fused RELU activation.
+    """
+    qnn_conv2d = is_op("qnn.conv2d")(
+        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+    ).has_attr({"kernel_layout": "HWOI"})
+    bias_add = is_op("nn.bias_add")(qnn_conv2d, is_constant())
+    req = is_op("qnn.requantize")(
+        bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    clip_or_req = req.optional(is_op("clip"))
+    return clip_or_req
+
+
 @register_pattern_table("ethosu")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -279,7 +338,12 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             QnnConv2DParams.composite_name,
             qnn_conv2d_pattern(),
             lambda pat: QnnConv2DParams(pat).is_valid(),
-        )
+        ),
+        (
+            QnnDepthwiseConv2DParams.composite_name,
+            qnn_depthwise_conv2d_pattern(),
+            lambda pat: QnnDepthwiseConv2DParams(pat).is_valid(),
+        ),
     ]
 
 
