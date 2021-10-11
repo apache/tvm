@@ -114,7 +114,7 @@ msgstr ""
 msgid ""
 "Try the :doc:`microTVM with TFLite Tutorial "
 "</tutorials/micro/micro_tflite>`."
-msgstr "教程 :doc: `使用microTVM运行TFLite模型</tutorials/micro/micro_tflite>`。"
+msgstr "教程 :doc:`使用microTVM运行TFLite模型 </tutorials/micro/micro_tflite>`。"
 
 #: ../../_staging/microtvm/index.rst:59
 msgid ""
