@@ -28,6 +28,7 @@
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/meta_schedule/task_scheduler.h>
 #include <tvm/meta_schedule/tune_context.h>
+#include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/node/node.h>
 #include <tvm/node/serialization.h>
 #include <tvm/support/parallel_for.h>
