@@ -42,6 +42,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <functional>
 #include <unordered_map>
 #include <utility>
 
@@ -55,6 +56,7 @@ Buffer CreateBufferFor(const Tensor& tensor, String storage_scope = "") {
     name += ".v" + std::to_string(tensor->value_index);
   }
   Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, name, storage_scope);
+
   return buffer;
 }
 
@@ -86,6 +88,16 @@ class TensorToBufferMapper : public StmtExprMutator {
       Tensor tensor = Downcast<Tensor>(op->node);
       Buffer buffer = GetOrAllocBuffer(tensor);
       return AttrStmt(buffer, op->attr_key, op->value, op->body);
+    } else if (op->attr_key == tir::attr::layout_transforms) {
+      auto arr = Downcast<Array<ObjectRef>>(op->node);
+      ICHECK_EQ(arr.size(), 2);
+
+      Stmt body = op->body;
+
+      Tensor tensor = Downcast<Tensor>(arr[0]);
+      Buffer buffer = GetBuffer(tensor);
+
+      return AttrStmt(Array<ObjectRef>{buffer, arr[1]}, op->attr_key, 1, body);
     } else {
       return ret;
     }
@@ -134,46 +146,125 @@ class TensorToBufferMapper : public StmtExprMutator {
     return buffer;
   }
 
-  // maps tensor to buffer.
+  // Maps tensor to buffer.
   std::unordered_map<Tensor, Buffer> buffer_map_;
+};
+
+/*! Collect the physical layout map of all tensors in the statement. */
+class LayoutTransformAttrUnwrapper : StmtExprMutator {
+ public:
+  static tir::PrimFunc Apply(tir::PrimFunc func) {
+    // Collect the physical layout annotations in the body, which may
+    // refer to input arguments.
+    auto layout_map = Collector::Collect(func->body);
+
+    if (layout_map.size()) {
+      func = WithAttr(std::move(func), "layout_transform_map", layout_map);
+
+      auto write_ptr = func.CopyOnWrite();
+      write_ptr->body = LayoutTransformAttrUnwrapper()(func->body);
+    }
+
+    return func;
+  }
+
+  LayoutTransformAttrUnwrapper() {}
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    auto ret = StmtExprMutator::VisitStmt_(op);
+    op = ret.as<AttrStmtNode>();
+
+    if (op->attr_key == tir::attr::layout_transforms) {
+      return op->body;
+    } else {
+      return ret;
+    }
+  }
+
+ private:
+  /*! Collect the physical layout information of all tensors in the statement.
+   *
+   * Must be done before constructing the buffers, since the
+   * attributes could either apply to the external buffers or to
+   * internal allocations.
+   */
+  class Collector : StmtExprVisitor {
+   public:
+    static Map<Buffer, Array<IndexMap>> Collect(Stmt stmt) {
+      Collector collector;
+      collector(std::move(stmt));
+      return std::move(collector.layout_map_);
+    }
+
+    Collector() {}
+
+    void VisitStmt_(const AttrStmtNode* op) final {
+      if (op->attr_key == tir::attr::layout_transforms) {
+        auto arr = Downcast<Array<ObjectRef>>(op->node);
+        ICHECK_EQ(arr.size(), 2);
+
+        auto buffer = Downcast<Buffer>(arr[0]);
+        auto layout_transforms = Downcast<Array<IndexMap>>(arr[1]);
+        layout_map_.Set(buffer, layout_transforms);
+      }
+      StmtExprVisitor::VisitStmt_(op);
+    }
+
+   private:
+    Map<Buffer, Array<IndexMap>> layout_map_;
+  };
+
+  std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
+
+  Map<Buffer, Array<IndexMap>> layout_map_;
 };
 
 PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
                                     Optional<Map<Tensor, Buffer>> extern_buffer_opt) {
-  std::unordered_map<Tensor, Buffer> extern_buffer;
+  std::unordered_map<Tensor, Buffer> extern_tensor_map;
 
   if (extern_buffer_opt.defined()) {
     auto v = extern_buffer_opt.value();
-    extern_buffer = std::unordered_map<Tensor, Buffer>(v.begin(), v.end());
+    extern_tensor_map = std::unordered_map<Tensor, Buffer>(v.begin(), v.end());
   }
 
   Array<tir::Var> params;
   Map<tir::Var, tir::Buffer> buffer_map;
 
-  for (auto var : arg_list) {
-    if (auto* n = var.as<tir::VarNode>()) {
+  for (auto arg : arg_list) {
+    if (auto* n = arg.as<tir::VarNode>()) {
+      tir::Var var = GetRef<tir::Var>(n);
       params.push_back(GetRef<tir::Var>(n));
-    } else if (auto* n = var.as<te::TensorNode>()) {
+    } else if (auto* n = arg.as<te::TensorNode>()) {
       te::Tensor tensor = GetRef<te::Tensor>(n);
-      ICHECK(!extern_buffer.count(tensor));
+      ICHECK(!extern_tensor_map.count(tensor));
 
       tir::Buffer buffer = CreateBufferFor(tensor);
       tir::Var bptr(buffer->name, PrimType(DataType::Handle()));
       params.push_back(bptr);
       buffer_map.Set(bptr, buffer);
-      extern_buffer[tensor] = buffer;
-    } else {
-      tir::Buffer buffer = Downcast<tir::Buffer>(var);
+      extern_tensor_map[tensor] = buffer;
+    } else if (auto* n = arg.as<tir::BufferNode>()) {
+      tir::Buffer buffer = GetRef<tir::Buffer>(n);
       tir::Var bptr(buffer->name, PrimType(DataType::Handle()));
       params.push_back(bptr);
       buffer_map.Set(bptr, buffer);
+    } else {
+      LOG(FATAL) << "Expected argument to be Var, Tensor, or Buffer, but received "
+                 << arg->GetTypeKey();
     }
   }
 
-  body = TensorToBufferMapper(std::move(extern_buffer))(std::move(body));
+  body = TensorToBufferMapper(std::move(extern_tensor_map))(std::move(body));
+
+  PrimFunc func = tir::PrimFunc(params, body, VoidType(), buffer_map);
+
+  func = LayoutTransformAttrUnwrapper::Apply(std::move(func));
+
   // We mark this PrimFunc as coming from a TE schedule
-  return WithAttr(tir::PrimFunc(params, body, VoidType(), buffer_map), "from_legacy_te_schedule",
-                  Bool(true));
+  func = WithAttr(func, "from_legacy_te_schedule", Bool(true));
+
+  return func;
 }
 
 TVM_REGISTER_GLOBAL("schedule.SchedulePostProcToPrimFunc")
