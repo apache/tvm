@@ -26,7 +26,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#define PIPELINE_EXECUTOR_INDEX -1
 /*!
  * \brief All binding information of a output interface.
  */
@@ -36,23 +35,12 @@ struct OutputBindings {
    *  of the module.
    */
   std::unordered_map<int, std::string> bindings;
-  /*!
-   * \brief If there is one PipelineExecutor binding in bindings, then the current output is
-   *  PipelineExecutor interface.
-   * \return Whether this output interface is PipelineExecutor output interface.
-   */
-  bool IsGlobalOutput() const {
-    int num_output = 0;
-    for (auto binding : bindings) {
-      /* The output is a PipelineExecutor output when the index value
-       * equal PIPELINE_EXECUTOR_INDEX.
-       */
-      num_output += (binding.first == PIPELINE_EXECUTOR_INDEX);
-    }
-    /* If this output is a global output then there is only one such output in map.*/
-    ICHECK(num_output <= 1);
-    return num_output == 1;
-  }
+  /*! Whether this output binding with global output.*/
+  bool global_binding = false;
+  /*! The index of global output that this output binding with.*/
+  int global_output_index = std::numeric_limits<int>::min();
+  /*!\brief Whether this binding bind with a PipelineExecutor output interface.*/
+  bool IsGlobalOutput() const { return global_binding; }
   /*!
    * \brief Create a module interface map from JSONReader.
    * \param reader JSON reader.
@@ -67,19 +55,31 @@ struct OutputBindings {
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_idx") {
           reader->Read(&mod_idx);
-        }
-        if (key == "input_name") {
+        } else if (key == "input_name") {
           reader->Read(&input_name);
+        } else if (key == "global_output_index") {
+          reader->Read(&global_output_index);
+          // When find key with value as 'global_output_index', this output should bind with
+          // a global output.*/
+          global_binding = true;
+        } else {
+          LOG(FATAL) << "do not support key " << key;
         }
       }
-      // In this level 'Load' that reading the output binding , the module can be
-      // a 'PipelineExecutor', hence the value of 'mod_idx' should start from
-      // PIPELINE_EXECUTOR_INDEX.
-      ICHECK(mod_idx >= PIPELINE_EXECUTOR_INDEX);
-      bindings[mod_idx] = input_name;
+      // When this output bind with a global interface, check whether the interface index
+      // is correct.
+      if (global_binding) {
+        ICHECK(global_output_index >= 0);
+      } else {
+        // When this output does not bind with a global interface, check whether the binding
+        // module index is correct.
+        ICHECK(mod_idx >= 0);
+        bindings[mod_idx] = input_name;
+      }
     }
   }
 };
+
 /*!
  * \brief The binding information of all outputs of a module.
  */
@@ -121,9 +121,10 @@ struct OutputMap {
       while (reader->NextObjectItem(&key)) {
         if (key == "output_idx") {
           reader->Read(&output_idx);
-        }
-        if (key == "dependent") {
+        } else if (key == "dependent") {
           reader->Read(&binding);
+        } else {
+          LOG(FATAL) << "do not support key " << key;
         }
       }
       ICHECK(output_idx >= 0);

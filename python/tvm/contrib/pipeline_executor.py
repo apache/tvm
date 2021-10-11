@@ -71,7 +71,7 @@ def build(pipe_configs):
         )
 
         mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
-        # Create a pipeline configuration, 'mod_idx' start from 0.
+        # Create a pipeline configuration.
         string_config[mod_idx] = mconf
         libs[mod_idx] = {"lib": lib, "dev": dev}
 
@@ -479,8 +479,11 @@ class PipelineConfig(object):
                     for dep in binding.bindings:
                         dep_item = {}
                         _, dname = dep.get_name()
-                        dep_item["mod_idx"] = dep.get_owner_idx()
-                        dep_item["input_name"] = dname
+                        if dep.is_pipeline_executor_interface():
+                            dep_item["global_output_index"] = int(dname)
+                        else:
+                            dep_item["mod_idx"] = dep.get_owner_idx()
+                            dep_item["input_name"] = dname
                         dep_conf.append(dep_item)
 
                 # The value of ouput_idx start from 0.
@@ -633,15 +636,12 @@ class PipelineExecutorFactoryModule(object):
 
             load_config.append(mconfig)
 
-        # Export the configuration file to disk.
         with open(load_config_file_name, "w") as file_handle:
             json.dump(load_config, file_handle)
 
-        # Export the pipeline configuration file to disk.
         with open(pipeline_config_file_name, "w") as file_handle:
             json.dump(self.mods_config, file_handle)
 
-        # Export the configuration file to disk.
         config_file_name = "{}/config".format(directory_path)
         with open(config_file_name, "w") as file_handle:
             json.dump(config, file_handle)

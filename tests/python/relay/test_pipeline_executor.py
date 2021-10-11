@@ -81,7 +81,7 @@ def get_manual_conf(mods, target):
         "output": [
             {"output_idx": 0, "dependent": [{"mod_idx": 1, "input_name": "data_0"}]},
             {"output_idx": 1, "dependent": [{"mod_idx": 2, "input_name": "data_0"}]},
-            {"output_idx": 2, "dependent": [{"mod_idx": -1, "input_name": "0"}]},
+            {"output_idx": 2, "dependent": [{"global_output_index": 0}]},
         ],
     }
     mod_config[mods[0]] = {
@@ -112,7 +112,7 @@ def get_manual_conf(mods, target):
 
     pipe_config3 = {
         "mod_idx": 2,
-        "output": [{"output_idx": 0, "dependent": [{"mod_idx": -1, "input_name": "1"}]}],
+        "output": [{"output_idx": 0, "dependent": [{"global_output_index": 1}]}],
     }
     mod_config[mods[2]] = {
         "pipeline": pipe_config3,
