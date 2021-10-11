@@ -544,7 +544,7 @@ def extract_main_workspace_size_bytes(extract_dir):
         return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
 
-def compile_models(
+def  compile_models(
     models: Union[List[AOTTestModel], AOTTestModel],
     interface_api: str,
     use_unpacked_api: bool,
@@ -561,8 +561,9 @@ def compile_models(
 
     base_target = "c -runtime=c --link-params --executor=aot"
     extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
-    for key, val in target_opts.items():
-        extra_target += f" {key}={val}"
+    if target_opts:
+        for key, val in target_opts.items():
+            extra_target += f" {key}={val}"
     target = f"{base_target} {extra_target}"
 
     config = {"tir.disable_vectorize": True}
