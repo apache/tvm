@@ -143,7 +143,7 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
     return nullptr;
   }
   llvm::TargetMachine* tm = llvm_target->createTargetMachine(
-      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_, llvm::None, llvm::CodeGenOpt::Aggressive);
+      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_, llvm::None, llvm::CodeGenOpt::Default);
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 
