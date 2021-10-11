@@ -157,7 +157,7 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
       }
       return false;
     };
-    for (auto axis_index = 0; axis_index < layout->axes.size(); ++axis_index) {
+    for (size_t axis_index = 0; axis_index < layout->axes.size(); ++axis_index) {
       const auto& layout_axis = LayoutAxis::Get(layout->axes[axis_index]);
       const std::string& layout_dim = layout_axis.name();
       if (layout_axis.IsPrimal()) {
