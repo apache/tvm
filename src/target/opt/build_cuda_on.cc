@@ -102,7 +102,9 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
     compile_params.push_back(include_option);
   }
 
-  for (const auto& string : compile_params) {
+  compile_params.push_back("--use_fast_math")
+
+      for (const auto& string : compile_params) {
     param_cstrings.push_back(string.c_str());
   }
   NVRTC_CALL(nvrtcCreateProgram(&prog, code.c_str(), nullptr, 0, nullptr, nullptr));

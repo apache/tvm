@@ -18,15 +18,15 @@
 """Utility to invoke nvcc compiler in the system"""
 from __future__ import absolute_import as _abs
 
-import subprocess
 import os
+import subprocess
 import warnings
 
 import tvm._ffi
 from tvm.runtime import ndarray as nd
 
-from . import utils
 from .._ffi.base import py_str
+from . import utils
 
 
 def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
@@ -77,6 +77,9 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
         cmd += arch
     else:
         cmd += ["-arch", arch]
+
+    # Fast math, pass in through options later
+    cmd += ["--use_fast_math"]
 
     if options:
         if isinstance(options, str):
