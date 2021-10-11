@@ -1233,6 +1233,10 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
   }
   ICHECK_GE(axis, 0);
   ICHECK_LT(axis, ndim_d);
+  if (indices->shape[axis].as<IntImmNode>()) {
+    size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
+    ICHECK_GE(indices_dim_i, 1);
+  }
   ICHECK(indices->dtype.is_int());
 
   Array<PrimExpr> out_shape;
