@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """iOS RPC Server tests."""
-# pylint: disable=invalid-name, no-value-for-parameter, missing-function-docstring
+# pylint: disable=invalid-name, no-value-for-parameter, missing-function-docstring, import-error
 import multiprocessing
 import pytest
 import numpy as np
@@ -47,6 +47,12 @@ DTYPE = "float32"
 
 
 np.random.seed(0)
+
+
+ios_rpc_bundle_description_required = pytest.mark.skipif(
+    not server_ios_launcher.ServerIOSLauncher.is_compatible_environment(),
+    reason="To run this test, you need to set environment variables required in ServerIOSLauncher.",
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -215,6 +221,7 @@ def get_add_module(target):
 
 
 @pytest.mark.dependency()
+@ios_rpc_bundle_description_required
 @setup_rpc_standalone_configuration
 def test_rpc_standalone(host, port):
     status_ok = try_create_remote_session(session_factory=rpc.connect, args=(host, port))
@@ -222,6 +229,7 @@ def test_rpc_standalone(host, port):
 
 
 @pytest.mark.dependency()
+@ios_rpc_bundle_description_required
 @setup_rpc_proxy_configuration
 def test_rpc_proxy(host, port):
     status_ok = try_create_remote_session(
@@ -231,6 +239,7 @@ def test_rpc_proxy(host, port):
 
 
 @pytest.mark.dependency()
+@ios_rpc_bundle_description_required
 @setup_rpc_tracker_configuration
 def test_rpc_tracker(host, port):
     status_ok = try_create_remote_session(
@@ -241,6 +250,7 @@ def test_rpc_tracker(host, port):
 
 @pytest.mark.dependency()
 @pytest.mark.skip(reason="This type of connection was broken.")
+@ios_rpc_bundle_description_required
 @setup_rpc_tracker_via_proxy_configuration
 def test_rpc_tracker_via_proxy(host, port):
     status_ok = try_create_remote_session(
@@ -250,6 +260,7 @@ def test_rpc_tracker_via_proxy(host, port):
 
 
 @pytest.mark.dependency(depends=["test_rpc_standalone"])
+@ios_rpc_bundle_description_required
 @setup_rpc_standalone_configuration
 def test_can_call_remote_function_with_rpc_standalone(host, port):
     remote_session = rpc.connect(host, port)
@@ -258,6 +269,7 @@ def test_can_call_remote_function_with_rpc_standalone(host, port):
 
 
 @pytest.mark.dependency(depends=["test_rpc_proxy"])
+@ios_rpc_bundle_description_required
 @setup_rpc_proxy_configuration
 def test_can_call_remote_function_with_rpc_proxy(host, port):
     remote_session = rpc.connect(host, port, key=DEVICE_KEY)
@@ -266,6 +278,7 @@ def test_can_call_remote_function_with_rpc_proxy(host, port):
 
 
 @pytest.mark.dependency(depends=["test_rpc_tracker"])
+@ios_rpc_bundle_description_required
 @setup_rpc_tracker_configuration
 def test_can_call_remote_function_with_rpc_tracker(host, port):
     remote_session = request_remote(DEVICE_KEY, host, port)
@@ -275,6 +288,7 @@ def test_can_call_remote_function_with_rpc_tracker(host, port):
 
 @pytest.mark.dependency(depends=["test_rpc_tracker_via_proxy"])
 @pytest.mark.skip(reason="This type of connection was broken.")
+@ios_rpc_bundle_description_required
 @setup_rpc_tracker_via_proxy_configuration
 def test_can_call_remote_function_with_rpc_tracker_via_proxy(host, port):
     remote_session = request_remote(DEVICE_KEY, host, port)
@@ -283,6 +297,7 @@ def test_can_call_remote_function_with_rpc_tracker_via_proxy(host, port):
 
 
 @pytest.mark.dependency(depends=["test_rpc_standalone"])
+@ios_rpc_bundle_description_required
 @setup_rpc_standalone_configuration
 def test_basic_functionality_of_rpc_session(host, port):
     remote_session = rpc.connect(host, port)
@@ -317,6 +332,7 @@ def test_basic_functionality_of_rpc_session(host, port):
 
 @pytest.mark.dependency(depends=["test_rpc_standalone"])
 @pytest.mark.xfail(reason="Not implemented functionality")
+@ios_rpc_bundle_description_required
 @setup_rpc_standalone_configuration
 def test_cleanup_workspace_after_session_end(host, port):
     # Arrange
@@ -340,6 +356,7 @@ def test_cleanup_workspace_after_session_end(host, port):
 
 
 @pytest.mark.dependency(depends=["test_rpc_standalone"])
+@ios_rpc_bundle_description_required
 @setup_rpc_standalone_configuration
 def test_graph_executor_remote_run(host, port):
     remote_session = rpc.connect(host, port)
@@ -372,6 +389,7 @@ def test_graph_executor_remote_run(host, port):
 
 
 @pytest.mark.dependency(depends=["test_rpc_tracker"])
+@ios_rpc_bundle_description_required
 @setup_rpc_tracker_configuration
 def test_check_auto_schedule_tuning(host, port):  # pylint: disable=too-many-locals
     log_file = TEMPORARY_DIRECTORY.relpath("ios_tuning_stat.log")
@@ -395,7 +413,7 @@ def test_check_auto_schedule_tuning(host, port):  # pylint: disable=too-many-loc
             num_measures_per_round=1,
             runner=measure_runner,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-            verbose=2,
+            verbose=0,
         )
 
         tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)

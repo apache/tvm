@@ -242,10 +242,16 @@ class ServerIOSLauncher:
     """
 
     booted_devices = []
-    bundle_id = os.environ["BUNDLE_ID"]
-    bundle_path = os.environ["BUNDLE_PATH"]
+    bundle_id = os.environ.get("BUNDLE_ID")
+    bundle_path = os.environ.get("BUNDLE_PATH")
 
     def __init__(self, mode, host, port, key):
+        if not ServerIOSLauncher.is_compatible_environment():
+            raise RuntimeError(
+                "Can't create ServerIOSLauncher instance."
+                " No environment variables set for iOS RPC Server."
+            )
+
         self.host = host
         self.port = port
 
@@ -289,6 +295,12 @@ class ServerIOSLauncher:
 
     def __del__(self):
         self.terminate()
+
+    @staticmethod
+    def is_compatible_environment():
+        """Check that the current environment has the required variables."""
+
+        return bool(os.environ.get("BUNDLE_ID")) and bool(os.environ.get("BUNDLE_PATH"))
 
     @staticmethod
     def shutdown_booted_devices():
