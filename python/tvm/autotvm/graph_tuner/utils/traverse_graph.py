@@ -30,7 +30,7 @@ from .utils import has_multiple_inputs, is_boundary_node, is_skipped_node
 from .._base import OPT_OUT_OP
 
 
-def expr2graph(expr, target_ops, node_dict, node_list):
+def expr2graph(expr, target_ops, node_dict, node_list, tvm_target):
     """Convert relay expr to graph data structure
     and fetch workloads of target operators.
 
@@ -50,6 +50,8 @@ def expr2graph(expr, target_ops, node_dict, node_list):
         Each node will be stored as a dictionary in the format of
         {"op": str, "node": tvm.relay.expr, "inputs": [int], "types": [tvm.relay.Type],
          "name": str, "workloads": [tuple], "topi_op": [function]}
+
+    tvm_target : The TVM Target
     """
     # TODO(@kevinthesun, @icemelon9): Currently graph tuning pass relies on the fact
     #   that # autotvm tasks == # ops. But this won't be true after having relay op
@@ -58,12 +60,12 @@ def expr2graph(expr, target_ops, node_dict, node_list):
     env.reset(target_ops)
     # pylint: disable=not-context-manager
     with env:
-        _expr2graph_impl(expr, target_ops, node_dict, node_list)
+        _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target)
         task_pos = 0
         for node_entry in node_list:
             if node_entry["op"] in target_ops:
                 task_name, args = env.task_collection[task_pos]
-                task = autotvm.task.create(task_name, args, target="llvm")
+                task = autotvm.task.create(task_name, args, target=tvm_target)
                 node_entry["workloads"] = [task.workload]
                 node_entry["topi_op"] = [task_name]
                 task_pos += 1
@@ -77,7 +79,7 @@ def _infer_type(node):
     return entry if isinstance(node, relay.Function) else entry.body
 
 
-def _expr2graph_impl(expr, target_ops, node_dict, node_list):
+def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
     """Implementation to convert relay expr to graph data structure"""
 
     def _traverse_expr(node):
@@ -129,7 +131,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                 mod = tvm.IRModule.from_expr(relay.Function(params, call))
                 relay.backend.compile_engine.get().clear()
                 build_thread = threading.Thread(
-                    target=relay.build, args=(mod, "llvm -device=tracing", None, None)
+                    target=relay.build, args=(mod, f"{tvm_target} -device=tracing", None, None)
                 )
                 build_thread.start()
                 build_thread.join()
