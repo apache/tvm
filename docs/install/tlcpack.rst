@@ -20,19 +20,5 @@
 TLCPack
 =======
 
-The Tensor Learning Compiler binary Package (TLCPack) community builds and
-maintains third-party packaging based on Apache TVM. TLCPack is a community
-maintained release that does not contain any additional source code from the
-TVM source repository. It takes source code from Apache TVM and builds Pip and
-Conda binary packages with different build configurations, for both the stable
-release and the nightly release. Please note that additional licensing
-conditions may apply (for example, the CUDA EULA is enforced for the CUDA
-enabled package) when you use the binary builds.
-
-TLCPack is not part of Apache and is run by thirdparty community volunteers.
-Please refer to the official Apache TVM website for Apache source releases.
-
-Licenses for TVM and its dependencies can be found in the github repository.
-
-More information on installing with TLCPack can be found on the `TLCPack site
-<https://tlcpack.ai>`_.
+TLCPack is a third-party conda and pip packaging based on TVM.
+Checkout more information on `TLCPack site <https://tlcpack.ai>`_.
