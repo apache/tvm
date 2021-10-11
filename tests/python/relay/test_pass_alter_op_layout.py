@@ -1096,8 +1096,8 @@ def test_alter_layout_sum():
         y = relay.nn.conv2d(
             y, weight1, channels=32, kernel_size=(3, 3), padding=(1, 1), data_layout="NCHW16c"
         )
-        ret = relay.layout_transform(y, "NCHW16c", "NCHW")
-        ret = relay.sum(ret, axis=[1], keepdims=True)
+        ret = relay.sum(y, axis=[1, 4], keepdims=True)
+        ret = relay.layout_transform(ret, "NCHW1c", "NCHW")
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
@@ -1126,9 +1126,8 @@ def test_alter_layout_sum():
         y = relay.nn.conv2d(
             y, weight1, channels=32, kernel_size=(3, 3), padding=(1, 1), data_layout="NCHW16c"
         )
-        ret = relay.layout_transform(y, "NCHW16c", "NCHW")
-        ret = relay.sum(ret, axis=[1], keepdims=True)
-        ret = relay.layout_transform(ret, "NCHW", "NHWC")
+        ret = relay.sum(y, axis=[1, 4], keepdims=True)
+        ret = relay.layout_transform(ret, "NCHW1c", "NHWC")
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
