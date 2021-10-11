@@ -153,7 +153,7 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
       if ((old_r_dims.count(layout_dim) && !params->exclude) ||
           (!old_r_dims.count(layout_dim) && params->exclude)) {
         new_r_axes.push_back(tvm::Integer(axis));
-	return true;
+        return true;
       }
       return false;
     };
@@ -170,11 +170,11 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
         // For example, if the original layout is NCHW, the new layout is NCHW8c, and the original
         // reduce axes is [1], the new reduce axes become [1, 4].
         auto primal_dim = layout_axis.ToPrimal().name();
-	auto packed_dim = std::to_string(layout.FactorOf(layout_axis)) + layout_dim;
+        auto packed_dim = std::to_string(layout.FactorOf(layout_axis)) + layout_dim;
         inferred_in_string += packed_dim;
         if (push_new_axis(primal_dim, axis_index)) {
           if (params->exclude) {
-	    // The primal axis is not reduced, so keep the input packed dim.
+            // The primal axis is not reduced, so keep the input packed dim.
             inferred_out_string += packed_dim;
           } else {
             // If the primal axis is part of reduce axes in the original layout, the inner dim
@@ -224,8 +224,6 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
     new_input_layouts.push_back(inferred_in);
   }
 
-  LOG(INFO) << new_input_layouts;
-  LOG(INFO) << inferred_out;
   return InferCorrectLayoutOutput(new_input_layouts, {inferred_out}, Attrs(params));
 }
 

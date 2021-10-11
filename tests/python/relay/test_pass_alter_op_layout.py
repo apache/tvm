@@ -512,7 +512,6 @@ def test_alter_layout_scalar_regression():
         denom = relay.const(1.0) / relay.sqrt(var + relay.const(1e-05))
         gamma = relay.var("gamma", shape=(16,))
         denom_c16c = denom * relay.layout_transform(gamma, src_layout="C", dst_layout="C16c")
-
         denom = relay.layout_transform(denom_c16c, src_layout="C16c", dst_layout="C")
         denom_expand1 = relay.expand_dims(denom, axis=1, num_newaxis=2)
         denom_expand2 = relay.expand_dims(denom_expand1, axis=0)
@@ -525,7 +524,6 @@ def test_alter_layout_scalar_regression():
             beta, src_layout="C", dst_layout="C16c"
         )
         numerator = relay.layout_transform(numerator_c16c, src_layout="C16c", dst_layout="C")
-
         numerator_expand1 = relay.expand_dims(numerator, axis=1, num_newaxis=2)
         numerator_expand2 = relay.expand_dims(numerator_expand1, axis=0)
         numerator_nchwc16 = relay.layout_transform(
