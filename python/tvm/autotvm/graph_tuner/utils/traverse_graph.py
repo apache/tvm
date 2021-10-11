@@ -17,6 +17,7 @@
 # pylint: disable=too-many-locals,too-many-statements,too-many-branches,protected-access
 """API for graph traversing."""
 import threading
+import re
 
 import tvm
 from tvm import relay, autotvm
@@ -79,6 +80,15 @@ def _infer_type(node):
     return entry if isinstance(node, relay.Function) else entry.body
 
 
+def _replace_device_with_tracing(target):
+    """This is to replace -device=XXX with -device=tracing in the tvm_target string.
+    It is a stand-along function for testability"""
+    if "-device" in target:
+        return re.sub("-device=[^\\-$]+", "-device=tracing ", target).strip(" ")
+    else:
+        return target + " -device=tracing"
+
+
 def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
     """Implementation to convert relay expr to graph data structure"""
 
@@ -130,11 +140,9 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
                 call = relay.Call(node.op, params, node.attrs)
                 mod = tvm.IRModule.from_expr(relay.Function(params, call))
                 relay.backend.compile_engine.get().clear()
-                target_string = (
-                    tvm_target if " -device" in tvm_target else f"{tvm_target} -device=tracing"
-                )
+                tracing_target = _replace_device_with_tracing(tvm_target)
                 build_thread = threading.Thread(
-                    target=relay.build, args=(mod, target_string, None, None)
+                    target=relay.build, args=(mod, tracing_target, None, None)
                 )
                 build_thread.start()
                 build_thread.join()
