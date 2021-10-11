@@ -544,7 +544,7 @@ def extract_main_workspace_size_bytes(extract_dir):
         return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
 
-def  compile_models(
+def compile_models(
     models: Union[List[AOTTestModel], AOTTestModel],
     interface_api: str,
     use_unpacked_api: bool,
