@@ -21,38 +21,36 @@
 namespace tvm {
 namespace meta_schedule {
 
-ScheduleRule ScheduleRule::PyScheduleRule(
-    PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,
-    PyScheduleRuleNode::FApply f_apply) {
-  ObjectPtr<PyScheduleRuleNode> n = make_object<PyScheduleRuleNode>();
+Postproc Postproc::PyPostproc(
+    PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,
+    PyPostprocNode::FApply f_apply) {
+  ObjectPtr<PyPostprocNode> n = make_object<PyPostprocNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
-  return ScheduleRule(n);
+  return Postproc(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<ScheduleRuleNode>();
+    .set_dispatch<PostprocNode>([](const ObjectRef& n, ReprPrinter* p) {
+      const auto* self = n.as<PostprocNode>();
       ICHECK(self);
-      p->stream << "ScheduleRule()";
+      p->stream << "Postproc()";
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyScheduleRuleNode>();
       ICHECK(self);
-      p->stream << "PyScheduleRule()";
+      p->stream << "PyPostproc()";
     });
 
-TVM_REGISTER_OBJECT_TYPE(ScheduleRuleNode);
-TVM_REGISTER_NODE_TYPE(PyScheduleRuleNode);
+TVM_REGISTER_OBJECT_TYPE(PostprocNode);
+TVM_REGISTER_NODE_TYPE(PyPostprocNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInitializeWithTuneContext")
-    .set_body_method<ScheduleRule>(&ScheduleRuleNode::InitializeWithTuneContext);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApply")
-    .set_body_method<ScheduleRule>(&ScheduleRuleNode::Apply);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRulePyScheduleRule")
-    .set_body_typed(ScheduleRule::PyScheduleRule);
+TVM_REGISTER_GLOBAL("meta_schedule.PostprocInitializeWithTuneContext")
+    .set_body_method<Postproc>(&PostprocNode::InitializeWithTuneContext);
+TVM_REGISTER_GLOBAL("meta_schedule.PostprocApply").set_body_method<Postproc>(&PostprocNode::Apply);
+TVM_REGISTER_GLOBAL("meta_schedule.PostprocPyPostproc").set_body_typed(Postproc::PyPostproc);
 
 }  // namespace meta_schedule
 }  // namespace tvm
