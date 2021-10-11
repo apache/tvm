@@ -358,6 +358,43 @@ def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
 
 
 @T.prim_func
+def rowsum_predicate(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128], dtype="float32")
+    for i, k_0, k_1 in T.grid(128, 13, 10):
+        with T.block([128, T.reduce_axis(0, 128)], "B") as [vi, vk]:
+            T.where(k_0 * 10 + k_1 < 128)
+            T.bind(vi, i)
+            T.bind(vk, k_0 * 10 + k_1)
+            with T.init():
+                B[vi] = 0.0
+            B[vi] = B[vi] + A[vi, vk]
+
+
+@T.prim_func
+def rowsum_predicate_rfactor(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128], dtype="float32")
+    B_rf = T.alloc_buffer([128, 13], dtype="float32")
+    for i, k_0, k_1 in T.grid(128, 13, 10):
+        with T.block([13, 128, T.reduce_axis(0, 10)], "B_rf") as [vk_0, vi, vk_1]:
+            T.where(k_0 * 10 + k_1 < 128)
+            T.bind(vk_0, k_0)
+            T.bind(vi, i)
+            T.bind(vk_1, k_1)
+            with T.init():
+                B_rf[vi, vk_0] = T.float32(0)
+            B_rf[vi, vk_0] = B_rf[vi, vk_0] + A[vi, vk_0 * 10 + vk_1]
+    for i, k_0 in T.grid(128, 13):
+        with T.block([T.reduce_axis(0, 13), 128], "B") as [vk_0, vi]:
+            T.bind(vk_0, k_0)
+            T.bind(vi, i)
+            with T.init():
+                B[vi] = T.float32(0)
+            B[vi] = B[vi] + B_rf[vi, vk_0]
+
+
+@T.prim_func
 def multiple_reduction_blocks(a: T.handle, f: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16))
     C = T.alloc_buffer((16, 16))
@@ -629,6 +666,17 @@ def test_reduction_rfactor_outermost_loop_multiple_children():  # pylint: disabl
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
     assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=multiple_reduction_blocks)
+
+
+def test_reduction_rfactor_predicate():  # pylint: disable=invalid-name
+    s = tir.Schedule(rowsum_predicate, debug_mask="all")
+    B = s.get_block("B")
+    _, ko, _ = s.get_loops(B)
+    rf_block = s.rfactor(ko, 1)
+    tvm.ir.assert_structural_equal(s.mod["main"], rowsum_predicate_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("B_rf")))
+    assert s.get(B).same_as(s.get(s.get_block("B")))
+    verify_trace_roundtrip(s, mod=rowsum_predicate)
 
 
 if __name__ == "__main__":
