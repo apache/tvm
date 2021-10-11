@@ -61,8 +61,10 @@ QUIET ?= @
 $(endif)
 
 CRT_SRCS = $(shell find $(CRT_ROOT))
-CODEGEN_SRCS = $(shell find $(abspath $(CODEGEN_ROOT)/host/src/*.c))
-CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
+C_CODEGEN_SRCS = $(shell find $(abspath $(CODEGEN_ROOT)/host/src/*.c))
+CC_CODEGEN_SRCS = $(shell find $(abspath $(CODEGEN_ROOT)/host/src/*.cc))
+C_CODEGEN_OBJS = $(subst .c,.o,$(C_CODEGEN_SRCS))
+CC_CODEGEN_OBJS = $(subst .cc,.o,$(CC_CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(shell find ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
 CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/*/*.c)
 UART_SRCS = $(shell find ${PLATFORM_PATH}/*.c)
@@ -82,9 +84,9 @@ $(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_backend_a
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
 
-$(build_dir)/libcodegen.a: $(CODEGEN_SRCS)
-	$(QUIET)cd $(abspath $(CODEGEN_ROOT)/host/src) && $(CC) -c $(PKG_CFLAGS) $(CODEGEN_SRCS)
-	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcodegen.a) $(CODEGEN_OBJS)
+$(build_dir)/libcodegen.a: $(C_CODEGEN_SRCS) $(CC_CODEGEN_SRCS)
+	$(QUIET)cd $(abspath $(CODEGEN_ROOT)/host/src) && $(CC) -c $(PKG_CFLAGS) $(C_CODEGEN_SRCS) $(CC_CODEGEN_SRCS)
+	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcodegen.a) $(C_CODEGEN_OBJS) $(CC_CODEGEN_OBJS)
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcodegen.a)
 
 ${build_dir}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
