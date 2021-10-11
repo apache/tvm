@@ -333,7 +333,7 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
       }
     }
   }
-  auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "cc", target, metadata);
+  auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "c", target, metadata);
   auto csrc_metadata_module = runtime::Module(n);
   for (const auto& mod : modules) {
     csrc_metadata_module.Import(mod);
