@@ -1281,6 +1281,13 @@ constexpr const char* pragma_tensor_core = "pragma_tensor_core";
  */
 constexpr const char* prefetch_scope = "prefetch_scope";
 /*!
+ * \brief Marks the physical layout to be used for a tensor.
+ *
+ * Only applies to a DataProducer, as it should be made part of the
+ * Buffer definition in a PrimFunc.
+ */
+constexpr const char* physical_layout = "physical_layout";
+/*!
  * \brief Marks production of double buffer data
  */
 constexpr const char* double_buffer_scope = "double_buffer_scope";

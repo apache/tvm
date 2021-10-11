@@ -571,14 +571,17 @@ class Stage(Object):
         args = []
         var_arg_name = None
         kwargs = collections.OrderedDict()
-        default_index_dtype = 'int32'
+        default_index_dtype = "int32"
 
         # Make a dummy variable for each explicitly named input index.
         # We may have some keyword-only arguments, if the function has
         # *args before the last argument.
         params = inspect.signature(mapping_function).parameters
         for name, param in params.items():
-            if param.kind in [inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD]:
+            if param.kind in [
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            ]:
                 args.append(tvm.tir.Var(name, default_index_dtype))
 
             elif param.kind == inspect.Parameter.VAR_POSITIONAL:
@@ -596,9 +599,9 @@ class Stage(Object):
         # everything that remains should go to the *args, if
         # specified.
         if var_arg_name is not None:
-            num_var_args = ndim - len(args) - len(kwargs):
+            num_var_args = ndim - len(args) - len(kwargs)
             for i in range(num_var_args):
-                args.append(tvm.tir.Var(f'{var_arg_name}[{i}]', default_index_dtype))
+                args.append(tvm.tir.Var(f"{var_arg_name}[{i}]", default_index_dtype))
 
         initial_indices = args + list(kwargs.values())
         if len(initial_indices) != ndim:
