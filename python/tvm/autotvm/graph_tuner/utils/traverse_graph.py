@@ -88,8 +88,7 @@ def _replace_device_with_tracing(target):
     target = str(target)
     if "-device" in target:
         return re.sub("-device=[^\\-$]+", "-device=tracing ", target).strip(" ")
-    else:
-        return target + " -device=tracing"
+    return target + " -device=tracing"
 
 
 def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
