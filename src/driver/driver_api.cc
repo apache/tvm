@@ -56,6 +56,12 @@ bool LLVMEnabled() {
   return pf != nullptr;
 }
 
+bool ShouldAnnoateEntryFunc(const Target target, const IRModule mod) {
+  const bool target_c_runtime = (target->GetAttr<String>("runtime").value_or("") == kTvmRuntimeCrt);
+  const bool single_entry_func = (mod->functions.size() == 1);
+  return single_entry_func && !target_c_runtime;
+}
+
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
   if (target.defined() && target->kind->device_type == kDLCPU) {
@@ -194,7 +200,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   Array<transform::Pass> user_lower_phase2 = Array<transform::Pass>();
   Array<transform::Pass> user_lower_phase3 = Array<transform::Pass>();
 
-  // phase pasees is of the form
+  // phase passes is of the form
   // [[phase_number, pass], [phase_number, pass]... ]
   for (Array<ObjectRef> phase_pass : add_lower_pass) {
     const IntImmNode* phase_num = phase_pass[0].as<IntImmNode>();
@@ -584,7 +590,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
   mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
-  if ((mixed_mod->functions.size() == 1) && (target->kind->device_type != kDLCPU)) {
+  if (ShouldAnnoateEntryFunc(target, mixed_mod)) {
     mixed_pass_list.push_back(AnnotateEntryFunc(true));
   }
 
