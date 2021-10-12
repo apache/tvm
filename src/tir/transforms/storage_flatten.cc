@@ -1649,6 +1649,9 @@ PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_at
 
 namespace transform {
 
+TVM_REGISTER_GLOBAL("tir.transform.ApplyLayoutTransforms")
+    .set_body_typed(ApplyLayoutTransforms::Pass);
+
 // TODO(tvm-team): consolidate configs to the PassContext
 Pass StorageFlatten(int cache_line_size, bool create_bound_attributes) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
