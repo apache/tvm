@@ -507,12 +507,12 @@ def test_alter_layout_scalar_regression():
         bias = relay.layout_transform(bias, src_layout="NHWC", dst_layout="NCHW")
         bias = relay.layout_transform(bias, src_layout="NCHW", dst_layout="NCHW16c")
         add = relay.add(y, bias)
-        y = relay.layout_transform(add, src_layout="NCHW16c", dst_layout="NCHW")
-        mean = relay.mean(y, axis=1, exclude=True)
-        var = relay.variance(y, axis=1, exclude=True)
+        mean = relay.mean(add, axis=[1, 4], exclude=True)
+        var = relay.variance(add, axis=[1, 4], exclude=True)
         denom = relay.const(1.0) / relay.sqrt(var + relay.const(1e-05))
         gamma = relay.var("gamma", shape=(16,))
-        denom = denom * gamma
+        denom_c16c = denom * relay.layout_transform(gamma, src_layout="C", dst_layout="C16c")
+        denom = relay.layout_transform(denom_c16c, src_layout="C16c", dst_layout="C")
         denom_expand1 = relay.expand_dims(denom, axis=1, num_newaxis=2)
         denom_expand2 = relay.expand_dims(denom_expand1, axis=0)
         denom_nchwc16 = relay.layout_transform(
@@ -520,7 +520,10 @@ def test_alter_layout_scalar_regression():
         )
         out = add * denom_nchwc16
         beta = relay.var("beta", shape=(16,))
-        numerator = (-mean) * denom + beta
+        numerator_c16c = (-mean) * denom_c16c + relay.layout_transform(
+            beta, src_layout="C", dst_layout="C16c"
+        )
+        numerator = relay.layout_transform(numerator_c16c, src_layout="C16c", dst_layout="C")
         numerator_expand1 = relay.expand_dims(numerator, axis=1, num_newaxis=2)
         numerator_expand2 = relay.expand_dims(numerator_expand1, axis=0)
         numerator_nchwc16 = relay.layout_transform(
@@ -1096,8 +1099,8 @@ def test_alter_layout_sum():
         y = relay.nn.conv2d(
             y, weight1, channels=32, kernel_size=(3, 3), padding=(1, 1), data_layout="NCHW16c"
         )
-        ret = relay.layout_transform(y, "NCHW16c", "NCHW")
-        ret = relay.sum(ret, axis=[1], keepdims=True)
+        ret = relay.sum(y, axis=[1, 4], keepdims=True)
+        ret = relay.layout_transform(ret, "NCHW1c", "NCHW")
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
@@ -1126,9 +1129,8 @@ def test_alter_layout_sum():
         y = relay.nn.conv2d(
             y, weight1, channels=32, kernel_size=(3, 3), padding=(1, 1), data_layout="NCHW16c"
         )
-        ret = relay.layout_transform(y, "NCHW16c", "NCHW")
-        ret = relay.sum(ret, axis=[1], keepdims=True)
-        ret = relay.layout_transform(ret, "NCHW", "NHWC")
+        ret = relay.sum(y, axis=[1, 4], keepdims=True)
+        ret = relay.layout_transform(ret, "NCHW1c", "NHWC")
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
