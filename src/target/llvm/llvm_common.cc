@@ -117,7 +117,7 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
   // Assume no generated code ever needs to handle floating point exceptions.
   opt.NoTrappingFPMath = true;
 
-  // TODO (AndrewZhaoLuo): Look into control of setting this flag.
+  // TODO(AndrewZhaoLuo): Look into control of setting this flag.
   opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
 
   if (soft_float_abi) {
