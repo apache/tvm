@@ -310,7 +310,7 @@ def qnn_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     ).has_attr({"kernel_layout": "HWIO"})
     bias_add = is_op("nn.bias_add")(qnn_conv2d, is_constant())
     req = is_op("qnn.requantize")(
-        qnn_conv2d | bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+        bias_add, is_constant(), is_constant(), is_constant(), is_constant()
     )
     clip_or_req = req.optional(is_op("clip"))
     return clip_or_req
