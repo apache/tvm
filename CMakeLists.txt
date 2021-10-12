@@ -693,7 +693,7 @@ if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
       message(STATUS "Found the path to ccache, enabling ccache")
       set(PATH_TO_CCACHE ccache)
     else()
-      message(FATAL_ERROR "Cannot find ccache. Set USE_CCACHE mode to AUTO or OFF to build without ccache. USE_CCACHE=" "${USE_CCACHE")
+      message(FATAL_ERROR "Cannot find ccache. Set USE_CCACHE mode to AUTO or OFF to build without ccache. USE_CCACHE=" "${USE_CCACHE}")
     endif(CCACHE_FOUND)
   else() # /path/to/ccache
     set(PATH_TO_CCACHE USE_CCACHE)
