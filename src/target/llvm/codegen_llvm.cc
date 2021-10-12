@@ -77,12 +77,7 @@ void CodeGenLLVM::Init(const std::string& module_name, llvm::TargetMachine* tm,
   this->InitTarget(tm);
 }
 
-void CodeGenLLVM::SetFastMathFlag(bool flag) {
-  // TODO: set target options via triple https://llvm.org/doxygen/CommandFlags_8cpp_source.html#l00496
-  llvm::FastMathFlags fmf;
-  fmf.setFast(flag);
-  builder_->setFastMathFlags(fmf);
-}
+void CodeGenLLVM::SetFastMathFlag(llvm::FastMathFlags fmf) { builder_->setFastMathFlags(fmf); }
 
 void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
   module_->setTargetTriple(tm->getTargetTriple().str());

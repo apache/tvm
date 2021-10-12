@@ -81,9 +81,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
 
   /*!
    * \brief Turn on fast math flags for floating point operations.
-   * \param flag True to set FastMathMode for llvm, False to turn off FastMathMode for llvm.
+   * \param fmf FastMathFlags to use for code generation.
    */
-  void SetFastMathFlag(bool flag);
+  void SetFastMathFlag(llvm::FastMathFlags fmf);
 
   /*!
    * \brief Compile and add function f to the current module.

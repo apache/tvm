@@ -258,19 +258,31 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
 
-    char* fast_math_flag_setting = getenv("TVM_FAST_MATH_FLAG");
-    bool fast_math_flag;
-    if (fast_math_flag_setting != nullptr) {
-      fast_math_flag = atoi(fast_math_flag_setting);
+    // See https://llvm.org/docs/LangRef.html#fast-math-flags for details
+    Bool fast_math_all = target->GetAttr<Bool>("fast-math").value_or(Bool(false));
+    llvm::FastMathFlags fmf;
+    if (fast_math_all) {
+      fmf.setFast(fast_math_all);
     } else {
-      fast_math_flag = false;
+      Bool fast_math_nnan = target->GetAttr<Bool>("fast-math-nnan").value_or(Bool(false));
+      Bool fast_math_ninf = target->GetAttr<Bool>("fast-math-ninf").value_or(Bool(false));
+      Bool fast_math_nsz = target->GetAttr<Bool>("fast-math-nsz").value_or(Bool(false));
+      Bool fast_math_arcp = target->GetAttr<Bool>("fast-math-arcp").value_or(Bool(false));
+      Bool fast_math_contract = target->GetAttr<Bool>("fast-math-contract").value_or(Bool(false));
+      Bool fast_math_afn = target->GetAttr<Bool>("fast-math-afn").value_or(Bool(false));
+      Bool fast_math_reassoc = target->GetAttr<Bool>("fast-math-reassoc").value_or(Bool(false));
+
+      fmf.setNoNaNs(fast_math_nnan);
+      fmf.setNoInfs(fast_math_ninf);
+      fmf.setNoSignedZeros(fast_math_nsz);
+      fmf.setAllowReciprocal(fast_math_arcp);
+      fmf.setAllowContract(fast_math_contract);
+      fmf.setApproxFunc(fast_math_afn);
+      fmf.setAllowReassoc(fast_math_reassoc);
     }
-    // For testing purposes only
-    // cg->SetFastMathFlag(fast_math_flag);
-    cg->SetFastMathFlag(true);
+    cg->SetFastMathFlag(fmf);
 
     cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
-
     if (entry_func.length() != 0) {
       cg->AddMainFunction(entry_func);
     }
