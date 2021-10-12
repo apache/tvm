@@ -39,8 +39,6 @@ bool SearchSortedRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   ICHECK(sorted_sequence) << "Expects TensorType in the first input";
   ICHECK(values) << "Expects TensorType in the second input";
   ICHECK_GT(values->shape.size(), 0) << "The rank of `values` must be greater than one";
-  ICHECK(param->side == "left" || param->side == "right")
-      << "`side` parameter must be either `left` or `right`";
 
   if (sorted_sequence->shape.size() > 1) {
     ICHECK_EQ(sorted_sequence->shape.size(), values->shape.size())
@@ -60,11 +58,11 @@ bool SearchSortedRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   return true;
 }
 
-Expr MakeSearchSorted(Expr sorted_sequence, Expr values, String side, DataType dtype) {
+Expr MakeSearchSorted(Expr sorted_sequence, Expr values, Bool right, DataType dtype) {
   auto attrs = make_object<SearchSortedAttrs>();
   static const Op& op = Op::Get("searchsorted");
   attrs->dtype = dtype;
-  attrs->side = side;
+  attrs->right = right;
   return Call(op, {sorted_sequence, values}, Attrs(attrs), {});
 }
 

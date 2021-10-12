@@ -2776,13 +2776,12 @@ class PyTorchOpConverter:
 
     def searchsorted_common(self, sorted_sequence, values, out_int32, right):
         dtype = "int32" if out_int32 else "int64"
-        side = "right" if right else "left"
         values_shape = _infer_shape(values)
 
         if len(values_shape) == 0:
             values = _op.expand_dims(values, 0)
 
-        out = _op.searchsorted(sorted_sequence, values, side=side, dtype=dtype)
+        out = _op.searchsorted(sorted_sequence, values, right=right, dtype=dtype)
 
         if len(values_shape) == 0:
             return _op.squeeze(out)

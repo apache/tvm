@@ -117,7 +117,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
     return out
 
 
-def searchsorted(sorted_sequence, values, side="left", dtype="int32"):
+def searchsorted(sorted_sequence, values, right=False, dtype="int32"):
     """Find indices where elements should be inserted to maintain order.
        If `sorted_sequence` is N-dimensional, the innermost dimension of
        `values` are searched in the corresponding dimension of `sorted_sequence`.
@@ -133,10 +133,11 @@ def searchsorted(sorted_sequence, values, side="left", dtype="int32"):
         the shape of `values` can be arbitrary. Otherwise, ranks of `sorted_sequence`
         and `values` must be the same, and outer N-1 axes must have the same size.
 
-    side : string, optional
-        It can be `left` or `right`. If `left`, gets the lower bound index for each value
-        in `values` on the corresponding innermost dimension of the `sorted_sequence`.
-        If `right`, gets the upper bound index instead.
+    right : bool, optional
+        Controls which index is returned if a value lands exactly on one of sorted values. If
+        False, the index of the first suitable location found is given. If true, return the
+        last such index. If there is no suitable index, return either 0 or N (where N is the
+        size of the innermost dimension).
 
     dtype : string, optional
         The data type of the output indices.
@@ -147,4 +148,4 @@ def searchsorted(sorted_sequence, values, side="left", dtype="int32"):
         Tensor with same shape as values, representing the indices of
         elements of `values` if they are inserted in `sorted_sequence`.
     """
-    return _make.searchsorted(sorted_sequence, values, side, dtype)
+    return _make.searchsorted(sorted_sequence, values, right, dtype)

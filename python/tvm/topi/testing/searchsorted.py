@@ -18,8 +18,9 @@
 import numpy as np
 
 
-def searchsorted_ref(sorted_sequence, values, side, out_dtype):
+def searchsorted_ref(sorted_sequence, values, right, out_dtype):
     """Run Numpy searchsorted on 1-D or N-D sorted_sequence."""
+    side = "right" if right else "left"
     if len(sorted_sequence.shape) == 1 and len(values.shape) > 1:
         sorted_sequence_2d = np.tile(sorted_sequence, (np.prod(values.shape[:-1]), 1))
     else:

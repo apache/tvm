@@ -46,7 +46,7 @@ def get_implementations():
 
 @tvm.testing.parametrize_targets
 def test_searchsorted(dev, target):
-    def verify_with_input(sorted_sequence_np, values_np, side):
+    def verify_with_input(sorted_sequence_np, values_np, right):
         sorted_sequence = te.placeholder(sorted_sequence_np.shape, dtype="float32")
         values = te.placeholder(values_np.shape, dtype="float32")
         out_dtype = "int32"
@@ -54,7 +54,7 @@ def test_searchsorted(dev, target):
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
 
         with tvm.target.Target(target):
-            indices = fcompute(sorted_sequence, values, side, out_dtype)
+            indices = fcompute(sorted_sequence, values, right, out_dtype)
             s = fschedule([indices])
 
         func = tvm.build(s, [sorted_sequence, values, indices], target=target)
@@ -64,10 +64,10 @@ def test_searchsorted(dev, target):
         b = tvm.nd.array(values_np, dev)
         c = tvm.nd.array(np.zeros(values_np.shape, dtype=indices.dtype), dev)
         func(a, b, c)
-        ref = searchsorted_ref(sorted_sequence_np, values_np, side, out_dtype)
+        ref = searchsorted_ref(sorted_sequence_np, values_np, right, out_dtype)
         np.testing.assert_equal(c.numpy(), ref)
 
-    def verify(sequence_len, num_search, outer_axes, side, sorted_sequence_1d=False):
+    def verify(sequence_len, num_search, outer_axes, right, sorted_sequence_1d=False):
         if sorted_sequence_1d:
             sorted_sequence_shape = (sequence_len,)
         else:
@@ -77,17 +77,17 @@ def test_searchsorted(dev, target):
         verify_with_input(
             np.sort(np.random.randn(*sorted_sequence_shape).astype("float32"), axis=-1),
             np.random.randn(*values_shape).astype("float32"),
-            side,
+            right,
         )
 
-    verify(1024, 1000, (10, 5, 3), "left")
-    verify(999, 2000, (10, 5, 3), "right")
-    verify(1000, 1000, (), "left")
-    verify(2001, 100, (500,), "right")
-    verify(2001, 100, (500,), "left", sorted_sequence_1d=True)
+    verify(1024, 1000, (10, 5, 3), False)
+    verify(999, 2000, (10, 5, 3), True)
+    verify(1000, 1000, (), False)
+    verify(2001, 100, (500,), True)
+    verify(2001, 100, (500,), False, sorted_sequence_1d=True)
 
     # Check edge cases
-    for side in ["left", "right"]:
+    for right in [True, False]:
         sorted_sequence = np.array([1, 2, 3, 4, 5], dtype="float32")
-        verify_with_input(sorted_sequence, np.array([6], dtype="float32"), side)
-        verify_with_input(sorted_sequence, np.array([0], dtype="float32"), side)
+        verify_with_input(sorted_sequence, np.array([6], dtype="float32"), right)
+        verify_with_input(sorted_sequence, np.array([0], dtype="float32"), right)

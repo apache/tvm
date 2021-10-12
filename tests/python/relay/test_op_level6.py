@@ -152,16 +152,16 @@ def test_topk():
 
 @tvm.testing.uses_gpu
 def test_searchsorted():
-    def verify_searchsorted(side, dtype):
+    def verify_searchsorted(right, dtype):
         shape = (8, 9, 10)
         values_shape = shape[:-1] + (10,)
         sorted_sequence = relay.var("sorted_sequence", relay.TensorType(shape, "float32"))
         values = relay.var("sorted_sequence", relay.TensorType(values_shape, "float32"))
-        out = relay.searchsorted(sorted_sequence, values, side, dtype)
+        out = relay.searchsorted(sorted_sequence, values, right, dtype)
         func = relay.Function([sorted_sequence, values], out)
         sorted_sequence_np = np.sort(np.random.randn(*shape).astype("float32"), axis=-1)
         values_np = np.random.randn(*values_shape).astype("float32")
-        np_indices = searchsorted_ref(sorted_sequence_np, values_np, side, dtype)
+        np_indices = searchsorted_ref(sorted_sequence_np, values_np, right, dtype)
 
         for target, dev in tvm.testing.enabled_targets():
             op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
@@ -169,8 +169,8 @@ def test_searchsorted():
             )
             np.testing.assert_equal(op_res.numpy(), np_indices)
 
-    verify_searchsorted("left", "int32")
-    verify_searchsorted("right", "int64")
+    verify_searchsorted(False, "int32")
+    verify_searchsorted(True, "int64")
 
 
 if __name__ == "__main__":

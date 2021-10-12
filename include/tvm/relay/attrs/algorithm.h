@@ -77,12 +77,15 @@ struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
 };
 
 struct SearchSortedAttrs : public tvm::AttrsNode<SearchSortedAttrs> {
-  std::string side;
+  bool right;
   DataType dtype;
 
   TVM_DECLARE_ATTRS(SearchSortedAttrs, "relay.attrs.SearchSortedAttrs") {
-    TVM_ATTR_FIELD(side).set_default("left").describe(
-        "Controls which index is returned if a value lands exactly on one of sorted values.");
+    TVM_ATTR_FIELD(right).set_default(false).describe(
+        "Controls which index is returned if a value lands exactly on one of sorted values. If "
+        " false, the index of the first suitable location found is given. If true, return the "
+        "last such index. If there is no suitable index, return either 0 or N (where N is the "
+        "size of the innermost dimension).");
     TVM_ATTR_FIELD(dtype)
         .set_default(DataType::Int(32))
         .describe("Data type of the output indices.");

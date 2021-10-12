@@ -1007,9 +1007,9 @@ def wrap_compute_searchsorted(topi_compute):
     """Wrap searchsorted compute"""
 
     def _compute_searchsorted(attrs, inputs, out_type):
-        side = attrs.side
+        right = attrs.right
         dtype = attrs.dtype
-        return [topi_compute(inputs[0], inputs[1], side, dtype)]
+        return [topi_compute(inputs[0], inputs[1], right, dtype)]
 
     return _compute_searchsorted
 
