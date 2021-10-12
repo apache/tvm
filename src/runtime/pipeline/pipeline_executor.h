@@ -101,8 +101,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      // Check if mod_idx is read successfully, All the moudles here are graph executor modules,
-      // hence the mod_idx should start from 0.
+      // Check if the vairable 'mod_idx' is successfully read, All moudles here are graph executor
+      // modules, hence the value of 'mod_idx' should start from 0.
       ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
       // Load the lib, json, and params information.
       ICHECK(!lib_name.empty()) << "lib_name is empty.";
@@ -142,10 +142,10 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      // Check if mod_idx is read successfully, All moudles here are graph executor modules, hence
-      // the mod_idx should start from 0.
+      // Check if the variable 'mod_idx' is successfully read, All moudles here are graph executor
+      // modules, hence the value of 'mod_idx' should start from 0.
       ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
-      // Check if the output is read successfully.
+      // Check if the output is successfully read.
       ICHECK(!output.Empty()) << "Invalid output binding result.";
       pipeline_config_.Insert(mod_idx, output);
     }

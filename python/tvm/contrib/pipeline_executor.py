@@ -190,10 +190,11 @@ class PipelineConfig(object):
             return -1
 
         def is_pipeline_executor_interface(self):
-            """The pipeline interface is the interface visible to the caller uses a pipeline
-            executor, the pipeline input interface is responsible for passing parameters to the
-            internal module interface, and the pipeline output interface is responsible for
-            outputting the results computed by the pipeline executor to a caller.
+            """The pipeline interface is used to interact with the caller, there are two types
+            such interfaces, one is 'input' another is 'output'. the pipeline input interface
+            is responsible for passing parameters to the internal module interface, and the
+            pipeline output interface is responsible for outputting the results computed by
+            the pipeline executor to a caller.
             """
             return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
 
