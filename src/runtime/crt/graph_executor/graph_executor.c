@@ -1181,13 +1181,6 @@ int TVMGraphExecutor_Init(TVMGraphExecutor* executor, const char* graph_json,
     return status;
   }
   status = TVMGraphExecutor_SetupOpExecs(executor);
-  if (status != 0) {
-    if (status != 0) {
-      return status;
-    }
-
-    return status;
-  }
 
   return status;
 }
