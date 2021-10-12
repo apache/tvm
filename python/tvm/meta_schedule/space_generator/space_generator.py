@@ -37,7 +37,7 @@ class ScheduleRule(Object):
     """Rules to modify a block in a schedule."""
 
     def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
-        """Initialize the rule with a tune context.
+        """Initialize the schedule rule with a tune context.
 
         Parameters
         ----------
@@ -65,6 +65,9 @@ class ScheduleRule(Object):
         """
         return _ffi_api.ScheduleRuleApply(self, schedule, block)
 
+    def __str__(self) -> str:
+        return "ScheduleRule()"
+
 
 @register_object("meta_schedule.PyScheduleRule")
 class PyScheduleRule(ScheduleRule):
@@ -90,6 +93,9 @@ class PyScheduleRule(ScheduleRule):
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
         raise NotImplementedError
+
+    def __str__(self) -> str:
+        return "PyScheduleRule()"
 
 
 @register_object("meta_schedule.SpaceGenerator")
