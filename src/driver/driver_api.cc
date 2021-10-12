@@ -56,10 +56,10 @@ bool LLVMEnabled() {
   return pf != nullptr;
 }
 
-bool ShouldAnnoateEntryFunc(const Target target, const IRModule mod) {
-  const bool target_c_runtime = (target->GetAttr<String>("runtime").value_or("") == kTvmRuntimeCrt);
+bool ShouldAnnotateEntryFunc(const Target target, const IRModule mod) {
+  const bool aot_executor = (target->GetAttr<String>("executor").value_or("") == "aot");
   const bool single_entry_func = (mod->functions.size() == 1);
-  return single_entry_func && !target_c_runtime;
+  return single_entry_func && !aot_executor;
 }
 
 /*! \return The default host target for a given device target */
@@ -590,7 +590,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
   mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
-  if (ShouldAnnoateEntryFunc(target, mixed_mod)) {
+  if (ShouldAnnotateEntryFunc(target, mixed_mod)) {
     mixed_pass_list.push_back(AnnotateEntryFunc(true));
   }
 
