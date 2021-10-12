@@ -82,7 +82,10 @@ def _infer_type(node):
 
 def _replace_device_with_tracing(target):
     """This is to replace -device=XXX with -device=tracing in the tvm_target string.
-    It is a stand-along function for testability"""
+    It is a stand-along function for testability.
+    We need to have device=tracing in order to fetch the workloads, it is not used
+    for anything beyond that so it is safe to override the device here only."""
+    target = str(target)
     if "-device" in target:
         return re.sub("-device=[^\\-$]+", "-device=tracing ", target).strip(" ")
     else:

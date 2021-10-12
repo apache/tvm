@@ -60,7 +60,7 @@ def test_has_multiple_inputs():
     target_ops = [relay.op.get("nn.conv2d")]
     node_list = []
     node_dict = {}
-    expr2graph(net, target_ops, node_dict, node_list, "llvm")
+    expr2graph(net, target_ops, node_dict, node_list, tvm.target.target.Target("llvm"))
     input_names = ["data"]
     verify_has_multiple_inputs(node_list, 2, input_names, False)
     verify_has_multiple_inputs(node_list, 4, input_names, False)
@@ -82,7 +82,7 @@ def test_expr2graph():
 
     relay.analysis.post_order_visit(mod["main"], _count_node)
 
-    expr2graph(mod["main"], target_ops, node_dict, node_list, "llvm")
+    expr2graph(mod["main"], target_ops, node_dict, node_list, tvm.target.target.Target("llvm"))
     assert len(node_list) == len(op_name_list)
     for i, item in enumerate(zip(op_name_list, node_list)):
         op_name, node = item
@@ -106,7 +106,7 @@ def test_get_direct_ancestor():
     target_ops = [relay.op.get("nn.conv2d")]
     node_list = []
     node_dict = {}
-    expr2graph(net, target_ops, node_dict, node_list, "llvm")
+    expr2graph(net, target_ops, node_dict, node_list, tvm.target.target.Target("llvm"))
     visited_dict = {}
     input_names = ["data"]
     out = get_direct_ancestor(node_list, visited_dict, target_ops, 5, input_names)
@@ -118,7 +118,7 @@ def test_get_direct_ancestor():
     net = bind_inputs(net, {"data": (1, 16, 224, 224)})
     node_list = []
     node_dict = {}
-    expr2graph(net, target_ops, node_dict, node_list, "llvm")
+    expr2graph(net, target_ops, node_dict, node_list, tvm.target.target.Target("llvm"))
     out = get_direct_ancestor(node_list, visited_dict, target_ops, 3, input_names)
     assert out == [0], "Output mismatch: expecting [0] but got %s." % str(out)
 
@@ -137,8 +137,8 @@ def test_get_in_nodes():
     input_names = ["data"]
     node_list = []
     node_dict = {}
-    expr2graph(net, target_ops, node_dict, node_list)
-    out = get_in_nodes(node_list, target_ops, input_names, "llvm")
+    expr2graph(net, target_ops, node_dict, node_list, tvm.target.target.Target("llvm"))
+    out = get_in_nodes(node_list, target_ops, input_names)
     expected_out = {3: [0], 4: [3, 0], 7: [4]}
     diff_set = set(out) ^ set(expected_out)
     if len(diff_set) != 0:
@@ -161,7 +161,8 @@ def test_get_out_nodes():
 @pytest.mark.parametrize(
     "target,expected",
     [
-        pytest.param("llvm", "llvm -device=tracing"),
+        pytest.param("cuda", "cuda -device=tracing"),
+        pytest.param("cuda -device=some_device -libs=cudnn", "cuda -device=tracing -libs=cudnn"),
         pytest.param("llvm -device=arm_cpu -arg=xxx", "llvm -device=tracing -arg=xxx"),
         pytest.param("llvm -device=arm_cpu", "llvm -device=tracing"),
         pytest.param("llvm -device=abc, def", "llvm -device=tracing"),
