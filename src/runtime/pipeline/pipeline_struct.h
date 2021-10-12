@@ -35,11 +35,11 @@ struct OutputBindings {
    *  of the module.
    */
   std::unordered_map<int, std::string> bindings;
-  /*! Whether this output binding with global output.*/
+  /*! Whether the output binding is global.*/
   bool global_binding = false;
-  /*! The index of global output that this output binding with.*/
+  /*! The index value of the global interface to which the current output are bound.*/
   int global_output_index = std::numeric_limits<int>::min();
-  /*!\brief Whether this binding bind with a PipelineExecutor output interface.*/
+  /*!\brief Whether this binding is bound to the PipelineExecutor output interface.*/
   bool IsGlobalOutput() const { return global_binding; }
   /*!
    * \brief Create a module interface map from JSONReader.
@@ -59,20 +59,20 @@ struct OutputBindings {
           reader->Read(&input_name);
         } else if (key == "global_output_index") {
           reader->Read(&global_output_index);
-          // When find key with value as 'global_output_index', this output should bind with
-          // a global output.*/
+          // When the key value is 'global_output_index', it means that this output is bound to
+          // a global interface.
           global_binding = true;
         } else {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      // When this output bind with a global interface, check whether the interface index
+      // When this output is bound to a global interface, check if the global interface index
       // is correct.
       if (global_binding) {
         ICHECK(global_output_index >= 0);
       } else {
-        // When this output does not bind with a global interface, check whether the binding
-        // module index is correct.
+        // When this output is bound to a graph executor module interface, check if the module
+        // index is correct.
         ICHECK(mod_idx >= 0);
         bindings[mod_idx] = input_name;
       }
