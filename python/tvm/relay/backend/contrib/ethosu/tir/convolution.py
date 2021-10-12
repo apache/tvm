@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Extract information from the convolution operators in TIR."""
+"""Extract parameters from the convolution operators in TIR."""
 import tvm
 from ..vela_api import SCALE_BIAS_LENGTH
 from .utils import get_outer_loops, get_op_attrs, get_base_address, get_loads, get_stores

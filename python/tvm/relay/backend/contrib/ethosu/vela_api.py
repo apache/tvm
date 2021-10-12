@@ -27,6 +27,7 @@ from typing import Tuple, Optional, List
 import numpy as np  # type: ignore
 from ethosu.vela import api as vapi  # type: ignore
 
+import tvm
 from tvm.relay.backend.contrib.ethosu import util  # type: ignore
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
 
@@ -45,7 +46,7 @@ SCALE_BIAS_LENGTH = 10
 
 
 def get_optimal_block_config(
-    npu_op: vapi.NpuOperation, accel_type: vapi.NpuAccelerator
+    npu_op: vapi.NpuOperation, accel_config: vapi.NpuAccelerator
 ) -> vapi.NpuShape3D:
     """
     "The NPU's unit of work is known as a block. It will fetch block(s) from Input
@@ -58,15 +59,15 @@ def get_optimal_block_config(
     ----------
     npu_op : ethosu.vela.api.NpuOperation
         The NPU operation and its params
-    accel_type : ethosu.vela.api.NpuAccelerator
-        The NPU accelerator variant
+    accel_config : ethosu.vela.api.NpuAccelerator
+        The NPU accelerator config
 
     Returns
     -------
     ethosu.vela.api.NpuShape3D :
         The optimal block config for the operator
     """
-    all_valid_block_configs = vapi.npu_find_block_configs(npu_op, accel_type)
+    all_valid_block_configs = vapi.npu_find_block_configs(npu_op, accel_config)
     return _get_optimal_block_config(all_valid_block_configs)
 
 
@@ -112,7 +113,9 @@ def _get_optimal_block_config(all_valid_block_configs: List[vapi.NpuShape3D]) ->
     return max_area_depth_block_configs[0]
 
 
-def encode_weights(tir_extern_call, values, accel_type):
+def encode_weights(
+    tir_extern_call: tvm.tir.Call, values: np.ndarray, accel_config: vapi.NpuAccelerator
+):
     """This is an API function to compress weights by passing
     a tir_extern_call to NPU Convolution operation and values.
 
@@ -122,8 +125,8 @@ def encode_weights(tir_extern_call, values, accel_type):
         tir_extern_call to NPU Convolution operation
     values : numpy.ndarray
         The constant flattened weight data in OHWI layout
-    accel_type : ethosu.vela.api.NpuAccelerator
-        The NPU accelerator variant
+    accel_config : ethosu.vela.api.NpuAccelerator
+        The NPU accelerator config
 
     Returns
     -------
@@ -137,7 +140,7 @@ def encode_weights(tir_extern_call, values, accel_type):
     op = str(tir_extern_call.args[0].value)
     assert op in supported_ops.keys()
     npu_op, weights_zero_point = supported_ops[op](tir_extern_call)
-    block_config = get_optimal_block_config(npu_op, accel_type)
+    block_config = get_optimal_block_config(npu_op, accel_config)
     # The weight layout is assumed to be flat OHWI, always.
     assert len(values.shape) == 1
     is_depthwise = op == "ethosu_depthwise_conv2d"
@@ -157,7 +160,7 @@ def encode_weights(tir_extern_call, values, accel_type):
         ifm_bitdepth=npu_op.ifm.data_type.size_in_bits(),
         block_depth=block_config.depth,
         dilation=(npu_op.kernel.dilation_x, npu_op.kernel.dilation_y),
-        accel_type=accel_type,
+        accel_config=accel_config,
         is_depthwise=is_depthwise,
     )
 
@@ -169,7 +172,7 @@ def compress_weights(
     ifm_bitdepth: int,
     block_depth: int,
     dilation: Tuple[int, int],
-    accel_type: vapi.NpuAccelerator,
+    accel_config: vapi.NpuAccelerator,
     is_depthwise: Optional[bool] = False,
 ) -> bytearray:
     """The NPU requires the weights to be compressed
@@ -191,8 +194,8 @@ def compress_weights(
         The depth of the optimal block config for the operator
     dilation : tuple
         A tuple of 2 elements indicating dilation in h and w
-    accel_type : ethosu.vela.api.NpuAccelerator
-        The NPU accelerator variant
+    accel_config : ethosu.vela.api.NpuAccelerator
+        The NPU accelerator config
     is_depthwise : bool, Optional
         This indicates whether the weights are compressed for depthwise convolution
 
@@ -215,7 +218,7 @@ def compress_weights(
     ]
     block_traversal = calculate_block_traversal_mode(is_depthwise, shape_ohwi, ifm_bitdepth)
     compressed_weights = vapi.npu_encode_weights(
-        accelerator=accel_type,
+        accelerator=accel_config,
         weights_volume=weights_ohwi,
         dilation_xy=dilation,
         ifm_bitdepth=ifm_bitdepth,
@@ -361,15 +364,24 @@ def _calculate_hw_bias_scales(
     return hw_bias_scales
 
 
-def get_target_accel_type():
-    """This is a helper function to convert cli accelerator type str argument
-    to NpuAccelerator"""
+def get_accelerator_config() -> vapi.NpuAccelerator:
+    """Get the configuration of the NPU accelerator.
+
+    The configuration string provided as a compiler option is converted into
+    an NpuAccelerator object. Valid configuration strings:
+     - 'ethos-u55-256'
+     - 'ethos-u55-128'
+     - 'ethos-u55-64'
+     - 'ethos-u55-32'
+
+    """
     npu_accel_str_map = {
         "ethos-u55-256": vapi.NpuAccelerator.Ethos_U55_256,
         "ethos-u55-128": vapi.NpuAccelerator.Ethos_U55_128,
         "ethos-u55-64": vapi.NpuAccelerator.Ethos_U55_64,
         "ethos-u55-32": vapi.NpuAccelerator.Ethos_U55_32,
     }
-    accel_type_str = util.get_accelerator_config()
-    assert accel_type_str in npu_accel_str_map.keys(), f"{accel_type_str} is not supported"
-    return npu_accel_str_map[accel_type_str]
+    compiler_attrs = tvm.get_global_func("relay.ext.ethosu.get_compiler_attrs")()
+    accel_config_str = compiler_attrs.accelerator_config
+    assert accel_config_str in npu_accel_str_map.keys(), f"{accel_config_str} is not supported"
+    return npu_accel_str_map[accel_config_str]
