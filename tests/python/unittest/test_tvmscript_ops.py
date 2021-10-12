@@ -101,5 +101,41 @@ def test_get_valid_counts_script_func():
     _check_get_valid_counts_with_numpy(f, (1, 2500, 6), 0.0, 0, 1)
 
 
+@T.prim_func
+def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [], dtype="float32")
+    B = T.match_buffer(b, [], dtype="float32")
+    # body
+    # tir.with block("root")
+    C = T.alloc_buffer([], dtype="float32")
+    A[()] = T.float32(2)
+    C[()] = A[()] + B[()]
+    B[()] = C[()]
+
+
+@T.prim_func
+def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
+    with T.block(iter_vars=(), name="root"):
+        A = T.match_buffer(a, (), "float32")
+        C = T.alloc_buffer((), "float32")
+        B = T.match_buffer(b, (), "float32")
+        A[()] = T.float32(2)
+        C[()] = A[()] + B[()]
+        B[()] = C[()]
+
+
+def test_alloc_zero_dim_buffer_round_trip():
+    # Fail
+    func = alloc_zero_dim_buffer
+    func_with_block = alloc_zero_dim_buffer_block
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func_with_block = tvm.script.from_source(func_with_block.script(show_meta=True))
+    rt_mod = tvm.build(rt_func, "llvm")
+    rt_mod_with_block = tvm.build(rt_func_with_block, "llvm")
+    tvm.ir.assert_structural_equal(func, rt_func)
+    tvm.ir.assert_structural_equal(func_with_block, rt_func_with_block)
+
+
 if __name__ == "__main__":
     test_get_valid_counts_script_func()
+    test_alloc_zero_dim_buffer_round_trip()
