@@ -52,7 +52,8 @@ def expr2graph(expr, target_ops, node_dict, node_list, tvm_target):
         {"op": str, "node": tvm.relay.expr, "inputs": [int], "types": [tvm.relay.Type],
          "name": str, "workloads": [tuple], "topi_op": [function]}
 
-    tvm_target : The TVM Target
+    tvm_target : tvm.target
+        The TVM target object.
     """
     # TODO(@kevinthesun, @icemelon9): Currently graph tuning pass relies on the fact
     #   that # autotvm tasks == # ops. But this won't be true after having relay op
