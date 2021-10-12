@@ -18,11 +18,13 @@
 
 from typing import List, Optional
 
+import math
+
 import tvm
 from tvm.ir.base import assert_structural_equal
 from tvm.script import tir as T
 
-from tvm.meta_schedule.search_strategy import PyMutator
+from tvm.meta_schedule.tune_context import PyPostproc
 from tvm.meta_schedule import TuneContext
 from tvm.tir.schedule import Schedule, Trace
 
@@ -46,27 +48,61 @@ class Matmul:
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
-def test_meta_schedule_mutator():
-    class TestMutator(PyMutator):
+def _check_correct(schedule: Schedule):
+    trace = schedule.trace
+    for inst in trace.decisions:
+        assert math.prod(trace.decisions[inst]) == 1024
+
+
+def schedule_matmul(sch: Schedule):
+    block = sch.get_block("matmul")
+    i, j, k = sch.get_loops(block=block)
+    i_0, i_1, i_2, i_3 = sch.split(loop=i, factors=[2, 4, 64, 2])
+    j_0, j_1, j_2, j_3 = sch.split(loop=j, factors=[4, 64, 2, 2])
+    k_0, k_1 = sch.split(loop=k, factors=[32, 32])
+    sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3)
+
+
+def test_meta_schedule_postproc():
+    class TestPostproc(PyPostproc):
         def initialize_with_tune_context(self, tune_context: TuneContext) -> None:
             pass
 
-        def apply(self, trace: Trace) -> Optional[Trace]:
+        def apply(self, sch: Schedule) -> bool:
             try:
-                trace = Trace(trace.insts, {})
+                schedule_matmul(sch)
+                return True
             except:
-                trace = None
-            return trace
+                return False
 
-    mutator = TestMutator()
-    assert str(mutator) == "PyMutator()"
+    postproc = TestPostproc()
+    assert str(postproc) == "PyPostproc()"
     sch = Schedule(Matmul)
-    res = mutator.apply(sch.trace)
-    assert res is not None
     new_sch = sch.copy()
-    res.apply_to_schedule(new_sch, remove_postproc=True)
-    assert_structural_equal(sch.mod, new_sch.mod)
+    assert postproc.apply(sch)
+    try:
+        tvm.ir.assert_structural_equal(sch.mod, new_sch.mod)
+        raise ValueError("The post processing did not change the schedule.")
+    except (ValueError):
+        _check_correct(sch)
+
+
+def test_meta_schedule_postproc_fail():
+    class TestPostproc(PyPostproc):
+        def initialize_with_tune_context(self, tune_context: TuneContext) -> None:
+            pass
+
+        def apply(self, sch: Schedule) -> bool:
+            try:
+                raise ValueError("This is a test.")
+            except:
+                return False
+
+    postproc = TestPostproc()
+    sch = Schedule(Matmul)
+    assert not postproc.apply(sch)
 
 
 if __name__ == "__main__":
-    test_meta_schedule_mutator()
+    test_meta_schedule_postproc()
+    test_meta_schedule_postproc_fail()
