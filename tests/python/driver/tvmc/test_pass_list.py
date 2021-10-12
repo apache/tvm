@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import argparse
 import pytest
 from tvm.driver import tvmc
 
 
-def test_common_parse_pass_list_str():
+def test_parse_pass_list_str():
     assert [""] == tvmc.common.parse_pass_list_str("")
     assert ["FoldScaleAxis", "FuseOps"] == tvmc.common.parse_pass_list_str("FoldScaleAxis,FuseOps")
 
