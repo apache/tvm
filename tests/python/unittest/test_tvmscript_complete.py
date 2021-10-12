@@ -272,6 +272,25 @@ def test_complete_match_buffer():
     tvm.ir.assert_structural_equal(match_buffer_func, expected_match_buffer_func)
 
 
+@T.prim_func
+def alloc_buffer_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [2, 2], dtype="float32")
+    B = T.match_buffer(b, [2, 2], dtype="float32")
+    # body
+    # tir.with block("root")
+    C = T.alloc_buffer([2, 2], dtype="float32")
+    A[(0, 0)] = T.float32(2)
+    C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
+    B[(0, 0)] = C[(0, 0)]
+
+
+def test_complete_alloc_buffer():
+    func = alloc_buffer_func
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_mod = tvm.build(rt_func, "llvm")
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
 if __name__ == "__main__":
     test_complete_matmul()
     test_complete_matmul_original()
@@ -279,3 +298,4 @@ if __name__ == "__main__":
     test_complete_part_region()
     test_complete_buffer_indices()
     test_complete_match_buffer()
+    test_complete_alloc_buffer()
