@@ -91,7 +91,7 @@ struct OutputMap {
     return *this;
   }
 
-  /*!\brief This function is used to verify whether OutputMap is loaded successfully.
+  /*!\brief This function is used to verify whether OutputMap is successfully loaded.
    * \return Return true to indicate that this class has not been successfully loaded.
    */
   bool Empty() { return output_binding_map.empty(); }
