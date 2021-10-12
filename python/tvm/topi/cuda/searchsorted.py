@@ -87,7 +87,6 @@ def searchsorted(sorted_sequence, values, right, out_dtype="int64"):
                 search_range,
                 sorted_sequence,
                 values[tid],
-                indices,
                 right,
                 out_dtype,
             )

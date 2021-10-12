@@ -23,7 +23,7 @@ from .math import cast
 
 
 def binary_search(
-    ib, sequence_offset, search_range, sorted_sequence, value, out_indices, right, out_dtype
+    ib, sequence_offset, search_range, sorted_sequence, value, right, out_dtype
 ):
     """Common IR generator for binary search used by CPU and GPU backends.
 
@@ -114,7 +114,6 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
                 search_range,
                 sorted_sequence,
                 values[i],
-                indices,
                 right,
                 out_dtype,
             )
