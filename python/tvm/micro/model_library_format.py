@@ -25,13 +25,14 @@ import re
 import tarfile
 import typing
 
+import tvm
 from tvm.ir.type import TupleType
 from .._ffi import get_global_func
-from .interface_api import generate_c_interface_header
 from ..contrib import utils
 from ..driver import build_module
 from ..runtime import ndarray as _nd
 from ..relay.backend import executor_factory
+from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
 from ..tir import expr
 
@@ -41,6 +42,20 @@ MAIN_FUNC_NAME_STR = "__tvm_main__"
 
 class UnsupportedInModelLibraryFormatError(Exception):
     """Raised when export_model_library_format does not support the given Module tree."""
+
+
+def generate_c_interface_header(module_name, inputs, outputs, include_path):
+    """Generate C Interface header to be included in MLF"""
+    mangled_name = to_c_variable_style(prefix_generated_name(module_name))
+    metadata_header = os.path.join(include_path, f"{mangled_name}.h")
+
+    interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
+    interface_c_module = interface_c_create(module_name, inputs, outputs)
+
+    with open(metadata_header, "w") as header_file:
+        header_file.write(interface_c_module.get_source())
+
+    return metadata_header
 
 
 def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):

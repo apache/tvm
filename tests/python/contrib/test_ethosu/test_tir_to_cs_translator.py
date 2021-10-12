@@ -497,6 +497,81 @@ def test_translate_ethosu_conv2d():
             assert w_zero_point == ref["w_zero_point"]
 
 
+# fmt: off
+"""A ethosu_depthwise_conv2d tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuDepthwiseConv2D:
+    @T.prim_func
+    def main(placeholder: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, ethosu_depthwise_conv2d: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_4 = T.match_buffer(placeholder_1, [3, 3, 2, 1], dtype="int8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_2, [3, 10], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_3 = T.match_buffer(placeholder, [1, 8, 8, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
+        ethosu_depthwise_conv2d_1 = T.match_buffer(ethosu_depthwise_conv2d, [1, 6, 7, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 8, 8, 3, 8, 0, 8, T.load("int8", placeholder_3.data, 0), 0, 0, 0, T.float32(0.6), 11, "NHWC", 24, 3, 1, "int8", 6, 7, 3, 6, 0, 7, T.load("int8", ethosu_depthwise_conv2d_1.data, 0), 0, 0, 0, T.float32(0.26), 15, "NHWC", 21, 3, 1, 2, 3, 1, 1, 1, 1, T.load("int8", placeholder_4.data, 0), 18, 13, T.load("uint8", placeholder_5.data, 0), 30, 0, 0, 0, 0, "CLIP", 15, 105, "NONE", dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+def test_translate_ethosu_depthwise_conv2d():
+    def extract_ethosu_depthwise_conv2d_extern_call(mod):
+        # There should only be a single function
+        assert len(mod.functions.items()) == 1
+        primfunc = mod.functions.items()[0][1]
+
+        ethosu_depthwise_conv2d_calls = list()
+
+        def populate_ethosu_depthwise_conv2d_calls(stmt):
+            if (
+                isinstance(stmt, tvm.tir.Call)
+                and stmt.op.name == "tir.call_extern"
+                and stmt.args[0] == "ethosu_depthwise_conv2d"
+            ):
+                ethosu_depthwise_conv2d_calls.append(stmt)
+
+        stmt_functor.post_order_visit(primfunc.body, populate_ethosu_depthwise_conv2d_calls)
+        return ethosu_depthwise_conv2d_calls[0]
+
+    depthwise_conv2d_call = extract_ethosu_depthwise_conv2d_extern_call(SingleEthosuDepthwiseConv2D)
+    npu_op, w_zero_point = tir_to_cs_translator.translate_ethosu_depthwise_conv2d(
+        depthwise_conv2d_call
+    )
+
+    assert npu_op.ifm.data_type == vapi.NpuDataType.INT8
+    assert npu_op.ifm.shape == vapi.NpuShape3D(8, 8, 3)
+    assert npu_op.ifm.tiles.height_0 == vapi.NpuTileBox(8, 0, 8, [0, 0, 0, 0]).height_0
+    assert npu_op.ifm.tiles.height_1 == vapi.NpuTileBox(8, 0, 8, [0, 0, 0, 0]).height_1
+    assert npu_op.ifm.tiles.width_0 == vapi.NpuTileBox(8, 0, 8, [0, 0, 0, 0]).width_0
+    assert npu_op.ifm.quantization == pytest.approx(vapi.NpuQuantization(0.6, 11))
+    assert npu_op.ifm.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ifm.strides == vapi.NpuShape3D(24, 3, 1)
+    # Compare OFM
+    assert npu_op.ofm.data_type == vapi.NpuDataType.INT8
+    assert npu_op.ofm.shape == vapi.NpuShape3D(6, 7, 3)
+    assert npu_op.ofm.tiles.height_0 == vapi.NpuTileBox(6, 0, 8, [0, 0, 0, 0]).height_0
+    assert npu_op.ofm.tiles.height_1 == vapi.NpuTileBox(6, 0, 7, [0, 0, 0, 0]).height_1
+    assert npu_op.ofm.tiles.width_0 == vapi.NpuTileBox(6, 0, 7, [0, 0, 0, 0]).width_0
+    assert npu_op.ofm.quantization == pytest.approx(vapi.NpuQuantization(0.26, 15))
+    assert npu_op.ofm.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ofm.strides == vapi.NpuShape3D(21, 3, 1)
+    # Compare kernel and padding
+    assert (
+        npu_op.kernel.__dict__
+        == vapi.NpuKernel(w=2, h=3, stride_x=1, stride_y=1, dilation_x=1, dilation_y=1).__dict__
+    )
+    assert npu_op.padding == vapi.NpuPadding(top=0, left=0, bottom=0, right=0)
+    # Compare activation
+    assert npu_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+    assert npu_op.activation.min == 0
+    assert npu_op.activation.max == pytest.approx(23.4)
+    # Compare ifm upscaling
+    assert npu_op.ifm_upscale == vapi.NpuResamplingMode.NONE
+    # Compare weight quantization parameters
+    assert w_zero_point == 13
+
+
 def test_translate_ethosu_copy():
     def extract_ethosu_copy_extern_calls(mod):
         """This function will obtain all ethosu_conv2d

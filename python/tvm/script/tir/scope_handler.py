@@ -104,14 +104,20 @@ class WithScopeHandler(ScopeHandler):
 
 @register
 class Allocate(WithScopeHandler):
-    """With scope handler T.allocate(extents, dtype, scope, condition)"""
+    """With scope handler T.allocate(extents, dtype, scope, condition, annotations)"""
 
     def __init__(self):
-        def allocate(extents, dtype, scope, condition=True, span=None):
+        def allocate(extents, dtype, scope, condition=True, annotations=None, span=None):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
             return tvm.tir.Allocate(
-                self.buffer_var, dtype, extents, condition, self.body, span=span
+                self.buffer_var,
+                dtype,
+                extents,
+                condition,
+                self.body,
+                annotations=annotations,
+                span=span,
             )
 
         super().__init__(allocate, concise_scope=True, def_symbol=True)
@@ -137,7 +143,9 @@ class Allocate(WithScopeHandler):
         else:
             raise Exception("Internal Bug")
 
-        def setup_buffer_var(extents, dtype, scope, condition=True, span: Span = None):
+        def setup_buffer_var(
+            extents, dtype, scope, condition=True, annotations=None, span: Span = None
+        ):
             """Setup buffer var for a given type."""
             buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), scope)
             self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)

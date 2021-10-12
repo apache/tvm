@@ -510,7 +510,9 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
 
   for (const auto& it : inputs) {
     if (it.second.defined()) {
-      auto pair = SplitMixedModule(it.second, it.first, target_host);
+      const Target& target = it.first;
+      const IRModule& ir_module = it.second;
+      auto pair = SplitMixedModule(ir_module, target, target_host);
       auto& host_mod = pair.first;
       auto& device_mod = pair.second;
 
@@ -518,7 +520,17 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
 
       ICHECK(mhost_all.defined()) << "The host module must be defined";
 
-      mhost_all->Update(host_mod);
+      // We don't want library modules going back into host codegen
+      // unless they're supposed to. Here if we overrode the target host
+      // to allow lowering previously we check that it's meant to be placed
+      // back into the host Module.
+      bool overrides_host_target = target->kind->device_type == target_host->kind->device_type;
+      bool non_host_target_kind = target->kind != target_host->kind;
+      if (overrides_host_target && non_host_target_kind) {
+        device_modules.push_back(codegen::Build(host_mod, it.first));
+      } else {
+        mhost_all->Update(host_mod);
+      }
 
       if (device_mod->functions.size() != 0) {
         device_modules.push_back(codegen::Build(device_mod, it.first));
@@ -532,6 +544,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
       mhost.Import(it);
     }
   }
+
   return mhost;
 }
 
