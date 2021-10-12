@@ -153,8 +153,8 @@ def test_topk():
 @tvm.testing.uses_gpu
 def test_searchsorted():
     def verify_searchsorted(side, dtype):
-        shape = (10, 20, 100)
-        values_shape = shape[:-1] + (50,)
+        shape = (8, 9, 10)
+        values_shape = shape[:-1] + (10,)
         sorted_sequence = relay.var("sorted_sequence", relay.TensorType(shape, "float32"))
         values = relay.var("sorted_sequence", relay.TensorType(values_shape, "float32"))
         out = relay.searchsorted(sorted_sequence, values, side, dtype)
