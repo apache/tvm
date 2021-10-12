@@ -572,7 +572,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
   if (mixed_mod->functions.size() == 1) {
-    mixed_pass_list.push_back(AnnotateEntryFunc(true));
+    // mixed_pass_list.push_back(AnnotateEntryFunc(true));
   }
 
   bool detect_global_barrier =

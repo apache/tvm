@@ -73,5 +73,4 @@ def llvm_version_major(allow_none=False):
     except AttributeError:
         if allow_none:
             return None
-        raise RuntimeError(
-            "LLVM version is not available, please check if you build with LLVM")
+        raise RuntimeError("LLVM version is not available, please check if you build with LLVM")
