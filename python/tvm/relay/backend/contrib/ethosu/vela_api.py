@@ -140,7 +140,7 @@ def encode_weights(
     op = str(tir_extern_call.args[0].value)
     assert op in supported_ops.keys()
     npu_op, weights_zero_point = supported_ops[op](tir_extern_call)
-    block_config = get_optimal_block_config(npu_op, accel_type)
+    block_config = get_optimal_block_config(npu_op, accel_config)
     # The weight layout is assumed to be flat OHWI, always.
     assert len(values.shape) == 1
     is_depthwise = op == "ethosu_depthwise_conv2d"
@@ -160,7 +160,7 @@ def encode_weights(
         ifm_bitdepth=npu_op.ifm.data_type.size_in_bits(),
         block_depth=block_config.depth,
         dilation=(npu_op.kernel.dilation_x, npu_op.kernel.dilation_y),
-        accel_type=accel_type,
+        accel_config=accel_config,
         is_depthwise=is_depthwise,
     )
 

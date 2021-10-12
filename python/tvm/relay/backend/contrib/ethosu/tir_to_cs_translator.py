@@ -90,9 +90,9 @@ def translate(tir_module, params):
     for extern_call in extern_calls:
         _npu_ops.append(translate_ethosu_tir_extern_call(extern_call))
     _npu_ops, constant_tensor, scratch_size = assign_addresses(buffer_info, _npu_ops)
-    target_accel_type = vela_api.get_target_accel_type()
-    cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_type)
-    payload = vapi.npu_create_driver_payload(cmds, target_accel_type)
+    target_accel_config = vela_api.get_accelerator_config()
+    cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_config)
+    payload = vapi.npu_create_driver_payload(cmds, target_accel_config)
     hex_value = "" if constant_tensor is None else constant_tensor.tobytes().hex()
     return payload.hex(), hex_value, scratch_size
 
@@ -458,8 +458,8 @@ def _create_npu_op_depthwise_conv2d(serial_2d_depthwise):
         _convert_clip_bounds(npu_depthwise_conv2d_op)
 
     npu_depthwise_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_depthwise.upscale)
-    target_accel_type = vela_api.get_target_accel_type()
-    block_config = vela_api.get_optimal_block_config(npu_depthwise_conv2d_op, target_accel_type)
+    target_accel_config = vela_api.get_accelerator_config()
+    block_config = vela_api.get_optimal_block_config(npu_depthwise_conv2d_op, target_accel_config)
     npu_depthwise_conv2d_op.block_config = block_config
 
     return npu_depthwise_conv2d_op, weights_zero_point
