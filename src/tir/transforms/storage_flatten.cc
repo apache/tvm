@@ -1066,6 +1066,117 @@ class BufferBindUnwrapper : public StmtExprMutator {
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
 
+class ApplyLayoutTransforms : public StmtExprMutator {
+ public:
+  static transform::Pass Pass() {
+    auto pass_func = [](PrimFunc func, IRModule m, transform::PassContext ctx) {
+      auto lookup = func->attrs.GetAttr<Map<Buffer, Array<IndexMap>>>("layout_transform_map");
+
+      if (!lookup) {
+        return func;
+      }
+
+      Map<Buffer, Array<IndexMap>> layout_transforms = lookup.value();
+
+      auto fptr = func.CopyOnWrite();
+
+      auto mutator = ApplyLayoutTransforms(layout_transforms);
+      fptr->buffer_map = mutator.UpdateExternBufferMap(fptr->buffer_map);
+      fptr->body = mutator(std::move(fptr->body));
+
+      return WithoutAttr(std::move(func), "layout_transform_map");
+    };
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.ApplyLayoutTransforms", {});
+  }
+
+  explicit ApplyLayoutTransforms(Map<Buffer, Array<IndexMap>> layout_transforms)
+      : layout_transforms_(layout_transforms) {}
+
+  Map<tir::Var, Buffer> UpdateExternBufferMap(const Map<tir::Var, Buffer>& buffer_map) {
+    Map<tir::Var, Buffer> output;
+    for (const auto& kv : buffer_map) {
+      output.Set(kv.first, GetBufferRemap(kv.second, true));
+    }
+    return output;
+  }
+
+  Stmt VisitStmt_(const BufferRealizeNode* op) final {
+    // Call once so that load/store nodes can read from the cached
+    // value.
+    GetBufferRemap(op->buffer, true);
+
+    auto realize = Downcast<BufferRealize>(StmtExprMutator::VisitStmt_(op));
+
+    auto lookup = layout_transforms_.Get(op->buffer);
+    if (lookup) {
+      auto write_ptr = realize.CopyOnWrite();
+      write_ptr->buffer = GetBufferRemap(op->buffer, true);
+
+      Array<IndexMap> transforms = lookup.value();
+      for (const auto& transform : transforms) {
+        write_ptr->bounds = transform->MapRanges(realize->bounds);
+      }
+    }
+
+    return std::move(realize);
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    auto lookup = layout_transforms_.Get(node->buffer);
+    if (lookup) {
+      auto write_ptr = node.CopyOnWrite();
+
+      write_ptr->buffer = GetBufferRemap(node->buffer);
+
+      Array<IndexMap> transforms = lookup.value();
+      for (const auto& transform : transforms) {
+        write_ptr->indices = transform->MapIndices(node->indices);
+      }
+    }
+    return node;
+  }
+
+ private:
+  //! \brief Given a buffer, return the buffer it should be remapped into.
+  Buffer GetBufferRemap(Buffer buf, bool allow_alloc = false) {
+    auto key = buf.get();
+    auto it = buf_map_.find(key);
+    if (it != buf_map_.end()) {
+      return it->second;
+    }
+
+    ICHECK(allow_alloc) << "Buffer " << buf << " accessed before declaration.";
+
+    auto lookup = layout_transforms_.Get(buf);
+    if (lookup) {
+      Array<IndexMap> transforms = lookup.value();
+
+      auto write_ptr = buf.CopyOnWrite();
+      for (const auto& transform : transforms) {
+        write_ptr->shape = transform->MapShape(buf->shape);
+      }
+    }
+
+    buf_map_[key] = buf;
+    return buf;
+  }
+
+  std::unordered_map<const BufferNode*, Buffer> buf_map_;
+
+  Map<Buffer, Array<IndexMap>> layout_transforms_;
+};
+
 class StorageFlattener : public StmtExprMutator {
  public:
   static transform::Pass Pass(int cache_line_size, bool create_bound_attributes) {
@@ -1522,6 +1633,7 @@ PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_at
             BufferStrideLegalize::Pass(),
             ThreadScopePropagate::Pass(),
             BufferBindUnwrapper::Pass(),
+            ApplyLayoutTransforms::Pass(),
             StorageFlattener::Pass(cache_line_size, create_bound_attributes),
             AssertSimplifier::Pass(),
         },
