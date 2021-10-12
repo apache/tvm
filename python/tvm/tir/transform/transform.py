@@ -715,3 +715,14 @@ def MergeDynamicSharedMemoryAllocations():
         The result pass
     """
     return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore
+
+
+def ConvertForLoopsToSerial():
+    """Convert Parallel For Loops to Serial For Loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
