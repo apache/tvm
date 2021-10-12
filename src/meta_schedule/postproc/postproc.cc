@@ -38,8 +38,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PyScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<PyScheduleRuleNode>();
+    .set_dispatch<PyPostprocNode>([](const ObjectRef& n, ReprPrinter* p) {
+      const auto* self = n.as<PyPostprocNode>();
       ICHECK(self);
       p->stream << "PyPostproc()";
     });
