@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Extract information from the DMA operators in TIR."""
+"""Extract parameters from the DMA operators in TIR."""
 import tvm
 from .utils import get_outer_loops, get_base_address, get_strides, get_op_attrs
 from .spec import SerialFeatureMap, SerialPadding

@@ -354,18 +354,17 @@ def test_compress_weights():
             max = np.iinfo(ifm_dtype).max
             min = np.iinfo(ifm_dtype).min
             values = np.random.randint(min, max, test_vec["shape"], ifm_dtype)
-            compressed_weights = vela_api.compress_weights(
+            vela_api.compress_weights(
                 weights=values,
                 weights_zp=test_vec["zero_point"],
                 weights_layout=test_vec["layout"],
                 ifm_bitdepth=ifm_bitdepth,
                 block_depth=test_vec["block_depth"],
                 dilation=test_vec["dilation"],
-                accel_type=test_vec["accel"],
+                accel_config=test_vec["accel"],
                 is_depthwise=test_vec["is_depthwise"],
             )
             return mock_npu_encode_weights
-        return None
 
     for tv in test_vecs:
         mock_obj = create_mock(tv)

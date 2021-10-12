@@ -64,10 +64,10 @@ class WeightStreamOnly:
 
 
 def test_weight_stream_only():
-    def _planner(te_graph, const_dict, sch):
-        weights = te_graph.inputs[1]
-        bias = te_graph.inputs[2]
-        out = te_graph.outputs[0]
+    def _planner(cached_func, const_dict, sch):
+        weights = cached_func.inputs[1]
+        bias = cached_func.inputs[2]
+        out = cached_func.outputs[0]
         conv_compute = Convolution2DCompute.from_output(out)
         co = conv_compute.split(sch, 3, 2)
         cache_weights = sch.cache_read(weights, "global", [conv_compute.conv2d])
@@ -208,10 +208,10 @@ class MixedRead:
 
 
 def test_mixed_read():
-    def _planner(te_graph, const_dict, sch):
-        weight = te_graph.inputs[4]
-        scale_bias = te_graph.inputs[5]
-        out = te_graph.outputs[0]
+    def _planner(cached_func, const_dict, sch):
+        weight = cached_func.inputs[4]
+        scale_bias = cached_func.inputs[5]
+        out = cached_func.outputs[0]
         conv_compute = Convolution2DCompute.from_output(out)
         co = conv_compute.split(sch, 3, 2)
         cache_weight = sch.cache_read(weight, "global", [conv_compute.conv2d])

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""Helper utility functions used by the TIR compiler"""
+"""Helper utility functions used by the NPU TIR compiler"""
 import tvm
 from tvm import arith
 
