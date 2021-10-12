@@ -1191,8 +1191,6 @@ class OperatorConverter(object):
 
     def convert_sqrt(self, op):
         """Convert TFLite SQRT"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized SQRT operator is not supported yet.")
         return self._convert_unary_elemwise(_op.sqrt, op)
 
     def convert_rsqrt(self, op):
