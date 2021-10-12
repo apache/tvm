@@ -584,8 +584,8 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
   mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
-  if (mixed_mod->functions.size() == 1) {
-    // mixed_pass_list.push_back(AnnotateEntryFunc(true));
+  if ((mixed_mod->functions.size() == 1) && (target->kind->device_type != kDLCPU)) {
+    mixed_pass_list.push_back(AnnotateEntryFunc(true));
   }
 
   bool detect_global_barrier =
