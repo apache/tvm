@@ -25,7 +25,19 @@ from .math import cast
 def binary_search(
     ib, sequence_offset, search_range, index, sorted_sequence, values, out_indices, right, out_dtype
 ):
-    """Common IR generator for CPU and GPU searchsorted."""
+    """Common IR generator for binary search used by CPU and GPU backends.
+
+    `sorted_sequence` is a N-D Buffer whose innermost dimension we want to search,
+    and `search_range` is the size of the innermost dimension.
+
+    `index` is the index of the current value in `values` being searched. `sequence_offset` is
+    a 1-D linearlized offset specifying which of innermost sequences to search for `values[index]`.
+
+    So the search for `values[index]` is performed over
+    `sorted_sequence[sequence_offset:(sequence_offset + search_range)]`.
+    Note that we index N-D Buffer by 1-D linearlized indices.
+
+    """
     lo = ib.allocate(out_dtype, (1,), name="lo", scope="local")
     hi = ib.allocate(out_dtype, (1,), name="hi", scope="local")
 
