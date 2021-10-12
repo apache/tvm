@@ -50,6 +50,7 @@ class OperatorConverter(object):
             "Deconvolution": self.convert_deconv,
             "Dropout": self.convert_dropout,
             "Eltwise": self.convert_eltwise,
+            "Embed": self.convert_embed,
             "Flatten": self.convert_flatten,
             "InnerProduct": self.convert_innerproduct,
             "Input": None,
@@ -592,6 +593,48 @@ class OperatorConverter(object):
         in_expr_a_stride = _op.strided_slice(in_expr_a, slice_start, slice_end)
         out = _op.slice_like(in_expr_a_stride, in_expr_b, axes=to_crop_axis)
         return out
+
+    def convert_embed(self, op):
+        """Convert Embed layer"""
+        inputs = op.bottom
+        embed_param = op.embed_param
+        num_output = embed_param.num_output
+        input_dim  = embed_param.input_dim
+        bias_term  = embed_param.bias_term
+        weight_bias_blobs = self.init_layer_dict[op.name].blobs
+        weight, bias = None, None
+        if bias_term:
+            weight = weight_bias_blobs[0]
+            bias   = weight_bias_blobs[1]
+            assert (weight and bias)
+        else:
+            weight = weight_bias_blobs[0]
+            assert weight
+        
+        weight_value = np.asarray(weight.data, np.float32)
+        weight_value = np.reshape(weight_value, [input_dim, num_output])
+        weight_expr  = self.exp_tab.new_const(weight_value, dtype="float32")
+        in_expr      = self.exp_tab.get_expr(inputs[0])
+        input_shape   = _infer_shape(in_expr)
+        input_count  = 1
+        for dim in input_shape:
+            input_count *= dim
+
+        index = _op.cast(in_expr, "int32")
+        out   = _op.take(weight_expr, index, axis=0)
+
+        if bias_term:
+            bias_value = np.asarray(bias.data, np.float32)
+            bias_expr  = self.exp_tab.new_const(bias_value, dtype="float32")
+            out = _op.reshape(out, [input_count, num_output])
+            out = _op.add(out, bias_expr)
+
+        out_shape = list(input_shape)
+        out_shape.append(num_output)
+        out = _op.reshape(out, out_shape)
+
+        return out
+
 
     def check_unsupported_ops(self):
         """Check unsupported Caffe ops in our converter."""
