@@ -28,6 +28,7 @@ from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.backend import Executor, Runtime
 from aot_test_utils import (
     AOTTestModel,
     AOT_DEFAULT_RUNNER,
@@ -624,6 +625,39 @@ def test_name_sanitiser_name_clash():
         )
 
 
+# This tests for deprecated AOT executor arguments
+# TODO(Mousius) Remove deprecated arguments later
+def test_deprecated_target_arguments(capsys):
+    """Tests we can still use relay.build with -executor, -runtime and -link-params"""
+
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_DEFAULT_RUNNER
+
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    func = relay.Function([x, y], z)
+
+    x_in = np.ones((1, 10)).astype("float32")
+    y_in = np.random.uniform(size=(1, 10)).astype("float32")
+
+    params = {"x": x_in}
+    inputs = {"y": y_in}
+    output_list = generate_ref_data(func, inputs, params)
+
+    compile_and_run(
+        AOTTestModel(
+            module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+        use_runtime_executor=False,
+        target="c -executor=aot --link-params -runtime=c -interface-api=c --unpacked-api",
+    )
+
+
 @pytest.mark.parametrize(
     "workspace_byte_alignment,main_workspace_size,sum_workspace_size",
     [
@@ -634,10 +668,16 @@ def test_name_sanitiser_name_clash():
 )
 def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):
     mod, params = tvm.relay.testing.synthetic.get_workload()
-
-    target = f"c -runtime=c --link-params --executor=aot --workspace-byte-alignment={workspace_byte_alignment}"
+    target = "c"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": workspace_byte_alignment,
+        },
+    )
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = tvm.relay.build(mod, target, params=params)
+        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
 
     assert (
         sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size

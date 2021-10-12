@@ -17,7 +17,6 @@
 import tvm
 from tvm import te
 import tvm.testing
-import logging
 import multiprocessing
 import os
 import stat
@@ -27,6 +26,7 @@ import time
 import pytest
 import numpy as np
 from tvm import rpc
+from tvm.relay.backend import Runtime
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.proxy import Proxy
@@ -267,7 +267,8 @@ def test_rpc_remote_module():
             return
         # export to minrpc
         temp = utils.tempdir()
-        f = tvm.build(s, [A, B], "llvm --system-lib", name="myadd")
+        runtime = Runtime("cpp", {"system-lib": True})
+        f = tvm.build(s, [A, B], "llvm", name="myadd", runtime=runtime)
         path_minrpc = temp.relpath("dev_lib.minrpc")
         f.export_library(path_minrpc, rpc.with_minrpc(cc.create_executable))
 

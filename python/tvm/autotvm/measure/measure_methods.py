@@ -89,10 +89,18 @@ class LocalBuilder(Builder):
         If is callable, use it as custom build function, expect lib_format field.
     do_fork: bool
         If False, do not fork when building. Requires n_parallel=1.
+    runtime: Optional[Runtime]
+        Specify the runtime to generate artifacts for
     """
 
     def __init__(
-        self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default", do_fork=False
+        self,
+        timeout=10,
+        n_parallel=None,
+        build_kwargs=None,
+        build_func="default",
+        do_fork=False,
+        runtime=None,
     ):
         super(LocalBuilder, self).__init__(timeout, n_parallel, build_kwargs)
 
@@ -105,7 +113,7 @@ class LocalBuilder(Builder):
                 build_func = stackvm.build
             else:
                 raise ValueError("Invalid build_func" + build_func)
-        self.build_func = _WrappedBuildFunc(build_func)
+        self.build_func = _WrappedBuildFunc(build_func, runtime)
         if not do_fork:
             assert n_parallel in (
                 None,
@@ -455,7 +463,9 @@ class LocalRunner(RPCRunner):
         return server, tracker
 
 
-def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_option=None):
+def _build_func_common(
+    measure_input, runtime=None, check_gpu=None, cuda_arch=None, build_option=None
+):
     """Common part for building a configuration"""
     target, task, config = measure_input
     target, task.target_host = Target.check_and_update_host_consist(target, task.target_host)
@@ -484,7 +494,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
             func = vta.build(s, args, target_host=task.target_host)
         else:
             with tvm.ir.transform.PassContext(config=opts):
-                func = build(s, args, target_host=task.target_host)
+                func = build(s, args, target_host=task.target_host, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
@@ -499,6 +509,8 @@ class _WrappedBuildFunc:
     ----------
     build_func : The compilation function
         We expect fcompile to contain an attr "output_format".
+    runtime : Optional[Runtime]
+        The runtime to generate artifacts for
 
     Returns
     -------
@@ -506,10 +518,11 @@ class _WrappedBuildFunc:
         The wrapped build function
     """
 
-    def __init__(self, build_func):
+    def __init__(self, build_func, runtime=None):
         if not hasattr(build_func, "output_format"):
             raise AttributeError("Expect build_func to have the attribute output_format.")
         self.build_func = build_func
+        self.runtime = runtime
 
     def __call__(self, measure_input, tmp_dir, **kwargs):
         """
@@ -529,14 +542,13 @@ class _WrappedBuildFunc:
                 tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), self.build_func.output_format)
             )
             # TODO(tvm-team) consider linline _build_func_common
-            func, arg_info = _build_func_common(measure_input, **kwargs)
+            func, arg_info = _build_func_common(measure_input, self.runtime, **kwargs)
             if self.build_func.output_format == ".model-library-format":
                 # Late import to preserve autoTVM with USE_MICRO OFF
                 try:
                     from tvm import micro  # pylint: disable=import-outside-toplevel
                 except ImportError:
                     raise ImportError("Requires USE_MICRO")
-
                 micro.export_model_library_format(func, filename)
             else:
                 func.export_library(filename, self.build_func)

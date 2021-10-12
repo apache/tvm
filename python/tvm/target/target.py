@@ -316,12 +316,9 @@ def micro(model="unknown", options=None):
     if model not in MICRO_SUPPORTED_MODELS:
         raise ValueError(f"Model {model} not supported by tvm.target.micro.")
     opts = _merge_opts(
-        MICRO_SUPPORTED_MODELS[model] + ["-runtime=c", f"-model={model}"],
+        MICRO_SUPPORTED_MODELS[model] + [f"-model={model}"],
         options,
     )
-
-    if (not options) or (options and not any("-executor=aot" in o for o in options)):
-        opts = _merge_opts(opts, "--system-lib")
 
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.
@@ -623,27 +620,13 @@ def hexagon(cpu_ver="v66", **kwargs):
         args = [s.replace("=", "@") for s in llvm_options.split()]
         return "--llvm-options=" + ",".join(args)
 
-    # TVM target attributes string
-    def create_tvm_options(cpu_ver, config):  # pylint: disable=unused-argument
-        """Create TVM target features string."""
-
-        features = {
-            "link_params": "link-params",
-        }
-        opts = ""
-        for k in config:
-            if k in features:
-                opts += " --" + features[k] + "=" + str(config[k])
-        return opts
-
     # Sim args
     os.environ["HEXAGON_SIM_ARGS"] = create_sim_options(cpu_ver, config)
 
     target_str = create_llvm_target(cpu_ver, config)
     llvm_str = create_llvm_options(cpu_ver, config)
-    tvm_str = create_tvm_options(cpu_ver, config)
 
-    args_list = target_str.split() + llvm_str.split() + tvm_str.split()
+    args_list = target_str.split() + llvm_str.split()
 
     return Target(" ".join(["hexagon"] + args_list))
 

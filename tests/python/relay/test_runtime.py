@@ -27,13 +27,13 @@ def test_create():
 
 
 def test_create_runtime_with_options():
-    runtime = Runtime("c", {"system-lib": True})
-    assert str(runtime) == "c"
+    runtime = Runtime("crt", {"system-lib": True})
+    assert str(runtime) == "crt"
     assert runtime["system-lib"]
 
 
 def test_attr_check():
-    runtime = Runtime("c", {"system-lib": True})
+    runtime = Runtime("crt", {"system-lib": True})
     assert "woof" not in runtime
     assert "system-lib" in runtime
 
@@ -45,7 +45,7 @@ def test_create_runtime_not_found():
 
 def test_create_runtime_attr_not_found():
     with pytest.raises(TVMError, match='Attribute "woof" is not available on this Runtime'):
-        Runtime("c", {"woof": "bark"})
+        Runtime("crt", {"woof": "bark"})
 
 
 def test_create_runtime_attr_type_incorrect():
@@ -54,20 +54,20 @@ def test_create_runtime_attr_type_incorrect():
         match='Attribute "system-lib" should have type "IntImm"'
         ' but instead found "runtime.String"',
     ):
-        Runtime("c", {"system-lib": "woof"})
+        Runtime("crt", {"system-lib": "woof"})
 
 
 def test_list_runtimes():
-    assert "c" in Runtime.list_runtimes()
+    assert "crt" in Runtime.list_registered()
 
 
-@pytest.mark.parametrize("runtime", [Runtime("c"), "c"])
+@pytest.mark.parametrize("runtime", [Runtime("crt"), "crt"])
 def test_list_runtime_options(runtime):
-    aot_options = Runtime.list_runtime_options(runtime)
+    aot_options = Runtime.list_registered_options(runtime)
     assert "system-lib" in aot_options
     assert aot_options["system-lib"] == "IntImm"
 
 
 def test_list_runtime_options_not_found():
     with pytest.raises(TVMError, match='Runtime "woof" is not defined'):
-        Runtime.list_runtime_options("woof")
+        Runtime.list_registered_options("woof")

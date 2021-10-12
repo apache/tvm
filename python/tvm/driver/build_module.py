@@ -139,6 +139,9 @@ def build(
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
     target: Optional[Union[str, Target]] = None,
     target_host: Optional[Union[str, Target]] = None,
+    runtime: Optional[
+        "tvm.relay.backend.Runtime"
+    ] = None,  # Type is annotated this way to avoid cyclic dependency
     name: Optional[str] = "default_function",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
 ):
@@ -165,6 +168,9 @@ def build(
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
         otherwise a stackvm interpreter is used.
+
+    runtime : Optional[Runtime]
+        Runtime to generate artifacts for
 
     name : Optional[str]
         The name of result function.
@@ -243,18 +249,20 @@ def build(
     else:
         target_input_mod = inputs
 
+    # Because modules can be created from a variety of sources, we annotate them
+    # with the relevant attributes here to ensure they propagate
+    annotated_mods = {}
     for tar, mod in target_input_mod.items():
         if not isinstance(tar, (str, Target)):
             raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
+        annotated_mods[tar] = mod.with_attr("runtime", runtime)
 
-    target_input_mod, target_host = Target.check_and_update_host_consist(
-        target_input_mod, target_host
-    )
+    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 
     if not target_host:
-        for tar, mod in target_input_mod.items():
+        for tar, mod in annotated_mods.items():
             tar = Target(tar)
             device_type = ndarray.device(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
@@ -263,37 +271,30 @@ def build(
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    target_input_mod, target_host = Target.check_and_update_host_consist(
-        target_input_mod, target_host
-    )
+    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 
-    rt_mod_host = _driver_ffi.preprocess_module(target_input_mod, target_host)
+    rt_mod_host = _driver_ffi.preprocess_module(annotated_mods, target_host)
 
-    target_input_mod, target_host = Target.check_and_update_host_consist(
-        target_input_mod, target_host
-    )
+    annotated_mods, target_host = Target.check_and_update_host_consist(annotated_mods, target_host)
 
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
-    if (
-        target_host.attrs.get("runtime", tvm.runtime.String("c++")) == "c"
-        and target_host.attrs.get("system-lib", 0) == 1
-    ):
+
+    if str(runtime) == "crt" and runtime["system-lib"]:
         if target_host.kind.name == "c":
             create_csource_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateCSourceCrtMetadataModule"
             )
-            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host)
-
+            to_return = create_csource_crt_metadata_module([rt_mod_host], target_host, runtime)
         elif target_host.kind.name == "llvm":
             create_llvm_crt_metadata_module = tvm._ffi.get_global_func(
                 "runtime.CreateLLVMCrtMetadataModule"
             )
-            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host)
+            to_return = create_llvm_crt_metadata_module([rt_mod_host], target_host, runtime)
     else:
         to_return = rt_mod_host
 
-    return OperatorModule.from_module(to_return, ir_module_by_target=target_input_mod, name=name)
+    return OperatorModule.from_module(to_return, ir_module_by_target=annotated_mods, name=name)
 
 
 class OperatorModule(Module):

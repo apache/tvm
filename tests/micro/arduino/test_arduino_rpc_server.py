@@ -22,7 +22,6 @@ This unit test simulates an autotuning workflow, where we:
 
 """
 
-import datetime
 import pathlib
 import sys
 
@@ -31,8 +30,9 @@ import onnx
 import pytest
 import tvm
 from PIL import Image
-from tvm import micro, relay
+from tvm import relay
 from tvm.relay.testing import byoc
+from tvm.relay.backend import Executor, Runtime
 
 import conftest
 
@@ -191,9 +191,11 @@ def test_onnx(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
-    target = tvm.target.target.micro(model, options=["-link-params=1"])
+    target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(relay_mod, target, params=params)
+        executor = Executor("graph", {"link-params": True})
+        runtime = Runtime("crt", {"system-lib": True})
+        lowered = relay.build(relay_mod, target, params=params, executor=executor, runtime=runtime)
         graph = lowered.get_graph_json()
 
     with _make_session(

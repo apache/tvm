@@ -31,6 +31,7 @@ import tvm
 import tvm.relay
 import tvm.testing
 from tvm.target import Target
+from tvm.relay.backend import Runtime
 
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
@@ -42,8 +43,9 @@ TARGET = tvm.target.target.micro("host")
 
 
 def _make_sess_from_op(temp_dir, op_name, sched, arg_bufs):
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, Target(TARGET, TARGET), name=op_name)
+        mod = tvm.build(sched, arg_bufs, Target(TARGET, TARGET), runtime=runtime, name=op_name)
 
     return _make_session(temp_dir, mod)
 
@@ -143,8 +145,9 @@ def test_graph_executor():
       }"""
     )
 
+    runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        factory = tvm.relay.build(relay_mod, target=TARGET)
+        factory = tvm.relay.build(relay_mod, target=TARGET, runtime=runtime)
 
     with _make_session(temp_dir, factory) as sess:
         graph_mod = tvm.micro.create_local_graph_executor(
@@ -221,6 +224,8 @@ def test_autotune():
     import tvm.relay as relay
     from tvm.micro.testing import check_tune_log
 
+    runtime = Runtime("crt", {"system-lib": True})
+
     data = relay.var("data", relay.TensorType((1, 3, 64, 64), "float32"))
     weight = relay.var("weight", relay.TensorType((8, 3, 5, 5), "float32"))
     y = relay.nn.conv2d(
@@ -261,6 +266,7 @@ def test_autotune():
         build_kwargs={"build_option": {"tir.disable_vectorize": True}},
         do_fork=True,
         build_func=tvm.micro.autotvm_build_func,
+        runtime=runtime,
     )
     runner = tvm.autotvm.LocalRunner(number=1, repeat=1, module_loader=module_loader)
 
@@ -288,7 +294,7 @@ def test_autotune():
 
     # Build without tuning
     with pass_context:
-        lowered = tvm.relay.build(mod, target=TARGET, params=params)
+        lowered = tvm.relay.build(mod, target=TARGET, runtime=runtime, params=params)
 
     temp_dir = tvm.contrib.utils.tempdir()
     project = tvm.micro.generate_project(template_project_dir, lowered, temp_dir / "project")
@@ -305,7 +311,7 @@ def test_autotune():
     # Build using autotune logs
     with tvm.autotvm.apply_history_best(str(tune_log_file)):
         with pass_context:
-            lowered_tuned = tvm.relay.build(mod, target=target, params=params)
+            lowered_tuned = tvm.relay.build(mod, target=target, runtime=runtime, params=params)
 
     temp_dir = tvm.contrib.utils.tempdir()
     project = tvm.micro.generate_project(template_project_dir, lowered_tuned, temp_dir / "project")

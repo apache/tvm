@@ -32,6 +32,7 @@ import subprocess
 import pathlib
 
 import tvm
+from tvm.relay.backend import Executor, Runtime
 
 ####################
 # Defining the model
@@ -69,13 +70,15 @@ params = {"weight": weight_sample}
 # Defining the target #
 #######################
 # Now we define the TVM target that describes the execution environment. This looks very similar
-# to target definitions from other microTVM tutorials.
+# to target definitions from other microTVM tutorials. Alongside this we pick the C Runtime to code
+# generate our model against.
 #
 # When running on physical hardware, choose a target and a board that
 # describe the hardware. There are multiple hardware targets that could be selected from
 # PLATFORM list in this tutorial. You can chose the platform by passing --platform argument when running
 # this tutorial.
 #
+RUNTIME = Runtime("crt", {"system-lib": True})
 TARGET = tvm.target.target.micro("host")
 
 # Compiling for physical hardware
@@ -123,6 +126,7 @@ builder = tvm.autotvm.LocalBuilder(
     build_kwargs={"build_option": {"tir.disable_vectorize": True}},
     do_fork=True,
     build_func=tvm.micro.autotvm_build_func,
+    runtime=RUNTIME,
 )
 runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=100, module_loader=module_loader)
 
@@ -175,7 +179,7 @@ for task in tasks:
 # the tuned operator.
 
 with pass_context:
-    lowered = tvm.relay.build(relay_mod, target=TARGET, params=params)
+    lowered = tvm.relay.build(relay_mod, target=TARGET, runtime=RUNTIME, params=params)
 
 temp_dir = tvm.contrib.utils.tempdir()
 
@@ -218,7 +222,7 @@ with tvm.micro.Session(project.transport()) as session:
 
 with tvm.autotvm.apply_history_best("microtvm_autotune.log.txt"):
     with pass_context:
-        lowered_tuned = tvm.relay.build(relay_mod, target=TARGET, params=params)
+        lowered_tuned = tvm.relay.build(relay_mod, target=TARGET, runtime=RUNTIME, params=params)
 
 temp_dir = tvm.contrib.utils.tempdir()
 

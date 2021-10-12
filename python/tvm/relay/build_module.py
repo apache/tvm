@@ -35,7 +35,7 @@ from . import expr as _expr
 from . import function as _function
 from .transform import InferType
 from .backend.utils import mangle_module_name
-from .backend import executor_factory as _executor_factory
+from .backend import executor_factory as _executor_factory, Executor, Runtime
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -105,7 +105,14 @@ class BuildModule(object):
         self._get_irmodule = self.mod["get_irmodule"]
 
     def build(
-        self, mod, target=None, target_host=None, params=None, executor="graph", mod_name=None
+        self,
+        mod,
+        target=None,
+        target_host=None,
+        executor=Executor("graph"),
+        runtime=Runtime("cpp"),
+        params=None,
+        mod_name=None,
     ):
         """
         Parameters
@@ -127,14 +134,17 @@ class BuildModule(object):
             By default, llvm is used if it is enabled,
             otherwise a stackvm interpreter is used.
 
+        executor : Optional[Executor]
+            The executor configuration with which to build the model.
+            Defaults to "graph" if no executor specified.
+
+        runtime : Optional[Runtime]
+            Runtime configuration to use when building the model.
+            Defaults to "cpp" if no runtime specified.
+
         params : dict of str to NDArray
             Input parameters to the graph that do not change
             during inference time. Used for constant folding.
-
-        executor: str[Optional]
-            The type of executor to be used in order to run the model:
-            - If "graph" is specified, then the graph_executor will be used
-            - If "aot" is specified, then the aot_executor will be used
 
         mod_name: Optional[str]
             The module name we will build
@@ -176,13 +186,13 @@ class BuildModule(object):
 
         mod_name = mangle_module_name(mod_name)
 
-        self._build(mod, target, target_host, executor, mod_name)
+        self._build(mod, target, target_host, executor, runtime, mod_name)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
         mod = self.get_module()
         params = self.get_params()
-        executor_config = self.get_graph_json() if executor == "graph" else None
+        executor_config = self.get_graph_json() if str(executor) == "graph" else None
 
         return executor_config, mod, params
 
@@ -270,34 +280,78 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     return build(mod, target, params=params, mod_name=mod_name).module
 
 
-def get_executor_from_target(target, target_host):
-    """Helper function to extract the executor parameter from the target
+def _reconstruct_from_deprecated_options(deprecated_params_target):
+    executor = None
+    runtime = None
 
-    Parameters
-    ----------
-    target : Dict of targets for heterogeneous compilation
+    deprecated_executor = None
+    deprecated_executor_args = {}
+    if "executor" in deprecated_params_target.attrs:
+        _deprecated_target_param_warning("Executor", "executor")
+        deprecated_executor = deprecated_params_target.attrs.get("executor", "graph")
+    if "interface-api" in deprecated_params_target.attrs:
+        _deprecated_target_sub_param_warning("Executor", "interface-api")
+        deprecated_executor_args.update(
+            {"interface-api": deprecated_params_target.attrs["interface-api"]}
+        )
+    if "unpacked-api" in deprecated_params_target.attrs:
+        _deprecated_target_sub_param_warning("Executor", "unpacked-api")
+        deprecated_executor_args.update(
+            {"unpacked-api": deprecated_params_target.attrs["unpacked-api"]}
+        )
+    if (
+        "link-params" in deprecated_params_target.attrs
+        and deprecated_params_target.attrs["link-params"]
+    ):
+        _deprecated_target_sub_param_warning("Executor", "link-params")
+        if deprecated_executor != "aot":
+            deprecated_executor_args.update(
+                {"link-params": deprecated_params_target.attrs["link-params"]}
+            )
+    if deprecated_executor or deprecated_executor_args:
+        executor = Executor(deprecated_executor or "graph", deprecated_executor_args)
 
-    target_host :  Host compilation target
+    deprecated_runtime = None
+    deprecated_runtime_args = {}
+    if "runtime" in deprecated_params_target.attrs:
+        _deprecated_target_param_warning("Runtime", "runtime")
+        deprecated_runtime = deprecated_params_target.attrs.get("runtime", "cpp")
+        if deprecated_runtime == "c":
+            deprecated_runtime = "crt"
+    if "system-lib" in deprecated_params_target.attrs:
+        _deprecated_target_sub_param_warning("Runtime", "system-lib")
+        deprecated_runtime_args.update({"system-lib": deprecated_params_target.attrs["system-lib"]})
+    if deprecated_runtime or deprecated_runtime_args:
+        runtime = Runtime(deprecated_runtime or "cpp", deprecated_runtime_args)
 
-    Returns
-    -------
-    executor : str
-    A string representing the executor type
-    """
-
-    # Default executor is graph
-    executor = "graph"
-    cpu_device_type = 1
-    if target_host:
-        executor = target_host.attrs.get("executor", "graph")
-    else:
-        for device_type in target:
-            if device_type == cpu_device_type:
-                executor = target[device_type].attrs.get("executor", "graph")
-    return executor
+    return executor, runtime
 
 
-def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"):
+def _deprecated_target_param_warning(registry, param):
+    warnings.warn(
+        f"Please use {registry} (tvm.relay.backend.{registry}) "
+        f"instead of deprecated Target parameter -{param}",
+        DeprecationWarning,
+    )
+
+
+def _deprecated_target_sub_param_warning(registry, param):
+    warnings.warn(
+        f"Please use {registry} (tvm.relay.backend.{registry}) parameter {param} "
+        f"instead of deprecated Target parameter -{param}",
+        DeprecationWarning,
+    )
+
+
+def build(
+    ir_mod,
+    target=None,
+    target_host=None,
+    executor=Executor("graph"),
+    runtime=Runtime("cpp"),
+    params=None,
+    mod_name="default",
+):
     # fmt: off
     # pylint: disable=line-too-long
     """Helper function that builds a Relay function to run on TVM graph executor.
@@ -319,6 +373,14 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
         otherwise a stackvm interpreter is used.
+
+    executor : Optional[Executor]
+        The executor configuration with which to build the model.
+        Defaults to "graph" if no executor specified.
+
+    runtime : Optional[Runtime]
+        Runtime configuration to use when building the model.
+        Defaults to "cpp" if no runtime specified.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
@@ -364,8 +426,16 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
 
-    # Retrieve the executor from the target
-    executor = get_executor_from_target(target, target_host)
+    # All of this logic is to raise deprecation warnings for various parameters
+    # TODO(Mousius) Remove these after some time
+    deprecated_params_target = target_host or list(target.values())[0]
+    deprecated_executor, deprecated_runtime = _reconstruct_from_deprecated_options(
+        deprecated_params_target
+    )
+    if deprecated_executor:
+        executor = deprecated_executor
+    if deprecated_runtime:
+        runtime = deprecated_runtime
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
@@ -376,33 +446,33 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
 
     with tophub_context:
         bld_mod = BuildModule()
-        executor_config, runtime_mod, params = bld_mod.build(
-            mod=ir_mod, target=target, params=params, executor=executor, mod_name=mod_name
+        graph_json, runtime_mod, params = bld_mod.build(
+            mod=ir_mod,
+            target=target,
+            params=params,
+            executor=executor,
+            runtime=runtime,
+            mod_name=mod_name,
         )
         func_metadata = bld_mod.get_function_metadata()
         devices = bld_mod.get_devices()
         lowered_ir_mods = bld_mod.get_irmodule()
 
-        if executor == "aot":
+        if str(executor) == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
                 ir_mod,
                 lowered_ir_mods,
                 target,
+                executor,
                 runtime_mod,
                 mod_name,
                 params,
                 func_metadata,
                 devices,
             )
-        elif executor == "graph":
+        elif str(executor) == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod,
-                target,
-                executor_config,
-                runtime_mod,
-                mod_name,
-                params,
-                func_metadata,
+                ir_mod, target, executor, graph_json, runtime_mod, mod_name, params, func_metadata
             )
         else:
             assert False, "Executor " + executor + " not supported"

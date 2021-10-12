@@ -114,6 +114,8 @@ class RuntimeNode : public Object {
  */
 class Runtime : public ObjectRef {
  public:
+  Runtime() = default;
+
   /*!
    * \brief Create a new Runtime object using the registry
    * \throws Error if name is not registered
@@ -121,7 +123,7 @@ class Runtime : public ObjectRef {
    * \param attrs Attributes for the Runtime.
    * \return the new Runtime object.
    */
-  TVM_DLL static Runtime Create(String name, Map<String, ObjectRef> attrs);
+  TVM_DLL static Runtime Create(String name, Map<String, ObjectRef> attrs = {});
 
   /*!
    * \brief List all registered Runtimes
