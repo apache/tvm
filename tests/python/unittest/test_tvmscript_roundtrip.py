@@ -3086,6 +3086,5 @@ def test_primfunc_with_allocate_annotations():
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
 
-
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
