@@ -106,13 +106,21 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
 #if TVM_LLVM_VERSION < 50
   opt.LessPreciseFPMADOption = true;
 #endif
-  // Turn on all flags which trade FP precision for speed
-  opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
+  // We depend on generating IR with proper fast math flags to control fast math
+  // semantics. These just enable these optimizations if the proper IR flags
+  // are set.
   opt.UnsafeFPMath = true;
   opt.NoInfsFPMath = true;
   opt.NoNaNsFPMath = true;
-  opt.NoTrappingFPMath = true;
   opt.NoSignedZerosFPMath = true;
+  opt.ApproxFuncFPMath = true;
+
+  // Assume no generated code ever needs to handle floating point exceptions.
+  opt.NoTrappingFPMath = true;
+
+  // TODO (AndrewZhaoLuo): Look into control of setting this flag.
+  opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
+
   if (soft_float_abi) {
     opt.FloatABIType = llvm::FloatABI::Soft;
   } else {
