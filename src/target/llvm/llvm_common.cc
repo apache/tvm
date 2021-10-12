@@ -113,7 +113,6 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
   opt.NoInfsFPMath = true;
   opt.NoNaNsFPMath = true;
   opt.NoSignedZerosFPMath = true;
-  opt.ApproxFuncFPMath = true;
 
   // Assume no generated code ever needs to handle floating point exceptions.
   opt.NoTrappingFPMath = true;
@@ -150,8 +149,22 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
     ICHECK(allow_null) << err << " target_triple=" << target_triple;
     return nullptr;
   }
+
+  Integer llvm_opt_level = target->GetAttr<Integer>("O").value_or(Integer(2));
+  llvm::CodeGenOpt::Level llvm_opt;
+  if (llvm_opt_level <= 0) {
+    llvm_opt = llvm::CodeGenOpt::None;
+  } else if (llvm_opt_level == 1) {
+    llvm_opt = llvm::CodeGenOpt::Less;
+  } else if (llvm_opt_level == 2) {
+    llvm_opt = llvm::CodeGenOpt::Default;
+  } else {
+    // llvm_opt_level >= 3
+    llvm_opt = llvm::CodeGenOpt::Aggressive;
+  }
+
   llvm::TargetMachine* tm = llvm_target->createTargetMachine(
-      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_, llvm::None, llvm::CodeGenOpt::Default);
+      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_, llvm::None, llvm_opt);
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 
