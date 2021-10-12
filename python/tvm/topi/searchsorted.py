@@ -22,9 +22,7 @@ from ..tir import ir_builder
 from .math import cast
 
 
-def binary_search(
-    ib, sequence_offset, search_range, sorted_sequence, value, right, out_dtype
-):
+def binary_search(ib, sequence_offset, search_range, sorted_sequence, value, right, out_dtype):
     """Common IR generator for binary search used by CPU and GPU backends.
 
     `sorted_sequence` is a N-D Buffer whose innermost dimension we want to search for `value`,
