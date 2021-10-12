@@ -81,13 +81,12 @@ def searchsorted(sorted_sequence, values, right, out_dtype="int64"):
                 sequence_id = tid // values_shape[-1]
                 sequence_offset = sequence_id * search_range
 
-            binary_search(
+            indices[tid] = binary_search(
                 ib,
                 sequence_offset,
                 search_range,
-                tid,
                 sorted_sequence,
-                values,
+                values[tid],
                 indices,
                 right,
                 out_dtype,

@@ -23,17 +23,15 @@ from .math import cast
 
 
 def binary_search(
-    ib, sequence_offset, search_range, index, sorted_sequence, values, out_indices, right, out_dtype
+    ib, sequence_offset, search_range, sorted_sequence, value, out_indices, right, out_dtype
 ):
     """Common IR generator for binary search used by CPU and GPU backends.
 
-    `sorted_sequence` is a N-D Buffer whose innermost dimension we want to search,
-    and `search_range` is the size of the innermost dimension.
+    `sorted_sequence` is a N-D Buffer whose innermost dimension we want to search for `value`,
+    and `search_range` is the size of the innermost dimension. `sequence_offset` is
+    a 1-D linearlized offset specifying which of innermost sequences to search.
 
-    `index` is the index of the current value in `values` being searched. `sequence_offset` is
-    a 1-D linearlized offset specifying which of innermost sequences to search for `values[index]`.
-
-    So the search for `values[index]` is performed over
+    So the search for `value` is performed over
     `sorted_sequence[sequence_offset:(sequence_offset + search_range)]`.
     Note that we index N-D Buffer by 1-D linearlized indices.
 
@@ -41,7 +39,6 @@ def binary_search(
     lo = ib.allocate(out_dtype, (1,), name="lo", scope="local")
     hi = ib.allocate(out_dtype, (1,), name="hi", scope="local")
 
-    v = values[index]
     lo[0] = cast(0, out_dtype)
     hi[0] = cast(search_range, out_dtype)
 
@@ -53,12 +50,12 @@ def binary_search(
 
     with ib.while_loop(lo[0] < hi[0]):
         mid = lo[0] + (hi[0] - lo[0] >> 1)
-        with ib.if_scope(condition(sorted_sequence[sequence_offset + mid], v)):
+        with ib.if_scope(condition(sorted_sequence[sequence_offset + mid], value)):
             lo[0] = mid + 1
         with ib.else_scope():
             hi[0] = mid
 
-    out_indices[index] = lo[0]
+    return lo[0]
 
 
 def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
@@ -111,13 +108,12 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
                 sequence_id = i // values_shape[-1]
                 sequence_offset = sequence_id * search_range
 
-            binary_search(
+            indices[i] = binary_search(
                 ib,
                 sequence_offset,
                 search_range,
-                i,
                 sorted_sequence,
-                values,
+                values[i],
                 indices,
                 right,
                 out_dtype,
