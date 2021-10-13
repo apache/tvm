@@ -16,7 +16,14 @@
 # under the License.
 
 # pylint: disable=invalid-name,unnecessary-comprehension
-""" TVM testing utilities
+"""TVM testing utilities
+
+Organization
+************
+
+This file contains functions expected to be called directly by a user
+while writing unit tests.  Integrations with the pytest framework
+are in plugin.py.
 
 Testing Markers
 ***************
@@ -53,8 +60,8 @@ If in the future we want to add a new type of testing node (for example
 fpgas), we need to add a new marker in `tests/python/pytest.ini` and a new
 function in this module. Then targets using this node should be added to the
 `TVM_TEST_TARGETS` environment variable in the CI.
+
 """
-import collections
 import copy
 import copyreg
 import ctypes
@@ -65,7 +72,6 @@ import sys
 import time
 import pickle
 import pytest
-import _pytest
 import numpy as np
 import tvm
 import tvm.arith
@@ -75,6 +81,8 @@ import tvm._ffi
 
 from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
+from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.relay.op.contrib import cmsisnn
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -435,6 +443,7 @@ DEFAULT_TEST_TARGETS = [
     "opencl -device=intel_graphics",
     "metal",
     "rocm",
+    "hexagon",
 ]
 
 
@@ -581,6 +590,27 @@ def requires_cudnn(*args):
     requirements = [
         pytest.mark.skipif(
             not cudnn.exists(), reason="cuDNN library not enabled, or not installed"
+        ),
+        *requires_cuda(),
+    ]
+    return _compose(args, requirements)
+
+
+def requires_cublas(*args):
+    """Mark a test as requiring the cuBLAS library.
+
+    This also marks the test as requiring a cuda gpu.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [
+        pytest.mark.skipif(
+            tvm.get_global_func("tvm.contrib.cublas.matmul", True),
+            reason="cuDNN library not enabled",
         ),
         *requires_cuda(),
     ]
@@ -768,154 +798,105 @@ def requires_rpc(*args):
     return _compose(args, _requires_rpc)
 
 
-def _target_to_requirement(target):
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
+def requires_ethosn(*args):
+    """Mark a test as requiring ethosn to run.
 
-    # mapping from target to decorator
-    if target.kind.name == "cuda" and "cudnn" in target.attrs.get("libs", []):
-        return requires_cudnn()
-    if target.kind.name == "cuda":
-        return requires_cuda()
-    if target.kind.name == "rocm":
-        return requires_rocm()
-    if target.kind.name == "vulkan":
-        return requires_vulkan()
-    if target.kind.name == "nvptx":
-        return requires_nvptx()
-    if target.kind.name == "metal":
-        return requires_metal()
-    if target.kind.name == "opencl":
-        return requires_opencl()
-    if target.kind.name == "llvm":
-        return requires_llvm()
-    return []
-
-
-def _pytest_target_params(targets, excluded_targets=None, xfail_targets=None):
-    # Include unrunnable targets here.  They get skipped by the
-    # pytest.mark.skipif in _target_to_requirement(), showing up as
-    # skipped tests instead of being hidden entirely.
-    if targets is None:
-        if excluded_targets is None:
-            excluded_targets = set()
-
-        if xfail_targets is None:
-            xfail_targets = set()
-
-        target_marks = []
-        for t in _get_targets():
-            # Excluded targets aren't included in the params at all.
-            if t["target_kind"] not in excluded_targets:
-
-                # Known failing targets are included, but are marked
-                # as expected to fail.
-                extra_marks = []
-                if t["target_kind"] in xfail_targets:
-                    extra_marks.append(
-                        pytest.mark.xfail(
-                            reason='Known failing test for target "{}"'.format(t["target_kind"])
-                        )
-                    )
-
-                target_marks.append((t["target"], extra_marks))
-
-    else:
-        target_marks = [(target, []) for target in targets]
-
-    return [
-        pytest.param(target, marks=_target_to_requirement(target) + extra_marks)
-        for target, extra_marks in target_marks
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    marks = [
+        pytest.mark.ethosn,
+        pytest.mark.skipif(
+            not ethosn_available(),
+            reason=(
+                "Ethos-N support not enabled.  "
+                "Set USE_ETHOSN=ON in config.cmake to enable, "
+                "and ensure that hardware support is present."
+            ),
+        ),
     ]
+    return _compose(args, marks)
 
 
-def _auto_parametrize_target(metafunc):
-    """Automatically applies parametrize_targets
+def requires_hexagon(*args):
+    """Mark a test as requiring Hexagon to run.
 
-    Used if a test function uses the "target" fixture, but isn't
-    already marked with @tvm.testing.parametrize_targets.  Intended
-    for use in the pytest_generate_tests() handler of a conftest.py
-    file.
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_hexagon = [
+        pytest.mark.hexagon,
+        pytest.mark.skipif(not device_enabled("hexagon"), reason="Hexagon support not enabled"),
+        *requires_llvm(),
+        pytest.mark.skipif(
+            tvm.target.codegen.llvm_version_major() < 7, reason="Hexagon requires LLVM 7 or later"
+        ),
+    ]
+    return _compose(args, _requires_hexagon)
+
+
+def requires_cmsisnn(*args):
+    """Mark a test as requiring the CMSIS NN library.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [pytest.mark.skipif(not cmsisnn.enabled(), reason="CMSIS NN not enabled")]
+    return _compose(args, requirements)
+
+
+def requires_package(*packages):
+    """Mark a test as requiring python packages to run.
+
+    If the packages listed are not available, tests marked with
+    `requires_package` will appear in the pytest results as being skipped.
+    This is equivalent to using ``foo = pytest.importorskip('foo')`` inside
+    the test body.
+
+    Parameters
+    ----------
+    packages : List[str]
+
+        The python packages that should be available for the test to
+        run.
+
+    Returns
+    -------
+    mark: pytest mark
+
+        The pytest mark to be applied to unit tests that require this
 
     """
 
-    def update_parametrize_target_arg(
-        argnames,
-        argvalues,
-        *args,
-        **kwargs,
-    ):
-        args = [arg.strip() for arg in argnames.split(",") if arg.strip()]
-        if "target" in args:
-            target_i = args.index("target")
+    def has_package(package):
+        try:
+            __import__(package)
+            return True
+        except ImportError:
+            return False
 
-            new_argvalues = []
-            for argvalue in argvalues:
+    marks = [
+        pytest.mark.skipif(not has_package(package), reason=f"Cannot import '{package}'")
+        for package in packages
+    ]
 
-                if isinstance(argvalue, _pytest.mark.structures.ParameterSet):
-                    # The parametrized value is already a
-                    # pytest.param, so track any marks already
-                    # defined.
-                    param_set = argvalue.values
-                    target = param_set[target_i]
-                    additional_marks = argvalue.marks
-                elif len(args) == 1:
-                    # Single value parametrization, argvalue is a list of values.
-                    target = argvalue
-                    param_set = (target,)
-                    additional_marks = []
-                else:
-                    # Multiple correlated parameters, argvalue is a list of tuple of values.
-                    param_set = argvalue
-                    target = param_set[target_i]
-                    additional_marks = []
+    def wrapper(func):
+        for mark in marks:
+            func = mark(func)
+        return func
 
-                new_argvalues.append(
-                    pytest.param(
-                        *param_set, marks=_target_to_requirement(target) + additional_marks
-                    )
-                )
-
-            try:
-                argvalues[:] = new_argvalues
-            except TypeError as e:
-                pyfunc = metafunc.definition.function
-                filename = pyfunc.__code__.co_filename
-                line_number = pyfunc.__code__.co_firstlineno
-                msg = (
-                    f"Unit test {metafunc.function.__name__} ({filename}:{line_number}) "
-                    "is parametrized using a tuple of parameters instead of a list "
-                    "of parameters."
-                )
-                raise TypeError(msg) from e
-
-    if "target" in metafunc.fixturenames:
-        # Update any explicit use of @pytest.mark.parmaetrize to
-        # parametrize over targets.  This adds the appropriate
-        # @tvm.testing.requires_* markers for each target.
-        for mark in metafunc.definition.iter_markers("parametrize"):
-            update_parametrize_target_arg(*mark.args, **mark.kwargs)
-
-        # Check if any explicit parametrizations exist, and apply one
-        # if they do not.  If the function is marked with either
-        # excluded or known failing targets, use these to determine
-        # the targets to be used.
-        parametrized_args = [
-            arg.strip()
-            for mark in metafunc.definition.iter_markers("parametrize")
-            for arg in mark.args[0].split(",")
-        ]
-        if "target" not in parametrized_args:
-            excluded_targets = getattr(metafunc.function, "tvm_excluded_targets", [])
-            xfail_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
-            metafunc.parametrize(
-                "target",
-                _pytest_target_params(None, excluded_targets, xfail_targets),
-                scope="session",
-            )
+    return wrapper
 
 
 def parametrize_targets(*args):
+
     """Parametrize a test over a specific set of targets.
 
     Use this decorator when you want your test to be run over a
@@ -1042,7 +1023,7 @@ def known_failing_targets(*args):
     return wraps
 
 
-def parameter(*values, ids=None):
+def parameter(*values, ids=None, by_dict=None):
     """Convenience function to define pytest parametrized fixtures.
 
     Declaring a variable using ``tvm.testing.parameter`` will define a
@@ -1062,15 +1043,22 @@ def parameter(*values, ids=None):
 
     Parameters
     ----------
-    values
+    values : Any
+
        A list of parameter values.  A unit test that accepts this
        parameter as an argument will be run once for each parameter
        given.
 
     ids : List[str], optional
+
        A list of names for the parameters.  If None, pytest will
        generate a name from the value.  These generated names may not
        be readable/useful for composite types such as tuples.
+
+    by_dict : Dict[str, Any]
+
+       A mapping from parameter name to parameter value, to set both the
+       values and ids.
 
     Returns
     -------
@@ -1089,7 +1077,21 @@ def parameter(*values, ids=None):
     >>> def test_using_size(shape):
     >>>     ... # Test code here
 
+    Or
+
+    >>> shape = tvm.testing.parameter(by_dict={'small': (5,10), 'large': (512,1024)})
+    >>> def test_using_size(shape):
+    >>>     ... # Test code here
+
     """
+
+    if by_dict is not None:
+        if values or ids:
+            raise RuntimeError(
+                "Use of the by_dict parameter cannot be used alongside positional arguments"
+            )
+
+        ids, values = zip(*by_dict.items())
 
     # Optional cls parameter in case a parameter is defined inside a
     # class scope.
@@ -1103,7 +1105,7 @@ def parameter(*values, ids=None):
 _parametrize_group = 0
 
 
-def parameters(*value_sets):
+def parameters(*value_sets, ids=None):
     """Convenience function to define pytest parametrized fixtures.
 
     Declaring a variable using tvm.testing.parameters will define a
@@ -1126,10 +1128,17 @@ def parameters(*value_sets):
     Parameters
     ----------
     values : List[tuple]
+
        A list of parameter value sets.  Each set of values represents
        a single combination of values to be tested.  A unit test that
        accepts parameters defined will be run once for every set of
        parameters in the list.
+
+    ids : List[str], optional
+
+       A list of names for the parameter sets.  If None, pytest will
+       generate a name from each parameter set.  These generated names may
+       not be readable/useful for composite types such as tuples.
 
     Returns
     -------
@@ -1159,31 +1168,10 @@ def parameters(*value_sets):
 
         fixture_func.parametrize_group = parametrize_group
         fixture_func.parametrize_values = param_values
+        fixture_func.parametrize_ids = ids
         outputs.append(pytest.fixture(fixture_func))
 
     return outputs
-
-
-def _parametrize_correlated_parameters(metafunc):
-    parametrize_needed = collections.defaultdict(list)
-
-    for name, fixturedefs in metafunc.definition._fixtureinfo.name2fixturedefs.items():
-        fixturedef = fixturedefs[-1]
-        if hasattr(fixturedef.func, "parametrize_group") and hasattr(
-            fixturedef.func, "parametrize_values"
-        ):
-            group = fixturedef.func.parametrize_group
-            values = fixturedef.func.parametrize_values
-            parametrize_needed[group].append((name, values))
-
-    for parametrize_group in parametrize_needed.values():
-        if len(parametrize_group) == 1:
-            name, values = parametrize_group[0]
-            metafunc.parametrize(name, values, indirect=True)
-        else:
-            names = ",".join(name for name, values in parametrize_group)
-            value_sets = zip(*[values for name, values in parametrize_group])
-            metafunc.parametrize(names, value_sets, indirect=True)
 
 
 def fixture(func=None, *, cache_return_value=False):
@@ -1319,7 +1307,9 @@ def _fixture_cache(func):
     # Can't use += on a bound method's property.  Therefore, this is a
     # list rather than a variable so that it can be accessed from the
     # pytest_collection_modifyitems().
-    num_uses_remaining = [0]
+    num_tests_use_this_fixture = [0]
+
+    num_times_fixture_used = 0
 
     # Using functools.lru_cache would require the function arguments
     # to be hashable, which wouldn't allow caching fixtures that
@@ -1344,6 +1334,14 @@ def _fixture_cache(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        if num_tests_use_this_fixture[0] == 0:
+            raise RuntimeError(
+                "Fixture use count is 0.  "
+                "This can occur if tvm.testing.plugin isn't registered.  "
+                "If using outside of the TVM test directory, "
+                "please add `pytest_plugins = ['tvm.testing.plugin']` to your conftest.py"
+            )
+
         try:
             cache_key = get_cache_key(*args, **kwargs)
 
@@ -1364,50 +1362,15 @@ def _fixture_cache(func):
         finally:
             # Clear the cache once all tests that use a particular fixture
             # have completed.
-            num_uses_remaining[0] -= 1
-            if not num_uses_remaining[0]:
+            nonlocal num_times_fixture_used
+            num_times_fixture_used += 1
+            if num_times_fixture_used >= num_tests_use_this_fixture[0]:
                 cache.clear()
 
-    # Set in the pytest_collection_modifyitems()
-    wrapper.num_uses_remaining = num_uses_remaining
+    # Set in the pytest_collection_modifyitems(), by _count_num_fixture_uses
+    wrapper.num_tests_use_this_fixture = num_tests_use_this_fixture
 
     return wrapper
-
-
-def _count_num_fixture_uses(items):
-    # Helper function, counts the number of tests that use each cached
-    # fixture.  Should be called from pytest_collection_modifyitems().
-    for item in items:
-        is_skipped = item.get_closest_marker("skip") or any(
-            mark.args[0] for mark in item.iter_markers("skipif")
-        )
-        if is_skipped:
-            continue
-
-        for fixturedefs in item._fixtureinfo.name2fixturedefs.values():
-            # Only increment the active fixturedef, in a name has been overridden.
-            fixturedef = fixturedefs[-1]
-            if hasattr(fixturedef.func, "num_uses_remaining"):
-                fixturedef.func.num_uses_remaining[0] += 1
-
-
-def _remove_global_fixture_definitions(items):
-    # Helper function, removes fixture definitions from the global
-    # variables of the modules they were defined in.  This is intended
-    # to improve readability of error messages by giving a NameError
-    # if a test function accesses a pytest fixture but doesn't include
-    # it as an argument.  Should be called from
-    # pytest_collection_modifyitems().
-
-    modules = set(item.module for item in items)
-
-    for module in modules:
-        for name in dir(module):
-            obj = getattr(module, name)
-            if hasattr(obj, "_pytestfixturefunction") and isinstance(
-                obj._pytestfixturefunction, _pytest.fixtures.FixtureFunctionMarker
-            ):
-                delattr(module, name)
 
 
 def identity_after(x, sleep):

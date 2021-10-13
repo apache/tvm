@@ -49,6 +49,14 @@ Array<String> TargetKindRegEntry::ListTargetKinds() {
   return TargetKindRegistry::Global()->ListAllNames();
 }
 
+Map<String, String> TargetKindRegEntry::ListTargetKindOptions(const TargetKind& target_kind) {
+  Map<String, String> options;
+  for (const auto& kv : target_kind->key2vtype_) {
+    options.Set(kv.first, kv.second.type_key);
+  }
+  return options;
+}
+
 TargetKindRegEntry& TargetKindRegEntry::RegisterOrGet(const String& target_kind_name) {
   return TargetKindRegistry::Global()->RegisterOrGet(target_kind_name);
 }
@@ -216,6 +224,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<String>("mfloat-abi")
+    .add_attr_option<String>("mabi")
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<String>("runtime")
     .add_attr_option<Bool>("link-params", Bool(false))
@@ -311,6 +320,7 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     // Other device properties
     .add_attr_option<String>("device_type")
     .add_attr_option<String>("device_name")
+    .add_attr_option<String>("driver_name")
     .add_attr_option<Integer>("driver_version")
     .add_attr_option<Integer>("vulkan_api_version")
     .add_attr_option<Integer>("max_spirv_version")
@@ -339,6 +349,7 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Array<String>>("llvm-options")
     .set_default_keys({"hexagon"});
 
@@ -356,5 +367,7 @@ TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("de
 /**********  Registry  **********/
 
 TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
+TVM_REGISTER_GLOBAL("target.ListTargetKindOptions")
+    .set_body_typed(TargetKindRegEntry::ListTargetKindOptions);
 
 }  // namespace tvm

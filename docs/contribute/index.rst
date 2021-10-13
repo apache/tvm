@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-Contribute to TVM
+Contributor Guide
 =================
 
 TVM has been developed by community members.

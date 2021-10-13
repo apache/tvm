@@ -33,7 +33,7 @@ def download_and_untar(model_url, model_sub_path, temp_dir):
     model_tar_name = os.path.basename(model_url)
     model_path = download_testdata(model_url, model_tar_name, module=["tvmc"])
 
-    if model_path.endswith("tgz") or model_path.endswith("gz"):
+    if model_path.endswith("tgz") or model_path.endswith("gz") or model_path.endswith("tar"):
         tar = tarfile.open(model_path)
         tar.extractall(path=temp_dir)
         tar.close()
@@ -138,6 +138,18 @@ def onnx_resnet50():
 
 
 @pytest.fixture(scope="session")
+def paddle_resnet50(tmpdir_factory):
+    base_url = "https://bj.bcebos.com/x2paddle/models"
+    model_url = "paddle_resnet50.tar"
+    model_file = download_and_untar(
+        "{}/{}".format(base_url, model_url),
+        "paddle_resnet50/model",
+        temp_dir=tmpdir_factory.mktemp("data"),
+    )
+    return model_file
+
+
+@pytest.fixture(scope="session")
 def onnx_mnist():
     base_url = "https://github.com/onnx/models/raw/master/vision/classification/mnist/model"
     file_to_download = "mnist-1.onnx"
@@ -188,4 +200,14 @@ def tflite_mobilenet_v1_0_25_128(tmpdir_factory):
         temp_dir=tmpdir_factory.mktemp("data"),
     )
 
+    return model_file
+
+
+@pytest.fixture(scope="session")
+def tflite_cnn_s_quantized(tmpdir_factory):
+    base_url = "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8/"
+    file_to_download = "cnn_s_quantized.tflite"
+    model_file = download_testdata(
+        "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
+    )
     return model_file

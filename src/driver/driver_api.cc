@@ -215,6 +215,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
 
   // PHASE 1
   pass_list.push_back(tir::transform::InjectPrefetch());
+  pass_list.push_back(tir::transform::TextureFlatten());
   pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
   pass_list.push_back(tir::transform::LowerInitBlock());
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
@@ -222,6 +223,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::CompactBufferAllocation());
   pass_list.push_back(tir::transform::LowerMatchBuffer());
   pass_list.push_back(tir::transform::FlattenBuffer());
+  pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
@@ -399,12 +401,21 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
   auto opt_mixed = transform::Sequential(mixed_pass_list);
   mod_mixed = opt_mixed(std::move(mod_mixed));
 
+  // We make an assumption here that the overriden host target
+  // can be used alongside the default host codegen based on device type
+  // this is so the correct code generator is used later instead of overriding the target.
+  // We need better support for inserting multiple kDLCPU targets as our current options
+  // are kDeviceKernelLaunch or not
+  Target overriden_host_target = target_host;
+  if (target->kind->device_type == target_host->kind->device_type) {
+    overriden_host_target = target;
+  }
   auto host_pass_list = {
       Filter([](const tir::PrimFunc& f) {
         return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
                CallingConv::kDeviceKernelLaunch;
       }),
-      BindTarget(target_host),
+      BindTarget(overriden_host_target),
       tir::transform::LowerTVMBuiltin(),
       tir::transform::LowerCustomDatatypes(),
       tir::transform::LowerIntrin(),
@@ -485,7 +496,9 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
 
   for (const auto& it : inputs) {
     if (it.second.defined()) {
-      auto pair = SplitDevHostFuncs(it.second, it.first, target_host, pass_ctx);
+      const Target& target = it.first;
+      const IRModule& ir_module = it.second;
+      auto pair = SplitDevHostFuncs(ir_module, target, target_host, pass_ctx);
       auto& mhost = pair.first;
       auto& mdevice = pair.second;
 
@@ -493,7 +506,17 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
 
       ICHECK(mhost_all.defined()) << "The host module must be defined";
 
-      mhost_all->Update(mhost);
+      // We don't want library modules going back into host codegen
+      // unless they're supposed to. Here if we overrode the target host
+      // to allow lowering previously we check that it's meant to be placed
+      // back into the host Module.
+      bool overrides_host_target = target->kind->device_type == target_host->kind->device_type;
+      bool non_host_target_kind = target->kind != target_host->kind;
+      if (overrides_host_target && non_host_target_kind) {
+        device_modules.push_back(codegen::Build(mhost, it.first));
+      } else {
+        mhost_all->Update(mhost);
+      }
 
       if (mdevice->functions.size() != 0) {
         device_modules.push_back(codegen::Build(mdevice, it.first));
@@ -508,6 +531,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
       mhost.Import(it);
     }
   }
+
   return mhost;
 }
 

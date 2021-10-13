@@ -105,10 +105,13 @@ set(USE_GRAPH_EXECUTOR ON)
 # Whether enable tiny graph executor with CUDA Graph
 set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
 
+# Whether enable pipeline executor.
+set(USE_PIPELINE_EXECUTOR OFF)
+
 # Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
 
-# Whether enable uTVM standalone runtime
+# Whether enable microTVM standalone runtime
 set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
@@ -225,6 +228,9 @@ set(USE_ETHOSN OFF)
 # otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
 
+# Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
+set(USE_ETHOSU OFF)
+
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
@@ -273,6 +279,13 @@ set(USE_FALLBACK_STL_MAP OFF)
 set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
 
+# Hexagon architecture to target when compiling TVM itself (not the target for
+# compiling _by_ TVM). This applies to components like the TVM runtime, but is
+# also used to select correct include/library paths from the Hexagon SDK when
+# building offloading runtime for Android.
+# Valid values are v60, v62, v65, v66, v68.
+set(USE_HEXAGON_ARCH "v66")
+
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)
 
@@ -319,3 +332,15 @@ set(USE_CCACHE AUTO)
 # - OFF: disable PAPI support.
 # - /path/to/folder/containing/: Path to folder containing papi.pc.
 set(USE_PAPI OFF)
+
+# Whether to use GoogleTest for C++ unit tests. When enabled, the generated
+# build file (e.g. Makefile) will have a target "cpptest".
+# Possible values:
+# - ON: enable GoogleTest. The package `GTest` will be required for cmake
+#   to succeed.
+# - OFF: disable GoogleTest.
+# - AUTO: cmake will attempt to find the GTest package, if found GTest will
+#   be enabled, otherwise it will be disabled.
+# Note that cmake will use `find_package` to find GTest. Please use cmake's
+# predefined variables to specify the path to the GTest package if needed.
+set(USE_GTEST AUTO)

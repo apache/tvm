@@ -15,12 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test alter op layout pass"""
+import pytest
+
 import tvm
 from tvm import te
 
 from tvm import relay
 from tvm.relay.op import register_alter_op_layout
 from tvm.relay import transform, analysis
+from tvm.relay.transform.infer_layout_utils import InferCorrectLayoutOutput
+from tvm.relay.op import op as reg
 
 
 def run_opt_pass(expr, passes):
@@ -1096,6 +1100,74 @@ def test_qnn_conv_nhwc_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_qnn_conv_transpose_requantize_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        y = relay.qnn.op.conv2d_transpose(
+            x,
+            weight,
+            relay.const(1, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+            out_dtype="int32",
+        )
+        y = relay.qnn.op.requantize(
+            y,
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            out_dtype="int32",
+        )
+        y = relay.nn.relu(y)
+        y = relay.Function([x, weight], y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        y = relay.qnn.op.conv2d_transpose(
+            x,
+            weight,
+            relay.const(1, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            out_dtype="int32",
+        )
+        y = relay.qnn.op.requantize(
+            y,
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            axis=1,
+            out_dtype="int32",
+        )
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(relay.analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d_transpose": ["NCHW", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_conv_convert_kernel_layout():
     """Check that convolution kernel layout is correctly transformed."""
 
@@ -1881,36 +1953,91 @@ def test_conv_image_resize2d_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_infer_correct_layout():
+    test_infer_correct_layout_flag = False
+
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.nn.relu(y)
+        y = relay.Function([x, weight], y)
+        return y
+
+    @reg.register_infer_correct_layout("nn.relu", level=11)
+    def infer_correct_layout_relu(attrs, new_in_layouts, old_in_layouts, old_in_types):
+        nonlocal test_infer_correct_layout_flag
+        test_infer_correct_layout_flag = True
+        ret = tvm.tir.layout("")
+        if new_in_layouts:
+            assert len(new_in_layouts) >= 1
+            ret = new_in_layouts[0]
+        else:
+            for i in range(len(old_in_layouts)):
+                if old_in_layouts[i]:
+                    ret = old_in_layouts[i]
+                    break
+        input_layouts = []
+        for i in range(len(old_in_layouts)):
+            input_layouts.append(ret)
+        return InferCorrectLayoutOutput(input_layouts, [ret], attrs)
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    assert test_infer_correct_layout_flag == True
+
+
+def test_reduce_op_convert_layout():
+    for reduce_op in [relay.argmax, relay.mean, relay.max]:
+
+        def before():
+            x = relay.var("x", shape=(1, 64, 56, 56))
+            weight = relay.var("weight", shape=(64, 64, 3, 3))
+            y = relay.nn.conv2d(
+                x,
+                weight,
+                channels=64,
+                kernel_size=(3, 3),
+                padding=(1, 1),
+                data_layout="NCHW",
+                kernel_layout="OIHW",
+            )
+            y = reduce_op(y, axis=[2, 3])
+            y = relay.Function([x, weight], y)
+            return y
+
+        def expected():
+            x = relay.var("x", shape=(1, 64, 56, 56))
+            weight = relay.var("weight", shape=(64, 64, 3, 3))
+            x = relay.layout_transform(x, "NCHW", "NHWC")
+            weight = relay.layout_transform(weight, "OIHW", "HWIO")
+            y = relay.nn.conv2d(
+                x,
+                weight,
+                channels=64,
+                kernel_size=(3, 3),
+                padding=(1, 1),
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+            )
+            y = reduce_op(y, axis=[1, 2])
+            y = relay.Function(relay.analysis.free_vars(y), y)
+            return y
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
-    test_qnn_binary_no_convert_layout()
-    test_no_convert_layout()
-    test_conv_convert_layout()
-    test_conv_nhwc_convert_layout()
-    test_conv_bias_pool_convert_layout()
-    test_conv_concat_convert_layout()
-    test_dual_path_convert_layout()
-    test_bn_convert_layout()
-    test_slice_like_convert_layout()
-    test_transpose_convert_layout()
-    test_resnet_convert_layout()
-    test_scalar_convert_layout()
-    test_conv_bn_convert_layout()
-    test_qnn_conv_requantize_convert_layout()
-    test_qnn_conv_concat_convert_layout()
-    test_qnn_conv_add_convert_layout()
-    test_qnn_conv_nhwc_convert_layout()
-    test_conv_convert_kernel_layout()
-    test_conv_transpose_convert_layout()
-    test_conv_roi_align_convert_layout()
-    test_conv_roi_pool_convert_layout()
-    test_conv_strided_slice_convert_layout()
-    test_deformable_conv_bias_pool_convert_layout()
-    test_default_keyword()
-    test_different_ops_convert_layout()
-    test_no_desired_layout()
-    test_convert_with_config()
-    test_conv_squeeze_convert_layout()
-    test_conv_reduce_convert_layout()
-    test_conv_strided_slice_axes_convert_layout()
-    test_image_resize_convert_layout()
-    test_conv_image_resize_convert_layout()
+    pytest.main([__file__])

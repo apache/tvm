@@ -24,6 +24,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <functional>
@@ -44,6 +45,27 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
 }
 
 /**************** Specializer ****************/
+
+// Try fold constants if op's child get specialized to constant.
+#define DEFINE_SPECIALIZER_BINARY_OP_MUTATE(BinaryNode, BinaryFunc) \
+  PrimExpr VisitExpr_(const BinaryNode* op) final {                 \
+    PrimExpr a = VisitExpr(op->a);                                  \
+    PrimExpr b = VisitExpr(op->b);                                  \
+    if (a.same_as(op->a) && b.same_as(op->b)) {                     \
+      return GetRef<PrimExpr>(op);                                  \
+    } else {                                                        \
+      return BinaryFunc(a, b);                                      \
+    }                                                               \
+  }
+#define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc) \
+  PrimExpr VisitExpr_(const UnaryNode* op) final {               \
+    PrimExpr a = VisitExpr(op->a);                               \
+    if (a.same_as(op->a)) {                                      \
+      return GetRef<PrimExpr>(op);                               \
+    } else {                                                     \
+      return UnaryFunc(a);                                       \
+    }                                                            \
+  }
 
 /*! \brief Mutator to specialize function and remove const parameters */
 class PrimFuncSpecializer : public StmtExprMutator {
@@ -157,14 +179,33 @@ class PrimFuncSpecializer : public StmtExprMutator {
     }
   }
 
- private:
-  Buffer MutateBuffer(const Buffer& buffer) const {
-    Array<PrimExpr> shape =
-        MutateArray(buffer->shape, [this](const PrimExpr& e) { return Substitute(e, var_map_); });
-    Array<PrimExpr> strides =
-        MutateArray(buffer->strides, [this](const PrimExpr& e) { return Substitute(e, var_map_); });
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(AddNode, add);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(SubNode, sub);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(MulNode, mul);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(DivNode, div);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(ModNode, truncmod);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(FloorDivNode, floordiv);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(FloorModNode, floormod);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(MaxNode, max);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(MinNode, min);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(EQNode, equal);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(NENode, not_equal);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(LTNode, less);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(LENode, less_equal);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(GTNode, greater);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(GENode, greater_equal);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(AndNode, logical_and);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(OrNode, logical_or);
+  DEFINE_SPECIALIZER_UNARY_OP_MUTATE(NotNode, logical_not);
 
-    PrimExpr elem_offset = Substitute(buffer->elem_offset, var_map_);
+ private:
+  Buffer MutateBuffer(const Buffer& buffer) {
+    Array<PrimExpr> shape =
+        MutateArray(buffer->shape, [this](const PrimExpr& e) { return VisitExpr(e); });
+    Array<PrimExpr> strides =
+        MutateArray(buffer->strides, [this](const PrimExpr& e) { return VisitExpr(e); });
+
+    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
 
     if (buffer->elem_offset.same_as(elem_offset) && buffer->shape.same_as(shape) &&
         buffer->strides.same_as(strides)) {
@@ -226,14 +267,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
  * \param var_map The var mapping to be updated.
  * \note This function will match target buffer's shape, strides and element_offset
  *   For example, we define a buffer in PrimFunc:
- *   A = tir.match_buffer(a, [m, n])
+ *   A = T.match_buffer(a, [m, n])
  *
  *   Then we match it with a buffer B =  tir.decl_buffer((8, 16))
  *
  *   It means we have two var mappings here: m = 8 and n = 16
  *
  *   If the buffer signature is not a Var, the mapping will fail.
- *   e.g. A = tir.match_buffer(a, [m * 2, n + 1])
+ *   e.g. A = T.match_buffer(a, [m * 2, n + 1])
  */
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer& specific_buf,
                             VarMap* var_map) {

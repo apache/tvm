@@ -22,17 +22,6 @@ contribute to, and influence the direction of the project. We actively invite co
 
 See the [community structure document](https://tvm.apache.org/docs/contribute/community.html) for the explanation of community structure and contribution guidelines.
 
-## Mentors
-
-TVM is now part of the Apache Incubator.
-We are fortunate to have the following mentors.
-
-- Markus Weimer @markusweimer
-- Sebastian Schelter @sscdotopen
-- Byung-Gon Chun @bgchun
-- Henry Saputra @hsaputra
-- Timothy Chen @tnachen
-- Furkan KAMACI @kamaci
 
 ## Committers
 
@@ -46,12 +35,14 @@ We do encourage everyone to work anything they are interested in.
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
+- [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm - frontends, quantization, topi
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
 - [Chenfan Jia](https://github.com/jcf94): @jcf94 - auto_scheduler
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm - ethos-u, memory planner
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
@@ -65,6 +56,7 @@ We do encourage everyone to work anything they are interested in.
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
+- [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
@@ -115,6 +107,8 @@ We do encourage everyone to work anything they are interested in.
 - [Xin Liu](https://github.com/Meteorix): @Meteorix
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Hao Lu](https://github.com/hlu1): @hlu1
+- [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg
+- [Andrew Z. Luo](https://github.com/AndrewZhaoLuo): @AndrewZhaoLuo
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
@@ -142,6 +136,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jon Soifer](https://github.com/soiferj): @soiferj
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
+- [Jorn Tuyls](https://github.com/jtuyls): @jtuyls
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
@@ -149,6 +144,7 @@ We do encourage everyone to work anything they are interested in.
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Logan Weber](https://github.com/weberlo): @weberlo
+- [Matt Welsh](https://github.com/mdw-octoml): @mdw-octoml
 - [Jian Weng](https://github.com/were): @were
 - [Yong Wu](https://github.com/yongwww): @yongwww
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
@@ -160,3 +156,14 @@ We do encourage everyone to work anything they are interested in.
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)
+
+## Mentors
+
+TVM is now a top-level Apache project. During our Incubator phase, we were fortunate to have the following mentors.
+
+- Markus Weimer @markusweimer
+- Sebastian Schelter @sscdotopen
+- Byung-Gon Chun @bgchun
+- Henry Saputra @hsaputra
+- Timothy Chen @tnachen
+- Furkan KAMACI @kamaci

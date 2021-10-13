@@ -39,17 +39,17 @@ reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
 # softmax
 reg.register_strategy("nn.softmax", strategy.softmax_strategy)
-reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
+reg.register_pattern("nn.softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # fast softmax
 reg.register_strategy("nn.fast_softmax", strategy.fast_softmax_strategy)
-reg.register_pattern("nn.fast_softmax", OpPattern.OPAQUE)
+reg.register_pattern("nn.fast_softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # log_softmax
 reg.register_strategy("nn.log_softmax", strategy.log_softmax_strategy)
-reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
+reg.register_pattern("nn.log_softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_legalize("nn.matmul")
@@ -198,7 +198,11 @@ reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 @reg.register_compute("nn.sparse_conv2d")
 def compute_sparse_conv2d(attrs, inputs, out_type):
     """Compute definition of sparse_conv2d"""
-    return [topi.nn.sparse_conv2d(inputs[0], inputs[1], inputs[2], inputs[3], attrs["layout"])]
+    return [
+        topi.nn.sparse_conv2d(
+            inputs[0], inputs[1], inputs[2], inputs[3], attrs["layout"], attrs["kernel_size"]
+        )
+    ]
 
 
 reg.register_strategy("nn.sparse_conv2d", strategy.sparse_conv2d_strategy)

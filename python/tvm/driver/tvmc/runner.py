@@ -20,6 +20,7 @@ Provides support to run compiled networks both locally and remotely.
 import json
 import logging
 from typing import Dict, List, Optional, Union
+from tarfile import ReadError
 
 import numpy as np
 import tvm
@@ -50,7 +51,7 @@ def add_run_parser(subparsers):
     #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
-        choices=["cpu", "cuda", "cl", "metal", "vulkan"],
+        choices=["cpu", "cuda", "cl", "metal", "vulkan", "rocm"],
         default="cpu",
         help="target device to run the compiled module. Defaults to 'cpu'",
     )
@@ -115,7 +116,14 @@ def drive_run(args):
     except IOError as ex:
         raise TVMCException("Error loading inputs file: %s" % ex)
 
-    tvmc_package = TVMCPackage(package_path=args.FILE)
+    try:
+        tvmc_package = TVMCPackage(package_path=args.FILE)
+    except IsADirectoryError:
+        raise TVMCException(f"File {args.FILE} must be an archive, not a directory.")
+    except FileNotFoundError:
+        raise TVMCException(f"File {args.FILE} does not exist.")
+    except ReadError:
+        raise TVMCException(f"Could not read model from archive {args.FILE}!")
 
     result = run_module(
         tvmc_package,
@@ -394,6 +402,8 @@ def run_module(
         dev = session.metal()
     elif device == "vulkan":
         dev = session.vulkan()
+    elif device == "rocm":
+        dev = session.rocm()
     else:
         assert device == "cpu"
         dev = session.cpu()
@@ -421,12 +431,8 @@ def run_module(
         # This print is intentional
         print(report)
 
-    # create the module time evaluator (returns a function)
-    timer = module.module.time_evaluator("run", dev, number=number, repeat=repeat)
-    # call the evaluator function to invoke the module and save execution times
-    prof_result = timer()
-    # collect a list of execution times from the profiling results
-    times = prof_result.results
+    # call the benchmarking function of the executor
+    times = module.benchmark(dev, number=number, repeat=repeat)
 
     logger.debug("Collecting the output tensors.")
     num_outputs = module.get_num_outputs()

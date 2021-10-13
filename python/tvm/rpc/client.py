@@ -217,6 +217,10 @@ class RPCSession(object):
         """Construct Metal device."""
         return self.device(8, dev_id)
 
+    def rocm(self, dev_id=0):
+        """Construct ROCm device."""
+        return self.device(10, dev_id)
+
     def ext_dev(self, dev_id=0):
         """Construct extension device."""
         return self.device(12, dev_id)
@@ -362,7 +366,9 @@ class TrackerSession(object):
         res += separate_line
         return res
 
-    def request(self, key, priority=1, session_timeout=0, max_retry=5):
+    def request(
+        self, key, priority=1, session_timeout=0, max_retry=5, session_constructor_args=None
+    ):
         """Request a new connection from the tracker.
 
         Parameters
@@ -380,6 +386,11 @@ class TrackerSession(object):
 
         max_retry : int, optional
             Maximum number of times to retry before give up.
+
+        session_constructor_args : list, optional
+            List of additional arguments to passed as the remote session constructor.
+            The first element of the list is always a string specifying the name of
+            the session constructor, the following args are the positional args to that function.
         """
         last_err = None
         for _ in range(max_retry):
@@ -391,7 +402,13 @@ class TrackerSession(object):
                 if value[0] != base.TrackerCode.SUCCESS:
                     raise RuntimeError("Invalid return value %s" % str(value))
                 url, port, matchkey = value[1]
-                return connect(url, port, matchkey, session_timeout)
+                return connect(
+                    url,
+                    port,
+                    matchkey,
+                    session_timeout,
+                    session_constructor_args=session_constructor_args,
+                )
             except socket.error as err:
                 self.close()
                 last_err = err

@@ -91,6 +91,7 @@ class OperatorConverter(object):
             "EQUAL": self.convert_equal,
             "EXP": self.convert_exp,
             "EXPAND_DIMS": self.convert_expand_dims,
+            "FAKE_QUANT": self.convert_fake_quant,
             "FILL": self.convert_fill,
             "FLOOR_DIV": self.convert_floor_div,
             "FLOOR_MOD": self.convert_floor_mod,
@@ -774,7 +775,7 @@ class OperatorConverter(object):
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
 
-        params = {"axis": 1}  # 1 is channel
+        params = {"axis": -1}  # -1 is channel
         in_expr = self.get_expr(input_tensor_idx)
 
         # TODO - Naive softmax int8 implementation leads to bad accuracy. Currently, we can
@@ -1115,8 +1116,16 @@ class OperatorConverter(object):
 
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = relay_op(in_expr)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+        out = relay_op(in_expr)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_abs(self, op):
@@ -1185,10 +1194,6 @@ class OperatorConverter(object):
 
     def convert_rsqrt(self, op):
         """Convert TFLite RSQRT"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized RSQRT operator is not supported yet."
-            )
         return self._convert_unary_elemwise(_op.rsqrt, op)
 
     def convert_neg(self, op):
@@ -2857,7 +2862,7 @@ class OperatorConverter(object):
 
         # Input (data) Tensor. NHWC layout
         input_tensor = input_tensors[2]
-        _, input_h, input_w, input_c = to_int_list(self.get_tensor_shape(input_tensor))
+        _, _, _, input_c = to_int_list(self.get_tensor_shape(input_tensor))
         # Weights tensor. TFLite uses OHWI layout
         weights_tensor = input_tensors[1]
         out_channels, kernel_h, kernel_w, in_channels = to_int_list(
@@ -2918,8 +2923,9 @@ class OperatorConverter(object):
         ), "Output channel in the filter should match to channel in the output_shape"
 
         if padding == Padding.SAME:
-            pad_top, pad_bottom = get_pad_value(input_h, kernel_h, stride_h)
-            pad_left, pad_right = get_pad_value(input_w, kernel_w, stride_w)
+            output_h, output_w = output_shape_value[1], output_shape_value[2]
+            pad_top, pad_bottom = get_pad_value(output_h, kernel_h, stride_h)
+            pad_left, pad_right = get_pad_value(output_w, kernel_w, stride_w)
             padding = (pad_top, pad_left, pad_bottom, pad_right)
         else:
             padding = (0, 0, 0, 0)
@@ -3335,6 +3341,56 @@ class OperatorConverter(object):
         )
 
         self.set_prefetched_node(output_tensor.tensor_idx, dense_weight)
+
+    def convert_fake_quant(self, op):
+        """Convert TFLite FAKE_QUANT"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.FakeQuantOptions import FakeQuantOptions
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.FakeQuantOptions
+
+        op_options = op.BuiltinOptions()
+        fake_quant_options = FakeQuantOptions()
+        fake_quant_options.Init(op_options.Bytes, op_options.Pos)
+
+        opt_min = fake_quant_options.Min()
+        opt_max = fake_quant_options.Max()
+        narrow_range = fake_quant_options.NarrowRange()
+        num_bits = fake_quant_options.NumBits()
+
+        assert 2 <= num_bits <= 16
+
+        quant_min = 1 if narrow_range else 0
+        quant_max = (1 << num_bits) - 1
+        scale = (opt_max - opt_min) / (quant_max - quant_min)
+
+        zero_point_from_min = quant_min - opt_min / scale
+        if zero_point_from_min <= quant_min:
+            nudged_zero_point = quant_min
+        elif zero_point_from_min >= quant_max:
+            nudged_zero_point = quant_max
+        else:
+            nudged_zero_point = round(zero_point_from_min)
+
+        nudged_min = (quant_min - nudged_zero_point) * scale
+        nudged_max = (quant_max - nudged_zero_point) * scale
+
+        nudged_min_expr = _op.const(nudged_min)
+        clamped = _op.clip(in_expr, nudged_min, nudged_max)
+        clamped_shifted = _op.subtract(clamped, nudged_min_expr)
+
+        half = _op.const(0.5)
+        one = _op.const(1.0)
+        scale_expr = _op.const(scale)
+        inv_scale = _op.divide(one, scale_expr)
+        rounded = _op.floor(_op.add(_op.multiply(clamped_shifted, inv_scale), half))
+        return _op.add(_op.multiply(rounded, scale_expr), nudged_min_expr)
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))

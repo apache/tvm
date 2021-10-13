@@ -40,7 +40,7 @@ namespace contrib {
 TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
                                  const std::vector<const DLTensor*>& data_entry,
                                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16,
-                                 int batch_size)
+                                 int batch_size, nvinfer1::IInt8Calibrator* calibrator)
     : data_entry_(data_entry),
       max_workspace_size_(max_workspace_size),
       use_implicit_batch_(use_implicit_batch),
@@ -48,6 +48,8 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
       batch_size_(batch_size) {
   // Create TRT builder and network.
   builder_ = nvinfer1::createInferBuilder(*logger);
+  use_int8_ = false;
+
 #if TRT_VERSION_GE(6, 0, 1)
   // Use INetworkV2.
   auto flags =
@@ -56,9 +58,12 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
     flags = 0U;
     builder_->setMaxBatchSize(batch_size_);
   }
+  this->calibrator_ = calibrator;
+  if (calibrator != nullptr) {
+    use_int8_ = true;
+  }
   network_ = builder_->createNetworkV2(flags);
 #else
-  // Use INetwork with implicit batch.
   builder_->setMaxBatchSize(batch_size_);
   builder_->setMaxWorkspaceSize(max_workspace_size_);
   builder_->setFp16Mode(use_fp16_);
@@ -158,6 +163,13 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   if (use_fp16_) {
     config_->setFlag(nvinfer1::BuilderFlag::kFP16);
   }
+
+  if (use_int8_) {
+    config_->setFlag(nvinfer1::BuilderFlag::kINT8);
+    config_->setInt8Calibrator(calibrator_);
+    LOG(INFO) << "config finishes setting up calibrator as INT8 mode ... ";
+  }
+
   // Add profiles.
   if (!use_implicit_batch_) {
     auto profile = builder_->createOptimizationProfile();

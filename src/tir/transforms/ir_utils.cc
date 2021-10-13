@@ -113,8 +113,9 @@ class IRConvertSSA final : public StmtExprMutator {
   PrimExpr VisitExpr_(const LoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
-    if (scope_.count(op->buffer_var.get())) {
-      return Load(op->dtype, scope_[op->buffer_var.get()].back(), op->index, op->predicate);
+    const VarNode* v = op->buffer_var.get();
+    if (scope_.count(v) && !scope_[v].empty()) {
+      return Load(op->dtype, scope_[v].back(), op->index, op->predicate);
     } else {
       return expr;
     }
@@ -122,8 +123,9 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<StoreNode>();
-    if (scope_.count(op->buffer_var.get())) {
-      return Store(scope_[op->buffer_var.get()].back(), op->value, op->index, op->predicate);
+    const VarNode* v = op->buffer_var.get();
+    if (scope_.count(v) && !scope_[v].empty()) {
+      return Store(scope_[v].back(), op->value, op->index, op->predicate);
     } else {
       return stmt;
     }

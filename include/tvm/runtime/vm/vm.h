@@ -84,11 +84,11 @@ struct VMFunction {
   /*! \brief The size of the frame for this function */
   Index register_file_size;
   /*! \brief The device type of each parameter for this function. */
-  std::vector<Index> params_device_type;
+  std::vector<DLDeviceType> params_device_type;
 
   VMFunction(const std::string& name, std::vector<std::string> params,
              const std::vector<Instruction>& instructions, Index register_file_size,
-             const std::vector<Index> params_device_type = {})
+             const std::vector<DLDeviceType> params_device_type = {})
       : name(name),
         params(params),
         instructions(instructions),
@@ -257,6 +257,16 @@ class VirtualMachine : public runtime::ModuleNode {
    * This does not begin execution of the VM.
    */
   void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
+
+  /*!
+   * \brief Set inputs to a function.
+   * \param name The function name
+   * \param args args[offset:] are arguments to the
+   * function. If the arguments are not of the correct device for the function,
+   * they will be copied to the device.
+   * \param offset Starting offset of the arguments in `args`.
+   */
+  void SetInput(std::string name, TVMArgs args, int offset);
 
  protected:
   /*! \brief The virtual machine's packed function table. */

@@ -38,6 +38,7 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ReduceAttrs);
+TVM_REGISTER_NODE_TYPE(ArgReduceAttrs);
 TVM_REGISTER_NODE_TYPE(VarianceAttrs);
 
 /*!
@@ -115,13 +116,14 @@ Array<Integer> GetExcludeAxes(size_t indim, const Array<Integer>& inaxis) {
 }
 
 // Return the modified layout for AlterOpLayout pass.
+template <typename T>
 InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
                                                   const Array<Layout>& new_in_layouts,
                                                   const Array<Layout>& old_in_layouts,
                                                   const Array<tvm::relay::Type>& old_in_types) {
-  const auto* attrs_ptr = attrs.as<ReduceAttrs>();
+  const auto* attrs_ptr = attrs.as<T>();
   ICHECK(attrs_ptr);
-  ObjectPtr<ReduceAttrs> params = make_object<ReduceAttrs>(*attrs_ptr);
+  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
 
   // Get the reduce axes.
   Array<Array<IndexExpr>> old_in_shapes;
@@ -147,20 +149,41 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
     tvm::Array<tvm::Integer> new_r_axes;
     std::string inferred_in_string = "";
     std::string inferred_out_string = "";
-    int axis_index = 0;
-    for (auto iter_var : layout->axes) {
-      const auto& layout_axis = LayoutAxis::Get(iter_var);
-      const std::string& layout_dim = layout_axis.name();
-      if (old_r_dims.count(layout_dim)) {
-        new_r_axes.push_back(tvm::Integer(axis_index));
+    auto push_new_axis = [&](const std::string& layout_dim, int axis) {
+      if ((old_r_dims.count(layout_dim) && !params->exclude) ||
+          (!old_r_dims.count(layout_dim) && params->exclude)) {
+        new_r_axes.push_back(tvm::Integer(axis));
+        return true;
       }
-      // Collect only the primal axis.
+      return false;
+    };
+    for (size_t axis_index = 0; axis_index < layout->axes.size(); ++axis_index) {
+      const auto& layout_axis = LayoutAxis::Get(layout->axes[axis_index]);
+      const std::string& layout_dim = layout_axis.name();
       if (layout_axis.IsPrimal()) {
+        push_new_axis(layout_dim, axis_index);
+        inferred_in_string += layout_dim;
         if (!old_r_dims.count(layout_dim) || params->keepdims) {
           inferred_out_string += layout_dim;
         }
-        inferred_in_string += layout_dim;
-        axis_index++;
+      } else {
+        // For example, if the original layout is NCHW, the new layout is NCHW8c, and the original
+        // reduce axes is [1], the new reduce axes become [1, 4].
+        auto primal_dim = layout_axis.ToPrimal().name();
+        auto packed_dim = std::to_string(layout.FactorOf(layout_axis)) + layout_dim;
+        inferred_in_string += packed_dim;
+        if (push_new_axis(primal_dim, axis_index)) {
+          if (params->exclude) {
+            // The primal axis is not reduced, so keep the input packed dim.
+            inferred_out_string += packed_dim;
+          } else {
+            // If the primal axis is part of reduce axes in the original layout, the inner dim
+            // becomes 1 after reduction.
+            inferred_out_string += "1" + layout_dim;
+          }
+        } else {
+          inferred_out_string += packed_dim;
+        }
       }
     }
 
@@ -170,18 +193,24 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
 
   std::string new_layout_string;
   Array<Integer> new_r_axes;
+  Array<Layout> new_input_layouts;
+
+  auto check_num_input_layouts = [](Array<Layout> in_layouts) {
+    // The second case is for variance op
+    ICHECK(in_layouts.size() == 1 || in_layouts.size() == 2);
+  };
 
   if (new_in_layouts.defined() && r_axes.size()) {
     // Adapt to new layout. The axis has to change. Record original reduce axes. Convert to the
     // modified layout axes.
-    ICHECK_EQ(new_in_layouts.size(), 1);
-    ICHECK_EQ(old_in_layouts.size(), 1);
+    check_num_input_layouts(new_in_layouts);
+    check_num_input_layouts(old_in_layouts);
 
     // Get inferred_in and inferred_out from new_in_layout.
     std::tie(inferred_in, inferred_out, new_r_axes) = infer(new_in_layouts[0]);
     params->axis = new_r_axes;
   } else if (old_in_layouts.defined()) {
-    ICHECK_EQ(old_in_layouts.size(), 1);
+    check_num_input_layouts(old_in_layouts);
 
     // If the new layout is undefined, get inferred_in and inferred_out from old_in_layout.
     if (old_in_layouts[0].defined()) {
@@ -189,7 +218,13 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
     }
   }
 
-  return InferCorrectLayoutOutput({inferred_in}, {inferred_out}, Attrs(params));
+  new_input_layouts.push_back(inferred_in);
+
+  if (old_in_layouts.size() == 2) {
+    new_input_layouts.push_back(inferred_in);
+  }
+
+  return InferCorrectLayoutOutput(new_input_layouts, {inferred_out}, Attrs(params));
 }
 
 template <typename F>
@@ -207,7 +242,27 @@ Array<te::Tensor> ReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inp
       return {topi::identity(inputs[0])};
     }
   }
+
   return {f(inputs[0], axes, param->keepdims, false)};
+}
+
+template <typename F>
+Array<te::Tensor> ArgReduceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                   const Type& out_type, F f) {
+  const ArgReduceAttrs* param = attrs.as<ArgReduceAttrs>();
+  ICHECK(param != nullptr);
+  if (inputs[0]->shape.size() == 0) {
+    return {topi::identity(inputs[0])};
+  }
+  auto axes = param->axis;
+  if (param->exclude) {
+    axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
+    if (axes.size() == 0) {
+      return {topi::identity(inputs[0])};
+    }
+  }
+
+  return {f(inputs[0], axes, param->keepdims, false, param->select_last_index)};
 }
 
 /*!
@@ -269,6 +324,23 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr>& in_s
   }
 }
 
+template <class T>
+bool GenericReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  ICHECK(static_cast<int>(data->shape.size()) != 0);
+  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
+
+  const T* param = attrs.as<T>();
+  ICHECK(param != nullptr);
+
+  // assign output type and shape
+  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
+  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
+  return true;
+}
 /*!
  * \brief ArgReduceRel Output type and shape relation evaluation function.
  * \param num_inputs Number of input types in the args.
@@ -278,19 +350,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr>& in_s
  */
 bool ArgReduceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 2);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) return false;
-  ICHECK(static_cast<int>(data->shape.size()) != 0);
-  std::vector<IndexExpr> in_shape(data->shape.begin(), data->shape.end());
-
-  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
-  ICHECK(param != nullptr);
-
-  // assign output type and shape
-  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
-  return true;
+  return GenericReduceRel<ReduceAttrs>(types, num_inputs, attrs, reporter);
 }
 
 /*!
@@ -324,6 +384,16 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
   return Call(Op::Get(op_name), {data}, Attrs(attrs), {});
 }
 
+Expr MakeOneElementReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude,
+                          bool select_last_index, String op_name) {
+  auto attrs = make_object<ArgReduceAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->keepdims = keepdims;
+  attrs->exclude = exclude;
+  attrs->select_last_index = select_last_index;
+  return Call(Op::Get(op_name), {data}, Attrs(attrs), {});
+}
+
 #define RELAY_REGISTER_REDUCE_OP(OpName)                                                \
   TVM_REGISTER_GLOBAL("relay.op._make." OpName)                                         \
       .set_body_typed([](Expr data, Array<Integer> axis, bool keepdims, bool exclude) { \
@@ -331,36 +401,46 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
       });                                                                               \
   RELAY_REGISTER_OP(OpName).set_num_inputs(1).add_argument("data", "Tensor", "The input tensor.")
 
+#define RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP(OpName)                                           \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                                                \
+      .set_body_typed([](Expr data, Array<Integer> axis, bool keepdims, bool exclude,          \
+                         bool select_last_index) {                                             \
+        return MakeOneElementReduce(data, axis, keepdims, exclude, select_last_index, OpName); \
+      });                                                                                      \
+  RELAY_REGISTER_OP(OpName).set_num_inputs(1).add_argument("data", "Tensor", "The input tensor.")
+
 Array<te::Tensor> ArgMaxCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
-  return ReduceCompute(attrs, inputs, out_type, topi::argmax);
+  return ArgReduceCompute(attrs, inputs, out_type, topi::argmax);
 }
 
-RELAY_REGISTER_REDUCE_OP("argmax")
+RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmax")
     .describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ReduceAttrs>()
+    .set_attrs_type<ArgReduceAttrs>()
     .set_support_level(4)
-    .add_type_rel("ArgReduce", ArgReduceRel)
+    .add_type_rel("ArgReduce", GenericReduceRel<ArgReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ArgReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> ArgMinCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
-  return ReduceCompute(attrs, inputs, out_type, topi::argmin);
+  return ArgReduceCompute(attrs, inputs, out_type, topi::argmin);
 }
 
-RELAY_REGISTER_REDUCE_OP("argmin")
+RELAY_REGISTER_ONE_ELEMENT_REDUCE_OP("argmin")
     .describe(R"code(Creates an operation that finds the indices of the minimum
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ReduceAttrs>()
+    .set_attrs_type<ArgReduceAttrs>()
     .set_support_level(4)
-    .add_type_rel("ArgReduce", ArgReduceRel)
+    .add_type_rel("ArgReduce", GenericReduceRel<ArgReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ArgReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> SumCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -389,7 +469,7 @@ Example::
     .set_attrs_type<ReduceAttrs>()
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<FTVMCompute>("FTVMCompute", SumCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
@@ -424,6 +504,7 @@ Example::
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", AllCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> AnyCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -472,6 +553,7 @@ RELAY_REGISTER_REDUCE_OP("max")
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", MaxCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> MinCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -487,6 +569,7 @@ RELAY_REGISTER_REDUCE_OP("min")
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", MinCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> ProdCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -507,10 +590,10 @@ Example::
           [[1,4],[4,3],[5,2]],
           [[7,1],[7,2],[7,3]]]
 
-  mean(data, axis=1)
+  prod(data, axis=1)
   [35562240]
 
-  mean(data, axis=[1,2])
+  prod(data, axis=[1,2])
   [ 36  480  2058]
 
 )code" TVM_ADD_FILELINE)
@@ -518,6 +601,7 @@ Example::
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", ProdCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 Array<te::Tensor> MeanCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -556,6 +640,7 @@ Example::
     .set_support_level(4)
     .add_type_rel("Reduce", ReduceRel)
     .set_attr<FTVMCompute>("FTVMCompute", MeanCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<ReduceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 bool VarianceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -631,6 +716,7 @@ RELAY_REGISTER_OP("variance")
     .add_argument("mean", "Tensor", "The mean tensor.")
     .add_type_rel("Variance", VarianceRel)
     .set_attr<FTVMCompute>("FTVMCompute", VarianceCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ReduceInferCorrectLayout<VarianceAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 }  // namespace relay

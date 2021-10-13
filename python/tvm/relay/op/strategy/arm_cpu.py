@@ -21,6 +21,7 @@ import logging
 
 from tvm import topi
 from ....target import arm_isa
+from ....topi.generic import conv2d as conv2d_generic
 from .generic import *
 from .. import op as _op
 
@@ -127,8 +128,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         elif layout == "NHWC":
-            channels = data.shape[3]
-            if "SMLAD" in isa and (channels % 4) == 0 and kernel_layout == "HWOI":
+            if "SMLAD" in isa and kernel_layout == "HWOI":
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_direct_simd),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_direct_simd),
@@ -197,11 +197,19 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
-                wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
-                name="depthwise_conv2d_nhwc.arm_cpu",
-            )
+            is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
+            if is_aarch64 or "+neon" in target.mattr:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
+                    name="depthwise_conv2d_nhwc.arm_cpu",
+                )
+            else:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                    wrap_topi_schedule(conv2d_generic.schedule_depthwise_conv2d_nhwc),
+                    name="depthwise_conv2d_nhwc.generic",
+                )
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {} for arm cpu".format(layout))
     else:  # group_conv2d

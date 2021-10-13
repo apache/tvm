@@ -16,22 +16,22 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import tvm
-from tvm.script import ty
-from tvm import te, tir
-import numpy as np
+from tvm.script import tir as T
+from tvm import tir
 import tvm.testing
 import pytest
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class Module:
+    @T.prim_func
     def tir_packed_call() -> None:
-        A = tir.var("handle")
-        B = tir.var("handle")
-        C = tir.var("handle")
+        A = T.var("handle")
+        B = T.var("handle")
+        C = T.var("handle")
         # body
-        tir.evaluate(
-            tir.tvm_call_cpacked(
+        T.evaluate(
+            T.tvm_call_cpacked(
                 "tvm_test_cpacked",
                 A,
                 B,
@@ -41,25 +41,26 @@ class Module:
         )
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class Expected:
+    @T.prim_func
     def tir_packed_call() -> None:
-        A = tir.var("handle")
-        B = tir.var("handle")
-        C = tir.var("handle")
+        A = T.var("handle")
+        B = T.var("handle")
+        C = T.var("handle")
 
         # body
-        tvm_value_2 = tir.var("handle")
-        tvm_value_1 = tir.var("handle")
-        tvm_value_0 = tir.var("handle")
-        with tir.let(tvm_value_2, tir.tvm_stack_alloca("array", 1, dtype="handle")):
-            with tir.let(tvm_value_1, tir.tvm_stack_alloca("array", 1, dtype="handle")):
-                with tir.let(tvm_value_0, tir.tvm_stack_alloca("array", 1, dtype="handle")):
-                    tir.evaluate(tir.tvm_struct_set(tvm_value_0, 0, 1, A, dtype="handle"))
-                    tir.evaluate(tir.tvm_struct_set(tvm_value_1, 0, 1, B, dtype="handle"))
-                    tir.evaluate(tir.tvm_struct_set(tvm_value_2, 0, 1, C, dtype="handle"))
-                    tir.evaluate(
-                        tir.tvm_call_cpacked(
+        tvm_value_2 = T.var("handle")
+        tvm_value_1 = T.var("handle")
+        tvm_value_0 = T.var("handle")
+        with T.let(tvm_value_2, T.tvm_stack_alloca("array", 1, dtype="handle")):
+            with T.let(tvm_value_1, T.tvm_stack_alloca("array", 1, dtype="handle")):
+                with T.let(tvm_value_0, T.tvm_stack_alloca("array", 1, dtype="handle")):
+                    T.evaluate(T.tvm_struct_set(tvm_value_0, 0, 1, A, dtype="handle"))
+                    T.evaluate(T.tvm_struct_set(tvm_value_1, 0, 1, B, dtype="handle"))
+                    T.evaluate(T.tvm_struct_set(tvm_value_2, 0, 1, C, dtype="handle"))
+                    T.evaluate(
+                        T.tvm_call_cpacked(
                             "tvm_test_cpacked",
                             tvm_value_0,
                             tvm_value_1,
@@ -70,8 +71,8 @@ class Expected:
 
 
 def test_aot_packed_call():
-    mod = Module()
-    expected = Expected()
+    mod = Module
+    expected = Expected
     out = tir.transform.LegalizePackedCalls()(mod)
     tvm.ir.assert_structural_equal(expected, out, map_free_vars=True)
 

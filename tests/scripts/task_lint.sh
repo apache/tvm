@@ -39,6 +39,9 @@ tests/lint/cpplint.sh
 echo "clang-format check..."
 tests/lint/clang_format.sh
 
+echo "Rust check..."
+tests/lint/rust_format.sh
+
 echo "black check..."
 tests/lint/python_format.sh
 

@@ -21,7 +21,7 @@ import logging
 from tvm.autotvm import database
 from tvm.autotvm.record import encode, MeasureResult
 
-from test_autotvm_common import get_sample_records
+from tvm.testing.autotvm import get_sample_records
 
 
 def test_save_load():

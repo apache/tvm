@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import tir, te
-from tvm.script import ty
+from tvm.script import tir as T
 
 
 def _check(original, transformed):
@@ -27,187 +27,224 @@ def _check(original, transformed):
     tvm.ir.assert_structural_equal(mod["main"], transformed, True)
 
 
-@tvm.script.tir
-def compacted_elementwise_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16), "float32")
-    C = tir.match_buffer(c, (16, 16), "float32")
+@T.prim_func
+def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
     for i in range(0, 16):
-        with tir.block([]):
-            tir.reads(A[i, 0:16])
-            tir.writes(C[i, 0:16])
-            B = tir.alloc_buffer([1, 16], "float32", scope="global")
+        with T.block([]):
+            T.reads(A[i, 0:16])
+            T.writes(C[i, 0:16])
+            B = T.alloc_buffer([1, 16], "float32", scope="global")
             for j in range(0, 16):
-                with tir.block() as []:
-                    tir.reads(A[i, j])
-                    tir.writes(B[0, j])
+                with T.block() as []:
+                    T.reads(A[i, j])
+                    T.writes(B[0, j])
                     B[0, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with tir.block() as []:
-                    tir.reads(B[0, j])
-                    tir.writes(C[i, j])
+                with T.block() as []:
+                    T.reads(B[0, j])
+                    T.writes(C[i, j])
                     C[i, j] = B[0, j] * 2.0
 
 
-@tvm.script.tir
-def flattened_elementwise_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16), "float32")
-    C = tir.match_buffer(c, (16, 16), "float32")
-    for i in tir.serial(0, 16):
-        B_new = tir.allocate([16], "float32", "global")
-        for j in tir.serial(0, 16):
-            B_new[j] = tir.load("float32", A.data, ((i * 16) + j)) + 1.0
-        for j in tir.serial(0, 16):
-            C.data[((i * 16) + j)] = tir.load("float32", B_new, j) * 2.0
+@T.prim_func
+def flattened_elementwise_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
+    for i in T.serial(0, 16):
+        B_new = T.allocate([16], "float32", "global")
+        for j in T.serial(0, 16):
+            B_new[j] = T.load("float32", A.data, ((i * 16) + j)) + 1.0
+        for j in T.serial(0, 16):
+            C.data[((i * 16) + j)] = T.load("float32", B_new, j) * 2.0
 
 
-@tvm.script.tir
-def compacted_gpu_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16), "float32")
-    C = tir.match_buffer(c, (16, 16), "float32")
-    for i0 in tir.thread_binding(0, 4, thread="blockIdx.x"):
-        for i1 in tir.thread_binding(0, 2, thread="threadIdx.x"):
-            for i2 in tir.thread_binding(0, 2, thread="vthread"):
-                with tir.block([]):
-                    tir.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
-                    tir.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
-                    B = tir.alloc_buffer([1, 16], "float32", scope="local")
+@T.prim_func
+def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
+    for i0 in T.thread_binding(0, 4, thread="blockIdx.x"):
+        for i1 in T.thread_binding(0, 2, thread="threadIdx.x"):
+            for i2 in T.thread_binding(0, 2, thread="vthread"):
+                with T.block([]):
+                    T.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
+                    T.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
+                    B = T.alloc_buffer([1, 16], "float32", scope="local")
                     for j in range(0, 16):
-                        with tir.block() as []:
-                            tir.reads(A[i0 * 4 + i1 * 2 + i2, j])
-                            tir.writes(B[0, j])
+                        with T.block() as []:
+                            T.reads(A[i0 * 4 + i1 * 2 + i2, j])
+                            T.writes(B[0, j])
                             B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
                     for j in range(0, 16):
-                        with tir.block() as []:
-                            tir.reads(B[0, j])
-                            tir.writes(C[i0 * 4 + i1 * 2 + i2, j])
+                        with T.block() as []:
+                            T.reads(B[0, j])
+                            T.writes(C[i0 * 4 + i1 * 2 + i2, j])
                             C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
 
-@tvm.script.tir
-def flattened_gpu_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16), "float32")
-    C = tir.match_buffer(c, (16, 16), "float32")
+@T.prim_func
+def flattened_gpu_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
 
-    i0 = tir.env_thread("blockIdx.x")
-    i1 = tir.env_thread("threadIdx.x")
-    i2 = tir.env_thread("vthread")
+    i0 = T.env_thread("blockIdx.x")
+    i1 = T.env_thread("threadIdx.x")
+    i2 = T.env_thread("vthread")
 
-    tir.launch_thread(i0, 4)
-    tir.launch_thread(i1, 2)
-    tir.launch_thread(i2, 2)
-    B = tir.allocate([16], "float32", "local")
+    T.launch_thread(i0, 4)
+    T.launch_thread(i1, 2)
+    T.launch_thread(i2, 2)
+    B = T.allocate([16], "float32", "local")
     for j in range(0, 16):
-        B[j] = tir.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + 1.0
+        B[j] = T.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + 1.0
     for j in range(0, 16):
-        C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = tir.load("float32", B, j) * 2.0
+        C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = T.load("float32", B, j) * 2.0
 
 
-@tvm.script.tir
-def compacted_symbolic_func(a: ty.handle, c: ty.handle, n: ty.int32, m: ty.int32) -> None:
-    A = tir.match_buffer(a, (n, m), "float32")
-    C = tir.match_buffer(c, (n, m), "float32")
+@T.prim_func
+def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
+    A = T.match_buffer(a, (n, m), "float32")
+    C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        with tir.block([]):
-            tir.reads(A[i, m])
-            tir.writes(C[i, m])
-            B = tir.alloc_buffer((m,), "float32", scope="global")
+        with T.block([]):
+            T.reads(A[i, m])
+            T.writes(C[i, m])
+            B = T.alloc_buffer((m,), "float32", scope="global")
             for j in range(0, m):
-                with tir.block([]) as []:
-                    tir.reads(A[i, j])
-                    tir.writes(B[j])
+                with T.block([]) as []:
+                    T.reads(A[i, j])
+                    T.writes(B[j])
                     B[j] = A[i, j] + 1.0
             for j in range(0, m):
-                with tir.block([]) as []:
-                    tir.reads(B[j])
-                    tir.writes(C[i, j])
+                with T.block([]) as []:
+                    T.reads(B[j])
+                    T.writes(C[i, j])
                     C[i, j] = B[j] * 2.0
 
 
-@tvm.script.tir
-def flattened_symbolic_func(a: ty.handle, c: ty.handle, n: ty.int32, m: ty.int32) -> None:
-    A = tir.match_buffer(a, (n, m), "float32")
-    C = tir.match_buffer(c, (n, m), "float32")
+@T.prim_func
+def flattened_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
+    A = T.match_buffer(a, (n, m), "float32")
+    C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        B = tir.allocate([m], "float32", "global")
+        B = T.allocate([m], "float32", "global")
         for j in range(0, m):
-            B[j] = tir.load("float32", A.data, i * m + j) + 1.0
+            B[j] = T.load("float32", A.data, i * m + j) + 1.0
         for j in range(0, m):
-            C.data[i * m + j] = tir.load("float32", B, j) * 2.0
+            C.data[i * m + j] = T.load("float32", B, j) * 2.0
 
 
-@tvm.script.tir
-def compacted_predicate_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (32), "float32")
-    C = tir.match_buffer(c, (32), "float32")
+@T.prim_func
+def compacted_predicate_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (32), "float32")
+    C = T.match_buffer(c, (32), "float32")
 
-    for i, j in tir.grid(5, 7):
-        with tir.block([]) as []:
-            tir.reads(A[i * 7 + j])
-            tir.writes(C[i * 7 + j])
-            tir.where(i * 7 + j < 32)
+    for i, j in T.grid(5, 7):
+        with T.block([]) as []:
+            T.reads(A[i * 7 + j])
+            T.writes(C[i * 7 + j])
+            T.where(i * 7 + j < 32)
             C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
-@tvm.script.tir
-def flattened_predicate_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (32), "float32")
-    C = tir.match_buffer(c, (32), "float32")
+@T.prim_func
+def flattened_predicate_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (32), "float32")
+    C = T.match_buffer(c, (32), "float32")
 
-    for i, j in tir.grid(5, 7):
+    for i, j in T.grid(5, 7):
         if i * 7 + j < 32:
-            C.data[i * 7 + j] = tir.load("float32", A.data, i * 7 + j) + 1.0
+            C.data[i * 7 + j] = T.load("float32", A.data, i * 7 + j) + 1.0
 
 
-@tvm.script.tir
-def compacted_unit_loop_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (32), "float32")
-    C = tir.match_buffer(c, (32), "float32")
+@T.prim_func
+def compacted_unit_loop_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (32), "float32")
+    C = T.match_buffer(c, (32), "float32")
 
-    for x, y, z in tir.grid(4, 1, 8):
-        with tir.block([]) as []:
-            tir.reads(A[x * 8 + y * 8 + z])
-            tir.writes(C[x * 8 + y * 8 + z])
+    for x, y, z in T.grid(4, 1, 8):
+        with T.block([]) as []:
+            T.reads(A[x * 8 + y * 8 + z])
+            T.writes(C[x * 8 + y * 8 + z])
             C[x * 8 + y * 8 + z] = A[x * 8 + y * 8 + z] + 1.0
 
 
-@tvm.script.tir
-def flattened_unit_loop_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (32), "float32")
-    C = tir.match_buffer(c, (32), "float32")
+@T.prim_func
+def flattened_unit_loop_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (32), "float32")
+    C = T.match_buffer(c, (32), "float32")
 
-    for x, z in tir.grid(4, 8):
-        C.data[x * 8 + z] = tir.load("float32", A.data, x * 8 + z) + 1.0
+    for x, z in T.grid(4, 8):
+        C.data[x * 8 + z] = T.load("float32", A.data, x * 8 + z) + 1.0
 
 
-@tvm.script.tir
-def compacted_multi_alloc_func(a: ty.handle, d: ty.handle) -> None:
-    A = tir.match_buffer(a, (32), "float32")
-    D = tir.match_buffer(d, (32), "float32")
+@T.prim_func
+def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (32), "float32")
+    D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        with tir.block([]) as []:
-            tir.reads(A[i])
-            tir.writes(D[i])
-            B = tir.alloc_buffer((32,), scope="global")
-            C = tir.alloc_buffer((32,), scope="global")
+        with T.block([]) as []:
+            T.reads(A[i])
+            T.writes(D[i])
+            B = T.alloc_buffer((32,), scope="global")
+            C = T.alloc_buffer((32,), scope="global")
             B[i] = A[i] + 1.0
             C[i] = A[i] + B[i]
             D[i] = C[i] * 2.0
 
 
-@tvm.script.tir
-def flattened_multi_alloc_func(a: ty.handle, d: ty.handle) -> None:
-    A = tir.match_buffer(a, (32), "float32")
-    D = tir.match_buffer(d, (32), "float32")
+@T.prim_func
+def flattened_multi_alloc_func(a: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (32), "float32")
+    D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        B = tir.allocate((32,), "float32", "global")
-        C = tir.allocate((32,), "float32", "global")
-        B[i] = tir.load("float32", A.data, i) + 1.0
-        C[i] = tir.load("float32", A.data, i) + tir.load("float32", B, i)
-        D.data[i] = tir.load("float32", C, i) * 2.0
+        B = T.allocate((32,), "float32", "global")
+        C = T.allocate((32,), "float32", "global")
+        B[i] = T.load("float32", A.data, i) + 1.0
+        C[i] = T.load("float32", A.data, i) + T.load("float32", B, i)
+        D.data[i] = T.load("float32", C, i) * 2.0
+
+
+@T.prim_func
+def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
+    for i0 in range(0, 4):
+        with T.block([]):
+            T.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
+            T.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
+            B = T.alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
+            for i1 in range(0, 4):
+                for j in range(0, 16):
+                    with T.block() as []:
+                        T.reads(A[i0 * 4 + i1, j])
+                        T.writes(B[i1, j])
+                        B[i1, j] = A[i0 * 4 + i1, j] + 1.0
+            for i1 in range(0, 4):
+                for j in range(0, 16):
+                    with T.block() as []:
+                        T.reads(B[i1, j])
+                        T.writes(C[i0 * 4 + i1, j])
+                        C[i0 * 4 + i1, j] = B[i1, j] * 2.0
+
+
+@T.prim_func
+def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
+    for i0 in T.serial(0, 4):
+        B_new = T.allocate([68], "float32", "global")
+        for i1 in T.serial(0, 4):
+            for j in T.serial(0, 16):
+                B_new[i1 * 17 + j] = T.load("float32", A.data, i0 * 64 + i1 * 16 + j) + 1.0
+        for i1 in T.serial(0, 4):
+            for j in T.serial(0, 16):
+                C.data[i0 * 64 + i1 * 16 + j] = T.load("float32", B_new, i1 * 17 + j) * 2.0
 
 
 def test_elementwise():
@@ -234,6 +271,10 @@ def test_multi_alloc():
     _check(compacted_multi_alloc_func, flattened_multi_alloc_func)
 
 
+def test_strided_buffer():
+    _check(compacted_strided_buffer_func, flattened_strided_buffer_func)
+
+
 def test_lower_te():
     x = te.placeholder((1,))
     y = te.compute((1,), lambda i: x[i] + 2)
@@ -250,3 +291,5 @@ if __name__ == "__main__":
     test_predicate()
     test_unit_loops()
     test_multi_alloc()
+    test_strided_buffer()
+    test_lower_te()

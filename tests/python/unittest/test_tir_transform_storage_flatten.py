@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.relay import GlobalVar
 
 
@@ -134,10 +134,10 @@ def test_flatten_double_buffer():
     assert count[0] == 4
 
 
-@tvm.script.tir
-def tir_func(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [2, 2])
-    B = tir.match_buffer(a, [2, 2])
+@T.prim_func
+def tir_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [2, 2])
+    B = T.match_buffer(a, [2, 2])
     A[0, 1] = B[1, 1]
 
 
@@ -154,3 +154,4 @@ if __name__ == "__main__":
     test_flatten_storage_align()
     test_flatten_double_buffer()
     test_flatten_prefetch()
+    test_flatten_tir()

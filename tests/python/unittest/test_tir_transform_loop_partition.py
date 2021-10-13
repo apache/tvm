@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.script import tir as T
 import numpy
 
 
@@ -434,7 +435,6 @@ def test_conv_tiling():
     oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -538,6 +538,33 @@ def test_simple_rfactor():
     assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
 
 
+@T.prim_func
+def partitioned_concat(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+    A = T.match_buffer(a, [16], dtype="float32")
+    B = T.match_buffer(b, [16], dtype="float32")
+    C = T.match_buffer(c, [32], dtype="float32")
+    for i in T.serial(0, 16):
+        T.store(C.data, i, T.load("float32", A.data, i), True)
+    for i in T.serial(0, 16):
+        T.store(C.data, i + 16, T.load("float32", B.data, i + 16), True)
+
+
+def test_explicit_partition_hint():
+    A = te.placeholder((16,), name="A")
+    B = te.placeholder((16,), name="B")
+    C = te.compute((32,), lambda i: te.if_then_else(i < 16, A[i], B[i]), name="C")
+    s = te.create_schedule(C.op)
+    s.normalize()
+    s[C].pragma(s[C].op.axis[0], "loop_partition_hint")
+    mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
+    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+        mod = tvm.tir.transform.StorageFlatten(64)(mod)
+        mod = tvm.tir.transform.LoopPartition()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
+    assert tvm.ir.structural_equal(mod["main"], partitioned_concat)
+
+
 if __name__ == "__main__":
     test_basic()
     test_const_loop()
@@ -559,3 +586,4 @@ if __name__ == "__main__":
     test_double_splitting_with_indivisible_factors()
     test_multilevel_splitting_with_indivisble_factors()
     test_simple_rfactor()
+    test_explicit_partition_hint()
