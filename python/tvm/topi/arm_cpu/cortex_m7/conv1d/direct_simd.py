@@ -29,8 +29,8 @@ from ..micro_kernel.gemm import (
 )
 
 
-def conv1d_direct_simd(*args, **kwargs):
-    """Defines the Cortex-M7 SIMD implementation of conv1d."""
+def conv1d_nwc_direct_simd(*args, **kwargs):
+    """Defines the Cortex-M7 SIMD implementation of conv1d on NWC layout."""
     assert not kwargs, "Do not support kwargs in template function call"
     args = deserialize_args(args)
     data, kernel = args[:2]
@@ -38,18 +38,18 @@ def conv1d_direct_simd(*args, **kwargs):
     cfg = autotvm.get_config()
     args = [cfg] + args
     assert layout == "NWC"
-    conv = conv1d_direct_simd_compute(*args)
-    sched = conv1d_direct_simd_nwc_schedule(cfg, [data, kernel, conv])
+    conv = conv1d_nwc_direct_simd_compute(*args)
+    sched = conv1d_nwc_direct_simd_schedule(cfg, [data, kernel, conv])
     return sched, [data, kernel, conv]
 
 
-conv1d_direct_simd.template_key = "direct_simd"
-conv1d_direct_simd.default_data_layout = "NWC"
-conv1d_direct_simd.default_kernel_layout = "WOI"
+conv1d_nwc_direct_simd.template_key = "direct_simd"
+conv1d_nwc_direct_simd.default_data_layout = "NWC"
+conv1d_nwc_direct_simd.default_kernel_layout = "WOI"
 
 
-def conv1d_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    """Compute function for Cortex-M7 SIMD implementation of conv1d."""
+def conv1d_nwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute function for Cortex-M7 SIMD implementation of conv1d on NWC layout."""
     if isinstance(strides, (tuple, list)):
         strides = strides[0]
     if isinstance(dilation, (tuple, list)):
@@ -131,8 +131,8 @@ def conv1d_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, ou
     return conv
 
 
-def conv1d_direct_simd_nwc_schedule(cfg, outs):
-    """Schedule function for Cortex-M7 SIMD implementation of conv1d."""
+def conv1d_nwc_direct_simd_schedule(cfg, outs):
+    """Schedule function for Cortex-M7 SIMD implementation of conv1d on NWC layout."""
     sched = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -143,8 +143,6 @@ def conv1d_direct_simd_nwc_schedule(cfg, outs):
         output = op.output(0)
         conv = op
         data_vec = conv.input_tensors[0]
-        kernel = conv.input_tensors[1]  # pylint: disable=unused-variable
-        last = outs[0]  # pylint: disable=unused-variable
 
         # tile reduction axes
         n, ow, co = sched[conv].op.axis

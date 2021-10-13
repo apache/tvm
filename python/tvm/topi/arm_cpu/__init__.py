@@ -17,6 +17,7 @@
 # pylint: disable=wildcard-import
 """Schedule for ARM CPU"""
 
+from .conv1d import *
 from .conv2d import *
 from .depthwise_conv2d import *
 from .conv2d_transpose import *

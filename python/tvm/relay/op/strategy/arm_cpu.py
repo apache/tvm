@@ -472,8 +472,8 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
     if kernel_layout == "WOI":
         if layout == "NWC" and "SMLAD" in isa:
             strategy.add_implementation(
-                wrap_compute_conv1d(topi.arm_cpu.conv1d_direct_simd),
-                wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_direct_simd),
+                wrap_compute_conv1d(topi.arm_cpu.conv1d_nwc_direct_simd),
+                wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_nwc_direct_simd),
                 name="conv1d_direct_simd.micro_dev",
             )
         else:
