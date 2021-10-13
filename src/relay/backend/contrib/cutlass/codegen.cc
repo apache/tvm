@@ -52,16 +52,18 @@ inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int in
 
 std::string DenseOp(std::string id, const Str2StrMap& attrs) {
   bool has_bias = false;
-  if (attrs.at("op_type") == "cutlass.dense_bias" || attrs.at("op_type") == "cutlass.dense_bias_relu" 
-          || attrs.at("op_type")== "cutlass.dense_bias_gelu" || attrs.at("op_type")== "cutlass.dense_bias_gelu_asbl"
-          || attrs.at("op_type")== "cutlass.dense_bias_hardswish") {  
+  if (attrs.at("op_type") == "cutlass.dense_bias" ||
+      attrs.at("op_type") == "cutlass.dense_bias_relu" ||
+      attrs.at("op_type") == "cutlass.dense_bias_gelu" ||
+      attrs.at("op_type") == "cutlass.dense_bias_gelu_asbl" ||
+      attrs.at("op_type") == "cutlass.dense_bias_hardswish") {
     has_bias = true;
   }
   std::ostringstream gemm_decl;
   CutlassPrint(gemm_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
   CutlassPrint(gemm_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
   CutlassPrint(gemm_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
-  //TODO: this is wrong, need to be accumulator
+  // TODO: this is wrong, need to be accumulator
   CutlassPrint(gemm_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
   CutlassPrint(gemm_decl, attrs.at("op_def"));
   CutlassPrint(gemm_decl, "using Gemm = Operation_" + attrs.at("op_name") + ";\n");
@@ -74,13 +76,14 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs) {
   CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
   // Initialize alpha for dot product computation
   CutlassPrint(gemm_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
-  if (attrs.at("op_type") == "cutlass.dense_bias_gelu"|| attrs.at("op_type")== "cutlass.dense_bias_gelu_asbl"
-      || attrs.at("op_type") == "cutlass.dense_bias_hardswish") {
+  if (attrs.at("op_type") == "cutlass.dense_bias_gelu" ||
+      attrs.at("op_type") == "cutlass.dense_bias_gelu_asbl" ||
+      attrs.at("op_type") == "cutlass.dense_bias_hardswish") {
     CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(1);\n");
   } else {
     CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
   }
-  
+
   // Split K dimension into 1 partitions
   CutlassPrint(gemm_decl, "int split_k_slices = 1;\n");
 
@@ -95,21 +98,22 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs) {
 
   CutlassPrint(gemm_decl, "typename Gemm::Arguments arguments{\n");
   CutlassPrint(gemm_decl, " problem_size,\n");
-  CutlassPrint(gemm_decl, " {static_cast<ElementInputA*>(ptr_a), "+ attrs.at("lda") + "},\n");
-  CutlassPrint(gemm_decl, " {static_cast<ElementInputB*>(ptr_b), "+ attrs.at("ldb") + "},\n");
+  CutlassPrint(gemm_decl, " {static_cast<ElementInputA*>(ptr_a), " + attrs.at("lda") + "},\n");
+  CutlassPrint(gemm_decl, " {static_cast<ElementInputB*>(ptr_b), " + attrs.at("ldb") + "},\n");
   if (has_bias) {
-     CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_c_bias), 0},\n");
+    CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_c_bias), 0},\n");
   } else {
     CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
   }
   CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
   if (has_bias) {
-    if (attrs.at("op_type") == "cutlass.dense_bias_gelu" || attrs.at("op_type")== "cutlass.dense_bias_gelu_asbl"
-        || attrs.at("op_type") == "cutlass.dense_bias_hardswish") {
+    if (attrs.at("op_type") == "cutlass.dense_bias_gelu" ||
+        attrs.at("op_type") == "cutlass.dense_bias_gelu_asbl" ||
+        attrs.at("op_type") == "cutlass.dense_bias_hardswish") {
       CutlassPrint(gemm_decl, " {alpha, beta},\n");
     } else {
       CutlassPrint(gemm_decl, " {alpha},\n");
-    }    
+    }
   } else {
     CutlassPrint(gemm_decl, " {alpha, beta},\n");
   }
@@ -188,7 +192,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_name_, out);
   }
 
-   private:
+ private:
   struct GenerateBodyOutput {
     std::string decl;
     std::vector<std::string> buffers;
@@ -226,7 +230,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
   }
 
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
-                                                    const CallNode* caller) {
+                                                   const CallNode* caller) {
     const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
     ICHECK(pattern_name.defined()) << "Only functions with composite attribute are supported.";
 
@@ -235,45 +239,53 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       return GenerateBody(dense_call, "cutlass_dense", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias") {
-      // const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 1, {"nn.dense", "nn.bias_add"});
+      // const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 1, {"nn.dense",
+      // "nn.bias_add"});
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->op.as<OpNode>()->name;
 
-      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 1, {"nn.dense", add_or_bias_add});
+      const auto* dense_call =
+          GetRootCall(callee->body.as<CallNode>(), 1, {"nn.dense", add_or_bias_add});
       return GenerateBody(dense_call, "cutlass_dense_bias", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias_relu") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.relu"});
+      const auto* dense_call =
+          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.relu"});
       return GenerateBody(dense_call, "cutlass_dense_bias_relu", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias_gelu") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.gelu"});
+      const auto* dense_call =
+          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.gelu"});
       return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias_gelu_asbl") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
       // TODO: why there are only three functions?
-      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "multiply"});
-      // const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 9, {"nn.dense", "add", "power", "multiply", "add", "multiply", "tanh", "add", "multiply", "multiply"});
+      const auto* dense_call =
+          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "multiply"});
+      // const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 9, {"nn.dense", "add",
+      // "power", "multiply", "add", "multiply", "tanh", "add", "multiply", "multiply"});
       return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias_hardswish") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.hardswish"});
+      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 2,
+                                           {"nn.dense", add_or_bias_add, "nn.hardswish"});
       return GenerateBody(dense_call, "cutlass_dense_bias_hardswish", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
-    // TODO more ops to be added
-    LOG(FATAL) << "Unknown composite function: " << pattern_name;
-    return {};
+      // TODO more ops to be added
+      LOG(FATAL) << "Unknown composite function: " << pattern_name;
+      return {};
+    }
   }
 
-    GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
+  GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
                                   const Str2StrMap& attribute_args) {
     return GenerateBody(root_call, func_name, GetArgumentNames(root_call), attribute_args);
   }
@@ -300,7 +312,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       ICHECK(root_call->checked_type()->IsInstance<TensorTypeNode>());
       out_types.push_back(root_call->checked_type());
     } else {
-        LOG(FATAL) << "Unrecognized type node: " << AsText(root_call->checked_type(), false);
+      LOG(FATAL) << "Unrecognized type node: " << AsText(root_call->checked_type(), false);
     }
     GenerateBodyOutput ret;
     for (const auto& out_type : out_types) {
@@ -313,9 +325,9 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       ret.outputs.push_back(output);
     }
     decl_stream << ");";
-    if (func_name == "cutlass_dense" || func_name == "cutlass_dense_bias" 
-          || func_name == "cutlass_dense_bias_relu" || func_name == "cutlass_dense_bias_gelu"
-          || func_name == "cutlass_dense_bias_hardswish") {
+    if (func_name == "cutlass_dense" || func_name == "cutlass_dense_bias" ||
+        func_name == "cutlass_dense_bias_relu" || func_name == "cutlass_dense_bias_gelu" ||
+        func_name == "cutlass_dense_bias_hardswish") {
       ret.decl = DenseOp(ext_func_id_, attribute_args);
     }
     return ret;
@@ -413,6 +425,7 @@ runtime::Module CutlassCompiler(const ObjectRef& ref) {
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.cutlass").set_body_typed(CutlassCompiler);
+
 }  // namespace contrib
 }  // namespace relay
-}  // namespace tvm                          
+}  // namespace tvm
