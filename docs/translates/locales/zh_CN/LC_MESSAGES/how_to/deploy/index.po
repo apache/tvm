@@ -1,0 +1,190 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:32+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/deploy/index.rst:21
+msgid "Deploy Models and Integrate TVM"
+msgstr "TVM 部署模型和集成"
+
+#: ../../_staging/how_to/deploy/index.rst:23
+msgid ""
+"This page contains guidelines on how to deploy TVM to various platforms as "
+"well as how to integrate it with your project."
+msgstr "此页面包含如何将 TVM 部署到各种平台以及如何将其与项目集成的指南。"
+
+#: ../../_staging/how_to/deploy/index.rst:29
+msgid "Build the TVM runtime library"
+msgstr "构建 TVM 运行 runtime 库"
+
+#: ../../_staging/how_to/deploy/index.rst:33
+msgid ""
+"Unlike traditional deep learning frameworks. TVM stack is divided into two "
+"major components:"
+msgstr "与传统的深度学习框架不同，TVM 堆栈分为两个主要组件："
+
+#: ../../_staging/how_to/deploy/index.rst:35
+msgid ""
+"TVM compiler, which does all the compilation and optimizations of the model"
+msgstr "TVM 编译器，它负责模型的所有编译和优化"
+
+#: ../../_staging/how_to/deploy/index.rst:36
+msgid "TVM runtime, which runs on the target devices."
+msgstr "TVM runtime，在目标设备上运行。"
+
+#: ../../_staging/how_to/deploy/index.rst:38
+msgid ""
+"In order to integrate the compiled module, we **do not** need to build "
+"entire TVM on the target device. You only need to build the TVM compiler "
+"stack on your desktop and use that to cross-compile modules that are "
+"deployed on the target device."
+msgstr ""
+"为了集成编译的模块，我们**不需要**在目标设备上构建整个 TVM。您只需要在桌面上构建 TVM 编译器堆栈，并用它来交叉编译部署在目标设备上的模块。"
+
+#: ../../_staging/how_to/deploy/index.rst:42
+msgid ""
+"We only need to use a light-weight runtime API that can be integrated into "
+"various platforms."
+msgstr "我们只需要使用可以集成到各种平台的轻量级 runtime API。"
+
+#: ../../_staging/how_to/deploy/index.rst:44
+msgid ""
+"For example, you can run the following commands to build the runtime API on "
+"a Linux based embedded system such as Raspberry Pi:"
+msgstr "例如，您可以运行以下命令，以便在基于 Linux 的嵌入式系统，比如树莓派，上构建runtime API："
+
+#: ../../_staging/how_to/deploy/index.rst:57
+msgid "Note that we type ``make runtime`` to only build the runtime library."
+msgstr "请注意，我们通过 ``make runtime`` 实现仅构建runtime库。"
+
+#: ../../_staging/how_to/deploy/index.rst:59
+msgid ""
+"It is also possible to cross compile the runtime. Cross compiling the "
+"runtime library should not be confused with cross compiling models for "
+"embedded devices."
+msgstr "也可以交叉编译runtime。交叉编译runtime库不应与嵌入式设备的交叉编译模型混淆。"
+
+#: ../../_staging/how_to/deploy/index.rst:63
+msgid ""
+"If you want to include additional runtime such as OpenCL, you can modify "
+"``config.cmake`` to enable these options. After you get the TVM runtime "
+"library, you can link the compiled library"
+msgstr ""
+"如果您想包括额外的runtime，如 OpenCL，您可以修改 ``config.cmake`` 来启用这些选项。获得 TVM runtime "
+"库后，您可以链接编译好的库"
+
+#: ../../_staging/how_to/deploy/index.rst:71
+msgid ""
+"A model (optimized or not by TVM) can be cross compiled by TVM for different"
+" architectures such as ``aarch64`` on a ``x64_64`` host. Once the model is "
+"cross compiled it is neccessary to have a runtime compatible with the target"
+" architecture to be able to run the cross compiled model."
+msgstr ""
+"模型（无论是否基于 TVM 优化）可以针对不同的架构基于 TVM 进行交叉编译，例如在 ``x64_64`` 主机上编译 ``aarch64`` "
+"。一旦模型被交叉编译，就必须有一个与目标架构兼容的runtime，以便能够运行交叉编译的模型。"
+
+#: ../../_staging/how_to/deploy/index.rst:78
+msgid "Cross compile the TVM runtime for other architectures"
+msgstr "为其它架构交叉编译TVM runtime"
+
+#: ../../_staging/how_to/deploy/index.rst:80
+msgid ""
+"In the example :ref:`above <build-tvm-runtime-on-target-device>` the runtime"
+" library was compiled on a Raspberry Pi. Producing the runtime library can "
+"be done much faster on hosts that have high performace processors with ample"
+" resources (such as laptops, workstation) compared to a target devices such "
+"as a Raspberry Pi. In-order to cross compile the runtime the toolchain for "
+"the target device must be installed. After installing the correct toolchain,"
+" the main difference compared to compiling natively is to pass some "
+"additional command line argument to cmake that specify a toolchain to be "
+"used. For reference building the TVM runtime library on a modern laptop "
+"(using 8 threads) for ``aarch64`` takes around 20 seconds vs ~10 min to "
+"build the runtime on a Raspberry Pi 4."
+msgstr ""
+"在'上面的 <build-tvm-runtime-on-target-device>' 示例中，基于树莓派完成了TVM "
+"runtime库编译。与树莓派等目标设备相比，在具有高性能处理器的主机（例如笔记本、工作站）上构建runtime库的速度要快得多。为了实现交叉编译TVM"
+" runtime，必须安装目标设备的工具链。在此之后，相比本地编译主要区别在于需要将一些额外的命令行参数传递给 cmake 来指定要使用的工具链 "
+"。在如今的笔记本电脑上（使用 8 线程）为``aarch64`` 构建指定的 TVM runtime 只需要大约 20 秒，而在树莓派4上则需要大约 "
+"10 分钟。"
+
+#: ../../_staging/how_to/deploy/index.rst:91
+msgid "cross-compile for aarch64"
+msgstr "为 aarch64 完成交叉编译"
+
+#: ../../_staging/how_to/deploy/index.rst:112
+msgid ""
+"For bare metal ARM devices the following toolchain is quite handy to install"
+" instead of gcc-aarch64-linux-*"
+msgstr "对于 ARM 裸机设备而言，相比 gcc-aarch64-linux-* ，以下工具链则非常方便安装"
+
+#: ../../_staging/how_to/deploy/index.rst:120
+msgid "cross-compile for RISC-V"
+msgstr "为 RISC-V 完成交叉编译"
+
+#: ../../_staging/how_to/deploy/index.rst:142
+msgid ""
+"The ``file`` command can be used to query the architecture of the produced "
+"runtime."
+msgstr "``file``命令可用于查看生成的runtime对应的架构。"
+
+#: ../../_staging/how_to/deploy/index.rst:152
+msgid "Optimize and tune models for target devices"
+msgstr "针对目标设备优化和调整模型"
+
+#: ../../_staging/how_to/deploy/index.rst:154
+msgid ""
+"The easiest and recommended way to test, tune and benchmark TVM kernels on "
+"embedded devices is through TVM's RPC API. Here are the links to the related"
+" tutorials."
+msgstr "在嵌入式设备上实验、调整和基准测试 TVM 内核的最简单且受推荐的方法是通过 TVM 的 RPC API。以下是相关教程的链接。"
+
+#: ../../_staging/how_to/deploy/index.rst:158
+msgid ":ref:`tutorial-cross-compilation-and-rpc`"
+msgstr ":ref:`tutorial-cross-compilation-and-rpc`"
+
+#: ../../_staging/how_to/deploy/index.rst:159
+msgid ":ref:`tutorial-deploy-model-on-rasp`"
+msgstr ":ref:`tutorial-deploy-model-on-rasp`"
+
+#: ../../_staging/how_to/deploy/index.rst:162
+msgid "Deploy optimized model on target devices"
+msgstr "在目标设备上部署优化的模型"
+
+#: ../../_staging/how_to/deploy/index.rst:164
+msgid ""
+"After you finished tuning and benchmarking, you might need to deploy the "
+"model on the target device without relying on RPC. See the following "
+"resources on how to do so."
+msgstr "完成调整和基准测试后，你可能需要脱离RPC依赖实现在目标设备上的模型部署。请参阅以下资料，了解如何做到这一点。"
+
+#: ../../_staging/how_to/deploy/index.rst:180
+msgid "Additional Deployment How-Tos"
+msgstr "其他部署方式"
+
+#: ../../_staging/how_to/deploy/index.rst:182
+msgid ""
+"We have also developed a number of how-tos targeting specific devices, with "
+"working Python code that can be viewed in a Jupyter notebook. These how-tos "
+"describe how to prepare and deploy models to many of the supported backends."
+msgstr ""
+"我们还开发了一些针对特定设备的处理方式，其中具有可在 Jupyter notebook 中查看的工作 Python "
+"代码。这些如何描述如何准备和部署模型到许多支持的后端。"
