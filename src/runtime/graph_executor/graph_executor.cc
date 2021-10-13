@@ -626,20 +626,6 @@ Module GraphExecutorCreate(const std::string& sym_json, const tvm::runtime::Modu
   return Module(exec);
 }
 
-// Get all devices for the host and other runtime devices.
-std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg) {
-  // Reserve the first item as the fallback device.
-  std::vector<Device> ret;
-  Device dev;
-  for (int i = dev_start_arg; i < args.num_args; i += 2) {
-    int dev_type = args[i];
-    dev.device_type = static_cast<DLDeviceType>(dev_type);
-    dev.device_id = args[i + 1];
-    ret.push_back(dev);
-  }
-  return ret;
-}
-
 // 4-argument version is currently reserved to keep support of calling
 // from tvm4j and javascript, since they don't have heterogeneous
 // execution support yet. For heterogenenous execution, at least 5 arguments will
@@ -655,7 +641,10 @@ TVM_REGISTER_GLOBAL("tvm.graph_executor.create").set_body([](TVMArgs args, TVMRe
     lookup_linked_param_func = args[2];
     dev_start_arg++;
   }
-  const auto& devices = GetAllDevice(args, dev_start_arg);
+  std::vector<DLDevice> devices;
+  for (int i = dev_start_arg; i < args.size(); ++i) {
+    devices.push_back(args[i].operator DLDevice());
+  }
   *rv = GraphExecutorCreate(args[0], args[1], devices, lookup_linked_param_func);
 });
 }  // namespace runtime

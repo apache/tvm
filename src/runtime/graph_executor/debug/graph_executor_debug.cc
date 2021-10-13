@@ -412,8 +412,11 @@ TVM_REGISTER_GLOBAL("tvm.graph_executor_debug.create").set_body([](TVMArgs args,
     dev_start_arg++;
   }
 
-  *rv = GraphExecutorDebugCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
-                                 lookup_linked_param_func);
+  std::vector<DLDevice> devices;
+  for (int i = dev_start_arg; i < args.size(); ++i) {
+    devices.push_back(args[i].operator DLDevice());
+  }
+  *rv = GraphExecutorDebugCreate(args[0], args[1], devices, lookup_linked_param_func);
 });
 }  // namespace runtime
 }  // namespace tvm

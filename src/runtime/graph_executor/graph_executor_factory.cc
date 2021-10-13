@@ -37,16 +37,18 @@ namespace runtime {
 GraphExecutorFactory::GraphExecutorFactory(
     const std::string& graph_json,
     const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
-    const std::string& module_name) {
+    const std::string& target_str, const std::string& module_name) {
   graph_json_ = graph_json;
   params_ = params;
   module_name_ = module_name;
+  target_str_ = target_str;
 }
 
 PackedFunc GraphExecutorFactory::GetFunction(
     const std::string& name, const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
   if (name == module_name_) {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ICHECK_GT(args.num_args, 0) << "Must supply at least one device argument";
       std::vector<Device> devices;
       for (int i = 0; i < args.num_args; ++i) {
         devices.emplace_back(args[i].operator Device());
@@ -111,7 +113,9 @@ Module GraphExecutorFactory::ExecutorCreate(const std::vector<Device>& devs) {
   auto exec = make_object<GraphExecutor>();
   exec->Init(this->graph_json_, this->imports_[0], devs, PackedFunc());
   // set params
-  SetParams(exec.get(), this->params_);
+  if (!is_link_params()) {
+    SetParams(exec.get(), this->params_);
+  }
   return Module(exec);
 }
 
@@ -138,7 +142,9 @@ Module GraphExecutorFactory::DebugExecutorCreate(const std::vector<Device>& devs
   pf->CallPacked(TVMArgs(values.data(), codes.data(), args_size), &rv);
   Module mod = rv.operator Module();
   // debug graph executor is one child class of graph executor.
-  SetParams(const_cast<GraphExecutor*>(mod.as<GraphExecutor>()), this->params_);
+  if (!is_link_params()) {
+    SetParams(const_cast<GraphExecutor*>(mod.as<GraphExecutor>()), this->params_);
+  }
   return mod;
 }
 
@@ -163,7 +169,9 @@ Module GraphExecutorFactory::CudaGraphExecutorCreate(const std::vector<Device>& 
   TVMRetValue rv;
   pf->CallPacked(TVMArgs(values.data(), codes.data(), args_size), &rv);
   Module mod = rv.operator Module();
-  SetParams(const_cast<GraphExecutor*>(mod.as<GraphExecutor>()), this->params_);
+  if (!is_link_params()) {
+    SetParams(const_cast<GraphExecutor*>(mod.as<GraphExecutor>()), this->params_);
+  }
   return mod;
 }
 
@@ -196,13 +204,13 @@ TVM_REGISTER_GLOBAL("tvm.graph_executor_factory.create")
                                   << args.num_args;
       // The argument order is graph_json, module, module_name, param0_name, param0_tensor,
       // [param1_name, param1_tensor], ...
-      ICHECK_EQ((args.size() - 3) % 2, 0);
+      ICHECK_EQ((args.size() - 4) % 2, 0);
       std::unordered_map<std::string, tvm::runtime::NDArray> params;
-      for (size_t i = 3; i < static_cast<size_t>(args.size()); i += 2) {
+      for (size_t i = 4; i < static_cast<size_t>(args.size()); i += 2) {
         std::string name = args[i].operator String();
         params[name] = args[i + 1].operator tvm::runtime::NDArray();
       }
-      auto exec = make_object<GraphExecutorFactory>(args[0], params, args[2]);
+      auto exec = make_object<GraphExecutorFactory>(args[0], params, args[3], args[2]);
       exec->Import(args[1]);
       *rv = Module(exec);
     });

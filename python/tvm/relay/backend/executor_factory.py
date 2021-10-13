@@ -137,7 +137,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
         self.ir_mod = ir_mod
         self.target = target
-        self.module = fcreate(graph_json_str, libmod, libmod_name, *args)
+        self.module = fcreate(graph_json_str, libmod, libmod_name, str(target), *args)
         self.graph_json = graph_json_str
         self.lib = libmod
         self.libmod_name = libmod_name

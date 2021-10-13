@@ -63,7 +63,7 @@ def create(graph_json_str, libmod, device):
     else:
         fcreate = tvm._ffi.get_global_func("tvm.graph_executor.create")
 
-    return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
+    return GraphModule(fcreate(graph_json_str, libmod, *non_rpc_devices))
 
 
 def get_device(libmod, device):
@@ -98,17 +98,17 @@ def get_device(libmod, device):
     device_type_id = []
     for cur_dev in device:
         device_type = cur_dev.device_type
-        if device_type >= rpc_base.RPC_SESS_MASK:
+        if cur_dev.device_type >= rpc_base.RPC_SESS_MASK:
             assert libmod.type_key == "rpc"
             assert _rpc_ffi_api.SessTableIndex(libmod) == cur_dev._rpc_sess._tbl_index
             num_rpc_dev += 1
-            device_type = cur_dev.device_type % rpc_base.RPC_SESS_MASK
-        device_type_id.append(device_type)
-        device_type_id.append(cur_dev.device_id)
+            cur_dev = Device(cur_dev.device_type % rpc_base.RPC_SESS_MASK, cur_dev.device_id)
+
+        non_rpc_devices.append(cur_dev)
 
     if 0 < num_rpc_dev < len(device):
         raise ValueError("Either all or none of the devices should be rpc.")
-    return device, num_rpc_dev, device_type_id
+    return device, num_rpc_dev, non_rpc_devices
 
 
 class GraphModule(object):

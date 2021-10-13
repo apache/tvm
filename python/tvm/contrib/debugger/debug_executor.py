@@ -58,7 +58,7 @@ def create(graph_json_str, libmod, device, dump_root=None):
     assert isinstance(graph_json_str, string_types)
 
     try:
-        dev, num_rpc_dev, device_type_id = graph_executor.get_device(libmod, device)
+        dev, num_rpc_dev, non_rpc_devices = graph_executor.get_device(libmod, device)
         if num_rpc_dev == len(dev):
             fcreate = dev[0]._rpc_sess.get_function("tvm.graph_executor_debug.create")
         else:
@@ -67,7 +67,7 @@ def create(graph_json_str, libmod, device, dump_root=None):
         raise ValueError(
             "Please set '(USE_PROFILER ON)' in " "config.cmake and rebuild TVM to enable debug mode"
         )
-    func_obj = fcreate(graph_json_str, libmod, *device_type_id)
+    func_obj = fcreate(graph_json_str, libmod, *non_rpc_devices)
     return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root)
 
 
