@@ -49,6 +49,14 @@ Array<String> TargetKindRegEntry::ListTargetKinds() {
   return TargetKindRegistry::Global()->ListAllNames();
 }
 
+Map<String, String> TargetKindRegEntry::ListTargetKindOptions(const TargetKind& target_kind) {
+  Map<String, String> options;
+  for (const auto& kv : target_kind->key2vtype_) {
+    options.Set(kv.first, kv.second.type_key);
+  }
+  return options;
+}
+
 TargetKindRegEntry& TargetKindRegEntry::RegisterOrGet(const String& target_kind_name) {
   return TargetKindRegistry::Global()->RegisterOrGet(target_kind_name);
 }
@@ -359,5 +367,7 @@ TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("de
 /**********  Registry  **********/
 
 TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
+TVM_REGISTER_GLOBAL("target.ListTargetKindOptions")
+    .set_body_typed(TargetKindRegEntry::ListTargetKindOptions);
 
 }  // namespace tvm
