@@ -23,6 +23,7 @@ static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"}, {"float32", "floa
 
 Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
   Str2StrMap args;
+  LOG(INFO) << attrs;
   auto arg0_dtype = std::string(attrs["arg0_dtype"].as<StringObj>()->data);
   auto arg1_dtype = std::string(attrs["arg1_dtype"].as<StringObj>()->data);
   auto ret_dtype = std::string(attrs["ret_dtype"].as<StringObj>()->data);
@@ -89,6 +90,7 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs) {
 
   // Create a tuple of gemm kernel arguments. This is later passed as arguments to launch
   // instantiated CUTLASS kernel
+  id = "cutlass_0";
   CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + id + "_i0);\n");
   CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + id + "_i1);\n");
   if (has_bias) {
@@ -216,7 +218,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
 
     using ArgFunType = std::function<Str2StrMap(const Map<String, ObjectRef>&)>;
     static const std::map<std::string, std::pair<std::string, ArgFunType>> op_map = {
-        {"nn_dense", {"cutlass_dense", DenseArgs}},
+        {"nn.dense", {"cutlass_dense", DenseArgs}},
         // TODO: more to be added
     };
 
@@ -380,7 +382,6 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cstring>\n";
     code_stream_ << "#include <vector>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
-    code_stream_ << "#include <tvm/runtime/container.h>\n";
     code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
     // cutlass header
@@ -390,10 +391,10 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cutlass/util/reference/host/tensor_fill.h>\n";
     code_stream_ << "#include <cutlass/gemm/device/gemm.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_clamp.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_relu.h>\n";
+    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
+    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_elementwise.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_hardswish.h>\n";
+    // code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_hardswish.h>\n";
 
     ICHECK(ref->IsInstance<FunctionNode>());
     auto res = GenCutlassFunc(Downcast<Function>(ref));

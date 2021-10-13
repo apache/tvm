@@ -50,7 +50,7 @@ mod = transform.AnnotateTarget(["cutlass"])(mod)
 mod = transform.PartitionGraph()(mod)
 #mod = transform.InferType()(mod)
 is_nt = False
-
+print(mod)
 
 class GemmCollector(tvm.relay.ExprVisitor):
   def __init__(self):
@@ -74,7 +74,7 @@ for var in mod.get_global_vars():
   fun_name = var.name_hint
   func = mod[fun_name]
   collector = GemmCollector()
-  if fun_name.startswith("cutlass"):
+  if "cutlass" in fun_name:
     collector.visit(func)
     # call cutlass profiler to find best settings, update attr
     new_attrs = {}
@@ -88,7 +88,7 @@ for var in mod.get_global_vars():
     KK = arg0_shape[1]
     NN = arg1_shape[0]
     out = cutlass_profiler.profile(
-      "GenerateSM75_TensorOp_1688", 
+      "GenerateSM75_TensorOp_1688",
       new_attrs["arg0_dtype"],
       MM, NN, KK
     )
@@ -101,9 +101,9 @@ for var in mod.get_global_vars():
     elif new_attrs["op_type"] == "cutlass.dense_bias_gelu":
       new_attrs["cutlass_op_def"] = out["opdef_bias_gelu"]
     else:
-      raise ValueError("%s pattern is not implemented." % new_attrs["op_type"])    
+      raise ValueError("%s pattern is not implemented." % new_attrs["op_type"])
     new_attrs["cutlass_op_name"] = out["name"]
-    
+
     print("The best kernel is "+ new_attrs["cutlass_op_name"])
     if new_attrs["cutlass_op_name"].find("_tn_align") > 0:
       new_attrs["lda"] = "K"
@@ -116,7 +116,7 @@ for var in mod.get_global_vars():
       is_nt = True
     else:
       raise ValueError("%s unsupported operation" % new_attrs["cutlass_op_name"])
-    new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs) 
+    new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
     new_func = relay.Function(func.params,
                               func.body,
                               ret_type=func.ret_type,
@@ -152,13 +152,9 @@ with tvm.transform.PassContext(opt_level=3):
 
 
 lib_path = "compiled.so"
-#cutlass_path = "/workplace/tvm/cutlass_profiler/cutlass/include"
-#cutlass_util_path = "/workplace/tvm/cutlass_profiler/cutlass/tools/util/include"
-#workdir = "/workplace/tvm/cutlass_profiler/tmp"
-
-cutlass_path = "/workplace/github/tvm-1/cutlass_profiler/cutlass/include"
-cutlass_util_path = "/workplace/github/tvm-1/cutlass_profiler/cutlass/tools/util/include"
-workdir = "/workplace/github/tvm-1/cutlass_profiler/tmp"
+cutlass_path = "/home/masa/projects/dev/tvm/cutlass_profiler/cutlass/include"
+cutlass_util_path = "/home/masa/projects/dev/tvm/cutlass_profiler/cutlass/tools/util/include"
+workdir = "/home/masa/projects/dev/tvm/cutlass_profiler/tmp"
 #workdir = None
 kwargs = {}
 kwargs["cc"] = "nvcc"
@@ -177,9 +173,9 @@ lib = runtime.load_module(lib_path)
 
 ctx = tvm.gpu()
 #rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
-rt_mod = tvm.contrib.graph_runtime.GraphModule(lib["default"](ctx))
+rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](ctx))
 
-x = tvm.nd.array(tvm_data, ctx=ctx)
+x = tvm.nd.array(tvm_data, device=ctx)
 rt_mod.set_input("data", x)
 
 print("Running for the first time...")
@@ -206,7 +202,7 @@ times = []
 for i in range(100):
   start = time.time()
   rt_mod.run()
-  ctx.sync() # wait for the device to finish 
+  ctx.sync() # wait for the device to finish
   times.append(time.time() - start)
 print('Latency:', 1000.0 * np.mean(times), 'ms')
 print('TFLOPS:', 2 * M * N * K / np.mean(times) / 1e12)
