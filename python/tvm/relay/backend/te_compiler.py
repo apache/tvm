@@ -1,0 +1,487 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=len-as-condition,no-else-return,invalid-name
+"""TE compiler engine (replacing legacy compile_engine)."""
+from __future__ import absolute_import
+
+import logging
+import numpy as np
+import tvm
+from tvm import te, autotvm
+from tvm.ir.transform import PassContext
+from tvm.runtime import Object
+from tvm.support import libinfo
+from tvm.target import Target
+from ..backend.utils import mangle_module_name
+from .. import function as _function
+from .. import ty as _ty
+from . import _backend
+
+logger = logging.getLogger("te_compiler")
+autotvm_logger = logging.getLogger("autotvm")
+
+_first_warning = True
+
+
+@tvm._ffi.register_object("relay.CCacheKey")
+class CCacheKey(Object):
+    """Key in the CompileEngine.
+
+    Parameters
+    ----------
+    source_func : tvm.relay.Function
+        The source function.
+
+    target : tvm.Target
+        The target we want to run the function on.
+    """
+
+    def __init__(self, source_func, target):
+        self.__init_handle_by_constructor__(
+            _backend._make_CCacheKey, source_func, target)
+
+
+@tvm._ffi.register_object("relay.CCacheValue")
+class CCacheValue(Object):
+    """Value in the CompileEngine, including usage statistics."""
+
+
+def _get_cache_key(source_func, target):
+    if isinstance(source_func, _function.Function):
+        if isinstance(target, str):
+            target = Target(target)
+            if not target:
+                raise ValueError("Need target when source_func is a Function")
+        return CCacheKey(source_func, target)
+    if not isinstance(source_func, CCacheKey):
+        raise TypeError("Expect source_func to be CCacheKey")
+    return source_func
+
+
+def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True):
+    """Select the best implementation from the op strategy.
+
+    If use_autotvm is True, it'll first try to find the best implementation
+    based on AutoTVM profile results. If no AutoTVM profile result is found,
+    it'll choose the implementation with highest plevel.
+
+    If use_autotvm is False, it'll directly choose the implementation with
+    highest plevel.
+
+    Note that this function doesn't support op with symbolic input shapes.
+
+    Parameters
+    ----------
+    op : tvm.ir.Op
+        Relay operator.
+
+    attrs : object
+        The op attribute.
+
+    inputs : List[tvm.te.Tensor]
+        Input tensors to the op.
+
+    out_type : relay.Type
+        The output type.
+
+    target : tvm.target.Target
+        The target to compile the op.
+
+    use_autotvm : bool
+        Whether query AutoTVM to pick the best.
+
+    Returns
+    -------
+    ret : tuple(relay.op.OpImplementation, List[tvm.te.Tensor])
+        The best op implementation and the corresponding output tensors.
+    """
+    all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
+    best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
+
+    # Disable autotvm if auto_scheduler is enabled.
+    # (i.e., always return the implementation with the highest priority for auto-scheduler).
+    if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
+        use_autotvm = False
+
+    # If not use autotvm, always return the implementation with the highest priority
+    if not use_autotvm:
+        logger.info(
+            "Using %s for %s based on highest priority (%d)",
+            best_plevel_impl.name,
+            op.name,
+            best_plevel_impl.plevel,
+        )
+        outs = best_plevel_impl.compute(attrs, inputs, out_type)
+        return best_plevel_impl, outs
+
+    # Otherwise, try autotvm templates
+    outputs = {}
+    workloads = {}
+    best_autotvm_impl = None
+    best_cfg = None
+    dispatch_ctx = autotvm.task.DispatchContext.current
+    old_silent = autotvm.GLOBAL_SCOPE.silent
+    autotvm.GLOBAL_SCOPE.silent = True
+    for impl in all_impls:
+        outs = impl.compute(attrs, inputs, out_type)
+        outputs[impl] = outs
+        workload = autotvm.task.get_workload(outs)
+        workloads[impl] = workload
+        if workload is None:
+            # Not an AutoTVM tunable implementation
+            continue
+        cfg = dispatch_ctx.query(target, workload)
+        if cfg.is_fallback:
+            # Skip fallback config
+            continue
+        logger.info("Implementation %s for %s has cost %.2e",
+                    impl.name, op.name, cfg.cost)
+        if best_cfg is None or best_cfg.cost > cfg.cost:
+            best_autotvm_impl = impl
+            best_cfg = cfg
+    autotvm.GLOBAL_SCOPE.silent = old_silent
+
+    if best_autotvm_impl:
+        # The best autotvm implementation definitely doesn't use fallback config
+        logger.info(
+            "Using %s for %s based on lowest cost (%.2e)",
+            best_autotvm_impl.name,
+            op.name,
+            best_cfg.cost,
+        )
+        return best_autotvm_impl, outputs[best_autotvm_impl]
+
+    # Use the implementation with highest plevel
+    if workloads[best_plevel_impl] is not None:
+        msg = (
+            "Cannot find tuning records for:\n    target=%s\n    key=%s\n"
+            "TVM will apply a default schedule which may negatively impact performance."
+            % (target, workloads[best_plevel_impl])
+        )
+        if (
+            not autotvm.env.GLOBAL_SCOPE.silent
+            and msg not in autotvm.task.DispatchContext.warning_messages
+        ):
+            autotvm.task.DispatchContext.warning_messages.add(msg)
+            global _first_warning
+            if _first_warning:
+                _first_warning = False
+                info_msg = (
+                    "One or more operators have not been tuned. Please tune your model "
+                    "for better performance. Use DEBUG logging level to see more details."
+                )
+                autotvm_logger.warning(info_msg)
+            autotvm_logger.debug(msg)
+
+    logger.info(
+        "Using %s for %s based on highest priority (%s)",
+        best_plevel_impl.name,
+        op.name,
+        best_plevel_impl.plevel,
+    )
+    return best_plevel_impl, outputs[best_plevel_impl]
+
+
+@tvm._ffi.register_object("relay.TECompiler")
+class TECompiler(Object):
+    """TECompiler to get lowered code."""
+
+    def __init__(self):
+        raise RuntimeError("Cannot construct a TECompiler")
+
+    def lower(self, source_func, target=None, mod_name="default"):
+        """Lower a source_func to a CachedFunc.
+
+        Parameters
+        ----------
+        source_func : Union[tvm.relay.Function, CCacheKey]
+            The source relay function.
+
+        target : tvm.Target
+            The target platform.
+
+        Returns
+        -------
+        cached_func: CachedFunc
+            The result of lowering.
+        """
+        # pylint: disable=broad-except, import-outside-toplevel
+        try:
+            mod_name = mangle_module_name(mod_name)
+            key = _get_cache_key(source_func, target)
+            print(key)
+            return _backend._TECompilerLower(self, key, mod_name)
+        except Exception:
+            import traceback
+
+            msg = traceback.format_exc()
+            msg += "Error during compile func\n"
+            msg += "--------------------------\n"
+            msg += source_func.astext(show_meta_data=False)
+            msg += "--------------------------\n"
+            raise RuntimeError(msg)
+
+    # def lower_shape_func(self, source_func, target=None):
+    #     key = _get_cache_key(source_func, target)
+    #     return _backend._CompileEngineLowerShapeFunc(self, key)
+
+    def jit(self, source_func, target=None):
+        """JIT a source_func to a tvm.runtime.PackedFunc.
+
+        Parameters
+        ----------
+        source_func : Union[tvm.relay.Function, CCacheKey]
+            The source relay function.
+
+        target : tvm.Target
+            The target platform.
+
+        Returns
+        -------
+        jited_func: tvm.runtime.PackedFunc
+            The result of jited function.
+        """
+        key = _get_cache_key(source_func, target)
+        return _backend._CompileEngineJIT(self, key)
+
+    def clear(self):
+        """clear the existing cached functions"""
+        _backend._TECompilerClear(self)
+
+    def items(self):
+        """List items in the cache.
+
+        Returns
+        -------
+        item_list : List[Tuple[CCacheKey, CCacheValue]]
+            The list of items.
+        """
+        res = _backend._CompileEngineListItems(self)
+        assert len(res) % 2 == 0
+        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
+
+    def shape_func_items(self):
+        """List items in the shape_func_cache.
+
+        Returns
+        -------
+        item_list : List[Tuple[CCacheKey, CCacheValue]]
+            The list of shape_func_items.
+        """
+        res = _backend._CompileEngineListShapeFuncItems(self)
+        assert len(res) % 2 == 0
+        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
+
+    def get_current_ccache_key(self):
+        return _backend._CompileEngineGetCurrentCCacheKey(self)
+
+    def dump(self):
+        """Return a string representation of engine dump.
+
+        Returns
+        -------
+        dump : str
+            The dumped string representation
+        """
+        items = self.items()
+        res = "====================================\n"
+        res += "CompilerEngine dump, %d items cached\n" % len(items)
+        for k, v in items:
+            res += "------------------------------------\n"
+            res += "target={}\n".format(k.target)
+            res += "use_count={}\n".format(v.use_count)
+            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
+            res += "----relay function----\n"
+            res += k.source_func.astext() + "\n"
+            res += "----tir function----- \n"
+            res += "inputs={}\n".format(v.cached_func.inputs)
+            res += "outputs={}\n".format(v.cached_func.outputs)
+            res += "function: \n"
+            res += v.cached_func.funcs.astext() + "\n"
+        res += "===================================\n"
+        shape_func_items = self.shape_func_items()
+        res += "%d shape_func_items cached\n" % len(shape_func_items)
+        for k, v in shape_func_items:
+            res += "------------------------------------\n"
+            res += "target={}\n".format(k.target)
+            res += "use_count={}\n".format(v.use_count)
+            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
+            res += "----relay function----\n"
+            res += k.source_func.astext() + "\n"
+            res += "----tir function----- \n"
+            res += "inputs={}\n".format(v.cached_func.inputs)
+            res += "outputs={}\n".format(v.cached_func.outputs)
+            res += "function: \n"
+            res += v.cached_func.funcs.astext() + "\n"
+        res += "===================================\n"
+        return res
+
+
+def get():
+    """Get the global compile engine.
+
+    Returns
+    -------
+    engine : tvm.relay.backend.CompileEngine
+        The compile engine.
+    """
+    return _backend._CompileEngineGlobal()
+
+
+@tvm._ffi.register_object("relay.CompileEngine")
+class CompileEngine(Object):
+    """CompileEngine to get lowered code."""
+
+    def __init__(self):
+        raise RuntimeError("Cannot construct a CompileEngine")
+
+    def lower(self, source_func, target=None, mod_name="default"):
+        """Lower a source_func to a CachedFunc.
+
+        Parameters
+        ----------
+        source_func : Union[tvm.relay.Function, CCacheKey]
+            The source relay function.
+
+        target : tvm.Target
+            The target platform.
+
+        Returns
+        -------
+        cached_func: CachedFunc
+            The result of lowering.
+        """
+        # pylint: disable=broad-except, import-outside-toplevel
+        try:
+            mod_name = mangle_module_name(mod_name)
+            key = _get_cache_key(source_func, target)
+            return _backend._CompileEngineLower(self, key, mod_name)
+        except Exception:
+            import traceback
+
+            msg = traceback.format_exc()
+            msg += "Error during compile func\n"
+            msg += "--------------------------\n"
+            msg += source_func.astext(show_meta_data=False)
+            msg += "--------------------------\n"
+            raise RuntimeError(msg)
+
+    def lower_shape_func(self, source_func, target=None):
+        key = _get_cache_key(source_func, target)
+        return _backend._CompileEngineLowerShapeFunc(self, key)
+
+    def jit(self, source_func, target=None):
+        """JIT a source_func to a tvm.runtime.PackedFunc.
+
+        Parameters
+        ----------
+        source_func : Union[tvm.relay.Function, CCacheKey]
+            The source relay function.
+
+        target : tvm.Target
+            The target platform.
+
+        Returns
+        -------
+        jited_func: tvm.runtime.PackedFunc
+            The result of jited function.
+        """
+        key = _get_cache_key(source_func, target)
+        return _backend._CompileEngineJIT(self, key)
+
+    def clear(self):
+        """clear the existing cached functions"""
+        _backend._CompileEngineClear(self)
+
+    def items(self):
+        """List items in the cache.
+
+        Returns
+        -------
+        item_list : List[Tuple[CCacheKey, CCacheValue]]
+            The list of items.
+        """
+        res = _backend._CompileEngineListItems(self)
+        assert len(res) % 2 == 0
+        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
+
+    def shape_func_items(self):
+        """List items in the shape_func_cache.
+
+        Returns
+        -------
+        item_list : List[Tuple[CCacheKey, CCacheValue]]
+            The list of shape_func_items.
+        """
+        res = _backend._CompileEngineListShapeFuncItems(self)
+        assert len(res) % 2 == 0
+        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
+
+    def get_current_ccache_key(self):
+        return _backend._CompileEngineGetCurrentCCacheKey(self)
+
+    def dump(self):
+        """Return a string representation of engine dump.
+
+        Returns
+        -------
+        dump : str
+            The dumped string representation
+        """
+        items = self.items()
+        res = "====================================\n"
+        res += "CompilerEngine dump, %d items cached\n" % len(items)
+        for k, v in items:
+            res += "------------------------------------\n"
+            res += "target={}\n".format(k.target)
+            res += "use_count={}\n".format(v.use_count)
+            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
+            res += "----relay function----\n"
+            res += k.source_func.astext() + "\n"
+            res += "----tir function----- \n"
+            res += "inputs={}\n".format(v.cached_func.inputs)
+            res += "outputs={}\n".format(v.cached_func.outputs)
+            res += "function: \n"
+            res += v.cached_func.funcs.astext() + "\n"
+        res += "===================================\n"
+        shape_func_items = self.shape_func_items()
+        res += "%d shape_func_items cached\n" % len(shape_func_items)
+        for k, v in shape_func_items:
+            res += "------------------------------------\n"
+            res += "target={}\n".format(k.target)
+            res += "use_count={}\n".format(v.use_count)
+            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
+            res += "----relay function----\n"
+            res += k.source_func.astext() + "\n"
+            res += "----tir function----- \n"
+            res += "inputs={}\n".format(v.cached_func.inputs)
+            res += "outputs={}\n".format(v.cached_func.outputs)
+            res += "function: \n"
+            res += v.cached_func.funcs.astext() + "\n"
+        res += "===================================\n"
+        return res
+
+
+def get():
+    """Get the global compile engine.
+
+    Returns
+    -------
+    engine : tvm.relay.backend.CompileEngine
+        The compile engine.
+    """
+    return _backend._TECompilerGlobal()
