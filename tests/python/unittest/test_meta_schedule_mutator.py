@@ -65,7 +65,7 @@ def test_meta_schedule_mutator():
             return f"TestMutator({_get_hex_address(self.handle)})"
 
     mutator = TestMutator()
-    pattern = re.compile("TestMutator\(0x[a-f|0-9]*\)")
+    pattern = re.compile(r"TestMutator\(0x[a-f|0-9]*\)")
     assert pattern.match(str(mutator))
     sch = Schedule(Matmul)
     res = mutator.apply(sch.trace)

@@ -75,7 +75,7 @@ def test_meta_schedule_schedule_rule():
             return f"TestScheduleRule({_get_hex_address(self.handle)})"
 
     sch_rule = TestScheduleRule()
-    pattern = re.compile("TestScheduleRule\(0x[a-f|0-9]*\)")
+    pattern = re.compile(r"TestScheduleRule\(0x[a-f|0-9]*\)")
     assert pattern.match(str(sch_rule))
     sch = Schedule(Matmul)
     res = sch_rule.apply(sch, block=sch.get_block("matmul"))

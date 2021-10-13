@@ -75,7 +75,7 @@ def test_meta_schedule_postproc():
             return f"TestPostproc({_get_hex_address(self.handle)})"
 
     postproc = TestPostproc()
-    pattern = re.compile("TestPostproc\(0x[a-f|0-9]*\)")
+    pattern = re.compile(r"TestPostproc\(0x[a-f|0-9]*\)")
     assert pattern.match(str(postproc))
     sch = Schedule(Matmul)
     new_sch = sch.copy()

@@ -16,7 +16,7 @@
 # under the License.
 """Meta Schedule tuning context."""
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, List
 
 from tvm import IRModule
 from tvm._ffi import register_object
@@ -29,6 +29,9 @@ from . import _ffi_api
 if TYPE_CHECKING:
     from .space_generator import SpaceGenerator
     from .search_strategy import SearchStrategy
+    from .schedule_rule import ScheduleRule
+    from .postproc import Postproc
+    from .mutator import Mutator
 
 
 @register_object("meta_schedule.TuneContext")
@@ -80,6 +83,9 @@ class TuneContext(Object):
         target: Optional[Target] = None,
         space_generator: Optional["SpaceGenerator"] = None,
         search_strategy: Optional["SearchStrategy"] = None,
+        sch_rules: List["ScheduleRule"] = [],
+        postproc: List["Postproc"] = [],
+        mutator: List["Mutator"] = [],
         task_name: Optional[str] = None,
         rand_state: int = -1,
         num_threads: Optional[int] = None,
@@ -96,6 +102,12 @@ class TuneContext(Object):
             The design space generator.
         search_strategy : Optional[SearchStrategy] = None
             The search strategy.
+        sch_rules : List[ScheduleRule] = []
+            The schedule rules.
+        postproc : List[Postproc] = []
+            The post processings.
+        mutator : List[Mutator] = []
+            The mutators.
         task_name : Optional[str] = None
             The name of the tuning task.
         rand_state : int = -1
@@ -113,6 +125,9 @@ class TuneContext(Object):
             target,
             space_generator,
             search_strategy,
+            sch_rules,
+            postproc,
+            mutator,
             task_name,
             rand_state,
             num_threads,
