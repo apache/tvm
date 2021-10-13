@@ -23,8 +23,9 @@ set -o pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y ca-certificates
 
+ARDUINO_CLI_VERSION="0.18.3"
 # Install arduino-cli
-wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 0.18.3
+wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s ${ARDUINO_CLI_VERSION}
 
 # Install the cores we want to test on
 arduino-cli core install arduino:mbed_nano
