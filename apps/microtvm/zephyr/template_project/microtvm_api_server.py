@@ -347,12 +347,10 @@ class Handler(server.ProjectAPIHandler):
     }
 
     def _get_platform_version(self) -> str:
-        with open(pathlib.Path(os.getenv('ZEPHYR_BASE')) / "VERSION", "r") as f:
+        with open(pathlib.Path(os.getenv("ZEPHYR_BASE")) / "VERSION", "r") as f:
             lines = f.readlines()
             for line in lines:
-                line = line.replace(" ", "")
-                line = line.replace("\n", "")
-                line = line.replace("\r", "")
+                line = line.replace(" ", "").replace("\n", "").replace("\r", "")
                 if "VERSION_MAJOR" in line:
                     version_major = line.split("=")[1]
                 if "VERSION_MINOR" in line:

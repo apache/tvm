@@ -45,6 +45,7 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 ARDUINO_CLI_VERSION = "0.18.3"
 
+
 class BoardAutodetectFailed(Exception):
     """Raised when no attached hardware is found matching the requested board"""
 
@@ -337,11 +338,10 @@ class Handler(server.ProjectAPIHandler):
         return include_path
 
     def _get_platform_version(self, arduino_cli_path: str) -> str:
-        version_output = subprocess.check_output([arduino_cli_path, 'version'], encoding="utf-8")
-        version_output = version_output.replace("\n", "")
-        version_output = version_output.replace(":", "")
-        version_output = version_output.lower()
-        version_output = version_output.split(" ")
+        version_output = subprocess.check_output([arduino_cli_path, "version"], encoding="utf-8")
+        version_output = (
+            version_output.replace("\n", "").replace("\r", "").replace(":", "").lower().split(" ")
+        )
         version_index = version_output.index("version") + 1
 
         return version_output[version_index]
@@ -350,7 +350,9 @@ class Handler(server.ProjectAPIHandler):
         # Check Arduino version
         version = self._get_platform_version(options["arduino_cli_cmd"])
         if version != ARDUINO_CLI_VERSION:
-            raise ValueError(f"Arduino CLI version does not math: {version} != {ARDUINO_CLI_VERSION}")
+            raise ValueError(
+                f"Arduino CLI version does not math: {version} != {ARDUINO_CLI_VERSION}"
+            )
 
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
