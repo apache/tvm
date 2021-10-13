@@ -66,6 +66,23 @@ class Library : public Object {
 };
 
 /*!
+* \brief Default virtual functor that provides an interface to
+* wrap a TVMBackendPackedCFunc. Virtual interface allows derivative
+* runtime's that utilize a library module to to provide custom
+* function wrapping. By default WrapPackedFunc is used.
+*/
+class PackedFuncWrapper : public Object {
+ public:
+  /*
+   * \brief Virtual interface for wrapping a library function
+   * \param faddr The function address.
+   * \param mptr The module pointer node.
+   * \return A packed function wrapping the requested function.
+   */
+  virtual PackedFunc operator()(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
+};
+
+/*!
  * \brief Wrap a TVMBackendPackedCFunc to packed function.
  * \param faddr The function address
  * \param mptr The module pointer node.
@@ -87,7 +104,8 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
  * \note This function can create multiple linked modules
  *       by parsing the binary blob section of the library.
  */
-Module CreateModuleFromLibrary(ObjectPtr<Library> lib);
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib,
+                               ObjectPtr<PackedFuncWrapper> wrapper = nullptr);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_LIBRARY_MODULE_H_
