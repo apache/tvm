@@ -297,7 +297,6 @@ def expect_alloc_buffer_func(a: T.handle, b: T.handle) -> None:
 
 def test_complete_alloc_buffer():
     rt_func = tvm.script.from_source(alloc_buffer_func.script(show_meta=True))
-    rt_mod = tvm.build(rt_func, "llvm")
     tvm.ir.assert_structural_equal(alloc_buffer_func, expect_alloc_buffer_func)
 
 
