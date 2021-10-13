@@ -27,7 +27,7 @@ from tvm.driver.tvmc.model import TVMCPackage, TVMCException
 
 
 @pytest.mark.parametrize(
-    "target,pass_configs", [["llvm", []], ["c --executor=aot", ["tir.disable_vectorize=1"]]]
+    "target,pass_configs", [["llvm", []], ["c -executor=aot", ["tir.disable_vectorize=1"]]]
 )
 def test_tvmc_cl_compile_run_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory, target, pass_configs):
     pytest.importorskip("tflite")
@@ -114,7 +114,7 @@ def test_tvmc_import_package_mlf_aot(tflite_mobilenet_v1_1_quant, tflite_compile
 
     tflite_compiled_model_mlf = tflite_compile_model(
         tflite_mobilenet_v1_1_quant,
-        target="c --executor=aot",
+        target="c -executor=aot",
         output_format="mlf",
         pass_context_configs=["tir.disable_vectorize=1"],
     )
