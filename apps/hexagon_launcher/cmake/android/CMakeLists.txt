@@ -1,0 +1,77 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+cmake_minimum_required(VERSION 3.2)
+project(HexagonAndroidLauncher C CXX)
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/../HexagonLauncher.cmake")
+
+add_custom_command(
+  OUTPUT ${LAUNCHER_RPC_STUB_C}
+  COMMAND ${QAIC_EXE} ${QAIC_FLAGS}
+  "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
+  COMMAND ${CMAKE_COMMAND} -E rename "${LAUNCHER_RPC_H}"
+  "${LAUNCHER_SRC}/${LAUNCHER_RPC_H}"
+  MAIN_DEPENDENCY "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
+)
+
+include_directories(SYSTEM
+  "${HEXAGON_SDK_INCLUDES}"
+  "${HEXAGON_RPCMEM_ROOT}/inc"
+)
+
+link_directories(${HEXAGON_REMOTE_ROOT})
+
+add_definitions(-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+
+set(STUB_SRCS
+  "${LAUNCHER_SRC}/launcher_android.cc"
+  "${LAUNCHER_SRC}/launcher_core.cc"
+  "${LAUNCHER_SRC}/launcher_main.cc"
+  "${LAUNCHER_SRC}/launcher_util.cc"
+)
+
+add_executable(launcher_android
+  "${STUB_SRCS}"
+  "${LAUNCHER_RPC_STUB_C}"
+)
+
+ExternalProject_Add(android_tvm_runtime
+  SOURCE_DIR "${TVM_SOURCE_DIR}"
+  BUILD_COMMAND $(MAKE) runtime
+  CMAKE_ARGS
+  "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
+  "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
+  "-DANDROID_ABI=${ANDROID_ABI}"
+  "-DCMAKE_CXX_STANDARD=14"
+  "-DUSE_LIBBACKTRACE=OFF"
+  "-DUSE_LLVM=OFF"
+  "-DUSE_RPC=OFF"
+  INSTALL_COMMAND ""
+  BUILD_ALWAYS ON
+)
+ExternalProject_Get_Property(android_tvm_runtime BINARY_DIR)
+ExternalProject_Add_Step(android_tvm_runtime copy_binaries
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${BINARY_DIR} ${CMAKE_INSTALL_PREFIX}
+  DEPENDEES install
+)
+
+add_dependencies(launcher_android android_tvm_runtime)
+add_library(tvm_runtime SHARED IMPORTED)
+set_target_properties(tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/libtvm_runtime.so")
+
+target_link_libraries(launcher_android cdsprpc log tvm_runtime)
