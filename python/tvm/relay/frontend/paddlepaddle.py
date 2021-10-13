@@ -23,6 +23,7 @@ import numpy as np
 import tvm
 from tvm.ir import IRModule
 
+from ... import nd as _nd
 from .. import analysis
 from .. import ty as _ty
 from .. import expr as _expr
@@ -954,10 +955,12 @@ class GraphProto:
             if not var.persistable:
                 continue
             if isinstance(scope, dict):
-                self.params[name] = scope[name]
+                self.params[name] = _nd.array(scope[name])
             else:
-                self.params[name] = np.array(scope.var(name).get_tensor())
-            self.nodes[name] = _expr.const(self.params[name])
+                self.params[name] = _nd.array(np.array(scope.var(name).get_tensor()))
+            shape = self.params[name].shape
+            dtype = self.params[name].dtype
+            self.nodes[name] = new_var(name, shape=shape, dtype=dtype)
 
     def check_input_shape(self, op, block):
         """Check the shape information of model's inputs, fixed shape is recommended."""
@@ -1048,6 +1051,12 @@ class GraphProto:
         free_vars = analysis.free_vars(outputs)
         func = _function.Function(free_vars, outputs)
         mod = IRModule.from_expr(func)
+        # remove unused parameters
+        final_params = dict()
+        for var in free_vars:
+            if var.name_hint in self.params:
+                final_params = self.params[var.name_hint]
+        self.params = final_params
         return mod, self.params
 
 
@@ -1056,6 +1065,25 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
 
     PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model,
     and PaddlePaddle scope stores all the weights of PaddlePaddle model.
+
+    Parameters
+    ----------
+    program_or_layer : object of `paddle.static.Program` or `paddle.jit.TranslatedLayer`
+        Loaded model by `paddle.static.load_inference_model` or `paddle.jit.load`
+
+    shape_dict : dict of str to tuple/list, optional
+        The input shape of model
+
+    scope : object of `paddle.static.Scope`, optional
+        The scope that saves all the weights of model, use `paddle.static.global_scope` by default
+
+    Returns
+    -------
+    mod : tvm.IRModule
+        The relay module for compilation
+
+    params : dict of str to tvm.nd.NDArray
+
     """
 
     import paddle
