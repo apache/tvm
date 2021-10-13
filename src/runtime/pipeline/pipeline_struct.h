@@ -69,12 +69,12 @@ struct OutputBindings {
         }
       }
       // When this output is bound to a global interface, check if the global interface index
-      // is correct.
+      // start from 0.
       if (global_binding) {
         ICHECK(global_output_index >= 0);
       } else {
         // When this output is bound to a graph executor module interface, check if the module
-        // index is correct.
+        // index start from 0.
         ICHECK(mod_idx >= 0);
         bindings[mod_idx] = input_name;
       }
@@ -123,7 +123,7 @@ struct OutputMap {
       while (reader->NextObjectItem(&key)) {
         if (key == "output_idx") {
           reader->Read(&output_idx);
-        } else if (key == "dependent") {
+        } else if (key == "dependencies") {
           reader->Read(&binding);
         } else {
           LOG(FATAL) << "do not support key " << key;
@@ -138,7 +138,7 @@ struct OutputMap {
  * \brief The binding or dependency information of each module output interface.
  */
 struct PipelineConfig {
-  /*!\brief The module index is the key, this variable records all module pipeline configuration
+  /*!\brief The key is the module index, this variable records all module pipeline configuration
    * information.
    */
   std::unordered_map<int, OutputMap> config;
@@ -155,8 +155,8 @@ struct PipelineConfig {
   bool Empty() { return config.empty(); }
 
   /*!
-   * \brief Get the number of global outputs that is the outputs of entire pipeline.
-   * \return How much output does the entire pipeline have.
+   * \brief Get the number of global outputs.
+   * \return The number of outputs the entire pipeline has.
    */
   size_t GetGlobalOutputNum() const {
     size_t num_output = 0;
@@ -167,7 +167,7 @@ struct PipelineConfig {
   }
 };
 /*!
- * \brief The informations used to initialize the graph executor module, the information
+ * \brief The information used to initialize the graph executor module, the information
  *  come from the export library function call.
  */
 struct GraphModuleLoadInfo {

@@ -123,11 +123,11 @@ class PipelineModule(object):
                 '"load_config" or "pipeline_config" is missing in %s' % config_file_name
             )
 
-        # The config file use to load library, prameters, and JSON files.
+        # The config file used to load library, prameters, and JSON files.
         with open(config["load_config"], "r") as file_handle:
             load_config = file_handle.read()
 
-        # The config file use to load pipeline compute config.
+        # The config file used to load pipeline compute config.
         with open(config["pipeline_config"], "r") as file_handle:
             pipeline_config = file_handle.read()
 
@@ -190,11 +190,11 @@ class PipelineConfig(object):
             return -1
 
         def is_pipeline_executor_interface(self):
-            """The pipeline interface is used to interact with the caller, there are two types
-            such interfaces, one is 'input' another is 'output'. the pipeline input interface
+            """The pipeline interface is used to interact with the caller. There are two types
+            of interfaces, one is 'input' another is 'output'. The pipeline input interface
             is responsible for passing parameters to the internal module interface, and the
             pipeline output interface is responsible for outputting the results computed by
-            the pipeline executor to a caller.
+            the pipeline executor to the caller.
             """
             return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
 
@@ -489,7 +489,7 @@ class PipelineConfig(object):
 
                 # The value of ouput_idx start from 0.
                 output["output_idx"] = int(binding.name)
-                output["dependent"] = dep_conf
+                output["dependencies"] = dep_conf
                 output_conf.append(output)
 
             mconf["mod_idx"] = module.idx

@@ -79,9 +79,9 @@ def get_manual_conf(mods, target):
     pipe_config1 = {
         "mod_idx": 0,
         "output": [
-            {"output_idx": 0, "dependent": [{"mod_idx": 1, "input_name": "data_0"}]},
-            {"output_idx": 1, "dependent": [{"mod_idx": 2, "input_name": "data_0"}]},
-            {"output_idx": 2, "dependent": [{"global_output_index": 0}]},
+            {"output_idx": 0, "dependencies": [{"mod_idx": 1, "input_name": "data_0"}]},
+            {"output_idx": 1, "dependencies": [{"mod_idx": 2, "input_name": "data_0"}]},
+            {"output_idx": 2, "dependencies": [{"global_output_index": 0}]},
         ],
     }
     mod_config[mods[0]] = {
@@ -97,7 +97,7 @@ def get_manual_conf(mods, target):
     pipe_config2 = {
         "mod_idx": 1,
         "output": [
-            {"output_idx": 0, "dependent": [{"mod_idx": 2, "input_name": "data_1"}]},
+            {"output_idx": 0, "dependencies": [{"mod_idx": 2, "input_name": "data_1"}]},
         ],
     }
     mod_config[mods[1]] = {
@@ -112,7 +112,7 @@ def get_manual_conf(mods, target):
 
     pipe_config3 = {
         "mod_idx": 2,
-        "output": [{"output_idx": 0, "dependent": [{"global_output_index": 1}]}],
+        "output": [{"output_idx": 0, "dependencies": [{"global_output_index": 1}]}],
     }
     mod_config[mods[2]] = {
         "pipeline": pipe_config3,
