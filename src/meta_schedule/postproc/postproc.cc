@@ -22,11 +22,13 @@ namespace tvm {
 namespace meta_schedule {
 
 Postproc Postproc::PyPostproc(
-    PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,
-    PyPostprocNode::FApply f_apply) {
+    PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
+    PyPostprocNode::FApply f_apply,                                             //
+    PyPostprocNode::FAsString f_as_string) {
   ObjectPtr<PyPostprocNode> n = make_object<PyPostprocNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
+  n->f_as_string = std::move(f_as_string);
   return Postproc(n);
 }
 
@@ -34,13 +36,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyPostprocNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyPostprocNode>();
       ICHECK(self);
-      std::string func_name = "meta_schedule.postproc.py_postproc._f_as_string";
-      const auto* f_as_string = tvm::runtime::Registry::Get(func_name);
-      ICHECK(f_as_string) << "AttributeError: \"" << func_name
-                          << "\" is not registered. "
-                             "Please check if the python module is properly loaded";
-      std::string ret = (*f_as_string)(n);
-      p->stream << ret;
+      PyPostprocNode::FAsString f_as_string = (*self).f_as_string;
+      ICHECK(f_as_string != nullptr);
+      p->stream << f_as_string();
     });
 
 TVM_REGISTER_OBJECT_TYPE(PostprocNode);

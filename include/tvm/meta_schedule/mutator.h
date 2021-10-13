@@ -66,15 +66,23 @@ class PyMutatorNode : public MutatorNode {
    * \return None if mutator failed, otherwise return the mutated trace.
    */
   using FApply = runtime::TypedPackedFunc<Optional<tir::Trace>(const tir::Trace&)>;
+  /*!
+   * \brief Get the mutator as string with name.
+   * \return The string of the mutator.
+   */
+  using FAsString = runtime::TypedPackedFunc<String()>;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` funcion. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
   /*! \brief The packed function to the `Apply` funcion. */
   FApply f_apply;
+  /*! \brief The packed function to the `AsString` funcion. */
+  FAsString f_as_string;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `f_initialize_with_tune_context` is not visited
     // `f_apply` is not visited
+    // `f_as_string` is not visited
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
@@ -100,8 +108,9 @@ class Mutator : public runtime::ObjectRef {
    * \return The mutator created.
    */
   TVM_DLL static Mutator PyMutator(
-      PyMutatorNode::FInitializeWithTuneContext f_initialize_with_tune_context,
-      PyMutatorNode::FApply f_apply);
+      PyMutatorNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
+      PyMutatorNode::FApply f_apply,                                             //
+      PyMutatorNode::FAsString f_as_string);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Mutator, ObjectRef, MutatorNode);
 };
 

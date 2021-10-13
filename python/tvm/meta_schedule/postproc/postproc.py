@@ -78,13 +78,17 @@ class PyPostproc(Postproc):
         def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
             self.initialize_with_tune_context(tune_context)
 
-        def f_apply(self, sch: Schedule) -> bool:
+        def f_apply(sch: Schedule) -> bool:
             return self.apply(sch)
+
+        def f_as_string() -> str:
+            return str(self)
 
         self.__init_handle_by_constructor__(
             _ffi_api.PostprocPyPostproc,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_apply,
+            f_as_string,
         )
 
     def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
@@ -93,10 +97,5 @@ class PyPostproc(Postproc):
     def apply(self, sch: Schedule) -> bool:
         raise NotImplementedError
 
-    def __strx__(self) -> str:
-        return f"PyXXXXPostproc({_get_hex_address(self.handle)})"
-
-
-@register_func("meta_schedule.postproc.py_postproc._f_as_string")
-def _f_as_string(postproc: Postproc) -> str:
-    return postproc.__strx__()
+    def __str__(self) -> str:
+        return f"PyPostproc({_get_hex_address(self.handle)})"

@@ -22,13 +22,24 @@ namespace tvm {
 namespace meta_schedule {
 
 ScheduleRule ScheduleRule::PyScheduleRule(
-    PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,
-    PyScheduleRuleNode::FApply f_apply) {
+    PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
+    PyScheduleRuleNode::FApply f_apply,                                             //
+    PyScheduleRuleNode::FAsString f_as_string) {
   ObjectPtr<PyScheduleRuleNode> n = make_object<PyScheduleRuleNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
+  n->f_as_string = std::move(f_as_string);
   return ScheduleRule(n);
 }
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<PyScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
+      const auto* self = n.as<PyScheduleRuleNode>();
+      ICHECK(self);
+      PyScheduleRuleNode::FAsString f_as_string = (*self).f_as_string;
+      ICHECK(f_as_string != nullptr);
+      p->stream << f_as_string();
+    });
 
 TVM_REGISTER_OBJECT_TYPE(ScheduleRuleNode);
 TVM_REGISTER_NODE_TYPE(PyScheduleRuleNode);

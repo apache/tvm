@@ -18,7 +18,6 @@
 from typing import Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object
-from tvm._ffi.registry import register_func
 from tvm.runtime import Object
 from tvm.tir.schedule import Trace
 
@@ -70,13 +69,17 @@ class PyMutator(Mutator):
         def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
             self.initialize_with_tune_context(tune_context)
 
-        def f_apply(self, trace: Trace) -> Optional[Trace]:
+        def f_apply(trace: Trace) -> Optional[Trace]:
             return self.apply(trace)
+
+        def f_as_string() -> str:
+            return str(self)
 
         self.__init_handle_by_constructor__(
             _ffi_api.MutatorPyMutator,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_apply,
+            f_as_string,
         )
 
     def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
@@ -87,8 +90,3 @@ class PyMutator(Mutator):
 
     def __str__(self) -> str:
         return f"PyMutator({_get_hex_address(self.handle)})"
-
-
-@register_func("meta_schedule.mutator.py_mutator._f_as_string")
-def _f_as_string(mutator: Mutator) -> str:
-    return mutator.__str__()

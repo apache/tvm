@@ -71,15 +71,23 @@ class PyPostprocNode : public PostprocNode {
    * \return Whether the post processing was successfully applied.
    */
   using FApply = runtime::TypedPackedFunc<bool(const tir::Schedule&)>;
+  /*!
+   * \brief Get the post processing function as string with name.
+   * \return The string of the post processing function.
+   */
+  using FAsString = runtime::TypedPackedFunc<String()>;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` funcion. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
   /*! \brief The packed function to the `Apply` funcion. */
   FApply f_apply;
+  /*! \brief The packed function to the `AsString` funcion. */
+  FAsString f_as_string;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `f_initialize_with_tune_context` is not visited
     // `f_apply` is not visited
+    // `f_as_string` is not visited
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
@@ -105,8 +113,9 @@ class Postproc : public runtime::ObjectRef {
    * \return The post processing created.
    */
   TVM_DLL static Postproc PyPostproc(
-      PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,
-      PyPostprocNode::FApply f_apply);
+      PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
+      PyPostprocNode::FApply f_apply,                                             //
+      PyPostprocNode::FAsString f_as_string);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Postproc, ObjectRef, PostprocNode);
 };
 

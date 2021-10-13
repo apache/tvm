@@ -24,6 +24,7 @@ from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.tir.schedule import Schedule, BlockRV
 
+from ..utils import _get_hex_address
 from .. import _ffi_api
 
 if TYPE_CHECKING:
@@ -77,10 +78,14 @@ class PyScheduleRule(ScheduleRule):
         def f_apply(sch: Schedule, block: BlockRV) -> List[Schedule]:
             return self.apply(sch, block)
 
+        def f_as_string() -> str:
+            return self.__str__()
+
         self.__init_handle_by_constructor__(
             _ffi_api.ScheduleRulePyScheduleRule,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_apply,
+            f_as_string,
         )
 
     def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
@@ -88,3 +93,6 @@ class PyScheduleRule(ScheduleRule):
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
         raise NotImplementedError
+
+    def __str__(self) -> str:
+        return f"PyScheduleRule({_get_hex_address(self.handle)})"

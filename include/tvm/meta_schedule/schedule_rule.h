@@ -70,15 +70,23 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
    */
   using FApply =
       runtime::TypedPackedFunc<Array<tir::Schedule>(const tir::Schedule&, const tir::BlockRV&)>;
+  /*!
+   * \brief Get the schedule rule as string with name.
+   * \return The string of the schedule rule.
+   */
+  using FAsString = runtime::TypedPackedFunc<String()>;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` funcion. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
   /*! \brief The packed function to the `Apply` funcion. */
   FApply f_apply;
+  /*! \brief The packed function to the `AsString` funcion. */
+  FAsString f_as_string;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `f_initialize_with_tune_context` is not visited
     // `f_apply` is not visited
+    // `f_as_string` is not visited
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
@@ -106,8 +114,9 @@ class ScheduleRule : public runtime::ObjectRef {
    * \return The schedule rule created.
    */
   TVM_DLL static ScheduleRule PyScheduleRule(
-      PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,
-      PyScheduleRuleNode::FApply f_apply);
+      PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
+      PyScheduleRuleNode::FApply f_apply,                                             //
+      PyScheduleRuleNode::FAsString f_as_string);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
 };
 

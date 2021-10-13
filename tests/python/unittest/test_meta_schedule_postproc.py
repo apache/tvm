@@ -71,12 +71,10 @@ def test_meta_schedule_postproc():
             except:
                 return False
 
-        def __strx__(self) -> str:
+        def __str__(self) -> str:
             return f"TestPostproc({_get_hex_address(self.handle)})"
 
     postproc = TestPostproc()
-    print(type(postproc))
-    print(postproc)
     pattern = re.compile("TestPostproc\(0x[a-f|0-9]*\)")
     assert pattern.match(str(postproc))
     sch = Schedule(Matmul)

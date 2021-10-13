@@ -19,12 +19,15 @@
 from typing import List
 
 import math
+import re
 
 import tvm
 from tvm.script import tir as T
 
 from tvm.meta_schedule.schedule_rule import PyScheduleRule
 from tvm.meta_schedule import TuneContext
+from tvm.meta_schedule.utils import _get_hex_address
+
 from tvm.tir.schedule import Schedule, BlockRV
 
 
@@ -68,8 +71,12 @@ def test_meta_schedule_schedule_rule():
             new_sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3)
             return [new_sch]
 
+        def __str__(self) -> str:
+            return f"TestScheduleRule({_get_hex_address(self.handle)})"
+
     sch_rule = TestScheduleRule()
-    assert str(sch_rule) == "PyScheduleRule()"
+    pattern = re.compile("TestScheduleRule\(0x[a-f|0-9]*\)")
+    assert pattern.match(str(sch_rule))
     sch = Schedule(Matmul)
     res = sch_rule.apply(sch, block=sch.get_block("matmul"))
     assert len(res) == 1
