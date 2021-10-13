@@ -18,23 +18,31 @@
  */
 
 /*!
- * \file src/relay/op/vm/vm.h
- * \brief Dialect operators for Relay VM.
+ * \file tvm/relay/attrs/call.h
+ * \brief Attribute for call_lowered operator.
  */
-#ifndef TVM_RELAY_OP_VM_VM_H_
-#define TVM_RELAY_OP_VM_VM_H_
+#ifndef TVM_RELAY_ATTRS_CALL_H_
+#define TVM_RELAY_ATTRS_CALL_H_
 
-#include <tvm/relay/expr.h>
+#include <tvm/ir/attrs.h>
+
+#include <string>
 
 namespace tvm {
 namespace relay {
 
-Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs);
-Expr ShapeFunc(Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input);
-Expr ShapeOf(Expr expr);
-Expr ReshapeTensor(Expr data, Expr shape, Array<PrimExpr> newshape);
+/*!
+ * \brief Metadata for calls to TIR functions, useful for program analysis crossing Relay and TIR.
+ */
+struct CallLoweredAttrs : public tvm::AttrsNode<CallLoweredAttrs> {
+  /*! \brief The metadata attached to the call node. */
+  Map<String, ObjectRef> metadata;
+
+  TVM_DECLARE_ATTRS(CallLoweredAttrs, "relay.attrs.CallLoweredAttrs") {
+    TVM_ATTR_FIELD(metadata).describe("Metadata attached to the lowered function call.");
+  }
+};
 
 }  // namespace relay
 }  // namespace tvm
-
-#endif  // TVM_RELAY_OP_VM_VM_H_
+#endif  // TVM_RELAY_ATTRS_CALL_H_

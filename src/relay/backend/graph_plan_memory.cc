@@ -24,6 +24,7 @@
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -32,6 +33,7 @@
 
 #include "../../support/arena.h"
 #include "../op/annotation/annotation.h"
+#include "../op/call/call.h"
 #include "../op/memory/memory.h"
 #include "../transforms/device_aware_visitors.h"
 #include "./utils.h"
@@ -139,6 +141,8 @@ class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
  protected:
   /*! \brief internal token map */
   std::unordered_map<const ExprNode*, std::vector<StorageToken*>> token_map_;
+  /*! \brief empty token map */
+  const std::vector<StorageToken*> no_tokens_;
 
   /*!
    * \brief Get the necessary token.
@@ -146,6 +150,11 @@ class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
    * \return The corresponding token.
    */
   const std::vector<StorageToken*>& GetToken(const Expr& expr) {
+    this->VisitExpr(expr);
+    // Functions don't require data storage, represented by the empty token
+    if (expr->checked_type().as<FuncTypeNode>()) {
+      return no_tokens_;
+    }
     // See through on_device calls.
     Expr real_expr = IgnoreOnDevice(expr);
     this->VisitExpr(real_expr);
@@ -159,8 +168,9 @@ class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
    * \brief Allocates (or reuses if \p can_realloc is true) a storage token for holding
    * the result of evaluating \p op.
    */
-  void CreateToken(const ExprNode* op, bool can_realloc) {
-    return CreateTokenOnDevice(op, GetInScopeDeviceType(GetRef<Expr>(op)), can_realloc);
+  void CreateToken(const ExprNode* expr_node, bool can_realloc) {
+    return CreateTokenOnDevice(expr_node, GetInScopeDeviceType(GetRef<Expr>(expr_node)),
+                               can_realloc);
   }
 
   /*!
@@ -203,12 +213,12 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
 
   using StorageAllocaBaseVisitor::DeviceAwareVisitExpr_;
 
-  void DeviceAwareVisitExpr_(const CallNode* op) final {
+  void DeviceAwareVisitExpr_(const CallNode* call_node) final {
     // create token for the call node.
-    CreateToken(op, true);
+    CreateToken(call_node, true);
 
     // for each input, visit argument token.
-    for (Expr arg : op->args) {
+    for (Expr arg : call_node->args) {
       for (StorageToken* tok : GetToken(arg)) {
         tok->ref_counter += 1;
       }
@@ -273,7 +283,6 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
                  << "expressions are assigned with virtual device types. Either all "
                     "or none of the expressions are expected to be annotated.";
     }
-
     return backend::StaticMemoryPlan(smap);
   }
 
@@ -320,10 +329,13 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   using StorageAllocaBaseVisitor::DeviceAwareVisitExpr_;
 
   // The call map
-  void DeviceAwareVisitExpr_(const CallNode* op) final {
+  void DeviceAwareVisitExpr_(const CallNode* call_node) final {
     std::vector<StorageToken*> args;
     // for each input, visit argument token.
-    for (Expr arg : op->args) {
+
+    for (const Expr& arg : call_node->args) {
+      // Note: GetToken skips GlobalVars and handles tuples properly, so we don't need to treat
+      // call_lowered specially.
       for (StorageToken* tok : GetToken(arg)) {
         args.push_back(tok);
       }
@@ -337,20 +349,17 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     //
     // TODO(tvm-team) Update checks of flat memory enablement when we support
     // opaque-nd memory planning to skip this path.
-    if (IsReshape(op)) {
-      // TODO(@electriclilies, jroesch): This check is failing because the size of args is 3
-      // I can't figure out where the extra args are coming from, I assume it must be related
-      // to the relay_attrs field we added to the TIRCallArgs, but I don't know where / how
-      // that's happening...
+
+    if (IsReshape(call_node)) {
       ICHECK_EQ(args.size(), 1U);
-      ReuseInputToken(op, args[0]);
+      ReuseInputToken(call_node, args[0]);
     } else {
       // create token for the call node.
-      CreateToken(op, true);
+      CreateToken(call_node, true);
     }
 
     // check if there is orphaned output that can be released immediately.
-    for (StorageToken* tok : token_map_.at(op)) {
+    for (StorageToken* tok : token_map_.at(call_node)) {
       CheckForRelease(tok);
     }
     for (StorageToken* tok : args) {
@@ -376,12 +385,11 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
       return fn->HasNonzeroAttr(attr::kReshapeOnly);
     }
 
-    if (call->attrs.defined()) {
-      if (auto tir_call_attrs = call->attrs.as<TIRCallAttrs>()) {
-        Map<String, ObjectRef> metadata = tir_call_attrs->metadata;
-        return metadata.count(attr::kReshapeOnly) &&
-               (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
-      }
+    if (call->op == CallLoweredOp()) {
+      CallLoweredProps call_lowered_props = GetCallLoweredProps(call);
+      Map<String, ObjectRef> metadata = call_lowered_props.attrs.metadata;
+      return metadata.count(attr::kReshapeOnly) &&
+             (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
     }
 
     return false;

@@ -25,6 +25,7 @@
 #include <tvm/driver/driver_api.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/attrs/debug.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/feature.h>
@@ -37,6 +38,7 @@
 #include <tvm/target/compilation_config.h>
 
 #include "../op/annotation/annotation.h"
+#include "../op/call/call.h"
 #include "../transforms/pass_utils.h"
 #include "te_compiler.h"
 
@@ -682,82 +684,93 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
   ObjectRef VisitExpr_(const CallNode* call_node) final {
-    std::vector<ObjectRef> args;
-    for (auto arg : call_node->args) {
-      args.push_back(Eval(arg));
-    }
+    if (call_node->op == CallLoweredOp()) {  // Special case: Call a lowered TIR function.
+      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
 
-    if (call_node->op == OnDeviceOp()) {
-      // Special case: The call 'on_device(expr)' denotes that expr should be executed on
-      // a particular device. We can ignore this during interpretation.
-      ICHECK_EQ(call_node->args.size(), 1UL);
-      return args[0];
-    }
-
-    // We should not find calls to operators after running fusion and lowering.
-    if (const OpNode* op_node = call_node->op.as<OpNode>()) {
-      LOG(FATAL) << "found " << op_node->name
-                 << "; operators should have been removed by previous passes; try "
-                    "fusing and lowering";
-    }
-
-    if (const ConstructorNode* con = call_node->op.as<ConstructorNode>()) {
-      // Special case: ADT constructor
-      return ConstructorValue(con->tag, args, GetRef<Constructor>(con));
-    }
-
-    if (const GlobalVarNode* gvn = call_node->op.as<GlobalVarNode>()) {
-      if (const TIRCallAttrs* attrs = call_node->attrs.as<TIRCallAttrs>()) {
-        // Special case: Call a lowered TIR function.
-        // TODO(mbs): Make calling convention first-class in Relay.
-        Array<GlobalVar> all_prim_fn_vars;
-        if (attrs->metadata.count("all_prim_fn_vars")) {
-          all_prim_fn_vars = Downcast<Array<GlobalVar>>(attrs->metadata.at("all_prim_fn_vars"));
-        }
-        GlobalVar prim_shape_fn_var;
-        if (attrs->metadata.count("prim_shape_fn_var")) {
-          prim_shape_fn_var = Downcast<GlobalVar>(attrs->metadata.at("prim_shape_fn_var"));
-        }
-        Array<GlobalVar> all_prim_shape_fn_vars;
-        if (attrs->metadata.count("all_prim_shape_fn_vars")) {
-          all_prim_shape_fn_vars =
-              Downcast<Array<GlobalVar>>(attrs->metadata.at("all_prim_shape_fn_vars"));
-        }
-        Array<Integer> prim_shape_fn_states;
-        if (attrs->metadata.count("prim_shape_fn_states")) {
-          prim_shape_fn_states =
-              Downcast<Array<Integer>>(attrs->metadata.at("prim_shape_fn_states"));
-        }
-        size_t num_shape_inputs = 0;
-        if (attrs->metadata.count("prim_shape_fn_num_inputs")) {
-          num_shape_inputs = static_cast<size_t>(
-              Downcast<Integer>(attrs->metadata.at("prim_shape_fn_num_inputs"))->value);
-        }
-        size_t num_shape_outputs = 0;
-        if (attrs->metadata.count("prim_shape_fn_num_outputs")) {
-          num_shape_outputs = static_cast<size_t>(
-              Downcast<Integer>(attrs->metadata.at("prim_shape_fn_num_outputs"))->value);
-        }
-
-        ICHECK(config_->optional_homogeneous_target.defined());
-        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars,
-                                 config_->optional_homogeneous_target, prim_shape_fn_var,
-                                 all_prim_shape_fn_vars, prim_shape_fn_states, num_shape_inputs,
-                                 num_shape_outputs, config_->host_se_scope->target, args);
+      // Evaluate only function args
+      std::vector<ObjectRef> args;
+      for (auto arg : call_lowered_props.arguments) {
+        args.push_back(Eval(arg));
       }
-    }
 
-    // Now we just evaluate and expect to find a closure.
-    ObjectRef fn_val = Eval(call_node->op);
-    if (const InterpreterClosureObj* closure_node = fn_val.as<InterpreterClosureObj>()) {
-      auto closure = GetRef<InterpreterClosure>(closure_node);
-      return Invoke(closure, args);
-    } else if (const RecClosureObj* closure_node = fn_val.as<RecClosureObj>()) {
-      return Invoke(closure_node->clos, args, closure_node->bind);
-    } else {
-      LOG(FATAL) << "internal error: type error, expected function value in the call "
-                 << "position";
-      return ObjectRef();
+      // TODO(mbs): Make calling convention first-class in Relay.
+      Array<GlobalVar> all_prim_fn_vars;
+      if (call_lowered_props.attrs.metadata.count("all_prim_fn_vars")) {
+        all_prim_fn_vars =
+            Downcast<Array<GlobalVar>>(call_lowered_props.attrs.metadata.at("all_prim_fn_vars"));
+      }
+      GlobalVar prim_shape_fn_var;
+      if (call_lowered_props.attrs.metadata.count("prim_shape_fn_var")) {
+        prim_shape_fn_var =
+            Downcast<GlobalVar>(call_lowered_props.attrs.metadata.at("prim_shape_fn_var"));
+      }
+      Array<GlobalVar> all_prim_shape_fn_vars;
+      if (call_lowered_props.attrs.metadata.count("all_prim_shape_fn_vars")) {
+        all_prim_shape_fn_vars = Downcast<Array<GlobalVar>>(
+            call_lowered_props.attrs.metadata.at("all_prim_shape_fn_vars"));
+      }
+      Array<Integer> prim_shape_fn_states;
+      if (call_lowered_props.attrs.metadata.count("prim_shape_fn_states")) {
+        prim_shape_fn_states =
+            Downcast<Array<Integer>>(call_lowered_props.attrs.metadata.at("prim_shape_fn_states"));
+      }
+
+      size_t num_shape_inputs = 0;
+      if (call_lowered_props.attrs.metadata.count("prim_shape_fn_num_inputs")) {
+        num_shape_inputs = static_cast<size_t>(
+            Downcast<Integer>(call_lowered_props.attrs.metadata.at("prim_shape_fn_num_inputs"))
+                ->value);
+      }
+      size_t num_shape_outputs = 0;
+      if (call_lowered_props.attrs.metadata.count("prim_shape_fn_num_outputs")) {
+        num_shape_outputs = static_cast<size_t>(
+            Downcast<Integer>(call_lowered_props.attrs.metadata.at("prim_shape_fn_num_outputs"))
+                ->value);
+      }
+
+      return InvokePrimitiveOp(call_lowered_props.lowered_func, all_prim_fn_vars, target_,
+                               prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
+                               num_shape_inputs, num_shape_outputs, cpu_target_, args);
+    } else {  // All other calls
+      // Evaluate all arguments
+      std::vector<ObjectRef> args;
+      for (auto arg : call_node->args) {
+        args.push_back(Eval(arg));
+      }
+
+      if (call_node->op == OnDeviceOp()) {
+        // Special case: The call 'on_device(expr)' denotes that expr should be executed on
+        // a particular device. We can ignore this during interpretation.
+        ICHECK_EQ(call_node->args.size(), 1UL);
+        return args[0];
+      }
+      if (const ConstructorNode* con = call_node->op.as<ConstructorNode>()) {
+        // Special case: ADT constructor
+
+        return ConstructorValue(con->tag, args, GetRef<Constructor>(con));
+      }
+
+      if (const OpNode* op_node = call_node->op.as<OpNode>()) {
+        // Except for call_lowered and on_device, we should not find calls to operators after
+        // running fusion and lowering.
+        LOG(FATAL) << "found " << op_node->name
+                   << "; operators should have been removed by previous passes; try "
+                      "fusing and lowering";
+      }
+
+      // Now we just evaluate and expect to find a closure.
+      // TODO(@electriclilies): How should call_lowered behave with closures?
+      ObjectRef fn_val = Eval(call_node->op);
+      if (const InterpreterClosureObj* closure_node = fn_val.as<InterpreterClosureObj>()) {
+        auto closure = GetRef<InterpreterClosure>(closure_node);
+        return Invoke(closure, args);
+      } else if (const RecClosureObj* closure_node = fn_val.as<RecClosureObj>()) {
+        return Invoke(closure_node->clos, args, closure_node->bind);
+      } else {
+        LOG(FATAL) << "internal error: type error, expected function value in the call "
+                   << "position";
+        return ObjectRef();
+      }
     }
   }
 

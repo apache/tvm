@@ -24,6 +24,7 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
@@ -40,6 +41,7 @@
 #include <vector>
 
 #include "../op/annotation/annotation.h"
+#include "../op/call/call.h"
 #include "../transforms/device_aware_visitors.h"
 #include "./te_compiler.h"
 #include "./utils.h"
@@ -72,14 +74,34 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     AssignReturnSid(GetRef<Expr>(op));
   }
 
-  void DeviceAwareVisitExpr_(const CallNode* op) final {
-    // create token for the call node.
-    VisitExpr(op->op);
-    CreateStorage(op);
-    for (Expr arg : op->args) {
+  void DeviceAwareVisitExpr_(const CallNode* call_node) final {
+    // AOTOnDemandAllocator is run both before and after lowering, so we need to handle the case
+    // where the op of the call is a generic function
+
+    Expr func;
+    Array<Expr> args;
+
+    if (call_node->op == CallLoweredOp()) {
+      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+      func = call_lowered_props.lowered_func;
+      args = call_lowered_props.arguments;
+    } else {  // Relay functions that have not been lowered and lowered extern functions
+      func = call_node->op;
+      args = call_node->args;
+      if (call_node->op.as<GlobalVarNode>()) {  // Lowered extern function
+        ICHECK(!(call_node->attrs.defined())) << "Extern functions should have null attributes.";
+      } else {  // Relay function which has not been lowered yet
+        ICHECK(call_node->op.as<FunctionNode>())
+            << "Expected the call to be to a lowered primfunc, a lowered extern function or a "
+               "unlowered Relay function.";
+      }
+    }
+    VisitExpr(func);
+    CreateStorage(call_node);
+    for (const Expr& arg : args) {
       GetStorage(arg);
     }
-    AssignReturnSid(GetRef<Expr>(op));
+    AssignReturnSid(GetRef<Expr>(call_node));
   }
 
   void VisitExpr_(const VarNode* op) final { AssignReturnSid(GetRef<Expr>(op)); }
@@ -287,13 +309,18 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * brief Call a function with a given name
+   * brief Create a function call
+   * \param call_lowered_props The lowered function and the arguments to call it with
+   * \param call The call we got func and args from
    */
-  void CreateFuncCall(Call call, std::string func_name) {
+  void CreateFuncCall(CallLoweredProps call_lowered_props, Call call) {
+    std::string func_name = call_lowered_props.lowered_func->name_hint;
+
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
+
     // Pack the inputs
-    for (Expr arg : call->args) {
+    for (const Expr& arg : call_lowered_props.arguments) {
       if (params_by_expr_.find(arg) != params_by_expr_.end()) {
         auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                            {tir::StringImm(params_by_expr_[arg])});
@@ -371,21 +398,20 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     return ss.str();
   }
 
-  void VisitExpr_(const CallNode* op) override {
+  void VisitExpr_(const CallNode* call_node) override {
     // Descend the call tree
-    for (auto arg : op->args) {
+    ICHECK(call_node->op == CallLoweredOp())
+        << "Operators should be transformed away; Try applying the fuse_ops transformation to the "
+           "expression.";
+
+    // Extract function and arguments from the call_lowered op
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+
+    for (auto arg : call_lowered_props.arguments) {
       VisitExpr(arg);
     }
 
-    if (op->op.as<OpNode>()) {
-      LOG(FATAL) << "Operators should be transformed away; try applying"
-                 << "the fuse_ops transformation to the expression.";
-    } else if (op->op.as<GlobalVarNode>()) {
-      GlobalVar node = GetRef<GlobalVar>(op->op.as<GlobalVarNode>());
-      CreateFuncCall(GetRef<Call>(op), node->name_hint);
-    } else {
-      LOG(FATAL) << "TVM runtime does not support calls to " << op->op->GetTypeKey();
-    }
+    CreateFuncCall(call_lowered_props, GetRef<Call>(call_node));
   }
 
   void VisitExpr_(const VarNode* op) override {
@@ -443,7 +469,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
   void VisitExpr_(const TupleGetItemNode* op) override { VisitExpr(op->tuple); }
   void VisitExpr_(const OpNode* op) override {
-    LOG(FATAL) << "All OpNodes should have been expanded";
+    if (GetRef<Op>(op) != CallLoweredOp()) {
+      LOG(FATAL) << "All OpNodes except for call_lowered should have been expanded";
+    }
   }
   void VisitExpr_(const IfNode* op) override {
     LOG(FATAL) << "All GlobalVarNodes should be removed before AOT executor's Codegen is called";
