@@ -610,9 +610,24 @@ class Stage(Object):
                 f"but {self.op.name} is {len(self.op.shape)}-dimensional"
             )
 
-        final_indices = mapping_function(*args, **kwargs)
+        mapping = mapping_function(*args, **kwargs)
+
+        final_indices = []
+        axis_separators = []
+        for val in mapping:
+            if isinstance(val, tvm.ir.PrimExpr):
+                final_indices.append(val)
+            elif val is AXIS_SEPARATOR:
+                axis_separators.append(len(final_indices))
+            else:
+                raise TypeError(
+                    "Expected mapping function to return list of "
+                    "either tvm.ir.PrimExpr or tvm.te.AXIS_SEPARATOR.  "
+                    "Instead received {val} of type {type(val)}."
+                )
 
         _ffi_api.StageTransformLayout(self, initial_indices, final_indices)
+        _ffi_api.StageSetAxisSeparators(self, axis_separators)
 
 
 
@@ -650,6 +665,12 @@ class SpecializedCondition(Object):
 
     def __exit__(self, ptype, value, trace):
         _ffi_api.ExitSpecializationScope(self)
+
+
+# Sentinel value used to indicate which groups of pre-flattening axes
+# should be used to post-flattening axes axes.  See
+# Stage.transform_layout for more details.
+AXIS_SEPARATOR = "axis_separator"
 
 
 tvm._ffi._init_api("schedule", __name__)
