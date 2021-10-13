@@ -162,6 +162,7 @@ def conv2d_packed_filter(
     stride,
     padding,
     dtype,
+    k_split_factor,
     h_split_factor,
     storage_scope="global",
 ):
@@ -263,6 +264,7 @@ def conv2d_packed_filter(
 
     # cache read for the input / activation (X)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
+    Fl = s.cache_read(filt_packed, storage_scope, [Y])
 
     # cache write for the output (Y)
     Yl = s.cache_write(Y, storage_scope)
@@ -277,7 +279,9 @@ def conv2d_packed_filter(
 
     # loop split h and compute cache write at outer loop split
     # to increase cache usage by factor of h_split_factor
+    koo, koi = s[Y].split(ko, factor=k_split_factor)
     hoo, hoi = s[Y].split(ho, factor=h_split_factor)
+    s[Y].reorder(n, koo, hoo, koi, hoi, wo, hi, wi, ki)
     s[Yl].compute_at(s[Y], hoo)
 
     ####################
@@ -297,9 +301,11 @@ def conv2d_packed_filter(
 
     # loop split h and compute cache write at outer loop split
     # to increase cache usage by factor of h_split_factor
+    koo, koi = s[Yl].split(ko, factor=k_split_factor)
     hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
-    s[Yl].reorder(n, hoo, hoi, wo, ko, rco, hi, wi, ki, rci)
+    s[Yl].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
     s[Xl].compute_at(s[Yl], hoo)
+    s[Fl].compute_at(s[Yl], hoo)
 
     binds = {}
     if storage_scope and storage_scope != "global":
@@ -318,6 +324,7 @@ def conv2d_packed_filter_nhwhwc(
     stride,
     padding,
     dtype,
+    k_split_factor,
     h_split_factor,
     storage_scope="global",
 ):
@@ -406,6 +413,7 @@ def conv2d_packed_filter_nhwhwc(
 
     # cache read for the input / activation (X)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
+    Fl = s.cache_read(filt_packed, storage_scope, [Y])
 
     # cache write for the output (Y)
     Yl = s.cache_write(Y, storage_scope)
@@ -423,8 +431,9 @@ def conv2d_packed_filter_nhwhwc(
 
     # loop split h and compute cache write at outer loop split
     # to increase cache usage by factor of h_split_factor
+    koo, koi = s[Y].split(ko, factor=k_split_factor)
     hoo, hoi = s[Y].split(ho, factor=h_split_factor)
-    s[Y].reorder(n, hoo, hoi, wo, ko, hi, wi, ki)
+    s[Y].reorder(n, koo, hoo, koi, hoi, wo, hi, wi, ki)
     s[Yl].compute_at(s[Y], hoo)
 
     ####################
@@ -445,9 +454,11 @@ def conv2d_packed_filter_nhwhwc(
 
     # loop split h and compute cache write at outer loop split
     # to increase cache usage by factor of h_split_factor
+    koo, koi = s[Yl].split(ko, factor=k_split_factor)
     hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
-    s[Yl].reorder(n, hoo, hoi, wo, ko, rco, hi, wi, ki, rci)
+    s[Yl].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
     s[Xl].compute_at(s[Yl], hoo)
+    s[Fl].compute_at(s[Yl], hoo)
 
     #######################
     # cache read schedule #
@@ -474,12 +485,13 @@ def conv2d_packed_filter_nhwhwc(
 class BaseConv2d:
     batch = tvm.testing.parameter(1)
     in_size = tvm.testing.parameter(8, 56, 64)
-    in_channel = tvm.testing.parameter(64)
-    out_channel = tvm.testing.parameter(64)
+    in_channel = tvm.testing.parameter(64, 128)
+    out_channel = tvm.testing.parameter(64, 128)
     kernel = tvm.testing.parameter(1, 3)
     stride = tvm.testing.parameter(1)
     pad = tvm.testing.parameter(0, 1)
     dtype = tvm.testing.parameter("float32")
+    k_split_factor = tvm.testing.parameter(1, 2)
     h_split_factor = tvm.testing.parameter(1, 2)
 
 
@@ -522,6 +534,7 @@ class TestConv2dPackedFilter(BaseConv2d):
         pad,
         dtype,
         target,
+        k_split_factor,
         h_split_factor,
     ):
         inputs = [
@@ -543,6 +556,7 @@ class TestConv2dPackedFilter(BaseConv2d):
             stride=(stride, stride),
             padding=(pad, pad, pad, pad),
             dtype=dtype,
+            k_split_factor=k_split_factor,
             h_split_factor=h_split_factor,
         )
         return output, ref_output
