@@ -1,0 +1,133 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# jshmsjh, 2021
+# juzi, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:32+0000\n"
+"Last-Translator: juzi, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_deploy_models_deploy_object_detection_pytorch.py>`"
+" to download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:11
+msgid "Compile PyTorch Object Detection Models"
+msgstr "编译PyTorch对象检测模型"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:12
+msgid ""
+"This article is an introductory tutorial to deploy PyTorch object detection "
+"models with Relay VM."
+msgstr "本文是一个介绍性教程，介绍如何使用Relay VM部署PyTorch对象检测模型。"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:15
+msgid ""
+"For us to begin with, PyTorch should be installed. TorchVision is also "
+"required since we will be using it as our model zoo."
+msgstr "首先，应该先安装 PyTorch。TorchVision 也是必需的，因为我们将使用它作为我们的模型库。"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:18
+msgid "A quick solution is to install via pip"
+msgstr "我们可以使用 pip 来快速安装依赖"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:25
+msgid ""
+"or please refer to official site https://pytorch.org/get-started/locally/"
+msgstr "或者参考官方网站 https://pytorch.org/get-started/locally/"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:28
+msgid ""
+"PyTorch versions should be backwards compatible but should be used with the "
+"proper TorchVision version."
+msgstr "PyTorch 版本理论上是向后兼容的，但也应与匹配的 TorchVision 版本一起使用。"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:31
+msgid ""
+"Currently, TVM supports PyTorch 1.7 and 1.4. Other versions may be unstable."
+msgstr "目前 TVM 支持 PyTorch 1.7 和 1.4 版本。其它版本可能是不稳定的。"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:58
+msgid "Load pre-trained maskrcnn from torchvision and do tracing"
+msgstr "从torchvision加载预先训练过的maskrcnn，并进行追踪"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:106
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:166
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:239
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:128
+msgid "Download a test image and pre-process"
+msgstr "下载测试图像并预处理"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:151
+msgid "Import the graph to Relay"
+msgstr "将计算图导入到 Relay 中"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:176
+msgid "Compile with Relay VM"
+msgstr "使用Relay VM编译"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:177
+msgid ""
+"Note: Currently only CPU target is supported. For x86 target, it is highly "
+"recommended to build TVM with Intel MKL and Intel OpenMP to get best "
+"performance, due to the existence of large dense operator in torchvision "
+"rcnn models."
+msgstr ""
+"备注:目前只支持CPU目标。对于x86目标，由于torchvision rcnn模型中存在大型密集算子，强烈推荐使用Intel MKL和Intel "
+"OpenMP构建TVM以获得最佳性能。"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:201
+msgid "Inference with Relay VM"
+msgstr "用Relay VM进行推理"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:218
+msgid "Get boxes with score larger than 0.9"
+msgstr "获取得分大于0.9的框"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:250
+msgid "**Total running time of the script:** ( 2 minutes  30.582 seconds)"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:265
+msgid ""
+":download:`Download Python source code: deploy_object_detection_pytorch.py "
+"<deploy_object_detection_pytorch.py>`"
+msgstr ""
+":download:`下载 Python 源代码: deploy_object_detection_pytorch.py "
+"<deploy_object_detection_pytorch.py>`"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:271
+msgid ""
+":download:`Download Jupyter notebook: deploy_object_detection_pytorch.ipynb "
+"<deploy_object_detection_pytorch.ipynb>`"
+msgstr ""
+":download:`下载Jupyter notebook: deploy_object_detection_pytorch.ipynb "
+"<deploy_object_detection_pytorch.ipynb>`"
+
+#: ../../_staging/how_to/deploy_models/deploy_object_detection_pytorch.rst:278
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

@@ -24,8 +24,8 @@ from tvm import relay, te
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
 
-from utils.assert_diagnostic import DiagnosticTesting
 from utils import ref_funcs
+from utils.assert_diagnostic import DiagnosticTesting
 
 
 def int32(val):
@@ -2022,7 +2022,7 @@ def test_gather_nd():
     def verify_gather_nd(data_shape, indices_shape, data_shape_np, indices_shape_np, batch_dims=0):
         x = relay.var("x", relay.TensorType(data_shape, "float32"))
         y = relay.var("y", relay.TensorType(indices_shape, "int32"))
-        z = relay.gather_nd(x, y, batch_dims, indices_shape[0])
+        z = relay.gather_nd(x, y, batch_dims=batch_dims, index_rank=indices_shape[0])
 
         mod = tvm.IRModule()
         mod["main"] = relay.Function([x, y], z)
@@ -2062,6 +2062,28 @@ def test_scatter_nd():
     updates = np.array([2, 3, 0])
     out = np.array([[0, 0], [2, 3]])
     verify_scatter_nd(data, indices, updates, out)
+
+
+@tvm.testing.uses_gpu
+def test_gather():
+    def verify_gather(data_shape, indices_shape, data_shape_np, indices_shape_np, axis):
+        x = relay.var("x", relay.TensorType(data_shape, "float32"))
+        y = relay.var("y", relay.TensorType(indices_shape, "int32"))
+        z = relay.gather(x, axis, y)
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([x, y], z)
+
+        data_np = np.random.uniform(size=data_shape_np).astype("float32")
+        indices_np = np.random.randint(low=0, high=2, size=indices_shape_np, dtype="int32")
+
+        ref_res = tvm.topi.testing.gather_python(data_np, axis, indices_np)
+        check_result([data_np, indices_np], mod, [ref_res])
+
+    verify_gather((relay.Any(),), (relay.Any(),), (10,), (10,), 0)
+    verify_gather((2, 2), (2, relay.Any()), (2, 2), (2, 3), 1)
+    verify_gather((relay.Any(), 2), (2, relay.Any()), (2, 2), (2, 3), 1)
+    verify_gather((relay.Any(), relay.Any()), (relay.Any(), relay.Any()), (2, 3), (1, 3), 0)
 
 
 if __name__ == "__main__":

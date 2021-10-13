@@ -1,0 +1,60 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/tune_with_autotvm/sg_execution_times.rst:7
+msgid "Computation times"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/sg_execution_times.rst:8
+msgid "**00:41.843** total execution time for **how_to_tune_with_autotvm** files:"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/sg_execution_times.rst:10
+msgid ""
+"**00:40.816**: "
+":ref:`sphx_glr_how_to_tune_with_autotvm_tune_conv2d_cuda.py` "
+"(``tune_conv2d_cuda.py``)"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/sg_execution_times.rst:11
+msgid ""
+"**00:00.263**: :ref:`sphx_glr_how_to_tune_with_autotvm_tune_relay_arm.py`"
+" (``tune_relay_arm.py``)"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/sg_execution_times.rst:12
+msgid ""
+"**00:00.261**: "
+":ref:`sphx_glr_how_to_tune_with_autotvm_tune_relay_cuda.py` "
+"(``tune_relay_cuda.py``)"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/sg_execution_times.rst:13
+msgid ""
+"**00:00.253**: :ref:`sphx_glr_how_to_tune_with_autotvm_tune_relay_x86.py`"
+" (``tune_relay_x86.py``)"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/sg_execution_times.rst:14
+msgid ""
+"**00:00.250**: "
+":ref:`sphx_glr_how_to_tune_with_autotvm_tune_relay_mobile_gpu.py` "
+"(``tune_relay_mobile_gpu.py``)"
+msgstr ""
+

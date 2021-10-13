@@ -1,0 +1,159 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/arch/hybrid_script.rst:19
+msgid "Hybrid Frontend Developer Guide"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:21
+msgid "If you are a developer:"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:23
+msgid ""
+"1. who is trying writing some preliminary patterns that have not been "
+"supported by TVM yet, maybe :ref:`hybrid-langref-label` is a better place"
+" for you."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:26
+msgid ""
+"who wants to know the implementation details of this module, you are "
+"right here!"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:29
+msgid "Features"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:32
+msgid "Software Emulation"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:34
+msgid ""
+"In software emulation, the most interesting thing is the decorator "
+"``tvm.te.hybrid.script``. This decorator helps 2 things:"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:37
+msgid "Importing runtime variables"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:39
+msgid "Overloading the function according to the arguments passed"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:41
+msgid ""
+"Correct me if I am wrong: I believe that how 1. is implemented is "
+"dangerous, but I have no choice. What I did is to add those names into "
+"python dict ``func.__global__`` and after the call to ``func`` is done, "
+"those names will be cleaned up."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:45
+msgid ""
+"Overload is simple: the decorator checks the arguments' types and "
+"determines which function should be actually called."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:50
+msgid "Backend Compilation"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:52
+msgid ""
+"Compilation is a large module, you can see ``python/tvm/te/hybrid/`` for "
+"more details. The first stage determines the usage, or more accurately "
+"the declaration of each variable and the second stage does the actual IR "
+"generation."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:58
+msgid "Attributes"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:60
+msgid ""
+"So far, ONLY tensors' `shape` attribute is supported. You can see "
+"``visit_Subscript`` in ``python/tvm/te/hybrid/parser.py`` for more "
+"details. This is a hacky solution, I just check the attributes when "
+"subscript."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:65
+msgid "Loops"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:67
+msgid ""
+"In HalideIR, loops have in total 4 types: ``serial``, ``unrolled``, "
+"``parallel``, and ``vectorized``."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:72
+msgid ""
+"Unlike what that is in HalideIR, in ``loop_type(a, b)``, ``a`` is the "
+"starting point and ``b`` is the trip count of iterations. Here "
+"``loop_type(a, b)`` indicates ``[a, b)``. Thus, when lowering it to "
+"HalideIR, we need to do ``start, extent = a, b - a``"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:79
+msgid ""
+"In HalideIR those are enums, they are in passive form. Here we use active"
+" form to annotate loops, because they are ready to run."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:84
+msgid "Variables"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:86
+msgid ""
+"Because there is no variables in ``HalideIR``, all the mutable variables "
+"will be lowered to an array with size 1. It takes the first store of a "
+"variable as its declaration."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:90
+msgid "Math Intrinsics"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:91
+msgid ""
+"So far, these math intrinsics, ``log``, ``exp``, ``sigmoid``, ``tanh``, "
+"``power``, and ``popcount``, are supported. Math intrinsics will be "
+"imported by the decorator. Most of the intrinsics are borrowed by library"
+" implementation except ``popcount`` and ``sigmoid``. I implemented them "
+"manually."
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:97
+msgid "Casting"
+msgstr ""
+
+#: ../../_staging/arch/hybrid_script.rst:99
+msgid ""
+"You can cast values by using the keywords ``uint8``, ``uint16`` "
+"``uint32``, ``uint64``, ``int8``, ``int16``, ``int32``, ``int64``, "
+"``float16``, ``float32``, ``float64``."
+msgstr ""
+

@@ -1,0 +1,241 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_deploy_models_deploy_prequantized_tflite.py>` "
+"to download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:11
+msgid "Deploy a Framework-prequantized Model with TVM - Part 3 (TFLite)"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:12
+msgid "**Author**: `Siju Samuel <https://github.com/siju-samuel>`_"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:14
+msgid ""
+"Welcome to part 3 of the Deploy Framework-Prequantized Model with TVM "
+"tutorial. In this part, we will start with a Quantized TFLite graph and "
+"then compile and execute it via TVM."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:18
+msgid ""
+"For more details on quantizing the model using TFLite, readers are "
+"encouraged to go through `Converting Quantized Models "
+"<https://www.tensorflow.org/lite/convert/quantization>`_."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:22
+msgid ""
+"The TFLite models can be downloaded from this `link "
+"<https://www.tensorflow.org/lite/guide/hosted_models>`_."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:25
+msgid ""
+"To get started, Tensorflow and TFLite package needs to be installed as "
+"prerequisite."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:33
+msgid ""
+"Now please check if TFLite package is installed successfully, ``python -c"
+" \"import tflite\"``"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:37
+msgid "Necessary imports"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:58
+msgid "Download pretrained Quantized TFLite model"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:86
+msgid "Utils for downloading and extracting zip files"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:113
+msgid "Load a test image"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:116
+msgid "Get a real image for e2e testing"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:143
+msgid "Load a tflite model"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:145
+msgid "Now we can open mobilenet_v2_1.0_224.tflite"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:169
+msgid ""
+"Lets run TFLite pre-quantized model inference and get the TFLite "
+"prediction."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:211
+msgid ""
+"Lets run TVM compiled pre-quantized model inference and get the TVM "
+"prediction."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:234
+msgid "TFLite inference"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:236
+msgid "Run TFLite inference on the quantized model."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:251
+msgid "TVM compilation and inference"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:253
+msgid ""
+"We use the TFLite-Relay parser to convert the TFLite pre-quantized graph "
+"into Relay IR. Note that frontend parser call for a pre-quantized model "
+"is exactly same as frontend parser call for a FP32 model. We encourage "
+"you to remove the comment from print(mod) and inspect the Relay module. "
+"You will see many QNN operators, like, Requantize, Quantize and QNN "
+"Conv2D."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:273
+msgid ""
+"Lets now the compile the Relay module. We use the \"llvm\" target here. "
+"Please replace it with the target platform that you are interested in."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:289
+msgid "Finally, lets call inference on the TVM compiled module."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:303
+msgid "Accuracy comparison"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:305
+msgid ""
+"Print the top-5 labels for MXNet and TVM inference. Checking the labels "
+"because the requantize implementation is different between TFLite and "
+"Relay. This cause final output numbers to mismatch. So, testing accuracy "
+"via labels."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:323
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:349
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:333
+msgid "Measure performance"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:334
+msgid ""
+"Here we give an example of how to measure performance of TVM compiled "
+"models."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:362
+msgid ""
+"Unless the hardware has special support for fast 8 bit instructions, "
+"quantized models are not expected to be any faster than FP32 models. "
+"Without fast 8 bit instructions, TVM does quantized convolution in 16 "
+"bit, even if the model itself is 8 bit."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:366
+msgid ""
+"For x86, the best performance can be achieved on CPUs with AVX512 "
+"instructions set. In this case, TVM utilizes the fastest available 8 bit "
+"instructions for the given target. This includes support for the VNNI 8 "
+"bit dot product instruction (CascadeLake or newer). For EC2 C5.12x large "
+"instance, TVM latency for this tutorial is ~2 ms."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:371
+msgid ""
+"Intel conv2d NCHWc schedule on ARM gives better end-to-end latency "
+"compared to ARM NCHW conv2d spatial pack schedule for many TFLite "
+"networks. ARM winograd performance is higher but it has a high memory "
+"footprint."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:375
+msgid "Moreover, the following general tips for CPU performance equally applies:"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:377
+msgid ""
+"Set the environment variable TVM_NUM_THREADS to the number of physical "
+"cores"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:378
+msgid ""
+"Choose the best target for your hardware, such as \"llvm -mcpu=skylake-"
+"avx512\" or \"llvm -mcpu=cascadelake\" (more CPUs with AVX512 would come "
+"in the future)"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:380
+msgid ""
+"Perform autotuning - `Auto-tuning a convolution network for x86 CPU "
+"<https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html>`_."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:382
+msgid ""
+"To get best inference performance on ARM CPU, change target argument "
+"according to your device and follow `Auto-tuning a convolution network "
+"for ARM CPU "
+"<https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_arm.html>`_."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:389
+msgid "**Total running time of the script:** ( 2 minutes  7.334 seconds)"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:404
+msgid ""
+":download:`Download Python source code: deploy_prequantized_tflite.py "
+"<deploy_prequantized_tflite.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:410
+msgid ""
+":download:`Download Jupyter notebook: deploy_prequantized_tflite.ipynb "
+"<deploy_prequantized_tflite.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized_tflite.rst:417
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

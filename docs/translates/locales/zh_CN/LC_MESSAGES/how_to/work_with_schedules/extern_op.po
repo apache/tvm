@@ -1,0 +1,152 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# Xiaoyu Zhang, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:35+0000\n"
+"Last-Translator: Xiaoyu Zhang, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_work_with_schedules_extern_op.py>` to download the"
+" full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:11
+msgid "External Tensor Functions"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:12
+msgid "**Author**: `Tianqi Chen <https://tqchen.github.io>`_"
+msgstr "**作者**: `Tianqi Chen <https://tqchen.github.io>`_"
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:14
+msgid ""
+"While TVM supports transparent code generation, sometimes it is also helpful"
+" to incorporate manual written code into the pipeline. For example, we might"
+" want to use cuDNN for some of the convolution kernels and define the rest "
+"of the stages."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:19
+msgid ""
+"TVM supports these black box function calls natively. Specfically, TVM "
+"support all the tensor functions that are DLPack compatible. Which means we "
+"can call any function with POD types(pointer, int, float) or pointer to "
+"DLTensor as argument."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:45
+msgid "Use Extern Tensor Function"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:46
+msgid ""
+"In the example below, we use :any:`te.extern` to add an extern array "
+"function call. In the extern call, we declare the shape of output tensors. "
+"In the second argument we provide the list of inputs."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:50
+msgid ""
+"User will need to provide a function describing how to compute the result. "
+"The compute function takes list of symbolic placeholder for the inputs, list"
+" of symbolic placeholder for the outputs and returns the executing "
+"statement."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:54
+msgid ""
+"In this case we simply call a registered TVM function, which invokes a CBLAS"
+" call. TVM does not control internal of the extern array function and treats"
+" it as blackbox. We can further mix schedulable TVM calls that add a bias "
+"term to the result."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:86
+msgid "Verify the Result"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:87
+msgid "We can verify that the result matches what we expected."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:109
+msgid "Extern Contrib Wrappers"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:110
+msgid ""
+"TVM also provide extern contrib wrappers to useful extern calls, the "
+"following line is equivalent to the previous example."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:130
+msgid "Hook Python Function as Extern"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:131
+msgid ""
+"Since we can call into any PackedFunc in TVM. We can use the extern function"
+" to callback into python."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:134
+msgid ""
+"The following example registers a python function into TVM runtime system "
+"and use it to complete one stage of the computation. This makes TVM much "
+"more flexible. For example, we can insert front-end callbacks to inspect the"
+" intermediate results or mix customized code with TVM."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:170
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:179
+msgid "Summary"
+msgstr "总结"
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:180
+msgid "TVM calls extern tensor function via :any:`te.extern`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:181
+msgid "Use contrib wrappers for short sugars of extern tensor calls."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:182
+msgid "We can hook front-end function as extern tensor callbacks."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:198
+msgid ":download:`Download Python source code: extern_op.py <extern_op.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:204
+msgid ""
+":download:`Download Jupyter notebook: extern_op.ipynb <extern_op.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/extern_op.rst:211
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

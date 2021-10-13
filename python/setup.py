@@ -49,13 +49,22 @@ def get_lib_path():
     if not CONDA_BUILD:
         lib_path = libinfo["find_lib_path"]()
         libs = [lib_path[0]]
-        if libs[0].find("runtime") == -1:
+        if "runtime" not in libs[0]:
             for name in lib_path[1:]:
-                if name.find("runtime") != -1:
+                if "runtime" in name:
                     libs.append(name)
                     break
+
+        # Add standalone_crt, if present
+        for name in lib_path:
+            candidate_path = os.path.join(os.path.dirname(name), "standalone_crt")
+            if os.path.isdir(candidate_path):
+                libs.append(candidate_path)
+                break
+
     else:
         libs = None
+
     return libs, version
 
 
@@ -154,9 +163,16 @@ setup_kwargs = {}
 if wheel_include_libs:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
-            shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
-            _, libname = os.path.split(path)
-            fo.write("include tvm/%s\n" % libname)
+            if os.path.isfile(path):
+                shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
+                _, libname = os.path.split(path)
+                fo.write(f"include tvm/{libname}\n")
+
+            if os.path.isdir(path):
+                _, libname = os.path.split(path)
+                shutil.copytree(path, os.path.join(CURRENT_DIR, "tvm", libname))
+                fo.write(f"recursive-include tvm/{libname} *\n")
+
     setup_kwargs = {"include_package_data": True}
 
 if include_libs:
@@ -206,4 +222,10 @@ if wheel_include_libs:
     os.remove("MANIFEST.in")
     for path in LIB_LIST:
         _, libname = os.path.split(path)
-        os.remove("tvm/%s" % libname)
+        path_to_be_removed = f"tvm/{libname}"
+
+        if os.path.isfile(path_to_be_removed):
+            os.remove(path_to_be_removed)
+
+        if os.path.isdir(path_to_be_removed):
+            shutil.rmtree(path_to_be_removed)

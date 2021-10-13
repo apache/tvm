@@ -1,0 +1,204 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# juzi, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:32+0000\n"
+"Last-Translator: juzi, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_deploy_models_deploy_model_on_rasp.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:13
+msgid "Deploy the Pretrained Model on Raspberry Pi"
+msgstr "在Raspberry Pi上部署预训练模型"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:14
+msgid ""
+"**Author**: `Ziheng Jiang <https://ziheng.org/>`_,             `Hiroyuki "
+"Makino <https://makihiro.github.io/>`_"
+msgstr ""
+"**作者**: `Ziheng Jiang <https://ziheng.org/>`_, `Hiroyuki Makino "
+"<https://makihiro.github.io/>`_"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:16
+msgid ""
+"This is an example of using Relay to compile a ResNet model and deploy it on"
+" Raspberry Pi."
+msgstr "这是一个使用Relay编译ResNet模型并将其部署到Raspberry Pi上的示例。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:39
+msgid "Build TVM Runtime on Device"
+msgstr "在设备上构建 TVM 运行时间"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:41
+msgid "The first step is to build the TVM runtime on the remote device."
+msgstr "第一步是在远程设备上构建TVM运行时间。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:45
+msgid ""
+"All instructions in both this section and next section should be executed on"
+" the target device, e.g. Raspberry Pi. And we assume it has Linux running."
+msgstr "本节和下一节中的所有指令都应在目标设备上执行，例如Raspberry Pi。并且我们假设目标设备运行Linux。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:49
+msgid ""
+"Since we do compilation on local machine, the remote device is only used for"
+" running the generated code. We only need to build tvm runtime on the remote"
+" device."
+msgstr "由于我们在本地机器上进行编译，因此远程设备仅用于运行生成的代码。我们只需要在远程设备上构建 tvm 运行时间即可。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:63
+msgid ""
+"After building runtime successfully, we need to set environment varibles in "
+":code:`~/.bashrc` file. We can edit :code:`~/.bashrc` using :code:`vi "
+"~/.bashrc` and add the line below (Assuming your TVM directory is in "
+":code:`~/tvm`):"
+msgstr ""
+"成功构建运行时间后，我们需要在 :code:`~/.bashrc`文件中设置环境变量。我们可以使用:code:`vi ~/.bashrc` "
+"编辑:code:`~/.bashrc`并添加以下行（假设您的TVM目录位于:code:`~/tvm`）："
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:72
+msgid "To update the environment variables, execute :code:`source ~/.bashrc`."
+msgstr "要更新环境变量，请执行:code:`source ~/.bashrc`。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:75
+msgid "Set Up RPC Server on Device"
+msgstr "在设备上设置 RPC 服务器"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:76
+msgid ""
+"To start an RPC server, run the following command on your remote device "
+"(Which is Raspberry Pi in our example)."
+msgstr "要启动RPC服务器，请在远程设备上运行以下命令（在我们的示例中是Raspberry Pi）。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:83
+msgid ""
+"If you see the line below, it means the RPC server started successfully on "
+"your device."
+msgstr "如果您看到下面的行，则表示RPC服务器在您的设备上成功启动。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:92
+msgid "Prepare the Pre-trained Model"
+msgstr "准备预先训练的模型"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:93
+msgid ""
+"Back to the host machine, which should have a full TVM installed (with "
+"LLVM)."
+msgstr "返回主机，主机应安装完整的TVM（带有LLVM）。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:95
+msgid ""
+"We will use pre-trained model from `MXNet Gluon model zoo "
+"<https://mxnet.apache.org/api/python/gluon/model_zoo.html>`_. You can found "
+"more details about this part at tutorial :ref:`tutorial-from-mxnet`."
+msgstr ""
+"我们将使用`MXNet Gluon model "
+"zoo`中预先训练的模型<https://mxnet.apache.org/api/python/gluon/model_zoo.html>`_. "
+"您可以在教程ref:`tutorial-from-mxnet`中找到有关此部分的更多详细信息。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:116
+msgid ""
+"In order to test our model, here we download an image of cat and transform "
+"its format."
+msgstr "为了测试我们的模型，在这里我们下载了猫的图像，并改变其格式。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:144
+msgid ""
+"synset is used to transform the label from number of ImageNet class to the "
+"word human can understand."
+msgstr "synset用于将标签从ImageNet类的数量转换为人类可以理解的单词。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:169
+msgid ""
+"Now we would like to port the Gluon model to a portable computational graph."
+" It's as easy as several lines."
+msgstr "现在我们想把Gluon model移植到一个可移植的计算图上。这就像几行代码一样简单。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:189
+msgid "Here are some basic data workload configurations."
+msgstr "下面是一些基本的工作负载配置数据。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:206
+msgid "Compile The Graph"
+msgstr "编译计算图"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:207
+msgid ""
+"To compile the graph, we call the :py:func:`relay.build` function with the "
+"graph configuration and parameters. However, You cannot to deploy a x86 "
+"program on a device with ARM instruction set. It means Relay also needs to "
+"know the compilation option of target device, apart from arguments "
+":code:`net` and :code:`params` to specify the deep learning workload. "
+"Actually, the option matters, different option will lead to very different "
+"performance."
+msgstr ""
+"为了编译图形，我们使用图形配置和参数调用:py:func:`relay.build`函数。但是，不能在具有ARM指令集的设备上部署x86程序。这意味着中继还需要知道目标设备的编译选项，除了参数:code:`net`"
+" 和:code:`params`来指定深度学习工作负载。实际上，选择很重要，不同的选择会导致结果大不相同。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:215
+msgid ""
+"If we run the example on our x86 server for demonstration, we can simply set"
+" it as :code:`llvm`. If running it on the Raspberry Pi, we need to specify "
+"its instruction set. Set :code:`local_demo` to False if you want to run this"
+" tutorial with a real device."
+msgstr ""
+"如果我们在x86服务器上运行这个示例进行演示，我们只需将其设置为 :code:`llvm`。如果在Raspberry "
+"Pi上运行它，我们需要指定它的指令集。如果要使用真实设备运行本教程，请将:code:`local_demo`设置为False。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:251
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:300
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:261
+msgid "Deploy the Model Remotely by RPC"
+msgstr "通过RPC远程部署模型"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:262
+msgid ""
+"With RPC, you can deploy the model remotely from your host machine to the "
+"remote device."
+msgstr "使用RPC，您可以将模型从主机远程部署到远程设备。"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:321
+msgid ""
+":download:`Download Python source code: deploy_model_on_rasp.py "
+"<deploy_model_on_rasp.py>`"
+msgstr ""
+":download:`下载Python源代码: deploy_model_on_rasp.py <deploy_model_on_rasp.py>`"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:327
+msgid ""
+":download:`Download Jupyter notebook: deploy_model_on_rasp.ipynb "
+"<deploy_model_on_rasp.ipynb>`"
+msgstr ""
+":download:`下载Jupyter notebook: deploy_model_on_rasp.ipynb "
+"<deploy_model_on_rasp.ipynb>`"
+
+#: ../../_staging/how_to/deploy_models/deploy_model_on_rasp.rst:334
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

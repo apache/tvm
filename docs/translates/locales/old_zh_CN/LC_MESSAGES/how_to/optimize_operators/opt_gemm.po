@@ -1,0 +1,269 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_optimize_operators_opt_gemm.py>` to download "
+"the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:13
+msgid "How to optimize GEMM on CPU"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:14
+msgid ""
+"**Author**: `Jian Weng <https://github.com/were>`_,             `Ruofei "
+"Yu <https://github.com/yuruofeifei>`_"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:16
+msgid ""
+"(TL;DR) TVM provides abstract interfaces which allows users to depict an "
+"algorithm and the algorithm's implementing organization (the so-called "
+"schedule) separately. Typically, writing algorithm in high-performance "
+"schedule breaks the algorithm's readability and modularity. Also, trying "
+"various seemingly promising schedules is time-consuming. With the help of"
+" TVM, we can try these schedules efficiently to enhance the performance."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:22
+msgid ""
+"In this tutorial, we will demonstrate how to use TVM to optimize square "
+"matrix multiplication and achieve 200 times faster than baseline by "
+"simply adding 18 extra lines of code."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:32
+msgid ""
+"There are two important optimizations on intense computation applications"
+" executed on CPU:"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:26
+msgid ""
+"Increase the cache hit rate of memory access. Both complex numerical "
+"computation and hot-spot memory access can be accelerated from high cache"
+" hit rate. This requires us to transform the origin memory access pattern"
+" to the pattern fits the cache policy."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:29
+msgid ""
+"SIMD (Single instruction multi-data), or we call it vector processing "
+"unit. Every time, a small batch of data, rather than a single grid, will "
+"be processed. This requires us to transform the data access pattern in "
+"the loop body in uniform pattern so that the LLVM backend can lower it to"
+" SIMD."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:34
+msgid ""
+"Actually, all the methodologies used in this tutorial is a subset of "
+"tricks mentioned in this `repo <https://github.com/flame/how-to-optimize-"
+"gemm>`_. Some of them have been applied by TVM abstraction automatically,"
+" but some of them cannot be simply applied due to TVM constraints."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:38
+msgid ""
+"All the experiment results mentioned below, are executed on 2015's 15' "
+"MacBook equipped with Intel i7-4770HQ CPU. The cache line size should be "
+"64 bytes for all the x86 CPUs."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:42
+msgid "Preparation and Baseline"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:43
+msgid ""
+"In this tutorial, we will demo how to use TVM to optimize matrix "
+"multiplication. Before actually demonstrating, we first define these "
+"variables. Then we write a baseline implementation, the simplest way to "
+"write a matrix multiplication in TVM."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:117
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:141
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:206
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:228
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:301
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:323
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:389
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:411
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:504
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:526
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:618
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:640
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:732
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:754
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:126
+msgid ""
+"In TVM, we can always inspect lower level IR to debug or optimize our "
+"schedule. Here is the generated IR using our baseline schedule."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:166
+msgid "Blocking"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:167
+msgid ""
+"A important trick to enhance the cache hit rate is blocking --- data "
+"chunk will be computed block by block. The memory access inside the block"
+" is a small neighbourhood which is with high memory locality. In this "
+"tutorial, I picked up 32 as the blocking factor. So the block will fill "
+"32 * 32 * sizeof(float) which is 4KB in the cache whose total size is "
+"32KB (L1 data cache)"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:214
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:626
+msgid "Here is the generated IR after blocking."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:263
+msgid "Vectorization"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:264
+msgid ""
+"Another important trick is vectorization. When the memory access pattern "
+"is uniform, the compiler can detect this pattern and pass the continuous "
+"memory to vector processor. In TVM, we can use `vectorize` interface to "
+"hint the compiler this pattern, so that we can accelerate it vastly."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:269
+msgid ""
+"In this tutorial, we chose to vectorize the inner loop row data since it "
+"is cache friendly."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:309
+msgid "Here is the generated IR after vectorization."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:354
+msgid "Loop Permutation"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:355
+msgid ""
+"If we look at the above IR, we can see the inner loop row data is "
+"vectorized for both B and C. Next we will look at the access pattern of "
+"A. In current schedule, A is accessed column by column which is not cache"
+" friendly. If we change the nested loop order of ki and inner axes mi, "
+"the access pattern for A matrix is more cache friendly."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:397
+msgid "Here is the generated IR after loop permutation."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:442
+msgid "Array Packing"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:443
+msgid ""
+"Another important trick is array packing. The trick is to reorder the "
+"storage of a multi- dimensional array so that it is accessed sequentially"
+" after it is flattened and stored in one- dimensional memory."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:450
+msgid "NOTE: This figure is a general illustration of how array packing works."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:452
+msgid ""
+"We can use array packing to address the access pattern for B. Observe the"
+" array access pattern of B after flattening which is not sequential as we"
+" iterate over the K dimension. We can reorder B with dimensions [K][N] so"
+" that it has dimensions [N/bn][K][bn] where bn is the blocking factor and"
+" also the vector size for B in the inner loop.  This reorder splits N "
+"into two dimensions --- bigN (N/bn) and littleN (bn) --- and the new "
+"dimensions [N/bn][K][bn] match the indexing of B from outer to inner "
+"loops (no, ko, ki, ni) resulting in a sequential access pattern for B "
+"after flattening."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:512
+msgid "Here is the generated IR after array packing."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:564
+msgid "Write cache for blocks"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:565
+msgid ""
+"After blocking, the program will write result to C block by block, the "
+"access pattern is not sequential. So we can use a sequential cache array "
+"to hold the block results and write to C when all the block results are "
+"ready."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:685
+msgid "Parallel"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:686
+msgid ""
+"Futhermore, we can also utilize multi-core processors to do the thread-"
+"level parallelization."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:740
+msgid "Here is the generated IR after parallelization."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:799
+msgid "Summary"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:800
+#, python-format
+msgid ""
+"After applying the above simple optimizations with only 18 lines of code,"
+" our generated code can achieve 60% of the `numpy` performance with MKL. "
+"Note that the outputs on the web page reflect the running times on a non-"
+"exclusive Docker container, thereby they are *unreliable*. It is highly "
+"encouraged to run the tutorial by yourself to observe the performance "
+"gain acheived by TVM."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:819
+msgid ":download:`Download Python source code: opt_gemm.py <opt_gemm.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:825
+msgid ":download:`Download Jupyter notebook: opt_gemm.ipynb <opt_gemm.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_gemm.rst:832
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

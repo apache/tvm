@@ -1,0 +1,126 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/deploy/hls.rst:20
+msgid "HLS Backend Example"
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:22
+msgid ""
+"TVM supports Xilinx FPGA board with SDAccel.  Here is a tutorial for how "
+"to deploy TVM to AWS F1 FPGA instance."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:26
+msgid ""
+"This feature is still experimental.  We cannot use SDAccel to deploy an "
+"end to end neural networks for now."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:28
+msgid "We use two python scripts for this tutorial."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:30
+msgid "build.py - a script to synthesize FPGA bitstream."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:57
+msgid "run.py - a script to use FPGA as an accelerator."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:86
+msgid "Setup"
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:88
+msgid ""
+"Launch an instance using the FPGA Developer AMI.  We don't need an F1 "
+"instance for emulation and synthesis, so it is recommended to use a lower"
+" cost instance for them."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:89
+#: ../../_staging/how_to/deploy/hls.rst:163
+msgid "Setup AWS FPGA development kit."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:98
+#: ../../_staging/how_to/deploy/hls.rst:171
+msgid "Setup TVM with OpenCL enabled."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:101
+msgid "Emulation"
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:103
+msgid "Create emconfig.json for emulation."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:109
+msgid ""
+"Copy emconfig.json to the python binary directory.  It is because the "
+"current Xilinx toolkit assumes that both host binary and the "
+"emconfig.json file are in the same path."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:115
+msgid "Run software emulation"
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:125
+msgid "Run hardware emulation"
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:136
+msgid "Synthesis"
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:138
+msgid "Run synthesis with the following script."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:147
+msgid "Create AWS FPGA image and upload it to AWS S3."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:156
+msgid ""
+"This also generates an awsxclbin file, which is necessary to use the AWS "
+"FPGA image on F1 instances."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:159
+#: ../../_staging/how_to/deploy/hls.rst:179
+msgid "Run"
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:161
+msgid "Launch Amazon EC2 F1 instance."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:162
+msgid "Copy ``myadd.so``, ``myadd.awsxclbin``, and ``run.py`` to the F1 instance."
+msgstr ""
+
+#: ../../_staging/how_to/deploy/hls.rst:172
+msgid "Become root and setup environment variables."
+msgstr ""
+

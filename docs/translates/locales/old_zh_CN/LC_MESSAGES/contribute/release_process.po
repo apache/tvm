@@ -1,0 +1,303 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/contribute/release_process.rst:21
+msgid "Apache TVM Release Process"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:23
+msgid ""
+"The release manager role in TVM means you are responsible for a few "
+"different things:"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:25
+msgid "Preparing release notes"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:26
+msgid "Preparing your setup"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:27
+msgid "Preparing for release candidates"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:29
+msgid "Cutting a release branch"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:30
+msgid "Informing the community of timing"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:31
+msgid "Making code changes in that branch with necessary version updates"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:33
+msgid "Running the voting process for a release"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:35
+msgid "Creating release candidates"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:36
+msgid "Calling votes and triaging issues"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:38
+msgid "Finalizing and posting a release:"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:40
+msgid "Updating the TVM website"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:41
+msgid "Finalizing release notes"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:42
+msgid "Announcing the release"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:46
+msgid "Prepare the Release Notes"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:48
+#, python-format
+msgid ""
+"Release note contains new features, improvement, bug fixes, known issues "
+"and deprecation, etc. TVM provides `monthly dev report "
+"<https://discuss.tvm.ai/search?q=TVM%20Monthly%20%23Announcement>`_ "
+"collects developing progress each month. It could be helpful to who "
+"writes the release notes."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:50
+msgid ""
+"It is recommended to open a Github issue to collect feedbacks for the "
+"release note draft before cutting the release branch."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:54
+msgid "Prepare the GPG Key"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:56
+msgid "You can skip this section if you have already uploaded your key."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:58
+msgid ""
+"After generating the gpg key, you need to upload your key to a public key"
+" server. Please refer to https://www.apache.org/dev/openpgp.html"
+"#generate-key for details."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:60
+msgid ""
+"If you want to do the release on another machine, you can transfer your "
+"gpg key to that machine via the :code:`gpg --export` and :code:`gpg "
+"--import` commands."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:62
+msgid ""
+"The last step is to update the KEYS file with your code signing key "
+"https://www.apache.org/dev/openpgp.html#export-public-key. Check in the "
+"changes to the TVM main branch, as well as ASF SVN,"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:77
+msgid "Cut a Release Candidate"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:79
+msgid ""
+"To cut a release candidate, one needs to first cut a branch using "
+"selected version string, e.g.,"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:88
+msgid ""
+"(*Make sure the version numbers in the source code are correct.* Run "
+":code:`python3 version.py` to update the version.)"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:90
+msgid ""
+"Go to the GitHub repositories \"releases\" tab and click \"Draft a new "
+"release\","
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:92
+msgid ""
+"Provide the release tag in the form of “v1.0.0.rc0” where 0 means it’s "
+"the first release candidate"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:93
+msgid ""
+"Select the commit by clicking Target: branch > Recent commits > "
+"$commit_hash"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:94
+msgid "Copy and paste release note draft into the description box"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:95
+msgid "Select \"This is a pre-release\""
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:96
+msgid "Click \"Publish release\""
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:98
+msgid ""
+"Notice that one can still apply changes to the BRANCH after the cut, "
+"while the TAG is fixed. If any change is required for this release, a new"
+" TAG has to be created."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:100
+msgid "Remove previous release candidate (if applied),"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:106
+msgid "Create source code artifacts,"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:121
+msgid ""
+"Use your GPG key to sign the created artifact. First make sure your GPG "
+"is set to use the correct private key,"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:128
+msgid "Create GPG signature as well as the hash of the file,"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:137
+msgid "Upload the Release Candidate"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:139
+msgid ""
+"Edit the release page on Github and upload the artifacts created by the "
+"previous steps."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:141
+msgid "The release manager also needs to upload the artifacts to ASF SVN,"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:155
+msgid "Call a Vote on the Release Candidate"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:157
+msgid ""
+"The first voting takes place on the Apache TVM developers list "
+"(dev@tvm.apache.org). To get more attention, one can create a github "
+"issue start with \"[VOTE]\" instead, it will be mirrored to dev@ "
+"automatically. Look at past voting threads to see how this proceeds. The "
+"email should follow this format."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:159
+msgid "Provide the link to the draft of the release notes in the email"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:160
+msgid "Provide the link to the release candidate artifacts"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:161
+msgid "Make sure the email is in text format and the links are correct"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:163
+msgid ""
+"For the dev@ vote, there must be at least 3 binding +1 votes and more +1 "
+"votes than -1 votes. Once the vote is done, you should also send out a "
+"summary email with the totals, with a subject that looks something like "
+"[VOTE][RESULT] ...."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:165
+msgid ""
+"In ASF, votes are open \"at least\" 72hrs (3 days). If you don't get "
+"enough number of binding votes within that time, you cannot close the "
+"voting deadline. You need to extend it."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:167
+msgid ""
+"If the voting fails, the community needs to modified the release "
+"accordingly, create a new release candidate and re-run the voting "
+"process."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:171
+msgid "Post the Release"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:173
+msgid ""
+"After the vote passes, to upload the binaries to Apache mirrors, you move"
+" the binaries from dev directory (this should be where they are voted) to"
+" release directory. This \"moving\" is the only way you can add stuff to "
+"the actual release directory. (Note: only PMC can move to release "
+"directory)"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:186
+msgid ""
+"Remember to create a new release TAG (v0.6.0 in this case) on Github and "
+"remove the pre-release candidate TAG."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:194
+msgid "Update the TVM Website"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:196
+msgid ""
+"The website repository is located at `https://github.com/apache/tvm-site "
+"<https://github.com/apache/tvm-site>`_. Modify the download page to "
+"include the release artifacts as well as the GPG signature and SHA hash."
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:200
+msgid "Post the Announcement"
+msgstr ""
+
+#: ../../_staging/contribute/release_process.rst:202
+msgid ""
+"Send out an announcement email to announce@apache.org, and "
+"dev@tvm.apache.org. The announcement should include the link to release "
+"note and download page."
+msgstr ""
+

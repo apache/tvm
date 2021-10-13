@@ -28,6 +28,7 @@ import numpy as np  # type: ignore
 from ethosu.vela import api as vapi  # type: ignore
 
 from tvm.relay.backend.contrib.ethosu import util  # type: ignore
+from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("Ethos-U")
@@ -109,6 +110,56 @@ def _get_optimal_block_config(all_valid_block_configs: List[vapi.NpuShape3D]) ->
         100.0 * (current_volume / largest_volume),
     )
     return max_area_depth_block_configs[0]
+
+
+def encode_weights(tir_extern_call, values, accel_type):
+    """This is an API function to compress weights by passing
+    a tir_extern_call to NPU Convolution operation and values.
+
+    Parameters
+    ----------
+    tir_extern_call : tvm.tir.Call
+        tir_extern_call to NPU Convolution operation
+    values : numpy.ndarray
+        The constant flattened weight data in OHWI layout
+    accel_type : ethosu.vela.api.NpuAccelerator
+        The NPU accelerator variant
+
+    Returns
+    -------
+    bytearray
+        Compressed weights
+    """
+    supported_ops = {
+        "ethosu_conv2d": tirtocs.translate_ethosu_conv2d,
+        "ethosu_depthwise_conv2d": tirtocs.translate_ethosu_depthwise_conv2d,
+    }
+    op = str(tir_extern_call.args[0].value)
+    assert op in supported_ops.keys()
+    npu_op, weights_zero_point = supported_ops[op](tir_extern_call)
+    block_config = get_optimal_block_config(npu_op, accel_type)
+    # The weight layout is assumed to be flat OHWI, always.
+    assert len(values.shape) == 1
+    is_depthwise = op == "ethosu_depthwise_conv2d"
+    shape_ohwi = (
+        npu_op.ofm.shape.depth,
+        npu_op.kernel.height,
+        npu_op.kernel.width,
+        1 if is_depthwise else npu_op.ifm.shape.depth,
+    )
+    assert values.size == np.prod(shape_ohwi)
+    values = np.reshape(values, shape_ohwi)
+    return compress_weights(
+        weights=values,
+        weights_zp=weights_zero_point,
+        # The weight layout is assumed to be OHWI, always.
+        weights_layout="OHWI",
+        ifm_bitdepth=npu_op.ifm.data_type.size_in_bits(),
+        block_depth=block_config.depth,
+        dilation=(npu_op.kernel.dilation_x, npu_op.kernel.dilation_y),
+        accel_type=accel_type,
+        is_depthwise=is_depthwise,
+    )
 
 
 def compress_weights(
@@ -308,3 +359,17 @@ def _calculate_hw_bias_scales(
         hw_bias_scales = [_quantize_scale(bs) for bs in bias_scales]
 
     return hw_bias_scales
+
+
+def get_target_accel_type():
+    """This is a helper function to convert cli accelerator type str argument
+    to NpuAccelerator"""
+    npu_accel_str_map = {
+        "ethos-u55-256": vapi.NpuAccelerator.Ethos_U55_256,
+        "ethos-u55-128": vapi.NpuAccelerator.Ethos_U55_128,
+        "ethos-u55-64": vapi.NpuAccelerator.Ethos_U55_64,
+        "ethos-u55-32": vapi.NpuAccelerator.Ethos_U55_32,
+    }
+    accel_type_str = util.get_accelerator_config()
+    assert accel_type_str in npu_accel_str_map.keys(), f"{accel_type_str} is not supported"
+    return npu_accel_str_map[accel_type_str]

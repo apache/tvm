@@ -20,6 +20,7 @@
 # pylint: disable=missing-function-docstring
 """PT: PyTorch frontend."""
 import itertools
+import functools
 import logging
 import math
 import sys
@@ -1468,7 +1469,7 @@ class PyTorchOpConverter:
         if isinstance(bias, _expr.Expr):
             bias_ndims = len(self.infer_shape_with_prelude(bias))
             if bias_ndims == 1:
-                return _op.nn.bias_add(mm_out, bias)
+                return _op.nn.bias_add(mm_out, bias, axis=-1)
             mm_dtype = self.infer_type_with_prelude(mm_out).dtype
             return self.add([mm_out, bias], [mm_dtype, input_types[2]])
         return mm_out
@@ -2763,6 +2764,16 @@ class PyTorchOpConverter:
 
         return (output, _op.stack(hy, 0), _op.stack(cy, 0))
 
+    def all_any_common(self, op, inputs, input_types):
+        dim = inputs[1]
+        keepdim = inputs[2]
+        if self.infer_type(inputs[0]).dtype != "bool":
+            # The input dtype can be uint8.
+            inp = _op.cast(inputs[0], "bool")
+        else:
+            inp = inputs[0]
+        return op(inp, axis=dim, keepdims=keepdim)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2986,6 +2997,8 @@ class PyTorchOpConverter:
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
+            "aten::all": functools.partial(self.all_any_common, _op.all),
+            "aten::any": functools.partial(self.all_any_common, _op.any),
         }
 
     def update_convert_map(self, custom_map):
@@ -3400,8 +3413,8 @@ def _getattr_attr_name(node):
     return attr_name
 
 
-def _getattr_full_name(getattrs):
-    return ".".join([_getattr_attr_name(node) for node in getattrs])
+def _getattr_full_name(getattrs, sep="."):
+    return sep.join([_getattr_attr_name(node) for node in getattrs])
 
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
@@ -3657,7 +3670,7 @@ def get_attr_chains(root_getattr_node):
     return get_use_chains(root_getattr_node, terminate)
 
 
-def convert_params(graph, state_dict):
+def convert_params(graph, state_dict, use_parser_friendly_name=False):
     """
     Return Relay vars and TVM NDArrays for input parameters
     A chain of prim::GetAttr nodes is processed one at a time
@@ -3668,6 +3681,7 @@ def convert_params(graph, state_dict):
     packed_param_map = {}
     vars_by_name = {}
     seen = set()
+    attr_name_sep = "_" if use_parser_friendly_name else "."
 
     for node in getattr_nodes:
         if _get_output_name(node) in seen:
@@ -3676,7 +3690,7 @@ def convert_params(graph, state_dict):
         for getattrs in get_attr_chains(node):
             seen.update(map(_get_output_name, getattrs))
 
-            full_attr = _getattr_full_name(getattrs)
+            full_attr = _getattr_full_name(getattrs, attr_name_sep)
             full_attr_node_name = _get_output_name(getattrs[-1])
 
             if full_attr.endswith("_packed_params"):  # for quantized models
@@ -3706,7 +3720,14 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dtype="float32"):
+def from_pytorch(
+    script_module,
+    input_infos,
+    custom_convert_map=None,
+    default_dtype="float32",
+    use_parser_friendly_name=False,
+    keep_quantized_weight=False,
+):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -3728,6 +3749,25 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     custom_convert_map : Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
+
+    default_type : str
+        The default dtype to use when type information is not provided by PyTorch.
+
+    use_parser_friendly_name : bool
+        When True, replace '.' with `_' in a original parameter name.
+        The Relay text parser treats a variable name followed by a period as a tuple element access,
+        so a variable name like "dense.weight" cannot be parsed correctly.
+        Use this option when you want to run the AnnotateSpans pass on the imported module.
+
+    keep_quantized_weight : bool
+        Return quantized weights and bias, rather than float ones. PyTorch stores quantized weights
+        in a custom format, so we cannot directly access 8 bit weights as Numpy arrays. We use
+        a PyTorch function to unpack quantized weights into float32 arrays and quantization
+        parameters. By default, we return float32 weights and rely on the QNN lowering and the
+        Relay constant folding pass to quantize weights at compile time. In BYOC use cases, however,
+        we cannot apply the constant folding pass on a QNN graph. If keep_quantized_weight is True,
+        we quantize weights in the frontend using a function that is equivalent to
+        qnn.op.quantize(...) operating on Numpy arrays.
 
     Returns
     -------
@@ -3758,7 +3798,13 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     outputs = _get_relay_input_vars(
         graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
     )
-    param_vars, tensors, packed_param_map = convert_params(graph, params)
+
+    if use_parser_friendly_name:
+        new_names = [key.replace(".", "_") for key in params.keys()]
+        params = dict(zip(new_names, params.values()))
+
+    param_vars, tensors, packed_param_map = convert_params(graph, params, use_parser_friendly_name)
+
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
     outputs.update(param_vars)
@@ -3767,9 +3813,17 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     # For quantized models
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
     if len(quantized_ops.intersection(set(op_names))) > 0:
-        weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
-        qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)
+        weight_quant_params = qnn_torch.get_weight_quant_params(
+            script_module, packed_param_map.values()
+        )
+        input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
+        qnn_torch.add_quant_params_to_outputs(
+            outputs,
+            packed_param_map,
+            weight_quant_params,
+            input_scales_for_bias,
+            keep_quantized_weight,
+        )
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
@@ -3778,7 +3832,7 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         # ListConstruct kept original python list. Convert to tuple.
         ret = _expr.Tuple(ret)
 
-    # Separate data inputs and parameters to make sure data inputs are always in the beginning.
+    # Separate data inputs and parameters to make sure data inputs come first.
     func_args = []
     data_inputs = []
     for arg in _analysis.free_vars(ret):

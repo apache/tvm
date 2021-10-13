@@ -44,6 +44,11 @@
 
 namespace tvm {
 namespace relay {
+
+namespace tec {
+class TECompiler;
+}
+
 namespace transform {
 Pass InlinePrimitives();
 }
@@ -147,6 +152,17 @@ struct LoweredOutput {
 };
 
 /*!
+ * \brief This class is needed to avoid a GCC 5 bug that prevents maps containing enums from being
+ compiled. If i386 GCC version is increased, we can remove it.
+ */
+struct EnumClassHash {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
+};
+
+/*!
  * \brief A helper to expand the params by adding the ones used in a given expression.
  */
 struct ConstantUpdater : public ExprVisitor {
@@ -173,6 +189,8 @@ struct ConstantUpdater : public ExprVisitor {
  */
 inline void UpdateConstants(Function func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
+  VLOG_CONTEXT << "UpdateConstants";
+  VLOG(1) << "updating constants for:" << std::endl << PrettyPrint(func);
   auto codegen = func->GetAttr<String>(attr::kCompiler);
   ICHECK(codegen.defined()) << "No external codegen is set";
   std::string codegen_name = codegen.value();
@@ -194,6 +212,9 @@ inline void UpdateConstants(Function func,
           << "External constant names must start with compiler name";
       (*params)[const_name] = it.second;
     }
+  }
+  for (const auto& pair : *params) {
+    VLOG(1) << "Constants: " << pair.first << " = " << PrettyPrint(pair.second);
   }
 }
 
@@ -480,6 +501,15 @@ TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
  */
 Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
     std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
+
+/*!
+ * \brief Call "weight update callback" to communicate op weights seen during Relay module
+ * lowering back to the auto scheduler.
+ * Op weights refer to the number of times each distinct op/workload appears in a given module.
+ * It is called "use_count" in TECompiler.
+ * \param TECompiler used in the Relay module lowering step.
+ */
+void UpdateAutoSchedulerOpWeights(tec::TECompiler compiler);
 
 }  // namespace backend
 }  // namespace relay

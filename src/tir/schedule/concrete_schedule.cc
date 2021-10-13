@@ -220,9 +220,7 @@ void ConcreteScheduleNode::Seed(support::LinearCongruentialEngine::TRandState se
 }
 
 support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
-  // In order for reproducibility, we computer the new seed using RNG's random state and a different
-  // set of parameters. Note that both 32767 and 1999999973 are prime numbers.
-  return (support::LinearCongruentialEngine(&rand_state_)() * 32767) % 1999999973;
+  return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
 ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
@@ -502,6 +500,15 @@ void ConcreteScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_inde
 }
 
 /******** Schedule: Reduction ********/
+
+BlockRV ConcreteScheduleNode::DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::DecomposeReduction(state_, this->GetSRef(block_rv), this->GetSRef(loop_rv));
+  TVM_TIR_SCHEDULE_END("decompose-reduction", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
 
 BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
   StmtSRef result{nullptr};

@@ -75,7 +75,7 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_api_set_last_error_{nullptr};
 
  private:
-  llvm::Value* CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
+  TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
 
   // Check if the call to packed function is successful
   // if not directly finalize function and pass on return code.
@@ -97,8 +97,12 @@ class CodeGenHexagon final : public CodeGenLLVM {
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
 
   // Make packed call.
-  llvm::BasicBlock* MakeCallPacked(const Array<PrimExpr>& args, llvm::Value** rvalue,
-                                   llvm::Value** ret_tcode, const DataType& r_type,
+  struct PackedCall {
+    llvm::Value* ret_value;
+    llvm::Value* ret_tcode;
+    llvm::BasicBlock* end_block;
+  };
+  PackedCall MakeCallPackedLowered(const Array<PrimExpr>& args, const DataType& r_type,
                                    const int64_t begin, const int64_t end);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
@@ -111,7 +115,7 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::Type* t_tvm_func_handle_{nullptr};
   llvm::Type* t_tvm_value_{nullptr};
   llvm::Type* t_tvm_shape_index_{nullptr};
-  llvm::Type* t_tvm_context_{nullptr};
+  llvm::Type* t_tvm_device_{nullptr};
   llvm::Type* t_tvm_type_{nullptr};
   llvm::Type* t_tvm_array_{nullptr};
 
@@ -156,12 +160,12 @@ void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* t
   func_handle_map_.clear();
   t_tvm_value_ = llvm::StructType::create({t_float64_}, "t_tvm_value");
   t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, DataType::ShapeIndex().bits());
-  t_tvm_context_ = llvm::StructType::create({t_int_, t_int_}, "t_tvm_context");
+  t_tvm_device_ = llvm::StructType::create({t_int_, t_int_}, "t_tvm_device");
   t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_}, "t_tvm_type");
   t_tvm_func_handle_ = t_void_p_;
   // DLTensor
   t_tvm_array_ = llvm::StructType::create(
-      {t_void_p_, t_tvm_context_, t_int_, t_tvm_type_, t_tvm_shape_index_->getPointerTo(),
+      {t_void_p_, t_tvm_device_, t_int_, t_tvm_type_, t_tvm_shape_index_->getPointerTo(),
        t_tvm_shape_index_->getPointerTo(), t_int64_},
       "t_tvm_array");
 
@@ -251,7 +255,10 @@ llvm::GlobalVariable* CodeGenHexagon::InitContextPtr(llvm::Type* p_type, std::st
 llvm::Value* CodeGenHexagon::GetContextPtr(llvm::GlobalVariable* gv) {
   ICHECK(gv != nullptr);
 #if TVM_LLVM_VERSION >= 110
-  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv, llvm::Align(gv->getAlignment()));
+  llvm::LoadInst* faddr =
+      builder_->CreateAlignedLoad(gv->getValueType(), gv, llvm::Align(gv->getAlignment()));
+#elif TVM_LLVM_VERSION >= 80
+  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv->getValueType(), gv, gv->getAlignment());
 #else
   llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv, gv->getAlignment());
 #endif
@@ -296,11 +303,11 @@ llvm::Value* CodeGenHexagon::RuntimeTVMAPISetLastError() {
   return GetContextPtr(gv_tvm_api_set_last_error_);
 }
 
-llvm::BasicBlock* CodeGenHexagon::MakeCallPacked(const Array<PrimExpr>& args, llvm::Value** rvalue,
-                                                 llvm::Value** ret_tcode, const DataType& r_type,
-                                                 const int64_t begin, const int64_t end) {
-  using llvm::BasicBlock;
-  // using namespace tir;
+CodeGenHexagon::PackedCall CodeGenHexagon::MakeCallPackedLowered(const Array<PrimExpr>& args,
+                                                                 const DataType& r_type,
+                                                                 const int64_t begin,
+                                                                 const int64_t end) {
+  PackedCall pc;
   std::string func_name = args[0].as<StringImmNode>()->value;
   llvm::Value* handle = GetPackedFuncHandle(func_name);
   // call the function
@@ -309,29 +316,48 @@ llvm::BasicBlock* CodeGenHexagon::MakeCallPacked(const Array<PrimExpr>& args, ll
   llvm::Value* stack_value = MakeValue(args[1]);
   llvm::Value* stack_tcode = MakeValue(args[2]);
   llvm::Value* arg_value = builder_->CreateInBoundsGEP(
-      builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()), ConstInt32(begin));
-  llvm::Value* arg_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(begin));
+      t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
+      ConstInt32(begin));
+  TypedPointer arg_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(begin));
   llvm::Value* ret_value = builder_->CreateInBoundsGEP(
-      builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()), ConstInt32(end));
-  *ret_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(end));
+      t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
+      ConstInt32(end));
+  TypedPointer ret_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(end));
+
 #if TVM_LLVM_VERSION >= 90
   auto call_callee = llvm::FunctionCallee(ftype_tvm_func_call_, RuntimeTVMFuncCall());
 #else
   auto call_callee = RuntimeTVMFuncCall();
 #endif
-  BasicBlock* end_block = CheckCallSuccess(builder_->CreateCall(
-      call_callee, {handle, arg_value, arg_tcode, ConstInt32(nargs), ret_value, *ret_tcode}));
+  llvm::Value* call = builder_->CreateCall(
+      call_callee,
+      {handle, arg_value, arg_tcode.addr, ConstInt32(nargs), ret_value, ret_tcode.addr});
+  llvm::BasicBlock* end_block = CheckCallSuccess(call);
+
+  // Load the return value and cast it to the designated type (r_type).
   DataType r_api_type = tir::APIType(r_type);
+  llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
+  llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvm_r_api_type->getPointerTo());
 #if TVM_LLVM_VERSION >= 110
-  *rvalue = builder_->CreateAlignedLoad(
-      builder_->CreatePointerCast(ret_value, DTypeToLLVMType(r_api_type)->getPointerTo()),
-      llvm::Align(8));
+  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
+#elif TVM_LLVM_VERSION >= 80
+  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, 8);
 #else
-  *rvalue = builder_->CreateAlignedLoad(
-      builder_->CreatePointerCast(ret_value, DTypeToLLVMType(r_api_type)->getPointerTo()), 8);
+  llvm::Value* rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
 #endif
-  *rvalue = CreateCast(r_api_type, r_type, *rvalue);
-  return end_block;
+  pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
+
+  // Load the return type code.
+#if TVM_LLVM_VERSION >= 110
+  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, llvm::Align(8));
+#elif TVM_LLVM_VERSION >= 80
+  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, 8);
+#else
+  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.addr, 8);
+#endif
+
+  pc.end_block = end_block;
+  return pc;
 }
 
 llvm::Value* CodeGenHexagon::GetPackedFuncHandle(const std::string& fname) {
@@ -364,7 +390,9 @@ llvm::Value* CodeGenHexagon::GetPackedFuncHandle(const std::string& fname) {
   BasicBlock* init_block = BasicBlock::Create(*ctx_, "handle_init", function_);
   BasicBlock* end_block = BasicBlock::Create(*ctx_, "handle_init_end", function_);
 #if TVM_LLVM_VERSION >= 110
-  llvm::Value* handle = builder_->CreateAlignedLoad(hptr, llvm::Align(align));
+  llvm::Value* handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, hptr, llvm::Align(align));
+#elif TVM_LLVM_VERSION >= 80
+  llvm::Value* handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, hptr, align);
 #else
   llvm::Value* handle = builder_->CreateAlignedLoad(hptr, align);
 #endif
@@ -376,8 +404,11 @@ llvm::Value* CodeGenHexagon::GetPackedFuncHandle(const std::string& fname) {
   llvm::Value* out =
       WithFunctionEntry([&]() { return builder_->CreateAlloca(t_tvm_func_handle_); });
 #if TVM_LLVM_VERSION >= 110
-  llvm::LoadInst* ctx =
-      builder_->CreateAlignedLoad(gv_mod_ctx_, llvm::Align(gv_mod_ctx_->getAlignment()));
+  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
+                                                    llvm::Align(gv_mod_ctx_->getAlignment()));
+#elif TVM_LLVM_VERSION >= 80
+  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
+                                                    gv_mod_ctx_->getAlignment());
 #else
   llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_, gv_mod_ctx_->getAlignment());
 #endif
@@ -391,7 +422,10 @@ llvm::Value* CodeGenHexagon::GetPackedFuncHandle(const std::string& fname) {
   llvm::Value* retcode = builder_->CreateCall(env_callee, {ctx, GetConstString(fname), out});
   init_block = CheckCallSuccess(retcode);
 #if TVM_LLVM_VERSION >= 110
-  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, llvm::Align(align));
+  llvm::Value* loaded_handle =
+      builder_->CreateAlignedLoad(t_tvm_func_handle_, out, llvm::Align(align));
+#elif TVM_LLVM_VERSION >= 80
+  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, out, align);
 #else
   llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, align);
 #endif
@@ -417,44 +451,34 @@ llvm::Value* CodeGenHexagon::CreateCallPacked(const CallNode* op) {
   }
 
   ICHECK_EQ(op->args.size(), 5U);
-  llvm::Value* rvalue = nullptr;
-  llvm::Value* ret_tcode = nullptr;
-  MakeCallPacked(op->args, &rvalue, &ret_tcode, op->dtype, op->args[3].as<IntImmNode>()->value,
-                 op->args[4].as<IntImmNode>()->value);
-  return rvalue;
+  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
+                                        op->args[4].as<IntImmNode>()->value);
+  return pc.ret_value;
 }
 
 llvm::Value* CodeGenHexagon::CreateCallTracePacked(const CallNode* op) {
-  using llvm::BasicBlock;
   ICHECK_EQ(op->args.size(), 6U);
-  llvm::Value* rvalue = nullptr;
-  llvm::Value* ret_tcode = nullptr;
-  BasicBlock* end_block =
-      MakeCallPacked(op->args, &rvalue, &ret_tcode, op->dtype, op->args[3].as<IntImmNode>()->value,
-                     op->args[4].as<IntImmNode>()->value);
+  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
+                                        op->args[4].as<IntImmNode>()->value);
   // Get traced value.
   llvm::Value* traced_value = MakeValue(op->args[5]);
   // The update_block handles case when we need to update the return value.
-  BasicBlock* update_block = BasicBlock::Create(*ctx_, "update_block", function_);
+  llvm::BasicBlock* update_block = llvm::BasicBlock::Create(*ctx_, "update_block", function_);
   // The continue_block handles case when we need to return original
   // traced value.
-  BasicBlock* continue_block = BasicBlock::Create(*ctx_, "continue_block", function_);
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* ret_tcode_value = builder_->CreateAlignedLoad(ret_tcode, llvm::Align(8));
-#else
-  llvm::Value* ret_tcode_value = builder_->CreateAlignedLoad(ret_tcode, 8);
-#endif
+  llvm::BasicBlock* continue_block = llvm::BasicBlock::Create(*ctx_, "continue_block", function_);
+
   // Check the ret_type_code and create cmp instruction.
   llvm::Value* cmp =
-      builder_->CreateICmpNE(ret_tcode_value, llvm::ConstantInt::get(t_int_, kTVMNullptr));
+      builder_->CreateICmpNE(pc.ret_tcode, llvm::ConstantInt::get(t_int_, kTVMNullptr));
   builder_->CreateCondBr(cmp, update_block, continue_block);
   builder_->SetInsertPoint(update_block);
   builder_->CreateBr(continue_block);
   builder_->SetInsertPoint(continue_block);
   // The return value depends on from what bb we come from.
   llvm::PHINode* phi_rvalue = builder_->CreatePHI(traced_value->getType(), 2);
-  phi_rvalue->addIncoming(rvalue, update_block);
-  phi_rvalue->addIncoming(traced_value, end_block);
+  phi_rvalue->addIncoming(pc.ret_value, update_block);
+  phi_rvalue->addIncoming(traced_value, pc.end_block);
   return phi_rvalue;
 }
 
@@ -508,23 +532,23 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_struct_get())) {
     ICHECK_EQ(op->args.size(), 3);
     int kind = op->args[2].as<IntImmNode>()->value;
-    llvm::Value* ref =
+    TypedPointer ref =
         CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
     if (kind == builtin::kArrAddr) {
-      return builder_->CreatePointerCast(ref, t_void_p_);
+      return builder_->CreatePointerCast(ref.addr, t_void_p_);
     }
-    return builder_->CreateLoad(ref);
+    return builder_->CreateLoad(ref.type, ref.addr);
   } else if (op->op.same_as(builtin::tvm_struct_set())) {
     ICHECK_EQ(op->args.size(), 4);
     int kind = op->args[2].as<IntImmNode>()->value;
     ICHECK(kind != builtin::kArrAddr);
-    llvm::Value* ref = CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
+    TypedPointer ref = CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
                                           MakeValue(op->args[1]), kind);
     llvm::Value* value = MakeValue(op->args[3]);
     if (value->getType()->isPointerTy()) {
-      value = builder_->CreatePointerCast(value, ref->getType()->getPointerElementType());
+      value = builder_->CreatePointerCast(value, ref.type);
     }
-    builder_->CreateStore(value, ref);
+    builder_->CreateStore(value, ref.addr);
     return ConstInt32(0);
   } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
     ICHECK_EQ(op->args.size(), 2);
@@ -543,8 +567,8 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
   return CodeGenLLVM::CreateIntrinsic(op);
 }
 
-llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index,
-                                                int kind) {
+CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf,
+                                                             llvm::Value* index, int kind) {
   static const std::map<int, int> field_index = {
       {builtin::kArrData, 0},      {builtin::kArrDeviceType, 1}, {builtin::kArrDeviceId, 1},
       {builtin::kArrNDim, 2},      {builtin::kArrTypeCode, 3},   {builtin::kArrTypeBits, 3},
@@ -575,12 +599,13 @@ llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, ll
          uint64_t byte_offset;  kArrByteOffset
        } DLTensor;
     */
-    llvm::Value* base_gep = builder_->CreateInBoundsGEP(buf, index, "base_gep");
+    llvm::Value* base_gep = builder_->CreateInBoundsGEP(t_tvm_array_, buf, index, "base_gep");
     if (kind == builtin::kArrAddr) {
-      return base_gep;
+      return TypedPointer(t_void_p_, base_gep);
     }
     llvm::Value* field_gep = builder_->CreateInBoundsGEP(
-        base_gep, {ConstInt32(0), ConstInt32(field_index.at(kind))}, "field_gep");
+        t_tvm_array_, base_gep, {ConstInt32(0), ConstInt32(field_index.at(kind))}, "field_gep");
+    llvm::Type* field_type = t_tvm_array_->getStructElementType(field_index.at(kind));
     switch (kind) {
       // These fields have no sub-fields.
       case builtin::kArrData:
@@ -588,10 +613,13 @@ llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, ll
       case builtin::kArrShape:
       case builtin::kArrStrides:
       case builtin::kArrByteOffset:
-        return field_gep;
+        return TypedPointer(field_type, field_gep);
     }
-    return builder_->CreateInBoundsGEP(
-        field_gep, {ConstInt32(0), ConstInt32(subfield_index.at(kind))}, "subfield_gep");
+    llvm::Value* subfield_gep = builder_->CreateInBoundsGEP(
+        field_type, field_gep, {ConstInt32(0), ConstInt32(subfield_index.at(kind))},
+        "subfield_gep");
+    llvm::Type* subfield_type = field_type->getStructElementType(subfield_index.at(kind));
+    return TypedPointer(subfield_type, subfield_gep);
   }
 
   if (kind == builtin::kTVMValueContent) {
@@ -609,20 +637,20 @@ llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, ll
     ICHECK(t.is_handle() || t.bits() == 64);
     if (t.is_int()) {
       buf = builder_->CreatePointerCast(buf, t_int64_->getPointerTo());
-      return builder_->CreateInBoundsGEP(buf, index);
+      return TypedPointer(t_int64_, builder_->CreateInBoundsGEP(t_int64_, buf, index));
     } else if (t.is_float()) {
       buf = builder_->CreatePointerCast(buf, t_float64_->getPointerTo());
-      return builder_->CreateInBoundsGEP(buf, index);
+      return TypedPointer(t_float64_, builder_->CreateInBoundsGEP(t_float64_, buf, index));
     } else {
       ICHECK(t.is_handle());
       buf = builder_->CreatePointerCast(buf, t_tvm_value_->getPointerTo());
-      buf = builder_->CreateInBoundsGEP(buf, index);
-      return builder_->CreatePointerCast(buf, t_void_p_->getPointerTo());
+      buf = builder_->CreateInBoundsGEP(t_void_p_, buf, index);
+      return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, t_void_p_->getPointerTo()));
     }
   }
 
   assert(!"Unknown kind");
-  return nullptr;
+  return TypedPointer();
 }
 
 namespace {
@@ -671,11 +699,9 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     }
     return vec;
   };
-  std::string llvm_options_str;
-  if (const Optional<String> llvm_options = target->GetAttr<String>("llvm-options")) {
-    llvm_options_str = "llvm," + llvm_options.value();
-  } else {
-    llvm_options_str = "llvm";
+  std::string llvm_options_str = "llvm";
+  if (const auto& llvm_options = target->GetAttr<Array<String>>("llvm-options")) {
+    for (const String& s : llvm_options.value()) llvm_options_str += "," + s;
   }
   // Postprocess the LLVM options string: replace '@' with '=', and ',' with ' '.
   for (int i = 0, e = llvm_options_str.size(); i != e; ++i) {

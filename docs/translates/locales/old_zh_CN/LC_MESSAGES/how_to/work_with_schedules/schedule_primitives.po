@@ -1,0 +1,216 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_work_with_schedules_schedule_primitives.py>` to"
+" download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:11
+msgid "Schedule Primitives in TVM"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:12
+msgid "**Author**: `Ziheng Jiang <https://github.com/ZihengJiang>`_"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:14
+msgid "TVM is a domain specific language for efficient kernel construction."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:16
+msgid ""
+"In this tutorial, we will show you how to schedule the computation by "
+"various primitives provided by TVM."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:34
+msgid ""
+"There often exist several methods to compute the same result, however, "
+"different methods will result in different locality and performance. So "
+"TVM asks user to provide how to execute the computation called "
+"**Schedule**."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:39
+msgid ""
+"A **Schedule** is a set of transformation of computation that transforms "
+"the loop of computations in the program."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:57
+msgid ""
+"A schedule can be created from a list of ops, by default the schedule "
+"computes tensor in a serial manner in a row-major order."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:82
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:128
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:169
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:212
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:263
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:312
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:363
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:404
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:446
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:489
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:530
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:103
+msgid ""
+"One schedule is composed by multiple stages, and one **Stage** represents"
+" schedule for one operation. We provide various methods to schedule every"
+" stage."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:108
+msgid "split"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:109
+msgid ":code:`split` can split a specified axis into two axes by :code:`factor`."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:150
+msgid ""
+"You can also split a axis by :code:`nparts`, which splits the axis "
+"contrary with :code:`factor`."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:192
+msgid "tile"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:193
+msgid ":code:`tile` help you execute the computation tile by tile over two axes."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:241
+msgid "fuse"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:242
+msgid ":code:`fuse` can fuse two consecutive axes of one computation."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:290
+msgid "reorder"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:291
+msgid ":code:`reorder` can reorder the axes in the specified order."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:341
+msgid "bind"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:342
+msgid ""
+":code:`bind` can bind a specified axis with a thread axis, often used in "
+"gpu programming."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:384
+msgid "compute_at"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:385
+msgid ""
+"For a schedule that consists of multiple operators, TVM will compute "
+"tensors at the root separately by default."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:426
+msgid ""
+":code:`compute_at` can move computation of `B` into the first axis of "
+"computation of `C`."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:467
+msgid "compute_inline"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:468
+msgid ""
+":code:`compute_inline` can mark one stage as inline, then the body of "
+"computation will be expanded and inserted at the address where the tensor"
+" is required."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:509
+msgid "compute_root"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:510
+msgid ":code:`compute_root` can move computation of one stage to the root."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:553
+msgid "Summary"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:554
+msgid ""
+"This tutorial provides an introduction to schedule primitives in tvm, "
+"which permits users schedule the computation easily and flexibly."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:558
+msgid ""
+"In order to get a good performance kernel implementation, the general "
+"workflow often is:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:561
+msgid "Describe your computation via series of operations."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:562
+msgid "Try to schedule the computation with primitives."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:563
+msgid "Compile and run to see the performance difference."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:564
+msgid "Adjust your schedule according the running result."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:579
+msgid ""
+":download:`Download Python source code: schedule_primitives.py "
+"<schedule_primitives.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:585
+msgid ""
+":download:`Download Jupyter notebook: schedule_primitives.ipynb "
+"<schedule_primitives.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/schedule_primitives.rst:592
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

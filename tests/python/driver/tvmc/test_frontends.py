@@ -84,6 +84,14 @@ def test_guess_frontend_tensorflow():
     assert type(sut) is tvmc.frontends.TensorflowFrontend
 
 
+def test_guess_frontend_paddle():
+    # some CI environments wont offer Paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+
+    sut = tvmc.frontends.guess_frontend("a_model.pdmodel")
+    assert type(sut) is tvmc.frontends.PaddleFrontend
+
+
 def test_guess_frontend_invalid():
     with pytest.raises(TVMCException):
         tvmc.frontends.guess_frontend("not/a/file.txt")
@@ -159,6 +167,16 @@ def test_load_model__pb(pb_mobilenet_v1_1_quant):
     assert type(tvmc_model.params) is dict
     # check whether one known value is part of the params dict
     assert "MobilenetV1/Conv2d_0/weights" in tvmc_model.params.keys()
+
+
+def test_load_model__paddle(paddle_resnet50):
+    # some CI environments wont offer Paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+
+    tvmc_model = tvmc.load(paddle_resnet50, model_format="paddle")
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
 
 
 def test_load_model___wrong_language__to_keras(tflite_mobilenet_v1_1_quant):

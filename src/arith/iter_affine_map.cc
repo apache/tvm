@@ -699,6 +699,16 @@ std::vector<IterConstraint> MatchUpperBoundConstraints(PrimExpr pred) {
   return result;
 }
 
+bool IterRangeSanityCheck(const Map<Var, Range>& iter_ranges) {
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> iters;
+  for (const auto& it : iter_ranges) iters.insert(it.first);
+  auto f = [&](const VarNode* var) { return iters.count(GetRef<Var>(var)); };
+  for (const auto& it : iter_ranges) {
+    if (UsesVar(it.second->min, f) || UsesVar(it.second->extent, f)) return false;
+  }
+  return true;
+}
+
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
                                  arith::Analyzer* analyzer) {
@@ -706,6 +716,7 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
   // - Step0: IterMapRewriter rewrites the expression to use IterMapExpr patterns.
   // - Step1: IterIndependenceChecker checks if the iterator are independent.
 
+  if (!IterRangeSanityCheck(input_iters)) return Array<IterSumExpr>();
   std::vector<IterConstraint> constraints = MatchUpperBoundConstraints(predicate);
   if (!is_one(predicate) && constraints.empty()) return Array<IterSumExpr>();
 
@@ -1087,6 +1098,7 @@ TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed([](const Iter
 
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                 const PrimExpr& input_pred, bool require_bijective) {
+  if (!IterRangeSanityCheck(input_iters)) return indices;
   Analyzer analyzer;
   Array<IterSumExpr> rewrite =
       DetectIterMap(indices, input_iters, input_pred, require_bijective, &analyzer);
@@ -1365,6 +1377,7 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
                                       bool require_bijective, arith::Analyzer* analyzer) {
+  if (!IterRangeSanityCheck(input_iters)) return Array<Array<IterMark>>();
   const Array<IterSumExpr>& maps =
       DetectIterMap(bindings, input_iters, predicate, require_bijective, analyzer);
   if (maps.empty()) return {};

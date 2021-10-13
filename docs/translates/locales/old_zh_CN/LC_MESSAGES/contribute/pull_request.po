@@ -1,0 +1,178 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/contribute/pull_request.rst:19
+msgid "Submit a Pull Request"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:21
+msgid ""
+"This is a quick guide to submit a pull request, please also refer to the "
+"detailed guidelines."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:23
+msgid ""
+"Before submit, please rebase your code on the most recent version of "
+"main, you can do it by"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:31
+msgid ""
+"Make sure code style check pass by typing the following command, and all "
+"the existing test-cases pass."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:46
+msgid ""
+"When the clang-format lint check fails, run git-clang-format as follows "
+"to automatically reformat your code:"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:54
+msgid "Add test-cases to cover the new features or bugfix the patch introduces."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:55
+msgid "Document the code you wrote, see more at :ref:`doc_guide`"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:56
+msgid "Send the pull request and fix the problems reported by automatic checks."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:57
+msgid ""
+"Request code reviews from other contributors and improves your patch "
+"according to feedbacks."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:59
+msgid ""
+"To get your code reviewed quickly, we encourage you to help review "
+"others' code so they can do the favor in return."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:60
+msgid ""
+"Code review is a shepherding process that helps to improve contributor's "
+"code quality. We should treat it proactively, to improve the code as much"
+" as possible before the review. We highly value patches that can get in "
+"without extensive reviews."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:63
+msgid "The detailed guidelines and summarizes useful lessons."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:65
+msgid "The patch can be merged after the reviewers approve the pull request."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:70
+msgid "CI Environment"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:71
+msgid ""
+"We use docker container to create stable CI environments that can be "
+"deployed to multiple machines. Because we want a relatively stable CI "
+"environment and make use of pre-cached image, all of the CI images are "
+"built and maintained by committers."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:76
+msgid ""
+"Upgrade of CI images can cause problems and need fixes to accommodate the"
+" new env. Here is the protocol to update CI image:"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:79
+msgid ""
+"Send PR to upgrade build script in the repo - Can be done by a "
+"contributor, the following steps need committership."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:81
+msgid "Build the new docker image"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:82
+msgid "Tag the docker image with a new version and push to tvmai"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:83
+msgid ""
+"Update the version(most of the time increase the minor version) in the "
+"Jenkinsfile, send a PR."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:84
+msgid "Fix any issues wrt to the new image versions in the PR."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:85
+msgid "Merge the PR and now we are in new version."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:86
+msgid "Tag the new version as the latest."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:87
+msgid "Periodically cleanup the old versions on local workers"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:90
+msgid "Testing"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:91
+msgid ""
+"Even though we have hooks to run unit tests automatically for each pull "
+"request, it's always recommended to run unit tests locally beforehand to "
+"reduce reviewers' burden and speedup review process."
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:94
+msgid ""
+"Running the C++ tests requires installation of gtest, following the "
+"instructions in :ref:`install-from-source-cpp-tests`"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:98
+msgid "C++"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:107
+msgid "Python"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:108
+msgid "Necessary dependencies:"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:114
+msgid "If you want to run all tests:"
+msgstr ""
+
+#: ../../_staging/contribute/pull_request.rst:123
+msgid "If you want to run a single test:"
+msgstr ""
+

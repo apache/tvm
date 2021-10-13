@@ -1,0 +1,227 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_work_with_schedules_tensorize.py>` to download "
+"the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:13
+msgid "Use Tensorize to Leverage Hardware Intrinsics"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:14
+msgid "**Author**: `Yizhi Liu <https://github.com/yzhliu>`_"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:16
+msgid "This is an introduction material on how to perform tensorization in TVM."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:18
+msgid ""
+"By using schedule primitive :code:`tensorize`, people can replace a unit "
+"of computation with the corresponding intrinsics, making it easy to "
+"leverage handcrafted micro-kernels, as well as extend TVM to support new "
+"hardware architectures."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:23
+msgid ""
+"The purpose of this tutorial is to show the functionality and usage of "
+"tensorize instead of providing an efficient solution."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:44
+msgid "Define Matrix Multiplication"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:45
+msgid ""
+"Take matrix multiplication as our example. Matmul first multiply the "
+"corresponding elements between two matrix, then accumulate across a "
+"certain axis. The following lines describe the computation :code:`A * "
+"B^T` in TVM."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:68
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:117
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:234
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:306
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:93
+msgid "Schedule the Matmul"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:94
+msgid ""
+"Now, suppose we have an accelerator that supports matrix-vector "
+"multiplication (GEMV) as a hardware primitive, which can take arbitrary "
+"size of reduce axis, but another axis needs to be no larger than 16. Thus"
+" we break down the matmul loops to make the innermost loops a (16x64) "
+"GEMV."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:143
+msgid ""
+"As showed in the IR printed above, the inner loops :code:`j.inner` along "
+"with :code:`k` together form a computation of GEMV - within the inner "
+"most two loops, the index :code:`i` is fixed, the access to the matrix "
+":code:`A` only varies by :code:`k`, which makes the access pattern of "
+":code:`A` a \"vector\". In order to leverage our hypothetical hardware's "
+"GEMV instruction, we can tensorize over :code:`j.inner`."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:152
+msgid "Define GEMV Tensorization Intrinsic"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:153
+msgid ""
+"Before scheduling the tensorization, we need to first define the "
+"intrinsic function for GEMV. It includes two parts, the first is a "
+"compute definition of GEMV. TVM uses it to match the computing pattern in"
+" the original Matmul schedule. The second is to specify how to execute "
+"GEMV on the device, which is done in :code:`intrin_func` below."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:199
+msgid ""
+"Here :code:`te.decl_tensor_intrin` declares how to execute the "
+"computation :code:`c.op`. Our implementation simply takes the inputs and "
+"outputs, converts them to pointers and emit an external function call. "
+"Note that tensorization requires user to specify :code:`offset_factor`, "
+"with this information, TVM has knowledge of whether the data is aligned "
+"between the start address of the original data structure and the offset "
+"being passed to tensorize, so that it has chance to optimize with "
+"vectorized loading. We set the factor to 1 for simplification."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:209
+msgid ""
+"Buffers are also declared for inputs and outputs, though this is not "
+"required, we benefit from the extra information provided by buffers. For "
+"example, we pass :code:`bb.strides[0]` as an argument to the external "
+"function :code:`gemv_update`. For now :code:`bb.strides[0] == l`, but "
+"later we will see how they can differ with more complicated schedules."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:215
+msgid ""
+"Note that we use :code:`te.var(\"s1\")` as the first stride dimension for"
+" :code:`B`. If the strides can be inferred - in this case, TVM knows "
+"tensor B is compact thus the strides are :code:`[L, 1]` - such "
+"placeholder can be put to let TVM automatically bind the inferred value "
+"for us."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:255
+msgid ""
+"By tensorizing over :code:`yi`, the inner most two loops are now replaced"
+" by the intrinsic function we defined before. In order to build and run "
+"the module, let's define the external function :code:`gemv_update`, it is"
+" a naive implementation of GEMV, just for demonstration."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:290
+msgid ""
+"Now we leverage the pragma attribute :code:`import_llvm` to import llvm "
+"asm inline. The importing needs to happen before the tensorized GEMV "
+"being executed."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:419
+msgid ""
+"Finally we compare the tensorize version with that :code:`numpy.dot` "
+"produces, ensure our implementation is correct."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:445
+msgid "Reduce-update for Tensorize"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:446
+msgid ""
+"So far you have learned the basic idea of tensorize, now let's move one "
+"step forward to a more complicated case."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:449
+msgid ""
+"Assume our accelerator could only multiply a vector by a square matrix, "
+"in which the vector size needs to be no larger than 16. Given such "
+"hardware constrain, now we need to split the reduce axis as following,"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:466
+msgid ""
+"However, since the tensorize intrinsic now only covers a part of the "
+"reduce axis, instead of using one \"body\" function, TVM requires a "
+":code:`reduce_reset` function, which will be invoked before the reduce "
+"for-loop, and a :code:`reduce_update` function, which defines the "
+"\"update\" computing strategy."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:549
+msgid ""
+"Note that :code:`intrin_func` now returns a triplet: :code:`(body, "
+"reduce_reset, reduce_update)`. If tensorization includes all the reduce "
+"axes, function :code:`body()` will be invoked, otherwise "
+":code:`reduce_reset()` and :code:`reduce_update()` together will be used."
+" In our example :code:`body()` and :code:`reduce_update()` share the same"
+" implementation, while in other cases, hardware may have different "
+"instructions for these two functions. Moreover, we can see now "
+":code:`bb.strides[0]` is different from :code:`l` due to the tiling."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:559
+msgid "Tensorize for squared GEMV, build and check the results,"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:583
+msgid "Summary"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:584
+msgid ""
+"This tutorial demonstrates the usage of tensorize intrinsic in TVM. "
+"Tensorize provides a way for users to get fully optimized schedule via "
+"micro-kernels. For example, INT8 quantization on Intel CPUs uses "
+"tensorization to invoke AVX instruction directly. It also enables TVM to "
+"compile to ASICs - checkout :ref:`vta-index` for details. We also "
+"demonstrates how to use inline assembly importing, which helps users "
+"inject asm easily into the schedule."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:607
+msgid ":download:`Download Python source code: tensorize.py <tensorize.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:613
+msgid ":download:`Download Jupyter notebook: tensorize.ipynb <tensorize.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/tensorize.rst:620
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

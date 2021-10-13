@@ -1,0 +1,264 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_work_with_microtvm_micro_tflite.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:13
+msgid "microTVM with TFLite Models"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:14
+msgid "**Author**: `Tom Gall <https://github.com/tom-gall>`_"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:16
+msgid ""
+"This tutorial is an introduction to working with microTVM and a TFLite "
+"model with Relay."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:20
+msgid ""
+"If you want to run this tutorial on the microTVM Reference VM, download "
+"the Jupyter notebook using the link at the bottom of this page and save "
+"it into the TVM directory. Then:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:23
+msgid "Login to the reference VM with a modified ``vagrant ssh`` command:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:25
+msgid "``$ vagrant ssh -- -L8888:localhost:8888``"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:27
+msgid "Install jupyter:  ``pip install jupyterlab``"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:28
+msgid "``cd`` to the TVM directory."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:29
+msgid "Install tflite: poetry install -E importer-tflite"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:30
+msgid "Launch Jupyter Notebook: ``jupyter notebook``"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:31
+msgid "Copy the localhost URL displayed, and paste it into your browser."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:32
+msgid "Navigate to saved Jupyter Notebook (``.ipynb`` file)."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:36
+msgid "Setup"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:39
+msgid "Install TFLite"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:41
+msgid ""
+"To get started, TFLite package needs to be installed as prerequisite. You"
+" can do this in two ways:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:43
+msgid "Install tflite with ``pip``"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:49
+msgid "Generate the TFLite package yourself. The steps are the following:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:51
+msgid ""
+"Get the flatc compiler. Please refer to "
+"https://github.com/google/flatbuffers for details and make sure it is "
+"properly installed."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:59
+msgid "Get the TFLite schema."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:65
+msgid "Generate TFLite package."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:71
+msgid ""
+"Add the current folder (which contains generated tflite module) to "
+"PYTHONPATH."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:77
+msgid ""
+"To validate that the TFLite package was installed successfully, ``python "
+"-c \"import tflite\"``"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:80
+msgid "Install Zephyr (physical hardware only)"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:82
+msgid ""
+"When running this tutorial with a host simulation (the default), you can "
+"use the host ``gcc`` to build a firmware image that simulates the device."
+" When compiling to run on physical hardware, you need to install a "
+"*toolchain* plus some target-specific dependencies. microTVM allows you "
+"to supply any compiler and runtime that can launch the TVM RPC server, "
+"but to get started, this tutorial relies on the Zephyr RTOS to provide "
+"these pieces."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:88
+msgid ""
+"You can install Zephyr by following the `Installation Instructions "
+"<https://docs.zephyrproject.org/latest/getting_started/index.html>`_."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:107
+msgid "Aside: Recreating your own Pre-Trained TFLite model"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:92
+msgid ""
+"The tutorial downloads a pretrained TFLite model. When working with "
+"microcontrollers you need to be mindful these are highly resource "
+"constrained devices as such standard models like MobileNet may not fit "
+"into their modest memory."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:96
+msgid "For this tutorial, we'll make use of one of the TF Micro example models."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:98
+msgid ""
+"If you wish to replicate the training steps see: "
+"https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/examples/hello_world/train"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:103
+msgid "If you accidentally download the example pretrained model from:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:105
+msgid ""
+"``wget "
+"https://storage.googleapis.com/download.tensorflow.org/models/tflite/micro/hello_world_2020_04_13.zip``"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:107
+msgid "this will fail due to an unimplemented opcode (114)"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:110
+msgid "Load and prepare the Pre-Trained Model"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:112
+msgid ""
+"Load the pretrained TFLite model from a file in your current directory "
+"into a buffer"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:141
+msgid "Using the buffer, transform into a tflite model python object"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:161
+msgid "Print out the version of the model"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:175
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:353
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:415
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:183
+msgid ""
+"Parse the python model object to convert it into a relay module and "
+"weights. It is important to note that the input tensor name must match "
+"what is contained in the model."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:188
+msgid ""
+"If you are unsure what that might be, this can be discovered by using the"
+" ``visualize.py`` script within the Tensorflow project. See `How do I "
+"inspect a .tflite file? <https://www.tensorflow.org/lite/guide/faq>`_"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:211
+msgid "Defining the target"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:213
+msgid ""
+"Now we create a build config for relay, turning off two options and then "
+"calling relay.build which will result in a C source file for the selected"
+" TARGET. When running on a simulated target of the same architecture as "
+"the host (where this Python script is executed) choose \"host\" below for"
+" the TARGET and a proper board/VM to run it (Zephyr will create the right"
+" QEMU VM based on BOARD. In the example below the x86 arch is selected "
+"and a x86 VM is picked up accordingly:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:251
+msgid "Now, compile the model for the target:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:384
+msgid ""
+"Next, establish a session with the simulated device and run the "
+"computation. The `with session` line would typically flash an attached "
+"microcontroller, but in this tutorial, it simply launches a subprocess to"
+" stand in for an attached microcontroller."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:436
+msgid ":download:`Download Python source code: micro_tflite.py <micro_tflite.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:442
+msgid ""
+":download:`Download Jupyter notebook: micro_tflite.ipynb "
+"<micro_tflite.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_tflite.rst:449
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

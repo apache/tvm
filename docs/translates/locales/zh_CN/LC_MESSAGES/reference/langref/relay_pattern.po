@@ -1,0 +1,441 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:38+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/reference/langref/relay_pattern.rst:21
+msgid "Pattern Matching in Relay"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:23
+msgid ""
+"There are many places in TVM where we identify pure data-flow sub-graphs of "
+"the Relay program and attempt to transform them in some way example passes "
+"include fusion, quantization, external code generation, and device specific "
+"optimizations such as bitpacking, and layer slicing used by VTA."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:25
+msgid ""
+"Many of these passes today require a lots of boring boilerplate code in "
+"order to implement as well as requiring users to think in terms of visitors "
+"and AST matching. Many of these transformations can easily be described in "
+"terms of graph rewrites. In order to build a rewriter or other advanced "
+"machinery we first need a language of patterns to describe what we can "
+"match."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:27
+msgid ""
+"Such a language is not just useful for building a rewriter but also "
+"providing extension points for existing passes. For example the fusion pass "
+"could be parameterized by a set of fusion patterns which describes the "
+"capability of your hardware, and the quantization pass could take a set of "
+"patterns which describe which operators can be quantized on a given "
+"platform."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:29
+msgid ""
+"In the backend world, we could use the same machinery to build a higher "
+"level API using bring your own code generation. This API takes set of "
+"patterns describing your hardware capabilities and an external compiler, "
+"providing a relatively smooth heterogeneous experience out of the box."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:32
+msgid "Pattern Examples"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:34
+msgid ""
+"There are quite a few properties of operators that are worth matching. Below"
+" we examine how to match tree properties, and expand on some use cases that "
+"are not fully explored in the prototype. This section demonstrates how to "
+"write patterns. It is recommended to check "
+"`tests/python/relay/test_dataflow_pattern.py`_ for more use cases."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:42
+msgid ""
+"If you cannot find the corresponding pattern node to match the Relay node "
+"you want, you are welcome to raise an issue or submit a PR to add it."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:46
+msgid "Matching One of Two Ops"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:48
+msgid ""
+"The first example is a simple case where we want to match one operator with "
+"a single input OR another operator with a single input:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:60
+msgid "Matching an Op with Attributes"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:62
+msgid ""
+"The next example is a dense operation with any operator that is marked "
+"element-wise:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:73
+msgid "Here is another example to match an op with a specific attribute:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:83
+msgid "Or a convolution with a specific kernel size:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:96
+msgid "Matching an Optional Op"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:98
+msgid ""
+"The next example is matching a pattern with one optional operator. In this "
+"pattern, we can match the graph of conv2d+bias_add+relu or the graph of "
+"conv2d+bias_add."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:119
+msgid "Matching Types"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:121
+msgid ""
+"In addition to matching ops with attributes, we can also make a pattern to "
+"match their types, in interms of the shape and data type. Here are some "
+"examples:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:148
+msgid "Matching Non-Call Nodes"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:150
+msgid ""
+"Sometimes we may also want to match a pattern that includes Tuple or "
+"TupleGetItem nodes. Since there are not call nodes, we need to use specific "
+"pattern nodes to match them:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:162
+msgid ""
+"The next example is matching a pattern of batch_norm -> get(0) -> relu. Note"
+" that you can also use `is_tuple_get_item(bn_node)` to match a "
+"`TupleGetItem` node with any index."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:181
+msgid ""
+"If we have a pattern that crosses a function boundary, we might want to "
+"match the Function itself"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:194
+msgid ""
+"The next example is matching a constant node regarding its values. This is "
+"useful to check if a specific parameter in a subgraph has been bound or not."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:219
+msgid ""
+"On the other hand, if you need to match the constant with a specific value, "
+"you can directly use ``is_expr``. This could be useful for algebraic "
+"simplify."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:232
+msgid "The next example is matching function nodes with a specific attribute:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:244
+msgid ""
+"A Relay ``If`` expression can be matched if all of its condition, true "
+"branch and false branch are matched:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:261
+msgid ""
+"A Relay ``Let`` expression can be matched if all of its variable, value, and"
+" body are matched:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:279
+msgid "Matching Diamonds and Post-Dominator Graphs"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:281
+msgid ""
+"The next example is matching a diamond with two inputs at the top of the "
+"diamond::"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:301
+msgid ""
+"The final example is matching diamonds with a post-dominator relationship. "
+"We embed dominator analysis as type of matching in the pattern language in "
+"order to allow for pattern matching with unknown topology. This is important"
+" because we want to be able to use the language to describe fuse patterns, "
+"like elementwise operations followed by a conv2d::"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:322
+msgid "Matching Fuzzy Patterns"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:324
+msgid ""
+"The Dominator analysis above lets one match a subgraph of Relay AST that "
+"doesn't correspond to a set of patterns nodes exactly 1-to-1. There are a "
+"few other places where we support such \"fuzzy\" matching."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:326
+msgid ""
+"Tuples, Functions, and Call nodes with any number of inputs can be matched "
+"by passing `None` as the argument value, i.e.::"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:332
+msgid ""
+"These patterns allow matching more generic classes patterns by constraining "
+"the use of the arguments rather than the number of arguments."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:334
+msgid ""
+"Additionally, we support matching Functions with fuzzy bodies, i.e., a "
+"function body that is under constrained by the pattern. The pattern "
+"`FunctionPattern([is_var(), is_var()], wildcard() + wildcard()])` will match"
+" `relay.Function([x, y], x + y)`, but it will also match `relay.Function([x,"
+" y], x * x + y)`. In the second case, the pattern doesn't perfectly "
+"constrain the body of the function, so the resulting match is fuzzy."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:338
+msgid "Pattern Language Design"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:340
+msgid ""
+"The pattern language proposed is designed to be a mirror of Relay's IR with "
+"additional support for common scenarios. The goal of the pattern language is"
+" to provide a regular-expression like capability for matching data-flow "
+"graphs and doing rewriting."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:342
+msgid ""
+"The high level design is to introduce a language of patterns for now we "
+"propose the language as::"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:363
+msgid ""
+"The above language then provides a matching interface with both can select "
+"sub-graphs as well as verify that the graph does match the pattern."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:366
+msgid "Expression Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:368
+msgid "Match a literal expression."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:371
+msgid "Wildcard"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:373
+msgid "Match any expression."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:376
+msgid "Type Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:378
+msgid ""
+"Check that the expression matched by the nested pattern has a particular "
+"type."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:381
+msgid "DType Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:383
+msgid ""
+"Check that the expression matched by the nested pattern has a particular "
+"data type."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:386
+msgid "Shape Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:388
+msgid ""
+"Check that the expression matched by the nested pattern has a particular "
+"output shape."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:391
+msgid "Attribute Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:393
+msgid ""
+"Check that the operator matched by the pattern has an attribute with a "
+"particular value."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:396
+msgid "Variable Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:398
+msgid ""
+"Check that the expression is a relay Variable, and optional provide a name "
+"to match to the Variable name."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:402
+msgid "Alternate"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:404
+msgid "Either match the first pattern or the second pattern."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:407
+msgid "Domination"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:409
+msgid ""
+"Match child pattern, find a match for the parent pattern, insuring that the "
+"child ultimately dominates the parent (i.e., no nodes outside the pattern "
+"use outputs of the parent), and that ever node between the child and the "
+"pattern matches the path pattern."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:412
+msgid "Function Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:414
+msgid "Match a Function with a body and parameters"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:417
+msgid "If Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:419
+msgid "Match an If with condition, true branch, and false branch"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:422
+msgid "Let Pattern"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:424
+msgid "Match a Let with a variable, value, and body"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:427
+msgid "Applications"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:429
+msgid ""
+"The pattern language provides not only the pattern matching but also pattern"
+" processing. Here we introduce two pattern processing approaches and provide"
+" some examples."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:433
+msgid "Pattern Rewriting"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:435
+msgid ""
+"If you would like to replace the matched pattern with another subgraph, you "
+"can leverage the ``rewrite`` transformation. Here is an example of rewriting"
+" a series of arithmetic operators with a single batch_norm op. The "
+"constructor parameter ``require_type`` indicates whether InferType is "
+"required to be run before the callback."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:476
+msgid ""
+"The function ``def callback(self, pre, post, node_map)`` will be invoked "
+"when the rewriter matches ``self.pattern``. ``node_map`` is a dictionary "
+"mapping from pattern nodes to matched nodes in the graph."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:479
+msgid ""
+"The callback function will be invoked recursively on the returned pattern "
+"until the pattern stops changing. As a result, if ``self.pattern`` matches "
+"any part of the graph that the callback returned, the rewriter will run in a"
+" loop. If you want to avoid multiple rewrites, you can pass a "
+"``rewrite_once=True`` parameter to the constructor."
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:482
+msgid "Pattern Partitioning"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:484
+msgid ""
+"If you would like to perform a more complex processing for matched subgraphs"
+" and you are not satisfied with ``rewrite``, you may consider partitioning "
+"the matched subgraphs to a separate Relay function and perform other "
+"processes to the function. Here we use ``pattern.partition`` to create a new"
+" Relay function for each matched subgraph. The functionality is similar to "
+"the op fusion pass in TVM:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:519
+msgid ""
+"Note that you can also specify the attributes for the created functions:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:535
+msgid ""
+"If you need a customized checking function that cannot be specified using "
+"pattern language, you can specify ``check`` function when partitioning. The "
+"following example demonstrates a case that checks input data layout of a "
+"subgraph:"
+msgstr ""
+
+#: ../../_staging/reference/langref/relay_pattern.rst:547
+msgid ""
+"In this example, we check if the first argument of the matched subgraph "
+"(i.e., ``pre.args[0]``) has data layout \"NCHW\" and if its batch size is 1."
+" This feature is useful if the conditions of matching a pattern cannot be "
+"verified by analyzing the pattern itself."
+msgstr ""

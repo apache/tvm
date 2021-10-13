@@ -1,0 +1,151 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/tutorial/relay_quick_start.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_tutorial_relay_quick_start.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:13
+msgid "Quick Start Tutorial for Compiling Deep Learning Models"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:14
+msgid ""
+"**Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Truman Tian "
+"<https://github.com/SiNZeRo>`_"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:16
+msgid ""
+"This example shows how to build a neural network with Relay python "
+"frontend and generates a runtime library for Nvidia GPU with TVM. Notice "
+"that you need to build TVM with cuda and llvm enabled."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:21
+msgid "Overview for Supported Hardware Backend of TVM"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:22
+msgid "The image below shows hardware backend currently supported by TVM:"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:27
+msgid ""
+"In this tutorial, we'll choose cuda and llvm as target backends. To begin"
+" with, let's import Relay and TVM."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:50
+msgid "Define Neural Network in Relay"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:51
+msgid ""
+"First, let's define a neural network with relay python frontend. For "
+"simplicity, we'll use pre-defined resnet-18 network in Relay. Parameters "
+"are initialized with Xavier initializer. Relay also supports other model "
+"formats such as MXNet, CoreML, ONNX and Tensorflow."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:57
+msgid ""
+"In this tutorial, we assume we will do inference on our device and the "
+"batch size is set to be 1. Input images are RGB color images of size 224 "
+"* 224. We can call the :py:meth:`tvm.relay.expr.TupleWrapper.astext()` to"
+" show the network structure."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:86
+#: ../../_staging/tutorial/relay_quick_start.rst:254
+#: ../../_staging/tutorial/relay_quick_start.rst:286
+#: ../../_staging/tutorial/relay_quick_start.rst:317
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:189
+msgid "Compilation"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:190
+msgid ""
+"Next step is to compile the model using the Relay/TVM pipeline. Users can"
+" specify the optimization level of the compilation. Currently this value "
+"can be 0 to 3. The optimization passes include operator fusion, pre-"
+"computation, layout transformation and so on."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:195
+msgid ""
+":py:func:`relay.build` returns three components: the execution graph in "
+"json format, the TVM module library of compiled functions specifically "
+"for this graph on the target hardware, and the parameter blobs of the "
+"model. During the compilation, Relay does the graph-level optimization "
+"while TVM does the tensor-level optimization, resulting in an optimized "
+"runtime module for model serving."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:202
+msgid ""
+"We'll first compile for Nvidia GPU. Behind the scene, "
+":py:func:`relay.build` first does a number of graph-level optimizations, "
+"e.g. pruning, fusing, etc., then registers the operators (i.e. the nodes "
+"of the optimized graphs) to TVM implementations to generate a "
+"`tvm.module`. To generate the module library, TVM will first transfer the"
+" high level IR into the lower intrinsic IR of the specified target "
+"backend, which is CUDA in this example. Then the machine code will be "
+"generated as the module library."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:226
+msgid "Run the generate library"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:227
+msgid "Now we can create graph executor and run the module on Nvidia GPU."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:264
+msgid "Save and Load Compiled Module"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:265
+msgid ""
+"We can also save the graph, lib and parameters into files and load them "
+"back in deploy environment."
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:339
+msgid ""
+":download:`Download Python source code: relay_quick_start.py "
+"<relay_quick_start.py>`"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:345
+msgid ""
+":download:`Download Jupyter notebook: relay_quick_start.ipynb "
+"<relay_quick_start.ipynb>`"
+msgstr ""
+
+#: ../../_staging/tutorial/relay_quick_start.rst:352
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

@@ -1,0 +1,267 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_deploy_models_deploy_prequantized.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:11
+msgid "Deploy a Framework-prequantized Model with TVM"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:12
+msgid "**Author**: `Masahiro Masuda <https://github.com/masahi>`_"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:14
+msgid ""
+"This is a tutorial on loading models quantized by deep learning "
+"frameworks into TVM. Pre-quantized model import is one of the "
+"quantization support we have in TVM. More details on the quantization "
+"story in TVM can be found `here <https://discuss.tvm.apache.org/t"
+"/quantization-story/3920>`_."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:19
+msgid ""
+"Here, we demonstrate how to load and run models quantized by PyTorch, "
+"MXNet, and TFLite. Once loaded, we can run compiled, quantized models on "
+"any hardware TVM supports."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:22
+msgid "First, necessary imports"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:45
+msgid "Helper functions to run the demo"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:109
+msgid ""
+"A mapping from label to class name, to verify that the outputs from "
+"models below are reasonable"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:123
+msgid "Everyone's favorite cat image for demonstration"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:137
+msgid "Deploy a quantized PyTorch Model"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:138
+msgid ""
+"First, we demonstrate how to load deep learning models quantized by "
+"PyTorch, using our PyTorch frontend."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:141
+msgid ""
+"Please refer to the PyTorch static quantization tutorial below to learn "
+"about their quantization workflow. "
+"https://pytorch.org/tutorials/advanced/static_quantization_tutorial.html"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:145
+msgid ""
+"We use this function to quantize PyTorch models. In short, this function "
+"takes a floating point model and converts it to uint8. The model is per-"
+"channel quantized."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:170
+msgid "Load quantization-ready, pretrained Mobilenet v2 model from torchvision"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:171
+msgid ""
+"We choose mobilenet v2 because this model was trained with quantization "
+"aware training. Other models require a full post training calibration."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:186
+msgid "Quantize, trace and run the PyTorch Mobilenet v2 model"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:187
+msgid ""
+"The details are out of scope for this tutorial. Please refer to the "
+"tutorials on the PyTorch website to learn about quantization and jit."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:206
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:282
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:306
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:331
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:218
+msgid "Convert quantized Mobilenet v2 to Relay-QNN using the PyTorch frontend"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:219
+msgid ""
+"The PyTorch frontend has support for converting a quantized PyTorch model"
+" to an equivalent Relay module enriched with quantization-aware "
+"operators. We call this representation Relay QNN dialect."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:223
+msgid ""
+"You can print the output from the frontend to see how quantized models "
+"are represented."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:226
+msgid ""
+"You would see operators specific to quantization such as qnn.quantize, "
+"qnn.dequantize, qnn.requantize, and qnn.conv2d etc."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:244
+msgid "Compile and run the Relay module"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:245
+msgid ""
+"Once we obtained the quantized Relay module, the rest of the workflow is "
+"the same as running floating point models. Please refer to other "
+"tutorials for more details."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:249
+msgid ""
+"Under the hood, quantization specific operators are lowered to a sequence"
+" of standard Relay operators before compilation."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:264
+msgid "Compare the output labels"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:265
+msgid "We should see identical labels printed."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:291
+msgid ""
+"However, due to the difference in numerics, in general the raw floating "
+"point outputs are not expected to be identical. Here, we print how many "
+"floating point output values are identical out of 1000 outputs from "
+"mobilenet v2."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:315
+msgid "Measure performance"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:316
+msgid ""
+"Here we give an example of how to measure performance of TVM compiled "
+"models."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:344
+msgid "We recommend this method for the following reasons:"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:346
+msgid "Measurements are done in C++, so there is no Python overhead"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:347
+msgid "It includes several warm up runs"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:348
+msgid "The same method can be used to profile on remote devices (android etc.)."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:352
+msgid ""
+"Unless the hardware has special support for fast 8 bit instructions, "
+"quantized models are not expected to be any faster than FP32 models. "
+"Without fast 8 bit instructions, TVM does quantized convolution in 16 "
+"bit, even if the model itself is 8 bit."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:356
+msgid ""
+"For x86, the best performance can be achieved on CPUs with AVX512 "
+"instructions set. In this case, TVM utilizes the fastest available 8 bit "
+"instructions for the given target. This includes support for the VNNI 8 "
+"bit dot product instruction (CascadeLake or newer)."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:360
+msgid "Moreover, the following general tips for CPU performance equally applies:"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:362
+msgid ""
+"Set the environment variable TVM_NUM_THREADS to the number of physical "
+"cores"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:363
+msgid ""
+"Choose the best target for your hardware, such as \"llvm -mcpu=skylake-"
+"avx512\" or \"llvm -mcpu=cascadelake\" (more CPUs with AVX512 would come "
+"in the future)"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:367
+msgid "Deploy a quantized MXNet Model"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:368
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:372
+msgid "TODO"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:371
+msgid "Deploy a quantized TFLite Model"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:377
+msgid "**Total running time of the script:** ( 1 minutes  11.559 seconds)"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:392
+msgid ""
+":download:`Download Python source code: deploy_prequantized.py "
+"<deploy_prequantized.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:398
+msgid ""
+":download:`Download Jupyter notebook: deploy_prequantized.ipynb "
+"<deploy_prequantized.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_prequantized.rst:405
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

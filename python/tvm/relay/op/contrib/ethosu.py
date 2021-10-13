@@ -14,19 +14,51 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=ungrouped-imports
 """Arm(R) Ethos(TM)-U NPU supported operators."""
-from typing import List, Tuple, Callable
+import functools
+
+from typing import Dict, List, Tuple, Callable, Optional
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
+from tvm import relay
 from tvm.relay.expr import Constant  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant  # type: ignore
-from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
-from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-from tvm.relay.backend.contrib.ethosu.util import RequantArgs
-from tvm.relay.backend.contrib.ethosu.util import get_dim_value
-from ethosu.vela import api as vapi  # type: ignore
+from tvm.relay.build_module import bind_params_by_name  # type: ignore
+
+try:
+    # As ethos-u-vela package is an optional TVM dependency, we want to lazy load it
+    # and check whether it is installed or not.
+    #
+    # In order to show the appropriate error messages when we try to invoke code that
+    # rely on imports from ethos-u-vela, we protect them with the decorator @requires_vela
+    # implemented below.
+    from ethosu.vela import api as vapi  # type: ignore
+    from tvm.relay.backend.contrib.ethosu import preprocess
+    from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
+    from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
+    from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+    from tvm.relay.backend.contrib.ethosu.util import get_dim_value
+except ImportError:
+    vapi = None
+
+
+def requires_vela(func):
+    """Decorator to check whether we have the required dependency ethos-u-vela
+    installed as a python package"""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if not vapi:
+            raise ImportError(
+                "The 'ethos-u-vela' python package is required for the Arm(R) Ethos(TM)-U NPU "
+                "backend. Please install the dependency using your Python package manager."
+            ) from None
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 class TensorParams:
@@ -36,6 +68,7 @@ class TensorParams:
     for the creation of tensors in Vela.
     """
 
+    @requires_vela
     def __init__(self, tensor, layout=None, scale=None, zero_point=None):
         self.tensor = tensor
         if isinstance(tensor, Constant):
@@ -148,6 +181,7 @@ class QnnConv2DParams:
     padding_bounds = [31, 31, 32, 32]
     activation_map = {"clip": "CLIP"}
 
+    @requires_vela
     def __init__(self, func_body: tvm.relay.Function):
         activation = None
         if str(func_body.op) in self.activation_map.keys():
@@ -158,11 +192,11 @@ class QnnConv2DParams:
         bias_add = requantize_op.args[0]
         qnn_conv2d = bias_add.args[0]
         data_layout = qnn_conv2d.attrs.data_layout
-        kernel_layout = qnn_conv2d.attrs.kernel_layout
+        self.kernel_layout = qnn_conv2d.attrs.kernel_layout
         # We consider the weights & biases as params as it should be a Constant
         self.weights = TensorParams(
             qnn_conv2d.args[QConv2DArgs.WEIGHTS.value],
-            kernel_layout,
+            self.kernel_layout,
             qnn_conv2d.args[QConv2DArgs.WEIGHTS_SCALE.value],
             qnn_conv2d.args[QConv2DArgs.WEIGHTS_ZERO_POINT.value],
         )
@@ -185,16 +219,18 @@ class QnnConv2DParams:
             requantize_op.args[RequantArgs.OFM_SCALE.value],
             requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
-        self.padding = qnn_conv2d.attrs.padding
-        self.strides = qnn_conv2d.attrs.strides
-        self.dilation = qnn_conv2d.attrs.dilation
+        attrs = qnn_conv2d.attrs
+        self.padding = attrs.padding
+        self.strides = attrs.strides
+        self.dilation = attrs.dilation
         self.activation = activation
+        self.channels = attrs.channels
 
         # If groups are equal to channel, its a depthwise_conv2d
-        self.groups = qnn_conv2d.attrs.groups
+        self.groups = attrs.groups
         self.is_depthwise = False
         channels_axis = {"HWIO": 3, "HWOI": 2}
-        if qnn_conv2d.attrs.groups == self.weights.shape[channels_axis[kernel_layout]]:
+        if self.groups == self.weights.shape[channels_axis[self.kernel_layout]]:
             self.is_depthwise = True
 
     def is_valid(self) -> bool:
@@ -219,8 +255,50 @@ class QnnConv2DParams:
         legal_groups = [1, self.ofm.shape[3]]
         if self.groups not in legal_groups:
             return False
-        # This should be a valid QnnDepthwise2DParams, not QnnConv2DParams
+        # This should be a valid QnnDepthwiseConv2DParams, not QnnConv2DParams
         return not self.is_depthwise
+
+
+class QnnDepthwiseConv2DParams(QnnConv2DParams):
+    """
+    This class will parse a call to a ethosu.depthwise_conv2d composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.depthwise_conv2d"
+    # The hardware only supports padding upto the numbers as follows
+    padding_bounds = [31, 31, 32, 32]
+
+    def __init__(self, func_body: tvm.relay.expr.Call):
+        QnnConv2DParams.__init__(self, func_body)
+
+    def is_valid(self):
+        """
+        Checks whether QnnDepthwiseConv2D + activation function has compatible attributes with HW
+        """
+        tensor_params = [self.weights, self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params):
+            return False
+        if not check_weights(self.weights, self.dilation):
+            return False
+        if not check_bias(self.biases):
+            return False
+        if not check_strides(self.strides):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not check_dilation(self.dilation):
+            return False
+        if not check_padding(self.padding, self.padding_bounds):
+            return False
+        if self.weights.layout != "HWOI":
+            return False
+        # only depth multiplier of size 1 is supported
+        if self.weights.shape[3] != 1:
+            return False
+        if not self.is_depthwise:
+            return False
+        return True
 
 
 def qnn_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
@@ -238,6 +316,21 @@ def qnn_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return clip_or_req
 
 
+def qnn_depthwise_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for depthwise qnn.conv2D with optional fused RELU activation.
+    """
+    qnn_conv2d = is_op("qnn.conv2d")(
+        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+    ).has_attr({"kernel_layout": "HWOI"})
+    bias_add = is_op("nn.bias_add")(qnn_conv2d, is_constant())
+    req = is_op("qnn.requantize")(
+        bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    clip_or_req = req.optional(is_op("clip"))
+    return clip_or_req
+
+
 @register_pattern_table("ethosu")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -245,5 +338,46 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             QnnConv2DParams.composite_name,
             qnn_conv2d_pattern(),
             lambda pat: QnnConv2DParams(pat).is_valid(),
-        )
+        ),
+        (
+            QnnDepthwiseConv2DParams.composite_name,
+            qnn_depthwise_conv2d_pattern(),
+            lambda pat: QnnDepthwiseConv2DParams(pat).is_valid(),
+        ),
     ]
+
+
+# pylint: disable=unused-argument
+@requires_vela
+def partition_for_ethosu(
+    mod: tvm.ir.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None, **opts
+):
+    """This helper function partition the relay graph as produced by the
+    relay frontend for a given model into external functions
+    to be presented to the codegen.
+
+    Parameters
+    ----------
+    mod : tvm.ir.IRModule
+        The IRModule that gets generated from a relay frontend
+    params : Optional[Dict[str, tvm.runtime.NDArray]]
+        Constant input parameters.
+
+    Returns
+    -------
+    mod : IRModule
+        The partitioned IRModule with external global functions
+    """
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    pattern = relay.op.contrib.get_pattern_table("ethosu")
+    mod = relay.transform.InferType()(mod)
+    mod = relay.transform.MergeComposite(pattern)(mod)
+    mod = relay.transform.AnnotateTarget("ethosu")(mod)
+    mod = relay.transform.MergeCompilerRegions()(mod)
+    mod = relay.transform.InferType()(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+    mod = relay.transform.InferType()(mod)
+    mod = preprocess.preprocess_ext_io()(mod)
+    return mod

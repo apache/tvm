@@ -1,0 +1,175 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/reference/api/python/error.rst:19
+msgid "tvm.error"
+msgstr ""
+
+#: of tvm.error:1
+msgid "Structured error classes in TVM."
+msgstr ""
+
+#: of tvm.error:3
+msgid ""
+"Each error class takes an error message as its input. See the example "
+"sections for for suggested message conventions. To make the code more "
+"readable, we recommended developers to copy the examples and raise errors"
+" with the same message convention."
+msgstr ""
+
+#: of tvm.error:10
+msgid "Please also refer to :ref:`error-handling-guide`."
+msgstr ""
+
+#: of tvm.error:1
+msgid "**Functions:**"
+msgstr ""
+
+#: of tvm.error:1:<autosummary>:1
+msgid ""
+":obj:`register_error <tvm.error.register_error>`\\ \\(\\[func\\_name\\, "
+"cls\\]\\)"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1 tvm.error:1:<autosummary>:1
+msgid "Register an error class so it can be recognized by the ffi error handler."
+msgstr ""
+
+#: of tvm.error:1
+msgid "**Exceptions:**"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`TVMError <tvm.error.TVMError>`\\"
+msgstr ""
+
+#: of tvm._ffi.base.TVMError:1 tvm._ffi.base.register_error:1:<autosummary>:1
+msgid "Default error thrown by TVM functions."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`InternalError <tvm.error.InternalError>`\\ \\(msg\\)"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1 tvm.error.InternalError:1
+msgid "Internal error in the system."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`RPCError <tvm.error.RPCError>`\\"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1 tvm.error.RPCError:1
+msgid "Error thrown by the remote server handling the RPC call."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpError <tvm.error.OpError>`\\"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1 tvm.error.OpError:1
+msgid "Base class of all operator errors in frontends."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpNotImplemented <tvm.error.OpNotImplemented>`\\"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+#: tvm.error.OpNotImplemented:1
+msgid "Operator is not implemented."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpAttributeRequired <tvm.error.OpAttributeRequired>`\\"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+#: tvm.error.OpAttributeRequired:1
+msgid "Required attribute is not found."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpAttributeInvalid <tvm.error.OpAttributeInvalid>`\\"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+#: tvm.error.OpAttributeInvalid:1
+msgid "Attribute value is invalid when taking in a frontend operator."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`OpAttributeUnImplemented <tvm.error.OpAttributeUnImplemented>`\\"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+#: tvm.error.OpAttributeUnImplemented:1
+msgid "Attribute is not supported in a certain frontend."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+msgid ":obj:`DiagnosticError <tvm.error.DiagnosticError>`\\"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:1:<autosummary>:1
+#: tvm.error.DiagnosticError:1
+msgid "Error diagnostics were reported during the execution of a pass."
+msgstr ""
+
+#: of tvm._ffi.base.register_error
+msgid "Parameters"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:3
+msgid "The name of the error function."
+msgstr ""
+
+#: of tvm._ffi.base.register_error:5
+msgid "The function to create the class"
+msgstr ""
+
+#: of tvm._ffi.base.register_error
+msgid "Returns"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:8
+msgid "**fregister** -- Register function if f is not specified."
+msgstr ""
+
+#: of tvm._ffi.base.register_error
+msgid "Return type"
+msgstr ""
+
+#: of tvm._ffi.base.register_error:12 tvm.error.InternalError:4
+msgid "Examples"
+msgstr ""
+
+#: of tvm._ffi.base.TVMError:3
+msgid "TVMError will be raised if you do not give any error type specification,"
+msgstr ""
+
+#: of tvm.error.OpAttributeInvalid:4 tvm.error.OpAttributeRequired:4
+#: tvm.error.OpAttributeUnImplemented:4 tvm.error.OpNotImplemented:4
+msgid "Example"
+msgstr ""
+
+#: of tvm.error.DiagnosticError:3
+msgid "See the configured diagnostic renderer for detailed error information."
+msgstr ""
+

@@ -17,30 +17,27 @@
 
 import numpy as np
 import os
+import pytest
 import re
+import sys
 import tvm
 import tvm.relay
+import tvm.testing
 import tvm.contrib.hexagon as hexagon
 
 
-def check_prereq_and_setup():
-    if tvm.target.codegen.llvm_version_major() <= 7:
-        print("Skipping test: need LLVM 7 or later for codegen")
-        return False
-    if os.name != "posix":
-        print("Skipping test on non-POSIX platforms")
-        return False
-    if not tvm.runtime.enabled("hexagon"):
-        print("Hexagon runtime not enabled")
-        return False
+@pytest.fixture(autouse=True)
+def register_linker():
+    original_linker = tvm.contrib.hexagon.hexagon_link()
     # Register a phony linker, so that we can test codegen without a Hexagon toolchain.
     hexagon.register_linker(lambda: "/bin/true")
-    return True
+    yield None
+    # Restore registration.
+    hexagon.register_linker(original_linker)
 
 
+@tvm.testing.requires_hexagon
 def test_basic():
-    if not check_prereq_and_setup():
-        return
     target = tvm.target.hexagon("v66", hvx=128)
 
     def check_add(offload):
@@ -67,9 +64,8 @@ def test_basic():
     check_add(False)
 
 
+@tvm.testing.requires_hexagon
 def test_llvm_target_features():
-    if not check_prereq_and_setup():
-        return
     target = tvm.target.hexagon("v66", hvx=128)
     # Define some trivial compute
     A = tvm.te.placeholder((128,), dtype="uint8", name="A")
@@ -82,9 +78,8 @@ def test_llvm_target_features():
     assert fs  # Check that it's non-empty
 
 
+@tvm.testing.requires_hexagon
 def test_alloc_vtcm():
-    if not check_prereq_and_setup():
-        return
     target = tvm.target.hexagon("v66")
 
     buf_len = 2048
@@ -109,10 +104,19 @@ def test_alloc_vtcm():
     assert "HexagonBackendFreeVTCM" in calls
 
 
-def test_linked_params_codegen():
-    if not check_prereq_and_setup():
-        return
+@tvm.testing.requires_hexagon
+def test_llvm_options():
+    target = tvm.target.hexagon("v66", llvm_options="-hexagon-noopt")
+    Zero = tvm.te.compute((10,), lambda _: tvm.tir.const(0, "int32"))
+    s = tvm.te.create_schedule(Zero.op)
+    tvm.build(s, [Zero], target=target, name="zero")
+    # Check that BuildHexagon hasn't crashed because of target attribute
+    # type mismatch.
+    assert re.search("-hexagon-noopt", str(target))
 
+
+@tvm.testing.requires_hexagon
+def test_linked_params_codegen():
     # A simple model (a single conv2d) to trigger parameter separation:
     mod_lines = [
         '#[version = "0.0.5"]',
@@ -173,7 +177,4 @@ def test_linked_params_codegen():
 
 
 if __name__ == "__main__":
-    test_basic()
-    test_llvm_target_features()
-    test_alloc_vtcm()
-    test_linked_params_codegen()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

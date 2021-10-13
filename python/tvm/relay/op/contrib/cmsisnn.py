@@ -24,6 +24,10 @@ from ...dataflow_pattern import is_constant, is_op, wildcard
 from .register import register_pattern_table
 
 
+def enabled():
+    return bool(tvm.get_global_func("relay.ext.cmsisnn", True))
+
+
 def partition_for_cmsisnn(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators on Cortex-M using CMSIS-NN
@@ -79,6 +83,36 @@ def pattern_table():
             and dequantize_call.args[0].checked_type.dtype == "int8"
         )
 
+    def binary_op_pattern(op):
+        """Matches QNN binary operation"""
+        return is_op(f"qnn.{op}")(
+            wildcard(),
+            wildcard(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+        )
+
+    def check_quantized_binary_op(extract):
+        """Check if multiply is supported by CMSIS-NN."""
+        return (
+            extract.args[0].checked_type.dtype == "int8"
+            and extract.args[1].checked_type.dtype == "int8"
+        )
+
     return [
-        ("cmsisnn.qnn_softmax", softmax_pattern(), check_quantized_softmax),
+        ("cmsisnn.quantized_softmax", softmax_pattern(), check_quantized_softmax),
+        (
+            "cmsisnn.quantized_mul",
+            binary_op_pattern("mul"),
+            check_quantized_binary_op,
+        ),
+        (
+            "cmsisnn.quantized_add",
+            binary_op_pattern("add"),
+            check_quantized_binary_op,
+        ),
     ]

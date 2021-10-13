@@ -1,0 +1,150 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_optimize_operators_opt_conv_cuda.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:13
+msgid "How to optimize convolution on GPU"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:14
+msgid "**Author**: `Haichen Shen <https://homes.cs.washington.edu/~haichen/>`_"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:16
+msgid ""
+"In this tutorial, we will demonstrate how to write a high performance "
+"convolution implementation in TVM. We use square size input tensors and "
+"filters as an example, and assume the input to convolution has a large "
+"batch. In this example, we use a different layout to store the data in "
+"order to achieve better data locality. The buffer layout is HWCN, which "
+"stands for height, width, channel, batch."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:25
+msgid "Preparation and Algorithm"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:27
+msgid ""
+"We use the fixed size for input tensors with 256 channels and 14 x 14 "
+"dimensions. The batch size is 256. Convolution filters contain 512 "
+"filters of size 3 x 3.  We use stride size 1 and padding size 1 for the "
+"convolution. The following code defines the convolution algorithm in TVM."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:85
+msgid "Memory Hierarchy"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:87
+msgid ""
+"We first specify the memory hierarchy for buffers. The figure below shows"
+" the GPU memory hierarchy. One important difference from CPU memory "
+"hierarchy is that GPU provides a cache buffer called shared memory, which"
+" is managed by programmers. Thus how to maximize the data reuse in the "
+"shared memory is critical to achieve high performance in GPU kernels."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:98
+msgid ""
+"In this example, we load both Apad and W into buffer AA and WW, which are"
+" stored in the shared memory. These bufferes will be later shared by all "
+"threads within the same thread block to compute the convolution. Each "
+"thread then loads its own part from shared buffer into their local "
+"registers, AL and WL. BL is a local cache of output B, which is also "
+"stored in the thread local registers."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:126
+msgid "Blocking"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:128
+msgid ""
+"The following code splits the workload into thread blocks and individual "
+"threads. We follow the blocking scheme in the matrix multiply. As shown "
+"in the figure below, given a pixel coordinate (y, x), a thread block is "
+"responsible for computing a region of block_factor x block_factor (64 x "
+"64) for output channels and batch. Due to the limit of shared memory "
+"space, we only load step x block_factor (8 x 64) data from Apad and B "
+"each time to buffers in the shared memory."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:180
+msgid "Virtual Thread Split"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:182
+msgid ""
+"We further split the workload from a thread block to individual threads. "
+"To avoid *memory bank conflict*, we use virtual thread to split the area "
+"into 4 parts, and then tile into 8x8 grids. Therefore, shown in the "
+"figure below, each thread computes 4 strided grids, where size of each "
+"grid is 4 x 4."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:215
+msgid "Cooperative Fetching"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:217
+msgid ""
+"As mentioned before, each time step we need to transfer step x "
+"block_factor data from GPU global memory to shared memory. In order to "
+"reduce the memory transfer per thread, the following code lets threads in"
+" the same thread block coopertively fetch dependent data from global "
+"memory."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:269
+msgid "Generate CUDA Kernel"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:271
+msgid ""
+"Finally we use TVM to generate and compile the CUDA kernel, and evaluate "
+"the latency of convolution."
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:295
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:316
+msgid ""
+":download:`Download Python source code: opt_conv_cuda.py "
+"<opt_conv_cuda.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:322
+msgid ""
+":download:`Download Jupyter notebook: opt_conv_cuda.ipynb "
+"<opt_conv_cuda.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/opt_conv_cuda.rst:329
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

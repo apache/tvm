@@ -1,0 +1,954 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# 长德 司, 2021
+# HLearning, 2021
+# JiaKui Hu, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:37+0000\n"
+"Last-Translator: JiaKui Hu, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/reference/api/python/relay/analysis.rst:19
+msgid "tvm.relay.analysis"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1
+msgid "The Relay IR namespace containing the analysis passes."
+msgstr "包含分析的Relay IR命名空间的passes。"
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1
+msgid "**Classes:**"
+msgstr "**类：**"
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1:<autosummary>:1
+msgid ""
+":obj:`AnnotatedRegionSet <tvm.relay.analysis.AnnotatedRegionSet>`\\ "
+"\\(expr\\, region\\_begin\\_op\\, ...\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1
+msgid "Class to represent a relay expression split into regions."
+msgstr "表示relay expression的类拆分为区域。"
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1:<autosummary>:1
+msgid ":obj:`CallGraph <tvm.relay.analysis.CallGraph>`\\ \\(module\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph:1
+msgid "Class to represent a call graph."
+msgstr "表示call graph的类。"
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1:<autosummary>:1
+msgid ":obj:`Feature <tvm.relay.analysis.Feature>`\\ \\(value\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/feature.pydocstring of
+#: tvm.relay.analysis.feature.Feature:1
+msgid "The features a program might contain."
+msgstr "程序可能包含的功能。"
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis:1
+msgid "**Functions:**"
+msgstr "**函数：**"
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`count_layers <tvm.relay.analysis.count_layers>`\\ \\(expr\\, "
+"valid\\_ops\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid "Determine the number of layers of specified ops in a graph."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`all_dtypes <tvm.relay.analysis.all_dtypes>`\\ \\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_dtypes:1
+msgid "Collect set of all data types used in `expr`."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`all_type_vars <tvm.relay.analysis.all_type_vars>`\\ \\(expr\\[\\, mod\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_type_vars:1
+msgid "Get all type variables from expression/type e"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`all_vars <tvm.relay.analysis.all_vars>`\\ \\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_vars:1
+msgid "Get all vars from expression expr in post-DFS order."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`bound_type_vars <tvm.relay.analysis.bound_type_vars>`\\ \\(expr\\[\\, "
+"mod\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_type_vars:1
+msgid "Get bound type variables from expression/type e"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`bound_vars <tvm.relay.analysis.bound_vars>`\\ \\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_vars:1
+msgid "Get bound vars from expression expr in post-DFS order."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`check_basic_block_normal_form "
+"<tvm.relay.analysis.check_basic_block_normal_form>`\\ \\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_basic_block_normal_form:1
+msgid "Check whether an expression is in the basic block form"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`check_constant <tvm.relay.analysis.check_constant>`\\ \\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_constant:1
+msgid "Check whether an expression is constant"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`check_kind <tvm.relay.analysis.check_kind>`\\ \\(t\\[\\, mod\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid "Check that the type is well kinded and return the kind."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`cpu <tvm.relay.analysis.cpu>`\\ \\(\\[dev\\_id\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:1
+msgid "Construct a CPU device"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`detect_feature <tvm.relay.analysis.detect_feature>`\\ \\(a\\[\\, b\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.detect_feature:1
+msgid "Detect the feature used in a relay program."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`extract_fused_functions "
+"<tvm.relay.analysis.extract_fused_functions>`\\ \\(mod\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.extract_fused_functions:1
+msgid "Pass to extract IRModule of only fused primitive functions."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`free_type_vars <tvm.relay.analysis.free_type_vars>`\\ \\(expr\\[\\, "
+"mod\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_type_vars:1
+msgid "Get free type variables from expression/type e"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`free_vars <tvm.relay.analysis.free_vars>`\\ \\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_vars:1
+msgid "Get free Vars from expression expr in Post DFS order."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`get_calibration_data <tvm.relay.analysis.get_calibration_data>`\\ "
+"\\(mod\\, data\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:1
+msgid "Get the calibration data of a given relay graph"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`get_total_mac_number <tvm.relay.analysis.get_total_mac_number>`\\ "
+"\\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_total_mac_number:1
+msgid "Count the number of MACs (multiply-accumulate) of a model"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`list_op_freqs <tvm.relay.analysis.list_op_freqs>`\\ \\(mod\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+"Pass to extract unique operator names and how frequently they appear in an "
+"IRModule."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`post_order_visit <tvm.relay.analysis.post_order_visit>`\\ \\(expr\\, "
+"fvisit\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid "Recursively visit the ir in post DFS order node, apply fvisit."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`search_fc_transpose <tvm.relay.analysis.search_fc_transpose>`\\ "
+"\\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.search_fc_transpose:1
+msgid ""
+"Search fc weight name in the patten: y = nn.dense(x, transpose(w, [1, 0]))"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ""
+":obj:`unmatched_cases <tvm.relay.analysis.unmatched_cases>`\\ \\(match\\[\\,"
+" mod\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.unmatched_cases:1
+msgid "Finds cases that the match expression does not catch, if any."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+msgid ":obj:`well_formed <tvm.relay.analysis.well_formed>`\\ \\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.well_formed:1
+msgid "Check that each Var is only bound once (well formed)."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet:1
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph:1
+msgid "**Methods:**"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:1:<autosummary>:1
+msgid ""
+":obj:`get_region <tvm.relay.analysis.AnnotatedRegionSet.get_region>`\\ "
+"\\(expr\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:1
+msgid "Get the region an expression belongs to."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.ref_count:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.global_call_count:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.is_recursive:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.print_var:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.count_layers.count_layers:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_dtypes:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_basic_block_normal_form:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_constant:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_kind:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.detect_feature:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.extract_fused_functions:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_total_mac_number:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.list_op_freqs:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.post_order_visit:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.search_fc_transpose:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.unmatched_cases:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.well_formed:0
+msgid "Parameters"
+msgstr "参数"
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:3
+msgid "The expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.ref_count:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.global_call_count:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.is_recursive:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.print_var:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.count_layers.count_layers:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_dtypes:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_basic_block_normal_form:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_constant:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_kind:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.detect_feature:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.extract_fused_functions:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_total_mac_number:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.list_op_freqs:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.search_fc_transpose:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.unmatched_cases:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.well_formed:0
+msgid "Returns"
+msgstr "返回"
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:6
+msgid "The region containing the expression. None if not found."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/annotated_regions.pydocstring of
+#: tvm.relay.analysis.annotated_regions.AnnotatedRegionSet.get_region:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.ref_count:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.global_call_count:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.is_recursive:0
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.print_var:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.count_layers.count_layers:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_dtypes:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_basic_block_normal_form:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_constant:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_kind:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.detect_feature:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.extract_fused_functions:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_type_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_vars:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_total_mac_number:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.list_op_freqs:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.search_fc_transpose:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.unmatched_cases:0
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.well_formed:0
+msgid "Return type"
+msgstr "返回的数据类型"
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph:1
+#: ../../../python/tvm/relay/analysis/feature.pydocstring of
+#: tvm.relay.analysis.feature.Feature:1
+msgid "**Attributes:**"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph:1:<autosummary>:1
+msgid ":obj:`module <tvm.relay.analysis.CallGraph.module>`\\"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1
+msgid "Return the contained Relay IR module."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1:<autosummary>:1
+msgid ":obj:`ref_count <tvm.relay.analysis.CallGraph.ref_count>`\\ \\(var\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.ref_count:1
+msgid "Return the number of references to the global var"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1:<autosummary>:1
+msgid ""
+":obj:`global_call_count <tvm.relay.analysis.CallGraph.global_call_count>`\\ "
+"\\(var\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.global_call_count:1
+msgid "Return the number of global function calls from a given global var."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1:<autosummary>:1
+msgid ":obj:`is_recursive <tvm.relay.analysis.CallGraph.is_recursive>`\\ \\(var\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.is_recursive:1
+msgid "Return if the function corresponding to a var is a recursive function."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1:<autosummary>:1
+msgid ":obj:`print_var <tvm.relay.analysis.CallGraph.print_var>`\\ \\(var\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:1:<autosummary>:1
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.print_var:1
+msgid "Print a call graph of a global function by name or by variable."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.CallGraph.module:5
+msgid "**ret** -- The contained IRModule"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.ref_count:6
+msgid "**ret** -- The number reference to the global var"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.global_call_count:6
+msgid "**ret** -- The number of global function calls from the given var."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.is_recursive:7
+msgid "**ret** -- If the function corresponding to var is recurisve."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.print_var:3
+msgid "The name or global variable."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/call_graph.pydocstring of
+#: tvm.relay.analysis.call_graph.CallGraph.print_var:6
+msgid "**ret** -- The call graph represented in string."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.count_layers.count_layers:1
+msgid ""
+"Determine the number of layers of specified ops in a graph. This pass "
+"computes only the deepest chain of ops rather than the total number of ops "
+"in a graph. Thus, if there are two parallel convolutions (for example), they"
+" would be considered a single layer."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.count_layers.count_layers:6
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_total_mac_number:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.post_order_visit:5
+msgid "The input expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.count_layers.count_layers:8
+msgid "A list of the operations that should be included in the count."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.count_layers.count_layers:11
+msgid ""
+"**layer_count** -- The number of layers of the specified operations found in"
+" the graph."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/feature.pydocstring of
+#: tvm.relay.analysis.Feature.fMatch:1:<autosummary>:1
+msgid ":obj:`fMatch <tvm.relay.analysis.Feature.fMatch>`\\"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/feature.pydocstring of
+#: tvm.relay.analysis.Feature.fMatch:1:<autosummary>:1
+#: ../../_staging/docstring of tvm.relay.analysis.Feature.fMatch:1
+msgid ""
+"Whether any non-atom fragment of the program is shared, making the program a"
+" graph."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/feature.pydocstring of
+#: tvm.relay.analysis.Feature.fMatch:1:<autosummary>:1
+msgid ":obj:`fGraph <tvm.relay.analysis.Feature.fGraph>`\\"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/feature.pydocstring of
+#: tvm.relay.analysis.Feature.fMatch:1:<autosummary>:1
+#: ../../_staging/docstring of tvm.relay.analysis.Feature.fGraph:1
+msgid "Whether there is local fixpoint in the program."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_dtypes:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_vars:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_vars:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_basic_block_normal_form:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_constant:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_vars:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.well_formed:3
+msgid "The input expression"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_dtypes:6
+msgid ""
+"**ret** -- Set of data types used in the expression (e.g., `{'int8', "
+"'int32'}`)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_type_vars:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_type_vars:3
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_type_vars:3
+msgid "The input expression/type"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_type_vars:5
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_type_vars:5
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_type_vars:5
+msgid "The global module"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_type_vars:8
+msgid "**free** -- The list of all type variables in post-DFS order"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.all_vars:6
+msgid "**free** -- The list of all variables in post-DFS order."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_type_vars:8
+msgid "**free** -- The list of bound type variables in post-DFS order"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.bound_vars:6
+msgid "**free** -- The list of bound variables in post-DFS order."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_basic_block_normal_form:6
+msgid "**result** -- Whether the expression is in the basic block form."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_constant:6
+msgid "**result** -- Whether the expression is constant."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_kind:1
+msgid ""
+"Check that the type is well kinded and return the kind. For example, this "
+"mean type cannot has tensor of tensor, or is a tuple type of 2 shapes."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_kind:5
+msgid "The type to check"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_kind:7
+msgid "The global module."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_kind:10
+msgid "**kind** -- the kind of t"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.check_kind:14
+msgid "Examples"
+msgstr "样例"
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:3
+msgid "The integer device id"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.runtime.ndarray.cpu:6
+msgid "**dev** -- The created device"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.detect_feature:3
+msgid "The input expression or module."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.detect_feature:5
+msgid ""
+"The input expression or module. The two arguments cannot both be expression "
+"or module."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.detect_feature:9
+msgid "**features** -- Features used in the program."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.extract_fused_functions:3
+msgid ""
+"The ExtractFusedFunctions pass invokes SimplifyInference, FuseOps(3), and "
+"ExtractFusedFunctions in that order"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.extract_fused_functions:9
+msgid "**ret** -- A module containing only fused primitive functions"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_type_vars:8
+msgid "**free** -- The list of free type variables in post-DFS order"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_vars:6
+msgid "**free** -- The list of free variables in post DFS order."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.free_vars:11
+msgid ""
+"The fact that Vars are post-DFS ordred are useful in neural networks: "
+"usually this means weights of previous are ordered first."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:3
+msgid ""
+"This pass uses the graph executor to get the calibration data of a module, "
+"which includes the input and output values of each function. The returned "
+"data uses the GlobalVar of each function as a key. Users can further access "
+"the inputs and outputs by using `inputs` or  `outputs` as the key."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:8
+msgid ""
+"Following are some limitations: 1. The input module (graph) cannot have "
+"control flows. 2. The input arguments of each function cannot be tuples "
+"(outputs can be tuples). 3. We only handle top-level functions (i.e., nested"
+" function is not handled). 4. We only handle functions with `Compiler` "
+"attribute being set."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:14
+msgid "The input module for collecting the calibration data"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:16
+msgid "The input data for running the module"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_calibration_data:19
+msgid "**data**"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.get_total_mac_number:6
+msgid "**result** -- The number of MACs (multiply-accumulate) of a model"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.list_op_freqs:1
+msgid ""
+"Pass to extract unique operator names and how frequently they appear in an "
+"IRModule. Fused functions are traversed to count the operators that compose "
+"them."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.list_op_freqs:8
+msgid "**ret** -- Dict of unique operator names to frequency"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.post_order_visit:1
+msgid ""
+"Recursively visit the ir in post DFS order node, apply fvisit. Each node is "
+"guaranteed to be visited only once."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.post_order_visit:7
+msgid "The visitor function to be applied."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.search_fc_transpose:3
+msgid ""
+"This function is used in the data_dep_optimization.simplify_fc_transpose "
+"method"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.search_fc_transpose:8
+msgid ""
+"**ret** -- Array of weight variable name in pattern y = nn.dense(x, "
+"transpose(w, [1, 0]))"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.unmatched_cases:3
+msgid "The match expression"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.unmatched_cases:5
+msgid "The module (defaults to an empty module)"
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.unmatched_cases:8
+msgid ""
+"**missing_patterns** -- Patterns that the match expression does not catch."
+msgstr ""
+
+#: ../../../python/tvm/relay/analysis/__init__.pydocstring of
+#: tvm.relay.analysis.analysis.well_formed:6
+msgid "**well_form** -- Whether the input expression is well formed"
+msgstr ""

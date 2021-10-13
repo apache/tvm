@@ -10,7 +10,7 @@ docker pull tlcpack/ci-gpu:v0.77
 # then configure LLVM, CUDA and TVM environments as usual, use /home/syfeng/tvm-upstream/tests/scripts/task_config_build_gpu.sh to create config.cmake
 ```
 
-* in a new tvm fold to compile the tvm again, use `/home/syfeng/tvm-upstream/tests/scripts/task_config_build_gpu.sh` to `create config.cmake` and start your work
+* in a new tvm fold to compile the tvm again, use `tests/scripts/task_config_build_gpu.sh` to `create config.cmake` and start your work
 
 * Consider using proxy to enhance your network environment, which may help a lot.
 
@@ -41,14 +41,14 @@ LANGUAGE="zh_CN"                            # the aim-language
 
 ```bash
 cd docs/
-./tx_transifex.sh init                      # Please feel free to kill the process(Ctrl^C) after input API token and finish verification.
+./tx_transifex.sh init                      # Please feel relaxed to kill the process(Ctrl^C) after input API token and finish verification.
 ```
 
 * update your transifex-config, which record the relation between `*.pot` and `*.po`
 
 ```bash
 cd docs/
-../tests/scripts/task_python_generate_documents.sh true false false zh_CN   # update your gettext(*.pot)
+../tests/scripts/task_python_generate_documents.sh true true false zh_CN   # update your gettext(*.pot)
 
 ./tx_transifex.sh update                                                    # update transifex-config
 ```

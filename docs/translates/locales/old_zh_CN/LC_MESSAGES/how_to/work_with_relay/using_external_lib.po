@@ -1,0 +1,186 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_work_with_relay_using_external_lib.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:11
+msgid "Using External Libraries in Relay"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:12
+msgid ""
+"**Author**: `Masahiro Masuda <https://github.com/masahi>`_, `Truman Tian "
+"<https://github.com/SiNZeRo>`_"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:14
+msgid ""
+"This is a short tutorial on how to use external libraries such as cuDNN, "
+"or cuBLAS with Relay."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:16
+msgid ""
+"Relay uses TVM internally to generate target specific code. For example, "
+"with cuda backend TVM generates cuda kernels for all layers in the user "
+"provided network. But sometimes it is also helpful to incorporate "
+"external libraries developed by various vendors into Relay. Luckily, TVM "
+"has a mechanism to transparently call into these libraries. For Relay "
+"users, all we need to do is just to set a target string appropriately."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:21
+msgid ""
+"Before we can use external libraries from Relay, your TVM needs to be "
+"built with libraries you want to use. For example, to use cuDNN, "
+"USE_CUDNN option in `cmake/config.cmake` needs to be enabled, and cuDNN "
+"include and library directories need to be specified if necessary."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:24
+msgid "To begin with, we import Relay and TVM."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:44
+msgid "Create a simple network"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:45
+msgid ""
+"Let's create a very simple network for demonstration. It consists of "
+"convolution, batch normalization, and ReLU activation."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:79
+msgid "Build and run with cuda backend"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:80
+msgid ""
+"We build and run this network with cuda backend, as usual. By setting the"
+" logging level to DEBUG, the result of Relay graph compilation will be "
+"dumped as pseudo code."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:107
+msgid ""
+"The generated pseudo code should look something like below. Note how bias"
+" add, batch normalization, and ReLU activation are fused into the "
+"convolution kernel. TVM generates a single, fused kernel from this "
+"representation."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:511
+msgid "Use cuDNN for a convolutional layer"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:512
+msgid ""
+"We can use cuDNN to replace convolution kernels with cuDNN ones. To do "
+"that, all we need to do is to append the option \" -libs=cudnn\" to the "
+"target string."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:537
+msgid ""
+"Note that if you use cuDNN, Relay cannot fuse convolution with layers "
+"following it. This is because layer fusion happens at the level of TVM "
+"internal representation(IR). Relay treats external libraries as black "
+"box, so there is no way to fuse them with TVM IR."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:541
+msgid ""
+"The pseudo code below shows that cuDNN convolution + bias add + batch "
+"norm + ReLU turned into two stages of computation, one for cuDNN call and"
+" the other for the rest of operations."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:562
+msgid "Verify the result"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:563
+msgid "We can check that the results of two runs match."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:578
+msgid "Conclusion"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:579
+msgid ""
+"This tutorial covered the usage of cuDNN with Relay. We also have support"
+" for cuBLAS. If cuBLAS is enabled, it will be used inside a fully "
+"connected layer (relay.dense). To use cuBLAS, set a target string as "
+"\"cuda -libs=cublas\". You can use both cuDNN and cuBLAS with \"cuda "
+"-libs=cudnn,cublas\"."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:584
+msgid ""
+"For ROCm backend, we have support for MIOpen and rocBLAS. They can be "
+"enabled with target \"rocm -libs=miopen,rocblas\"."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:587
+msgid ""
+"Being able to use external libraries is great, but we need to keep in "
+"mind some cautions."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:589
+msgid ""
+"First, the use of external libraries may restrict your usage of TVM and "
+"Relay. For example, MIOpen only supports NCHW layout and fp32 data type "
+"at the moment, so you cannot use other layouts or data type in TVM."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:592
+msgid ""
+"Second, and more importantly, external libraries restrict the possibility"
+" of operator fusion during graph compilation, as shown above. TVM and "
+"Relay aim to achieve the best performance on a variety of hardwares, with"
+" joint operator level and graph level optimization. To achieve this goal,"
+" we should continue developing better optimizations for TVM and Relay, "
+"while using external libraries as a nice way to fall back to existing "
+"implementation when necessary."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:609
+msgid ""
+":download:`Download Python source code: using_external_lib.py "
+"<using_external_lib.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:615
+msgid ""
+":download:`Download Jupyter notebook: using_external_lib.ipynb "
+"<using_external_lib.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/using_external_lib.rst:622
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

@@ -1,0 +1,1188 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/reference/api/python/contrib.rst:19
+msgid "tvm.contrib"
+msgstr ""
+
+#: of tvm.contrib:1
+msgid "Contrib APIs of TVM python package."
+msgstr ""
+
+#: of tvm.contrib:3
+msgid ""
+"Contrib API provides many useful not core features. Some of these are "
+"useful utilities to interact with thirdparty libraries and tools."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:23
+msgid "tvm.contrib.cblas"
+msgstr ""
+
+#: of tvm.contrib.cblas:1
+msgid "External function interface to BLAS libraries."
+msgstr ""
+
+#: of tvm.contrib.cblas.matmul:1
+msgid ""
+"Create an extern op that compute matrix mult of A and rhs with CrhsLAS "
+"This function serves as an example on how to call external libraries."
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul tvm.contrib.cblas.matmul
+#: tvm.contrib.cc.create_executable tvm.contrib.cc.create_shared
+#: tvm.contrib.cc.cross_compiler tvm.contrib.cc.get_target_by_dump_machine
+#: tvm.contrib.clang.create_llvm tvm.contrib.clang.find_clang
+#: tvm.contrib.cublas.batch_matmul tvm.contrib.cublas.matmul
+#: tvm.contrib.dlpack.convert_func tvm.contrib.dlpack.to_pytorch_func
+#: tvm.contrib.emcc.create_tvmjs_wasm tvm.contrib.miopen.conv2d_forward
+#: tvm.contrib.miopen.log_softmax tvm.contrib.miopen.softmax
+#: tvm.contrib.mxnet.to_mxnet_func tvm.contrib.ndk.create_shared
+#: tvm.contrib.nnpack.convolution_inference
+#: tvm.contrib.nnpack.convolution_inference_weight_transform
+#: tvm.contrib.nnpack.convolution_inference_without_weight_transform
+#: tvm.contrib.nnpack.fully_connected_inference tvm.contrib.nvcc.compile_cuda
+#: tvm.contrib.nvcc.get_cuda_version
+#: tvm.contrib.nvcc.get_target_compute_version tvm.contrib.nvcc.have_bf16
+#: tvm.contrib.nvcc.have_fp16 tvm.contrib.nvcc.have_int8
+#: tvm.contrib.nvcc.have_tensorcore tvm.contrib.nvcc.parse_compute_version
+#: tvm.contrib.pickle_memoize.Cache tvm.contrib.pickle_memoize.memoize
+#: tvm.contrib.random.normal tvm.contrib.random.randint
+#: tvm.contrib.random.uniform tvm.contrib.rocblas.batch_matmul
+#: tvm.contrib.rocblas.matmul tvm.contrib.rocm.find_lld
+#: tvm.contrib.rocm.rocm_link tvm.contrib.sparse.placeholder
+#: tvm.contrib.spirv.optimize tvm.contrib.tar.tar tvm.contrib.tar.untar
+#: tvm.contrib.utils.FileLock tvm.contrib.utils.TempDirectory.relpath
+#: tvm.contrib.utils.filelock tvm.contrib.utils.is_source_path
+#: tvm.contrib.utils.tempdir tvm.contrib.utils.which
+#: tvm.contrib.xcode.compile_metal tvm.contrib.xcode.create_dylib
+#: tvm.contrib.xcode.xcrun
+msgid "Parameters"
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul:4 tvm.contrib.cblas.matmul:4
+#: tvm.contrib.cublas.batch_matmul:3 tvm.contrib.cublas.matmul:3
+#: tvm.contrib.rocblas.matmul:3
+msgid "The left matrix operand"
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul:6 tvm.contrib.cblas.matmul:6
+#: tvm.contrib.cublas.batch_matmul:5 tvm.contrib.cublas.matmul:5
+#: tvm.contrib.rocblas.matmul:5
+msgid "The right matrix operand"
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul:8 tvm.contrib.cblas.matmul:8
+#: tvm.contrib.cublas.batch_matmul:7 tvm.contrib.cublas.matmul:7
+#: tvm.contrib.rocblas.batch_matmul:7 tvm.contrib.rocblas.matmul:7
+msgid "Whether transpose lhs"
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul:10 tvm.contrib.cblas.matmul:10
+#: tvm.contrib.cublas.batch_matmul:9 tvm.contrib.cublas.matmul:9
+#: tvm.contrib.rocblas.batch_matmul:9 tvm.contrib.rocblas.matmul:9
+msgid "Whether transpose rhs"
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul tvm.contrib.cblas.matmul
+#: tvm.contrib.cc.cross_compiler tvm.contrib.cc.get_target_by_dump_machine
+#: tvm.contrib.clang.create_llvm tvm.contrib.clang.find_clang
+#: tvm.contrib.cublas.batch_matmul tvm.contrib.cublas.matmul
+#: tvm.contrib.dlpack.to_pytorch_func tvm.contrib.miopen.conv2d_forward
+#: tvm.contrib.miopen.log_softmax tvm.contrib.miopen.softmax
+#: tvm.contrib.mxnet.to_mxnet_func tvm.contrib.nnpack.convolution_inference
+#: tvm.contrib.nnpack.convolution_inference_weight_transform
+#: tvm.contrib.nnpack.convolution_inference_without_weight_transform
+#: tvm.contrib.nnpack.fully_connected_inference tvm.contrib.nvcc.compile_cuda
+#: tvm.contrib.nvcc.find_cuda_path tvm.contrib.nvcc.get_cuda_version
+#: tvm.contrib.nvcc.get_target_compute_version
+#: tvm.contrib.nvcc.parse_compute_version tvm.contrib.pickle_memoize.memoize
+#: tvm.contrib.random.normal tvm.contrib.random.randint
+#: tvm.contrib.random.uniform tvm.contrib.rocblas.batch_matmul
+#: tvm.contrib.rocblas.matmul tvm.contrib.rocm.find_lld
+#: tvm.contrib.sparse.placeholder tvm.contrib.spirv.optimize
+#: tvm.contrib.utils.TempDirectory.listdir
+#: tvm.contrib.utils.TempDirectory.relpath tvm.contrib.utils.filelock
+#: tvm.contrib.utils.is_source_path tvm.contrib.utils.tempdir
+#: tvm.contrib.utils.which tvm.contrib.xcode.compile_metal
+#: tvm.contrib.xcode.xcrun
+msgid "Returns"
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul:13 tvm.contrib.cblas.matmul:13
+#: tvm.contrib.cublas.batch_matmul:12 tvm.contrib.cublas.matmul:12
+#: tvm.contrib.rocblas.batch_matmul:12 tvm.contrib.rocblas.matmul:12
+msgid "**C** -- The result tensor."
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul tvm.contrib.cblas.matmul
+#: tvm.contrib.cc.cross_compiler tvm.contrib.cc.get_target_by_dump_machine
+#: tvm.contrib.clang.create_llvm tvm.contrib.clang.find_clang
+#: tvm.contrib.cublas.batch_matmul tvm.contrib.cublas.matmul
+#: tvm.contrib.dlpack.to_pytorch_func tvm.contrib.miopen.conv2d_forward
+#: tvm.contrib.miopen.log_softmax tvm.contrib.miopen.softmax
+#: tvm.contrib.mxnet.to_mxnet_func tvm.contrib.nnpack.convolution_inference
+#: tvm.contrib.nnpack.convolution_inference_weight_transform
+#: tvm.contrib.nnpack.convolution_inference_without_weight_transform
+#: tvm.contrib.nnpack.fully_connected_inference tvm.contrib.nvcc.compile_cuda
+#: tvm.contrib.nvcc.find_cuda_path tvm.contrib.nvcc.get_cuda_version
+#: tvm.contrib.nvcc.get_target_compute_version
+#: tvm.contrib.pickle_memoize.memoize tvm.contrib.random.normal
+#: tvm.contrib.random.randint tvm.contrib.random.uniform
+#: tvm.contrib.rocblas.batch_matmul tvm.contrib.rocblas.matmul
+#: tvm.contrib.rocm.find_lld tvm.contrib.sparse.placeholder
+#: tvm.contrib.spirv.optimize tvm.contrib.utils.TempDirectory.listdir
+#: tvm.contrib.utils.TempDirectory.relpath tvm.contrib.utils.filelock
+#: tvm.contrib.utils.is_source_path tvm.contrib.utils.tempdir
+#: tvm.contrib.utils.which tvm.contrib.xcode.compile_metal
+#: tvm.contrib.xcode.xcrun
+msgid "Return type"
+msgstr ""
+
+#: of tvm.contrib.cblas.batch_matmul:1
+msgid ""
+"Create an extern op that compute batched matrix mult of A and rhs with "
+"CBLAS This function serves as an example on how to call external "
+"libraries."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:29
+msgid "tvm.contrib.clang"
+msgstr ""
+
+#: of tvm.contrib.clang:1
+msgid "Util to invoke clang in the system."
+msgstr ""
+
+#: of tvm.contrib.clang.find_clang:1
+msgid "Find clang in system."
+msgstr ""
+
+#: of tvm.contrib.clang.find_clang:3 tvm.contrib.rocm.find_lld:3
+msgid ""
+"Whether it is required, runtime error will be raised if the compiler is "
+"required."
+msgstr ""
+
+#: of tvm.contrib.clang.find_clang:7 tvm.contrib.rocm.find_lld:7
+msgid "**valid_list** -- List of possible paths."
+msgstr ""
+
+#: of tvm.contrib.clang.find_clang:12
+msgid ""
+"This function will first search clang that matches the major llvm version"
+" that built with tvm"
+msgstr ""
+
+#: of tvm.contrib.clang.create_llvm:1
+msgid "Create llvm text ir."
+msgstr ""
+
+#: of tvm.contrib.clang.create_llvm:3
+msgid "List of input files name or code source."
+msgstr ""
+
+#: of tvm.contrib.clang.create_llvm:5
+msgid "Output file, if it is none a temporary file is created"
+msgstr ""
+
+#: of tvm.contrib.cc.create_executable:7 tvm.contrib.cc.create_shared:7
+#: tvm.contrib.clang.create_llvm:8
+msgid "The list of additional options string."
+msgstr ""
+
+#: of tvm.contrib.clang.create_llvm:10
+msgid ""
+"The clang compiler, if not specified, we will try to guess the matched "
+"clang version."
+msgstr ""
+
+#: of tvm.contrib.clang.create_llvm:14
+msgid "**code** -- The generated llvm text IR."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:35
+msgid "tvm.contrib.cc"
+msgstr ""
+
+#: of tvm.contrib.cc:1
+msgid "Util to invoke C/C++ compilers in the system."
+msgstr ""
+
+#: of tvm.contrib.cc.create_shared:1 tvm.contrib.ndk.create_shared:1
+msgid "Create shared library."
+msgstr ""
+
+#: of tvm.contrib.cc.create_shared:3 tvm.contrib.emcc.create_tvmjs_wasm:3
+#: tvm.contrib.ndk.create_shared:3 tvm.contrib.tar.tar:3
+#: tvm.contrib.xcode.create_dylib:3
+msgid "The target shared library."
+msgstr ""
+
+#: of tvm.contrib.cc.create_executable:5 tvm.contrib.cc.create_shared:5
+#: tvm.contrib.emcc.create_tvmjs_wasm:5 tvm.contrib.ndk.create_shared:5
+#: tvm.contrib.xcode.create_dylib:5
+msgid "List of object files."
+msgstr ""
+
+#: of tvm.contrib.cc.create_executable:9 tvm.contrib.cc.create_shared:9
+msgid "The compiler command."
+msgstr ""
+
+#: of tvm.contrib.cc.create_executable:1
+msgid "Create executable binary."
+msgstr ""
+
+#: of tvm.contrib.cc.create_executable:3
+msgid "The target executable."
+msgstr ""
+
+#: of tvm.contrib.cc.get_target_by_dump_machine:1
+msgid ""
+"Functor of get_target_triple that can get the target triple using "
+"compiler."
+msgstr ""
+
+#: of tvm.contrib.cc.get_target_by_dump_machine:3
+msgid "The compiler."
+msgstr ""
+
+#: of tvm.contrib.cc.get_target_by_dump_machine:6
+msgid ""
+"**out** -- A function that can get target triple according to dumpmachine"
+" option of compiler."
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:1
+msgid ""
+"Create a cross compiler function by specializing compile_func with "
+"options."
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:3
+msgid ""
+"This function can be used to construct compile functions that can be "
+"passed to AutoTVM measure or export_library."
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:7
+msgid "Function that performs the actual compilation"
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:9
+msgid "List of additional optional string."
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:11
+msgid "Library output format."
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:13
+msgid ""
+"Function that can target triple according to dumpmachine option of "
+"compiler."
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:15
+msgid ""
+"List of paths to additional object, source, library files to pass as part"
+" of the compilation."
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:19
+msgid ""
+"**fcompile** -- A compilation function that can be passed to "
+"export_library."
+msgstr ""
+
+#: of tvm.contrib.cc.cross_compiler:23
+msgid "Examples"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:41
+msgid "tvm.contrib.cublas"
+msgstr ""
+
+#: of tvm.contrib.cublas:1
+msgid "External function interface to cuBLAS libraries."
+msgstr ""
+
+#: of tvm.contrib.cublas.matmul:1
+msgid "Create an extern op that compute matrix mult of A and rhs with cuBLAS"
+msgstr ""
+
+#: of tvm.contrib.cublas.batch_matmul:1
+msgid ""
+"Create an extern op that compute batch matrix mult of A and rhs with "
+"cuBLAS"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:47
+msgid "tvm.contrib.dlpack"
+msgstr ""
+
+#: of tvm.contrib.dlpack:1
+msgid "Wrapping functions to bridge frameworks with DLPack support to TVM"
+msgstr ""
+
+#: of tvm.contrib.dlpack.convert_func:2
+msgid "Convert a tvm function into one that accepts a tensor from another"
+msgstr ""
+
+#: of tvm.contrib.dlpack.convert_func:2
+msgid "framework, provided the other framework supports DLPACK"
+msgstr ""
+
+#: of tvm.contrib.dlpack.convert_func:4 tvm.contrib.dlpack.to_pytorch_func:3
+msgid "Built tvm function operating on arrays"
+msgstr ""
+
+#: of tvm.contrib.dlpack.convert_func:6
+msgid "Type of the tensors of the target framework"
+msgstr ""
+
+#: of tvm.contrib.dlpack.convert_func:8
+msgid "Function to convert the source tensors to DLPACK"
+msgstr ""
+
+#: of tvm.contrib.dlpack.to_pytorch_func:1
+msgid "Convert a tvm function into one that accepts PyTorch tensors"
+msgstr ""
+
+#: of tvm.contrib.dlpack.to_pytorch_func:6
+msgid "**wrapped_func** -- Wrapped tvm function that operates on PyTorch tensors"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:52
+msgid "tvm.contrib.emcc"
+msgstr ""
+
+#: of tvm.contrib.emcc:1
+msgid "Util to invoke emscripten compilers in the system."
+msgstr ""
+
+#: of tvm.contrib.emcc.create_tvmjs_wasm:1
+msgid "Create wasm that is supposed to run with the tvmjs."
+msgstr ""
+
+#: of tvm.contrib.emcc.create_tvmjs_wasm:7 tvm.contrib.ndk.create_shared:7
+#: tvm.contrib.xcode.create_dylib:7
+msgid "The additional options."
+msgstr ""
+
+#: of tvm.contrib.emcc.create_tvmjs_wasm:9
+msgid "The compile string."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:57
+msgid "tvm.contrib.miopen"
+msgstr ""
+
+#: of tvm.contrib.miopen:1
+msgid "External function interface to MIOpen library."
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:1
+msgid "Create an extern op that compute 2D convolution with MIOpen"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:3
+msgid "input feature map"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:5
+msgid "convolution weight"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:7
+msgid "height stride"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:9
+msgid "width stride"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:11
+msgid "height pad"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:13
+msgid "weight pad"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:15
+msgid "height dilation"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:17
+msgid "width dilation"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:19
+msgid "0: miopenConvolution 1: miopenTranspose"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:22
+msgid "0: miopenHalf (fp16) 1: miopenFloat (fp32)"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:25
+msgid "number of groups"
+msgstr ""
+
+#: of tvm.contrib.miopen.conv2d_forward:28
+msgid "**y** -- The result tensor"
+msgstr ""
+
+#: of tvm.contrib.miopen.softmax:1
+msgid "Compute softmax with MIOpen"
+msgstr ""
+
+#: of tvm.contrib.miopen.log_softmax:3 tvm.contrib.miopen.softmax:3
+msgid "The input tensor"
+msgstr ""
+
+#: of tvm.contrib.miopen.softmax:5
+msgid "The axis to compute softmax over"
+msgstr ""
+
+#: of tvm.contrib.miopen.log_softmax:8 tvm.contrib.miopen.softmax:8
+msgid "**ret** -- The result tensor"
+msgstr ""
+
+#: of tvm.contrib.miopen.log_softmax:1
+msgid "Compute log softmax with MIOpen"
+msgstr ""
+
+#: of tvm.contrib.miopen.log_softmax:5
+msgid "The axis to compute log softmax over"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:62
+msgid "tvm.contrib.mxnet"
+msgstr ""
+
+#: of tvm.contrib.mxnet:1
+msgid "MXNet bridge wrap Function MXNet's async function."
+msgstr ""
+
+#: of tvm.contrib.mxnet.to_mxnet_func:1
+msgid "Wrap a TVM function as MXNet function"
+msgstr ""
+
+#: of tvm.contrib.mxnet.to_mxnet_func:3
+msgid "MXNet function runs asynchrously via its engine."
+msgstr ""
+
+#: of tvm.contrib.mxnet.to_mxnet_func:5
+msgid "A TVM function that can take positional arguments"
+msgstr ""
+
+#: of tvm.contrib.mxnet.to_mxnet_func:7
+msgid ""
+"List of integers indicating the argument position of read only NDArray "
+"argument. The NDArray argument location that are not annotated will be "
+"viewed as mutable arrays in MXNet's engine."
+msgstr ""
+
+#: of tvm.contrib.mxnet.to_mxnet_func:13
+msgid ""
+"**async_func** -- A function that can take MXNet NDArray as argument in "
+"places that used to expect TVM NDArray. Run asynchrously in MXNet's async"
+" engine."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:67
+msgid "tvm.contrib.ndk"
+msgstr ""
+
+#: of tvm.contrib.ndk:1
+msgid "Util to invoke NDK compiler toolchain."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:73
+msgid "tvm.contrib.nnpack"
+msgstr ""
+
+#: of tvm.contrib.nnpack:1
+msgid "External function interface to NNPACK libraries."
+msgstr ""
+
+#: of tvm.contrib.nnpack.is_available:1
+msgid ""
+"Check whether NNPACK is available, that is, `nnp_initialize()` returns "
+"`nnp_status_success`."
+msgstr ""
+
+#: of tvm.contrib.nnpack.fully_connected_inference:1
+msgid ""
+"Create an extern op that compute fully connected of 1D tensor lhs and 2D "
+"tensor rhs with nnpack."
+msgstr ""
+
+#: of tvm.contrib.nnpack.fully_connected_inference:4
+msgid "lhs 1D array input[input_channels] of FP32 elements"
+msgstr ""
+
+#: of tvm.contrib.nnpack.fully_connected_inference:6
+msgid "lhs 2D matrix kernel[output_channels][input_channels] of FP32 elements"
+msgstr ""
+
+#: of tvm.contrib.nnpack.fully_connected_inference:9
+msgid "**C** -- lhs 1D array out[output_channels] of FP32 elements."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference:1
+msgid ""
+"Create an extern op to do inference convolution of 4D tensor data and 4D "
+"tensor kernel and 1D tensor bias with nnpack."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference:4
+#: tvm.contrib.nnpack.convolution_inference_without_weight_transform:4
+msgid ""
+"data 4D tensor input[batch][input_channels][input_height][input_width] of"
+" FP32 elements."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference:7
+#: tvm.contrib.nnpack.convolution_inference_weight_transform:4
+msgid ""
+"kernel 4D tensor kernel[output_channels][input_channels][kernel_height] "
+"[kernel_width] of FP32 elements."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference:10
+#: tvm.contrib.nnpack.convolution_inference_without_weight_transform:10
+msgid ""
+"bias 1D array bias[output_channels][input_channels][kernel_height] "
+"[kernel_width] of FP32 elements."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference:13
+#: tvm.contrib.nnpack.convolution_inference_without_weight_transform:13
+msgid ""
+"padding A 4-dim list of [pad_top, pad_bottom, pad_left, pad_right], which"
+" indicates the padding around the feature map."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference:16
+#: tvm.contrib.nnpack.convolution_inference_without_weight_transform:16
+msgid ""
+"stride A 2-dim list of [stride_height, stride_width], which indicates the"
+" stride."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference:20
+#: tvm.contrib.nnpack.convolution_inference_without_weight_transform:20
+msgid ""
+"**output** -- output 4D tensor "
+"output[batch][output_channels][output_height][output_width] of FP32 "
+"elements."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference_without_weight_transform:1
+msgid ""
+"Create an extern op to do inference convolution of 4D tensor data and 4D "
+"pre-transformed tensor kernel and 1D tensor bias with nnpack."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference_without_weight_transform:7
+msgid ""
+"transformed_kernel 4D tensor "
+"kernel[output_channels][input_channels][tile] [tile] of FP32 elements."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference_weight_transform:1
+msgid ""
+"Create an extern op to do inference convolution of 3D tensor data and 4D "
+"tensor kernel and 1D tensor bias with nnpack."
+msgstr ""
+
+#: of tvm.contrib.nnpack.convolution_inference_weight_transform:8
+msgid ""
+"**output** -- output 4D tensor "
+"output[output_channels][input_channels][tile][tile] of FP32 elements."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:79
+msgid "tvm.contrib.nvcc"
+msgstr ""
+
+#: of tvm.contrib.nvcc:1
+msgid "Utility to invoke nvcc compiler in the system"
+msgstr ""
+
+#: of tvm.contrib.nvcc.compile_cuda:1
+msgid "Compile cuda code with NVCC from env."
+msgstr ""
+
+#: of tvm.contrib.nvcc.compile_cuda:3 tvm.contrib.xcode.compile_metal:3
+msgid "The cuda code."
+msgstr ""
+
+#: of tvm.contrib.nvcc.compile_cuda:5
+msgid "The target format"
+msgstr ""
+
+#: of tvm.contrib.nvcc.compile_cuda:7
+msgid "The architecture"
+msgstr ""
+
+#: of tvm.contrib.nvcc.compile_cuda:9
+msgid "The additional options"
+msgstr ""
+
+#: of tvm.contrib.nvcc.compile_cuda:11 tvm.contrib.xcode.compile_metal:5
+msgid "Output file."
+msgstr ""
+
+#: of tvm.contrib.nvcc.compile_cuda:14
+msgid "**cubin** -- The bytearray of the cubin"
+msgstr ""
+
+#: of tvm.contrib.nvcc.find_cuda_path:1
+msgid "Utility function to find cuda path"
+msgstr ""
+
+#: of tvm.contrib.nvcc.find_cuda_path:3
+msgid "**path** -- Path to cuda root."
+msgstr ""
+
+#: of tvm.contrib.nvcc.get_cuda_version:1
+msgid "Utility function to get cuda version"
+msgstr ""
+
+#: of tvm.contrib.nvcc.get_cuda_version:3
+msgid "Path to cuda root."
+msgstr ""
+
+#: of tvm.contrib.nvcc.get_cuda_version:6
+msgid "**version** -- The cuda version"
+msgstr ""
+
+#: of tvm.contrib.nvcc.get_target_compute_version:1
+msgid "Utility function to get compute capability of compilation target."
+msgstr ""
+
+#: of tvm.contrib.nvcc.get_target_compute_version:3
+msgid ""
+"Looks for the arch in three different places, first in the target "
+"attributes, then the global scope, and finally the GPU device (if it "
+"exists)."
+msgstr ""
+
+#: of tvm.contrib.nvcc.get_target_compute_version:6
+msgid "The compilation target"
+msgstr ""
+
+#: of tvm.contrib.nvcc.get_target_compute_version:9
+msgid "**compute_version** -- compute capability of a GPU (e.g. \"8.0\")"
+msgstr ""
+
+#: of tvm.contrib.nvcc.parse_compute_version:1
+msgid "Parse compute capability string to divide major and minor version"
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_fp16:3 tvm.contrib.nvcc.parse_compute_version:3
+msgid "compute capability of a GPU (e.g. \"6.0\")"
+msgstr ""
+
+#: of tvm.contrib.nvcc.parse_compute_version:6
+msgid ""
+"* **major** (*int*) -- major version number * **minor** (*int*) -- minor "
+"version number"
+msgstr ""
+
+#: of tvm.contrib.nvcc.parse_compute_version:6
+msgid "**major** (*int*) -- major version number"
+msgstr ""
+
+#: of tvm.contrib.nvcc.parse_compute_version:7
+msgid "**minor** (*int*) -- minor version number"
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_fp16:1
+msgid "Either fp16 support is provided in the compute capability or not"
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_int8:1
+msgid "Either int8 support is provided in the compute capability or not"
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_int8:3
+msgid "compute capability of a GPU (e.g. \"6.1\")"
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_tensorcore:1
+msgid "Either TensorCore support is provided in the compute capability or not"
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_tensorcore:3
+msgid "compute capability of a GPU (e.g. \"7.0\")."
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_tensorcore:5
+msgid ""
+"The compilation target, will be used to determine arch if compute_version"
+" isn't specified."
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_cudagraph:1
+msgid "Either CUDA Graph support is provided"
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_bf16:1
+msgid "Either bf16 support is provided in the compute capability or not"
+msgstr ""
+
+#: of tvm.contrib.nvcc.have_bf16:3
+msgid "compute capability of a GPU (e.g. \"8.0\")"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:85
+msgid "tvm.contrib.pickle_memoize"
+msgstr ""
+
+#: of tvm.contrib.pickle_memoize:1
+msgid "Memoize result of function via pickle, used for cache testcases."
+msgstr ""
+
+#: of tvm.contrib.pickle_memoize.Cache:1
+msgid "A cache object for result cache."
+msgstr ""
+
+#: of tvm.contrib.pickle_memoize.Cache:3
+msgid "The file key to the function"
+msgstr ""
+
+#: of tvm.contrib.pickle_memoize.Cache:5 tvm.contrib.pickle_memoize.memoize:5
+msgid "Whether save the cache to file when the program exits"
+msgstr ""
+
+#: of tvm.contrib.pickle_memoize.memoize:1
+msgid "Memoize the result of function and reuse multiple times."
+msgstr ""
+
+#: of tvm.contrib.pickle_memoize.memoize:3
+msgid "The unique key to the file"
+msgstr ""
+
+#: of tvm.contrib.pickle_memoize.memoize:8
+msgid "**fmemoize** -- The decorator function to perform memoization."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:91
+msgid "tvm.contrib.random"
+msgstr ""
+
+#: of tvm.contrib.random:1
+msgid "External function interface to random library."
+msgstr ""
+
+#: of tvm.contrib.random.randint:1
+msgid ""
+"Return random integers from low (inclusive) to high (exclusive). Return "
+"random integers from the \"discrete uniform\" distribution of the "
+"specified dtype in the \"half-open\" interval [low, high)."
+msgstr ""
+
+#: of tvm.contrib.random.randint:5
+msgid "Lowest (signed) integer to be drawn from the distribution"
+msgstr ""
+
+#: of tvm.contrib.random.randint:7
+msgid "One above the largest (signed) integer to be drawn from the distribution"
+msgstr ""
+
+#: of tvm.contrib.random.normal:13 tvm.contrib.random.randint:10
+msgid "**out** -- A tensor with specified size and dtype"
+msgstr ""
+
+#: of tvm.contrib.random.uniform:1
+msgid "Draw samples from a uniform distribution."
+msgstr ""
+
+#: of tvm.contrib.random.uniform:3
+msgid ""
+"Samples are uniformly distributed over the half-open interval [low, high)"
+" (includes low, but excludes high). In other words, any value within the "
+"given interval is equally likely to be drawn by uniform."
+msgstr ""
+
+#: of tvm.contrib.random.uniform:7
+msgid ""
+"Lower boundary of the output interval. All values generated will be "
+"greater than or equal to low."
+msgstr ""
+
+#: of tvm.contrib.random.uniform:10
+msgid ""
+"Upper boundary of the output interval. All values generated will be less "
+"than high."
+msgstr ""
+
+#: of tvm.contrib.random.normal:9 tvm.contrib.random.uniform:13
+msgid ""
+"Output shape. If the given shape is, e.g., (m, n, k), then m * n * k "
+"samples are drawn."
+msgstr ""
+
+#: of tvm.contrib.random.uniform:17
+msgid "**out** -- A tensor with specified size and dtype."
+msgstr ""
+
+#: of tvm.contrib.random.normal:1
+msgid "Draw samples from a normal distribution."
+msgstr ""
+
+#: of tvm.contrib.random.normal:3
+msgid "Return random samples from a normal distribution."
+msgstr ""
+
+#: of tvm.contrib.random.normal:5
+msgid "loc of the distribution."
+msgstr ""
+
+#: of tvm.contrib.random.normal:7
+msgid "Standard deviation of the distribution."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:97
+msgid "tvm.contrib.rocblas"
+msgstr ""
+
+#: of tvm.contrib.rocblas:1
+msgid "External function interface to rocBLAS libraries."
+msgstr ""
+
+#: of tvm.contrib.rocblas.batch_matmul:1 tvm.contrib.rocblas.matmul:1
+msgid "Create an extern op that compute matrix mult of A and rhs with rocBLAS"
+msgstr ""
+
+#: of tvm.contrib.rocblas.batch_matmul:3
+msgid "The left batched matrix operand"
+msgstr ""
+
+#: of tvm.contrib.rocblas.batch_matmul:5
+msgid "The right batched matrix operand"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:103
+msgid "tvm.contrib.rocm"
+msgstr ""
+
+#: of tvm.contrib.rocm:1
+msgid "Utility for ROCm backend"
+msgstr ""
+
+#: of tvm.contrib.rocm.find_lld:1
+msgid "Find ld.lld in system."
+msgstr ""
+
+#: of tvm.contrib.rocm.find_lld:12
+msgid ""
+"This function will first search ld.lld that matches the major llvm "
+"version that built with tvm"
+msgstr ""
+
+#: of tvm.contrib.rocm.rocm_link:1
+msgid "Link relocatable ELF object to shared ELF object using lld"
+msgstr ""
+
+#: of tvm.contrib.rocm.rocm_link:3
+msgid "Input file name (relocatable ELF object file)"
+msgstr ""
+
+#: of tvm.contrib.rocm.rocm_link:5
+msgid "Output file name (shared ELF object file)"
+msgstr ""
+
+#: of tvm.contrib.rocm.rocm_link:7
+msgid ""
+"The lld linker, if not specified, we will try to guess the matched clang "
+"version."
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:108
+msgid "tvm.contrib.sparse"
+msgstr ""
+
+#: of tvm.contrib.sparse:1
+msgid "Tensor and Operation class for computation declaration."
+msgstr ""
+
+#: of tvm.contrib.sparse.CSRNDArray:1
+msgid "Sparse tensor object in CSR format."
+msgstr ""
+
+#: of tvm.contrib.sparse.CSRNDArray.asnumpy:1
+msgid ""
+"Construct a full matrix and convert it to numpy array. This API will be "
+"deprecated in TVM v0.8 release. Please use `numpy` instead."
+msgstr ""
+
+#: of tvm.contrib.sparse.CSRNDArray.numpy:1
+msgid "Construct a full matrix and convert it to numpy array."
+msgstr ""
+
+#: of tvm.contrib.sparse.array:1
+msgid "Construct a sparse NDArray from numpy.ndarray"
+msgstr ""
+
+#: of tvm.contrib.sparse.SparsePlaceholderOp:1
+msgid "Placeholder class for sparse tensor representations."
+msgstr ""
+
+#: of tvm.contrib.sparse.CSRPlaceholderOp:1
+msgid "Placeholder class for CSR based sparse tensor representation."
+msgstr ""
+
+#: of tvm.contrib.sparse.placeholder:1
+msgid "Construct an empty sparse tensor object."
+msgstr ""
+
+#: of tvm.contrib.sparse.placeholder:3
+msgid "The shape of the tensor"
+msgstr ""
+
+#: of tvm.contrib.sparse.placeholder:5
+msgid "The number of non-zero values"
+msgstr ""
+
+#: of tvm.contrib.sparse.placeholder:7
+msgid "The data type of the tensor"
+msgstr ""
+
+#: of tvm.contrib.sparse.placeholder:9
+msgid "The name hint of the tensor"
+msgstr ""
+
+#: of tvm.contrib.sparse.placeholder:11
+msgid "The name storage type of the sparse tensor (e.g. csr, coo, ell)"
+msgstr ""
+
+#: of tvm.contrib.sparse.placeholder:14
+msgid "**tensor** -- The created sparse tensor placeholder"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:114
+msgid "tvm.contrib.spirv"
+msgstr ""
+
+#: of tvm.contrib.spirv:1
+msgid "Utility for Interacting with SPIRV Tools"
+msgstr ""
+
+#: of tvm.contrib.spirv.optimize:1
+msgid "Optimize SPIRV using spirv-opt via CLI"
+msgstr ""
+
+#: of tvm.contrib.spirv.optimize:3
+msgid "Note that the spirv-opt is still experimental."
+msgstr ""
+
+#: of tvm.contrib.spirv.optimize:5
+msgid "The spirv file"
+msgstr ""
+
+#: of tvm.contrib.spirv.optimize:8
+msgid "**cobj_bin** -- The HSA Code Object"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:120
+msgid "tvm.contrib.tar"
+msgstr ""
+
+#: of tvm.contrib.tar:1
+msgid "Util to invoke tarball in the system."
+msgstr ""
+
+#: of tvm.contrib.tar.tar:1
+msgid "Create tarball containing all files in root."
+msgstr ""
+
+#: of tvm.contrib.tar.tar:5
+msgid "List of files to be bundled."
+msgstr ""
+
+#: of tvm.contrib.tar.untar:1
+msgid "Unpack all tar files into the directory"
+msgstr ""
+
+#: of tvm.contrib.tar.untar:3
+msgid "The source tar file."
+msgstr ""
+
+#: of tvm.contrib.tar.untar:5
+msgid "The target directory"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:126
+msgid "tvm.contrib.utils"
+msgstr ""
+
+#: of tvm.contrib.utils:1
+msgid "Common system utilities"
+msgstr ""
+
+#: of tvm.contrib.utils.DirectoryCreatedPastAtExit:1
+msgid "Raised when a TempDirectory is created after the atexit hook runs."
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory:1
+msgid "Helper object to manage temp directory during testing."
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory:3
+msgid "Automatically removes the directory when it went out of scope."
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory.set_keep_for_debug:1
+msgid "Keep temporary directories past program exit for debugging."
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory.remove:1
+msgid "Remove the tmp dir"
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory.relpath:1
+msgid "Relative path in temp dir"
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory.relpath:3
+msgid "The name of the file."
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory.relpath:6
+msgid "**path** -- The concatenated path."
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory.listdir:1
+msgid "List contents in the dir."
+msgstr ""
+
+#: of tvm.contrib.utils.TempDirectory.listdir:3
+msgid "**names** -- The content of directory"
+msgstr ""
+
+#: of tvm.contrib.utils.tempdir:1
+msgid "Create temp dir which deletes the contents when exit."
+msgstr ""
+
+#: of tvm.contrib.utils.tempdir:3
+msgid "Manually specify the exact temp dir path"
+msgstr ""
+
+#: of tvm.contrib.utils.tempdir:6
+msgid "**temp** -- The temp directory object"
+msgstr ""
+
+#: of tvm.contrib.utils.FileLock:1
+msgid "File lock object"
+msgstr ""
+
+#: of tvm.contrib.utils.FileLock:3 tvm.contrib.utils.filelock:3
+msgid "The path to the lock"
+msgstr ""
+
+#: of tvm.contrib.utils.FileLock.release:1
+msgid "Release the lock"
+msgstr ""
+
+#: of tvm.contrib.utils.filelock:1
+msgid "Create a file lock which locks on path"
+msgstr ""
+
+#: of tvm.contrib.utils.filelock:6
+msgid "**lock**"
+msgstr ""
+
+#: of tvm.contrib.utils.is_source_path:1
+msgid "Check if path is source code path."
+msgstr ""
+
+#: of tvm.contrib.utils.is_source_path:3
+msgid "A possible path"
+msgstr ""
+
+#: of tvm.contrib.utils.is_source_path:6
+msgid "**valid** -- Whether path is a possible source path"
+msgstr ""
+
+#: of tvm.contrib.utils.which:1
+msgid "Try to find full path of exec_name"
+msgstr ""
+
+#: of tvm.contrib.utils.which:3
+msgid "The executable name"
+msgstr ""
+
+#: of tvm.contrib.utils.which:6
+msgid "**path** -- The full path of executable if found, otherwise returns None"
+msgstr ""
+
+#: ../../_staging/reference/api/python/contrib.rst:132
+msgid "tvm.contrib.xcode"
+msgstr ""
+
+#: of tvm.contrib.xcode:1
+msgid "Utility to invoke Xcode compiler toolchain"
+msgstr ""
+
+#: of tvm.contrib.xcode.xcrun:1
+msgid "Run xcrun and return the output."
+msgstr ""
+
+#: of tvm.contrib.xcode.xcrun:3
+msgid "The command sequence."
+msgstr ""
+
+#: of tvm.contrib.xcode.xcrun:6
+msgid "**out** -- The output string."
+msgstr ""
+
+#: of tvm.contrib.xcode.create_dylib:1
+msgid "Create dynamic library."
+msgstr ""
+
+#: of tvm.contrib.xcode.create_dylib:9
+msgid "Target major architectures"
+msgstr ""
+
+#: of tvm.contrib.xcode.create_dylib:11
+msgid "The sdk to be used."
+msgstr ""
+
+#: of tvm.contrib.xcode.compile_metal:1
+msgid "Compile metal with CLI tool from env."
+msgstr ""
+
+#: of tvm.contrib.xcode.compile_metal:7
+msgid "The target platform SDK."
+msgstr ""
+
+#: of tvm.contrib.xcode.compile_metal:10
+msgid "**metallib** -- The bytearray of the metallib"
+msgstr ""
+
+#: of tvm.contrib.xcode.compile_coreml:1
+msgid "Compile coreml model and return the compiled model path."
+msgstr ""
+

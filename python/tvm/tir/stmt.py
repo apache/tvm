@@ -318,13 +318,25 @@ class Allocate(Stmt):
     body : Stmt
         The body statement.
 
+    annotations: Optional[Mapping[str, Object]]
+        Additional annotation hints
+
     span : Optional[Span]
         The location of this itervar in the source code.
     """
 
-    def __init__(self, buffer_var, dtype, extents, condition, body, span=None):
+    def __init__(self, buffer_var, dtype, extents, condition, body, annotations=None, span=None):
+        if annotations is None:
+            annotations = dict()
         self.__init_handle_by_constructor__(
-            _ffi_api.Allocate, buffer_var, dtype, extents, condition, body, span  # type: ignore
+            _ffi_api.Allocate,  # type: ignore
+            buffer_var,
+            dtype,
+            extents,
+            condition,
+            body,
+            annotations,
+            span,
         )
 
 

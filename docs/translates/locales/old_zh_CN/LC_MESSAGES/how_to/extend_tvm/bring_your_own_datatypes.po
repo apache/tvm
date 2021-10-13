@@ -1,0 +1,350 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_extend_tvm_bring_your_own_datatypes.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:11
+msgid "Bring Your Own Datatypes to TVM"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:12
+msgid ""
+"**Authors**: `Gus Smith <https://github.com/gussmith23>`_, `Andrew Liu "
+"<https://github.com/hypercubestart>`_"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:14
+msgid ""
+"In this tutorial, we will show you how to utilize the Bring Your Own "
+"Datatypes framework to use your own custom datatypes in TVM. Note that "
+"the Bring Your Own Datatypes framework currently only handles **software "
+"emulated versions of datatypes**. The framework does not support "
+"compiling for custom accelerator datatypes out-of-the-box."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:19
+msgid "Datatype Libraries"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:21
+msgid ""
+"The Bring Your Own Datatypes allows users to register their own datatype "
+"implementations alongside TVM's native datatypes (such as ``float``). In "
+"the wild, these datatype implementations often appear as libraries. For "
+"example:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:25
+msgid "`libposit <https://github.com/cjdelisle/libposit>`_, a posit library"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:26
+msgid ""
+"`Stillwater Universal <https://github.com/stillwater-sc/universal>`_, a "
+"library with posits, fixed-point numbers, and other types"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:27
+msgid ""
+"`SoftFloat <https://github.com/ucb-bar/berkeley-softfloat-3>`_, "
+"Berkeley's software implementation of IEEE 754 floating-point"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:29
+msgid ""
+"The Bring Your Own Datatypes enables users to plug these datatype "
+"implementations into TVM!"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:31
+msgid ""
+"In this section, we will use an example library we have already "
+"implemented, located at ``3rdparty/byodt/myfloat.cc``. This datatype, "
+"which we dubbed \"myfloat\", is really just a IEE-754 float under-the-"
+"hood, but it serves a useful example to show that any datatype can be "
+"used in the BYODT framework."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:36
+msgid "Setup"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:38
+msgid "Since we do not use any 3rdparty library, there is no setup needed."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:40
+msgid ""
+"If you would like to try this with your own datatype library, first bring"
+" the library's functions into the process space with ``CDLL``:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:47
+msgid "A Simple TVM Program"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:49
+msgid ""
+"We'll begin by writing a simple program in TVM; afterwards, we will re-"
+"write it to use custom datatypes."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:70
+msgid "Now, we create random inputs to feed into this program using numpy:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:91
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:115
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:152
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:211
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:243
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:314
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:364
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:440
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:516
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:636
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:100
+msgid "Finally, we're ready to run the program:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:124
+msgid "Adding Custom Datatypes"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:125
+msgid ""
+"Now, we will do the same, but we will use a custom datatype for our "
+"intermediate computation."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:127
+msgid ""
+"We use the same input variables ``x`` and ``y`` as above, but before "
+"adding ``x + y``, we first cast both ``x`` and ``y`` to a custom datatype"
+" via the ``relay.cast(...)`` call."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:129
+msgid ""
+"Note how we specify the custom datatype: we indicate it using the special"
+" ``custom[...]`` syntax. Additionally, note the \"32\" after the "
+"datatype: this is the bitwidth of the custom datatype. This tells TVM "
+"that each instance of ``myfloat`` is 32 bits wide."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:160
+msgid ""
+"Trying to generate this program throws an error from TVM. TVM does not "
+"know how to handle any custom datatype out of the box! We first have to "
+"register the custom type with TVM, giving it a name and a type code:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:176
+msgid ""
+"Note that the type code, 150, is currently chosen manually by the user. "
+"See ``TVMTypeCode::kCustomBegin`` in `include/tvm/runtime/c_runtime_api.h"
+" "
+"<https://github.com/apache/tvm/blob/main/include/tvm/runtime/data_type.h>`_."
+" Now we can generate our program again:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:198
+msgid "Now we have a Relay program that uses myfloat!"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:224
+msgid "Now that we can express our program without errors, let's try running it!"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:251
+msgid ""
+"Now, trying to compile this program throws an error. Let's dissect this "
+"error."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:254
+msgid ""
+"The error is occurring during the process of lowering the custom datatype"
+" code to code that TVM can compile and run. TVM is telling us that it "
+"cannot find a *lowering function* for the ``Cast`` operation, when "
+"casting from source type 2 (``float``, in TVM), to destination type 150 "
+"(our custom datatype). When lowering custom datatypes, if TVM encounters "
+"an operation over a custom datatype, it looks for a user-registered "
+"*lowering function*, which tells it how to lower the operation to an "
+"operation over datatypes it understands. We have not told TVM how to "
+"lower ``Cast`` operations for our custom datatypes; thus, the source of "
+"this error."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:259
+msgid "To fix this error, we simply need to specify a lowering function:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:283
+msgid ""
+"The ``register_op(...)`` call takes a lowering function, and a number of "
+"parameters which specify exactly the operation which should be lowered "
+"with the provided lowering function. In this case, the arguments we pass "
+"specify that this lowering function is for lowering a ``Cast`` from "
+"``float`` to ``myfloat`` for target ``\"llvm\"``."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:286
+msgid ""
+"The lowering function passed into this call is very general: it should "
+"take an operation of the specified type (in this case, `Cast`) and return"
+" another operation which only uses datatypes which TVM understands."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:288
+msgid ""
+"In the general case, we expect users to implement operations over their "
+"custom datatypes using calls to an external library. In our example, our "
+"``myfloat`` library implements a ``Cast`` from ``float`` to 32-bit "
+"``myfloat`` in the function ``FloatToCustom32``. To provide for the "
+"general case, we have made a helper function, ``create_lower_func(...)``,"
+" which does just this: given a dictionary, it replaces the given "
+"operation with a ``Call`` to the appropriate function name provided based"
+" on the op and the bit widths. It additionally removes usages of the "
+"custom datatype by storing the custom datatype in an opaque ``uint`` of "
+"the appropriate width; in our case, a ``uint32_t``. For more information,"
+" see `the source code "
+"<https://github.com/apache/tvm/blob/main/python/tvm/target/datatype.py>`_."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:322
+msgid ""
+"This new error tells us that the ``Add`` lowering function is not found, "
+"which is good news, as it's no longer complaining about the ``Cast``! We "
+"know what to do from here: we just need to register the lowering "
+"functions for the other operations in our program."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:325
+msgid ""
+"Note that for ``Add``, ``create_lower_func`` takes in a dict where the "
+"key is an integer. For ``Cast`` operations, we require a 2-tuple to "
+"specify the ``src_bit_length`` and the ``dest_bit_length``, while for all"
+" other operations, the bit length is the same between the operands so we "
+"only require one integer to specify ``bit_length``."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:377
+msgid "Running Models With Custom Datatypes"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:379
+msgid ""
+"We will first choose the model which we would like to run with myfloat. "
+"In this case we use `Mobilenet <https://arxiv.org/abs/1704.04861>`_. We "
+"choose Mobilenet due to its small size. In this alpha state of the Bring "
+"Your Own Datatypes framework, we have not implemented any software "
+"optimizations for running software emulations of custom datatypes; the "
+"result is poor performance due to many calls into our datatype emulation "
+"library."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:384
+msgid ""
+"First let us define two helper functions to get the mobilenet model and a"
+" cat image."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:422
+msgid "It's easy to execute MobileNet with native TVM:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:449
+msgid ""
+"Now, we would like to change the model to use myfloat internally. To do "
+"so, we need to convert the network. To do this, we first define a "
+"function which will help us convert tensors:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:470
+msgid ""
+"Now, to actually convert the entire network, we have written `a pass in "
+"Relay "
+"<https://github.com/gussmith23/tvm/blob/ea174c01c54a2529e19ca71e125f5884e728da6e/python/tvm/relay/frontend/change_datatype.py#L21>`_"
+" which simply converts all nodes within the model to use the new "
+"datatype."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:524
+msgid ""
+"When we attempt to run the model, we get a familiar error telling us that"
+" more funcions need to be registerd for myfloat."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:526
+msgid ""
+"Because this is a neural network, many more operations are required. "
+"Here, we register all the needed functions:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:606
+msgid ""
+"Note we are making use of two new functions: ``register_min_func`` and "
+"``create_min_lower_func``."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:608
+msgid ""
+"``register_min_func`` takes in an integer ``num_bits`` for the bit "
+"length, and should return an operation representing the minimum finite "
+"representable value for the custom data type with the specified bit "
+"length."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:611
+msgid ""
+"Similar to ``register_op`` and ``create_lower_func``, the "
+"``create_min_lower_func`` handles the general case where the minimum "
+"representable custom datatype value is implemented using calls to an "
+"external library."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:614
+msgid "Now we can finally run the model:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:658
+msgid ""
+":download:`Download Python source code: bring_your_own_datatypes.py "
+"<bring_your_own_datatypes.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:664
+msgid ""
+":download:`Download Jupyter notebook: bring_your_own_datatypes.ipynb "
+"<bring_your_own_datatypes.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:671
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

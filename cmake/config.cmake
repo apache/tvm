@@ -105,6 +105,9 @@ set(USE_GRAPH_EXECUTOR ON)
 # Whether enable tiny graph executor with CUDA Graph
 set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
 
+# Whether enable pipeline executor.
+set(USE_PIPELINE_EXECUTOR OFF)
+
 # Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
 
@@ -225,6 +228,9 @@ set(USE_ETHOSN OFF)
 # otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
 
+# Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
+set(USE_ETHOSU OFF)
+
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
@@ -326,3 +332,15 @@ set(USE_CCACHE AUTO)
 # - OFF: disable PAPI support.
 # - /path/to/folder/containing/: Path to folder containing papi.pc.
 set(USE_PAPI OFF)
+
+# Whether to use GoogleTest for C++ unit tests. When enabled, the generated
+# build file (e.g. Makefile) will have a target "cpptest".
+# Possible values:
+# - ON: enable GoogleTest. The package `GTest` will be required for cmake
+#   to succeed.
+# - OFF: disable GoogleTest.
+# - AUTO: cmake will attempt to find the GTest package, if found GTest will
+#   be enabled, otherwise it will be disabled.
+# Note that cmake will use `find_package` to find GTest. Please use cmake's
+# predefined variables to specify the path to the GTest package if needed.
+set(USE_GTEST AUTO)

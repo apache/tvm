@@ -36,13 +36,17 @@
 #include <string>
 #include <vector>
 
-#include "te_compiler.h"
-#include "utils.h"
+#include "../op/annotation/annotation.h"
+#include "../transforms/device_aware_visitors.h"
+#include "./te_compiler.h"
+#include "./utils.h"
 
 namespace tvm {
 namespace relay {
+
 // TODO(@jroesch, @csullivan): declare directly elsewhere
 backend::StaticMemoryPlan GraphPlanMemory(const Function& func);
+
 namespace backend {
 
 class GraphNode;
@@ -196,49 +200,46 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
   LoweredOutput Codegen(relay::Function func, String mod_name) {
     mod_name_ = mod_name;
-
-    // TODO(@jroesch): we need to split device planning and memory planning
-    // first we run device assignment, then we perform lowering, and then
-    // storage planning in ideal world.
-
-    memory_plan_ = GraphPlanMemory(func);
+    VLOG_CONTEXT << "GraphExecutorCodegen";
+    VLOG(1) << "compiling:" << std::endl << PrettyPrint(func);
+    for (const auto& pair : targets_) {
+      VLOG(1) << "target: " << pair.first << " = " << pair.second->str();
+    }
 
     // This first phase moves from implicit use of compile engine,
     // to instead explicitly lowering the incoming IRModule, and then
     // performing the preexisting graph executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
 
-    // Build a map from each operation to device.
-    tec::DeviceMap device_context_map;
-    for (const auto& it : memory_plan_->expr_to_storage_info) {
-      auto expr = it.first;
-      auto storage_info = it.second;
-      auto device_types = storage_info->device_types;
-      // CHECK_EQ(device_types.size(), 1);
-      tvm::Device dev;
-      dev.device_id = 0;
-      dev.device_type = device_types[0];
-      device_context_map.insert({expr, dev});
+    // TODO(mbs): Why plan memory and update workspace sizes before lowering?
+    memory_plan_ = GraphPlanMemory(func);
+
+    backend::FunctionInfo func_info;
+
+    if (memory_plan_.defined()) {
+      // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
+      func_info =
+          relay::tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan_->expr_to_storage_info);
+      mod = WithAttr(mod, "main_func_info", func_info);
     }
 
-    IRModule lowered_mod =
-        LowerTEPass(targets_, device_context_map, memory_plan_, mod_name_, [this](Function func) {
-          // We need to maintain the constant map for external
-          // functions so we pass this processing function which
-          // allows us to process each function as we lower it.
-          if (func->GetAttr<String>(attr::kCompiler).defined()) {
-            UpdateConstants(func, &params_);
-          }
+    IRModule lowered_mod = tec::LowerTEPass(targets_, mod_name_, [this](Function func) {
+      // We need to maintain the constant map for external
+      // functions so we pass this processing function which
+      // allows us to process each function as we lower it.
+      if (func->GetAttr<String>(attr::kCompiler).defined()) {
+        UpdateConstants(func, &params_);
+      }
 
-          // TODO(@areusch, @jroesch): We should refactor this to
-          // execute as a further pass, instead writing data to the
-          // lowering process directly.
-          tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        })(mod);
+      // TODO(@areusch, @jroesch): We should refactor this to
+      // execute as a further pass, instead writing data to the
+      // lowering process directly.
+      tec::UpdateFunctionMetadata(func, this->function_metadata_);
+    })(mod);
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
-    ICHECK(main_func_info) << "The attribute \"main_func_info\" should be set at this point.";
+
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info.value());
 
     Function lowered_main_func = Downcast<Function>(lowered_mod->Lookup("main"));
@@ -445,18 +446,21 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
   std::vector<GraphNodeRef> VisitExpr_(const CallNode* call_node) override {
     relay::Call call = GetRef<Call>(call_node);
-    if (auto global_node = call->op.as<GlobalVarNode>()) {
-      auto prim_fn_name = global_node->name_hint;
-
-      return GraphAddCallNode(call_node, prim_fn_name, GraphAttrs());
-    } else {
-      ICHECK(false) << "Non-primitive-call nodes should have been transformed away.\n"
-                    << "The graph executor code generator expects all calls to have their callee "
-                       "normalized to a GlobalVar but found a "
-                    << call->GetTypeKey() << "."
-                    << "AST: " << PrettyPrint(call) << PrettyPrint(call) << std::endl;
-      return {};
+    auto props = GetOnDeviceProps(call_node);
+    if (props.body.defined()) {
+      // See through "on_device" calls.
+      return VisitExpr(props.body);
     }
+
+    const auto* global_node = call->op.as<GlobalVarNode>();
+    ICHECK(global_node)
+        << "Non-primitive-call nodes should have been transformed away.\n"
+        << "The graph executor code generator expects all calls to have their callee "
+           "normalized to a GlobalVar, but found:"
+        << std::endl
+        << PrettyPrint(call);
+    auto prim_fn_name = global_node->name_hint;
+    return GraphAddCallNode(call_node, prim_fn_name, GraphAttrs());
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const LetNode* op) override {

@@ -1,0 +1,163 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_how_to_work_with_relay_build_gcn.py>`"
+" to download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:11
+msgid "Building a Graph Convolutional Network"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:12
+msgid ""
+"**Author**: `Yulun Yao <https://yulunyao.io/>`_,             `Chien-Yu "
+"Lin <https://homes.cs.washington.edu/~cyulin/>`_"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:14
+msgid ""
+"This article is an introductory tutorial to build a Graph Convolutional "
+"Network (GCN) with Relay. In this tutorial, we will run our GCN on Cora "
+"dataset to demonstrate. Cora dataset is a common benchmark for Graph "
+"Neural Networks (GNN) and frameworks that support GNN training and "
+"inference. We directly load the dataset from DGL library to do the apples"
+" to apples comparison against DGL."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:19
+msgid ""
+"Please refer to DGL doc for DGL installation at "
+"https://docs.dgl.ai/install/index.html."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:22
+msgid ""
+"Please refer to PyTorch guide for PyTorch installation at "
+"https://pytorch.org/get-started/locally/."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:26
+msgid "Define GCN in DGL with PyTorch backend"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:28
+msgid ""
+"DGL example: https://github.com/dmlc/dgl/tree/master/examples/pytorch/gcn"
+" This part reuses the code from the above example."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:69
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:154
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:205
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:235
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:494
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:78
+msgid "Define the functions to load dataset and evaluate accuracy"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:79
+msgid ""
+"You may substitute this part with your own dataset, here we load data "
+"from DGL"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:116
+msgid "Load the data and set up model parameters"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:176
+msgid "Set up the DGL-PyTorch model and get the golden results"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:178
+msgid ""
+"The weights are trained with "
+"https://github.com/dmlc/dgl/blob/master/examples/pytorch/gcn/train.py"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:215
+msgid "Run the DGL model and test for accuracy"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:254
+msgid "Define Graph Convolution Layer in Relay"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:255
+msgid ""
+"To run GCN on TVM, we first need to implement Graph Convolution Layer. "
+"You may refer to "
+"https://github.com/dmlc/dgl/blob/master/python/dgl/nn/mxnet/conv/graphconv.py"
+" for a GraphConv Layer implemented in DGL with MXNet Backend"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:258
+msgid ""
+"The layer is defined with below operations, note that we apply two "
+"transposes to keep adjacency matrix on right hand side of sparse_dense "
+"operator, this method is temporary and will be updated in next few weeks "
+"when we have sparse matrix transpose and support for left sparse "
+"operator."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:261
+msgid ""
+"\\mbox{GraphConv}(A, H, W)   = A * H * W\n"
+"                            = ((H * W)^t * A^t)^t\n"
+"                            = ((W^t * H^t) * A^t)^t"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:335
+msgid "Prepare the parameters needed in the GraphConv layers"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:381
+msgid "Put layers together"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:432
+msgid "Compile and run with TVM"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:434
+msgid "Export the weigths from PyTorch model to Python Dict"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:469
+msgid "Run the TVM model, test for accuracy and verify with DGL"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:526
+msgid ":download:`Download Python source code: build_gcn.py <build_gcn.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:532
+msgid ":download:`Download Jupyter notebook: build_gcn.ipynb <build_gcn.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_relay/build_gcn.rst:539
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

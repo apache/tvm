@@ -1,0 +1,49 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/how_to/work_with_microtvm/sg_execution_times.rst:7
+msgid "Computation times"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/sg_execution_times.rst:8
+msgid ""
+"**00:52.078** total execution time for **how_to_work_with_microtvm** "
+"files:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/sg_execution_times.rst:10
+msgid ""
+"**00:47.669**: "
+":ref:`sphx_glr_how_to_work_with_microtvm_micro_autotune.py` "
+"(``micro_autotune.py``)"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/sg_execution_times.rst:11
+msgid ""
+"**00:04.170**: :ref:`sphx_glr_how_to_work_with_microtvm_micro_tflite.py` "
+"(``micro_tflite.py``)"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/sg_execution_times.rst:12
+msgid ""
+"**00:00.239**: "
+":ref:`sphx_glr_how_to_work_with_microtvm_micro_reference_vm.py` "
+"(``micro_reference_vm.py``)"
+msgstr ""
+

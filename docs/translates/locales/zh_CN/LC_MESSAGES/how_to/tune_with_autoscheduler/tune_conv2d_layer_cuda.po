@@ -1,0 +1,209 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:33+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_tune_with_autoscheduler_tune_conv2d_layer_cuda.py>`"
+" to download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:13
+msgid "Auto-scheduling a Convolution Layer for GPU"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:14
+msgid ""
+"**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_,             "
+"`Chengfan Jia <https://github.com/jcf94/>`_"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:16
+msgid "This is a tutorial on how to use the auto-scheduler for GPUs."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:18
+msgid ""
+"Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` "
+"which relies on manual templates to define the search space, the auto-"
+"scheduler does not require any templates. Users only need to write the "
+"computation declaration without any schedule commands or templates. The "
+"auto-scheduler can automatically generate a large search space and find a "
+"good schedule in the space."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:24
+msgid "We use a convolution layer as an example in this tutorial."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:26
+msgid ""
+"Note that this tutorial will not run on Windows or recent versions of macOS."
+" To get it to run, you will need to wrap the body of this tutorial in a "
+":code:`if __name__ == \"__main__\":` block."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:48
+msgid "Define the computation"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:49
+msgid ""
+"To begin with, let us define the computation of a convolution layer. The "
+"function should return the list of input/output tensors. From these tensors,"
+" the auto-scheduler can get the whole computational graph."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:75
+msgid "Create the search task"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:76
+msgid ""
+"We then create a search task for the last convolution layer in the resnet."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:100
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:153
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:186
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:211
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:424
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:458
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:720
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:116
+msgid ""
+"Next, we set parameters for the auto-scheduler. These parameters mainly "
+"specify how we do the measurement during the search."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:119
+msgid ""
+":code:`measure_ctx` launches a different process for measurement to provide "
+"isolation. It can protect the master process from GPU crashes during "
+"measurement and avoid other runtime conflicts."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:122
+msgid ""
+":code:`min_repeat_ms` defines the minimum duration of one \"repeat\" in "
+"every measurement. This can warmup the GPU, which is necessary to get "
+"accurate measurement results. Typically, we recommend a value >= 300 ms."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:125
+msgid ""
+":code:`num_measure_trials` is the number of measurement trials we can use "
+"during the search. We only make 10 trials in this tutorial for a fast "
+"demonstration. In practice, 1000 is a good value for the search to converge."
+" You can do more trials according to your time budget."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:128
+msgid ""
+"In addition, we use :code:`RecordToFile` to dump measurement records into a "
+"file `conv2d.json`. The measurement records can be used to query the history"
+" best, resume the search, and do more analyses later."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:131
+msgid ""
+"see :any:`auto_scheduler.TuningOptions`, "
+":any:`auto_scheduler.LocalRPCMeasureContext` for more parameters."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:162
+msgid "Run the search"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:163
+msgid ""
+"Now we get all inputs ready. Pretty simple, isn't it? We can kick off the "
+"search and let the auto-scheduler do its magic. After some measurement "
+"trials, we can load the best schedule from the log file and apply it."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:194
+msgid ""
+"We can lower the schedule to see the IR after auto-scheduling. The auto-"
+"scheduler correctly performs optimizations including multi-level tiling, "
+"cooperative fetching, unrolling and operator fusion."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:385
+msgid "Check correctness and evaluate performance"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:386
+msgid "We build the binary and check its correctness and performance."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:433
+msgid "Using the record file"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:434
+msgid ""
+"During the search, all measurement records are dumped into the record file "
+"\"conv2d.json\". The measurement records can be used to re-apply search "
+"results, resume the search, and perform other analyses."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:438
+msgid ""
+"Here is an example where we load the best schedule from a file, print the "
+"equivalent python schedule API and CUDA source code. They can be used for "
+"debugging and learning the behavior of the auto-scheduler."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:684
+msgid ""
+"A more complicated example is to resume the search. In this case, we need to"
+" create the search policy and cost model by ourselves and resume the status "
+"of search policy and cost model with the log file. In the example below we "
+"resume the status and do more 5 trials."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:735
+msgid "**Total running time of the script:** ( 1 minutes  52.623 seconds)"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:750
+msgid ""
+":download:`Download Python source code: tune_conv2d_layer_cuda.py "
+"<tune_conv2d_layer_cuda.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:756
+msgid ""
+":download:`Download Jupyter notebook: tune_conv2d_layer_cuda.ipynb "
+"<tune_conv2d_layer_cuda.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:763
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

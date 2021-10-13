@@ -1,0 +1,154 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:34+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_work_with_microtvm_micro_autotune.py>` to download"
+" the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:13
+msgid "Autotuning with micro TVM"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:14
+msgid ""
+"**Authors**: `Andrew Reusch <https://github.com/areusch>`_, `Mehrdad Hessar "
+"<https://github.com/mehrdadh>`_"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:18
+msgid "This tutorial explains how to autotune a model using the C runtime."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:37
+msgid "Defining the model"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:39
+msgid ""
+"To begin with, define a model in Relay to be executed on-device. Then create"
+" an IRModule from relay model and fill parameters with random numbers."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:78
+msgid "Defining the target #"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:79
+msgid ""
+"Now we define the TVM target that describes the execution environment. This "
+"looks very similar to target definitions from other microTVM tutorials."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:82
+msgid ""
+"When running on physical hardware, choose a target and a board that describe"
+" the hardware. There are multiple hardware targets that could be selected "
+"from PLATFORM list in this tutorial. You can chose the platform by passing "
+"--platform argument when running this tutorial."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:108
+msgid "Extracting tuning tasks"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:109
+msgid ""
+"Not all operators in the Relay program printed above can be tuned. Some are "
+"so trivial that only a single implementation is defined; others don't make "
+"sense as tuning tasks. Using `extract_from_program`, you can produce a list "
+"of tunable tasks."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:113
+msgid ""
+"Because task extraction involves running the compiler, we first configure "
+"the compiler's transformation passes; we'll apply the same configuration "
+"later on during autotuning."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:132
+msgid "Configuring microTVM"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:133
+msgid ""
+"Before autotuning, we need to define a module loader and then pass that to a"
+" `tvm.autotvm.LocalBuilder`. Then we create a `tvm.autotvm.LocalRunner` and "
+"use both builder and runner to generates multiple measurements for auto "
+"tunner."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:137
+msgid ""
+"In this tutorial, we have the option to use x86 host as an example or use "
+"different targets from Zephyr RTOS. If you choose pass `--platform=host` to "
+"this tutorial it will uses x86. You can choose other options by choosing "
+"from `PLATFORM` list."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:210
+msgid "Timing the untuned program"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:211
+msgid ""
+"For comparison, let's compile and run the graph without imposing any "
+"autotuning schedules. TVM will select a randomly-tuned implementation for "
+"each operator, which should not perform as well as the tuned operator."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:262
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:327
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:277
+msgid "Timing the tuned program"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:278
+msgid ""
+"Once autotuning completes, you can time execution of the entire program "
+"using the Debug Runtime:"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:354
+msgid ""
+":download:`Download Python source code: micro_autotune.py "
+"<micro_autotune.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:360
+msgid ""
+":download:`Download Jupyter notebook: micro_autotune.ipynb "
+"<micro_autotune.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_microtvm/micro_autotune.rst:367
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

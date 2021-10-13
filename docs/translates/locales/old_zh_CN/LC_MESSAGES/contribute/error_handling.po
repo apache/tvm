@@ -1,0 +1,109 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/contribute/error_handling.rst:21
+msgid "Error Handling Guide"
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:22
+msgid ""
+"TVM contains structured error classes to indicate specific types of "
+"error. Please raise a specific error type when possible, so that users "
+"can write code to handle a specific error category if necessary. You can "
+"directly raise the specific error object in python. In other languages "
+"like c++, you simply add ``<ErrorType>:`` prefix to the error message(see"
+" below)."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:31
+msgid "Please refer to :py:mod:`tvm.error` for the list of errors."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:34
+msgid "Raise a Specific Error in C++"
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:35
+msgid ""
+"You can add ``<ErrorType>:`` prefix to your error message to raise an "
+"error of the corresponding type. Note that you do not have to add a new "
+"type :py:class:`tvm.error.TVMError` will be raised by default when there "
+"is no error type prefix in the message. This mechanism works for both "
+"``LOG(FATAL)`` and ``ICHECK`` macros. The following code gives an example"
+" on how to do so."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:53
+msgid ""
+"The above function is registered as PackedFunc into the python frontend, "
+"under the name ``tvm._api_internal._ErrorTest``. Here is what will happen"
+" if we call the registered function:"
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:87
+msgid ""
+"As you can see in the above example, TVM's ffi system combines both the "
+"python and c++'s stacktrace into a single message, and generate the "
+"corresponding error class automatically."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:93
+msgid "How to choose an Error Type"
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:94
+msgid ""
+"You can go through the error types are listed below, try to use common "
+"sense and also refer to the choices in the existing code. We try to keep "
+"a reasonable amount of error types. If you feel there is a need to add a "
+"new error type, do the following steps:"
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:99
+msgid ""
+"Send a RFC proposal with a description and usage examples in the current "
+"codebase."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:100
+msgid "Add the new error type to :py:mod:`tvm.error` with clear documents."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:101
+msgid "Update the list in this file to include the new error type."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:102
+msgid "Change the code to use the new error type."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:104
+msgid ""
+"We also recommend to use less abstraction when creating the short error "
+"messages. The code is more readable in this way, and also opens path to "
+"craft specific error messages when necessary."
+msgstr ""
+
+#: ../../_staging/contribute/error_handling.rst:121
+msgid ""
+"If we need to introduce a wrapper function that constructs multi-line "
+"error messages, please put wrapper in the same file so other developers "
+"can look up the implementation easily."
+msgstr ""
+

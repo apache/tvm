@@ -1,0 +1,393 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_tutorial_autotvm_relay_x86.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:11
+msgid "Compiling and Optimizing a Model with the Python Interface (AutoTVM)"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:12
+msgid "**Author**: `Chris Hoge <https://github.com/hogepodge>`_"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:15
+msgid ""
+"In the `TVMC Tutorial <tvmc_command_line_driver>`_, we covered how to "
+"compile, run, and tune a pre-trained vision model, ResNet-50-v2 using the"
+" command line interface for TVM, TVMC. TVM is more that just a command-"
+"line tool though, it is an optimizing framework with APIs available for a"
+" number of different languages that gives you tremendous flexibility in "
+"working with machine learning models."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:21
+msgid ""
+"In this tutorial we will cover the same ground we did with TVMC, but show"
+" how it is done with the Python API. Upon completion of this section, we "
+"will have used the Python API for TVM to accomplish the following tasks:"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:25
+msgid "Compile a pre-trained ResNet 50 v2 model for the TVM runtime."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:26
+msgid ""
+"Run a real image through the compiled model, and interpret the output and"
+" model performance."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:28
+msgid "Tune the model that model on a CPU using TVM."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:29
+msgid "Re-compile an optimized model using the tuning data collected by TVM."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:30
+msgid ""
+"Run the image through the optimized model, and compare the output and "
+"model performance."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:33
+msgid ""
+"The goal of this section is to give you an overview of TVM's capabilites "
+"and how to use them through the Python API."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:36
+msgid ""
+"TVM is a deep learning compiler framework, with a number of different "
+"modules available for working with deep learning models and operators. In"
+" this tutorial we will work through how to load, compile, and optimize a "
+"model using the Python API."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:41
+msgid ""
+"We begin by importing a number of dependencies, including ``onnx`` for "
+"loading and converting the model, helper utilities for downloading test "
+"data, the Python Image Library for working with the image data, ``numpy``"
+" for pre and post-processing of the image data, the TVM Relay framework, "
+"and the TVM Graph Executor."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:66
+msgid "Downloading and Loading the ONNX Model"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:68
+msgid ""
+"For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a "
+"convolutional neural network that is 50-layers deep and designed to "
+"classify images. The model we will be using has been pre-trained on more "
+"than a million images with 1000 different classifications. The network "
+"has an input image size of 224x224. If you are interested exploring more "
+"of how the ResNet-50 model is structured, we recommend downloading "
+"`Netron <https://netron.app>`_, a freely available ML model viewer."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:76
+msgid ""
+"TVM provides a helper library to download pre-trained models. By "
+"providing a model URL, file name, and model type through the module, TVM "
+"will download the model and save it to disk. For the instance of an ONNX "
+"model, you can then load it into memory using the ONNX runtime."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:81
+msgid "Working with Other Model Formats"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:83
+msgid ""
+"TVM supports many popular model formats. A list can be found in the "
+"`Compile Deep Learning Models "
+"<https://tvm.apache.org/docs/tutorials/index.html#compile-deep-learning-"
+"models>`_ section of the TVM Documentation."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:110
+msgid "Downloading, Preprocessing, and Loading the Test Image"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:112
+msgid ""
+"Each model is particular when it comes to expected tensor shapes, formats"
+" and data types. For this reason, most models require some pre and post-"
+"processing, to ensure the input is valid and to interpret the output. "
+"TVMC has adopted NumPy's ``.npz`` format for both input and output data."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:117
+msgid ""
+"As input for this tutorial, we will use the image of a cat, but you can "
+"feel free to substitute image for any of your choosing."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:125
+msgid ""
+"Download the image data, then convert it to a numpy array to use as an "
+"input to the model."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:156
+msgid "Compile the Model With Relay"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:158
+msgid ""
+"The next step is to compile the ResNet model. We begin by importing the "
+"model to relay using the `from_onnx` importer. We then build the model, "
+"with standard optimizations, into a TVM library.  Finally, we create a "
+"TVM graph runtime module from the library."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:175
+msgid "Defining the Correct Target"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:177
+msgid ""
+"Specifying the correct target can have a huge impact on the performance "
+"of the compiled module, as it can take advantage of hardware features "
+"available on the target. For more information, please refer to `Auto-"
+"tuning a convolutional network for x86 CPU "
+"<https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html"
+"#define-network>`_. We recommend identifying which CPU you are running, "
+"along with optional features, and set the target appropriately. For "
+"example, for some processors ``target = \"llvm -mcpu=skylake\"``, or "
+"``target = \"llvm -mcpu=skylake-avx512\"`` for processors with the "
+"AVX-512 vector instruction set."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:212
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:279
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:323
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:473
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:645
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:689
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:221
+msgid "Execute on the TVM Runtime"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:222
+msgid ""
+"Now that we've compiled the model, we can use the TVM runtime to make "
+"predictions with it. To use TVM to run the model and make predictions, we"
+" need two things:"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:226
+msgid "The compiled model, which we just produced."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:227
+msgid "Valid input to the model to make predictions on."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:246
+msgid "Collect Basic Performance Data"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:247
+msgid ""
+"We want to collect some basic performance data associated with this "
+"unoptimized model and compare it to a tuned model later. To help account "
+"for CPU noise, we run the computation in multiple batches in multiple "
+"repetitions, then gather some basis statistics on the mean, median, and "
+"standard deviation."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:288
+msgid "Postprocess the output"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:290
+msgid ""
+"As previously mentioned, each model will have its own particular way of "
+"providing output tensors."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:293
+msgid ""
+"In our case, we need to run some post-processing to render the outputs "
+"from ResNet-50-V2 into a more human-readable form, using the lookup-table"
+" provided for the model."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:335
+msgid "This should produce the following output:"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:346
+msgid "Tune the model"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:347
+msgid ""
+"The previous model was compiled to work on the TVM runtime, but did not "
+"include any platform specific optimization. In this section, we will show"
+" you how to build an optimized model using TVM to target your working "
+"platform."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:351
+msgid ""
+"In some cases, we might not get the expected performance when running "
+"inferences using our compiled module. In cases like this, we can make use"
+" of the auto-tuner, to find a better configuration for our model and get "
+"a boost in performance. Tuning in TVM refers to the process by which a "
+"model is optimized to run faster on a given target. This differs from "
+"training or fine-tuning in that it does not affect the accuracy of the "
+"model, but only the runtime performance. As part of the tuning process, "
+"TVM will try running many different operator implementation variants to "
+"see which perform best. The results of these runs are stored in a tuning "
+"records file."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:361
+msgid "In the simplest form, tuning requires you to provide three things:"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:363
+msgid "the target specification of the device you intend to run this model on"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:364
+msgid "the path to an output file in which the tuning records will be stored"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:365
+msgid "a path to the model to be tuned."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:432
+msgid "Defining the Tuning Search Algorithm"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:434
+msgid ""
+"By default this search is guided using an `XGBoost Grid` algorithm. "
+"Depending on your model complexity and amount of time available, you "
+"might want to choose a different algorithm."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:438
+msgid "Setting Tuning Parameters"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:440
+msgid ""
+"In this example, in the interest of time, we set the number of trials and"
+" early stopping to 10. You will likely see more performance improvements "
+"if you set these values to be higher but this comes at the expense of "
+"time spent tuning. The number of trials required for convergence will "
+"vary depending on the specifics of the model and the target platform."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:554
+msgid "The output from this tuning process will look something like this:"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:585
+msgid "Compiling an Optimized Model with Tuning Data"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:587
+msgid ""
+"As an output of the tuning process above, we obtained the tuning records "
+"stored in ``resnet-50-v2-autotuning.json``. The compiler will use the "
+"results to generate high performance code for the model on your specified"
+" target."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:591
+msgid ""
+"Now that tuning data for the model has been collected, we can re-compile "
+"the model using optimized operators to speed up our computations."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:611
+msgid "Verify that the optimized model runs and produces the same results:"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:658
+msgid "Comparing the Tuned and Untuned Models"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:659
+msgid ""
+"We want to collect some basic performance data associated with this "
+"optimized model to compare it to the unoptimized model. Depending on your"
+" underlying hardware, number of iterations, and other factors, you should"
+" see a performance improvement in comparing the optimized model to the "
+"unoptimized model."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:699
+msgid "Final Remarks"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:701
+msgid ""
+"In this tutorial, we gave a short example of how to use the TVM Python "
+"API to compile, run, and tune a model. We also discussed the need for pre"
+" and post-processing of inputs and outputs. After the tuning process, we "
+"demonstrated how to compare the performance of the unoptimized and "
+"optimize models."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:707
+msgid ""
+"Here we presented a simple example using ResNet 50 V2 locally. However, "
+"TVM supports many more features including cross-compilation, remote "
+"execution and profiling/benchmarking."
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:714
+msgid "**Total running time of the script:** ( 6 minutes  53.955 seconds)"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:729
+msgid ""
+":download:`Download Python source code: autotvm_relay_x86.py "
+"<autotvm_relay_x86.py>`"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:735
+msgid ""
+":download:`Download Jupyter notebook: autotvm_relay_x86.ipynb "
+"<autotvm_relay_x86.ipynb>`"
+msgstr ""
+
+#: ../../_staging/tutorial/autotvm_relay_x86.rst:742
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

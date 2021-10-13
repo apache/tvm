@@ -22,9 +22,10 @@ from ethosu.vela import api as vapi
 from unittest.mock import patch
 
 import tvm
-from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
+from tvm.tir import stmt_functor
 from tvm.relay.backend.contrib.ethosu import vela_api
+import tvm.relay.backend.contrib.ethosu.tir_to_cs_translator as tirtocs
 
 ACCEL_TYPES = [
     vapi.NpuAccelerator.Ethos_U55_256,
@@ -37,31 +38,32 @@ ACCEL_TYPES = [
 """Test case 1"""
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class Module1:
+    @T.prim_func
     def main(
-        placeholder: ty.handle,
-        placeholder_1: ty.handle,
-        placeholder_2: ty.handle,
-        ethosu_conv2d: ty.handle,
+        placeholder: T.handle,
+        placeholder_1: T.handle,
+        placeholder_2: T.handle,
+        ethosu_conv2d: T.handle,
     ) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_3 = tir.match_buffer(
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_3 = T.match_buffer(
             placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
-        placeholder_4 = tir.match_buffer(
+        placeholder_4 = T.match_buffer(
             placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
-        placeholder_5 = tir.match_buffer(
+        placeholder_5 = T.match_buffer(
             placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
         )
-        ethosu_conv2d_1 = tir.match_buffer(
+        ethosu_conv2d_1 = T.match_buffer(
             ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         # body
-        tir.evaluate(
-            tir.call_extern(
+        T.evaluate(
+            T.call_extern(
                 "ethosu_conv2d",
                 "uint8",
                 8,
@@ -70,11 +72,11 @@ class Module1:
                 8,
                 0,
                 8,
-                tir.load("uint8", placeholder_3.data, 0),
+                T.load("uint8", placeholder_3.data, 0),
                 0,
                 0,
                 0,
-                tir.float32(0.5),
+                T.float32(0.5),
                 10,
                 "NHWC",
                 24,
@@ -87,11 +89,11 @@ class Module1:
                 8,
                 0,
                 8,
-                tir.load("uint8", ethosu_conv2d_1.data, 0),
+                T.load("uint8", ethosu_conv2d_1.data, 0),
                 0,
                 0,
                 0,
-                tir.float32(0.25),
+                T.float32(0.25),
                 14,
                 "NHWC",
                 128,
@@ -103,10 +105,10 @@ class Module1:
                 1,
                 1,
                 1,
-                tir.load("uint8", placeholder_4.data, 0),
+                T.load("uint8", placeholder_4.data, 0),
                 0,
                 12,
-                tir.load("uint8", placeholder_5.data, 0),
+                T.load("uint8", placeholder_5.data, 0),
                 0,
                 0,
                 0,
@@ -126,36 +128,37 @@ class Module1:
 """Test case 2 with per-channel quantization"""
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class Module2:
+    @T.prim_func
     def main(
-        placeholder: ty.handle,
-        placeholder_1: ty.handle,
-        placeholder_2: ty.handle,
-        placeholder_6: ty.handle,
-        ethosu_conv2d: ty.handle,
+        placeholder: T.handle,
+        placeholder_1: T.handle,
+        placeholder_2: T.handle,
+        placeholder_6: T.handle,
+        ethosu_conv2d: T.handle,
     ) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_3 = tir.match_buffer(
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_3 = T.match_buffer(
             placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
-        placeholder_4 = tir.match_buffer(
+        placeholder_4 = T.match_buffer(
             placeholder_1, [16, 1, 1, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
-        placeholder_5 = tir.match_buffer(
+        placeholder_5 = T.match_buffer(
             placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
         )
         # Per-channel weight scales
-        placeholder_7 = tir.match_buffer(
+        placeholder_7 = T.match_buffer(
             placeholder_6, [16], dtype="float32", elem_offset=0, align=128, offset_factor=1
         )
-        ethosu_conv2d_1 = tir.match_buffer(
+        ethosu_conv2d_1 = T.match_buffer(
             ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1
         )
         # body
-        tir.evaluate(
-            tir.call_extern(
+        T.evaluate(
+            T.call_extern(
                 "ethosu_conv2d",
                 "uint8",
                 8,
@@ -164,11 +167,11 @@ class Module2:
                 8,
                 0,
                 8,
-                tir.load("uint8", placeholder_3.data, 0),
+                T.load("uint8", placeholder_3.data, 0),
                 0,
                 0,
                 0,
-                tir.float32(0.5),
+                T.float32(0.5),
                 10,
                 "NHWC",
                 24,
@@ -181,11 +184,11 @@ class Module2:
                 8,
                 0,
                 8,
-                tir.load("uint8", ethosu_conv2d_1.data, 0),
+                T.load("uint8", ethosu_conv2d_1.data, 0),
                 0,
                 0,
                 0,
-                tir.float32(0.25),
+                T.float32(0.25),
                 14,
                 "NHWC",
                 128,
@@ -197,10 +200,10 @@ class Module2:
                 1,
                 1,
                 1,
-                tir.load("uint8", placeholder_4.data, 0),
+                T.load("uint8", placeholder_4.data, 0),
                 0,
                 12,
-                tir.load("uint8", placeholder_5.data, 0),
+                T.load("uint8", placeholder_5.data, 0),
                 0,
                 0,
                 0,
@@ -345,9 +348,7 @@ def test_compress_weights():
         assert mock_obj.call_args[1]["block_traversal"] == test_vec["block_traversal"]
 
     def create_mock(test_vec):
-        with patch(
-            "tvm.relay.backend.contrib.ethosu.vela_api.vapi.npu_encode_weights"
-        ) as mock_npu_encode_weights:
+        with patch("ethosu.vela.api.npu_encode_weights") as mock_npu_encode_weights:
             ifm_bitdepth = np.iinfo(test_vec["ifm_dtype"]).bits
             ifm_dtype = test_vec["ifm_dtype"]
             max = np.iinfo(ifm_dtype).max
@@ -425,9 +426,7 @@ def test_pack_biases():
             assert test_vec["hw_shifts"][idx] == mock_obj.call_args_list[idx][0][2]
 
     def create_mock(test_vec):
-        with patch(
-            "tvm.relay.backend.contrib.ethosu.vela_api.vapi.npu_encode_bias"
-        ) as mock_npu_encode_bias:
+        with patch("ethosu.vela.api.npu_encode_bias") as mock_npu_encode_bias:
             mock_npu_encode_bias.return_value = bytearray(10)
             ifm_dtype = test_vec["ifm_dtype"]
             max = np.iinfo(ifm_dtype).max
@@ -449,6 +448,101 @@ def test_pack_biases():
     for _test_vec in test_vecs:
         mock_obj, packed_biases = create_mock(_test_vec)
         verify(_test_vec, mock_obj, packed_biases)
+
+
+def extract_ethosu_conv2d_extern_calls(mod):
+    """This function will obtain all ethosu_conv2d
+    calls from a NPU TIR module
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        This is a NPU TIR Module
+
+    Returns
+    -------
+    list
+        List of tvm.tir.Call objects
+        that are tir extern calls
+        for ethosu_conv2d
+    """
+    # There should only be a single function
+    assert len(mod.functions.items()) == 1
+    primfunc = mod.functions.items()[0][1]
+
+    ethosu_conv2d_calls = list()
+
+    def populate_ethosu_conv2d_calls(stmt):
+        if (
+            isinstance(stmt, tvm.tir.Call)
+            and stmt.op.name == "T.call_extern"
+            and stmt.args[0] == "ethosu_conv2d"
+        ):
+            ethosu_conv2d_calls.append(stmt)
+
+    stmt_functor.post_order_visit(primfunc.body, populate_ethosu_conv2d_calls)
+    return ethosu_conv2d_calls
+
+
+@pytest.mark.parametrize(
+    "accel",
+    ACCEL_TYPES,
+)
+def test_encode_weights(accel):
+    test_vecs = [
+        {
+            # Stimulus
+            "tir_module": Module1,
+            "param_dict": {
+                1: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [48], "uint8"),
+                2: np.random.randint(np.iinfo("int32").min, np.iinfo("int32").max, [16], "int32"),
+            },
+            "accel_type": accel,
+            # Reference outputs
+            "block_traversal": vapi.NpuBlockTraversal.PART_KERNEL_FIRST,
+        },
+    ]
+
+    def create_mock(test_vec):
+        with patch("ethosu.vela.api.npu_encode_weights") as mock_enc_w:
+            with patch("ethosu.vela.api.npu_find_block_configs") as mock_blk_cfg:
+                mock_blk_cfg.return_value = [vapi.NpuShape3D(8, 8, 8)]
+                ethosu_conv2d_calls = extract_ethosu_conv2d_extern_calls(test_vec["tir_module"])
+                buffer_info = tirtocs.extract_buffer_info(
+                    test_vec["tir_module"], test_vec["param_dict"]
+                )
+                for ethosu_conv2d_call in ethosu_conv2d_calls:
+                    npu_op, _ = tirtocs.translate_ethosu_conv2d(ethosu_conv2d_call)
+                    weights = buffer_info[npu_op.weights[0].address.buffer_var][0]
+                    vela_api.encode_weights(ethosu_conv2d_call, weights, accel)
+                return mock_enc_w
+
+    def verify(test_vec, mock_enc_w):
+        ethosu_conv2d_calls = extract_ethosu_conv2d_extern_calls(test_vec["tir_module"])
+        buffer_info = tirtocs.extract_buffer_info(test_vec["tir_module"], test_vec["param_dict"])
+        for ethosu_conv2d_call in ethosu_conv2d_calls:
+            npu_op, w_zero_point = tirtocs.translate_ethosu_conv2d(ethosu_conv2d_call)
+            weights = buffer_info[npu_op.weights[0].address.buffer_var][0]
+
+            assert mock_enc_w.call_args[1]["accelerator"] == accel
+            assert (
+                mock_enc_w.call_args[1]["weights_volume"].flatten()
+                == weights.astype(np.int64) - w_zero_point
+            ).all()
+            assert mock_enc_w.call_args[1]["dilation_xy"] == (
+                npu_op.kernel.dilation_x,
+                npu_op.kernel.dilation_y,
+            )
+            assert mock_enc_w.call_args[1]["dilation_xy"] == (
+                npu_op.kernel.dilation_x,
+                npu_op.kernel.dilation_y,
+            )
+            assert mock_enc_w.call_args[1]["ifm_bitdepth"] == npu_op.ifm.data_type.size_in_bits()
+            assert mock_enc_w.call_args[1]["block_traversal"] == test_vec["block_traversal"]
+
+    for _test_vec in test_vecs:
+        _mock_enc_w = create_mock(_test_vec)
+        verify(_test_vec, _mock_enc_w)
 
 
 if __name__ == "__main__":

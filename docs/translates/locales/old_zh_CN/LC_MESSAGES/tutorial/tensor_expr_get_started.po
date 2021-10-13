@@ -1,0 +1,733 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_tutorial_tensor_expr_get_started.py>`"
+" to download the full example code"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:13
+msgid "Working with Operators Using Tensor Expression"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:14
+msgid "**Author**: `Tianqi Chen <https://tqchen.github.io>`_"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:16
+msgid ""
+"In this tutorial we will turn our attention to how TVM works with Tensor "
+"Expression (TE) to define tensor computations and apply loop "
+"optimizations. TE describes tensor computations in a pure functional "
+"language (that is each expression has no side effects). When viewed in "
+"context of the TVM as a whole, Relay describes a computation as a set of "
+"operators, and each of these operators can be represented as a TE "
+"expression where each TE expression takes input tensors and produces an "
+"output tensor."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:24
+msgid ""
+"This is an introductory tutorial to the Tensor Expression language in "
+"TVM. TVM uses a domain specific tensor expression for efficient kernel "
+"construction. We will demonstrate the basic workflow with two examples of"
+" using the tensor expression language. The first example introduces TE "
+"and scheduling with vector addition. The second expands on these concepts"
+" with a step-by-step optimization of a matrix multiplication with TE. "
+"This matrix multiplication example will serve as the comparative basis "
+"for future tutorials covering more advanced features of TVM."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:34
+msgid "Example 1: Writing and Scheduling Vector Addition in TE for CPU"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:36
+msgid ""
+"Let's look at an example in Python in which we will implement a TE for "
+"vector addition, followed by a schedule targeted towards a CPU. We begin "
+"by initializing a TVM environment."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:65
+msgid "Describing the Vector Computation"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:66
+msgid ""
+"We describe a vector addition computation. TVM adopts tensor semantics, "
+"with each intermediate result represented as a multi-dimensional array. "
+"The user needs to describe the computation rule that generates the "
+"tensors. We first define a symbolic variable ``n`` to represent the "
+"shape. We then define two placeholder Tensors, ``A`` and ``B``, with "
+"given shape ``(n,)``. We then describe the result tensor ``C``, with a "
+"``compute`` operation. The ``compute`` defines a computation, with the "
+"output conforming to the specified tensor shape and the computation to be"
+" performed at each position in the tensor defined by the lambda function."
+" Note that while ``n`` is a variable, it defines a consistent shape "
+"between the ``A``, ``B`` and ``C`` tensors. Remember, no actual "
+"computation happens during this phase, as we are only declaring how the "
+"computation should be done."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:94
+msgid "Lambda Functions"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:96
+msgid ""
+"The second argument to the ``te.compute`` method is the function that "
+"performs the computation. In this example, we're using an anonymous "
+"function, also known as a ``lambda`` function, to define the computation,"
+" in this case addition on the ``i``th element of ``A`` and ``B``."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:102
+msgid "Create a Default Schedule for the Computation"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:104
+msgid ""
+"While the above lines describe the computation rule, we can compute ``C``"
+" in many different ways to fit different devices. For a tensor with "
+"multiple axes, you can choose which axis to iterate over first, or "
+"computations can be split across different threads. TVM requires that the"
+" user to provide a schedule, which is a description of how the "
+"computation should be performed. Scheduling operations within TE can "
+"change loop orders, split computations across different threads, group "
+"blocks of data together, amongst other operations. An important concept "
+"behind schedules is that they only describe how the computation is "
+"performed, so different schedules for the same TE will produce the same "
+"result."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:115
+msgid ""
+"TVM allows you to create a naive schedule that will compute ``C`` in by "
+"iterating in row major order."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:137
+msgid "Compile and Evaluate the Default Schedule"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:138
+msgid ""
+"With the TE expression and a schedule, we can produce runnable code for "
+"our target language and architecture, in this case LLVM and a CPU. We "
+"provide TVM with the schedule, a list of the TE expressions that are in "
+"the schedule, the target and host, and the name of the function we are "
+"producing. The result of the output is a type-erased function that can be"
+" called directly from Python."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:144
+msgid ""
+"In the following line, we use tvm.build to create a function. The build "
+"function takes the schedule, the desired signature of the function "
+"(including the inputs and outputs) as well as target language we want to "
+"compile to."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:160
+msgid ""
+"Let's run the function, and compare the output to the same computation in"
+" numpy. The compiled TVM function is exposes a concise C API that can be "
+"invoked from any language. We begin by creating a device, which is a "
+"device (CPU in this example) that TVM can compile the schedule to. In "
+"this case the device is an LLVM CPU target. We can then initialize the "
+"tensors in our device and perform the custom addition operation. To "
+"verify that the computation is correct, we can compare the result of the "
+"output of the c tensor to the same computation performed by numpy."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:188
+msgid ""
+"To get a comparison of how fast this version is compared to numpy, create"
+" a helper function to run a profile of the TVM generated code."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:232
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:284
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:323
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:376
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:423
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:595
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:816
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:872
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:897
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:968
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:992
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1056
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1124
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1217
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1304
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1381
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1452
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:242
+msgid "Updating the Schedule to Use Paralleism"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:244
+msgid ""
+"Now that we've illustrated the fundamentals of TE, let's go deeper into "
+"what schedules do, and how they can be used to optimize tensor "
+"expressions for different architectures. A schedule is a series of steps "
+"that are applied to an expression to transform it in a number of "
+"different ways. When a schedule is applied to an expression in TE, the "
+"inputs and outputs remain the same, but when compiled the implementation "
+"of the expression can change. This tensor addition, in the default "
+"schedule, is run serially but is easy to parallelize across all of the "
+"processor threads. We can apply the parallel schedule operation to our "
+"computation."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:266
+msgid ""
+"The ``tvm.lower`` command will generate the Intermediate Representation "
+"(IR) of the TE, with the corresponding schedule. By lowering the "
+"expression as we apply different schedule operations, we can see the "
+"effect of scheduling on the ordering of the computation. We use the flag "
+"``simple_mode=True`` to return a readable C-style statement."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:303
+msgid ""
+"It's now possible for TVM to run these blocks on independent threads. "
+"Let's compile and run this new schedule with the parallel operation "
+"applied:"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:332
+msgid "Updating the Schedule to Use Vectorization"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:333
+msgid ""
+"Modern CPUs also have the ability to perform SIMD operations on floating "
+"point values, and we can apply another schedule to our computation "
+"expression to take advantage of this. Accomplishing this requires "
+"multiple steps: first we have to split the schedule into inner and outer "
+"loops using the split scheduling primitive. The inner loops can use "
+"vectorization to use SIMD instructions using the vectorize scheduling "
+"primitive, then the outer loops can be parallelized using the parallel "
+"scheduling primitive. Choose the split factor to be the number of threads"
+" on your CPU."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:401
+msgid "Comparing the Diferent Schedules"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:402
+msgid "We can now compare the different schedules"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:435
+msgid "Code Specialization"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:437
+msgid ""
+"As you may have noticed, the declarations of ``A``, ``B`` and ``C`` all "
+"take the same shape argument, ``n``. TVM will take advantage of this to "
+"pass only a single shape argument to the kernel, as you will find in the "
+"printed device code. This is one form of specialization."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:442
+msgid ""
+"On the host side, TVM will automatically generate check code that checks "
+"the constraints in the parameters. So if you pass arrays with different "
+"shapes into fadd, an error will be raised."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:446
+msgid ""
+"We can do more specializations. For example, we can write :code:`n = "
+"tvm.runtime.convert(1024)` instead of :code:`n = te.var(\"n\")`, in the "
+"computation declaration. The generated function will only take vectors "
+"with length 1024."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:451
+msgid ""
+"We've defined, scheduled, and compiled a vector addition operator, which "
+"we were then able to execute on the TVM runtime. We can save the operator"
+" as a library, which we can then load later using the TVM runtime."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:456
+msgid "Targeting Vector Addition for GPUs (Optional)"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:457
+msgid ""
+"TVM is capable of targeting multiple architectures. In the next example, "
+"we will target compilation of the vector addition to GPUs."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:561
+msgid "Saving and Loading Compiled Modules"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:562
+msgid ""
+"Besides runtime compilation, we can save the compiled modules into a file"
+" and load them back later."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:565
+msgid "The following code first performs the following steps:"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:567
+msgid "It saves the compiled host module into an object file."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:568
+msgid "Then it saves the device module into a ptx file."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:569
+msgid "cc.create_shared calls a compiler (gcc) to create a shared library"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:603
+msgid "Module Storage Format"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:605
+msgid ""
+"The CPU (host) module is directly saved as a shared library (.so). There "
+"can be multiple customized formats of the device code. In our example, "
+"the device code is stored in ptx, as well as a meta data json file. They "
+"can be loaded and linked separately via import."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:611
+msgid "Load Compiled Module"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:612
+msgid ""
+"We can load the compiled module from the file system and run the code. "
+"The following code loads the host and device module separately and links "
+"them together. We can verify that the newly loaded function works."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:643
+msgid "Pack Everything into One Library"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:644
+msgid ""
+"In the above example, we store the device and host code separately. TVM "
+"also supports export everything as one shared library. Under the hood, we"
+" pack the device modules into binary blobs and link them together with "
+"the host code. Currently we support packing of Metal, OpenCL and CUDA "
+"modules."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:664
+msgid "Runtime API and Thread-Safety"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:666
+msgid ""
+"The compiled modules of TVM do not depend on the TVM compiler. Instead, "
+"they only depend on a minimum runtime library. The TVM runtime library "
+"wraps the device drivers and provides thread-safe and device agnostic "
+"calls into the compiled functions."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:671
+msgid ""
+"This means that you can call the compiled TVM functions from any thread, "
+"on any GPUs, provided that you have compiled the code for that GPU."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:675
+msgid "Generate OpenCL Code"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:676
+msgid ""
+"TVM provides code generation features into multiple backends. We can also"
+" generate OpenCL code or LLVM code that runs on CPU backends."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:679
+msgid ""
+"The following code blocks generate OpenCL code, creates array on an "
+"OpenCL device, and verifies the correctness of the code."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:704
+msgid "TE Scheduling Primitives"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:706
+msgid "TVM includes a number of different scheduling primitives:"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:708
+msgid "split: splits a specified axis into two axises by the defined factor."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:709
+msgid ""
+"tile: tiles will split a computation across two axes by the defined "
+"factors."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:710
+msgid "fuse: fuses two consecutive axises of one computation."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:711
+msgid "reorder: can reorder the axises of a computation into a defined order."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:712
+msgid ""
+"bind: can bind a computation to a specific thread, useful in GPU "
+"programming."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:713
+msgid ""
+"compute_at: by default, TVM will compute tensors at the outermost level "
+"of the function, or the root, by default. compute_at specifies that one "
+"tensor should be computed at the first axis of computation for another "
+"operator."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:717
+msgid ""
+"compute_inline: when marked inline, a computation will be expanded then "
+"inserted into the address where the tensor is required."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:719
+msgid ""
+"compute_root: moves a computation to the outermost layer, or root, of the"
+" function. This means that stage of the computation will be fully "
+"computed before it moves on to the next stage."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:723
+msgid ""
+"A complete description of these primitives can be found in the [Schedule "
+"Primitives](https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html)"
+" docs page."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:727
+msgid "Example 2: Manually Optimizing Matrix Multiplication with TE"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:729
+msgid ""
+"Now we will consider a second, more advanced example, demonstrating how "
+"with just 18 lines of python code TVM speeds up a common matrix "
+"multiplication operation by 18x."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:732
+msgid ""
+"**Matrix multiplication is a compute intensive operation. There are two "
+"important optimizations for good CPU performance:**"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:735
+msgid ""
+"Increase the cache hit rate of memory access. Both complex numerical "
+"computation and hot-spot memory access can be accelerated by a high cache"
+" hit rate. This requires us to transform the origin memory access pattern"
+" to a pattern that fits the cache policy."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:741
+msgid ""
+"SIMD (Single instruction multi-data), also known as the vector processing"
+" unit. On each cycle instead of processing a single value, SIMD can "
+"process a small batch of data.  This requires us to transform the data "
+"access pattern in the loop body in uniform pattern so that the LLVM "
+"backend can lower it to SIMD."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:747
+msgid ""
+"The techniques used in this tutorial are a subset of tricks mentioned in "
+"this `repository <https://github.com/flame/how-to-optimize-gemm>`_. Some "
+"of them have been applied by TVM abstraction automatically, but some of "
+"them cannot be automatically applied due to TVM constraints."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:753
+msgid "Preparation and Performance Baseline"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:755
+msgid ""
+"We begin by collecting performance data on the `numpy` implementation of "
+"matrix multiplication."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:824
+msgid ""
+"Now we write a basic matrix multiplication using TVM TE and verify that "
+"it produces the same results as the numpy implementation. We also write a"
+" function that will help us measure the performance of the schedule "
+"optimizations."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:880
+msgid ""
+"Let's take a look at the intermediate representation of the operator and "
+"default schedule using the TVM lower function. Note how the "
+"implementation is essentially a naive implementation of a matrix "
+"multiplication, using three nested loops over the indices of the A and B "
+"matrices."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:922
+msgid "Optimization 1: Blocking"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:924
+msgid ""
+"A important trick to enhance the cache hit rate is blocking, where you "
+"structure memory access such that the inside a block is a small "
+"neighborhood that has high memory locality. In this tutorial, we pick a "
+"block factor of 32. This will result in a block that will fill a 32 * 32 "
+"* sizeof(float) area of memory. This corresponds to a cache size of 4KB, "
+"in relation to a reference cache size of 32 KB for L1 cache."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:931
+msgid ""
+"We begin by creating a default schedule for the ``C`` operation, then "
+"apply a ``tile`` scheduling primitive to it with the specified block "
+"factor, with the scheduling primitive returning the resulting loop order "
+"from outermost to innermost, as a vector ``[x_outer, y_outer, x_inner, "
+"y_inner]``. We then get the reduction axis for output of the operation, "
+"and perform a split operation on it using a factor of 4. This factor "
+"doesn't directly impact the blocking optimization we're working on right "
+"now, but will be useful later when we apply vectorization."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:940
+msgid ""
+"Now that the operation has been blocked, we can reorder the computation "
+"to put the reduction operation into the outermost loop of the "
+"computation, helping to guarantee that the blocked data remains in cache."
+" This completes the schedule, and we can build and test the performance "
+"compared to the naive schedule."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:976
+msgid ""
+"By reordering the computation to take advantage of caching, you should "
+"see a significant improvement in the performance of the computation. Now,"
+" print the internal representation and compare it to the original:"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1027
+msgid "Optimization 2: Vectorization"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1029
+msgid ""
+"Another important optimization trick is vectorization. When the memory "
+"access pattern is uniform, the compiler can detect this pattern and pass "
+"the continuous memory to the SIMD vector processor. In TVM, we can use "
+"the ``vectorize`` interface to hint the compiler this pattern, taking "
+"advantage of this hardware feature."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1035
+msgid ""
+"In this tutorial, we chose to vectorize the inner loop row data since it "
+"is already cache friendly from our previous optimizations."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1088
+msgid "Optimization 3: Loop Permutation"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1090
+msgid ""
+"If we look at the above IR, we can see the inner loop row data is "
+"vectorized and B is transformed into PackedB (this is evident by the "
+"`(float32x32*)B2` portion of the inner loop). The traversal of PackedB is"
+" sequential now. So we will look at the access pattern of A. In current "
+"schedule, A is accessed column by column which is not cache friendly. If "
+"we change the nested loop order of `ki` and inner axes `xi`, the access "
+"pattern for A matrix will be more cache friendly."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1156
+msgid "Optimization 4: Array Packing"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1158
+msgid ""
+"Another important trick is array packing. This trick is to reorder the "
+"storage dimension of the array to convert the continuous access pattern "
+"on certain dimension to a sequential pattern after flattening."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1165
+msgid ""
+"Just as it is shown in the figure above, after blocking the computations,"
+" we can observe the array access pattern of B (after flattening), which "
+"is regular but discontinuous. We expect that after some transformation we"
+" can get a continuous access pattern. By reordering a ``[16][16]`` array "
+"to a ``[16/4][16][4]`` array the access pattern of B will be sequential "
+"when grabing the corresponding value from the packed array."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1172
+msgid ""
+"To accomplish this, we are going to have to start with a new default "
+"schedule, taking into account the new packing of B. It's worth taking a "
+"moment to comment on this: TE is a powerful and expressive language for "
+"writing optimized operators, but it often requires some knowledge of the "
+"underlying algorithm, data structures, and hardware target that you are "
+"writing for. Later in the tutorial, we will discuss some of the options "
+"for letting TVM take that burden. Regardless, let's move on with the new "
+"optimized schedule."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1256
+msgid "Optimization 5: Optimizing Block Writing Through Caching"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1258
+msgid ""
+"Up to this point all of our optimizations have focused on efficiently "
+"accessing and computing the data from the `A` and `B` matrices to compute"
+" the `C` matrix. After the blocking optimization, the operator will write"
+" result to `C` block by block, and the access pattern is not sequential. "
+"We can address this by using a sequential cache array, using a "
+"combination of `cache_write`, `compute_at`, and `unroll`to hold the block"
+" results and write to `C` when all the block results are ready."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1350
+msgid "Optimization 6: Parallelization"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1352
+msgid ""
+"So far, our computation is only designed to use a single core. Nearly all"
+" modern processors have multiple cores, and computation can benefit from "
+"running computations in parallel. The final optimization is to take "
+"advantage of thread-level parallelization."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1427
+msgid "Summary of Matrix Multiplication Example"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1429
+msgid ""
+"After applying the above simple optimizations with only 18 lines of code,"
+" our generated code can begin to approach the performance of `numpy` with"
+" the Math Kernel Library (MKL). Since we've been logging the performance "
+"as we've been working, we can compare the results."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1467
+msgid ""
+"Note that the outputs on the web page reflect the running times on a non-"
+"exclusive Docker container, and should be considered unreliable. It is "
+"highly encouraged to run the tutorial by yourself to observe the "
+"performance gain achieved by TVM, and to carefully work through each "
+"example to understand the iterative improvements that are made to the "
+"matrix multiplication operation."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1475
+msgid "Final Notes and Summary"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1476
+msgid ""
+"As mentioned earlier, how to apply optimizations using TE and scheduling "
+"primitives can require some knowledge of the underlying architecture and "
+"algorithms. However, TE was designed to act as a foundation for more "
+"complex algorithms that can search the potential optimization. With the "
+"knowledge you have from this introduction to TE, we can now begin to "
+"explore how TVM can automate the schedule optimization process."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1483
+msgid ""
+"This tutorial provided a walkthrough of TVM Tensor Expresstion (TE) "
+"workflow using a vector add and a matrix multiplication examples. The "
+"general workflow is"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1487
+msgid "Describe your computation via a series of operations."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1488
+msgid "Describe how we want to compute use schedule primitives."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1489
+msgid "Compile to the target function we want."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1490
+msgid "Optionally, save the function to be loaded later."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1492
+msgid ""
+"Upcoming tutorials expand on the matrix multiplication example, and show "
+"how you can build generic templates of the matrix multiplication and "
+"other operations with tunable parameters that allows you to automatically"
+" optimize the computation for specific platforms."
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1510
+msgid ""
+":download:`Download Python source code: tensor_expr_get_started.py "
+"<tensor_expr_get_started.py>`"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1516
+msgid ""
+":download:`Download Jupyter notebook: tensor_expr_get_started.ipynb "
+"<tensor_expr_get_started.ipynb>`"
+msgstr ""
+
+#: ../../_staging/tutorial/tensor_expr_get_started.rst:1523
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

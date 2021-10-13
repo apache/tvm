@@ -1,0 +1,171 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/tutorial/intro_topi.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_tutorial_intro_topi.py>` to download "
+"the full example code"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:11
+msgid "Introduction to TOPI"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:12
+msgid "**Author**: `Ehsan M. Kermani <https://github.com/ehsanmok>`_"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:14
+msgid ""
+"This is an introductory tutorial to TVM Operator Inventory (TOPI). TOPI "
+"provides numpy-style generic operations and schedules with higher "
+"abstractions than TVM. In this tutorial, we will see how TOPI can save us"
+" from writing boilerplates code in TVM."
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:36
+msgid "Basic example"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:37
+msgid ""
+"Let's revisit the sum of rows operation (equivalent to :code:`B = "
+"numpy.sum(A, axis=1)`') \\ To compute the sum of rows of a two "
+"dimensional TVM tensor A, we should specify the symbolic operation as "
+"well as schedule as follows"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:58
+msgid "and to examine the IR code in human readable format, we can do"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:72
+#: ../../_staging/tutorial/intro_topi.rst:111
+#: ../../_staging/tutorial/intro_topi.rst:180
+#: ../../_staging/tutorial/intro_topi.rst:225
+#: ../../_staging/tutorial/intro_topi.rst:274
+#: ../../_staging/tutorial/intro_topi.rst:349
+msgid "Out:"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:93
+msgid ""
+"However, for such a common operation we had to define the reduce axis "
+"ourselves as well as explicit computation with :code:`te.compute`. "
+"Imagine for more complicated operations how much details we need to "
+"provide. Fortunately, we can replace those two lines with simple "
+":code:`topi.sum` much like :code:`numpy.sum`"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:133
+msgid "Numpy-style operator overloading"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:134
+msgid ""
+"We can add two tensors using :code:`topi.broadcast_add` that have correct"
+" (broadcastable with specific) shapes. Even shorter, TOPI provides "
+"operator overloading for such common operations. For example,"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:153
+msgid ""
+"Overloaded with the same syntax, TOPI handles broadcasting a primitive "
+"(`int`, `float`) to a tensor :code:`d - 3.14`."
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:156
+msgid "Generic schedules and fusing operations"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:157
+msgid ""
+"Up to now, we have seen an example of how TOPI can save us from writing "
+"explicit computations in lower level API. But it doesn't stop here. Still"
+" we did the scheduling as before. TOPI also provides higher level "
+"scheduling recipes depending on a given context. For example, for CUDA, "
+"we can schedule the following series of operations ending with "
+":code:`topi.sum` using only :code:`topi.generic.schedule_reduce`"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:211
+msgid ""
+"As you can see, scheduled stages of computation have been accumulated and"
+" we can examine them by"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:233
+msgid ""
+"We can test the correctness by comparing with :code:`numpy` result as "
+"follows"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:256
+msgid ""
+"TOPI also provides common neural nets operations such as _softmax_ with "
+"optimized schedule"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:319
+msgid "Fusing convolutions"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:320
+msgid "We can fuse :code:`topi.nn.conv2d` and :code:`topi.nn.relu` together."
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:324
+msgid ""
+"TOPI functions are all generic functions. They have different "
+"implementations for different backends to optimize for performance. For "
+"each backend, it is necessary to call them under a target scope for both "
+"compute declaration and schedule. TVM will choose the right function to "
+"call with the target information."
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:563
+msgid "Summary"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:564
+msgid "In this tutorial, we have seen"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:566
+msgid "How to use TOPI API for common operations with numpy-style operators."
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:567
+msgid ""
+"How TOPI facilitates generic schedules and operator fusion for a context,"
+" to generate optimized kernel codes."
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:582
+msgid ":download:`Download Python source code: intro_topi.py <intro_topi.py>`"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:588
+msgid ":download:`Download Jupyter notebook: intro_topi.ipynb <intro_topi.ipynb>`"
+msgstr ""
+
+#: ../../_staging/tutorial/intro_topi.rst:595
+msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+

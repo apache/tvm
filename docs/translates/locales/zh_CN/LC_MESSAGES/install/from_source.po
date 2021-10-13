@@ -10,9 +10,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: tvm 0.8.dev1713+gbe5f05f3f\n"
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-09-18 01:16+0000\n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-09-18 07:44+0000\n"
 "Last-Translator: HLearning, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"

@@ -1,0 +1,128 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../_staging/topic/microtvm/index.rst:21
+msgid "microTVM: TVM on bare-metal"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:23
+msgid ""
+"microTVM runs TVM models on bare-metal (i.e. IoT) devices. microTVM "
+"depends only on the C standard library, and doesn't require an operating "
+"system to execute. microTVM is currently under heavy development."
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:31
+msgid "microTVM is:"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:33
+msgid "an extension to TVM's compiler to allow it to target microcontrollers"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:34
+msgid "a way to run the TVM RPC server on-device, to allow autotuning"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:35
+msgid ""
+"a minimal C runtime that supports standalone model inference on bare "
+"metal devices."
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:38
+msgid "Supported Hardware"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:40
+msgid ""
+"microTVM currently tests against Cortex-M microcontrollers with the "
+"Zephyr RTOS; however, it is flexible and portable to other processors "
+"such as RISC-V and does not require Zephyr. The current demos run against"
+" QEMU and the following hardware:"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:44
+msgid ""
+"`STM Nucleo-F746ZG <https://www.st.com/en/evaluation-tools/nucleo-"
+"f746zg.html>`_"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:45
+msgid ""
+"`STM STM32F746 Discovery <https://www.st.com/en/evaluation-"
+"tools/32f746gdiscovery.html>`_"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:46
+msgid ""
+"`nRF 5340 Development Kit <https://www.nordicsemi.com/Software-and-tools"
+"/Development-Kits/nRF5340-DK>`_"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:50
+msgid "Getting Started with microTVM"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:52
+msgid ""
+"Before working with microTVM, we recommend you have a supported "
+"development board. Then, follow these tutorials to get started with "
+"microTVM:"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:55
+msgid ""
+":ref:`Start the microTVM Reference VM <tutorial-micro-reference-vm>`. The"
+" microTVM tutorials depend on Zephyr and on a compiler toolchain for your"
+" hardware. The reference VM is a convenient way to install those "
+"dependencies."
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:58
+msgid "Try the :ref:`microTVM with TFLite Tutorial <microTVM-with-TFLite>`."
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:59
+msgid ""
+"Try running a more complex `CIFAR10-CNN model <https://github.com/areusch"
+"/microtvm-blogpost-eval>`_."
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:63
+msgid "How microTVM Works"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:66
+msgid ""
+"You can read more about the design of these pieces at the :ref:`microTVM "
+"Design Document <microTVM-design>`."
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:70
+msgid "Help and Discussion"
+msgstr ""
+
+#: ../../_staging/topic/microtvm/index.rst:72
+msgid ""
+"The `TVM Discuss Forum <https://discuss.tvm.ai>`_ is a great place to "
+"collaborate on microTVM tasks, and maintains a searchable history of past"
+" problems."
+msgstr ""
+
