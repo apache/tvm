@@ -30,7 +30,7 @@ class TuneContext;
 /*!
  * \brief Rules to apply a post processing to a schedule.
  * \note Post processing is designed to deal with the problem of undertermined schedule validity
- *  after applying some schedule primitve at runtime. E.g., Fuse the first X loops to reach the
+ *  after applying some schedule primitves at runtime. E.g., Fuse the first X loops to reach the
  *  maximum number below 1024, X is only decided at runtime.
  */
 class PostprocNode : public runtime::Object {

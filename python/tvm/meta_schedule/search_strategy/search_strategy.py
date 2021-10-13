@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Search Strategy"""
-
+"""
+Meta Schedule search strategy that generates the measure
+candidates for measurement.
+"""
 from typing import List, Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object

@@ -19,7 +19,6 @@ The tvm.meta_schedule.space_generator package.
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.
 """
-
-from .space_generator import ScheduleRule, PyScheduleRule, SpaceGenerator, PySpaceGenerator
+from .space_generator import SpaceGenerator, PySpaceGenerator
 from .space_generator_union import SpaceGeneratorUnion
 from .schedule_fn import ScheduleFn

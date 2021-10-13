@@ -14,14 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Meta Schedule design space generators that generates design
-space for generation of measure candidates.
-"""
-from typing import TYPE_CHECKING, List
+"""Meta Schedule Postproc."""
+
+from typing import TYPE_CHECKING
 
 from tvm._ffi import register_object
-from tvm.ir import IRModule
 from tvm.runtime import Object
 from tvm.tir.schedule import Schedule
 
@@ -31,41 +28,51 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-@register_object("meta_schedule.SpaceGenerator")
-class SpaceGenerator(Object):
-    """The abstract design space generator interface."""
+@register_object("meta_schedule.Postproc")
+class Postproc(Object):
+    """Rules to apply a post processing to a schedule.
+
+    Note
+    ----
+    Post processing is designed to deal with the problem of undertermined schedule validity after
+    applying some schedule primitves at runtime. E.g., Fuse the first X loops to reach the maximum
+    number below 1024, X is only decided at runtime.
+    """
 
     def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
-        """Initialize the design space generator with tuning context.
+        """Initialize the post processing with a tune context.
 
         Parameters
         ----------
         tune_context : TuneContext
             The tuning context for initializing the design space generator.
         """
-        _ffi_api.SpaceGeneratorInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
+        _ffi_api.PostprocInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
             self, tune_context
         )
 
-    def generate_design_space(self, mod: IRModule) -> List[Schedule]:
-        """Generate design spaces given a module.
+    def apply(self, sch: Schedule) -> bool:
+        """Apply a post processing to the given schedule.
 
         Parameters
         ----------
-        mod : IRModule
-            The module used for design space generation.
+        sch : Schedule
+            The schedule to be post processed.
 
         Returns
         -------
-        design_spaces : List[Schedule]
-            The generated design spaces, i.e., schedules.
+        result : bool
+            Whether the post processing was successfully applied.
         """
-        return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.PostprocApply(self, sch)
+
+    def __str__(self) -> str:
+        return "Postproc()"
 
 
-@register_object("meta_schedule.PySpaceGenerator")
-class PySpaceGenerator(SpaceGenerator):
-    """An abstract design space generator with customized methods on the python-side."""
+@register_object("meta_schedule.PyPostproc")
+class PyPostproc(Postproc):
+    """An abstract Postproc with customized methods on the python-side."""
 
     def __init__(self):
         """Constructor."""
@@ -73,17 +80,20 @@ class PySpaceGenerator(SpaceGenerator):
         def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
             self.initialize_with_tune_context(tune_context)
 
-        def f_generate_design_space(mod: IRModule) -> List[Schedule]:
-            return self.generate_design_space(mod)
+        def f_apply(self, sch: Schedule) -> bool:
+            return self.apply(sch)
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorPySpaceGenerator,  # type: ignore # pylint: disable=no-member
+            _ffi_api.PostprocPyPostproc,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
-            f_generate_design_space,
+            f_apply,
         )
 
     def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
         raise NotImplementedError
 
-    def generate_design_space(self, mod: IRModule) -> List[Schedule]:
+    def apply(self, sch: Schedule) -> bool:
         raise NotImplementedError
+
+    def __str__(self) -> str:
+        return "PyPostproc()"

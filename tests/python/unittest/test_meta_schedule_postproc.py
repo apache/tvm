@@ -21,10 +21,9 @@ from typing import List, Optional
 import math
 
 import tvm
-from tvm.ir.base import assert_structural_equal
 from tvm.script import tir as T
 
-from tvm.meta_schedule.tune_context import PyPostproc
+from tvm.meta_schedule.postproc import PyPostproc
 from tvm.meta_schedule import TuneContext
 from tvm.tir.schedule import Schedule, Trace
 

@@ -14,16 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Meta Schedule design space generators that generates design
-space for generation of measure candidates.
-"""
-from typing import TYPE_CHECKING, List
+"""Meta Schedule Mutator."""
+from typing import Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object
-from tvm.ir import IRModule
 from tvm.runtime import Object
-from tvm.tir.schedule import Schedule
+from tvm.tir.schedule import Trace
 
 from .. import _ffi_api
 
@@ -31,41 +27,43 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-@register_object("meta_schedule.SpaceGenerator")
-class SpaceGenerator(Object):
-    """The abstract design space generator interface."""
+class Mutator(Object):
+    """Mutator is designed to mutate the trace to explore the design space."""
 
     def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
-        """Initialize the design space generator with tuning context.
+        """Initialize the mutator with a tune context.
 
         Parameters
         ----------
         tune_context : TuneContext
             The tuning context for initializing the design space generator.
         """
-        _ffi_api.SpaceGeneratorInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
+        _ffi_api.MutatorInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
             self, tune_context
         )
 
-    def generate_design_space(self, mod: IRModule) -> List[Schedule]:
-        """Generate design spaces given a module.
+    def apply(self, trace: Trace) -> Optional[Trace]:
+        """Apply the mutator function to the given trace.
 
         Parameters
         ----------
-        mod : IRModule
-            The module used for design space generation.
+        trace : Trace
+            The given trace for mutation.
 
         Returns
         -------
-        design_spaces : List[Schedule]
-            The generated design spaces, i.e., schedules.
+        trace : Optional[Trace]
+            None if mutator failed, otherwise return the mutated trace.
         """
-        return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.MutatorApply(self, trace)
+
+    def __str__(self) -> str:
+        return "Mutator()"
 
 
-@register_object("meta_schedule.PySpaceGenerator")
-class PySpaceGenerator(SpaceGenerator):
-    """An abstract design space generator with customized methods on the python-side."""
+@register_object("meta_schedule.PyMutator")
+class PyMutator(Mutator):
+    """An abstract mutator with customized methods on the python-side."""
 
     def __init__(self):
         """Constructor."""
@@ -73,17 +71,20 @@ class PySpaceGenerator(SpaceGenerator):
         def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
             self.initialize_with_tune_context(tune_context)
 
-        def f_generate_design_space(mod: IRModule) -> List[Schedule]:
-            return self.generate_design_space(mod)
+        def f_apply(self, trace: Trace) -> Optional[Trace]:
+            return self.apply(trace)
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorPySpaceGenerator,  # type: ignore # pylint: disable=no-member
+            _ffi_api.MutatorPyMutator,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
-            f_generate_design_space,
+            f_apply,
         )
 
     def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
         raise NotImplementedError
 
-    def generate_design_space(self, mod: IRModule) -> List[Schedule]:
+    def apply(self, trace: Trace) -> Optional[Trace]:
         raise NotImplementedError
+
+    def __str__(self) -> str:
+        return "PyMutator()"

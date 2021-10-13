@@ -1,6 +1,3 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
@@ -14,14 +11,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import arg_info
-from . import database
-from . import builder
-from . import runner
-from . import mutator
-from . import postproc
-from . import schedule_rule
-from . import space_generator
-from . import search_strategy
-from .tune_context import TuneContext
+"""
+The tvm.meta_schedule.schedule_rule package.
+Meta Schedule schedule rules are used for modification of
+blocks in a schedule. See also PostOrderApply.
+"""
+from .schedule_rule import ScheduleRule, PyScheduleRule

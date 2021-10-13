@@ -22,7 +22,7 @@ import tvm
 from tvm.ir.base import assert_structural_equal
 from tvm.script import tir as T
 
-from tvm.meta_schedule.search_strategy import PyMutator
+from tvm.meta_schedule.mutator import PyMutator
 from tvm.meta_schedule import TuneContext
 from tvm.tir.schedule import Schedule, Trace
 

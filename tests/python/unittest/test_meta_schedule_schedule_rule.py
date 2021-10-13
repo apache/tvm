@@ -23,7 +23,7 @@ import math
 import tvm
 from tvm.script import tir as T
 
-from tvm.meta_schedule.space_generator import PyScheduleRule
+from tvm.meta_schedule.schedule_rule import PyScheduleRule
 from tvm.meta_schedule import TuneContext
 from tvm.tir.schedule import Schedule, BlockRV
 
