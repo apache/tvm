@@ -236,7 +236,7 @@ def test_pipeline():
 
             # Export the parameter configuration to a file.
             directory_path = tvm.contrib.utils.tempdir().temp_dir
-            # If the directory does not exist, create the directory.
+            # If the directory does not exist, create it.
             if not os.path.exists(directory_path):
                 os.makedirs(directory_path)
             config_file_name = pipeline_mod_factory.export_library(directory_path)
