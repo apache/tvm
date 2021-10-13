@@ -126,6 +126,27 @@ def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
         B[()] = C[()]
 
 
+def _check_alloc_zero_dim_buffer(f):
+    dtype = "float32"
+    ctx = tvm.cpu()
+
+    np_data = np.zeros(shape=()).astype(dtype)
+    np_out = np.zeros(shape=()).astype(dtype)
+    tvm_data = tvm.nd.array(np_data, ctx)
+    tvm_out = tvm.nd.array(np_out, ctx)
+
+    # np func exection
+    np_inter = np.array(1)
+    np_data[()] = 2.0
+    np_inter[()] = np_data[()] + np_out[()]
+    np_out[()] = np_inter[()]
+
+    # tvm func execution
+    f(tvm_data, tvm_out)
+    tvm.testing.assert_allclose(tvm_out.numpy(), np_out, rtol=1e-5)
+    print("test alloc_zero_dim_buffer end")
+
+
 def test_alloc_zero_dim_buffer_round_trip():
     func = alloc_zero_dim_buffer
     func_with_block = alloc_zero_dim_buffer_block
@@ -135,6 +156,8 @@ def test_alloc_zero_dim_buffer_round_trip():
     rt_mod_with_block = tvm.build(rt_func_with_block, "llvm")
     tvm.ir.assert_structural_equal(func, func_with_block)
     tvm.ir.assert_structural_equal(rt_func, rt_func_with_block)
+    _check_alloc_zero_dim_buffer(rt_mod)
+    _check_alloc_zero_dim_buffer(rt_mod_with_block)
 
 
 if __name__ == "__main__":
