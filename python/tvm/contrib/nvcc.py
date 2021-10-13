@@ -80,6 +80,7 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
 
     # Fast math, pass in through options later
     cmd += ["--use_fast_math"]
+    cmd += ["--ptxas-options=--fmad"]
 
     if options:
         if isinstance(options, str):
