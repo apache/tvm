@@ -345,102 +345,110 @@ def lower_call(call, inputs, target):
     # re-enable AutoTVM tracing
     if reenable_tracing:
         env.tracing = True
+
     return LoweredOutput(outputs, best_impl)(outputs, best_impl)
 
-    # def lower_shape_func(self, source_func, target=None):
-    #     key = _get_cache_key(source_func, target)
-    #     return _backend._CompileEngineLowerShapeFunc(self, key)
 
-    def jit(self, source_func, target=None):
-        """JIT a source_func to a tvm.runtime.PackedFunc.
+def lower_shape_func(self, source_func, target=None):
+    key = _get_cache_key(source_func, target)
+    return _backend._CompileEngineLowerShapeFunc(self, key)
 
-        Parameters
-        ----------
-        source_func : Union[tvm.relay.Function, CCacheKey]
-            The source relay function.
 
-        target : tvm.Target
-            The target platform.
+def jit(self, source_func, target=None):
+    """JIT a source_func to a tvm.runtime.PackedFunc.
 
-        Returns
-        -------
-        jited_func: tvm.runtime.PackedFunc
-            The result of jited function.
-        """
-        key = _get_cache_key(source_func, target)
-        return _backend._CompileEngineJIT(self, key)
+    Parameters
+    ----------
+    source_func : Union[tvm.relay.Function, CCacheKey]
+        The source relay function.
 
-    def clear(self):
-        """clear the existing cached functions"""
-        _backend._TECompilerClear(self)
+    target : tvm.Target
+        The target platform.
 
-    def items(self):
-        """List items in the cache.
+    Returns
+    -------
+    jited_func: tvm.runtime.PackedFunc
+        The result of jited function.
+    """
+    key = _get_cache_key(source_func, target)
+    return _backend._CompileEngineJIT(self, key)
 
-        Returns
-        -------
-        item_list : List[Tuple[CCacheKey, CCacheValue]]
-            The list of items.
-        """
-        res = _backend._CompileEngineListItems(self)
-        assert len(res) % 2 == 0
-        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
 
-    def shape_func_items(self):
-        """List items in the shape_func_cache.
+def clear(self):
+    """clear the existing cached functions"""
+    _backend._TECompilerClear(self)
 
-        Returns
-        -------
-        item_list : List[Tuple[CCacheKey, CCacheValue]]
-            The list of shape_func_items.
-        """
-        res = _backend._CompileEngineListShapeFuncItems(self)
-        assert len(res) % 2 == 0
-        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
 
-    def get_current_ccache_key(self):
-        return _backend._CompileEngineGetCurrentCCacheKey(self)
+def items(self):
+    """List items in the cache.
 
-    def dump(self):
-        """Return a string representation of engine dump.
+    Returns
+    -------
+    item_list : List[Tuple[CCacheKey, CCacheValue]]
+        The list of items.
+    """
+    res = _backend._CompileEngineListItems(self)
+    assert len(res) % 2 == 0
+    return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
 
-        Returns
-        -------
-        dump : str
-            The dumped string representation
-        """
-        items = self.items()
-        res = "====================================\n"
-        res += "CompilerEngine dump, %d items cached\n" % len(items)
-        for k, v in items:
-            res += "------------------------------------\n"
-            res += "target={}\n".format(k.target)
-            res += "use_count={}\n".format(v.use_count)
-            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
-            res += "----relay function----\n"
-            res += k.source_func.astext() + "\n"
-            res += "----tir function----- \n"
-            res += "inputs={}\n".format(v.cached_func.inputs)
-            res += "outputs={}\n".format(v.cached_func.outputs)
-            res += "function: \n"
-            res += v.cached_func.funcs.astext() + "\n"
-        res += "===================================\n"
-        shape_func_items = self.shape_func_items()
-        res += "%d shape_func_items cached\n" % len(shape_func_items)
-        for k, v in shape_func_items:
-            res += "------------------------------------\n"
-            res += "target={}\n".format(k.target)
-            res += "use_count={}\n".format(v.use_count)
-            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
-            res += "----relay function----\n"
-            res += k.source_func.astext() + "\n"
-            res += "----tir function----- \n"
-            res += "inputs={}\n".format(v.cached_func.inputs)
-            res += "outputs={}\n".format(v.cached_func.outputs)
-            res += "function: \n"
-            res += v.cached_func.funcs.astext() + "\n"
-        res += "===================================\n"
-        return res
+
+def shape_func_items(self):
+    """List items in the shape_func_cache.
+
+    Returns
+    -------
+    item_list : List[Tuple[CCacheKey, CCacheValue]]
+        The list of shape_func_items.
+    """
+    res = _backend._CompileEngineListShapeFuncItems(self)
+    assert len(res) % 2 == 0
+    return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
+
+
+def get_current_ccache_key(self):
+    return _backend._CompileEngineGetCurrentCCacheKey(self)
+
+
+def dump(self):
+    """Return a string representation of engine dump.
+
+    Returns
+    -------
+    dump : str
+        The dumped string representation
+    """
+    items = self.items()
+    res = "====================================\n"
+    res += "CompilerEngine dump, %d items cached\n" % len(items)
+    for k, v in items:
+        res += "------------------------------------\n"
+        res += "target={}\n".format(k.target)
+        res += "use_count={}\n".format(v.use_count)
+        res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
+        res += "----relay function----\n"
+        res += k.source_func.astext() + "\n"
+        res += "----tir function----- \n"
+        res += "inputs={}\n".format(v.cached_func.inputs)
+        res += "outputs={}\n".format(v.cached_func.outputs)
+        res += "function: \n"
+        res += v.cached_func.funcs.astext() + "\n"
+    res += "===================================\n"
+    shape_func_items = self.shape_func_items()
+    res += "%d shape_func_items cached\n" % len(shape_func_items)
+    for k, v in shape_func_items:
+        res += "------------------------------------\n"
+        res += "target={}\n".format(k.target)
+        res += "use_count={}\n".format(v.use_count)
+        res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
+        res += "----relay function----\n"
+        res += k.source_func.astext() + "\n"
+        res += "----tir function----- \n"
+        res += "inputs={}\n".format(v.cached_func.inputs)
+        res += "outputs={}\n".format(v.cached_func.outputs)
+        res += "function: \n"
+        res += v.cached_func.funcs.astext() + "\n"
+    res += "===================================\n"
+    return res
 
 
 def get_shape(shape):

@@ -313,6 +313,35 @@ TECompiler::TECompiler() {
   data_ = object;
 }
 
+/*! \brief The global TE compiler */
+TECompiler& TECompiler::Global() {
+  static TECompiler* inst = new TECompiler(make_object<TECompilerImpl>());
+  return *inst;
+}
+
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerGlobal").set_body_typed([]() {
+  return TECompiler::Global();
+});
+
+TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
+    .set_body_typed([](Function source_func, Target target) {
+      return CCacheKey(source_func, target);
+    });
+
+TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
+    .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
+      return LoweredOutput(outputs, impl);
+    });
+
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerClear").set_body_typed([](TECompiler self) {
+  self->Clear();
+});
+
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerLower")
+    .set_body_typed([](TECompiler self, CCacheKey key, const String mod_name) {
+      return self->Lower(key, mod_name);
+    });
+
 using AnalysisRemapping = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>;
 
 std::tuple<bool, int, int> IsDeviceCopy(const Function& func) {
