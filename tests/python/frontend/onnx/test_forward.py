@@ -3971,11 +3971,6 @@ def test_resize(target, dev):
         ]
         input_names = ["X", "roi", "scales"]
 
-        # if scales == []:
-        #    input_names.append("")
-        # else:
-        #    input_names.append("scales")
-        #    nodes.append(make_constant_node("scales", onnx.TensorProto.FLOAT, (len(scales),), scales))
         if oshape != []:
             nodes.append(
                 make_constant_node("sizes", onnx.TensorProto.INT64, (len(oshape),), oshape)

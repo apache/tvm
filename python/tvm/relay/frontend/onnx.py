@@ -2728,7 +2728,7 @@ class Resize(OnnxOpConverter):
     def v11_13_common(cls, inputs, size, attr, params):
         """
         Resize v11 and Resize v13 are identical except in how
-        they handle passing in scale and size. This utility
+        they handle the passing of scale and size. This utility
         provides the implementation for both
         """
         ndims = len(infer_shape(inputs[0]))
