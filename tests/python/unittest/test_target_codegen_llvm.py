@@ -885,5 +885,21 @@ def test_llvm_import():
     check_llvm(use_file=False)
 
 
+@tvm.testing.requires_llvm
+def test_llvm_scalar_concat():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.decl_buffer((1,), "int32x2")
+    s = tvm.tir.Shuffle([x, y], [0, 1])
+    f = tvm.tir.PrimFunc([x, y, z], z.vstore(0, s))
+
+    mod = tvm.ir.IRModule.from_expr(f.with_attr("global_symbol", "codegen_scalar_concat"))
+
+    # This will crash in LLVM codegen if CodeGenLLVM::CreateVecConcat doesn't convert
+    # scalars to single-lane LLVM vectors.
+    with tvm.transform.PassContext(config={"tir.disable_assert": True}):
+        m = tvm.build(mod, [x, y, z], target="llvm")
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
