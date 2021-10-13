@@ -29,17 +29,30 @@ from tests.python.relay.aot.aot_test_utils import (
 
 @tvm.testing.requires_corstone300
 @pytest.mark.parametrize(
-    "data_shape_nhwc, kernel_size, num_filter, strides, padding",
+    "data_shape_nhwc, kernel_size, num_filter, strides, padding, dilation",
     [
-        ((1, 32, 32, 1), (3, 3), 12, 1, 0),
-        ((1, 32, 10, 3), (3, 3), 16, 1, 0),
-        ((1, 49, 10, 1), (10, 4), 64, (2, 1), (4, 1, 5, 1)),
+        ((1, 32, 32, 1), (3, 3), 12, 1, 0, 1),
+        ((1, 32, 10, 3), (3, 3), 16, 1, 0, 1),
+        ((1, 49, 10, 1), (10, 4), 64, (2, 1), (4, 1, 5, 1), 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0), 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0, 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, 0, 1),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (0, 2, 2, 0), 2),
+        ((1, 32, 32, 16), (3, 3), 16, 1, (1, 1, 2, 2), 2),
         # TOFIX: https://github.com/apache/tvm/issues/9226
-        # ((1, 49, 10, 1), (10, 4), 64, (2, 2), (4, 1, 5, 1)),
+        # ((1, 49, 10, 1), (10, 4), 64, (2, 2), (4, 1, 5, 1), 1),
+        # ((4, 16, 16, 8), (5, 5), 8, 2, (0, 4, 4, 0), 1),
+        # ((4, 16, 16, 8), (5, 5), 16, 2, (0, 4, 4, 0), 1),
+        # ((4, 16, 16, 8), (5, 5), 8, 2, 0, 1),
+        # ((4, 16, 16, 8), (5, 5), 16, 2, 0, 1),
+        # ((1, 16, 16, 8), (3, 3), 16, 2, (0, 0, 1, 1), 1),
+        # ((1, 16, 16, 8), (3, 3), 16, 2, (1, 1, 2, 2), 1),
+        # ((1, 16, 16, 8), (5, 5), 16, 2, (3, 3, 2, 2), 1),
+        # ((1, 16, 16, 8), (3, 3), 16, 2, (0, 1, 2, 3), 1),
     ],
 )
 @pytest.mark.parametrize("dtype", ["int8", "int16"])
-def test_conv2d(data_shape_nhwc, kernel_size, num_filter, strides, padding, dtype):
+def test_conv2d(data_shape_nhwc, kernel_size, num_filter, strides, padding, dilation, dtype):
     """Test a subgraph with a single conv2d operator."""
     ishape = data_shape_nhwc
     wshape = (*kernel_size, data_shape_nhwc[-1], num_filter)
@@ -54,6 +67,7 @@ def test_conv2d(data_shape_nhwc, kernel_size, num_filter, strides, padding, dtyp
         kernel_size=kernel_size,
         strides=strides,
         padding=padding,
+        dilation=(dilation, dilation),
         data_layout="NHWC",
         kernel_layout="HWIO",
         out_dtype="int32",
@@ -69,6 +83,7 @@ def test_conv2d(data_shape_nhwc, kernel_size, num_filter, strides, padding, dtyp
         kernel_size=kernel_size,
         strides=strides,
         padding=padding,
+        dilation=(dilation, dilation),
         data_layout="NHWC",
         kernel_layout="HWOI",
         out_dtype="int32",
