@@ -92,22 +92,28 @@ def lower(
     simple_mode: bool = False,
 ) -> IRModule:
     """Lowering step before build into target.
+
     Parameters
     ----------
     inp : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule]
         The TE schedule or TensorIR PrimFunc/IRModule to be built
+
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function for TE schedule.
+
         It should be None if we want to lower TensorIR.
     name : str
         The name of the result function.
+
     binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the Tensor to Buffer which specified the data layout
         requirement of the function. By default, a new compact buffer is created
         for each tensor in the argument.
+
     simple_mode : bool
         Whether only output simple and compact statement, this will skip
         LoopPartition, api wrapper generation and Unrolling.
+
     Returns
     -------
     m : IRModule
@@ -132,15 +138,19 @@ def build(
 ):
     """Build a function with arguments as signature. Code will be generated
     for devices coupled with target information.
+
     Parameters
     ----------
     inputs : Union[tvm.te.schedule.Schedule,
         tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
+
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function.
+
     target : Optional[Union[str, Target]]
         The target and option of the compilation.
+
     target_host : Optional[Union[str, Target]]
         Host compilation target, if target is device.
         When TVM compiles device specific program such as CUDA,
@@ -149,21 +159,27 @@ def build(
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
         otherwise a stackvm interpreter is used.
+
     name : Optional[str]
         The name of result function.
+
     binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
+
     Returns
     -------
     ret : tvm.module
         A module that combines both host and device code.
+
     Examples
     ________
     There are two typical example uses of this function depending on the type
     of the argument `inputs`:
     1. it is an IRModule.
+
     .. code-block:: python
+
         n = 2
         A = te.placeholder((n,), name='A')
         B = te.placeholder((n,), name='B')
@@ -171,8 +187,11 @@ def build(
         s = tvm.te.create_schedule(C.op)
         m = tvm.lower(s, [A, B, C], name="test_add")
         rt_mod = tvm.build(m, target="llvm")
+
     2. it is a dict of compilation target to IRModule.
+
     .. code-block:: python
+
         n = 2
         A = te.placeholder((n,), name='A')
         B = te.placeholder((n,), name='B')
@@ -183,11 +202,11 @@ def build(
           m1 = tvm.lower(s1, [A, B, C], name="test_add1")
           m2 = tvm.lower(s2, [A, B, C], name="test_add2")
           rt_mod = tvm.build({"llvm": m1, "cuda": m2}, target_host="llvm")
+
     Note
     ----
     See the note on :any:`tvm.target` on target string format.
     """
-
     if isinstance(inputs, schedule.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
