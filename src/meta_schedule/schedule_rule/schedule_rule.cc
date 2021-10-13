@@ -30,20 +30,6 @@ ScheduleRule ScheduleRule::PyScheduleRule(
   return ScheduleRule(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<ScheduleRuleNode>();
-      ICHECK(self);
-      p->stream << "ScheduleRule()";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PyScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<PyScheduleRuleNode>();
-      ICHECK(self);
-      p->stream << "PyScheduleRule()";
-    });
-
 TVM_REGISTER_OBJECT_TYPE(ScheduleRuleNode);
 TVM_REGISTER_NODE_TYPE(PyScheduleRuleNode);
 

@@ -18,9 +18,11 @@
 from typing import Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object
+from tvm._ffi.registry import register_func
 from tvm.runtime import Object
 from tvm.tir.schedule import Trace
 
+from ..utils import _get_hex_address
 from .. import _ffi_api
 
 if TYPE_CHECKING:
@@ -57,9 +59,6 @@ class Mutator(Object):
         """
         return _ffi_api.MutatorApply(self, trace)
 
-    def __str__(self) -> str:
-        return "Mutator()"
-
 
 @register_object("meta_schedule.PyMutator")
 class PyMutator(Mutator):
@@ -87,4 +86,9 @@ class PyMutator(Mutator):
         raise NotImplementedError
 
     def __str__(self) -> str:
-        return "PyMutator()"
+        return f"PyMutator({_get_hex_address(self.handle)})"
+
+
+@register_func("meta_schedule.mutator.py_mutator._f_as_string")
+def _f_as_string(mutator: Mutator) -> str:
+    return mutator.__str__()

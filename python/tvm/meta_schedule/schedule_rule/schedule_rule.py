@@ -63,9 +63,6 @@ class ScheduleRule(Object):
         """
         return _ffi_api.ScheduleRuleApply(self, schedule, block)
 
-    def __str__(self) -> str:
-        return "ScheduleRule()"
-
 
 @register_object("meta_schedule.PyScheduleRule")
 class PyScheduleRule(ScheduleRule):
@@ -91,6 +88,3 @@ class PyScheduleRule(ScheduleRule):
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
         raise NotImplementedError
-
-    def __str__(self) -> str:
-        return "PyScheduleRule()"

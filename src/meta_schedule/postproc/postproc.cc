@@ -31,17 +31,16 @@ Postproc Postproc::PyPostproc(
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PostprocNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<PostprocNode>();
-      ICHECK(self);
-      p->stream << "Postproc()";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyPostprocNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyPostprocNode>();
       ICHECK(self);
-      p->stream << "PyPostproc()";
+      std::string func_name = "meta_schedule.postproc.py_postproc._f_as_string";
+      const auto* f_as_string = tvm::runtime::Registry::Get(func_name);
+      ICHECK(f_as_string) << "AttributeError: \"" << func_name
+                          << "\" is not registered. "
+                             "Please check if the python module is properly loaded";
+      std::string ret = (*f_as_string)(n);
+      p->stream << ret;
     });
 
 TVM_REGISTER_OBJECT_TYPE(PostprocNode);

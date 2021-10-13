@@ -18,9 +18,10 @@
 
 from typing import TYPE_CHECKING
 
-from tvm._ffi import register_object
+from tvm._ffi import register_object, register_func
 from tvm.runtime import Object
 from tvm.tir.schedule import Schedule
+from tvm.meta_schedule.utils import _get_hex_address
 
 from .. import _ffi_api
 
@@ -66,9 +67,6 @@ class Postproc(Object):
         """
         return _ffi_api.PostprocApply(self, sch)
 
-    def __str__(self) -> str:
-        return "Postproc()"
-
 
 @register_object("meta_schedule.PyPostproc")
 class PyPostproc(Postproc):
@@ -95,5 +93,10 @@ class PyPostproc(Postproc):
     def apply(self, sch: Schedule) -> bool:
         raise NotImplementedError
 
-    def __str__(self) -> str:
-        return "PyPostproc()"
+    def __strx__(self) -> str:
+        return f"PyXXXXPostproc({_get_hex_address(self.handle)})"
+
+
+@register_func("meta_schedule.postproc.py_postproc._f_as_string")
+def _f_as_string(postproc: Postproc) -> str:
+    return postproc.__strx__()

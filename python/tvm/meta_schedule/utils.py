@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utilities for meta schedule"""
+import ctypes
+from ctypes import c_void_p
 import json
 import os
 import shutil
@@ -60,8 +62,7 @@ def cpu_count(logical: bool = True) -> int:
 
 
 def get_global_func_with_default_on_worker(
-    name: Union[None, str, Callable],
-    default: Callable,
+    name: Union[None, str, Callable], default: Callable,
 ) -> Callable:
     """Get the registered global function on the worker process.
 
@@ -97,9 +98,7 @@ def get_global_func_with_default_on_worker(
 
 
 def get_global_func_on_rpc_session(
-    session: RPCSession,
-    name: str,
-    extra_error_msg: Optional[str] = None,
+    session: RPCSession, name: str, extra_error_msg: Optional[str] = None,
 ) -> PackedFunc:
     """Get a PackedFunc from the global registry from an RPCSession.
 
@@ -205,3 +204,19 @@ def structural_hash(mod: IRModule) -> str:
         # but ffi can't handle unsigned integers properly so it's parsed into a negative number
         shash += 1 << 64
     return str(shash)
+
+
+def _get_hex_address(handle: c_void_p) -> str:
+    """Get the hexadecimal address of a handle.
+
+    Parameters
+    ----------
+    handle : c_void_p
+        The handle to be converted.
+    
+    Returns
+    -------
+    result : str
+        The hexadecimal address of the handle.
+    """
+    return hex(ctypes.cast(handle, ctypes.c_void_p).value)

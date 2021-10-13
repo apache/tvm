@@ -20,5 +20,5 @@ Meta Schedule search strategy utilizes the design spaces given
 to generate measure candidates.
 """
 
-from .search_strategy import Mutator, PyMutator, SearchStrategy, PySearchStrategy
+from .search_strategy import SearchStrategy, PySearchStrategy
 from .replay_trace import ReplayTrace

@@ -64,70 +64,6 @@ class MeasureCandidate(Object):
         )
 
 
-@register_object("meta_schedule.Mutator")
-class Mutator(Object):
-    """Mutator is designed to mutate the trace to explore the design space."""
-
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
-        """Initialize the mutator with a tune context.
-
-        Parameters
-        ----------
-        tune_context : TuneContext
-            The tuning context for initializing the design space generator.
-        """
-        _ffi_api.MutatorInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
-            self, tune_context
-        )
-
-    def apply(self, trace: Trace) -> Optional[Trace]:
-        """Apply the mutator function to the given trace.
-
-        Parameters
-        ----------
-        trace : Trace
-            The given trace for mutation.
-
-        Returns
-        -------
-        trace : Optional[Trace]
-            None if mutator failed, otherwise return the mutated trace.
-        """
-        return _ffi_api.MutatorApply(self, trace)
-
-    def __str__(self) -> str:
-        return "Mutator()"
-
-
-@register_object("meta_schedule.PyMutator")
-class PyMutator(Mutator):
-    """An abstract mutator with customized methods on the python-side."""
-
-    def __init__(self):
-        """Constructor."""
-
-        def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
-            self.initialize_with_tune_context(tune_context)
-
-        def f_apply(self, trace: Trace) -> Optional[Trace]:
-            return self.apply(trace)
-
-        self.__init_handle_by_constructor__(
-            _ffi_api.MutatorPyMutator,  # type: ignore # pylint: disable=no-member
-            f_initialize_with_tune_context,
-            f_apply,
-        )
-
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
-        raise NotImplementedError
-
-    def apply(self, trace: Trace) -> Optional[Trace]:
-        raise NotImplementedError
-
-    def __str__(self) -> str:
-        return "PyMutator()"
-
-
 @register_object("meta_schedule.SearchStrategy")
 class SearchStrategy(Object):
     """
@@ -135,7 +71,7 @@ class SearchStrategy(Object):
     before usage and post-tuned after usage.
     """
 
-    def initialize_with_tune_context(self, tune_context: "TuneContext",) -> None:
+    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
         """Initialize the search strategy with tuning context.
 
         Parameters

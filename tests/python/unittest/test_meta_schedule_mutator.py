@@ -18,12 +18,15 @@
 
 from typing import List, Optional
 
+import re
+
 import tvm
 from tvm.ir.base import assert_structural_equal
 from tvm.script import tir as T
 
 from tvm.meta_schedule.mutator import PyMutator
 from tvm.meta_schedule import TuneContext
+from tvm.meta_schedule.utils import _get_hex_address
 from tvm.tir.schedule import Schedule, Trace
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
@@ -58,8 +61,12 @@ def test_meta_schedule_mutator():
                 trace = None
             return trace
 
+        def __str__(self) -> str:
+            return f"TestMutator({_get_hex_address(self.handle)})"
+
     mutator = TestMutator()
-    assert str(mutator) == "PyMutator()"
+    pattern = re.compile("TestMutator\(0x[a-f|0-9]*\)")
+    assert pattern.match(str(mutator))
     sch = Schedule(Matmul)
     res = mutator.apply(sch.trace)
     assert res is not None

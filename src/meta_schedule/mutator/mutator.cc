@@ -30,17 +30,16 @@ Mutator Mutator::PyMutator(PyMutatorNode::FInitializeWithTuneContext f_initializ
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<MutatorNode>([](const ObjectRef& n, ReprPrinter* p) {
-      const auto* self = n.as<MutatorNode>();
-      ICHECK(self);
-      p->stream << "Mutator()";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyMutatorNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyMutatorNode>();
       ICHECK(self);
-      p->stream << "PyMutator()";
+      std::string func_name = "meta_schedule.mutator.py_mutator._f_as_string";
+      const auto* f_as_string = tvm::runtime::Registry::Get(func_name);
+      ICHECK(f_as_string) << "AttributeError: \"" << func_name
+                          << "\" is not registered. "
+                             "Please check if the python module is properly loaded";
+      std::string ret = (*f_as_string)(n);
+      p->stream << ret;
     });
 
 TVM_REGISTER_OBJECT_TYPE(MutatorNode);

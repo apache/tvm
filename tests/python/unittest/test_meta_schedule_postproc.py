@@ -15,17 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-
-from typing import List, Optional
-
 import math
+import re
 
 import tvm
 from tvm.script import tir as T
 
 from tvm.meta_schedule.postproc import PyPostproc
 from tvm.meta_schedule import TuneContext
-from tvm.tir.schedule import Schedule, Trace
+from tvm.meta_schedule.utils import _get_hex_address
+
+from tvm.tir.schedule import Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
@@ -64,9 +64,6 @@ def schedule_matmul(sch: Schedule):
 
 def test_meta_schedule_postproc():
     class TestPostproc(PyPostproc):
-        def initialize_with_tune_context(self, tune_context: TuneContext) -> None:
-            pass
-
         def apply(self, sch: Schedule) -> bool:
             try:
                 schedule_matmul(sch)
@@ -74,8 +71,14 @@ def test_meta_schedule_postproc():
             except:
                 return False
 
+        def __strx__(self) -> str:
+            return f"TestPostproc({_get_hex_address(self.handle)})"
+
     postproc = TestPostproc()
-    assert str(postproc) == "PyPostproc()"
+    print(type(postproc))
+    print(postproc)
+    pattern = re.compile("TestPostproc\(0x[a-f|0-9]*\)")
+    assert pattern.match(str(postproc))
     sch = Schedule(Matmul)
     new_sch = sch.copy()
     assert postproc.apply(sch)
