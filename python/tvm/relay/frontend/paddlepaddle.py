@@ -1083,7 +1083,6 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
         The relay module for compilation
 
     params : dict of str to tvm.nd.NDArray
-
     """
 
     import paddle
