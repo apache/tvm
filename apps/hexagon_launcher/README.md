@@ -19,9 +19,7 @@
 ## Compilation
 
 The launcher consists of two parts: part running on Hexagon, and part running
-on Android. They need to be compiled separately. Since some source files are
-shared between these two parts, make sure to delete all object files between
-compilations. Compile the Hexagon code first.
+on Android. Each component must be compiled separately. 
 
 The supported Snapdragon architectures are 855, 865, and 888.
 
@@ -33,7 +31,46 @@ The supported Snapdragon architectures are 855, 865, and 888.
 Android NDK can be downloaded from https://developer.android.com/ndk.
 Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
 
-### Compilation of the Hexagon part
+### Compilation with TVM
+
+Building the Hexagon launcher application as a component of the main TVM build
+used for Hexagon codegen can be achieved by setting `USE_HEXAGON_LAUNCHER=ON`.
+This option will compile core tvm, the android launcher binary and its corresponding
+tvm_runtime, as well as the Hexagon launcher shared library and its corresponding
+tvm_runtime. As described in the [Manual compilation](#Manual compilation) section 
+each component requires Hexagon and android dependencies. When building the launcher 
+along with TVM these configurations must be providing when invoking cmake. A minimal 
+example invocation for compiling TVM along with the Hexagon launcher is included below,
+
+```
+cmake -DCMAKE_MAKE_PROGRAM=make \
+      -DCMAKE_C_COMPILER=clang \
+      -DCMAKE_CXX_COMPILER=clang++ \
+      -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
+      -DCMAKE_CXX_STANDARD=14 \
+      -DUSE_LLVM=/path/to/hexagon/llvm/bin/llvm-config \
+      -DUSE_HEXAGON_LAUNCHER=ON \
+      -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
+      -DANDROID_PLATFORM=android-28 \
+      -DANDROID_ABI=arm64-v8a \
+      -DUSE_HEXAGON_ARCH=v68 \
+      -DUSE_HEXAGON_SDK=/path/to/hexagon/SDK \
+      -DUSE_HEXAGON_TOOLCHAIN=/path/to/hexagon/Toolchain/ ..
+```
+
+The Hexagon launcher application is an android binary and thus requires the use 
+of an android toolchain for compilation. Similarly, the Hexagon tvm runtime 
+requires the use of the Hexagon toolchain and depends on the Hexagon SDK. The 
+resulting hexagon launcher binaries can be found in the `launcher` subdirectory 
+of the cmake build directory. 
+
+### Manual compilation
+
+Since some source files are shared between the Hexagon and android builds, 
+make sure to delete all object files between compilations. Compile the Hexagon
+code first.
+
+#### Compilation of the Hexagon part
 
 1. Build the static version of TVM runtime for Hexagon. Use Hexagon clang
    from the Hexagon SDK. This step is the same as building the shared version,
@@ -55,7 +92,7 @@ Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
 
 3. Run `make`. This will create `liblauncher_rpc_skel.so`.
 
-### Compilation of the Android part
+#### Compilation of the Android part
 
 1. Build TVM runtime for Android, using clang for AArch64 from the Android
    NDK. Unlike in the Hexagon case, this should be the dynamic library (which
