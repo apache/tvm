@@ -1,21 +1,21 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:38+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/reference/langref/relay_op.rst:19
 msgid "Relay Core Tensor Operators"
@@ -23,18 +23,17 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:21
 msgid ""
-"This page contains the list of core tensor operator primitives pre-"
-"defined in tvm.relay. The core tensor operator primitives cover typical "
-"workloads in deep learning. They can represent workloads in front-end "
-"frameworks and provide basic building blocks for optimization. Since deep"
-" learning is a fast evolving field, it is possible to have operators that"
-" are not in here."
+"This page contains the list of core tensor operator primitives pre-defined "
+"in tvm.relay. The core tensor operator primitives cover typical workloads in"
+" deep learning. They can represent workloads in front-end frameworks and "
+"provide basic building blocks for optimization. Since deep learning is a "
+"fast evolving field, it is possible to have operators that are not in here."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:29
 msgid ""
-"This document will directly list the function signature of these "
-"operators in the python frontend."
+"This document will directly list the function signature of these operators "
+"in the python frontend."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:34
@@ -334,7 +333,8 @@ msgid ":obj:`tvm.relay.nn.lrn <tvm.relay.nn.lrn>`"
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
-msgid "This operator takes data as input and does local response normalization."
+msgid ""
+"This operator takes data as input and does local response normalization."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
@@ -422,6 +422,7 @@ msgid ":obj:`tvm.relay.nn.leaky_relu <tvm.relay.nn.leaky_relu>`"
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
+#: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ""
 "This operator takes data as input and does Leaky version of a Rectified "
 "Linear Unit."
@@ -491,6 +492,7 @@ msgstr ""
 msgid ":obj:`tvm.relay.sign <tvm.relay.sign>`"
 msgstr ""
 
+#: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Compute element-wise absolute of data."
 msgstr ""
@@ -603,9 +605,9 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
+#: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ""
-"Return a scalar value array with the same shape and type as the input "
-"array."
+"Return a scalar value array with the same shape and type as the input array."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
@@ -960,8 +962,8 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ""
-"Return a scalar value array with the same type, broadcast to the provided"
-" shape."
+"Return a scalar value array with the same type, broadcast to the provided "
+"shape."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:179
@@ -993,7 +995,8 @@ msgid "Image resize3d operator."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
-msgid ":obj:`tvm.relay.image.crop_and_resize <tvm.relay.image.crop_and_resize>`"
+msgid ""
+":obj:`tvm.relay.image.crop_and_resize <tvm.relay.image.crop_and_resize>`"
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
@@ -1009,7 +1012,8 @@ msgid "Morphological Dilation 2D."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
-msgid ":obj:`tvm.relay.vision.multibox_prior <tvm.relay.vision.multibox_prior>`"
+msgid ""
+":obj:`tvm.relay.vision.multibox_prior <tvm.relay.vision.multibox_prior>`"
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
@@ -1070,8 +1074,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:206
 msgid ""
-"This level support backpropagation of broadcast operators. It is "
-"temporary."
+"This level support backpropagation of broadcast operators. It is temporary."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
@@ -1128,8 +1131,8 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ""
-"Annotates an expression with the device type on which its result should "
-"be stored."
+"Annotates an expression with the device type on which its result should be "
+"stored."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
@@ -1138,8 +1141,8 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ""
-"Reshapes the input array where the special values are inferred from right"
-" to left."
+"Reshapes the input array where the special values are inferred from right to"
+" left."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
@@ -1148,8 +1151,8 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ""
-"Sets all elements outside the expected length of the sequence to a "
-"constant value."
+"Sets all elements outside the expected length of the sequence to a constant "
+"value."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
@@ -1161,7 +1164,8 @@ msgid "Compute batch matrix multiplication of `tensor_a` and `tensor_b`."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
-msgid ":obj:`tvm.relay.nn.adaptive_max_pool2d <tvm.relay.nn.adaptive_max_pool2d>`"
+msgid ""
+":obj:`tvm.relay.nn.adaptive_max_pool2d <tvm.relay.nn.adaptive_max_pool2d>`"
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
@@ -1169,7 +1173,8 @@ msgid "2D adaptive max pooling operator."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
-msgid ":obj:`tvm.relay.nn.adaptive_avg_pool2d <tvm.relay.nn.adaptive_avg_pool2d>`"
+msgid ""
+":obj:`tvm.relay.nn.adaptive_avg_pool2d <tvm.relay.nn.adaptive_avg_pool2d>`"
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
@@ -1182,8 +1187,8 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ""
-"Returns a one-hot tensor where the locations repsented by indices take "
-"value on_value, other locations take value off_value."
+"Returns a one-hot tensor where the locations repsented by indices take value"
+" on_value, other locations take value off_value."
 msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:227
@@ -1209,4 +1214,3 @@ msgstr ""
 #: ../../_staging/reference/langref/relay_op.rst:235:<autosummary>:1
 msgid "Quantized 2D convolution."
 msgstr ""
-

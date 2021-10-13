@@ -1,21 +1,25 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:33+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:4
 msgid ""
@@ -30,8 +34,8 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:14
 msgid ""
-"**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_,"
-"             `Chengfan Jia <https://github.com/jcf94/>`_"
+"**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_,             "
+"`Chengfan Jia <https://github.com/jcf94/>`_"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:16
@@ -44,8 +48,8 @@ msgid ""
 "which relies on manual templates to define the search space, the auto-"
 "scheduler does not require any templates. Users only need to write the "
 "computation declaration without any schedule commands or templates. The "
-"auto-scheduler can automatically generate a large search space and find a"
-" good schedule in the space."
+"auto-scheduler can automatically generate a large search space and find a "
+"good schedule in the space."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:24
@@ -54,9 +58,9 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:26
 msgid ""
-"Note that this tutorial will not run on Windows or recent versions of "
-"macOS. To get it to run, you will need to wrap the body of this tutorial "
-"in a :code:`if __name__ == \"__main__\":` block."
+"Note that this tutorial will not run on Windows or recent versions of macOS."
+" To get it to run, you will need to wrap the body of this tutorial in a "
+":code:`if __name__ == \"__main__\":` block."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:48
@@ -66,8 +70,8 @@ msgstr ""
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:49
 msgid ""
 "To begin with, let us define the computation of a convolution layer. The "
-"function should return the list of input/output tensors. From these "
-"tensors, the auto-scheduler can get the whole computational graph."
+"function should return the list of input/output tensors. From these tensors,"
+" the auto-scheduler can get the whole computational graph."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:75
@@ -75,7 +79,8 @@ msgid "Create the search task"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:76
-msgid "We then create a search task for the last convolution layer in the resnet."
+msgid ""
+"We then create a search task for the last convolution layer in the resnet."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:100
@@ -86,7 +91,7 @@ msgstr ""
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:458
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:720
 msgid "Out:"
-msgstr ""
+msgstr "输出:"
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:116
 msgid ""
@@ -96,9 +101,9 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:119
 msgid ""
-":code:`measure_ctx` launches a different process for measurement to "
-"provide isolation. It can protect the master process from GPU crashes "
-"during measurement and avoid other runtime conflicts."
+":code:`measure_ctx` launches a different process for measurement to provide "
+"isolation. It can protect the master process from GPU crashes during "
+"measurement and avoid other runtime conflicts."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:122
@@ -110,17 +115,17 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:125
 msgid ""
-":code:`num_measure_trials` is the number of measurement trials we can use"
-" during the search. We only make 10 trials in this tutorial for a fast "
-"demonstration. In practice, 1000 is a good value for the search to "
-"converge. You can do more trials according to your time budget."
+":code:`num_measure_trials` is the number of measurement trials we can use "
+"during the search. We only make 10 trials in this tutorial for a fast "
+"demonstration. In practice, 1000 is a good value for the search to converge."
+" You can do more trials according to your time budget."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:128
 msgid ""
-"In addition, we use :code:`RecordToFile` to dump measurement records into"
-" a file `conv2d.json`. The measurement records can be used to query the "
-"history best, resume the search, and do more analyses later."
+"In addition, we use :code:`RecordToFile` to dump measurement records into a "
+"file `conv2d.json`. The measurement records can be used to query the history"
+" best, resume the search, and do more analyses later."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:131
@@ -135,8 +140,8 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:163
 msgid ""
-"Now we get all inputs ready. Pretty simple, isn't it? We can kick off the"
-" search and let the auto-scheduler do its magic. After some measurement "
+"Now we get all inputs ready. Pretty simple, isn't it? We can kick off the "
+"search and let the auto-scheduler do its magic. After some measurement "
 "trials, we can load the best schedule from the log file and apply it."
 msgstr ""
 
@@ -161,24 +166,24 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:434
 msgid ""
-"During the search, all measurement records are dumped into the record "
-"file \"conv2d.json\". The measurement records can be used to re-apply "
-"search results, resume the search, and perform other analyses."
+"During the search, all measurement records are dumped into the record file "
+"\"conv2d.json\". The measurement records can be used to re-apply search "
+"results, resume the search, and perform other analyses."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:438
 msgid ""
-"Here is an example where we load the best schedule from a file, print the"
-" equivalent python schedule API and CUDA source code. They can be used "
-"for debugging and learning the behavior of the auto-scheduler."
+"Here is an example where we load the best schedule from a file, print the "
+"equivalent python schedule API and CUDA source code. They can be used for "
+"debugging and learning the behavior of the auto-scheduler."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:684
 msgid ""
-"A more complicated example is to resume the search. In this case, we need"
-" to create the search policy and cost model by ourselves and resume the "
-"status of search policy and cost model with the log file. In the example "
-"below we resume the status and do more 5 trials."
+"A more complicated example is to resume the search. In this case, we need to"
+" create the search policy and cost model by ourselves and resume the status "
+"of search policy and cost model with the log file. In the example below we "
+"resume the status and do more 5 trials."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:735
@@ -198,6 +203,7 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_conv2d_layer_cuda.rst:763
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

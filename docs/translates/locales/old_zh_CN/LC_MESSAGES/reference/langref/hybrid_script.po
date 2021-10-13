@@ -1,21 +1,25 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# 长德 司, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:38+0000\n"
+"Last-Translator: 长德 司, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:21
 msgid "Hybrid Frontend Language Reference"
@@ -33,36 +37,35 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:30
 msgid "Features"
-msgstr ""
+msgstr "特性"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:33
 msgid "Software Emulation"
-msgstr ""
+msgstr "软件仿真"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:35
 msgid ""
-"Both software emulation and compilation are supported. To define a "
-"function, you need to use ``tvm.te.hybrid.script`` decorator to indicate "
-"this is a hybrid function:"
+"Both software emulation and compilation are supported. To define a function,"
+" you need to use ``tvm.te.hybrid.script`` decorator to indicate this is a "
+"hybrid function:"
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:52
 msgid ""
-"This decorator will import `Keywords`_ required spontaneously when "
-"software emulation. After software emulation is done, the imported "
-"keywords will be cleaned up. Users do not need worry about keyword "
-"conflict and pollution."
+"This decorator will import `Keywords`_ required spontaneously when software "
+"emulation. After software emulation is done, the imported keywords will be "
+"cleaned up. Users do not need worry about keyword conflict and pollution."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:56
 msgid ""
-"Every element passed for software emulation in the argument list is "
-"either a python variable or ``numpy`` numeric type."
+"Every element passed for software emulation in the argument list is either a"
+" python variable or ``numpy`` numeric type."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:60
 msgid "Backend Compilation"
-msgstr ""
+msgstr "后端编译"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:62
 msgid ""
@@ -73,8 +76,8 @@ msgstr ""
 #: ../../_staging/reference/langref/hybrid_script.rst:72
 msgid ""
 "If we pass these tvm data structures, like ``Tensor``, ``Var``, "
-"``Expr.*Imm``, or ``tvm.container.Array``, to this function, it returns a"
-" op node:"
+"``Expr.*Imm``, or ``tvm.container.Array``, to this function, it returns a op"
+" node:"
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:81
@@ -90,55 +93,56 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:88
 msgid ""
-"Follow up the example above, you can use some tvm like interfaces to tune"
-" the code:"
+"Follow up the example above, you can use some tvm like interfaces to tune "
+"the code:"
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:97
 msgid ""
 "For now, you can use loop annotations (``unroll``, ``parallel``, "
-"``vectorize``, and ``bind``), loop manipulation (``split`` and ``fuse``),"
-" and ``reorder``."
+"``vectorize``, and ``bind``), loop manipulation (``split`` and ``fuse``), "
+"and ``reorder``."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:102
 msgid ""
 "This is a preliminary function, so users should be in charge of the "
-"correctness of the functionality after tuning. Specifically, users should"
-" be careful when fusing and reorderding imperfect loops."
+"correctness of the functionality after tuning. Specifically, users should be"
+" careful when fusing and reorderding imperfect loops."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:107
 msgid "Loops"
-msgstr ""
+msgstr "循环"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:109
 msgid ""
 "In HalideIR, loops have in total 4 types: ``serial``, ``unrolled``, "
 "``parallel``, and ``vectorized``."
 msgstr ""
+"在 HalideIR 中，循环共有 4 种类型：``serial``, ``unrolled``, ``parallel``, and "
+"``vectorized``。"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:111
 msgid ""
 "Here we use ``range`` aka ``serial``, ``unroll``, ``parallel``, and "
-"``vectorize``, these **4** keywords to annotate the corresponding types "
-"of for loops. The the usage is roughly the same as Python standard "
-"``range``."
+"``vectorize``, these **4** keywords to annotate the corresponding types of "
+"for loops. The the usage is roughly the same as Python standard ``range``."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:115
 msgid ""
-"Besides all the loop types supported in Halide, ``const_range`` is "
-"supported for some specific conditions. Sometimes, "
-"``tvm.container.Array`` is desired to pass as an argument, but in TVM-"
-"HalideIR, there is no such support that converts ``tvm.container.Array`` "
-"to an ``Expr``. Thus, a limited feature is supported. Users can access "
-"containers by either constants or constants loops annotated."
+"Besides all the loop types supported in Halide, ``const_range`` is supported"
+" for some specific conditions. Sometimes, ``tvm.container.Array`` is desired"
+" to pass as an argument, but in TVM-HalideIR, there is no such support that "
+"converts ``tvm.container.Array`` to an ``Expr``. Thus, a limited feature is "
+"supported. Users can access containers by either constants or constants "
+"loops annotated."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:131
 msgid "Variables"
-msgstr ""
+msgstr "变量"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:133
 msgid ""
@@ -148,8 +152,8 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:138
 msgid ""
-"Unlike conventional Python, in hybrid script, the declared variable can "
-"only be used in the scope level it is declared."
+"Unlike conventional Python, in hybrid script, the declared variable can only"
+" be used in the scope level it is declared."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:144
@@ -160,13 +164,13 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:158
 msgid "Attributes"
-msgstr ""
+msgstr "属性"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:160
 msgid ""
-"So far, ONLY tensors' ``shape`` and ``dtype`` attribute are supported! "
-"The ``shape`` attribute is essentially a tuple, so you MUST access it as "
-"an array. Currently, only constant-indexed access is supported."
+"So far, ONLY tensors' ``shape`` and ``dtype`` attribute are supported! The "
+"``shape`` attribute is essentially a tuple, so you MUST access it as an "
+"array. Currently, only constant-indexed access is supported."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:173
@@ -179,13 +183,13 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:188
 msgid "Math Intrinsics"
-msgstr ""
+msgstr "数学内在函数"
 
 #: ../../_staging/reference/langref/hybrid_script.rst:190
 msgid ""
 "So far, these math intrinsics, ``log``, ``exp``, ``sigmoid``, ``tanh``, "
-"``power``, and ``popcount``, are supported. No import is required, just "
-"as it is mentioned in `Software Emulation`_, just use it!"
+"``power``, and ``popcount``, are supported. No import is required, just as "
+"it is mentioned in `Software Emulation`_, just use it!"
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:195
@@ -198,8 +202,8 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:199
 msgid ""
-"Use a function call ``allocation(shape, type, share/local)`` to declare "
-"an array buffer. The basic usage is roughly the same as a normal "
+"Use a function call ``allocation(shape, type, share/local)`` to declare an "
+"array buffer. The basic usage is roughly the same as a normal "
 "``numpy.array``, and you should access high-dim array in ``a[i, j, k]`` "
 "fashion instead of ``a[i][j][k]``, even for ``tvm.container.Array`` for "
 "compilation."
@@ -219,15 +223,15 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:220
 msgid ""
-"Assert statement is supported, you can simply use it as it is in standard"
-" Python."
+"Assert statement is supported, you can simply use it as it is in standard "
+"Python."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:228
 msgid ""
-"``Assert`` is NOT a function call. Users are encouraged to use assert in "
-"the way presented above --- condition followed by message. It fits both "
-"Python AST and HalideIR."
+"``Assert`` is NOT a function call. Users are encouraged to use assert in the"
+" way presented above --- condition followed by message. It fits both Python "
+"AST and HalideIR."
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:232
@@ -242,8 +246,8 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:234
 msgid ""
-"Math keywords: ``log``, ``exp``, ``sqrt``, ``rsqrt``, ``sigmoid``, "
-"``tanh``, ``power``, ``popcount``, ``round``, ``ceil_div``"
+"Math keywords: ``log``, ``exp``, ``sqrt``, ``rsqrt``, ``sigmoid``, ``tanh``,"
+" ``power``, ``popcount``, ``round``, ``ceil_div``"
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:235
@@ -252,12 +256,10 @@ msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:236
 msgid ""
-"Data type keywords: ``uint8``, ``uint16``, ``uint32``, ``uint64``, "
-"``int8``, ``int16``, ``int32``, ``int64``, ``float16``, ``float32``, "
-"``float64``"
+"Data type keywords: ``uint8``, ``uint16``, ``uint32``, ``uint64``, ``int8``,"
+" ``int16``, ``int32``, ``int64``, ``float16``, ``float32``, ``float64``"
 msgstr ""
 
 #: ../../_staging/reference/langref/hybrid_script.rst:237
 msgid "Others: ``max_num_threads``"
 msgstr ""
-

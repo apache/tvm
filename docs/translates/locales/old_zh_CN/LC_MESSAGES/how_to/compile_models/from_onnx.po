@@ -1,148 +1,171 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
+# jshmsjh, 2021
+# JiaKui Hu, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:31+0000\n"
+"Last-Translator: JiaKui Hu, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:4
 msgid ""
-"Click :ref:`here <sphx_glr_download_how_to_compile_models_from_onnx.py>` "
-"to download the full example code"
+"Click :ref:`here <sphx_glr_download_how_to_compile_models_from_onnx.py>` to "
+"download the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:11
 msgid "Compile ONNX Models"
-msgstr ""
+msgstr "编译 ONNX 模型"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:12
 msgid "**Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_"
-msgstr ""
+msgstr "**Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:14
-msgid "This article is an introductory tutorial to deploy ONNX models with Relay."
-msgstr ""
+msgid ""
+"This article is an introductory tutorial to deploy ONNX models with Relay."
+msgstr "本文是使用 Realy 部署 ONNX 模型的介绍性教程。"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:16
 msgid "For us to begin with, ONNX package must be installed."
-msgstr ""
+msgstr "首先，我们必须安装 ONNX。"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:18
 msgid "A quick solution is to install protobuf compiler, and"
-msgstr ""
+msgstr "一种简单的解决方案是安装  protobuf compiler，"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:24
 msgid "or please refer to official site. https://github.com/onnx/onnx"
-msgstr ""
+msgstr "或者参考官方网站。 https://github.com/onnx/onnx"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:44
 msgid "Load pretrained ONNX model"
-msgstr ""
+msgstr "加载预训练的 ONNX 模型"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:45
 msgid ""
-"The example super resolution model used here is exactly the same model in"
-" onnx tutorial "
-"http://pytorch.org/tutorials/advanced/super_resolution_with_caffe2.html "
-"we skip the pytorch model construction part, and download the saved onnx "
-"model"
+"The example super resolution model used here is exactly the same model in "
+"onnx tutorial "
+"http://pytorch.org/tutorials/advanced/super_resolution_with_caffe2.html we "
+"skip the pytorch model construction part, and download the saved onnx model"
 msgstr ""
+"这里使用的样例超分辨率模型与 onnx 教程中的模型完全相同 "
+"http://pytorch.org/tutorials/advanced/super_resolution_with_caffe2.html "
+"。我们跳过 pytorch 模型构建部分，下载并保存 onnx 模型"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:71
 msgid "Load a test image"
-msgstr ""
+msgstr "加载一张测试图片"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:72
 msgid ""
-"A single cat dominates the examples! This model takes a single input "
-"image of size 224x224 and outputs a scaled image that is 3x greater than "
-"the input along each axis, a 672x672 image. Re-scale the cat image to fit"
-" this input shape then convert to `YCbCr`. The super resolution model "
-"will then be applied to the luminance (`Y`) channel."
+"A single cat dominates the examples! This model takes a single input image "
+"of size 224x224 and outputs a scaled image that is 3x greater than the input"
+" along each axis, a 672x672 image. Re-scale the cat image to fit this input "
+"shape then convert to `YCbCr`. The super resolution model will then be "
+"applied to the luminance (`Y`) channel."
 msgstr ""
+"样例的主角是只猫！ 该模型获取大小为 224x224 "
+"的单个输入图像，并输出一个缩放图像，该图像比输入的图像大3倍，即672x672图像。重新缩放小猫图片以适合此输入形状，然后转换为 "
+"`YCbCr`。然后将超分辨率模型应用于亮度（`Y`）通道。"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:97
 msgid "Compile the model with relay"
-msgstr ""
+msgstr "通过 Realy 编译模型"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:98
 msgid ""
-"Typically ONNX models mix model input values with parameter values, with "
-"the input having the name `1`. This model dependent, and you should check"
-" with the documentation for your model to determine the full input and "
-"parameter name space."
-msgstr ""
+"Typically ONNX models mix model input values with parameter values, with the"
+" input having the name `1`. This model dependent, and you should check with "
+"the documentation for your model to determine the full input and parameter "
+"name space."
+msgstr "通常 ONNX 模型将模型输入值与参数值混合，输入的名称为\"1\"。您应该检查模型的文档以确定此模型依赖的完整输入和名称空间参数。"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:103
 msgid ""
 "Passing in the shape dictionary to the `relay.frontend.from_onnx` method "
-"tells relay which ONNX parameters are inputs, and which are parameters, "
-"and provides a static definition of the input size."
+"tells relay which ONNX parameters are inputs, and which are parameters, and "
+"provides a static definition of the input size."
 msgstr ""
+"将 shape 以字典传递给 `relay.frontend.from_onnx` 函数，告诉 Realy 哪些 ONNX "
+"参数是输入，哪些是参数，并提供静态定义的输入大小。"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:127
 msgid "Out:"
-msgstr ""
+msgstr "输出:"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:139
 msgid "Execute on TVM"
-msgstr ""
+msgstr "在 TVM 上执行"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:154
 msgid "Display results"
-msgstr ""
+msgstr "显示结果"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:155
 msgid ""
-"We put input and output image neck to neck. The luminance channel, `Y` is"
-" the output from the model. The chroma channels `Cb` and `Cr` are resized"
-" to match with a simple bicubic algorithm. The image is then recombined "
-"and converted back to `RGB`."
+"We put input and output image neck to neck. The luminance channel, `Y` is "
+"the output from the model. The chroma channels `Cb` and `Cr` are resized to "
+"match with a simple bicubic algorithm. The image is then recombined and "
+"converted back to `RGB`."
 msgstr ""
+"我们将输入和输出图像并驾齐驱。亮度通道 `Y` 是模型的输出。色度通道 `Cb` 和 `Cr` "
+"使用一个简单的双三次插值算法来调整大小进行匹配。然后将图像重新组合并转换回 `RGB`。"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:184
 msgid "Notes"
-msgstr ""
+msgstr "特别注意"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:185
 msgid ""
 "By default, ONNX defines models in terms of dynamic shapes. The ONNX "
 "importer retains that dynamism upon import, and the compiler attempts to "
-"convert the model into a static shapes at compile time. If this fails, "
-"there may still be dynamic operations in the model. Not all TVM kernels "
-"currently support dynamic shapes, please file an issue on "
-"discuss.tvm.apache.org if you hit an error with dynamic kernels."
+"convert the model into a static shapes at compile time. If this fails, there"
+" may still be dynamic operations in the model. Not all TVM kernels currently"
+" support dynamic shapes, please file an issue on discuss.tvm.apache.org if "
+"you hit an error with dynamic kernels."
 msgstr ""
+"默认情况下，ONNX 以动态图的方式定义模型。ONNX "
+"导入器在导入时保留了这种动态性，而编译器则试图在编译时将模型转换为静态形状。如果转换失败，则代表模型中可能仍有动态操作。目前并非所有的TVM内核都支持动态形状，如果你在使用动态内核时遇到错误，请在discussion.tvm.apache.org上提交问题。"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:191
 msgid ""
-"This particular model was build using an older version of ONNX. During "
-"the import phase ONNX importer will run the ONNX verifier, which may "
-"throw a `Mismatched attribute type` warning. Because TVM supports a "
-"number of different ONNX versions, the Relay model will still be valid."
+"This particular model was build using an older version of ONNX. During the "
+"import phase ONNX importer will run the ONNX verifier, which may throw a "
+"`Mismatched attribute type` warning. Because TVM supports a number of "
+"different ONNX versions, the Relay model will still be valid."
 msgstr ""
+"这个特定模型是使用旧版本的 ONNX 构建的。 在导入阶段，ONNX 导入器将运行 ONNX 验证器，这可能会抛出“不匹配的属性类型”警告。 由于 "
+"TVM 支持多种 ONNX 版本，因此 Relay 模型仍然有效。"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:209
 msgid ":download:`Download Python source code: from_onnx.py <from_onnx.py>`"
-msgstr ""
+msgstr ":download:`下载 Python 源代码: from_onnx.py <from_onnx.py>`"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:215
-msgid ":download:`Download Jupyter notebook: from_onnx.ipynb <from_onnx.ipynb>`"
-msgstr ""
+msgid ""
+":download:`Download Jupyter notebook: from_onnx.ipynb <from_onnx.ipynb>`"
+msgstr ":download:`下载 Jupyter notebook: from_onnx.ipynb <from_onnx.ipynb>`"
 
 #: ../../_staging/how_to/compile_models/from_onnx.rst:222
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

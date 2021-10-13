@@ -1,21 +1,21 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-09-18 07:44+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/install/nnpack.rst:20
 msgid "NNPACK Contrib Installation"
@@ -23,25 +23,25 @@ msgstr ""
 
 #: ../../_staging/install/nnpack.rst:22
 msgid ""
-"`NNPACK <https://github.com/Maratyszcza/NNPACK>`_ is an acceleration "
-"package for neural network computations, which can run on x86-64, ARMv7, "
-"or ARM64 architecture CPUs. Using NNPACK, higher-level libraries like "
-"_MXNet_ can speed up the execution on multi-core CPU computers, including"
-" laptops and mobile devices."
+"`NNPACK <https://github.com/Maratyszcza/NNPACK>`_ is an acceleration package"
+" for neural network computations, which can run on x86-64, ARMv7, or ARM64 "
+"architecture CPUs. Using NNPACK, higher-level libraries like _MXNet_ can "
+"speed up the execution on multi-core CPU computers, including laptops and "
+"mobile devices."
 msgstr ""
 
 #: ../../_staging/install/nnpack.rst:29
 msgid ""
 "AS TVM already has natively tuned schedules, NNPACK is here mainly for "
-"reference and comparison purpose. For regular use prefer native tuned TVM"
-" implementation."
+"reference and comparison purpose. For regular use prefer native tuned TVM "
+"implementation."
 msgstr ""
 
 #: ../../_staging/install/nnpack.rst:32
 msgid ""
-"TVM supports NNPACK for forward propagation (inference only) in "
-"convolution, max-pooling, and fully-connected layers. In this document, "
-"we give a high level overview of how to use NNPACK with TVM."
+"TVM supports NNPACK for forward propagation (inference only) in convolution,"
+" max-pooling, and fully-connected layers. In this document, we give a high "
+"level overview of how to use NNPACK with TVM."
 msgstr ""
 
 #: ../../_staging/install/nnpack.rst:36
@@ -51,11 +51,11 @@ msgstr ""
 #: ../../_staging/install/nnpack.rst:38
 msgid ""
 "The underlying implementation of NNPACK utilizes several acceleration "
-"methods, including fft and winograd. These algorithms work better on some"
-" special `batch size`, `kernel size`, and `stride` settings than on "
-"other, so depending on the context, not all convolution, max-pooling, or "
-"fully-connected layers can be powered by NNPACK. When favorable "
-"conditions for running NNPACKS are not met,"
+"methods, including fft and winograd. These algorithms work better on some "
+"special `batch size`, `kernel size`, and `stride` settings than on other, so"
+" depending on the context, not all convolution, max-pooling, or fully-"
+"connected layers can be powered by NNPACK. When favorable conditions for "
+"running NNPACKS are not met,"
 msgstr ""
 
 #: ../../_staging/install/nnpack.rst:44
@@ -70,14 +70,14 @@ msgstr ""
 
 #: ../../_staging/install/nnpack.rst:49
 msgid ""
-"If the trained model meets some conditions of using NNPACK, you can build"
-" TVM with NNPACK support. Follow these simple steps:"
+"If the trained model meets some conditions of using NNPACK, you can build "
+"TVM with NNPACK support. Follow these simple steps:"
 msgstr ""
 
 #: ../../_staging/install/nnpack.rst:53
 msgid ""
-"uild NNPACK shared library with the following commands. TVM will link "
-"NNPACK dynamically."
+"uild NNPACK shared library with the following commands. TVM will link NNPACK"
+" dynamically."
 msgstr ""
 
 #: ../../_staging/install/nnpack.rst:55
@@ -116,9 +116,9 @@ msgstr ""
 #: ../../_staging/install/nnpack.rst:82
 msgid ""
 "Note: at least on OS X, running `ninja install` below will overwrite "
-"googletest libraries installed in `/usr/local/lib`. If you build "
-"googletest again to replace the nnpack copy, be sure to pass "
-"`-DBUILD_SHARED_LIBS=ON` to `cmake`."
+"googletest libraries installed in `/usr/local/lib`. If you build googletest "
+"again to replace the nnpack copy, be sure to pass `-DBUILD_SHARED_LIBS=ON` "
+"to `cmake`."
 msgstr ""
 
 #: ../../_staging/install/nnpack.rst:104
@@ -136,4 +136,3 @@ msgstr ""
 #: ../../_staging/install/nnpack.rst:113
 msgid "after configuration use `make` to build TVM"
 msgstr ""
-

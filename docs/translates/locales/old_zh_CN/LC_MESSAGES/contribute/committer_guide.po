@@ -1,21 +1,21 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-09-18 07:41+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/contribute/committer_guide.rst:21
 msgid "Committer Guide"
@@ -23,10 +23,10 @@ msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:22
 msgid ""
-"This is an evolving document to provide some helpful tips for committers."
-" Most of them are lessons learned during development. We welcome every "
-"committer to contribute to this document. See the :ref:`community_guide` "
-"for an overview of the committership and the general development process."
+"This is an evolving document to provide some helpful tips for committers. "
+"Most of them are lessons learned during development. We welcome every "
+"committer to contribute to this document. See the :ref:`community_guide` for"
+" an overview of the committership and the general development process."
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:29
@@ -35,14 +35,15 @@ msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:30
 msgid ""
-"The collective effort of the community moves the project forward and "
-"makes the project awesome for everyone. When we make a decision, it is "
-"always helpful to keep the community in mind. Here are some example "
-"questions that we can ask:"
+"The collective effort of the community moves the project forward and makes "
+"the project awesome for everyone. When we make a decision, it is always "
+"helpful to keep the community in mind. Here are some example questions that "
+"we can ask:"
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:35
-msgid "How can I encourage new contributors to get more involved in the project?"
+msgid ""
+"How can I encourage new contributors to get more involved in the project?"
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:36
@@ -63,10 +64,10 @@ msgstr ""
 msgid ""
 "While private channels such as face to face discussion are useful for "
 "development, they also create barriers for the broader community's "
-"participation. The Apache way of development requires all decisions to be"
-" made in public channels, which are archived and accessible to everyone. "
-"As a result, any contributor can keep up with the development by watching"
-" the archives and join the development anytime."
+"participation. The Apache way of development requires all decisions to be "
+"made in public channels, which are archived and accessible to everyone. As a"
+" result, any contributor can keep up with the development by watching the "
+"archives and join the development anytime."
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:50
@@ -78,15 +79,15 @@ msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:54
 msgid ""
-"When getting a project-related question from a personal channel, "
-"encourage the person to open a public thread in the discuss forum, so "
-"others in the community can benefit from the answer."
+"When getting a project-related question from a personal channel, encourage "
+"the person to open a public thread in the discuss forum, so others in the "
+"community can benefit from the answer."
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:57
 msgid ""
-"After an in-person discussion, send a summary to public channels (as an "
-"RFC or a discuss thread)."
+"After an in-person discussion, send a summary to public channels (as an RFC "
+"or a discuss thread)."
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:62
@@ -95,8 +96,8 @@ msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:64
 msgid ""
-"Here are some tips to shepherd a pull request. You can also take a look "
-"at the :ref:`code_review_guide`."
+"Here are some tips to shepherd a pull request. You can also take a look at "
+"the :ref:`code_review_guide`."
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:67
@@ -115,10 +116,9 @@ msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:71
 msgid ""
-"If the contributor has not requested a reviewer, kindly ask the "
-"contributor to do so. If the PR comes from a new contributor, help the "
-"contributor to request reviewers and ask the contributor to do so next "
-"time."
+"If the contributor has not requested a reviewer, kindly ask the contributor "
+"to do so. If the PR comes from a new contributor, help the contributor to "
+"request reviewers and ask the contributor to do so next time."
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:76
@@ -146,16 +146,16 @@ msgstr ""
 #: ../../_staging/contribute/committer_guide.rst:87
 msgid ""
 "Working on an open source project can be rewarding, but also be a bit "
-"overwhelming sometimes. A little bit of time management might be helpful "
-"to alleviate the problem. For example, some committers have a \"community"
-" day\" in a week when they actively manage outstanding PRs, but watch the"
-" community less frequently in the rest of the time."
+"overwhelming sometimes. A little bit of time management might be helpful to "
+"alleviate the problem. For example, some committers have a \"community day\""
+" in a week when they actively manage outstanding PRs, but watch the "
+"community less frequently in the rest of the time."
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:94
 msgid ""
-"Remember that your merit will never go away, so please take your time and"
-" pace when contributing to the project:)"
+"Remember that your merit will never go away, so please take your time and "
+"pace when contributing to the project:)"
 msgstr ""
 
 #: ../../_staging/contribute/committer_guide.rst:99
@@ -165,8 +165,7 @@ msgstr ""
 #: ../../_staging/contribute/committer_guide.rst:100
 msgid ""
 "Sometimes, we tend to only interact with people we know. However, broad "
-"collaborations are necessary to the success of the project. Try to keep "
-"that in mind, shepherd PRs for, and request code reviews from community "
-"members who you do not interact physically."
+"collaborations are necessary to the success of the project. Try to keep that"
+" in mind, shepherd PRs for, and request code reviews from community members "
+"who you do not interact physically."
 msgstr ""
-

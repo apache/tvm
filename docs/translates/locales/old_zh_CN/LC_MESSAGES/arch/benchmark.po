@@ -1,21 +1,21 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:29+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/arch/benchmark.rst:20
 msgid "Benchmark Performance Log Format"
@@ -56,8 +56,8 @@ msgstr ""
 msgid "notes/justification"
 msgstr ""
 
-#: ../../_staging/arch/benchmark.rst:31 ../../_staging/arch/benchmark.rst:47
-#: ../../_staging/arch/benchmark.rst:49
+#: ../../_staging/arch/benchmark.rst:31 ../../_staging/arch/benchmark.rst:31
+#: ../../_staging/arch/benchmark.rst:47 ../../_staging/arch/benchmark.rst:49
 msgid "workload"
 msgstr ""
 
@@ -82,7 +82,8 @@ msgstr ""
 msgid "compiler"
 msgstr ""
 
-#: ../../_staging/arch/benchmark.rst:35 ../../_staging/arch/benchmark.rst:61
+#: ../../_staging/arch/benchmark.rst:35 ../../_staging/arch/benchmark.rst:35
+#: ../../_staging/arch/benchmark.rst:61
 msgid "hardware"
 msgstr ""
 
@@ -125,7 +126,7 @@ msgid "1572282699.6"
 msgstr ""
 
 #: ../../_staging/arch/benchmark.rst:41 ../../_staging/arch/benchmark.rst:43
-#: ../../_staging/arch/benchmark.rst:45
+#: ../../_staging/arch/benchmark.rst:45 ../../_staging/arch/benchmark.rst:45
 msgid "metadata"
 msgstr ""
 
@@ -219,9 +220,9 @@ msgstr ""
 
 #: ../../_staging/arch/benchmark.rst:57
 msgid ""
-"{\"os\": \"ubuntu:18.04\",\"pip\": { \"docker\": \"4.1.0\", "
-"\"gitpython\": \"3.0.4\", \"numpy\": \"1.17.4\", \"onnx\": \"1.6.0\"}, "
-"“cudnn”: “cudnn-8”, \"cuda_driver”: “480.10.1”}"
+"{\"os\": \"ubuntu:18.04\",\"pip\": { \"docker\": \"4.1.0\", \"gitpython\": "
+"\"3.0.4\", \"numpy\": \"1.17.4\", \"onnx\": \"1.6.0\"}, “cudnn”: “cudnn-8”, "
+"\"cuda_driver”: “480.10.1”}"
 msgstr ""
 
 #: ../../_staging/arch/benchmark.rst:57 ../../_staging/arch/benchmark.rst:59
@@ -249,9 +250,7 @@ msgid "hardware\\_config"
 msgstr ""
 
 #: ../../_staging/arch/benchmark.rst:61
-msgid ""
-"{\"cpu_count\": 16, \"cloud_machine_type\":\"c2-standard-16\", "
-"\"memory_GB\":64}"
+msgid "{\"cpu_count\": 16, \"cloud_machine_type\":\"c2-standard-16\", \"memory_GB\":64}"
 msgstr ""
 
 #: ../../_staging/arch/benchmark.rst:61
@@ -300,14 +299,12 @@ msgstr ""
 
 #: ../../_staging/arch/benchmark.rst:74
 msgid ""
-"Currently we're prototyping benchmark data as JSON objects for "
-"extensibility and convenience, especially in early versions of the "
-"schema. However, as we scale up benchmark aggregation and stabilize "
-"parameters, we anticipate switching to a columnar format, such as Arrow "
-"or Parquet."
+"Currently we're prototyping benchmark data as JSON objects for extensibility"
+" and convenience, especially in early versions of the schema. However, as we"
+" scale up benchmark aggregation and stabilize parameters, we anticipate "
+"switching to a columnar format, such as Arrow or Parquet."
 msgstr ""
 
 #: ../../_staging/arch/benchmark.rst:76
 msgid "Here is sample data encoded as JSON:"
 msgstr ""
-

@@ -1,131 +1,142 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# DH Luo, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:39+0000\n"
+"Last-Translator: DH Luo, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/topic/vta/install.rst:19
 msgid "VTA Installation Guide"
-msgstr ""
+msgstr "VTA安装指南"
 
 #: ../../_staging/topic/vta/install.rst:21
-msgid "We present three installation guides, each extending on the previous one:"
-msgstr ""
+msgid ""
+"We present three installation guides, each extending on the previous one:"
+msgstr "我们提供了三种安装指南，后者依次由前者扩展而来："
 
 #: ../../_staging/topic/vta/install.rst:23
 msgid "`VTA Simulator Installation`_"
-msgstr ""
+msgstr "`VTA模拟器的安装`_"
 
 #: ../../_staging/topic/vta/install.rst:24
 msgid "`Xilinx Pynq FPGA Setup`_"
-msgstr ""
+msgstr "`基于Xilinx Pynq的FPGA开发配置`_"
 
 #: ../../_staging/topic/vta/install.rst:25
 msgid "`Intel DE10 FPGA Setup`_"
-msgstr ""
+msgstr "`基于Intel DE10的FPGA开发配置`_"
 
 #: ../../_staging/topic/vta/install.rst:26
 msgid "`Bitstream Generation with Xilinx Toolchains`_"
-msgstr ""
+msgstr "`使用Xilinx工具链的位流生成`_"
 
 #: ../../_staging/topic/vta/install.rst:27
 msgid "`Bitstream Generation with Intel Toolchains`_"
-msgstr ""
+msgstr "`使用Intel工具链的位流生成`_"
 
 #: ../../_staging/topic/vta/install.rst:31
 msgid "VTA Simulator Installation"
-msgstr ""
+msgstr "VTA模拟器的安装"
 
 #: ../../_staging/topic/vta/install.rst:33
 msgid ""
-"You need `TVM installed "
-"<https://tvm.apache.org/docs/install/index.html>`_ on your machine. For a"
-" quick and easy start, checkout the `Docker Guide "
+"You need `TVM installed <https://tvm.apache.org/docs/install/index.html>`_ "
+"on your machine. For a quick and easy start, checkout the `Docker Guide "
 "<https://tvm.apache.org/docs/install/docker.html>`_."
 msgstr ""
+"在此之前，您需要在设备中`安装TVM <https://tvm.apache.org/docs/install/index.html>`_。您可以参考 "
+"`Docker指南 <https://tvm.apache.org/docs/install/docker.html>`_以进行快速安装。"
 
 #: ../../_staging/topic/vta/install.rst:36
 msgid "You'll need to set the following paths to use VTA:"
-msgstr ""
+msgstr "若要使用VTA，您需要进行以下操作："
 
 #: ../../_staging/topic/vta/install.rst:43
 msgid ""
-"The VTA functional simulation library needs to be enabled when building "
-"TVM."
-msgstr ""
+"The VTA functional simulation library needs to be enabled when building TVM."
+msgstr "在构建TVM时，需要确认VTA功能仿真库处在可用状态。"
 
 #: ../../_staging/topic/vta/install.rst:53
-msgid "Add the VTA python library to your python path to run the VTA examples."
-msgstr ""
+msgid ""
+"Add the VTA python library to your python path to run the VTA examples."
+msgstr "为了运行VTA的示例程序，您需要将VTA的python库添加到您的python路径中。"
 
 #: ../../_staging/topic/vta/install.rst:60
 msgid "Testing your VTA Simulation Setup"
-msgstr ""
+msgstr "测试您的VTA仿真配置"
 
 #: ../../_staging/topic/vta/install.rst:62
 msgid ""
 "To ensure that you've properly installed the VTA python package, run the "
 "following 2D convolution testbench."
-msgstr ""
+msgstr "为了确保您正确地安装了VTA的python包，请运行以下的2D卷积测试平台。"
 
 #: ../../_staging/topic/vta/install.rst:68
 msgid ""
 "You are invited to try out our `VTA programming tutorials "
 "<https://tvm.apache.org/docs/vta/tutorials/index.html>`_."
 msgstr ""
+"我们也欢迎您借助`VTA 编程教程 "
+"<https://tvm.apache.org/docs/vta/tutorials/index.html>`_进行尝试。"
 
 #: ../../_staging/topic/vta/install.rst:70
 msgid ""
 "**Note**: You'll notice that for every convolution layer, the throughput "
 "gets reported in GOPS. These numbers are actually the computational "
-"throughput that the simulator achieves, by evaluating the convolutions in"
-" software."
+"throughput that the simulator achieves, by evaluating the convolutions in "
+"software."
 msgstr ""
+"**注**：您会注意到，每个卷积层的吞吐量都会以GOPS为单位进行报告。这些数字是通过对软件中的卷积进行估计后，所得出的模拟器实际可以达到的计算吞吐量。"
 
 #: ../../_staging/topic/vta/install.rst:73
 msgid "Advanced Configuration (optional)"
-msgstr ""
+msgstr "高级配置（可选）"
 
 #: ../../_staging/topic/vta/install.rst:75
 msgid ""
-"VTA is a generic configurable deep learning accelerator. The "
-"configuration is specified by ``vta_config.json`` under ``3rdparty/vta-"
-"hw/config``. This file provides an architectural specification of the VTA"
-" accelerator to parameterize the TVM compiler stack and the VTA hardware "
-"stack."
+"VTA is a generic configurable deep learning accelerator. The configuration "
+"is specified by ``vta_config.json`` under ``3rdparty/vta-hw/config``. This "
+"file provides an architectural specification of the VTA accelerator to "
+"parameterize the TVM compiler stack and the VTA hardware stack."
 msgstr ""
+"VTA是一种通用可配置的深度学习加速器。在``3rdparty/vta-"
+"hw/config``目录下的``vta_config.json``记录了VTA的相关配置。该文档通过提供VTA加速器的结构规范，以对TVM编译堆栈与VTA硬件堆栈进行参数化处理。"
 
 #: ../../_staging/topic/vta/install.rst:79
 msgid ""
 "The VTA configuration file also specifies the TVM compiler target. When "
 "``TARGET`` is set to ``sim``, all TVM workloads execute on the VTA "
-"simulator. You can modify the content of the configuration file to "
-"rebuild VTA to a different parameterization. To do so,"
+"simulator. You can modify the content of the configuration file to rebuild "
+"VTA to a different parameterization. To do so,"
 msgstr ""
+"VTA的配置文件也指定了TVM的编译目标。当设置``TARGET``为``sim``时，将执行VTA仿真器上的所有TVM工作负载。您也可以修改配置文件的内容，以使用不同的参数重新构建VTA。"
 
 #: ../../_staging/topic/vta/install.rst:94
 msgid "Xilinx Pynq FPGA Setup"
-msgstr ""
+msgstr "基于Xilinx Pynq的FPGA开发配置"
 
 #: ../../_staging/topic/vta/install.rst:96
 msgid ""
-"This second guide extends the *VTA Simulator Installation* guide above to"
-" run FPGA hardware tests of the complete TVM and VTA software-hardware "
-"stack. In terms of hardware components you'll need:"
-msgstr ""
+"This second guide extends the *VTA Simulator Installation* guide above to "
+"run FPGA hardware tests of the complete TVM and VTA software-hardware stack."
+" In terms of hardware components you'll need:"
+msgstr "该指南由以上的*VTA仿真器安装*扩展而来，使您可以在完整的TVM框架与VTA的软、硬件堆栈上运行FPGA的硬件测试程序。"
 
 #: ../../_staging/topic/vta/install.rst:99
 msgid ""
@@ -133,479 +144,555 @@ msgid ""
 "acquired for $200, or $150 for academics from `Digilent "
 "<https://store.digilentinc.com/pynq-z1-python-productivity-for-zynq/>`_."
 msgstr ""
+"FPGA开发板在`Pynq <http://www.pynq.io/>`_售价为$200，学习板在`Digilent "
+"<https://store.digilentinc.com/pynq-z1-python-productivity-for-"
+"zynq/>`_的售价为$150。"
 
 #: ../../_staging/topic/vta/install.rst:100
 msgid ""
 "An Ethernet-to-USB adapter to connect the Pynq board to your development "
 "machine."
-msgstr ""
+msgstr "一个用来连接Pynq板与您的开发设备的以太网-USB转接器。"
 
 #: ../../_staging/topic/vta/install.rst:101
 msgid "An 8+GB micro SD card."
-msgstr ""
+msgstr "一块容量至少为8GB的Micro SD卡。"
 
 #: ../../_staging/topic/vta/install.rst:102
 msgid "An AC to DC 12V 3A power adapter."
-msgstr ""
+msgstr "一个规格为12V 3A的整流器。"
 
 #: ../../_staging/topic/vta/install.rst:104
 msgid "This guide covers the following themes:"
-msgstr ""
+msgstr "该指南包括以下主题："
 
 #: ../../_staging/topic/vta/install.rst:106
 msgid "Pynq board setup instructions."
-msgstr ""
+msgstr "Pynq板的设置说明"
 
 #: ../../_staging/topic/vta/install.rst:107
 msgid "Pynq-side RPC server build and deployment."
-msgstr ""
+msgstr "Pynq-Side RPC服务构建与开发。"
 
 #: ../../_staging/topic/vta/install.rst:108
 msgid ""
-"Revisiting the test examples from the *VTA Simulator Installation* guide,"
-" this time executing on the Pynq board."
-msgstr ""
+"Revisiting the test examples from the *VTA Simulator Installation* guide, "
+"this time executing on the Pynq board."
+msgstr "回顾*VTA仿真器安装*指南中的测试样例，这次我们将在Pynq板上执行这些测试样例。"
 
 #: ../../_staging/topic/vta/install.rst:111
 msgid "Pynq Board Setup"
-msgstr ""
+msgstr "Pynq板的设置"
 
 #: ../../_staging/topic/vta/install.rst:113
 msgid ""
 "Setup your Pynq board based on the `Pynq board getting started tutorial "
 "<http://pynq.readthedocs.io/en/latest/getting_started.html>`_."
 msgstr ""
+"请根据`Pynq板入门教程 "
+"<http://pynq.readthedocs.io/en/latest/getting_started.html>`_来进行Pynq板的设置。"
 
 #: ../../_staging/topic/vta/install.rst:115
 msgid ""
-"You should follow the instructions up to and including the *Turning On "
-"the PYNQ-Z1* step (no need to pursue the tutorial beyond this point)."
-msgstr ""
+"You should follow the instructions up to and including the *Turning On the "
+"PYNQ-Z1* step (no need to pursue the tutorial beyond this point)."
+msgstr "您应该按照说明进行操作，直到*Turning On the PYNQ-Z1*这一步（不必理会这一步之后的内容）。"
 
 #: ../../_staging/topic/vta/install.rst:117
 msgid ""
 "Make sure that you've downloaded the latest Pynq image, `PYNQ-Z1 v2.5 "
-"<http://www.pynq.io/board.html>`_, and have imaged your SD card with it "
-"(we recommend the free `Etcher <https://etcher.io/>`_ program)."
+"<http://www.pynq.io/board.html>`_, and have imaged your SD card with it (we "
+"recommend the free `Etcher <https://etcher.io/>`_ program)."
 msgstr ""
+"请确认您已经下载了最新的Pynq镜像，`PYNQ-Z1 v2.5 "
+"<http://www.pynq.io/board.html>`_，并将其烧写到您的SD卡中（我们推荐免费工具`Etcher "
+"<https://etcher.io/>`_）。"
 
 #: ../../_staging/topic/vta/install.rst:118
 msgid ""
 "For this test setup, follow the `\"Connect to a Computer\" "
 "<https://pynq.readthedocs.io/en/latest/getting_started/pynq_z1_setup.html>`_"
-" Ethernet setup instructions. To be able to talk to the board, make sure "
-"to `assign your computer a static IP address "
-"<https://pynq.readthedocs.io/en/latest/appendix.html#assign-your-"
-"computer-a-static-ip>`_"
+" Ethernet setup instructions. To be able to talk to the board, make sure to "
+"`assign your computer a static IP address "
+"<https://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a"
+"-static-ip>`_"
 msgstr ""
+"对于该测试设置，请参考`\"Connect to a Computer\" "
+"<https://pynq.readthedocs.io/en/latest/getting_started/pynq_z1_setup.html>`_中的以太网设置说明。关于如何连接到开发板，请参考`assign"
+" your computer a static IP address "
+"<https://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a"
+"-static-ip>`_"
 
 #: ../../_staging/topic/vta/install.rst:120
 msgid ""
-"Once the board is powered on and connected to your development machine, "
-"try connecting to it to make sure you've properly set up your Pynq board:"
-msgstr ""
+"Once the board is powered on and connected to your development machine, try "
+"connecting to it to make sure you've properly set up your Pynq board:"
+msgstr "一旦开发板启动成功，并且接到了您的开发设备上，请尝试连接开发板，以确认您已经正确地进行了设置。"
 
 #: ../../_staging/topic/vta/install.rst:128
 msgid "Pynq-Side RPC Server Build & Deployment"
-msgstr ""
+msgstr "Pynq-Side RPC服务构建与开发"
 
 #: ../../_staging/topic/vta/install.rst:130
 msgid ""
 "Because the direct board-to-computer connection prevents the board from "
-"directly accessing the internet, we'll need to mount the Pynq's file "
-"system to your development machine's file system with `sshfs "
-"<https://www.digitalocean.com/community/tutorials/how-to-use-sshfs-to-"
-"mount-remote-file-systems-over-ssh>`_. Next we directly clone the TVM "
-"repository into the sshfs mountpoint on your development machine."
+"directly accessing the internet, we'll need to mount the Pynq's file system "
+"to your development machine's file system with `sshfs "
+"<https://www.digitalocean.com/community/tutorials/how-to-use-sshfs-to-mount-"
+"remote-file-systems-over-ssh>`_. Next we directly clone the TVM repository "
+"into the sshfs mountpoint on your development machine."
 msgstr ""
+"因为开发板与计算机直接相连，可以防止开发板直接访问互联网，所以我们需要参考`sshfs "
+"<https://www.digitalocean.com/community/tutorials/how-to-use-sshfs-to-mount-"
+"remote-file-systems-over-"
+"ssh>`_，将Pynq的系统文件安装到您的开发设备的系统文件中。接下来，我们将把TVM库直接复制到您开发设备的sshfs安装目录里。"
 
 #: ../../_staging/topic/vta/install.rst:143
 msgid ""
-"Now that we've cloned the VTA repository in the Pynq's file system, we "
-"can ssh into it and launch the build of the TVM-based RPC server. The "
-"build process should take roughly 5 minutes."
-msgstr ""
+"Now that we've cloned the VTA repository in the Pynq's file system, we can "
+"ssh into it and launch the build of the TVM-based RPC server. The build "
+"process should take roughly 5 minutes."
+msgstr "由于已经将VTA库复制到了Pynq的系统文件里，我们可以使用ssh远程连接并启动基于TVM的RPC服务构建程序。这个过程大概需要5分钟。"
 
 #: ../../_staging/topic/vta/install.rst:166
 msgid ""
-"You should see the following being displayed when starting the RPC "
-"server. In order to run the next examples, you'll need to leave the RPC "
-"server running in an ``ssh`` session."
-msgstr ""
+"You should see the following being displayed when starting the RPC server. "
+"In order to run the next examples, you'll need to leave the RPC server "
+"running in an ``ssh`` session."
+msgstr "在启动RPC服务时，您应该能看到程序显示的以下内容。为了执行下一个样例，您需要让RPC服务在后台作为``ssh``会话并保持运行。"
 
 #: ../../_staging/topic/vta/install.rst:173
 msgid "Tips regarding the Pynq RPC Server:"
-msgstr ""
+msgstr "关于Pynq RPC服务的注意事项："
 
 #: ../../_staging/topic/vta/install.rst:175
 msgid ""
 "The RPC server should be listening on port ``9091``. If not, an earlier "
-"process might have terminated unexpectedly and it's recommended in this "
-"case to just reboot the Pynq, and re-run the RPC server."
-msgstr ""
+"process might have terminated unexpectedly and it's recommended in this case"
+" to just reboot the Pynq, and re-run the RPC server."
+msgstr "RPC服务应该配置在``9091``端口上。否则，之前的进程可能会意外终止。遇到这种情况时，推荐重新启动Pynq，并重新运行RPC服务。"
 
 #: ../../_staging/topic/vta/install.rst:176
 msgid ""
-"To kill the RPC server, just send the ``Ctrl + c`` command. You can re-"
-"run it with ``sudo ./apps/pynq_rpc/start_rpc_server.sh``."
+"To kill the RPC server, just send the ``Ctrl + c`` command. You can re-run "
+"it with ``sudo ./apps/pynq_rpc/start_rpc_server.sh``."
 msgstr ""
+"只需要使用``Ctrl + c``快捷键就可以杀死RPC服务进程。您可以使用``sudo "
+"./apps/pynq_rpc/start_rpc_server.sh``命令来重新启动它。"
 
 #: ../../_staging/topic/vta/install.rst:177
 msgid ""
 "If unresponsive, the board can be rebooted by power-cycling it with the "
 "physical power switch."
-msgstr ""
+msgstr "如果未响应，您可以使用开发板的电源键来重启开发板。"
 
 #: ../../_staging/topic/vta/install.rst:180
 msgid "Testing your Pynq-based Hardware Setup"
-msgstr ""
+msgstr "对基于Pynq的硬件设置进行测试"
 
 #: ../../_staging/topic/vta/install.rst:182
 msgid ""
 "Before running the examples on your development machine, you'll need to "
 "configure your host environment as follows:"
-msgstr ""
+msgstr "在使用您的开发设备运行样例之前，您需要按照以下的步骤设置您的主机环境："
 
 #: ../../_staging/topic/vta/install.rst:191
 msgid ""
-"In addition, you'll need to edit the ``vta_config.json`` file on the host"
-" to indicate that we are targeting the Pynq platform, by setting the "
-"``TARGET`` field to ``\"pynq\"``. > Note: in contrast to our simulation "
-"setup, there are no libraries to compile on the host side since the host "
-"offloads all of the computation to the Pynq board."
+"In addition, you'll need to edit the ``vta_config.json`` file on the host to"
+" indicate that we are targeting the Pynq platform, by setting the ``TARGET``"
+" field to ``\"pynq\"``. > Note: in contrast to our simulation setup, there "
+"are no libraries to compile on the host side since the host offloads all of "
+"the computation to the Pynq board."
 msgstr ""
+"另外，您需要将主机上的``vta_config.json``文件内的``TARGET``值设置为``\"pynq\"``，以表明我们正在指向Pynq平台。"
+" > 注：与仿真器设置相反，由于主机将所有的计算都转移到了Pynq板上，因此主机侧不需要编译任何库。"
 
 #: ../../_staging/topic/vta/install.rst:201
 msgid ""
-"This time again, we will run the 2D convolution testbench. Beforehand, we"
-" need to program the Pynq board FPGA with a VTA bitstream, and build the "
-"VTA runtime via RPC. The following ``test_program_rpc.py`` script will "
-"perform two operations:"
+"This time again, we will run the 2D convolution testbench. Beforehand, we "
+"need to program the Pynq board FPGA with a VTA bitstream, and build the VTA "
+"runtime via RPC. The following ``test_program_rpc.py`` script will perform "
+"two operations:"
 msgstr ""
+"我们将再次运行2D卷积测试平台。在此之前，我们需要使用VTA位流来进行基于Pynq板的FPGA编程,并通过RPC来构建VTA运行库。接下来的 "
+"``test_program_rpc.py``脚本将执行这两种操作。"
 
 #: ../../_staging/topic/vta/install.rst:205
 msgid ""
 "FPGA programming, by downloading a pre-compiled bitstream from a `VTA "
-"bitstream repository <https://github.com/uwsampl/vta-distro>`_ that "
-"matches the default ``vta_config.json`` configuration set by the host, "
-"and sending it over to the Pynq via RPC to program the Pynq's FPGA."
+"bitstream repository <https://github.com/uwsampl/vta-distro>`_ that matches "
+"the default ``vta_config.json`` configuration set by the host, and sending "
+"it over to the Pynq via RPC to program the Pynq's FPGA."
 msgstr ""
+"FPGA编程。在主机对``vta_config.json``配置文件进行设置后，可以从与该配置文件相匹配的VTA位流库`VTA bitstream "
+"repository <https://github.com/uwsampl/vta-distro>`_ "
+"下载经过预编译的位流，并通过RPC将其发送给Pynq，即可实现基于Pynq的FPGA编程。"
 
 #: ../../_staging/topic/vta/install.rst:206
 msgid ""
 "Runtime building on the Pynq, which needs to be run every time the "
 "``vta_config.json`` configuration is modified. This ensures that the VTA "
 "software runtime that generates the accelerator's executable via just-in-"
-"time (JIT) compilation matches the specifications of the VTA design that "
-"is programmed on the FPGA. The build process takes about 30 seconds to "
-"complete so be patient!"
+"time (JIT) compilation matches the specifications of the VTA design that is "
+"programmed on the FPGA. The build process takes about 30 seconds to complete"
+" so be patient!"
 msgstr ""
+"每当对``vta_config.json``配置文件进行修改后，都需要构建Pynq运行库。该操作能确保VTA软件运行库符合基于FPGA编码的VTA设计标准。其中，VTA软件运行库在这里的作用是通过即时编译来生成可用的加速器。稍安勿躁，完成构建过程需要约30秒的时间。"
 
 #: ../../_staging/topic/vta/install.rst:214
 msgid "We are now ready to run the 2D convolution testbench in hardware."
-msgstr ""
+msgstr "现在，我们准备在硬件上运行2D卷积测试平台。"
 
 #: ../../_staging/topic/vta/install.rst:221
 msgid ""
-"The performance metrics measured on the Pynq board will be reported for "
-"each convolutional layer."
-msgstr ""
+"The performance metrics measured on the Pynq board will be reported for each"
+" convolutional layer."
+msgstr "衡量出的Pynq板的性能指标将报告给各卷积层。"
 
 #: ../../_staging/topic/vta/install.rst:223
 msgid ""
 "**Tip**: You can track progress of the FPGA programming and the runtime "
 "rebuilding steps by looking at the RPC server's logging messages in your "
 "Pynq ``ssh`` session."
-msgstr ""
+msgstr "**注**：您可以通过与Pynq相连接的``ssh``会话来查看RPC服务的日志信息，以追踪FPGA编程进度与运行库重构过程。"
 
 #: ../../_staging/topic/vta/install.rst:225
 msgid ""
 "You can also try out our `VTA programming tutorials "
 "<https://tvm.apache.org/docs/vta/tutorials/index.html>`_."
 msgstr ""
+"您也可以使用我们的VTA编程教程`VTA programming tutorials "
+"<https://tvm.apache.org/docs/vta/tutorials/index.html>`_进行练习。"
 
 #: ../../_staging/topic/vta/install.rst:230
 msgid "Intel DE10 FPGA Setup"
-msgstr ""
+msgstr "基于Intel DE10的FPGA开发配置"
 
 #: ../../_staging/topic/vta/install.rst:232
 msgid ""
-"Similar to the Pynq-side setup steps, this third guide bring us the "
-"details on how can we setup up the Linux environment for Intel FPGA "
-"boards like DE10-Nano."
-msgstr ""
+"Similar to the Pynq-side setup steps, this third guide bring us the details "
+"on how can we setup up the Linux environment for Intel FPGA boards like "
+"DE10-Nano."
+msgstr "与Pynq-Side的设置过程类似，该指南将以DE10-Nano为例，指导您在Linux环境下进行Intel的FPGA开发板的相关设置。"
 
 #: ../../_staging/topic/vta/install.rst:234
 msgid ""
-"In terms of hardware components, you would need the `DE10-Nano "
-"Development Kit <https://www.terasic.com.tw/cgi-"
-"bin/page/archive.pl?Language=English&No=1046>`_, which can be acquired "
-"for $130, or $100 for academics from `Terasic "
-"<https://www.terasic.com.tw/>`_. A microSD card would be delivered the "
-"kit. Power cables and USB cables would be included as well. However, an "
-"additional Ethernet cable would be needed to connect the board to LAN."
+"In terms of hardware components, you would need the `DE10-Nano Development "
+"Kit <https://www.terasic.com.tw/cgi-"
+"bin/page/archive.pl?Language=English&No=1046>`_, which can be acquired for "
+"$130, or $100 for academics from `Terasic <https://www.terasic.com.tw/>`_. A"
+" microSD card would be delivered the kit. Power cables and USB cables would "
+"be included as well. However, an additional Ethernet cable would be needed "
+"to connect the board to LAN."
 msgstr ""
+"在硬件方面，您需要一块DE10-Nano开发板，其在`DE10-Nano Development Kit "
+"<https://www.terasic.com.tw/cgi-"
+"bin/page/archive.pl?Language=English&No=1046>`_标价为$130，学习板在`Terasic "
+"<https://www.terasic.com.tw/>`_标价为$100。该套装中还包括Micro-"
+"SD卡、电源线记USB线。然而，您还需要准备一根以太网网线来连接开发板与LAN。"
 
 #: ../../_staging/topic/vta/install.rst:236
 msgid "The rest part of this guide would provide the steps to"
-msgstr ""
+msgstr "在指南的剩余部分，我们将提供执行以下操作的步骤"
 
 #: ../../_staging/topic/vta/install.rst:238
 msgid "Flash the microSD card with latest Angstrom Linux image"
-msgstr ""
+msgstr "将最新版本的Angstrom Linux系统镜像烧录到Micro-SD卡中"
 
 #: ../../_staging/topic/vta/install.rst:239
 msgid "Cross-compilation setup"
-msgstr ""
+msgstr "交叉编译的设置"
 
 #: ../../_staging/topic/vta/install.rst:240
 msgid "Device-side RPC server setup and deployment"
-msgstr ""
+msgstr "设备端RPC服务设置与部署"
 
 #: ../../_staging/topic/vta/install.rst:243
 msgid "DE10-Nano Board Setup"
-msgstr ""
+msgstr "DE10-Nano开发板的设置"
 
 #: ../../_staging/topic/vta/install.rst:245
 msgid ""
-"Before powering up the device, we need to flash the microSD card image "
-"with latest Angstrom Linux image."
-msgstr ""
+"Before powering up the device, we need to flash the microSD card image with "
+"latest Angstrom Linux image."
+msgstr "在启动设备之前，我们需要将最新版本的Angstrom Linux系统镜像烧录到Micro-SD卡中。"
 
 #: ../../_staging/topic/vta/install.rst:248
 msgid "Flash SD Card and Boot Angstrom Linux"
-msgstr ""
+msgstr "Micro-SD卡的烧录与Angstrom Linux系统的装载"
 
 #: ../../_staging/topic/vta/install.rst:250
 msgid ""
-"To flash SD card and boot Linux on DE10-Nano, it is recommended to "
-"navigate to the `Resource <https://www.terasic.com.tw/cgi-"
-"bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4>`_ "
-"tab of the DE10-Nano product page from Terasic Inc. After registration "
-"and login on the webpage, the prebuilt Angstrom Linux image would be "
-"available for downloading and flashing. Specifically, to flash the "
-"downloaded Linux SD card image into your physical SD card:"
+"To flash SD card and boot Linux on DE10-Nano, it is recommended to navigate "
+"to the `Resource <https://www.terasic.com.tw/cgi-"
+"bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4>`_ tab "
+"of the DE10-Nano product page from Terasic Inc. After registration and login"
+" on the webpage, the prebuilt Angstrom Linux image would be available for "
+"downloading and flashing. Specifically, to flash the downloaded Linux SD "
+"card image into your physical SD card:"
 msgstr ""
+"要烧录Micro-SD卡并在DE10-Nano板上装载Linux系统，推荐参考Terasic公司的DE10-Nano产品页下的相关标签`Resource"
+" <https://www.terasic.com.tw/cgi-"
+"bin/page/archive.pl?Language=English&CategoryNo=167&No=1046&PartNo=4>`_。浏览该网页需要先进行登录注册，在这之后就可以下载构建好的Angstrom"
+" Linux系统镜像并进行烧录了。特别要说明的是，关于如何将下载好的Linux Micro-SD卡镜像烧录到您的实体Micro-SD卡中："
 
 #: ../../_staging/topic/vta/install.rst:254
 msgid "First, extract the gzipped archive file."
-msgstr ""
+msgstr "第一步，解压gzip压缩文件。"
 
 #: ../../_staging/topic/vta/install.rst:260
 msgid ""
 "This would produce a single SD card image named ``de10-nano-image-"
-"Angstrom-v2016.12.socfpga-sdimg`` (approx. 2.4 GB), it contains all the "
-"file systems to boot Angstrom Linux."
+"Angstrom-v2016.12.socfpga-sdimg`` (approx. 2.4 GB), it contains all the file"
+" systems to boot Angstrom Linux."
 msgstr ""
+"解压得到一个文件名为``de10-nano-image-Angstrom-v2016.12.socfpga-sdimg``的SD卡镜像（大小约为2.4 "
+"GB），里面包括了装载Angstrom Linux所需要的所有系统文件。"
 
 #: ../../_staging/topic/vta/install.rst:262
 msgid ""
-"Second, plugin a SD card that is ready to flash in your PC, and identify "
-"the device id for the disk with ``fdisk -l``, or ``gparted`` if you feel "
-"better to use GUI. The typical device id for your disk would likely to be"
-" ``/dev/sdb``."
+"Second, plugin a SD card that is ready to flash in your PC, and identify the"
+" device id for the disk with ``fdisk -l``, or ``gparted`` if you feel better"
+" to use GUI. The typical device id for your disk would likely to be "
+"``/dev/sdb``."
 msgstr ""
+"第二步，将预备烧录的SD卡插入到您的计算机中，输入命令``fdisk "
+"-l``来识别其磁盘号，如果您想使用图形用户界面，也可以使用``gparted``命令。SD卡的设备名格式一般类似于 ``/dev/sdb``。"
 
 #: ../../_staging/topic/vta/install.rst:264
 msgid ""
 "Then, flash the disk image into your physical SD card with the following "
 "command:"
-msgstr ""
+msgstr "接下来，请使用以下命令将磁盘镜像烧录至您的实体SD卡中。"
 
 #: ../../_staging/topic/vta/install.rst:271
 msgid ""
-"This would take a few minutes for your PC to write the whole file systems"
-" into the SD card. After this process completes, you are ready to unmount"
-" the SD card and insert it into your DE10-Nano board. Now you can connect"
-" the power cable and serial port to boot the Angstrom Linux."
+"This would take a few minutes for your PC to write the whole file systems "
+"into the SD card. After this process completes, you are ready to unmount the"
+" SD card and insert it into your DE10-Nano board. Now you can connect the "
+"power cable and serial port to boot the Angstrom Linux."
 msgstr ""
+"您的计算机需要几分钟时间将整个文件系统写入SD卡中。在这个过程结束之后，您可以准备卸载SD卡并将其插入到DE10-Nano开发板中。现在您可以连接电源以及串行端口，以装载Angstrom"
+" Linux系统。"
 
 #: ../../_staging/topic/vta/install.rst:275
 msgid ""
 "**Note**: When boot up from the microSD card, you might notice the "
-"incompatibility of the Linux kernel ``zImage`` in the microSD card. In "
-"this case, you might need to build the ``zImage`` file of your own from "
+"incompatibility of the Linux kernel ``zImage`` in the microSD card. In this "
+"case, you might need to build the ``zImage`` file of your own from "
 "`socfpga-4.9.78-ltsi <https://github.com/altera-opensource/linux-"
 "socfpga/tree/socfpga-4.9.78-ltsi>`_ branch of the `linux-socfpga "
 "<https://github.com/altera-opensource/linux-socfpga>`_ repository. For a "
-"quick fix, you can also download a prebuilt version of the ``zImage`` "
-"file `from this link <https://raw.githubusercontent.com/liangfu/de10"
-"-nano-supplement/master/zImage>`_."
+"quick fix, you can also download a prebuilt version of the ``zImage`` file "
+"`from this link <https://raw.githubusercontent.com/liangfu/de10-nano-"
+"supplement/master/zImage>`_."
 msgstr ""
+"**注**：从Micro-SD卡装载系统的时候，可能会发生与Linux内核``zImage``不兼容的问题。出现这种情况时，您可能需要从`linux-"
+"socfpga <https://github.com/altera-opensource/linux-"
+"socfpga>`_库的分支`socfpga-4.9.78-ltsi <https://github.com/altera-opensource"
+"/linux-"
+"socfpga/tree/socfpga-4.9.78-ltsi>`_来重新构建与您的环境相匹配的``zImage``文件。想省事儿的话，也可以从 ` "
+"<https://raw.githubusercontent.com/liangfu/de10-nano-"
+"supplement/master/zImage>`_下载构建好的``zImage``版本。"
 
 #: ../../_staging/topic/vta/install.rst:279
 msgid ""
-"After connecting the usb cables to the DE10-Nano board, power on the "
-"board by connecting the power cable. You may then connect to the serial "
-"port of the device by using ``minicom`` on your host PC:"
-msgstr ""
+"After connecting the usb cables to the DE10-Nano board, power on the board "
+"by connecting the power cable. You may then connect to the serial port of "
+"the device by using ``minicom`` on your host PC:"
+msgstr "在使用USB连接DE10-Nano板后，连接电源并启动开发板。然后您可以使用``minicom``将设备的串行端口连接到您的主机上。"
 
 #: ../../_staging/topic/vta/install.rst:286
 msgid ""
-"The default user name for the device would be ``root``, and the password "
-"is empty for the default user."
-msgstr ""
+"The default user name for the device would be ``root``, and the password is "
+"empty for the default user."
+msgstr "设备的默认用户名为``root``，该用户初始密码为空。"
 
 #: ../../_staging/topic/vta/install.rst:288
 msgid ""
-"You may now start to install supporting Python3 packages (TVM has dropped"
-" the support for Python2), specifically, they are ``numpy``, ``attrs`` "
-"and ``decorator``."
+"You may now start to install supporting Python3 packages (TVM has dropped "
+"the support for Python2), specifically, they are ``numpy``, ``attrs`` and "
+"``decorator``."
 msgstr ""
+"您需要安装支持Python3的包（TVM已经不再支持Python2），特别地，您需要安装的包有``numpy``、``attrs`` "
+"和``decorator``。"
 
 #: ../../_staging/topic/vta/install.rst:290
 msgid ""
 "**Note**: You might fail to install ``numpy`` by using ``pip3`` on the "
-"DE10-Nano device. In that case, you have the option to either build your "
-"own filesystem image for the board from `meta-de10-nano "
+"DE10-Nano device. In that case, you have the option to either build your own"
+" filesystem image for the board from `meta-de10-nano "
 "<https://github.com/intel/meta-de10-nano>`_ repository; an alternative "
-"option is to download prebuilt packages from existing Linux "
-"distributions, e.g. Debian. For a quick fix, we have concatenated the "
-"supplementary binary files `here "
-"<https://raw.githubusercontent.com/liangfu/de10-nano-"
-"supplement/master/rootfs_supplement.tgz>`_, and you can extract the files"
-" into the root filesystem."
+"option is to download prebuilt packages from existing Linux distributions, "
+"e.g. Debian. For a quick fix, we have concatenated the supplementary binary "
+"files `here <https://raw.githubusercontent.com/liangfu/de10-nano-"
+"supplement/master/rootfs_supplement.tgz>`_, and you can extract the files "
+"into the root filesystem."
 msgstr ""
+"**注**：在DE10-Nano设备上您可能无法使用``pip3``成功安装``numpy``。遇到这种情况时，您可以选择通过`meta-"
+"de10-nano <https://github.com/intel/meta-"
+"de10-nano>`_库来构建与您的开发板相匹配的文件系统镜像；您也可以选择从现有的、例如Debian等的Linux发行版本来下载预构建的包。追求速度的话，我们准备了备用的文件`点击此处"
+" <https://raw.githubusercontent.com/liangfu/de10-nano-"
+"supplement/master/rootfs_supplement.tgz>`_，您可以将该文件解压到文件根系统内。"
 
 #: ../../_staging/topic/vta/install.rst:296
 msgid "Install Required Python Packages"
-msgstr ""
+msgstr "安装所需的Python包"
 
 #: ../../_staging/topic/vta/install.rst:298
 msgid ""
 "After accessing bash terminal from the serial port, we need to install "
 "required Python packages before building and installing TVM and VTA "
 "programs."
-msgstr ""
+msgstr "在从串行端口连接bash终端后，要构建安装TVM和VTA程序，必须先安装所需的Python包。"
 
 #: ../../_staging/topic/vta/install.rst:301
 msgid "Build Additional Components to Use VTA Bitstream"
-msgstr ""
+msgstr "构建附加组件以使用VTA位流"
 
 #: ../../_staging/topic/vta/install.rst:303
 msgid ""
-"To use the above built bitstream on DE10-Nano hardware, several "
-"additional components need to be compiled for the system. Specifically, "
-"to compile application executables for the system, you need to download "
-"and install `SoCEDS "
+"To use the above built bitstream on DE10-Nano hardware, several additional "
+"components need to be compiled for the system. Specifically, to compile "
+"application executables for the system, you need to download and install "
+"`SoCEDS "
 "<http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux>`_"
 " (recommended), or alternatively install the ``g++-arm-linux-gnueabihf`` "
-"package on your host machine. You would also need a ``cma`` kernel module"
-" to allocate contigous memory, and a driver for communicating with the "
-"VTA subsystem."
+"package on your host machine. You would also need a ``cma`` kernel module to"
+" allocate contigous memory, and a driver for communicating with the VTA "
+"subsystem."
 msgstr ""
+"您还需要编译几个系统的附加组件，以在DE10-Nano硬件上使用上述构建好的位流。特别地，为了在系统中编译可执行的应用文件，您需要下载并安装`SoCEDS"
+" "
+"<http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux>`_"
+" （推荐），或者您也可以在主机上安装``g++-arm-linux-"
+"gnueabihf``包。您还需要``cma``终端模块以分配相邻内存，以及一个用来连接VTA子系统的驱动。"
 
 #: ../../_staging/topic/vta/install.rst:308
 msgid "Bitstream Generation with Xilinx Toolchains"
-msgstr ""
+msgstr "使用Xilinx工具链的位流生成"
 
 #: ../../_staging/topic/vta/install.rst:310
 msgid ""
 "If you're interested in generating the Xilinx FPGA bitstream on your own "
 "instead of using the pre-built VTA bitstreams, follow the instructions "
 "below."
-msgstr ""
+msgstr "相对于使用预构建的VTA位流，如果您自己对生成Xilinx FPGA位流更感兴趣，请参考以下的说明。"
 
 #: ../../_staging/topic/vta/install.rst:313
 msgid "Xilinx Toolchain Installation"
-msgstr ""
+msgstr "Xilinx工具链的安装"
 
 #: ../../_staging/topic/vta/install.rst:315
 msgid ""
-"We recommend using Vivado 2020.1 since our scripts have been tested to "
-"work on this version of the Xilinx toolchains. Our guide is written for "
-"Linux (Ubuntu) installation."
+"We recommend using Vivado 2020.1 since our scripts have been tested to work "
+"on this version of the Xilinx toolchains. Our guide is written for Linux "
+"(Ubuntu) installation."
 msgstr ""
+"我们推荐使用Vivado "
+"2020.1，因为我们已经使用该版本的Xilinx工具链对我们的脚本进行了有效的测试。我们的指南是默认您在Linux（Ubuntu）环境下进行相关安装操作的。"
 
 #: ../../_staging/topic/vta/install.rst:318
 msgid ""
 "You’ll need to install Xilinx’ FPGA compilation toolchain, `Vivado HL "
-"WebPACK 2020.1 <https://www.xilinx.com/products/design-"
-"tools/vivado.html>`_, which a license-free version of the Vivado HLx "
-"toolchain."
+"WebPACK 2020.1 <https://www.xilinx.com/products/design-tools/vivado.html>`_,"
+" which a license-free version of the Vivado HLx toolchain."
 msgstr ""
+"您需要从如下链接安装Xilinx的FPGA编译工具链，`Vivado HL WebPACK 2020.1 "
+"<https://www.xilinx.com/products/design-tools/vivado.html>`_。这是Vivado HLx "
+"工具链的一个免许可证版本。"
 
 #: ../../_staging/topic/vta/install.rst:321
 msgid "Obtaining and Launching the Vivado GUI Installer"
-msgstr ""
+msgstr "Vivado GUI Installer的获取与启动"
 
 #: ../../_staging/topic/vta/install.rst:323
 msgid ""
 "Go to the `download webpage "
 "<https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav"
-"/vivado-design-tools/2020-1.html>`_, and download the Linux Self "
-"Extracting Web Installer for Vivado HLx 2020.1: WebPACK and Editions."
+"/vivado-design-tools/2020-1.html>`_, and download the Linux Self Extracting "
+"Web Installer for Vivado HLx 2020.1: WebPACK and Editions."
 msgstr ""
+"请访问`download webpage "
+"<https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav"
+"/vivado-design-tools/2020-1.html>`_，下载适用于Vivado HLx 2020.1: WebPACK and "
+"Editions版本的Linux Self Extracting Web Installer。"
 
 #: ../../_staging/topic/vta/install.rst:324
 msgid ""
-"You’ll have to sign in with a Xilinx account. This requires a Xilinx "
-"account creation that will take 2 minutes."
-msgstr ""
+"You’ll have to sign in with a Xilinx account. This requires a Xilinx account"
+" creation that will take 2 minutes."
+msgstr "您需要使用Xilinx账户进行登录。创建Xilinx账户需要大概2分钟的时间。"
 
 #: ../../_staging/topic/vta/install.rst:325
 msgid ""
-"Complete the Name and Address Verification by clicking “Next”, and you "
-"will get the opportunity to download a binary file, called "
+"Complete the Name and Address Verification by clicking “Next”, and you will "
+"get the opportunity to download a binary file, called "
 "``Xilinx_Unified_2020.1_0602_1208_Lin64.bin``."
 msgstr ""
+"点击“Next”来完成姓名与地址认证。接下来您就可以下载一个二进制文件，其文件名为``Xilinx_Unified_2020.1_0602_1208_Lin64.bin``。"
 
 #: ../../_staging/topic/vta/install.rst:326
 msgid ""
 "Now that the file is downloaded, go to your ``Downloads`` directory, and "
 "change the file permissions so it can be executed:"
-msgstr ""
+msgstr "下载完成后，请进入您的下载目录，并修改文件权限以使其可以正常运行。"
 
 #: ../../_staging/topic/vta/install.rst:332
 msgid "Now you can execute the binary:"
-msgstr ""
+msgstr "现在您可以执行该二进制文件了："
 
 #: ../../_staging/topic/vta/install.rst:339
 msgid "Xilinx Vivado GUI Installer Steps"
-msgstr ""
+msgstr "Xilinx Vivado GUI Installer的运行步骤"
 
 #: ../../_staging/topic/vta/install.rst:341
 msgid "At this point you've launched the Vivado 2020.1 Installer GUI program."
-msgstr ""
+msgstr "此时，您已经启动了Vivado 2020.1 Installer GUI程序。"
 
 #: ../../_staging/topic/vta/install.rst:343
 msgid "Click “Next” on the \"Welcome\" screen."
-msgstr ""
+msgstr "在初始界面点击“Next”。"
 
 #: ../../_staging/topic/vta/install.rst:344
 msgid ""
-"On the \"Select Install Type\" screen, enter your Xilinx user credentials"
-" under the “User Authentication” box and select the “Download and Install"
-" Now” option before clicking “Next”."
+"On the \"Select Install Type\" screen, enter your Xilinx user credentials "
+"under the “User Authentication” box and select the “Download and Install "
+"Now” option before clicking “Next”."
 msgstr ""
+"在“选择安装类型”界面，请输入在“User Authentication”框内的用户凭证，在点击下一步前，请记得选择“Download and "
+"Install Now”选项。"
 
 #: ../../_staging/topic/vta/install.rst:345
 msgid ""
 "On the \"Accept License Agreements\" screen, accept all terms before "
 "clicking “Next”."
-msgstr ""
+msgstr "在\"Accept License Agreements\"界面，请同意所有的条款，然后点击“Next”。"
 
 #: ../../_staging/topic/vta/install.rst:346
 msgid ""
-"On the \"Select Edition to Install\" screen, select the “Vivado HL "
-"WebPACK” before clicking “Next”."
-msgstr ""
+"On the \"Select Edition to Install\" screen, select the “Vivado HL WebPACK” "
+"before clicking “Next”."
+msgstr "在\"Select Edition to Install\"界面，选择“Vivado HL WebPACK”，然后点击“Next”。"
 
 #: ../../_staging/topic/vta/install.rst:347
 msgid ""
-"Under the \"Vivado HL WebPACK\" screen, before hitting “Next\", check the"
-" following options (the rest should be unchecked): * Design Tools -> "
-"Vivado Design Suite -> Vivado * Devices -> Production Devices -> SoCs -> "
-"Zynq-7000 (if you are targeting the Pynq board) * Devices -> Production "
-"Devices -> SoCs -> UltraScale+ MPSoC (if you are targeting the Ultra-96 "
-"board)"
+"Under the \"Vivado HL WebPACK\" screen, before hitting “Next\", check the "
+"following options (the rest should be unchecked): * Design Tools -> Vivado "
+"Design Suite -> Vivado * Devices -> Production Devices -> SoCs -> Zynq-7000 "
+"(if you are targeting the Pynq board) * Devices -> Production Devices -> "
+"SoCs -> UltraScale+ MPSoC (if you are targeting the Ultra-96 board)"
 msgstr ""
+"在\"Vivado HL WebPACK\"界面，请检查以下选项（其它选项不要选）：* Design Tools -> Vivado Design "
+"Suite -> Vivado * Devices -> Production Devices -> SoCs -> Zynq-7000 "
+"（如果您正在连接Pynq板） * Devices -> Production Devices -> SoCs -> UltraScale+ MPSoC "
+"（如果您正在连接Ultra-96 板）"
 
 #: ../../_staging/topic/vta/install.rst:351
 msgid ""
-"Your total download size should be about 5GB and the amount of Disk Space"
-" Required 23GB."
-msgstr ""
+"Your total download size should be about 5GB and the amount of Disk Space "
+"Required 23GB."
+msgstr "整个下载文件的体积应该约为5GB，需要23GB的磁盘容量。"
 
 #: ../../_staging/topic/vta/install.rst:352
 msgid ""
@@ -615,261 +702,289 @@ msgid ""
 "directory. In that case select a path that doesn’t require special write "
 "permissions (e.g. your home directory)."
 msgstr ""
+"在\"Select Destination "
+"Directory\"界面，设定安装路径，然后点击“Next”。有些路径可能会被红色高亮——这是因为安装程序在这些路径里没有写权限。遇到这种情况时，请选择那些不需要特殊写权限的路径（如您的主目录）。"
 
 #: ../../_staging/topic/vta/install.rst:353
 msgid "On the \"Installation Summary\" screen, hit “Install”."
-msgstr ""
+msgstr "在\"Installation Summary\"界面，点击“Install”。"
 
 #: ../../_staging/topic/vta/install.rst:354
 msgid ""
 "An \"Installation Progress\" window will pop-up to track progress of the "
 "download and the installation."
-msgstr ""
+msgstr "程序会自动弹出一个\"Installation Progress\"窗口，以追踪下载与安装过程。"
 
 #: ../../_staging/topic/vta/install.rst:355
 msgid ""
 "This process will take about 20-30 minutes depending on your connection "
 "speed."
-msgstr ""
+msgstr "这个过程将持续约20-30分钟，具体取决于您的连接速度。"
 
 #: ../../_staging/topic/vta/install.rst:356
 msgid ""
 "A pop-up window will inform you that the installation completed "
 "successfully. Click \"OK\"."
-msgstr ""
+msgstr "在安装成功完成后，将弹出一个窗口来提示您。点击\"OK\"。"
 
 #: ../../_staging/topic/vta/install.rst:357
 msgid ""
-"Finally the \"Vivado License Manager\" will launch. Select \"Get Free ISE"
-" WebPACK, ISE/Vivado IP or PetaLinux License\" and click \"Connect Now\" "
-"to complete the license registration process."
+"Finally the \"Vivado License Manager\" will launch. Select \"Get Free ISE "
+"WebPACK, ISE/Vivado IP or PetaLinux License\" and click \"Connect Now\" to "
+"complete the license registration process."
 msgstr ""
+"最后，会启动\"Vivado License Manager\"。选择\"Get Free ISE WebPACK, ISE/Vivado IP or "
+"PetaLinux License\"并点击\"Connect Now\"以完成许可的注册。"
 
 #: ../../_staging/topic/vta/install.rst:360
 #: ../../_staging/topic/vta/install.rst:453
 msgid "Environment Setup"
-msgstr ""
+msgstr "环境设置"
 
 #: ../../_staging/topic/vta/install.rst:362
 msgid ""
-"The last step is to update your ``~/.bashrc`` with the following lines. "
-"This will include all of the Xilinx binary paths so you can launch "
-"compilation scripts from the command line."
+"The last step is to update your ``~/.bashrc`` with the following lines. This"
+" will include all of the Xilinx binary paths so you can launch compilation "
+"scripts from the command line."
 msgstr ""
+"最后一步，就是通过以下操作来更新您的 ``~/.bashrc``目录。由于这里面包括了所有的Xilinx "
+"binary路径，所以您可以使用命令行来启动编译脚本。"
 
 #: ../../_staging/topic/vta/install.rst:371
 msgid "HLS-based Custom VTA Bitstream Compilation for Pynq"
-msgstr ""
+msgstr "在Pynq上进行基于HLS修饰的VTA位流编译"
 
 #: ../../_staging/topic/vta/install.rst:373
 msgid ""
-"High-level hardware parameters are listed in the VTA configuration file "
-"and can be customized by the user. For this custom VTA bitstream "
-"compilation exercise, we'll change the frequency of our design, so it can"
-" be clocked a little faster."
-msgstr ""
+"High-level hardware parameters are listed in the VTA configuration file and "
+"can be customized by the user. For this custom VTA bitstream compilation "
+"exercise, we'll change the frequency of our design, so it can be clocked a "
+"little faster."
+msgstr "VTA的设置文件中列出了高级硬件参数，用户可以根据需要进行修改。在该修饰的VTA位流编译练习中，我们将改变我们设计的频率，使其稍微高一些。"
 
 #: ../../_staging/topic/vta/install.rst:376
 msgid ""
-"Set the ``HW_FREQ`` field to ``142``. The Pynq board supports 100, 142, "
-"167 and 200MHz clocks. Note that the higher the frequency, the harder it "
-"will be to close timing. Increasing the frequency can lead to timing "
-"violation and thus faulty hardware execution."
+"Set the ``HW_FREQ`` field to ``142``. The Pynq board supports 100, 142, 167 "
+"and 200MHz clocks. Note that the higher the frequency, the harder it will be"
+" to close timing. Increasing the frequency can lead to timing violation and "
+"thus faulty hardware execution."
 msgstr ""
+"将``HW_FREQ``值设为``142``。Pynq开发板支持100、142、167与200MHz的时钟频率。请注意，频率越高，越难以接近正确时序。提高频率可能会导致时序违例，并导致硬件运行出现错误。"
 
 #: ../../_staging/topic/vta/install.rst:377
 msgid ""
 "Set the ``HW_CLK_TARGET`` to ``6``. This parameters refers to the target "
-"clock period in nano seconds for HLS - a lower clock period leads to more"
-" aggressive pipelining to achieve timing closure at higher frequencies. "
-"Technically a 142MHz clock would require a 7ns target, but we "
-"intentionally lower the clock target to 6ns to more aggressively pipeline"
-" our design."
+"clock period in nano seconds for HLS - a lower clock period leads to more "
+"aggressive pipelining to achieve timing closure at higher frequencies. "
+"Technically a 142MHz clock would require a 7ns target, but we intentionally "
+"lower the clock target to 6ns to more aggressively pipeline our design."
 msgstr ""
+"将``HW_CLK_TARGET``设置为``6``。该参数是以纳秒为单位的HLS的时钟周期。若降低时钟周期，则为了在更高的频率上达到时序收敛，会导致更加激进的流水。从技术上讲，142MHz的时钟频率对应所需的目标值为7纳秒，但我们会特意把时钟目标值降低为6纳秒，以使我们的设计流水更加激进。"
 
 #: ../../_staging/topic/vta/install.rst:379
 msgid ""
 "Bitstream generation is driven by a top-level ``Makefile`` under ``<tvm "
 "root>/3rdparty/vta-hw/hardware/xilinx/``."
 msgstr ""
+"位流的生成是由``<tvm root>/3rdparty/vta-hw/hardware/xilinx/``目录下的顶级``Makefile``驱动的。"
 
 #: ../../_staging/topic/vta/install.rst:381
 msgid ""
-"If you just want to simulate the VTA design in software emulation to make"
-" sure that it is functional, enter:"
-msgstr ""
+"If you just want to simulate the VTA design in software emulation to make "
+"sure that it is functional, enter:"
+msgstr "如果您只是想用软件模拟的方式进行VTA的设计仿真，以证明其有效性，请输入："
 
 #: ../../_staging/topic/vta/install.rst:389
 msgid ""
-"If you just want to generate the HLS-based VTA IP cores without launching"
-" the entire design place and route, enter:"
-msgstr ""
+"If you just want to generate the HLS-based VTA IP cores without launching "
+"the entire design place and route, enter:"
+msgstr "如果您想在不启动整个布局布线设计的情况下生成基于HLS的VTA IP核心，请输入："
 
 #: ../../_staging/topic/vta/install.rst:395
 msgid ""
-"You'll be able to view the HLS synthesis reports under ``<tvm "
-"root>/3rdparty/vta-"
+"You'll be able to view the HLS synthesis reports under ``<tvm root>/3rdparty"
+"/vta-"
 "hw/build/hardware/xilinx/hls/<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt``"
 msgstr ""
+"您可以访问``<tvm root>/3rdparty/vta-"
+"hw/build/hardware/xilinx/hls/<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt``文件，以查看HLS的综合报告。"
 
 #: ../../_staging/topic/vta/install.rst:397
 msgid ""
-"**Note**: The ``<configuration>`` name is a string that summarizes the "
-"VTA configuration parameters listed in the ``vta_config.json``. The "
-"``<block>`` name refers to the specific module (or HLS function) that "
-"compose the high-level VTA pipeline."
+"**Note**: The ``<configuration>`` name is a string that summarizes the VTA "
+"configuration parameters listed in the ``vta_config.json``. The ``<block>`` "
+"name refers to the specific module (or HLS function) that compose the high-"
+"level VTA pipeline."
 msgstr ""
+"**注**：``<configuration>``字符串汇总了``vta_config.json``文件中列出的VTA设置参数。``<block>``指向构成高级VTA流水线的特定模块（或是HLS的函数）。"
 
 #: ../../_staging/topic/vta/install.rst:399
 msgid ""
-"Finally to run the full hardware compilation and generate the VTA "
-"bitstream, run ``make``."
-msgstr ""
+"Finally to run the full hardware compilation and generate the VTA bitstream,"
+" run ``make``."
+msgstr "最后，执行``make``命令，以运行整个硬件编译过程，并生成VTA位流。"
 
 #: ../../_staging/topic/vta/install.rst:401
 msgid ""
 "This process is lengthy, and can take around up to an hour to complete "
 "depending on your machine's specs. We recommend setting the "
-"``VTA_HW_COMP_THREADS`` variable in the Makefile to take full advantage "
-"of all the cores on your development machine."
+"``VTA_HW_COMP_THREADS`` variable in the Makefile to take full advantage of "
+"all the cores on your development machine."
 msgstr ""
+"该过程耗时很长，具体视您的设备配置，一般需要约一个小时的时间。为了能充分使用您开发设备的所有处理器核，我们推荐您对Makefile中的``VTA_HW_COMP_THREADS``变量进行设置。"
 
 #: ../../_staging/topic/vta/install.rst:404
 msgid ""
-"Once the compilation completes, the generated bitstream can be found "
-"under ``<tvm root>/3rdparty/vta-"
+"Once the compilation completes, the generated bitstream can be found under "
+"``<tvm root>/3rdparty/vta-"
 "hw/build/hardware/xilinx/vivado/<configuration>/export/vta.bit``."
 msgstr ""
+"编译过程完成后，生成的位流会保存为``<tvm root>/3rdparty/vta-"
+"hw/build/hardware/xilinx/vivado/<configuration>/export/vta.bit``。"
 
 #: ../../_staging/topic/vta/install.rst:407
 msgid "Using A Custom Bitstream"
-msgstr ""
+msgstr "使用修饰过的位流"
 
 #: ../../_staging/topic/vta/install.rst:409
 msgid ""
-"We can program the new VTA FPGA bitstream by setting the bitstream path "
-"of the ``vta.program_fpga()`` function in the tutorial examples, or in "
-"the ``test_program_rpc.py`` script."
+"We can program the new VTA FPGA bitstream by setting the bitstream path of "
+"the ``vta.program_fpga()`` function in the tutorial examples, or in the "
+"``test_program_rpc.py`` script."
 msgstr ""
+"您可以通过修改教程样例中，或``test_program_rpc.py``脚本中的``vta.program_fpga()``函数，来设置位流的路径，以此编码新的VTA"
+" FPGA位流。"
 
 #: ../../_staging/topic/vta/install.rst:415
 msgid ""
 "Instead of downloading a pre-built bitstream from the VTA bitstream "
-"repository, TVM will instead use the new bitstream you just generated, "
-"which is a VTA design clocked at a higher frequency. Do you observe a "
-"noticeable performance increase on the ImageNet classification example?"
+"repository, TVM will instead use the new bitstream you just generated, which"
+" is a VTA design clocked at a higher frequency. Do you observe a noticeable "
+"performance increase on the ImageNet classification example?"
 msgstr ""
+"TVM会使用您刚刚使用VTA设计并生成的、时钟频率更高的新位流，而不是从VTA位流库下载一个预构建的位流。您注意到它在ImageNet分类任务样例中所带来的明显的性能提升了吗？"
 
 #: ../../_staging/topic/vta/install.rst:421
 msgid "Bitstream Generation with Intel Toolchains"
-msgstr ""
+msgstr "使用Intel工具链的位流生成"
 
 #: ../../_staging/topic/vta/install.rst:423
 msgid ""
 "If you're interested in generating the Xilinx FPGA bitstream on your own "
-"instead of using the pre-built VTA bistreams, follow the instructions "
-"below."
-msgstr ""
+"instead of using the pre-built VTA bistreams, follow the instructions below."
+msgstr "如果比起使用预构建的VTA位流，您对自行生成Xilinx FPGA位流更感兴趣的话，请参考以下的说明。"
 
 #: ../../_staging/topic/vta/install.rst:426
 msgid "Intel Toolchain Installation"
-msgstr ""
+msgstr "Intel工具链的安装"
 
 #: ../../_staging/topic/vta/install.rst:428
 msgid ""
 "It is recommended to use ``Intel Quartus Prime 18.1``, since the test "
 "scripts contained in this document have been tested on this version."
-msgstr ""
+msgstr "我们推荐使用``Intel Quartus Prime 18.1``，文档中出现的所有测试代码都已经使用该版本进行了检验。"
 
 #: ../../_staging/topic/vta/install.rst:430
 msgid ""
-"You would need to install Intel's FPGA compilation toolchain, `Quartus "
-"Prime Lite <http://fpgasoftware.intel.com/?edition=lite>`_, which is a "
-"license-free version of the Intel Quartus Prime software."
+"You would need to install Intel's FPGA compilation toolchain, `Quartus Prime"
+" Lite <http://fpgasoftware.intel.com/?edition=lite>`_, which is a license-"
+"free version of the Intel Quartus Prime software."
 msgstr ""
+"您需要通过以下链接安装Intel的FPGA编译工具链：`Quartus Prime Lite "
+"<http://fpgasoftware.intel.com/?edition=lite>`_，这是Intel Quartus Prime "
+"software的一个免许可证版本。"
 
 #: ../../_staging/topic/vta/install.rst:433
 msgid "Obtaining and Launching the Quartus GUI Installer"
-msgstr ""
+msgstr "Quartus GUI Installer的获取与启动"
 
 #: ../../_staging/topic/vta/install.rst:435
 msgid ""
-"Go to the `download center "
-"<http://fpgasoftware.intel.com/?edition=lite>`_, and download the linux "
-"version of \"Quartus Prime (include Nios II EDS)\" and \"Cyclone V device"
-" support\" files in the \"Separate file\" tab. This avoid downloading "
-"unused device support files."
+"Go to the `download center <http://fpgasoftware.intel.com/?edition=lite>`_, "
+"and download the linux version of \"Quartus Prime (include Nios II EDS)\" "
+"and \"Cyclone V device support\" files in the \"Separate file\" tab. This "
+"avoid downloading unused device support files."
 msgstr ""
+"请访问`download center "
+"<http://fpgasoftware.intel.com/?edition=lite>`_，下载\"Quartus Prime (include "
+"Nios II EDS)\"的Linux版本以及\"Separate file\"标签下的\"Cyclone V device "
+"support\"文件。这可以使您无需下载其他无用的设备支持文件。"
 
 #: ../../_staging/topic/vta/install.rst:436
 msgid ""
-"Sign in the form if you have an account, or register on the right side of"
-" the web page to create an account."
-msgstr ""
+"Sign in the form if you have an account, or register on the right side of "
+"the web page to create an account."
+msgstr "如果您已经拥有了账户，就可以直接填写表格。否则您需要在网页右边的注册栏进行账户注册。"
 
 #: ../../_staging/topic/vta/install.rst:437
 msgid ""
 "After signed in, you are able to download the installer and the device "
 "support files."
-msgstr ""
+msgstr "登录之后，您就可以下载安装文件与设备支持文件。"
 
 #: ../../_staging/topic/vta/install.rst:438
 msgid ""
-"Now that the files are downloaded, go to your ``Downloads`` directory, "
-"and change the file permissions:"
-msgstr ""
+"Now that the files are downloaded, go to your ``Downloads`` directory, and "
+"change the file permissions:"
+msgstr "下载完成后，请进入您的下载目录，并修改文件访问权限："
 
 #: ../../_staging/topic/vta/install.rst:444
 msgid ""
 "Now ensure both the installer and device support files are in the same "
 "directory, and you can run the install with:"
-msgstr ""
+msgstr "现在请确认安装程序与设备支持文件在同一目录下，您可以使用以下的操作进行安装过程："
 
 #: ../../_staging/topic/vta/install.rst:450
 msgid ""
-"Follow the instructions on the pop-up GUI form, and install all the "
-"content in the ``/usr/local`` directory. After installation, "
-"``/usr/local/intelFPGA_lite/18.1`` would be created and the Quartus "
-"program along with other programs would be available in the folder."
+"Follow the instructions on the pop-up GUI form, and install all the content "
+"in the ``/usr/local`` directory. After installation, "
+"``/usr/local/intelFPGA_lite/18.1`` would be created and the Quartus program "
+"along with other programs would be available in the folder."
 msgstr ""
+"请参考弹出的GUI表格所显示的说明，将所有的内容安装至``/usr/local``目录下。在安装完成后，将产生``/usr/local/intelFPGA_lite/18.1``目录，目录内包含Quartus"
+" program等其他的可用程序。"
 
 #: ../../_staging/topic/vta/install.rst:455
 msgid ""
 "Similar to what should be done for Xilinx toolchain, the following line "
 "should be added to your ``~/.bashrc``."
-msgstr ""
+msgstr "和安装Xilinx工具链时的操作类似，您需要在``~/.bashrc``中添加以下几行代码。"
 
 #: ../../_staging/topic/vta/install.rst:464
 msgid ""
-"This would add quartus binary path into your ``PATH`` environment "
-"variable, so you can launch compilation scripts from the command line."
-msgstr ""
+"This would add quartus binary path into your ``PATH`` environment variable, "
+"so you can launch compilation scripts from the command line."
+msgstr "这将把quartus的二进制路径添加到您的``PATH``环境变量中，然后您就可以使用命令行来启动编译脚本了。"
 
 #: ../../_staging/topic/vta/install.rst:467
 msgid "Chisel-based Custom VTA Bitstream Compilation for DE10-Nano"
-msgstr ""
+msgstr "在DE10-Nano上进行基于Chisel修饰的VTA位流编译"
 
 #: ../../_staging/topic/vta/install.rst:469
 msgid ""
-"Similar to the HLS-based design, high-level hardware parameters in "
-"Chisel-based design are listed in the VTA configuration file "
-"`Configs.scala <https://github.com/apache/tvm/blob/main/3rdparty/vta-"
+"Similar to the HLS-based design, high-level hardware parameters in Chisel-"
+"based design are listed in the VTA configuration file `Configs.scala "
+"<https://github.com/apache/tvm/blob/main/3rdparty/vta-"
 "hw/hardware/chisel/src/main/scala/core/Configs.scala>`_, and they can be "
 "customized by the user."
 msgstr ""
+"与基于HLS的设计相似，基于Chisel设计的高级硬件参数都列在了VTA的配置文件`Configs.scala "
+"<https://github.com/apache/tvm/blob/main/3rdparty/vta-"
+"hw/hardware/chisel/src/main/scala/core/Configs.scala>`_中，用户可以自行进行编辑。"
 
 #: ../../_staging/topic/vta/install.rst:471
 msgid ""
-"For Intel FPGA, bitstream generation is driven by a top-level "
-"``Makefile`` under ``<tvm root>/3rdparty/vta-hw/hardware/intel``."
+"For Intel FPGA, bitstream generation is driven by a top-level ``Makefile`` "
+"under ``<tvm root>/3rdparty/vta-hw/hardware/intel``."
 msgstr ""
+"对于Intel的FPGA，``<tvm root>/3rdparty/vta-"
+"hw/hardware/intel``目录下的顶级``Makefile``驱动了位流的生成。"
 
 #: ../../_staging/topic/vta/install.rst:473
 msgid ""
-"If you just want to generate the Chisel-based VTA IP core for the "
-"DE10-Nano board without compiling the design for the FPGA hardware, "
-"enter:"
-msgstr ""
+"If you just want to generate the Chisel-based VTA IP core for the DE10-Nano "
+"board without compiling the design for the FPGA hardware, enter:"
+msgstr "如果您想在不编译FPGA的硬件设计的情况下在DE10-Nano开发板上生成基于Chisel的VTA IP核心，请输入："
 
 #: ../../_staging/topic/vta/install.rst:480
 msgid ""
@@ -877,29 +992,36 @@ msgid ""
 "root>/3rdparty/vta-"
 "hw/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v``."
 msgstr ""
+"然后您可以在 ``<tvm root>/3rdparty/vta-"
+"hw/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v``目录下找到生成的verilog文件。"
 
 #: ../../_staging/topic/vta/install.rst:482
 msgid ""
-"If you would like to run the full hardware compilation for the "
-"``de10nano`` board:"
-msgstr ""
+"If you would like to run the full hardware compilation for the ``de10nano`` "
+"board:"
+msgstr "如果您想在``de10nano``开发板上运行完整的硬件编译程序："
 
 #: ../../_staging/topic/vta/install.rst:488
 msgid ""
-"This process might be a bit lengthy, and might take up to half an hour to"
-" complete depending on the performance of your PC. The Quartus Prime "
-"software would automatically detect the number of cores available on your"
-" PC and try to utilize all of them to perform such process."
+"This process might be a bit lengthy, and might take up to half an hour to "
+"complete depending on the performance of your PC. The Quartus Prime software"
+" would automatically detect the number of cores available on your PC and try"
+" to utilize all of them to perform such process."
 msgstr ""
+"这个过程的耗时很长，视您的计算机配置，可能最长需要约半个小时的时间。Quartus Prime "
+"software会自动探知并使用您计算机所有可用的处理器核来执行该进程。"
 
 #: ../../_staging/topic/vta/install.rst:490
 msgid ""
-"Once the compilation completes, the generated bistream can be found under"
-" ``<tvm root>/3rdparty/vta-"
-"hw/build/hardware/intel/quartus/<configuration>/export/vta.rbf``. You can"
-" also open the Quartus project file (.qpf) available at ``<tvm "
-"root>/3rdparty/vta-"
-"hw/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf`` to "
+"Once the compilation completes, the generated bistream can be found under "
+"``<tvm root>/3rdparty/vta-"
+"hw/build/hardware/intel/quartus/<configuration>/export/vta.rbf``. You can "
+"also open the Quartus project file (.qpf) available at ``<tvm root>/3rdparty"
+"/vta-hw/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf`` to "
 "look around the generated reports."
 msgstr ""
-
+"编译过程完成后，生成的位流会被保存为``<tvm root>/3rdparty/vta-"
+"hw/build/hardware/intel/quartus/<configuration>/export/vta.rbf``。您可以打开``<tvm"
+" root>/3rdparty/vta-"
+"hw/build/hardware/intel/quartus/<configuration>/``路径下的``de10_nano_top.qpf``Quartus"
+" project文件（.qdf），以查找生成报告。"

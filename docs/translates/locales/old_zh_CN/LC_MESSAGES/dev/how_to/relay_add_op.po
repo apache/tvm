@@ -1,25 +1,29 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:30+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:21
 msgid "Adding an Operator to Relay"
-msgstr ""
+msgstr "向 Realy 中添加一个算子"
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:23
 msgid ""
@@ -35,8 +39,8 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:32
 msgid ""
-"Add an attribute node declaring fixed arguments which are known at "
-"compile time"
+"Add an attribute node declaring fixed arguments which are known at compile "
+"time"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:33
@@ -47,8 +51,8 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:34
 msgid ""
-"Use the ``RELAY_REGISTER_OP`` macro in C++ to register the operator's "
-"arity, type, and other hints for the compiler"
+"Use the ``RELAY_REGISTER_OP`` macro in C++ to register the operator's arity,"
+" type, and other hints for the compiler"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:35
@@ -81,8 +85,8 @@ msgstr ""
 msgid ""
 "Attributes are fixed arguments which are supposed to be known at compile "
 "time. The stride and dilation of a convolution operator would be an "
-"appropriate example of fields which might belong in an attribute node for"
-" a convolution operator."
+"appropriate example of fields which might belong in an attribute node for a "
+"convolution operator."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:46
@@ -93,8 +97,8 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:50
 msgid ""
-"Ultimately we want to create an operator whose interface can be seen "
-"clearly in the final python interface:"
+"Ultimately we want to create an operator whose interface can be seen clearly"
+" in the final python interface:"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:79
@@ -115,22 +119,21 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:102
 msgid ""
-"To allow for flexibility in registering operators and greater "
-"expressivity and granularity in expressing types in Relay, operators are "
-"typed using relations between input and output types. These relations are"
-" represented as functions that take in a list of input types and output "
-"types (any of these types may be incomplete) and return a list of input "
-"and output types that satisfies the relation. This includes shape "
-"information which can be determined statically at compile time. "
-"Essentially, a relation for an operator can enforce all the necessary "
-"typing rules (namely by inspecting the input types) in addition to "
-"computing the output type."
+"To allow for flexibility in registering operators and greater expressivity "
+"and granularity in expressing types in Relay, operators are typed using "
+"relations between input and output types. These relations are represented as"
+" functions that take in a list of input types and output types (any of these"
+" types may be incomplete) and return a list of input and output types that "
+"satisfies the relation. This includes shape information which can be "
+"determined statically at compile time. Essentially, a relation for an "
+"operator can enforce all the necessary typing rules (namely by inspecting "
+"the input types) in addition to computing the output type."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:113
 msgid ""
-"Type relation for the cumulative product and sum operators can be found "
-"in ``src/relay/op/tensor/transform.cc``:"
+"Type relation for the cumulative product and sum operators can be found in "
+"``src/relay/op/tensor/transform.cc``:"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:150
@@ -139,10 +142,9 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:152
 msgid ""
-"We then register the name of our new ops and annotate them with the "
-"calling interface. The ``RELAY_REGISTER_OP`` macro in C++ allows a "
-"developer to specify the following information about an operator in "
-"Relay:"
+"We then register the name of our new ops and annotate them with the calling "
+"interface. The ``RELAY_REGISTER_OP`` macro in C++ allows a developer to "
+"specify the following information about an operator in Relay:"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:156
@@ -155,8 +157,8 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:158
 msgid ""
-"Support level (1 indicates an internal intrinsic; higher numbers indicate"
-" less integral or externally supported operators)"
+"Support level (1 indicates an internal intrinsic; higher numbers indicate "
+"less integral or externally supported operators)"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:159
@@ -173,10 +175,9 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:184
 msgid ""
-"In this case the ``TOpPattern`` is a hint to the compiler on the pattern "
-"of computation the operator does, which might be useful for fusing "
-"operators. ``kOpaque`` tells TVM to not bother trying to fuse this "
-"operator."
+"In this case the ``TOpPattern`` is a hint to the compiler on the pattern of "
+"computation the operator does, which might be useful for fusing operators. "
+"``kOpaque`` tells TVM to not bother trying to fuse this operator."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:188
@@ -185,18 +186,18 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:190
 msgid ""
-"While we've now defined the interface for our operations we still need to"
-" define how to perform the actual calculations for cumulative sum and "
+"While we've now defined the interface for our operations we still need to "
+"define how to perform the actual calculations for cumulative sum and "
 "product."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:193
 msgid ""
-"Writing this code is outside the scope of the tutorial. For now, we "
-"assume we have a well tested implementation for the operation's compute. "
-"For more details on how to do this, we recommend looking up the tutorials"
-" on `tensor expressions`_, `TVM's operator inventory (topi)`_ and looking"
-" at the example cumulative sum and product implementations found in "
+"Writing this code is outside the scope of the tutorial. For now, we assume "
+"we have a well tested implementation for the operation's compute. For more "
+"details on how to do this, we recommend looking up the tutorials on `tensor "
+"expressions`_, `TVM's operator inventory (topi)`_ and looking at the example"
+" cumulative sum and product implementations found in "
 "`python/tvm/topi/scan.py`_ and the gpu versions in "
 "`python/tvm/topi/cuda/scan.py`_. In the case of our cumulative sum and "
 "product operations we write things directly in `TIR`_ which is the "
@@ -209,22 +210,21 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:211
 msgid ""
-"After you have implemented your compute function we now need to glue it "
-"to our relay operation. Within TVM this means not only defining the "
-"computation, but also the schedule for an operation. A strategy is a "
-"method which picks which computation and which schedule to use. For "
-"example, for 2D convolutions we might recognize we are doing a depthwise "
-"convolution and dispatch to a more efficient computation and schedule as "
-"a result. In our case however we have no such need except for dispatching"
-" between our CPU and GPU implementations. In "
-"``python/tvm/relay/op/strategy/generic.py`` and "
+"After you have implemented your compute function we now need to glue it to "
+"our relay operation. Within TVM this means not only defining the "
+"computation, but also the schedule for an operation. A strategy is a method "
+"which picks which computation and which schedule to use. For example, for 2D"
+" convolutions we might recognize we are doing a depthwise convolution and "
+"dispatch to a more efficient computation and schedule as a result. In our "
+"case however we have no such need except for dispatching between our CPU and"
+" GPU implementations. In ``python/tvm/relay/op/strategy/generic.py`` and "
 "``python/tvm/relay/op/strategy/cuda.py`` we add the following strategies:"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:277
 msgid ""
-"Where in each strategy we define the compute we wrote and the schedule to"
-" use within ``add_implementation()``. We finally link the strategy and "
+"Where in each strategy we define the compute we wrote and the schedule to "
+"use within ``add_implementation()``. We finally link the strategy and "
 "compute with the defined relay operator in "
 "``python/tvm/relay/op/_transform.py``:"
 msgstr ""
@@ -232,8 +232,8 @@ msgstr ""
 #: ../../_staging/dev/how_to/relay_add_op.rst:302
 msgid ""
 "The shape functions are used for determining output shape given a "
-"dynamically shaped tensor. In this case we tell TVM the output shape will"
-" be the same as the input shape."
+"dynamically shaped tensor. In this case we tell TVM the output shape will be"
+" the same as the input shape."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:306
@@ -242,26 +242,26 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:307
 msgid ""
-"We now have a working operation and now just need to properly call it via"
-" a Relay Call Node. This step requires simply writing a function that "
-"takes the arguments to the operator (as Relay expressions) and returning "
-"a call node to the operator (i.e., the node that should be placed into "
-"the Relay AST where the call to the operator is intended)."
+"We now have a working operation and now just need to properly call it via a "
+"Relay Call Node. This step requires simply writing a function that takes the"
+" arguments to the operator (as Relay expressions) and returning a call node "
+"to the operator (i.e., the node that should be placed into the Relay AST "
+"where the call to the operator is intended)."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:314
 msgid ""
-"At present call attributes and type arguments (the last two fields) are "
-"not supported, so it suffices to use ``Op::Get`` to fetch the operator's "
-"information from the operator registry and pass in the arguments to the "
-"call node, as below. In ``src/relay/op/tensor/transform.cc``:"
+"At present call attributes and type arguments (the last two fields) are not "
+"supported, so it suffices to use ``Op::Get`` to fetch the operator's "
+"information from the operator registry and pass in the arguments to the call"
+" node, as below. In ``src/relay/op/tensor/transform.cc``:"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:343
 msgid ""
-"Where ``TVM_REGISTER_GLOBAL`` exposes the ``MakeCumsum`` and "
-"``MakeCumprod`` functions in Python via ``relay.op._make.cumsum(...)`` "
-"and ``relay.op._make.cumsum(...)``."
+"Where ``TVM_REGISTER_GLOBAL`` exposes the ``MakeCumsum`` and ``MakeCumprod``"
+" functions in Python via ``relay.op._make.cumsum(...)`` and "
+"``relay.op._make.cumsum(...)``."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:347
@@ -278,12 +278,11 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:362
 msgid ""
-"Note that these Python wrappers might also be good opportunities to "
-"provide an easier interface to the operator. For example, the ``concat`` "
-"operator is registered as taking only one operator, namely a tuple with "
-"the tensors to be concatenated, but the Python wrapper takes the tensors "
-"as arguments and combines them into a tuple before producing the call "
-"node:"
+"Note that these Python wrappers might also be good opportunities to provide "
+"an easier interface to the operator. For example, the ``concat`` operator is"
+" registered as taking only one operator, namely a tuple with the tensors to "
+"be concatenated, but the Python wrapper takes the tensors as arguments and "
+"combines them into a tuple before producing the call node:"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:386
@@ -293,8 +292,8 @@ msgstr ""
 #: ../../_staging/dev/how_to/relay_add_op.rst:387
 msgid ""
 "This is self explanatory! Some example unit tests can be found in "
-"`tests/python/relay/test_op_level3.py`_ for our cumulative sum and "
-"product operators."
+"`tests/python/relay/test_op_level3.py`_ for our cumulative sum and product "
+"operators."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:395
@@ -309,15 +308,15 @@ msgstr ""
 msgid ""
 "Gradient operators are important for writing differentiable programs in "
 "Relay. While it is the case that Relay's autodiff algorithm can "
-"differentiate first-class language constructs, operators are opaque. "
-"Because Relay can't look into the implementation, an explicit "
-"differentiation rule must be provided."
+"differentiate first-class language constructs, operators are opaque. Because"
+" Relay can't look into the implementation, an explicit differentiation rule "
+"must be provided."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:406
 msgid ""
-"Both Python and C++ can be used to write gradient operators, but we focus"
-" our examples on Python, as it is more commonly used."
+"Both Python and C++ can be used to write gradient operators, but we focus "
+"our examples on Python, as it is more commonly used."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:410
@@ -333,20 +332,20 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:423
 msgid ""
-"The inputs here are the original operator ``orig`` and a gradient "
-"``grad`` to accumulate into. What we return is a list, where the element "
-"at the i'th index is the derivative of the operator with respect to the "
-"operator's i'th input. In general, the gradient will return a list with "
-"as many elements as there are inputs to the base operator."
+"The inputs here are the original operator ``orig`` and a gradient ``grad`` "
+"to accumulate into. What we return is a list, where the element at the i'th "
+"index is the derivative of the operator with respect to the operator's i'th "
+"input. In general, the gradient will return a list with as many elements as "
+"there are inputs to the base operator."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:429
 msgid ""
 "Before we further analyze this definition, first we should recall the "
 "derivative of the sigmoid function: :math:`\\frac{\\partial "
-"\\sigma}{\\partial x} = \\sigma(x)(1 - \\sigma(x))`. The definition above"
-" looks similar to the mathematical definition, but there is one important"
-" addition, which we describe below."
+"\\sigma}{\\partial x} = \\sigma(x)(1 - \\sigma(x))`. The definition above "
+"looks similar to the mathematical definition, but there is one important "
+"addition, which we describe below."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:435
@@ -355,10 +354,10 @@ msgid ""
 "derivative, because ``orig`` here is the sigmoid function, but we're not "
 "just interested in how to compute the gradient of this function. We're "
 "interested in composing this gradient with other gradients, so we can "
-"accumulate the gradient across an entire program. This is where the "
-"``grad`` term comes in. In the expression ``grad * orig * "
-"(ones_like(orig) - orig)``, multiplying by ``grad`` specifies how to "
-"compose the derivative with the gradient thus far."
+"accumulate the gradient across an entire program. This is where the ``grad``"
+" term comes in. In the expression ``grad * orig * (ones_like(orig) - "
+"orig)``, multiplying by ``grad`` specifies how to compose the derivative "
+"with the gradient thus far."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:443
@@ -368,9 +367,9 @@ msgstr ""
 #: ../../_staging/dev/how_to/relay_add_op.rst:454
 msgid ""
 "In this example, there are two elements in the returned list, because "
-"``multiply`` is a binary operator. And to recall, if :math:`f(x, y) = "
-"xy`, the partial derivatives are :math:`\\frac{\\partial f}{\\partial x} "
-"= y` and :math:`\\frac{\\partial f}{\\partial y} = x`."
+"``multiply`` is a binary operator. And to recall, if :math:`f(x, y) = xy`, "
+"the partial derivatives are :math:`\\frac{\\partial f}{\\partial x} = y` and"
+" :math:`\\frac{\\partial f}{\\partial y} = x`."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:459
@@ -378,9 +377,9 @@ msgid ""
 "There is one required step for ``multiply`` that is not required for "
 "``sigmoid``, because ``multiply`` has broadcasting semantics. Since the "
 "shape of ``grad`` might not match the shape of the inputs, we use "
-"``collapse_sum_like`` to take the contents of the ``grad * <var>`` terms "
-"and make the shape match the shape of the input we're differentiating "
-"with respect to."
+"``collapse_sum_like`` to take the contents of the ``grad * <var>`` terms and"
+" make the shape match the shape of the input we're differentiating with "
+"respect to."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:467
@@ -395,17 +394,17 @@ msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:472
 msgid ""
-"First, make sure ``src/relay/transforms/pattern_utils.h`` is included. It"
-" provides helper functions for creating nodes in the Relay AST. Then, "
-"define the gradient in a similar fashion as in the Python example:"
+"First, make sure ``src/relay/transforms/pattern_utils.h`` is included. It "
+"provides helper functions for creating nodes in the Relay AST. Then, define "
+"the gradient in a similar fashion as in the Python example:"
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:484
 msgid ""
-"Notice that in C++ we can't use the same operator overloading that we "
-"have in Python, and we need to downcast, so the implementation is more "
-"verbose. Even so, we can easily verify that this definition mirrors the "
-"earlier example in Python."
+"Notice that in C++ we can't use the same operator overloading that we have "
+"in Python, and we need to downcast, so the implementation is more verbose. "
+"Even so, we can easily verify that this definition mirrors the earlier "
+"example in Python."
 msgstr ""
 
 #: ../../_staging/dev/how_to/relay_add_op.rst:489
@@ -414,4 +413,3 @@ msgid ""
 "call for \"FPrimalGradient\" onto the end of the base operator's "
 "registration, in order to register the gradient."
 msgstr ""
-

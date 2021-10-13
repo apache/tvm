@@ -1,27 +1,31 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:34+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:4
 msgid ""
 "Click :ref:`here "
-"<sphx_glr_download_how_to_tune_with_autoscheduler_tune_network_mali.py>` "
-"to download the full example code"
+"<sphx_glr_download_how_to_tune_with_autoscheduler_tune_network_mali.py>` to "
+"download the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:11
@@ -30,48 +34,47 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:12
 msgid "**Author**: `Zhao Wu <https://github.com/FrozenGene>`_"
-msgstr ""
+msgstr "**作者**: `Zhao Wu <https://github.com/FrozenGene>`_"
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:14
 msgid ""
-"Auto-tuning for specific devices and workloads is critical for getting "
-"the best performance. This is a tutorial on how to tune a whole neural "
-"network for mali GPU with the auto-scheduler."
+"Auto-tuning for specific devices and workloads is critical for getting the "
+"best performance. This is a tutorial on how to tune a whole neural network "
+"for mali GPU with the auto-scheduler."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:18
 msgid ""
-"To auto-tune a neural network, we partition the network into small "
-"subgraphs and tune them independently. Each subgraph is treated as one "
-"search task. A task scheduler slices the time and dynamically allocates "
-"time resources to these tasks. The task scheduler predicts the impact of "
-"each task on the end-to-end execution time and prioritizes the one that "
-"can reduce the execution time the most."
+"To auto-tune a neural network, we partition the network into small subgraphs"
+" and tune them independently. Each subgraph is treated as one search task. A"
+" task scheduler slices the time and dynamically allocates time resources to "
+"these tasks. The task scheduler predicts the impact of each task on the end-"
+"to-end execution time and prioritizes the one that can reduce the execution "
+"time the most."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:24
 msgid ""
-"For each subgraph, we use the compute declaration in "
-":code:`tvm/python/topi` to get the computational DAG in the tensor "
-"expression form. We then use the auto-scheduler to construct a search "
-"space of this DAG and search for good schedules (low-level "
-"optimizations)."
+"For each subgraph, we use the compute declaration in :code:`tvm/python/topi`"
+" to get the computational DAG in the tensor expression form. We then use the"
+" auto-scheduler to construct a search space of this DAG and search for good "
+"schedules (low-level optimizations)."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:29
 msgid ""
 "Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` "
 "which relies on manual templates to define the search space, the auto-"
-"scheduler does not require any schedule templates. In other words, the "
-"auto-scheduler only uses the compute declarations in "
-":code:`tvm/python/topi` and does not use existing schedule templates."
+"scheduler does not require any schedule templates. In other words, the auto-"
+"scheduler only uses the compute declarations in :code:`tvm/python/topi` and "
+"does not use existing schedule templates."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:34
 msgid ""
-"Note that this tutorial will not run on Windows or recent versions of "
-"macOS. To get it to run, you will need to wrap the body of this tutorial "
-"in a :code:`if __name__ == \"__main__\":` block."
+"Note that this tutorial will not run on Windows or recent versions of macOS."
+" To get it to run, you will need to wrap the body of this tutorial in a "
+":code:`if __name__ == \"__main__\":` block."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:57
@@ -80,21 +83,20 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:58
 msgid ""
-"First, we need to define the network with relay frontend API. We can load"
-" some pre-defined network from :code:`tvm.relay.testing`. We can also "
-"load models from MXNet, ONNX, PyTorch, and TensorFlow (see :ref:`front "
-"end tutorials<tutorial-frontend>`)."
+"First, we need to define the network with relay frontend API. We can load "
+"some pre-defined network from :code:`tvm.relay.testing`. We can also load "
+"models from MXNet, ONNX, PyTorch, and TensorFlow (see :ref:`front end "
+"tutorials<tutorial-frontend>`)."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:63
 msgid ""
 "For convolutional neural networks, although auto-scheduler can work "
 "correctly with any layout, we found the best performance is typically "
-"achieved with NHWC layout. We also implemented more optimizations for "
-"NHWC layout with the auto-scheduler. So it is recommended to convert your"
-" models to NHWC layout to use the auto-scheduler. You can use "
-":ref:`ConvertLayout <convert-layout-usage>` pass to do the layout "
-"conversion in TVM."
+"achieved with NHWC layout. We also implemented more optimizations for NHWC "
+"layout with the auto-scheduler. So it is recommended to convert your models "
+"to NHWC layout to use the auto-scheduler. You can use :ref:`ConvertLayout "
+"<convert-layout-usage>` pass to do the layout conversion in TVM."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:158
@@ -115,16 +117,16 @@ msgstr ""
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:179
 msgid ""
 "Next, we extract the search tasks and their weights from a network. The "
-"weight of a task is the number of appearances of the task's subgraph in "
-"the whole network. By using the weight, we can approximate the end-to-end"
-" latency of the network as :code:`sum(latency[t] * weight[t])`, where "
+"weight of a task is the number of appearances of the task's subgraph in the "
+"whole network. By using the weight, we can approximate the end-to-end "
+"latency of the network as :code:`sum(latency[t] * weight[t])`, where "
 ":code:`latency[t]` is the latency of a task and :code:`weight[t]` is the "
 "weight of the task. The task scheduler will just optimize this objective."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:205
 msgid "Out:"
-msgstr ""
+msgstr "输出:"
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:405
 msgid "How to get the hardware parameters from remote device"
@@ -140,31 +142,31 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:434
 msgid ""
-"Now, we set some options for tuning, launch the search tasks and evaluate"
-" the end-to-end performance"
+"Now, we set some options for tuning, launch the search tasks and evaluate "
+"the end-to-end performance"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:436
 msgid ""
-":code:`num_measure_trials` is the number of measurement trials we can use"
-" during the tuning. You can set it to a small number (e.g., 200) for a "
-"fast demonstrative run. In practice, we recommend setting it around "
-":code:`800 * len(tasks)`, which is typically enough for the search to "
-"converge. For example, there are 29 tasks in resnet-50, so we can set it "
-"as 20000. You can adjust this parameter according to your time budget."
+":code:`num_measure_trials` is the number of measurement trials we can use "
+"during the tuning. You can set it to a small number (e.g., 200) for a fast "
+"demonstrative run. In practice, we recommend setting it around :code:`800 * "
+"len(tasks)`, which is typically enough for the search to converge. For "
+"example, there are 29 tasks in resnet-50, so we can set it as 20000. You can"
+" adjust this parameter according to your time budget."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:442
 msgid ""
-"In addition, we use :code:`RecordToFile` to dump measurement records into"
-" a log file, The measurement records can be used to query the history "
-"best, resume the search, and do more analyses later."
+"In addition, we use :code:`RecordToFile` to dump measurement records into a "
+"log file, The measurement records can be used to query the history best, "
+"resume the search, and do more analyses later."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:445
 msgid ""
-"see :any:`auto_scheduler.TuningOptions`, "
-":any:`auto_scheduler.LocalRunner` for more parameters."
+"see :any:`auto_scheduler.TuningOptions`, :any:`auto_scheduler.LocalRunner` "
+"for more parameters."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:511
@@ -173,9 +175,9 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:513
 msgid ""
-"During the tuning, a lot of information will be printed on the console. "
-"They are used for debugging purposes. The most important info is the "
-"output of the task scheduler. The following table is a sample output."
+"During the tuning, a lot of information will be printed on the console. They"
+" are used for debugging purposes. The most important info is the output of "
+"the task scheduler. The following table is a sample output."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:556
@@ -183,17 +185,16 @@ msgid ""
 "This table lists the latency and (estimated) speed of all tasks. It also "
 "lists the allocation of measurement trials for all tasks. The last line "
 "prints the total weighted latency of these tasks, which can be a rough "
-"estimation of the end-to-end execution time of the network. The last line"
-" also prints the total number of measurement trials, total time spent on "
+"estimation of the end-to-end execution time of the network. The last line "
+"also prints the total number of measurement trials, total time spent on "
 "auto-tuning and the id of the next task to tune."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:564
 msgid ""
-"There will also be some \"tvm::Error\"s errors, because the auto-"
-"scheduler will try some invalid schedules. You can safely ignore them if "
-"the tuning can continue, because these errors are isolated from the main "
-"process."
+"There will also be some \"tvm::Error\"s errors, because the auto-scheduler "
+"will try some invalid schedules. You can safely ignore them if the tuning "
+"can continue, because these errors are isolated from the main process."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:570
@@ -202,9 +203,9 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:572
 msgid ""
-"You can terminate the tuning earlier by forcibly killing this process. As"
-" long as you get at least one valid schedule for each task in the log "
-"file, you should be able to do the compilation (the secion below)."
+"You can terminate the tuning earlier by forcibly killing this process. As "
+"long as you get at least one valid schedule for each task in the log file, "
+"you should be able to do the compilation (the secion below)."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:578
@@ -214,34 +215,32 @@ msgstr ""
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:579
 msgid ""
 "During the tuning, the auto-scheduler needs to compile many programs and "
-"extract feature from them. This part is CPU-intensive, so a high-"
-"performance CPU with many cores is recommended for faster search."
+"extract feature from them. This part is CPU-intensive, so a high-performance"
+" CPU with many cores is recommended for faster search."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:582
 msgid ""
 "You can use :code:`python3 -m tvm.auto_scheduler.measure_record --mode "
-"distill -i log.json` to distill the large log file and only save the best"
-" useful records."
+"distill -i log.json` to distill the large log file and only save the best "
+"useful records."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:584
 msgid ""
-"You can resume a search from the previous log file. You just need to add "
-"a new argument :code:`load_log_file` when creating the task scheduler in "
+"You can resume a search from the previous log file. You just need to add a "
+"new argument :code:`load_log_file` when creating the task scheduler in "
 "function :code:`run_tuning`. Say, :code:`tuner = "
-"auto_scheduler.TaskScheduler(tasks, task_weights, "
-"load_log_file=log_file)`"
+"auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=log_file)`"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:588
 msgid ""
-"If you have multiple target GPUs, you can use all of them for "
-"measurements to parallelize the measurements. Check this :ref:`section "
-"<tutorials-autotvm-scale-up-rpc-tracker>` to learn how to use the RPC "
-"Tracker and RPC Server. To use the RPC Tracker in auto-scheduler, replace"
-" the runner in :code:`TuningOptions` with "
-":any:`auto_scheduler.RPCRunner`."
+"If you have multiple target GPUs, you can use all of them for measurements "
+"to parallelize the measurements. Check this :ref:`section <tutorials-"
+"autotvm-scale-up-rpc-tracker>` to learn how to use the RPC Tracker and RPC "
+"Server. To use the RPC Tracker in auto-scheduler, replace the runner in "
+":code:`TuningOptions` with :any:`auto_scheduler.RPCRunner`."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:607
@@ -257,6 +256,7 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_network_mali.rst:620
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

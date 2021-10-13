@@ -1,38 +1,46 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
+# Siyuan Feng, 2021
+# Xiaoyu Zhang, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:33+0000\n"
+"Last-Translator: Xiaoyu Zhang, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:4
 msgid ""
-"Click :ref:`here "
-"<sphx_glr_download_how_to_optimize_operators_opt_gemm.py>` to download "
-"the full example code"
+"Click :ref:`here <sphx_glr_download_how_to_optimize_operators_opt_gemm.py>` "
+"to download the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:13
 msgid "How to optimize GEMM on CPU"
-msgstr ""
+msgstr "如何在CPU上优化GEMM（通用矩阵乘）"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:14
 msgid ""
-"**Author**: `Jian Weng <https://github.com/were>`_,             `Ruofei "
-"Yu <https://github.com/yuruofeifei>`_"
+"**Author**: `Jian Weng <https://github.com/were>`_,             `Ruofei Yu "
+"<https://github.com/yuruofeifei>`_"
 msgstr ""
+"**作者**: `Jian Weng <https://github.com/were>`_, `Ruofei Yu "
+"<https://github.com/yuruofeifei>`_"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:16
 msgid ""
@@ -40,58 +48,65 @@ msgid ""
 "algorithm and the algorithm's implementing organization (the so-called "
 "schedule) separately. Typically, writing algorithm in high-performance "
 "schedule breaks the algorithm's readability and modularity. Also, trying "
-"various seemingly promising schedules is time-consuming. With the help of"
-" TVM, we can try these schedules efficiently to enhance the performance."
+"various seemingly promising schedules is time-consuming. With the help of "
+"TVM, we can try these schedules efficiently to enhance the performance."
 msgstr ""
+"TVM提供了一个抽象接口允许用户分别描述算法和算法的组织方式（即所谓的schedule）。通常写一个高性能的schedule会破坏代码的可读性和模块化。另外，尝试各种看起来有前景的schedule也是很耗时的。基于TVM，我们可以有效的尝试这些schedule来提升性能。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:22
 msgid ""
 "In this tutorial, we will demonstrate how to use TVM to optimize square "
-"matrix multiplication and achieve 200 times faster than baseline by "
-"simply adding 18 extra lines of code."
-msgstr ""
+"matrix multiplication and achieve 200 times faster than baseline by simply "
+"adding 18 extra lines of code."
+msgstr "在本教程中，我们将演示如何使用 TVM 优化形矩阵乘法，并通过简单地添加 18 行额外代码实现比 baseline 快 200 倍。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:32
 msgid ""
-"There are two important optimizations on intense computation applications"
-" executed on CPU:"
-msgstr ""
+"There are two important optimizations on intense computation applications "
+"executed on CPU:"
+msgstr "在 CPU 上执行的密集计算应用程序有两个重要的优化："
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:26
 msgid ""
 "Increase the cache hit rate of memory access. Both complex numerical "
-"computation and hot-spot memory access can be accelerated from high cache"
-" hit rate. This requires us to transform the origin memory access pattern"
-" to the pattern fits the cache policy."
+"computation and hot-spot memory access can be accelerated from high cache "
+"hit rate. This requires us to transform the origin memory access pattern to "
+"the pattern fits the cache policy."
 msgstr ""
+"提高内存访问的缓存命中率。复杂的数值计算和热点内存访问都可以通过高缓存命中率来加速。 这需要我们将原始内存访问模式转换为适合缓存策略的模式。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:29
 msgid ""
-"SIMD (Single instruction multi-data), or we call it vector processing "
-"unit. Every time, a small batch of data, rather than a single grid, will "
-"be processed. This requires us to transform the data access pattern in "
-"the loop body in uniform pattern so that the LLVM backend can lower it to"
-" SIMD."
+"SIMD (Single instruction multi-data), or we call it vector processing unit. "
+"Every time, a small batch of data, rather than a single grid, will be "
+"processed. This requires us to transform the data access pattern in the loop"
+" body in uniform pattern so that the LLVM backend can lower it to SIMD."
 msgstr ""
+"SIMD（单指令多数据），或者我们称之为向量处理单元。 每次都会处理一小批数据，而不是单个数据。 这需要我们统一变换循环体中的数据访问模式，以便 "
+"LLVM 后端可以将其lower到SIMD。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:34
 msgid ""
-"Actually, all the methodologies used in this tutorial is a subset of "
-"tricks mentioned in this `repo <https://github.com/flame/how-to-optimize-"
-"gemm>`_. Some of them have been applied by TVM abstraction automatically,"
-" but some of them cannot be simply applied due to TVM constraints."
+"Actually, all the methodologies used in this tutorial is a subset of tricks "
+"mentioned in this `repo <https://github.com/flame/how-to-optimize-gemm>`_. "
+"Some of them have been applied by TVM abstraction automatically, but some of"
+" them cannot be simply applied due to TVM constraints."
 msgstr ""
+"实际上，本教程中使用的所有方法都是这个 `repo <https://github.com/flame/how-to-optimize-gemm>`_ "
+"中提到的技巧的一个子集。 其中一些已经被TVM自动抽象所采用，但由于 TVM 的限制，其中一些不能简单地应用。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:38
 msgid ""
 "All the experiment results mentioned below, are executed on 2015's 15' "
-"MacBook equipped with Intel i7-4770HQ CPU. The cache line size should be "
-"64 bytes for all the x86 CPUs."
+"MacBook equipped with Intel i7-4770HQ CPU. The cache line size should be 64 "
+"bytes for all the x86 CPUs."
 msgstr ""
+"下面提到的所有实验结果，都是在配置了 Intel i7-4770HQ CPU 的 2015 年的 15' MacBook 上执行的。 对于所有 x86 "
+"CPU，缓存行大小应为 64 个字节。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:42
 msgid "Preparation and Baseline"
-msgstr ""
+msgstr "准备和基线（Baseline）"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:43
 msgid ""
@@ -100,6 +115,8 @@ msgid ""
 "variables. Then we write a baseline implementation, the simplest way to "
 "write a matrix multiplication in TVM."
 msgstr ""
+"在本教程中，我们将演示如何使用 TVM 优化矩阵乘法。 在实际演示之前，我们首先定义这些变量。 然后我们编写一个基线实现，这是在 TVM "
+"中编写矩阵乘法的最简单方法。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:117
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:141
@@ -116,154 +133,165 @@ msgstr ""
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:732
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:754
 msgid "Out:"
-msgstr ""
+msgstr "输出:"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:126
 msgid ""
 "In TVM, we can always inspect lower level IR to debug or optimize our "
 "schedule. Here is the generated IR using our baseline schedule."
-msgstr ""
+msgstr "在 TVM 中，我们始终可以检查较低级别的 IR 以调试或优化我们的schedule。 这是使用我们的基线schedule生成的 IR。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:166
 msgid "Blocking"
-msgstr ""
+msgstr "分块"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:167
 msgid ""
-"A important trick to enhance the cache hit rate is blocking --- data "
-"chunk will be computed block by block. The memory access inside the block"
-" is a small neighbourhood which is with high memory locality. In this "
-"tutorial, I picked up 32 as the blocking factor. So the block will fill "
-"32 * 32 * sizeof(float) which is 4KB in the cache whose total size is "
-"32KB (L1 data cache)"
+"A important trick to enhance the cache hit rate is blocking --- data chunk "
+"will be computed block by block. The memory access inside the block is a "
+"small neighbourhood which is with high memory locality. In this tutorial, I "
+"picked up 32 as the blocking factor. So the block will fill 32 * 32 * "
+"sizeof(float) which is 4KB in the cache whose total size is 32KB (L1 data "
+"cache)"
 msgstr ""
+"提高缓存命中率的一个重要技巧是分块——数据块将逐块进行计算。 块内部的内存访问是一个具有高内存局部性的小邻域。 在本教程中，我选择了 32 "
+"作为分块因子。 所以该块将填充 32 * 32 * sizeof(float) 即 4KB 到缓存中，缓存的总大小为 32KB（L1 数据缓存） "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:214
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:626
 msgid "Here is the generated IR after blocking."
-msgstr ""
+msgstr "这是分块之后产生的 IR。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:263
 msgid "Vectorization"
-msgstr ""
+msgstr "矢量化"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:264
 msgid ""
-"Another important trick is vectorization. When the memory access pattern "
-"is uniform, the compiler can detect this pattern and pass the continuous "
-"memory to vector processor. In TVM, we can use `vectorize` interface to "
-"hint the compiler this pattern, so that we can accelerate it vastly."
+"Another important trick is vectorization. When the memory access pattern is "
+"uniform, the compiler can detect this pattern and pass the continuous memory"
+" to vector processor. In TVM, we can use `vectorize` interface to hint the "
+"compiler this pattern, so that we can accelerate it vastly."
 msgstr ""
+"另一个重要的技巧是矢量化。 当内存访问模式一致时，编译器可以检测到这种模式并将连续内存传递给向量处理器。 在 TVM 中，我们可以使用 "
+"`vectorize` 接口来提示编译器这种模式，这样我们就可以大大加速它。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:269
 msgid ""
-"In this tutorial, we chose to vectorize the inner loop row data since it "
-"is cache friendly."
-msgstr ""
+"In this tutorial, we chose to vectorize the inner loop row data since it is "
+"cache friendly."
+msgstr "在本教程中，我们选择矢量化内循环行数据，因为它是缓存友好的。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:309
 msgid "Here is the generated IR after vectorization."
-msgstr ""
+msgstr "这是矢量化之后产生的IR。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:354
 msgid "Loop Permutation"
-msgstr ""
+msgstr "循环重排"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:355
 msgid ""
-"If we look at the above IR, we can see the inner loop row data is "
-"vectorized for both B and C. Next we will look at the access pattern of "
-"A. In current schedule, A is accessed column by column which is not cache"
-" friendly. If we change the nested loop order of ki and inner axes mi, "
-"the access pattern for A matrix is more cache friendly."
+"If we look at the above IR, we can see the inner loop row data is vectorized"
+" for both B and C. Next we will look at the access pattern of A. In current "
+"schedule, A is accessed column by column which is not cache friendly. If we "
+"change the nested loop order of ki and inner axes mi, the access pattern for"
+" A matrix is more cache friendly."
 msgstr ""
+"如果我们查看上面的 IR，我们可以看到 B 和 C 的内循环行数据都进行了向量化。接下来我们将查看 A 的访问模式。在当前schedule中，A "
+"是逐列访问的，这对缓存不友好。 如果我们改变 ki 和内轴 mi 的嵌套循环顺序，A 矩阵的访问模式会对缓存更加友好。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:397
 msgid "Here is the generated IR after loop permutation."
-msgstr ""
+msgstr "这是循环重排之后产生的IR。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:442
 msgid "Array Packing"
-msgstr ""
+msgstr "数组打包"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:443
 msgid ""
 "Another important trick is array packing. The trick is to reorder the "
-"storage of a multi- dimensional array so that it is accessed sequentially"
-" after it is flattened and stored in one- dimensional memory."
-msgstr ""
+"storage of a multi- dimensional array so that it is accessed sequentially "
+"after it is flattened and stored in one- dimensional memory."
+msgstr "另一个重要的技巧是数组打包。 技巧是对多维数组的存储顺序进行重排，以便在将其展平并存储在一维内存中后按顺序访问。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:450
-msgid "NOTE: This figure is a general illustration of how array packing works."
-msgstr ""
+msgid ""
+"NOTE: This figure is a general illustration of how array packing works."
+msgstr "注意：此图是数组打包工作原理的一般性说明。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:452
 msgid ""
-"We can use array packing to address the access pattern for B. Observe the"
-" array access pattern of B after flattening which is not sequential as we"
-" iterate over the K dimension. We can reorder B with dimensions [K][N] so"
-" that it has dimensions [N/bn][K][bn] where bn is the blocking factor and"
-" also the vector size for B in the inner loop.  This reorder splits N "
-"into two dimensions --- bigN (N/bn) and littleN (bn) --- and the new "
-"dimensions [N/bn][K][bn] match the indexing of B from outer to inner "
-"loops (no, ko, ki, ni) resulting in a sequential access pattern for B "
-"after flattening."
+"We can use array packing to address the access pattern for B. Observe the "
+"array access pattern of B after flattening which is not sequential as we "
+"iterate over the K dimension. We can reorder B with dimensions [K][N] so "
+"that it has dimensions [N/bn][K][bn] where bn is the blocking factor and "
+"also the vector size for B in the inner loop.  This reorder splits N into "
+"two dimensions --- bigN (N/bn) and littleN (bn) --- and the new dimensions "
+"[N/bn][K][bn] match the indexing of B from outer to inner loops (no, ko, ki,"
+" ni) resulting in a sequential access pattern for B after flattening."
 msgstr ""
+"我们可以使用数组打包来解决 B 的访问模式。观察展平后 B 的数组访问模式，当我们在 K 维度上迭代时，这不是连续的。 我们可以用维度 [K][N] "
+"重排 B，使其具有维度 [N/bn][K][bn]，其中 bn 是分块因子，也是内循环中 B 的向量大小。 这种重新排序将 N 分成两个维度 — "
+"bigN (N/bn) 和 littleN (bn) — 并且新维度 [N/bn][K][bn] 匹配 B 从外循环到内循环的索引（no, ko, "
+"ki, ni) 所以在B被展平后内存访问是连续的。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:512
 msgid "Here is the generated IR after array packing."
-msgstr ""
+msgstr "这是执行了数组打包之后产生的IR。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:564
 msgid "Write cache for blocks"
-msgstr ""
+msgstr "块的写缓存。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:565
 msgid ""
 "After blocking, the program will write result to C block by block, the "
-"access pattern is not sequential. So we can use a sequential cache array "
-"to hold the block results and write to C when all the block results are "
-"ready."
-msgstr ""
+"access pattern is not sequential. So we can use a sequential cache array to "
+"hold the block results and write to C when all the block results are ready."
+msgstr "分块后，程序将结果逐块写入C，访问模式不是顺序的。 所以我们可以使用一个顺序缓存数组来保存块结果并在所有块的结果准备好时写入 C。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:685
 msgid "Parallel"
-msgstr ""
+msgstr "并行"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:686
 msgid ""
-"Futhermore, we can also utilize multi-core processors to do the thread-"
-"level parallelization."
-msgstr ""
+"Futhermore, we can also utilize multi-core processors to do the thread-level"
+" parallelization."
+msgstr "此外，我们还可以利用多核处理器进行线程级并行化。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:740
 msgid "Here is the generated IR after parallelization."
-msgstr ""
+msgstr "这是并行之后产生的IR。"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:799
 msgid "Summary"
-msgstr ""
+msgstr "总结"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:800
-#, python-format
 msgid ""
-"After applying the above simple optimizations with only 18 lines of code,"
-" our generated code can achieve 60% of the `numpy` performance with MKL. "
-"Note that the outputs on the web page reflect the running times on a non-"
+"After applying the above simple optimizations with only 18 lines of code, "
+"our generated code can achieve 60% of the `numpy` performance with MKL. Note"
+" that the outputs on the web page reflect the running times on a non-"
 "exclusive Docker container, thereby they are *unreliable*. It is highly "
-"encouraged to run the tutorial by yourself to observe the performance "
-"gain acheived by TVM."
+"encouraged to run the tutorial by yourself to observe the performance gain "
+"acheived by TVM."
 msgstr ""
+"在仅用 18 行代码应用了上述的优化技巧后，我们生成的代码的性能可以达到使用 MKL 实现 的numpy 的 60%。 "
+"请注意，网页上的输出展示了一个非独家 Docker 容器上的运行时间，因此它们*不可靠*。 强烈建议您自己运行本教程，以观察 TVM 实现的性能提升。 "
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:819
 msgid ":download:`Download Python source code: opt_gemm.py <opt_gemm.py>`"
-msgstr ""
+msgstr ":download:`下载 Python 源代码: opt_gemm.py <opt_gemm.py>`"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:825
 msgid ":download:`Download Jupyter notebook: opt_gemm.ipynb <opt_gemm.ipynb>`"
-msgstr ""
+msgstr ":download:`下载 Jupyter notebook: opt_gemm.ipynb <opt_gemm.ipynb>`"
 
 #: ../../_staging/how_to/optimize_operators/opt_gemm.rst:832
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

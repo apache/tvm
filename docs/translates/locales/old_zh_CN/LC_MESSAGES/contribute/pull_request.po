@@ -1,21 +1,25 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-09-18 07:41+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/contribute/pull_request.rst:19
 msgid "Submit a Pull Request"
@@ -29,24 +33,25 @@ msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:23
 msgid ""
-"Before submit, please rebase your code on the most recent version of "
-"main, you can do it by"
+"Before submit, please rebase your code on the most recent version of main, "
+"you can do it by"
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:31
 msgid ""
-"Make sure code style check pass by typing the following command, and all "
-"the existing test-cases pass."
+"Make sure code style check pass by typing the following command, and all the"
+" existing test-cases pass."
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:46
 msgid ""
-"When the clang-format lint check fails, run git-clang-format as follows "
-"to automatically reformat your code:"
+"When the clang-format lint check fails, run git-clang-format as follows to "
+"automatically reformat your code:"
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:54
-msgid "Add test-cases to cover the new features or bugfix the patch introduces."
+msgid ""
+"Add test-cases to cover the new features or bugfix the patch introduces."
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:55
@@ -54,7 +59,8 @@ msgid "Document the code you wrote, see more at :ref:`doc_guide`"
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:56
-msgid "Send the pull request and fix the problems reported by automatic checks."
+msgid ""
+"Send the pull request and fix the problems reported by automatic checks."
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:57
@@ -65,16 +71,16 @@ msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:59
 msgid ""
-"To get your code reviewed quickly, we encourage you to help review "
-"others' code so they can do the favor in return."
+"To get your code reviewed quickly, we encourage you to help review others' "
+"code so they can do the favor in return."
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:60
 msgid ""
 "Code review is a shepherding process that helps to improve contributor's "
-"code quality. We should treat it proactively, to improve the code as much"
-" as possible before the review. We highly value patches that can get in "
-"without extensive reviews."
+"code quality. We should treat it proactively, to improve the code as much as"
+" possible before the review. We highly value patches that can get in without"
+" extensive reviews."
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:63
@@ -93,20 +99,20 @@ msgstr ""
 msgid ""
 "We use docker container to create stable CI environments that can be "
 "deployed to multiple machines. Because we want a relatively stable CI "
-"environment and make use of pre-cached image, all of the CI images are "
-"built and maintained by committers."
+"environment and make use of pre-cached image, all of the CI images are built"
+" and maintained by committers."
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:76
 msgid ""
-"Upgrade of CI images can cause problems and need fixes to accommodate the"
-" new env. Here is the protocol to update CI image:"
+"Upgrade of CI images can cause problems and need fixes to accommodate the "
+"new env. Here is the protocol to update CI image:"
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:79
 msgid ""
-"Send PR to upgrade build script in the repo - Can be done by a "
-"contributor, the following steps need committership."
+"Send PR to upgrade build script in the repo - Can be done by a contributor, "
+"the following steps need committership."
 msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:81
@@ -166,7 +172,7 @@ msgstr ""
 
 #: ../../_staging/contribute/pull_request.rst:108
 msgid "Necessary dependencies:"
-msgstr ""
+msgstr "必要的依赖："
 
 #: ../../_staging/contribute/pull_request.rst:114
 msgid "If you want to run all tests:"
@@ -175,4 +181,3 @@ msgstr ""
 #: ../../_staging/contribute/pull_request.rst:123
 msgid "If you want to run a single test:"
 msgstr ""
-

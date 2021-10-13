@@ -1,27 +1,32 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# juzi, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:34+0000\n"
+"Last-Translator: juzi, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:4
 msgid ""
 "Click :ref:`here "
-"<sphx_glr_download_how_to_tune_with_autotvm_tune_relay_mobile_gpu.py>` to"
-" download the full example code"
+"<sphx_glr_download_how_to_tune_with_autotvm_tune_relay_mobile_gpu.py>` to "
+"download the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:11
@@ -46,24 +51,24 @@ msgid ""
 "The operator implementation for Mobile GPU in TVM is written in template "
 "form. The template has many tunable knobs (tile factor, vectorization, "
 "unrolling, etc). We will tune all convolution, depthwise convolution and "
-"dense operators in the neural network. After tuning, we produce a log "
-"file which stores the best knob values for all required operators. When "
-"the TVM compiler compiles these operators, it will query this log file to"
-" get the best knob values."
+"dense operators in the neural network. After tuning, we produce a log file "
+"which stores the best knob values for all required operators. When the TVM "
+"compiler compiles these operators, it will query this log file to get the "
+"best knob values."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:25
 msgid ""
-"We also released pre-tuned parameters for some arm devices. You can go to"
-" `Mobile GPU Benchmark <https://github.com/apache/tvm/wiki/Benchmark"
-"#mobile-gpu>`_ to see the results."
+"We also released pre-tuned parameters for some arm devices. You can go to "
+"`Mobile GPU Benchmark <https://github.com/apache/tvm/wiki/Benchmark#mobile-"
+"gpu>`_ to see the results."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:29
 msgid ""
-"Note that this tutorial will not run on Windows or recent versions of "
-"macOS. To get it to run, you will need to wrap the body of this tutorial "
-"in a :code:`if __name__ == \"__main__\":` block."
+"Note that this tutorial will not run on Windows or recent versions of macOS."
+" To get it to run, you will need to wrap the body of this tutorial in a "
+":code:`if __name__ == \"__main__\":` block."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:34
@@ -78,9 +83,9 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:42
 msgid ""
-"To make TVM run faster during tuning, it is recommended to use cython as "
-"FFI of tvm. In the root directory of tvm, execute (change \"3\" to \"2\" "
-"if you use python2):"
+"To make TVM run faster during tuning, it is recommended to use cython as FFI"
+" of tvm. In the root directory of tvm, execute (change \"3\" to \"2\" if you"
+" use python2):"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:51
@@ -93,14 +98,14 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:76
 msgid ""
-"First we need to define the network in relay frontend API. We can load "
-"some pre-defined network from :code:`relay.testing`. We can also load "
-"models from MXNet, ONNX and TensorFlow."
+"First we need to define the network in relay frontend API. We can load some "
+"pre-defined network from :code:`relay.testing`. We can also load models from"
+" MXNet, ONNX and TensorFlow."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:135
 msgid "Start RPC Tracker"
-msgstr ""
+msgstr "启动 RPC 跟踪器"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:136
 msgid ""
@@ -111,23 +116,23 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:140
 msgid ""
-"To scale up the tuning, TVM uses RPC Tracker to manage distributed "
-"devices. The RPC Tracker is a centralized controller node. We can "
-"register all devices to the tracker. For example, if we have 10 phones, "
-"we can register all of them to the tracker, and run 10 measurements in "
-"parallel, accelerating the tuning process."
+"To scale up the tuning, TVM uses RPC Tracker to manage distributed devices. "
+"The RPC Tracker is a centralized controller node. We can register all "
+"devices to the tracker. For example, if we have 10 phones, we can register "
+"all of them to the tracker, and run 10 measurements in parallel, "
+"accelerating the tuning process."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:145
 msgid ""
-"To start an RPC tracker, run this command on the host machine. The "
-"tracker is required during the whole tuning process, so we need to open a"
-" new terminal for this command:"
+"To start an RPC tracker, run this command on the host machine. The tracker "
+"is required during the whole tuning process, so we need to open a new "
+"terminal for this command:"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:153
 msgid "The expected output is"
-msgstr ""
+msgstr "预期输出是"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:160
 msgid "Register Devices to RPC Tracker"
@@ -135,15 +140,14 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:161
 msgid ""
-"Now we can register our devices to the tracker. The first step is to "
-"build the TVM runtime for the ARM devices."
+"Now we can register our devices to the tracker. The first step is to build "
+"the TVM runtime for the ARM devices."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:164
 msgid ""
-"For Linux: Follow this section :ref:`build-tvm-runtime-on-device` to "
-"build the TVM runtime on the device. Then register the device to tracker "
-"by"
+"For Linux: Follow this section :ref:`build-tvm-runtime-on-device` to build "
+"the TVM runtime on the device. Then register the device to tracker by"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:172
@@ -153,16 +157,16 @@ msgstr ""
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:174
 msgid ""
 "For Android: Follow this `readme page "
-"<https://github.com/apache/tvm/tree/main/apps/android_rpc>`_ to install "
-"TVM RPC APK on the android device. Make sure you can pass the android RPC"
-" test. Then you have already registered your device. During tuning, you "
-"have to go to developer option and enable \"Keep screen awake during "
-"changing\" and charge your phone to make it stable."
+"<https://github.com/apache/tvm/tree/main/apps/android_rpc>`_ to install TVM "
+"RPC APK on the android device. Make sure you can pass the android RPC test. "
+"Then you have already registered your device. During tuning, you have to go "
+"to developer option and enable \"Keep screen awake during changing\" and "
+"charge your phone to make it stable."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:180
 msgid "After registering devices, we can confirm it by querying rpc_tracker"
-msgstr ""
+msgstr "注册设备后，我们可以通过查询rpc_tracker确认"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:186
 msgid ""
@@ -184,8 +188,8 @@ msgstr ""
 msgid ""
 "Before tuning, we should apply some configurations. Here I use an RK3399 "
 "board as example. In your setting, you should modify the target and "
-"device_key accordingly. set :code:`use_android` to True if you use "
-"android phone."
+"device_key accordingly. set :code:`use_android` to True if you use android "
+"phone."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:251
@@ -194,11 +198,10 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:253
 msgid ""
-"In general, the default values provided here work well. If you have "
-"enough time budget, you can set :code:`n_trial`, :code:`early_stopping` "
-"larger, which makes the tuning run longer. If your device runs very slow "
-"or your conv2d operators have many GFLOPs, considering to set timeout "
-"larger."
+"In general, the default values provided here work well. If you have enough "
+"time budget, you can set :code:`n_trial`, :code:`early_stopping` larger, "
+"which makes the tuning run longer. If your device runs very slow or your "
+"conv2d operators have many GFLOPs, considering to set timeout larger."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:261
@@ -207,26 +210,26 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:262
 msgid ""
-"Now we can extract tuning tasks from the network and begin tuning. Here, "
-"we provide a simple utility function to tune a list of tasks. This "
-"function is just an initial implementation which tunes them in sequential"
-" order. We will introduce a more sophisticated tuning scheduler in the "
-"future."
+"Now we can extract tuning tasks from the network and begin tuning. Here, we "
+"provide a simple utility function to tune a list of tasks. This function is "
+"just an initial implementation which tunes them in sequential order. We will"
+" introduce a more sophisticated tuning scheduler in the future."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:328
-msgid "Finally, we launch tuning jobs and evaluate the end-to-end performance."
+msgid ""
+"Finally, we launch tuning jobs and evaluate the end-to-end performance."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:395
 msgid "Sample Output"
-msgstr ""
+msgstr "样本输出"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:396
 msgid ""
-"The tuning needs to compile many programs and extract feature from them. "
-"So a high performance CPU is recommended. One sample output is listed "
-"below. It takes about 3 hours on a 32T AMD Ryzen Threadripper."
+"The tuning needs to compile many programs and extract feature from them. So "
+"a high performance CPU is recommended. One sample output is listed below. It"
+" takes about 3 hours on a 32T AMD Ryzen Threadripper."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:427
@@ -241,10 +244,10 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:432
 msgid ""
-"First, make sure you set the correct configuration of your device. Then, "
-"you can print debug information by adding these lines in the beginning of"
-" the script. It will print every measurement result, where you can find "
-"useful error messages."
+"First, make sure you set the correct configuration of your device. Then, you"
+" can print debug information by adding these lines in the beginning of the "
+"script. It will print every measurement result, where you can find useful "
+"error messages."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:442
@@ -266,6 +269,7 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_mobile_gpu.rst:470
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

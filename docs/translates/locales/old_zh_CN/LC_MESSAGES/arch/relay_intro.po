@@ -1,121 +1,138 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# Yuchen Jin, 2021
+# jshmsjh, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:29+0000\n"
+"Last-Translator: jshmsjh, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/arch/relay_intro.rst:21
 msgid "Introduction to Relay IR"
-msgstr ""
+msgstr "Relay 介绍"
 
 #: ../../_staging/arch/relay_intro.rst:22
 msgid ""
-"This article introduces Relay IR -- the second generation of NNVM. We "
-"expect readers from two kinds of background -- those who have a "
-"programming language background and deep learning framework developers "
-"who are familiar with the computational graph representation."
+"This article introduces Relay IR -- the second generation of NNVM. We expect"
+" readers from two kinds of background -- those who have a programming "
+"language background and deep learning framework developers who are familiar "
+"with the computational graph representation."
 msgstr ""
+"本文将介绍 NNVM 的下一代中间表示: Relay。 我们期待两种背景的读者——具有编程语言背景的读者和熟悉计算图表示的深度学习框架开发人员。"
 
 #: ../../_staging/arch/relay_intro.rst:26
 msgid ""
-"We briefly summarize the design goal here, and will touch upon these "
-"points in the later part of the article."
-msgstr ""
+"We briefly summarize the design goal here, and will touch upon these points "
+"in the later part of the article."
+msgstr "我们在这里简要总结Relay的设计目标，并将在后面部分讨论这些要点。"
 
 #: ../../_staging/arch/relay_intro.rst:28
 msgid "Support traditional data flow-style programming and transformations."
-msgstr ""
+msgstr "支持传统的数据流风格的编程和变换。"
 
 #: ../../_staging/arch/relay_intro.rst:29
 msgid ""
-"Support functional-style scoping, let-binding and making it a fully "
-"featured differentiable language."
-msgstr ""
+"Support functional-style scoping, let-binding and making it a fully featured"
+" differentiable language."
+msgstr "支持函数式编程风格，包括函数式编程里的scoping 和 let-binding，并且我们将Relay设计成了一门可微分的语言。"
 
 #: ../../_staging/arch/relay_intro.rst:30
 msgid "Being able to allow the user to mix the two programming styles."
-msgstr ""
+msgstr "支持数据流风格和函数式风格的混合编程。"
 
 #: ../../_staging/arch/relay_intro.rst:33
 msgid "Build a Computational Graph with Relay"
-msgstr ""
+msgstr "使用Relay建立一个计算图"
 
 #: ../../_staging/arch/relay_intro.rst:34
 msgid ""
 "Traditional deep learning frameworks use computational graphs as their "
-"intermediate representation. A computational graph (or dataflow graph), "
-"is a directed acyclic graph (DAG) that represents the computation. Though"
-" dataflow graphs are limited in terms of the computations they are "
-"capable of expressing due to lacking control flow, their simplicity makes"
-" it easier to implement automatic differentiation and compile for "
-"heterogeneous execution environments (e.g., executing parts of the graph "
-"on specialized hardware)."
+"intermediate representation. A computational graph (or dataflow graph), is a"
+" directed acyclic graph (DAG) that represents the computation. Though "
+"dataflow graphs are limited in terms of the computations they are capable of"
+" expressing due to lacking control flow, their simplicity makes it easier to"
+" implement automatic differentiation and compile for heterogeneous execution"
+" environments (e.g., executing parts of the graph on specialized hardware)."
 msgstr ""
+"传统的深度学习框架使用计算图作为它们的中间表示。 计算图（或数据流图）是代表计算过程的有向无环图（DAG）。 "
+"尽管由于缺少控制流，数据流图在计算能力方面受到限制，但它们的简单性使其易于实现自动微分并针对异构执行环境进行编译（例如，在专用硬件上执行计算图的一部分，即子图）。"
 
 #: ../../_staging/arch/relay_intro.rst:44
 msgid ""
-"You can use Relay to build a computational (dataflow) graph. "
-"Specifically, the above code shows how to construct a simple two-node "
-"graph. You can find that the syntax of the example is not that different "
-"from existing computational graph IR like NNVMv1, with the only "
-"difference in terms of terminology:"
+"You can use Relay to build a computational (dataflow) graph. Specifically, "
+"the above code shows how to construct a simple two-node graph. You can find "
+"that the syntax of the example is not that different from existing "
+"computational graph IR like NNVMv1, with the only difference in terms of "
+"terminology:"
 msgstr ""
+"我们可以使用 Relay 构建计算（数据流）图。具体来说，上面的代码展示了如何构造一个简单只有两个节点的计算图。你会发现示例的语法与第一代 NNVM "
+"等现有基于计算图的中间表示没有太大区别，唯一的区别只是术语的不同："
 
 #: ../../_staging/arch/relay_intro.rst:48
 msgid "Existing frameworks usually use graph and subgraph"
-msgstr ""
+msgstr "现有框架通常使用图和子图"
 
 #: ../../_staging/arch/relay_intro.rst:49
-#, python-format
 msgid "Relay uses function e.g. --  ``fn (%x)``, to indicate the graph"
-msgstr ""
+msgstr "Relay 使用函数，例如 ``fn (%x)`` 来表示图"
 
 #: ../../_staging/arch/relay_intro.rst:51
-#, python-format
 msgid ""
-"Each dataflow node is a CallNode in Relay. The Relay Python DSL allows "
-"you to construct a dataflow graph quickly. One thing we want to highlight"
-" in the above code -- is that we explicitly constructed an Add node with "
-"both input point to ``%1``.  When a deep learning framework evaluates the"
-" above program, it will compute the nodes in topological order, and "
-"``%1`` will only be computed once. While this fact is very natural to "
-"deep learning framework builders, it is something that might surprise a "
-"PL researcher in the first place.  If we implement a simple visitor to "
-"print out the result and treat the result as nested Call expression, it "
-"becomes ``log(%x) + log(%x)``."
+"Each dataflow node is a CallNode in Relay. The Relay Python DSL allows you "
+"to construct a dataflow graph quickly. One thing we want to highlight in the"
+" above code -- is that we explicitly constructed an Add node with both input"
+" point to ``%1``.  When a deep learning framework evaluates the above "
+"program, it will compute the nodes in topological order, and ``%1`` will "
+"only be computed once. While this fact is very natural to deep learning "
+"framework builders, it is something that might surprise a PL researcher in "
+"the first place.  If we implement a simple visitor to print out the result "
+"and treat the result as nested Call expression, it becomes ``log(%x) + "
+"log(%x)``."
 msgstr ""
+"每个数据流节点都是 Relay 中的一个 CallNode。 Relay Python DSL "
+"允许用户快速地构建数据流图。在上面的代码中需要注意的是我们显式地构造了一个 Add 节点，其中两个输入点都指向 "
+"``%1``。当深度学习框架对上面这段程序进行推理时，它将会按照拓扑顺序进行计算，并且 ``%1`` "
+"只会被计算一次。尽管这对于深度学习框架构建者来说是很自然的，但它可能会让 "
+"PL（程序语言）的研究者感到惊讶。如果我们实现一个简单的visitor来打印结果并将结果视为嵌套的 Call 表达式，它就变成了 ``log(%x) +"
+" log(%x)`` 。"
 
 #: ../../_staging/arch/relay_intro.rst:59
 msgid ""
-"Such ambiguity is caused by different interpretations of program "
-"semantics when there is a shared node in the DAG. In a normal functional "
-"programming IR, nested expressions are treated as expression trees, "
-"without considering the fact that the ``%1`` is actually reused twice in "
-"``%2``."
+"Such ambiguity is caused by different interpretations of program semantics "
+"when there is a shared node in the DAG. In a normal functional programming "
+"IR, nested expressions are treated as expression trees, without considering "
+"the fact that the ``%1`` is actually reused twice in ``%2``."
 msgstr ""
+"这种歧义是由于当 DAG 中存在共享节点时对程序语义的不同理解造成的。在正常的函数式 IR 中，嵌套表达式被视为表达式树，而没有考虑 ``%1`` 在 "
+"``%2`` 中其实被重用两次。"
 
 #: ../../_staging/arch/relay_intro.rst:63
 msgid ""
-"The Relay IR is mindful of this difference. Usually, deep learning "
-"framework users build the computational graph in this fashion, where a "
-"DAG node reuse often occurs. As a result, when we print out the Relay "
-"program in the text format, we print one CallNode per line and assign a "
-"temporary id ``(%1, %2)`` to each CallNode so each common node can be "
-"referenced in later parts of the program."
+"The Relay IR is mindful of this difference. Usually, deep learning framework"
+" users build the computational graph in this fashion, where a DAG node reuse"
+" often occurs. As a result, when we print out the Relay program in the text "
+"format, we print one CallNode per line and assign a temporary id ``(%1, "
+"%2)`` to each CallNode so each common node can be referenced in later parts "
+"of the program."
 msgstr ""
+"Relay IR 注意到了这个区别。深度学习框架用户经常使用这种方式构建计算图的时候经常会发生 DAG 节点的重用。因此，当我们以文本格式打印 "
+"Relay 程序时，我们每行打印一个 CallNode ，并且给每个 CallNode 分配一个临时 id ``(%1, "
+"%2)``，以便可以在程序的后续部分中引用每个被重用的节点。"
 
 #: ../../_staging/arch/relay_intro.rst:69
 msgid "Module: Support Multiple Functions (Graphs)"
@@ -123,36 +140,39 @@ msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:70
 msgid ""
-"So far we have introduced how can we build a dataflow graph as a "
-"function. One might naturally ask: Can we support multiple functions and "
-"enable them to call each other? Relay allows grouping multiple functions "
-"together in a module; the code below shows an example of a function "
-"calling another function."
+"So far we have introduced how can we build a dataflow graph as a function. "
+"One might naturally ask: Can we support multiple functions and enable them "
+"to call each other? Relay allows grouping multiple functions together in a "
+"module; the code below shows an example of a function calling another "
+"function."
 msgstr ""
+"到此为止我们已经介绍了如何将一个数据流图构建为一个函数。我们可以很自然的想到：我们是否可以支持多个函数并使得它们可以相互调用？Relay "
+"支持将多个函数打包在一个模块中；下面的代码展示了函数调用另一个函数的例子："
 
 #: ../../_staging/arch/relay_intro.rst:87
 msgid ""
-"The Module can be viewed as a ``Map<GlobalVar, Function>``. Here "
-"GlobalVar is just an id that is used to represent the functions in the "
-"module. ``@muladd`` and ``@myfunc`` are GlobalVars in the above example. "
-"When a CallNode is used to call another function, the corresponding "
-"GlobalVar is stored in the op field of the CallNode. It contains a level "
-"of indirection -- we need to look up body of the called function from the"
-" module using the corresponding GlobalVar. In this particular case, we "
-"could also directly store the reference to the Function as op in the "
-"CallNode. So, why do we need to introduce GlobalVar? The main reason is "
-"that GlobalVar decouples the definition/declaration and enables recursion"
-" and delayed declaration of the function."
+"The Module can be viewed as a ``Map<GlobalVar, Function>``. Here GlobalVar "
+"is just an id that is used to represent the functions in the module. "
+"``@muladd`` and ``@myfunc`` are GlobalVars in the above example. When a "
+"CallNode is used to call another function, the corresponding GlobalVar is "
+"stored in the op field of the CallNode. It contains a level of indirection "
+"-- we need to look up body of the called function from the module using the "
+"corresponding GlobalVar. In this particular case, we could also directly "
+"store the reference to the Function as op in the CallNode. So, why do we "
+"need to introduce GlobalVar? The main reason is that GlobalVar decouples the"
+" definition/declaration and enables recursion and delayed declaration of the"
+" function."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:108
 msgid ""
-"In the above example, ``@myfunc`` recursively calls itself. Using "
-"GlobalVar ``@myfunc`` to represent the function avoids the cyclic "
-"dependency in the data structure. At this point, we have introduced the "
-"basic concepts in Relay. Notably, Relay has the following improvements "
-"over NNVMv1:"
+"In the above example, ``@myfunc`` recursively calls itself. Using GlobalVar "
+"``@myfunc`` to represent the function avoids the cyclic dependency in the "
+"data structure. At this point, we have introduced the basic concepts in "
+"Relay. Notably, Relay has the following improvements over NNVMv1:"
 msgstr ""
+"在上面的例子中， ``@myfunc`` 递归调用它自身。使用全局变量 ``@myfunc`` 来避免在数据结构中的循环依赖。到这里，我们已经介绍了 "
+"Relay 的基本概念。值得注意的是， Relay 相较于 NNVM 有如下改进："
 
 #: ../../_staging/arch/relay_intro.rst:112
 msgid "Succinct text format that eases debugging of writing passes."
@@ -160,16 +180,16 @@ msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:113
 msgid ""
-"First-class support for subgraphs-functions, in a joint module, this "
-"enables further chance of joint optimizations such as inlining and "
-"calling convention specification."
+"First-class support for subgraphs-functions, in a joint module, this enables"
+" further chance of joint optimizations such as inlining and calling "
+"convention specification."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:114
 msgid ""
-"Naive front-end language interop, for example, all the data structure can"
-" be visited in Python, which allows quick prototyping of optimizations in"
-" Python and mixing them with C++ code."
+"Naive front-end language interop, for example, all the data structure can be"
+" visited in Python, which allows quick prototyping of optimizations in "
+"Python and mixing them with C++ code."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:118
@@ -178,64 +198,64 @@ msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:120
 msgid ""
-"So far, we have introduced how to build a computational graph in the good"
-" old way used in deep learning frameworks. This section will talk about a"
-" new important construct introduced by Relay -- let bindings."
+"So far, we have introduced how to build a computational graph in the good "
+"old way used in deep learning frameworks. This section will talk about a new"
+" important construct introduced by Relay -- let bindings."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:123
 msgid ""
-"Let binding is used in every high-level programming language. In Relay, "
-"it is a data structure with three fields ``Let(var, value, body)``. When "
-"we evaluate a let expression, we first evaluate the value part, assign it"
-" to the var, then return the evaluated result in the body expression."
+"Let binding is used in every high-level programming language. In Relay, it "
+"is a data structure with three fields ``Let(var, value, body)``. When we "
+"evaluate a let expression, we first evaluate the value part, assign it to "
+"the var, then return the evaluated result in the body expression."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:127
 msgid ""
-"You can use a sequence of let bindings to construct a logically "
-"equivalent program to a dataflow program. The code example below shows "
-"one program with two forms side by side."
+"You can use a sequence of let bindings to construct a logically equivalent "
+"program to a dataflow program. The code example below shows one program with"
+" two forms side by side."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:134
 msgid ""
-"The nested let binding is called A-normal form, and it is commonly used "
-"as IRs in functional programming languages. Now, please take a close look"
-" at the AST structure. While the two programs are semantically identical "
-"(so are their textual representations, except that A-normal form has let "
-"prefix), their AST structures are different."
+"The nested let binding is called A-normal form, and it is commonly used as "
+"IRs in functional programming languages. Now, please take a close look at "
+"the AST structure. While the two programs are semantically identical (so are"
+" their textual representations, except that A-normal form has let prefix), "
+"their AST structures are different."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:138
 msgid ""
 "Since program optimizations take these AST data structures and transform "
 "them, the two different structures will affect the compiler code we are "
-"going to write. For example, if we want to detect a pattern ``add(log(x),"
-" y)``:"
+"going to write. For example, if we want to detect a pattern ``add(log(x), "
+"y)``:"
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:141
 msgid ""
-"In the data-flow form, we can first access the add node, then directly "
-"look at its first argument to see if it is a log"
+"In the data-flow form, we can first access the add node, then directly look "
+"at its first argument to see if it is a log"
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:142
 msgid ""
-"In the A-normal form, we cannot directly do the check anymore, because "
-"the first input to add is ``%v1`` -- we will need to keep a map from "
-"variable to its bound values and look up that map, in order to know that "
-"``%v1`` is a log."
+"In the A-normal form, we cannot directly do the check anymore, because the "
+"first input to add is ``%v1`` -- we will need to keep a map from variable to"
+" its bound values and look up that map, in order to know that ``%v1`` is a "
+"log."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:144
 msgid ""
-"Different data structures will impact how you might write "
-"transformations, and we need to keep that in mind. So now, as a deep "
-"learning framework developer, you might ask, Why do we need let bindings?"
-" Your PL friends will always tell you that let is important -- as PL is a"
-" quite established field, there must be some wisdom behind that."
+"Different data structures will impact how you might write transformations, "
+"and we need to keep that in mind. So now, as a deep learning framework "
+"developer, you might ask, Why do we need let bindings? Your PL friends will "
+"always tell you that let is important -- as PL is a quite established field,"
+" there must be some wisdom behind that."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:150
@@ -244,58 +264,56 @@ msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:151
 msgid ""
-"One key usage of let binding is that it specifies the scope of "
-"computation. Let us take a look at the following example, which does not "
-"use let bindings."
+"One key usage of let binding is that it specifies the scope of computation. "
+"Let us take a look at the following example, which does not use let "
+"bindings."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:157
 msgid ""
 "The problem comes when we try to decide where we should evaluate node "
-"``%1``. In particular, while the text format seems to suggest that we "
-"should evaluate node ``%1`` outside the if scope, the AST(as shown in the"
-" picture) does not suggest so. Actually, a dataflow graph never defines "
-"its scope of the evaluation. This introduces some ambiguity in the "
-"semantics."
+"``%1``. In particular, while the text format seems to suggest that we should"
+" evaluate node ``%1`` outside the if scope, the AST(as shown in the picture)"
+" does not suggest so. Actually, a dataflow graph never defines its scope of "
+"the evaluation. This introduces some ambiguity in the semantics."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:161
 msgid ""
-"This ambiguity becomes more interesting when we have closures. Consider "
-"the following program, which returns a closure. We don’t know where "
-"should we compute ``%1``; it can be either inside or outside the closure."
+"This ambiguity becomes more interesting when we have closures. Consider the "
+"following program, which returns a closure. We don’t know where should we "
+"compute ``%1``; it can be either inside or outside the closure."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:174
-#, python-format
 msgid ""
-"A let binding solves this problem, as the computation of the value "
-"happens at the let node. In both programs, if we change ``%1 = log(%x)`` "
-"to ``let %v1 = log(%x)``, we clearly specify the computation location to "
-"be outside of the if scope and closure. As you can see let-binding gives "
-"a more precise specification of the computation site and could be useful "
-"when we generate backend code (as such specification is in the IR)."
+"A let binding solves this problem, as the computation of the value happens "
+"at the let node. In both programs, if we change ``%1 = log(%x)`` to ``let "
+"%v1 = log(%x)``, we clearly specify the computation location to be outside "
+"of the if scope and closure. As you can see let-binding gives a more precise"
+" specification of the computation site and could be useful when we generate "
+"backend code (as such specification is in the IR)."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:179
 msgid ""
-"On the other hand, the dataflow form, which does not specify the scope of"
-" computation, does have its own advantages -- namely, we don’t need to "
-"worry about where to put the let when we generate the code. The dataflow "
-"form also gives more freedom to the later passes to decide where to put "
-"the evaluation point. As a result, it might not be a bad idea to use data"
-" flow form of the program in the initial phases of optimizations when you"
-" find it is convenient. Many optimizations in Relay today are written to "
-"optimize dataflow programs."
+"On the other hand, the dataflow form, which does not specify the scope of "
+"computation, does have its own advantages -- namely, we don’t need to worry "
+"about where to put the let when we generate the code. The dataflow form also"
+" gives more freedom to the later passes to decide where to put the "
+"evaluation point. As a result, it might not be a bad idea to use data flow "
+"form of the program in the initial phases of optimizations when you find it "
+"is convenient. Many optimizations in Relay today are written to optimize "
+"dataflow programs."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:185
 msgid ""
-"However, when we lower the IR to an actual runtime program, we need to be"
-" precise about the scope of computation. In particular, we want to "
-"explicitly specify where the scope of computation should happen when we "
-"are using sub-functions and closures. Let-binding can be used to solve "
-"this problem in later stage execution specific optimizations."
+"However, when we lower the IR to an actual runtime program, we need to be "
+"precise about the scope of computation. In particular, we want to explicitly"
+" specify where the scope of computation should happen when we are using sub-"
+"functions and closures. Let-binding can be used to solve this problem in "
+"later stage execution specific optimizations."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:191
@@ -304,48 +322,47 @@ msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:193
 msgid ""
-"Hopefully, by now you are familiar with the two kinds of representations."
-" Most functional programming languages do their analysis in A-normal "
-"form, where the analyzer does not need to be mindful that the expressions"
-" are DAGs."
+"Hopefully, by now you are familiar with the two kinds of representations. "
+"Most functional programming languages do their analysis in A-normal form, "
+"where the analyzer does not need to be mindful that the expressions are "
+"DAGs."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:197
 msgid ""
-"Relay choose to support both the dataflow form and let bindings. We "
-"believe that it is important to let the framework developer choose the "
+"Relay choose to support both the dataflow form and let bindings. We believe "
+"that it is important to let the framework developer choose the "
 "representation they are familiar with. This does, however, have some "
 "implications on how we write passes:"
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:201
 msgid ""
-"If you come from a dataflow background and want to handle lets, keep a "
-"map of var to the expressions so you can perform lookup when encountering"
-" a var. This likely means a minimum change as we already need a map from "
+"If you come from a dataflow background and want to handle lets, keep a map "
+"of var to the expressions so you can perform lookup when encountering a var."
+" This likely means a minimum change as we already need a map from "
 "expressions to transformed expressions anyway. Note that this will "
 "effectively remove all the lets in the program."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:202
 msgid ""
-"If you come from a PL background and like A-normal form, we will provide "
-"a dataflow to A-normal form pass."
+"If you come from a PL background and like A-normal form, we will provide a "
+"dataflow to A-normal form pass."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:203
 msgid ""
-"For PL folks, when you are implementing something (like a dataflow-to-ANF"
-" transformation), be mindful that expressions can be DAGs, and this "
-"usually means that we should visit expressions with a ``Map<Expr, "
-"Result>`` and only compute the transformed result once, so the resulting "
-"expression keeps the common structure."
+"For PL folks, when you are implementing something (like a dataflow-to-ANF "
+"transformation), be mindful that expressions can be DAGs, and this usually "
+"means that we should visit expressions with a ``Map<Expr, Result>`` and only"
+" compute the transformed result once, so the resulting expression keeps the "
+"common structure."
 msgstr ""
 
 #: ../../_staging/arch/relay_intro.rst:205
 msgid ""
 "There are additional advanced concepts such as symbolic shape inference, "
-"polymorphic functions that are not covered by this material; you are more"
-" than welcome to look at other materials."
+"polymorphic functions that are not covered by this material; you are more "
+"than welcome to look at other materials."
 msgstr ""
-

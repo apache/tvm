@@ -1,21 +1,21 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-09-18 07:41+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/contribute/release_process.rst:21
 msgid "Apache TVM Release Process"
@@ -84,13 +84,12 @@ msgid "Prepare the Release Notes"
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:48
-#, python-format
 msgid ""
-"Release note contains new features, improvement, bug fixes, known issues "
-"and deprecation, etc. TVM provides `monthly dev report "
-"<https://discuss.tvm.ai/search?q=TVM%20Monthly%20%23Announcement>`_ "
-"collects developing progress each month. It could be helpful to who "
-"writes the release notes."
+"Release note contains new features, improvement, bug fixes, known issues and"
+" deprecation, etc. TVM provides `monthly dev report "
+"<https://discuss.tvm.ai/search?q=TVM%20Monthly%20%23Announcement>`_ collects"
+" developing progress each month. It could be helpful to who writes the "
+"release notes."
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:50
@@ -109,16 +108,16 @@ msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:58
 msgid ""
-"After generating the gpg key, you need to upload your key to a public key"
-" server. Please refer to https://www.apache.org/dev/openpgp.html"
-"#generate-key for details."
+"After generating the gpg key, you need to upload your key to a public key "
+"server. Please refer to https://www.apache.org/dev/openpgp.html#generate-key"
+" for details."
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:60
 msgid ""
-"If you want to do the release on another machine, you can transfer your "
-"gpg key to that machine via the :code:`gpg --export` and :code:`gpg "
-"--import` commands."
+"If you want to do the release on another machine, you can transfer your gpg "
+"key to that machine via the :code:`gpg --export` and :code:`gpg --import` "
+"commands."
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:62
@@ -134,8 +133,8 @@ msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:79
 msgid ""
-"To cut a release candidate, one needs to first cut a branch using "
-"selected version string, e.g.,"
+"To cut a release candidate, one needs to first cut a branch using selected "
+"version string, e.g.,"
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:88
@@ -152,14 +151,13 @@ msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:92
 msgid ""
-"Provide the release tag in the form of “v1.0.0.rc0” where 0 means it’s "
-"the first release candidate"
+"Provide the release tag in the form of “v1.0.0.rc0” where 0 means it’s the "
+"first release candidate"
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:93
 msgid ""
-"Select the commit by clicking Target: branch > Recent commits > "
-"$commit_hash"
+"Select the commit by clicking Target: branch > Recent commits > $commit_hash"
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:94
@@ -176,9 +174,9 @@ msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:98
 msgid ""
-"Notice that one can still apply changes to the BRANCH after the cut, "
-"while the TAG is fixed. If any change is required for this release, a new"
-" TAG has to be created."
+"Notice that one can still apply changes to the BRANCH after the cut, while "
+"the TAG is fixed. If any change is required for this release, a new TAG has "
+"to be created."
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:100
@@ -191,8 +189,8 @@ msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:121
 msgid ""
-"Use your GPG key to sign the created artifact. First make sure your GPG "
-"is set to use the correct private key,"
+"Use your GPG key to sign the created artifact. First make sure your GPG is "
+"set to use the correct private key,"
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:128
@@ -220,10 +218,10 @@ msgstr ""
 #: ../../_staging/contribute/release_process.rst:157
 msgid ""
 "The first voting takes place on the Apache TVM developers list "
-"(dev@tvm.apache.org). To get more attention, one can create a github "
-"issue start with \"[VOTE]\" instead, it will be mirrored to dev@ "
-"automatically. Look at past voting threads to see how this proceeds. The "
-"email should follow this format."
+"(dev@tvm.apache.org). To get more attention, one can create a github issue "
+"start with \"[VOTE]\" instead, it will be mirrored to dev@ automatically. "
+"Look at past voting threads to see how this proceeds. The email should "
+"follow this format."
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:159
@@ -248,16 +246,15 @@ msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:165
 msgid ""
-"In ASF, votes are open \"at least\" 72hrs (3 days). If you don't get "
-"enough number of binding votes within that time, you cannot close the "
-"voting deadline. You need to extend it."
+"In ASF, votes are open \"at least\" 72hrs (3 days). If you don't get enough "
+"number of binding votes within that time, you cannot close the voting "
+"deadline. You need to extend it."
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:167
 msgid ""
 "If the voting fails, the community needs to modified the release "
-"accordingly, create a new release candidate and re-run the voting "
-"process."
+"accordingly, create a new release candidate and re-run the voting process."
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:171
@@ -266,11 +263,10 @@ msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:173
 msgid ""
-"After the vote passes, to upload the binaries to Apache mirrors, you move"
-" the binaries from dev directory (this should be where they are voted) to"
-" release directory. This \"moving\" is the only way you can add stuff to "
-"the actual release directory. (Note: only PMC can move to release "
-"directory)"
+"After the vote passes, to upload the binaries to Apache mirrors, you move "
+"the binaries from dev directory (this should be where they are voted) to "
+"release directory. This \"moving\" is the only way you can add stuff to the "
+"actual release directory. (Note: only PMC can move to release directory)"
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:186
@@ -286,8 +282,8 @@ msgstr ""
 #: ../../_staging/contribute/release_process.rst:196
 msgid ""
 "The website repository is located at `https://github.com/apache/tvm-site "
-"<https://github.com/apache/tvm-site>`_. Modify the download page to "
-"include the release artifacts as well as the GPG signature and SHA hash."
+"<https://github.com/apache/tvm-site>`_. Modify the download page to include "
+"the release artifacts as well as the GPG signature and SHA hash."
 msgstr ""
 
 #: ../../_staging/contribute/release_process.rst:200
@@ -297,7 +293,6 @@ msgstr ""
 #: ../../_staging/contribute/release_process.rst:202
 msgid ""
 "Send out an announcement email to announce@apache.org, and "
-"dev@tvm.apache.org. The announcement should include the link to release "
-"note and download page."
+"dev@tvm.apache.org. The announcement should include the link to release note"
+" and download page."
 msgstr ""
-

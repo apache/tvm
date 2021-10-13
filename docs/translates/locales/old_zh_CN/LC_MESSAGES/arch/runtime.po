@@ -1,21 +1,21 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:29+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/arch/runtime.rst:21
 msgid "TVM Runtime System"
@@ -24,8 +24,8 @@ msgstr ""
 #: ../../_staging/arch/runtime.rst:23
 msgid ""
 "TVM supports multiple programming languages for the compiler stack "
-"development and deployment. In this note, we explain the key elements of "
-"the TVM runtime."
+"development and deployment. In this note, we explain the key elements of the"
+" TVM runtime."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:28
@@ -39,17 +39,19 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:31
-msgid "Debug: define a function in python and call that from a compiled function."
+msgid ""
+"Debug: define a function in python and call that from a compiled function."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:32
 msgid ""
-"Link: write driver code to call device specific code (CUDA) and call it "
-"from compiled host function."
+"Link: write driver code to call device specific code (CUDA) and call it from"
+" compiled host function."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:33
-msgid "Prototype: define an IR pass from python and call that from C++ backend."
+msgid ""
+"Prototype: define an IR pass from python and call that from C++ backend."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:34
@@ -58,15 +60,15 @@ msgstr ""
 
 #: ../../_staging/arch/runtime.rst:35
 msgid ""
-"Experiment: ship a compiled function to an embedded device to directly "
-"run there."
+"Experiment: ship a compiled function to an embedded device to directly run "
+"there."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:37
 msgid ""
 "We want to be able to define a function from any language and call from "
-"another. We also want the runtime core to be minimal to deploy to "
-"embedded devices."
+"another. We also want the runtime core to be minimal to deploy to embedded "
+"devices."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:43
@@ -87,27 +89,27 @@ msgstr ""
 #: ../../_staging/arch/runtime.rst:71
 msgid ""
 "In the above codeblock, we defined a PackedFunc MyAdd. It takes two "
-"arguments : ``args`` represents input arguments and ``rv`` represents "
-"return value. The function is type-erased, which means that the function "
-"signature does not restrict which input type to pass in or type to "
-"return. Under the hood, when we call a PackedFunc, it packs the input "
-"arguments to TVMArgs on stack, and gets the result back via TVMRetValue."
+"arguments : ``args`` represents input arguments and ``rv`` represents return"
+" value. The function is type-erased, which means that the function signature"
+" does not restrict which input type to pass in or type to return. Under the "
+"hood, when we call a PackedFunc, it packs the input arguments to TVMArgs on "
+"stack, and gets the result back via TVMRetValue."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:77
 msgid ""
 "Thanks to template tricks in C++, we can call a PackedFunc just like a "
-"normal function. Because of its type-erased nature, we can call a "
-"PackedFunc from dynamic languages like python, without additional glue "
-"code for each new type function created. The following example registers "
-"PackedFunc in C++ and calls from python."
+"normal function. Because of its type-erased nature, we can call a PackedFunc"
+" from dynamic languages like python, without additional glue code for each "
+"new type function created. The following example registers PackedFunc in C++"
+" and calls from python."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:94
 msgid ""
 "Most of the magic of PackedFunc lies in ``TVMArgs`` and ``TVMRetValue`` "
-"structure. We restrict a list of possible types which can be passed. Here"
-" are the common ones:"
+"structure. We restrict a list of possible types which can be passed. Here "
+"are the common ones:"
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:98
@@ -133,23 +135,23 @@ msgstr ""
 #: ../../_staging/arch/runtime.rst:104
 msgid ""
 "The restriction makes the implementation simple without the need of "
-"serialization. Despite being minimum, the PackedFunc is sufficient for "
-"the use-case of deep learning deployment as most functions only take "
-"DLTensor or numbers."
+"serialization. Despite being minimum, the PackedFunc is sufficient for the "
+"use-case of deep learning deployment as most functions only take DLTensor or"
+" numbers."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:108
 msgid ""
-"Since one PackedFunc can take another PackedFunc as an argument, we can "
-"pass functions from python (as PackedFunc) to C++."
+"Since one PackedFunc can take another PackedFunc as an argument, we can pass"
+" functions from python (as PackedFunc) to C++."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:132
 msgid ""
 "TVM provides a `minimum C API`_, which allows us to embed the PackedFunc "
 "into any languages. Besides python, so far we supported `java`_ and "
-"`javascript`_. This philosophy of embedded API is very like Lua, except "
-"that we don't have a new language but use C++."
+"`javascript`_. This philosophy of embedded API is very like Lua, except that"
+" we don't have a new language but use C++."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:142
@@ -159,7 +161,8 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:144
-msgid "All compiler pass functions of TVM are exposed to frontend as PackedFunc"
+msgid ""
+"All compiler pass functions of TVM are exposed to frontend as PackedFunc"
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:145
@@ -169,17 +172,16 @@ msgstr ""
 #: ../../_staging/arch/runtime.rst:147
 msgid ""
 "To keep the runtime minimum, we isolated the IR Object support from the "
-"deployment runtime. The resulting runtime takes around 200K - 600K "
-"depending on how many runtime driver modules (e.g., CUDA) get included."
+"deployment runtime. The resulting runtime takes around 200K - 600K depending"
+" on how many runtime driver modules (e.g., CUDA) get included."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:149
 msgid ""
-"The overhead of calling into PackedFunc vs. a normal function is small, "
-"as it is only saving a few values on the stack. So it is OK as long as we"
-" don't wrap small functions. In summary, the PackedFunc is the universal "
-"glue in TVM where we use it extensively to support our compiler and "
-"deployment."
+"The overhead of calling into PackedFunc vs. a normal function is small, as "
+"it is only saving a few values on the stack. So it is OK as long as we don't"
+" wrap small functions. In summary, the PackedFunc is the universal glue in "
+"TVM where we use it extensively to support our compiler and deployment."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:156
@@ -188,32 +190,32 @@ msgstr ""
 
 #: ../../_staging/arch/runtime.rst:158
 msgid ""
-"Since TVM supports multiple types of devices, we need to support "
-"different type of drivers. We have to use the driver API to load the "
-"kernel, set up the argument in packed format and perform kernel launch. "
-"We also need to patch up the driver API so that the exposed functions are"
-" threadsafe. So we often need to implement these driver glues in C++ and "
-"expose them to the user. We can certainly not do it for each type of "
-"functions, so again PackedFunc is our answer."
+"Since TVM supports multiple types of devices, we need to support different "
+"type of drivers. We have to use the driver API to load the kernel, set up "
+"the argument in packed format and perform kernel launch. We also need to "
+"patch up the driver API so that the exposed functions are threadsafe. So we "
+"often need to implement these driver glues in C++ and expose them to the "
+"user. We can certainly not do it for each type of functions, so again "
+"PackedFunc is our answer."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:164
 msgid ""
-"TVM defines the compiled object as `Module`_. The user can get the "
-"compiled function from Module as PackedFunc. The generated compiled code "
-"can dynamically get function from Module in runtime. It caches the "
-"function handle in the first call and reuses in subsequent calls. We use "
-"this to link device code and callback into any PackedFunc(e.g., python) "
-"from generated code."
+"TVM defines the compiled object as `Module`_. The user can get the compiled "
+"function from Module as PackedFunc. The generated compiled code can "
+"dynamically get function from Module in runtime. It caches the function "
+"handle in the first call and reuses in subsequent calls. We use this to link"
+" device code and callback into any PackedFunc(e.g., python) from generated "
+"code."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:170
 msgid ""
-"The ModuleNode is an abstract class that can be implemented by each type "
-"of device. So far we support modules for CUDA, Metal, OpenCL and loading "
-"dynamic shared libraries. This abstraction makes introduction of new "
-"device easy, and we do not need to redo the host code generation for each"
-" type of device."
+"The ModuleNode is an abstract class that can be implemented by each type of "
+"device. So far we support modules for CUDA, Metal, OpenCL and loading "
+"dynamic shared libraries. This abstraction makes introduction of new device "
+"easy, and we do not need to redo the host code generation for each type of "
+"device."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:175
@@ -230,20 +232,20 @@ msgstr ""
 
 #: ../../_staging/arch/runtime.rst:182
 msgid ""
-"The RPC server itself is minimum and can be bundled into the runtime. We "
-"can start a minimum TVM RPC server on iPhone/android/raspberry pi or even"
-" the browser. The cross compilation on server and shipping of the module "
-"for testing can be done in the same script. Checkout :ref:`tutorial-"
-"cross-compilation-and-rpc` for more details."
+"The RPC server itself is minimum and can be bundled into the runtime. We can"
+" start a minimum TVM RPC server on iPhone/android/raspberry pi or even the "
+"browser. The cross compilation on server and shipping of the module for "
+"testing can be done in the same script. Checkout :ref:`tutorial-cross-"
+"compilation-and-rpc` for more details."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:187
 msgid ""
-"This instant feedback gives us a lot of advantages. For example, to test "
-"the correctness of generated code on iPhone, we no longer have to write "
-"test-cases in swift/objective-c from scratch -- We can use RPC to execute"
-" on iPhone, copy the result back and do verification on the host via "
-"numpy. We can also do the profiling using the same script."
+"This instant feedback gives us a lot of advantages. For example, to test the"
+" correctness of generated code on iPhone, we no longer have to write test-"
+"cases in swift/objective-c from scratch -- We can use RPC to execute on "
+"iPhone, copy the result back and do verification on the host via numpy. We "
+"can also do the profiling using the same script."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:190
@@ -253,10 +255,10 @@ msgstr ""
 #: ../../_staging/arch/runtime.rst:192
 msgid ""
 "As we mentioned earlier, we build compiler stack API on top of the "
-"PackedFunc runtime system. We faced a constant changing of the compiler "
-"API for the need of research. We need a new language object or IR node "
-"whenever we want to test out new primitives. However, we don't want to "
-"change our API from time to time. Besides that, we also want to"
+"PackedFunc runtime system. We faced a constant changing of the compiler API "
+"for the need of research. We need a new language object or IR node whenever "
+"we want to test out new primitives. However, we don't want to change our API"
+" from time to time. Besides that, we also want to"
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:196
@@ -271,50 +273,50 @@ msgstr ""
 
 #: ../../_staging/arch/runtime.rst:199
 msgid ""
-"We introduced a base class, called `Object`_ to solve this problem. All "
-"the language object in the compiler stack is a subclass of ``Object``. "
-"Each object contains a string type_key that uniquely identifies the type "
-"of object. We choose string instead of int as type key so new ``Object`` "
-"class can be added in the decentralized fashion without adding the code "
-"back to the central repo. To ease the speed of dispatching, we allocate "
-"an integer type_index at runtime for each type_key."
+"We introduced a base class, called `Object`_ to solve this problem. All the "
+"language object in the compiler stack is a subclass of ``Object``. Each "
+"object contains a string type_key that uniquely identifies the type of "
+"object. We choose string instead of int as type key so new ``Object`` class "
+"can be added in the decentralized fashion without adding the code back to "
+"the central repo. To ease the speed of dispatching, we allocate an integer "
+"type_index at runtime for each type_key."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:206
 msgid ""
-"Since usually one ``Object`` could be referenced in multiple places in "
-"the language, we use a shared_ptr to keep track of reference. We use "
+"Since usually one ``Object`` could be referenced in multiple places in the "
+"language, we use a shared_ptr to keep track of reference. We use "
 "``ObjectRef`` class to represent a reference to the ``Object``. We can "
-"roughly view ``ObjectRef`` class as shared_ptr to the ``Object`` "
-"container. We can also define subclass ``ObjectRef`` to hold each "
-"subtypes of ``Object``. Each subclass of ``Object`` needs to define the "
-"VisitAttr function."
+"roughly view ``ObjectRef`` class as shared_ptr to the ``Object`` container. "
+"We can also define subclass ``ObjectRef`` to hold each subtypes of "
+"``Object``. Each subclass of ``Object`` needs to define the VisitAttr "
+"function."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:233
 msgid ""
-"Each ``Object`` subclass will override this to visit its members. Here is"
-" an example implementation of TensorNode."
+"Each ``Object`` subclass will override this to visit its members. Here is an"
+" example implementation of TensorNode."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:258
 msgid ""
-"In the above examples, both ``Operation`` and ``Array<Expr>`` are "
-"ObjectRef. The VisitAttrs gives us a reflection API to visit each member "
-"of the object. We can use this function to visit the node and serialize "
-"any language object recursively. It also allows us to get members of an "
-"object easily in front-end language. For example, in the following code, "
-"we accessed the op field of the TensorNode."
+"In the above examples, both ``Operation`` and ``Array<Expr>`` are ObjectRef."
+" The VisitAttrs gives us a reflection API to visit each member of the "
+"object. We can use this function to visit the node and serialize any "
+"language object recursively. It also allows us to get members of an object "
+"easily in front-end language. For example, in the following code, we "
+"accessed the op field of the TensorNode."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:273
 msgid ""
-"New ``Object`` can be added to C++ without changing the front-end "
-"runtime, making it easy to make extensions to the compiler stack. Note "
-"that this is not the fastest way to expose members to front-end language,"
-" but might be one of the simplest approaches possible. We also find that "
-"it fits our purposes as we mainly use python for testing and prototyping "
-"and still use c++ to do the heavy lifting job."
+"New ``Object`` can be added to C++ without changing the front-end runtime, "
+"making it easy to make extensions to the compiler stack. Note that this is "
+"not the fastest way to expose members to front-end language, but might be "
+"one of the simplest approaches possible. We also find that it fits our "
+"purposes as we mainly use python for testing and prototyping and still use "
+"c++ to do the heavy lifting job."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:279
@@ -323,10 +325,10 @@ msgstr ""
 
 #: ../../_staging/arch/runtime.rst:281
 msgid ""
-"Each argument in PackedFunc contains a union value `TVMValue`_ and a type"
-" code. This design allows the dynamically typed language to convert to "
-"the corresponding type directly, and statically typed language to do "
-"runtime type checking during conversion."
+"Each argument in PackedFunc contains a union value `TVMValue`_ and a type "
+"code. This design allows the dynamically typed language to convert to the "
+"corresponding type directly, and statically typed language to do runtime "
+"type checking during conversion."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:287
@@ -344,11 +346,10 @@ msgstr ""
 #: ../../_staging/arch/runtime.rst:295
 msgid ""
 "To support extension types, we used a registry system to register type "
-"related information, like support of any in C++, see `Extension types`_ "
-"for more details."
+"related information, like support of any in C++, see `Extension types`_ for "
+"more details."
 msgstr ""
 
 #: ../../_staging/arch/runtime.rst:302
 msgid "Runtime-Specific Information"
 msgstr ""
-

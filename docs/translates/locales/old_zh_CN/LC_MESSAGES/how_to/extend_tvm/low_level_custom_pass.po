@@ -1,32 +1,37 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:33+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:4
 msgid ""
 "Click :ref:`here "
-"<sphx_glr_download_how_to_extend_tvm_low_level_custom_pass.py>` to "
-"download the full example code"
+"<sphx_glr_download_how_to_extend_tvm_low_level_custom_pass.py>` to download "
+"the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:11
 msgid "Writing a Customized Pass"
-msgstr ""
+msgstr "编写自定义通行证"
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:12
 msgid "**Author**: `Jian Weng <https://were.github.io>`_"
@@ -34,10 +39,10 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:14
 msgid ""
-"TVM is a framework that abstracts away the heterogenity of machine "
-"learning accelerators. Sometimes users may want customize some analysis "
-"and IR transformations to adapt TVM to their own specialized hardware. "
-"This tutorial helps users write a customized pass in TVM."
+"TVM is a framework that abstracts away the heterogenity of machine learning "
+"accelerators. Sometimes users may want customize some analysis and IR "
+"transformations to adapt TVM to their own specialized hardware. This "
+"tutorial helps users write a customized pass in TVM."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:20
@@ -58,22 +63,21 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:26
 msgid ""
-"The basic structure of HalideIR. Otherwise, see ``HalideIR/src/ir/IR.h`` "
-"to learn what attributes of IR nodes are defined."
+"The basic structure of HalideIR. Otherwise, see ``HalideIR/src/ir/IR.h`` to "
+"learn what attributes of IR nodes are defined."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:28
 msgid ""
 "Visitor design pattern. Otherwise, check the `Python AST module "
-"<https://docs.python.org/3/library/ast.html>`_ to see how an AST visitor "
-"is implemented."
+"<https://docs.python.org/3/library/ast.html>`_ to see how an AST visitor is "
+"implemented."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:31
 msgid ""
 "How a Schedule is lowered to either an IRModule class or a LLVM module. "
-"Otherwise, take a look at ``python/tvm/build_module.py`` to get some "
-"basics."
+"Otherwise, take a look at ``python/tvm/build_module.py`` to get some basics."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:48
@@ -86,7 +90,7 @@ msgstr ""
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:71
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:218
 msgid "Out:"
-msgstr ""
+msgstr "输出:"
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:91
 msgid "Writing a Pass"
@@ -95,12 +99,13 @@ msgstr ""
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:92
 msgid ""
 "Essentially, an \"IR transformation pass\" is a function which maps a "
-"statement to a new statement. Thus, we define this vectorize function and"
-" implement it step by step."
+"statement to a new statement. Thus, we define this vectorize function and "
+"implement it step by step."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:96
-msgid "TVM already provides two class for users to both analyze and transform IR."
+msgid ""
+"TVM already provides two class for users to both analyze and transform IR."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:99
@@ -109,19 +114,19 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:100
 msgid ""
-"We can use ``tvm.tir.stmt_functor.post_order_visit(stmt, func)`` to "
-"gather information from the Halide IR. ``func`` is a function callback. "
-"This function will be called before exiting the current IR node, i.e. "
-"post-order visit. Then we leverage side effects to store the result of IR"
-" visit, because the return value of ``func`` will be ignored."
+"We can use ``tvm.tir.stmt_functor.post_order_visit(stmt, func)`` to gather "
+"information from the Halide IR. ``func`` is a function callback. This "
+"function will be called before exiting the current IR node, i.e. post-order "
+"visit. Then we leverage side effects to store the result of IR visit, "
+"because the return value of ``func`` will be ignored."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:107
 msgid ""
-"You MUST use some array to store the result of IR visit. Even the value "
-"is a single variable. This is mainly due to the constraints in the "
-"Python-C runtime. The variable values will be refreshed every recursion "
-"but the array values will be preserved."
+"You MUST use some array to store the result of IR visit. Even the value is a"
+" single variable. This is mainly due to the constraints in the Python-C "
+"runtime. The variable values will be refreshed every recursion but the array"
+" values will be preserved."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:134
@@ -132,16 +137,16 @@ msgstr ""
 msgid ""
 "The transformation interface is slightly different from the visitor "
 "interface. There is only a post-order callback in the visitor, but "
-"transformation visitor supports both a pre-order and a post-order "
-"callback. If you want to keep the origin IR node, just return None. If "
-"you want to change the current node to some node, use TVM IR maker "
-"interface to build it and return this value."
+"transformation visitor supports both a pre-order and a post-order callback. "
+"If you want to keep the origin IR node, just return None. If you want to "
+"change the current node to some node, use TVM IR maker interface to build it"
+" and return this value."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:143
 msgid ""
-"If the pre-order function is called and returns a value which is not "
-"None, the post-order function will be skipped."
+"If the pre-order function is called and returns a value which is not None, "
+"the post-order function will be skipped."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:186
@@ -150,17 +155,17 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:187
 msgid ""
-"So far, we are done with writing this IR transformation pass. What we "
-"need to do next is to glue this pass to TVM's lower pass."
+"So far, we are done with writing this IR transformation pass. What we need "
+"to do next is to glue this pass to TVM's lower pass."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:190
 msgid ""
 "In this case, we inject the pass written above into the TVM standard "
 "lowering pass by feeding **a list of tuple** as argument to "
-"``tir.add_lower_pass``. \"Tuple\" indicates different phases of lowering."
-" In TVM, there are four phases of lowering and user-customized ones will "
-"be called after each phase is done."
+"``tir.add_lower_pass``. \"Tuple\" indicates different phases of lowering. In"
+" TVM, there are four phases of lowering and user-customized ones will be "
+"called after each phase is done."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:199
@@ -176,7 +181,8 @@ msgid "Phase 1 flattens the array storage."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:199
-msgid "Phase 2 transforms loops, like unroll, vectorization and thread-binding."
+msgid ""
+"Phase 2 transforms loops, like unroll, vectorization and thread-binding."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:200
@@ -184,7 +190,8 @@ msgid "Phase 3 does some cleanup work."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:202
-msgid "Thus, a good place to put this transformation pass is just after Phase 1."
+msgid ""
+"Thus, a good place to put this transformation pass is just after Phase 1."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:238
@@ -193,11 +200,10 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:239
 msgid ""
-"This tutorial gives a quick view of writing a customized IR "
-"transformation pass: - Use ``tvm.tir.stmt_functor.post_order_visit`` to "
-"gather information on each IR nodes. - Use "
-"``tvm.tir.stmt_functor.ir_transform`` to transform IR nodes. - Wrap up "
-"two above to write an IR-transformation function. - Use "
+"This tutorial gives a quick view of writing a customized IR transformation "
+"pass: - Use ``tvm.tir.stmt_functor.post_order_visit`` to gather information "
+"on each IR nodes. - Use ``tvm.tir.stmt_functor.ir_transform`` to transform "
+"IR nodes. - Wrap up two above to write an IR-transformation function. - Use "
 "``tvm.transform.PassContext`` to put this function to TVM lowering pass"
 msgstr ""
 
@@ -214,6 +220,7 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/low_level_custom_pass.rst:272
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

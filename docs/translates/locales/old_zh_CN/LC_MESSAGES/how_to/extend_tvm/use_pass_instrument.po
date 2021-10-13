@@ -1,27 +1,31 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:33+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:4
 msgid ""
 "Click :ref:`here "
-"<sphx_glr_download_how_to_extend_tvm_use_pass_instrument.py>` to download"
-" the full example code"
+"<sphx_glr_download_how_to_extend_tvm_use_pass_instrument.py>` to download "
+"the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:13
@@ -75,7 +79,7 @@ msgstr ""
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:718
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:743
 msgid "Out:"
-msgstr ""
+msgstr "输出:"
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:173
 msgid "Create PassContext With Instruments"
@@ -95,12 +99,12 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:212
 msgid ""
-"One can also use the current ``PassContext`` and register "
-"``PassInstrument`` instances by ``override_instruments`` method. Note "
-"that ``override_instruments`` executes ``exit_pass_ctx`` method if any "
-"instrument already exists. Then it switches to new instruments and calls "
-"``enter_pass_ctx`` method of new instruments. Refer to following sections"
-" and :py:func:`tvm.instrument.pass_instrument` for these methods."
+"One can also use the current ``PassContext`` and register ``PassInstrument``"
+" instances by ``override_instruments`` method. Note that "
+"``override_instruments`` executes ``exit_pass_ctx`` method if any instrument"
+" already exists. Then it switches to new instruments and calls "
+"``enter_pass_ctx`` method of new instruments. Refer to following sections "
+"and :py:func:`tvm.instrument.pass_instrument` for these methods."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:250
@@ -109,8 +113,8 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:252
 msgid ""
-"Note that ``exit_pass_ctx`` of ``PassTimingInstrument`` is called. "
-"Profiles are cleared so nothing is printed."
+"Note that ``exit_pass_ctx`` of ``PassTimingInstrument`` is called. Profiles "
+"are cleared so nothing is printed."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:271
@@ -125,10 +129,10 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:275
 msgid ""
-"Let's create an instrument class which calculates the change in number of"
-" occurrences of each operator caused by each pass. We can look at "
-"``op.name`` to find the name of each operator. And we do this before and "
-"after passes to calculate the difference."
+"Let's create an instrument class which calculates the change in number of "
+"occurrences of each operator caused by each pass. We can look at ``op.name``"
+" to find the name of each operator. And we do this before and after passes "
+"to calculate the difference."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:365
@@ -138,10 +142,10 @@ msgstr ""
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:366
 msgid ""
 "We can use multiple instrument classes in a ``PassContext``. However, it "
-"should be noted that instrument methods are executed sequentially, "
-"obeying the order of ``instruments`` argument. So for instrument classes "
-"like ``PassTimingInstrument``, it is inevitable to count-up the execution"
-" time of other instrument classes to the final profile result."
+"should be noted that instrument methods are executed sequentially, obeying "
+"the order of ``instruments`` argument. So for instrument classes like "
+"``PassTimingInstrument``, it is inevitable to count-up the execution time of"
+" other instrument classes to the final profile result."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:403
@@ -166,10 +170,9 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:487
 msgid ""
-"If an exception occurs in ``enter_pass_ctx``, ``PassContext`` will "
-"disable the pass instrumentation. And it will run the ``exit_pass_ctx`` "
-"of each ``PassInstrument`` which successfully finished "
-"``enter_pass_ctx``."
+"If an exception occurs in ``enter_pass_ctx``, ``PassContext`` will disable "
+"the pass instrumentation. And it will run the ``exit_pass_ctx`` of each "
+"``PassInstrument`` which successfully finished ``enter_pass_ctx``."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:491
@@ -213,14 +216,14 @@ msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:669
 msgid ""
-"If we don't wrap pass execution with ``with`` syntax, ``exit_pass_ctx`` "
-"is not called. Let try this with current ``PassContext``:"
+"If we don't wrap pass execution with ``with`` syntax, ``exit_pass_ctx`` is "
+"not called. Let try this with current ``PassContext``:"
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:700
 msgid ""
-"Then call passes. ``exit_pass_ctx`` is not executed after the exception, "
-"as expectation."
+"Then call passes. ``exit_pass_ctx`` is not executed after the exception, as "
+"expectation."
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:731
@@ -240,6 +243,7 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:779
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

@@ -1,133 +1,165 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# JiaKui Hu, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:36+0000\n"
+"Last-Translator: JiaKui Hu, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/reference/api/python/driver.rst:19
 msgid "tvm.driver"
-msgstr ""
+msgstr "tvm.driver"
 
-#: of tvm.driver:1
+#: ../../../python/tvm/driver/__init__.pydocstring of tvm.driver:1
 msgid "Namespace for driver APIs"
 msgstr ""
 
-#: of tvm.driver.build_module.lower:1
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:1
 msgid "Lowering step before build into target."
 msgstr ""
 
-#: of tvm.driver.build_module.build tvm.driver.build_module.lower
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:0
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:0
 msgid "Parameters"
-msgstr ""
+msgstr "参数"
 
-#: of tvm.driver.build_module.lower:3
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:3
 msgid "The TE schedule or TensorIR PrimFunc/IRModule to be built"
 msgstr ""
 
-#: of tvm.driver.build_module.lower:5
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:5
 msgid ""
-"The argument lists to the function for TE schedule. It should be None if "
-"we want to lower TensorIR."
+"The argument lists to the function for TE schedule. It should be None if we "
+"want to lower TensorIR."
 msgstr ""
 
-#: of tvm.driver.build_module.lower:8
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:8
 msgid "The name of the result function."
 msgstr ""
 
-#: of tvm.driver.build_module.lower:10
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:10
 msgid ""
-"Dictionary that maps the Tensor to Buffer which specified the data layout"
-" requirement of the function. By default, a new compact buffer is created"
-" for each tensor in the argument."
+"Dictionary that maps the Tensor to Buffer which specified the data layout "
+"requirement of the function. By default, a new compact buffer is created for"
+" each tensor in the argument."
 msgstr ""
 
-#: of tvm.driver.build_module.lower:14
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:14
 msgid ""
 "Whether only output simple and compact statement, this will skip "
 "LoopPartition, api wrapper generation and Unrolling."
 msgstr ""
 
-#: of tvm.driver.build_module.build tvm.driver.build_module.lower
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:0
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:0
 msgid "Returns"
-msgstr ""
+msgstr "返回"
 
-#: of tvm.driver.build_module.lower:18
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:18
 msgid "**m** -- The result IRModule"
 msgstr ""
 
-#: of tvm.driver.build_module.build tvm.driver.build_module.lower
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.lower:0
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:0
 msgid "Return type"
-msgstr ""
+msgstr "返回的数据类型"
 
-#: of tvm.driver.build_module.build:1
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:1
 msgid ""
 "Build a function with arguments as signature. Code will be generated for "
 "devices coupled with target information."
 msgstr ""
 
-#: of tvm.driver.build_module.build:4
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:4
 msgid "The input to be built"
 msgstr ""
 
-#: of tvm.driver.build_module.build:6
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:6
 msgid "The argument lists to the function."
 msgstr ""
 
-#: of tvm.driver.build_module.build:8
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:8
 msgid "The target and option of the compilation."
 msgstr ""
 
-#: of tvm.driver.build_module.build:10
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:10
 msgid ""
 "Host compilation target, if target is device. When TVM compiles device "
-"specific program such as CUDA, we also need host(CPU) side code to "
-"interact with the driver setup the dimensions and parameters correctly. "
-"target_host is used to specify the host side codegen target. By default, "
-"llvm is used if it is enabled, otherwise a stackvm intepreter is used."
+"specific program such as CUDA, we also need host(CPU) side code to interact "
+"with the driver setup the dimensions and parameters correctly. target_host "
+"is used to specify the host side codegen target. By default, llvm is used if"
+" it is enabled, otherwise a stackvm intepreter is used."
 msgstr ""
 
-#: of tvm.driver.build_module.build:18
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:18
 msgid "The name of result function."
 msgstr ""
 
-#: of tvm.driver.build_module.build:20
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:20
 msgid ""
-"Dictionary that maps the binding of symbolic buffer to Tensor. By "
-"default, a new buffer is created for each tensor in the argument."
+"Dictionary that maps the binding of symbolic buffer to Tensor. By default, a"
+" new buffer is created for each tensor in the argument."
 msgstr ""
 
-#: of tvm.driver.build_module.build:24
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:24
 msgid "**ret** -- A module that combines both host and device code."
 msgstr ""
 
-#: of tvm.driver.build_module.build:28
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:28
 msgid "Examples"
-msgstr ""
+msgstr "样例"
 
-#: of tvm.driver.build_module.build:29
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:29
 msgid ""
-"There are two typical example uses of this function depending on the type"
-" of the argument `inputs`: 1. it is an IRModule."
+"There are two typical example uses of this function depending on the type of"
+" the argument `inputs`: 1. it is an IRModule."
 msgstr ""
 
-#: of tvm.driver.build_module.build:43
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:43
 msgid "it is a dict of compilation target to IRModule."
 msgstr ""
 
-#: of tvm.driver.build_module.build:58
+#: ../../../python/tvm/driver/build_module.pydocstring of
+#: tvm.driver.build_module.build:58
 msgid "See the note on :any:`tvm.target` on target string format."
 msgstr ""
-

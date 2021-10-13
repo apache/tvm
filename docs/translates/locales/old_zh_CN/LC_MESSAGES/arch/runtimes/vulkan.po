@@ -1,21 +1,21 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:30+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/arch/runtimes/vulkan.rst:21
 msgid "Vulkan Runtime"
@@ -35,22 +35,22 @@ msgstr ""
 #: ../../_staging/arch/runtimes/vulkan.rst:34
 msgid ""
 "Since different Vulkan implementations may enable different optional "
-"features or have different physical limits, the code generation must know"
-" which features are available to use.  These correspond to specific "
-"Vulkan capabilities/limits as in :ref:`Vulkan Capabilities Table <tvm-"
-"table-vulkan-capabilities>`. If unspecified, TVM assumes that a "
-"capability is not available, or that a limit is the minimum guaranteed by"
-" the Vulkan spec in the `Required Limits`_ section."
+"features or have different physical limits, the code generation must know "
+"which features are available to use.  These correspond to specific Vulkan "
+"capabilities/limits as in :ref:`Vulkan Capabilities Table <tvm-table-vulkan-"
+"capabilities>`. If unspecified, TVM assumes that a capability is not "
+"available, or that a limit is the minimum guaranteed by the Vulkan spec in "
+"the `Required Limits`_ section."
 msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:43
 msgid ""
 "These parameters can be either explicitly specific when defining a "
-":ref:`Target <tvm-target-specific-target>`, or can be queried from a "
-"device.  To query from a device, the special parameter ``-from_device=N``"
-" can be used to query all vulkan device parameters from device id ``N``."
-"  Any additional parameters explicitly specified will override the "
-"parameters queried from the device."
+":ref:`Target <tvm-target-specific-target>`, or can be queried from a device."
+"  To query from a device, the special parameter ``-from_device=N`` can be "
+"used to query all vulkan device parameters from device id ``N``.  Any "
+"additional parameters explicitly specified will override the parameters "
+"queried from the device."
 msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:52
@@ -238,11 +238,11 @@ msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:138
 msgid ""
-"As of May 2021, not all Vulkan implementations are supported.  For "
-"example, support for 64-bit integers is required.  If a Vulkan target is "
-"not supported, an error message should be issued during SPIR-V code "
-"generation.  Efforts are also underway to remove these requirements and "
-"support additional Vulkan implementations."
+"As of May 2021, not all Vulkan implementations are supported.  For example, "
+"support for 64-bit integers is required.  If a Vulkan target is not "
+"supported, an error message should be issued during SPIR-V code generation."
+"  Efforts are also underway to remove these requirements and support "
+"additional Vulkan implementations."
 msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:148
@@ -252,11 +252,11 @@ msgstr ""
 #: ../../_staging/arch/runtimes/vulkan.rst:150
 msgid ""
 "Some of the device-specific capabilities also correspond to SPIR-V "
-"capabilities or extensions that must be declared in the shader, or a "
-"minimum SPIR-V version required in order to use a feature.  The TVM-"
-"generated shaders will declare the minimum set of extensions/capabilities"
-" and the minimum allowed version of SPIR-V that are needed to execute the"
-" compiled graph."
+"capabilities or extensions that must be declared in the shader, or a minimum"
+" SPIR-V version required in order to use a feature.  The TVM-generated "
+"shaders will declare the minimum set of extensions/capabilities and the "
+"minimum allowed version of SPIR-V that are needed to execute the compiled "
+"graph."
 msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:157
@@ -328,37 +328,36 @@ msgstr ""
 #: ../../_staging/arch/runtimes/vulkan.rst:213
 msgid ""
 "Both the SPIR-V code generation and the Vulkan runtime have environment "
-"variables that can modify some of the runtime behavior. These are "
-"intended for debugging purposes, both to more easily test specific code "
-"paths, and to output more information as needed.  All boolean flags are "
-"true if the environment variable is set to a non-zero integer.  An unset "
-"variable, the integer zero, or an empty string are all false boolean "
-"flags."
+"variables that can modify some of the runtime behavior. These are intended "
+"for debugging purposes, both to more easily test specific code paths, and to"
+" output more information as needed.  All boolean flags are true if the "
+"environment variable is set to a non-zero integer.  An unset variable, the "
+"integer zero, or an empty string are all false boolean flags."
 msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:234
 msgid ""
-"``TVM_VULKAN_DISABLE_PUSH_DESCRIPTOR`` - A boolean flag.  If true, TVM "
-"will explicitly allocate descriptors, and will not use the "
+"``TVM_VULKAN_DISABLE_PUSH_DESCRIPTOR`` - A boolean flag.  If true, TVM will "
+"explicitly allocate descriptors, and will not use the "
 "`VK_KHR_push_descriptor`_ or `VK_KHR_descriptor_update_template`_ "
-"extensions.  If false, TVM will decide whether to use these extensions "
-"based on their availability."
+"extensions.  If false, TVM will decide whether to use these extensions based"
+" on their availability."
 msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:240
 msgid ""
-"``TVM_VULKAN_DISABLE_DEDICATED_ALLOCATION`` - A boolean flag.  If true, "
-"TVM will not mark memory allocations as being dedicated allocations, and "
-"will not use the `VK_KHR_dedicated_allocation`_ extension.  If false, TVM"
-" will decide whether memory allocations should be marked as dedicated "
-"based on the `VkMemoryDedicatedRequirements`_ for that buffer."
+"``TVM_VULKAN_DISABLE_DEDICATED_ALLOCATION`` - A boolean flag.  If true, TVM "
+"will not mark memory allocations as being dedicated allocations, and will "
+"not use the `VK_KHR_dedicated_allocation`_ extension.  If false, TVM will "
+"decide whether memory allocations should be marked as dedicated based on the"
+" `VkMemoryDedicatedRequirements`_ for that buffer."
 msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:247
 msgid ""
-"``TVM_VULKAN_ENABLE_VALIDATION_LAYERS`` - A boolean flag.  If true, TVM "
-"will enable `Vulkan validation layers`_ that the device supports.  If "
-"false, no validation layers are enabled."
+"``TVM_VULKAN_ENABLE_VALIDATION_LAYERS`` - A boolean flag.  If true, TVM will"
+" enable `Vulkan validation layers`_ that the device supports.  If false, no "
+"validation layers are enabled."
 msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:251
@@ -371,9 +370,8 @@ msgstr ""
 
 #: ../../_staging/arch/runtimes/vulkan.rst:256
 msgid ""
-"``TVM_VULKAN_DEBUG_SHADER_SAVEPATH`` - A path to a directory.  If set to "
-"a non-empty string, the Vulkan codegen will save tir, binary SPIR-V, and "
+"``TVM_VULKAN_DEBUG_SHADER_SAVEPATH`` - A path to a directory.  If set to a "
+"non-empty string, the Vulkan codegen will save tir, binary SPIR-V, and "
 "disassembled SPIR-V shaders to this directory, to be used for debugging "
 "purposes."
 msgstr ""
-

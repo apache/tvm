@@ -1,75 +1,83 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-09-18 07:44+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/install/docker.rst:21
 msgid "Docker Images"
-msgstr ""
+msgstr "Docker 镜像"
 
 #: ../../_staging/install/docker.rst:22
 msgid ""
-"We provide docker utility scripts to help developers to setup development"
-" environment. They are also helpful run through TVM demo and tutorials. "
-"We need `docker <https://docs.docker.com/engine/installation/>`_ and "
-"`nvidia-docker <https://github.com/NVIDIA/nvidia-docker/>`_ if we want to"
-" use cuda."
+"We provide docker utility scripts to help developers to setup development "
+"environment. They are also helpful run through TVM demo and tutorials. We "
+"need `docker <https://docs.docker.com/engine/installation/>`_ and `nvidia-"
+"docker <https://github.com/NVIDIA/nvidia-docker/>`_ if we want to use cuda."
 msgstr ""
+"我们提供 docker 的实用程序脚本，以帮助开发人员设置开发环境。它们还有助于通过 TVM 演示和教程运行。如果我们想使用 cuda， 我们需要 "
+"`docker <https://docs.docker.com/engine/installation/>`_ 和 `nvidia-docker "
+"<https://github.com/NVIDIA/nvidia-docker/>`_"
 
 #: ../../_staging/install/docker.rst:27
 msgid ""
-"Get a tvm source distribution or clone the github repo to get the "
-"auxiliary scripts"
-msgstr ""
+"Get a tvm source distribution or clone the github repo to get the auxiliary "
+"scripts"
+msgstr "获取 tvm 源代码分发或克隆 github 存储库以获取辅助脚本"
 
 #: ../../_staging/install/docker.rst:34
 msgid "We can then use the following command to launch a docker image."
-msgstr ""
+msgstr "然后，我们可以使用以下命令来启动 docker 镜像。"
 
 #: ../../_staging/install/docker.rst:40
 msgid ""
 "Here the image-name can be a local docker image name, e.g. `tvm.ci_cpu` "
 "after you have done the local build."
-msgstr ""
+msgstr "这里的 image-name 可以是本地镜像的镜像名称，例如，在完成本地构建后 \"tvm.ci_cpu\"。"
 
 #: ../../_staging/install/docker.rst:42
 msgid "This auxiliary script does the following things:"
-msgstr ""
+msgstr "此辅助脚本可进行以下工作："
 
 #: ../../_staging/install/docker.rst:44
 msgid "Mount current directory to /workspace"
-msgstr ""
+msgstr "将当前目录挂载到 /workspace"
 
 #: ../../_staging/install/docker.rst:45
 msgid ""
 "Switch user to be the same user that calls the bash.sh (so you can "
 "read/write host system)"
-msgstr ""
+msgstr "将用户切换为调用 bash.sh 的同一用户（这样您就可以读/写主机系统） "
 
 #: ../../_staging/install/docker.rst:46
 msgid ""
-"Use the host-side network on Linux. Use the bridge network and expose "
-"port 8888 on macOS, because host networking driver isn't supported. (so "
-"you can use jupyter notebook)"
+"Use the host-side network on Linux. Use the bridge network and expose port "
+"8888 on macOS, because host networking driver isn't supported. (so you can "
+"use jupyter notebook)"
 msgstr ""
+"在 Linux 上使用主机端网络。 使用桥接网络并在 macOS 上公开端口 8888，因为不支持主机网络驱动程序。 （所以你可以使用 jupyter "
+"notebook） "
 
 #: ../../_staging/install/docker.rst:50
 msgid "Then you can start a jupyter notebook by typing"
-msgstr ""
+msgstr "然后你可以通过输入 ```jupyter notebook`` 来启动一个 jupyter notebook"
 
 #: ../../_staging/install/docker.rst:56
 msgid ""
@@ -77,37 +85,43 @@ msgid ""
 "address`` when starting a jupyter notebook on macOS. You can change the "
 "binding IP address by"
 msgstr ""
+"在 macOS 上启动 jupyter 笔记本时，您可能会看到错误 ``OSError: [Errno 99] Cannot assign "
+"requested address`` 。 您可以通过以下方式更改绑定 IP 地址 "
 
 #: ../../_staging/install/docker.rst:63
 msgid ""
-"Note that on macOS, because we use bridge network, jupyter notebook will "
-"be reportedly running at an URL like "
+"Note that on macOS, because we use bridge network, jupyter notebook will be "
+"reportedly running at an URL like "
 "``http://{container_hostname}:8888/?token=...``. You should replace the "
 "``container_hostname`` with ``localhost`` when pasting it into browser."
 msgstr ""
+"请注意，在 macOS 上，因为我们使用桥接网络，据报道 jupyter notebook 将在类似 "
+"``http://{container_hostname}:8888/?token=...`` 的 URL 上运行。 将 "
+"``container_hostname`` 粘贴到浏览器时，应将其替换为 ``localhost``。 "
 
 #: ../../_staging/install/docker.rst:69
 msgid "Docker Source"
-msgstr ""
+msgstr "Docker 源"
 
 #: ../../_staging/install/docker.rst:70
 msgid ""
 "Check out `The docker source "
-"<https://github.com/apache/tvm/tree/main/docker>`_ if you are interested "
-"in building your own docker images."
+"<https://github.com/apache/tvm/tree/main/docker>`_ if you are interested in "
+"building your own docker images."
 msgstr ""
+"如果您有兴趣构建自己的 docker 镜像，请查看  `The docker source "
+"<https://github.com/apache/tvm/tree/main/docker>`_ 。"
 
 #: ../../_staging/install/docker.rst:74
 msgid "Run the following command to build the docker image."
-msgstr ""
+msgstr "运行以下命令来构建 docker 镜像。"
 
 #: ../../_staging/install/docker.rst:81
 msgid ""
-"You can find some un-official thirdparty prebuilt images. These images "
-"are used for test purposes and are NOT of the ASF release."
-msgstr ""
+"You can find some un-official thirdparty prebuilt images. These images are "
+"used for test purposes and are NOT of the ASF release."
+msgstr "您可以找到一些非官方构建的第三方镜像。 这些镜像用于测试目的，不属于 ASF 版本。"
 
 #: ../../_staging/install/docker.rst:85
 msgid "`<https://hub.docker.com/r/tlcpack/>`_."
-msgstr ""
-
+msgstr "`<https://hub.docker.com/r/tlcpack/>`_."

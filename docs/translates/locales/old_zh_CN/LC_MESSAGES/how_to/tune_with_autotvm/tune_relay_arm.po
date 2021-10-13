@@ -1,27 +1,32 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# juzi, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:34+0000\n"
+"Last-Translator: juzi, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:4
 msgid ""
 "Click :ref:`here "
-"<sphx_glr_download_how_to_tune_with_autotvm_tune_relay_arm.py>` to "
-"download the full example code"
+"<sphx_glr_download_how_to_tune_with_autotvm_tune_relay_arm.py>` to download "
+"the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:13
@@ -43,27 +48,26 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:20
 msgid ""
-"The operator implementation for ARM CPU in TVM is written in template "
-"form. The template has many tunable knobs (tile factor, vectorization, "
-"unrolling, etc). We will tune all convolution and depthwise convolution "
-"operators in the neural network. After tuning, we produce a log file "
-"which stores the best knob values for all required operators. When the "
-"TVM compiler compiles these operators, it will query this log file to get"
-" the best knob values."
+"The operator implementation for ARM CPU in TVM is written in template form. "
+"The template has many tunable knobs (tile factor, vectorization, unrolling, "
+"etc). We will tune all convolution and depthwise convolution operators in "
+"the neural network. After tuning, we produce a log file which stores the "
+"best knob values for all required operators. When the TVM compiler compiles "
+"these operators, it will query this log file to get the best knob values."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:27
 msgid ""
-"We also released pre-tuned parameters for some arm devices. You can go to"
-" `ARM CPU Benchmark <https://github.com/apache/tvm/wiki/Benchmark#arm-"
-"cpu>`_ to see the results."
+"We also released pre-tuned parameters for some arm devices. You can go to "
+"`ARM CPU Benchmark <https://github.com/apache/tvm/wiki/Benchmark#arm-cpu>`_ "
+"to see the results."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:31
 msgid ""
-"Note that this tutorial will not run on Windows or recent versions of "
-"macOS. To get it to run, you will need to wrap the body of this tutorial "
-"in a :code:`if __name__ == \"__main__\":` block."
+"Note that this tutorial will not run on Windows or recent versions of macOS."
+" To get it to run, you will need to wrap the body of this tutorial in a "
+":code:`if __name__ == \"__main__\":` block."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:36
@@ -78,9 +82,9 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:44
 msgid ""
-"To make TVM run faster during tuning, it is recommended to use cython as "
-"FFI of TVM. In the root directory of TVM, execute (change \"3\" to \"2\" "
-"if you use python2):"
+"To make TVM run faster during tuning, it is recommended to use cython as FFI"
+" of TVM. In the root directory of TVM, execute (change \"3\" to \"2\" if you"
+" use python2):"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:53
@@ -93,14 +97,14 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:77
 msgid ""
-"First we need to define the network in relay frontend API. We can load "
-"some pre-defined network from :code:`relay.testing`. We can also load "
-"models from MXNet, ONNX and TensorFlow."
+"First we need to define the network in relay frontend API. We can load some "
+"pre-defined network from :code:`relay.testing`. We can also load models from"
+" MXNet, ONNX and TensorFlow."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:134
 msgid "Start RPC Tracker"
-msgstr ""
+msgstr "启动 RPC 跟踪器"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:135
 msgid ""
@@ -111,23 +115,23 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:139
 msgid ""
-"To scale up the tuning, TVM uses RPC Tracker to manage distributed "
-"devices. The RPC Tracker is a centralized controller node. We can "
-"register all devices to the tracker. For example, if we have 10 phones, "
-"we can register all of them to the tracker, and run 10 measurements in "
-"parallel, accelerating the tuning process."
+"To scale up the tuning, TVM uses RPC Tracker to manage distributed devices. "
+"The RPC Tracker is a centralized controller node. We can register all "
+"devices to the tracker. For example, if we have 10 phones, we can register "
+"all of them to the tracker, and run 10 measurements in parallel, "
+"accelerating the tuning process."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:144
 msgid ""
-"To start an RPC tracker, run this command on the host machine. The "
-"tracker is required during the whole tuning process, so we need to open a"
-" new terminal for this command:"
+"To start an RPC tracker, run this command on the host machine. The tracker "
+"is required during the whole tuning process, so we need to open a new "
+"terminal for this command:"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:152
 msgid "The expected output is"
-msgstr ""
+msgstr "预期输出是"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:159
 msgid "Register Devices to RPC Tracker"
@@ -135,15 +139,14 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:160
 msgid ""
-"Now we can register our devices to the tracker. The first step is to "
-"build the TVM runtime for the ARM devices."
+"Now we can register our devices to the tracker. The first step is to build "
+"the TVM runtime for the ARM devices."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:163
 msgid ""
-"For Linux: Follow this section :ref:`build-tvm-runtime-on-device` to "
-"build the TVM runtime on the device. Then register the device to tracker "
-"by"
+"For Linux: Follow this section :ref:`build-tvm-runtime-on-device` to build "
+"the TVM runtime on the device. Then register the device to tracker by"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:171
@@ -153,16 +156,16 @@ msgstr ""
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:173
 msgid ""
 "For Android: Follow this `readme page "
-"<https://github.com/apache/tvm/tree/main/apps/android_rpc>`_ to install "
-"the TVM RPC APK on the android device. Make sure you can pass the android"
-" rpc test. Then you have already registered your device. During tuning, "
-"you have to go to developer option and enable \"Keep screen awake during "
-"changing\" and charge your phone to make it stable."
+"<https://github.com/apache/tvm/tree/main/apps/android_rpc>`_ to install the "
+"TVM RPC APK on the android device. Make sure you can pass the android rpc "
+"test. Then you have already registered your device. During tuning, you have "
+"to go to developer option and enable \"Keep screen awake during changing\" "
+"and charge your phone to make it stable."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:179
 msgid "After registering devices, we can confirm it by querying rpc_tracker"
-msgstr ""
+msgstr "注册设备后，我们可以通过查询rpc_tracker确认"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:185
 msgid ""
@@ -184,8 +187,8 @@ msgstr ""
 msgid ""
 "Before tuning, we should apply some configurations. Here I use an RK3399 "
 "board as example. In your setting, you should modify the target and "
-"device_key accordingly. set :code:`use_android` to True if you use "
-"android phone."
+"device_key accordingly. set :code:`use_android` to True if you use android "
+"phone."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:251
@@ -194,20 +197,19 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:253
 msgid ""
-"In general, the default values provided here work well. If you have "
-"enough time budget, you can set :code:`n_trial`, :code:`early_stopping` "
-"larger, which makes the tuning run longer. If your device runs very slow "
-"or your conv2d operators have many GFLOPs, considering to set timeout "
-"larger."
+"In general, the default values provided here work well. If you have enough "
+"time budget, you can set :code:`n_trial`, :code:`early_stopping` larger, "
+"which makes the tuning run longer. If your device runs very slow or your "
+"conv2d operators have many GFLOPs, considering to set timeout larger."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:259
 msgid ""
 "If your model has depthwise convolution, you could consider setting "
 ":code:`try_spatial_pack_depthwise` be :code:`True`, which perform better "
-"than default optimization in general. For example, on ARM CPU A53 2.0GHz,"
-" we find it could boost 1.6x performance of depthwise convolution on "
-"Mobilenet V1 model."
+"than default optimization in general. For example, on ARM CPU A53 2.0GHz, we"
+" find it could boost 1.6x performance of depthwise convolution on Mobilenet "
+"V1 model."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:265
@@ -216,26 +218,26 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:266
 msgid ""
-"Now we can extract tuning tasks from the network and begin tuning. Here, "
-"we provide a simple utility function to tune a list of tasks. This "
-"function is just an initial implementation which tunes them in sequential"
-" order. We will introduce a more sophisticated tuning scheduler in the "
-"future."
+"Now we can extract tuning tasks from the network and begin tuning. Here, we "
+"provide a simple utility function to tune a list of tasks. This function is "
+"just an initial implementation which tunes them in sequential order. We will"
+" introduce a more sophisticated tuning scheduler in the future."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:338
-msgid "Finally, we launch tuning jobs and evaluate the end-to-end performance."
+msgid ""
+"Finally, we launch tuning jobs and evaluate the end-to-end performance."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:403
 msgid "Sample Output"
-msgstr ""
+msgstr "样本输出"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:404
 msgid ""
-"The tuning needs to compile many programs and extract feature from them. "
-"So a high performance CPU is recommended. One sample output is listed "
-"below. It takes about 2 hours on a 32T AMD Ryzen Threadripper."
+"The tuning needs to compile many programs and extract feature from them. So "
+"a high performance CPU is recommended. One sample output is listed below. It"
+" takes about 2 hours on a 32T AMD Ryzen Threadripper."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:430
@@ -250,10 +252,10 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:435
 msgid ""
-"First, make sure you set the correct configuration of your device. Then, "
-"you can print debug information by adding these lines in the beginning of"
-" the script. It will print every measurement result, where you can find "
-"useful error messages."
+"First, make sure you set the correct configuration of your device. Then, you"
+" can print debug information by adding these lines in the beginning of the "
+"script. It will print every measurement result, where you can find useful "
+"error messages."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:445
@@ -275,6 +277,7 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_arm.rst:473
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

@@ -1,119 +1,132 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# jshmsjh, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:31+0000\n"
+"Last-Translator: jshmsjh, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:4
 msgid ""
-"Click :ref:`here <sphx_glr_download_how_to_compile_models_from_mxnet.py>`"
-" to download the full example code"
+"Click :ref:`here <sphx_glr_download_how_to_compile_models_from_mxnet.py>` to"
+" download the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:13
 msgid "Compile MXNet Models"
-msgstr ""
+msgstr "编译 MXNet 模型"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:14
 msgid ""
-"**Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_,"
-"             `Kazutaka Morita <https://github.com/kazum>`_"
+"**Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_,             "
+"`Kazutaka Morita <https://github.com/kazum>`_"
 msgstr ""
+"**作者**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_, `Kazutaka Morita "
+"<https://github.com/kazum>`_"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:16
 msgid ""
-"This article is an introductory tutorial to deploy mxnet models with "
-"Relay."
-msgstr ""
+"This article is an introductory tutorial to deploy mxnet models with Relay."
+msgstr "本文是使用 Relay 部署 MXNet 模型的介绍性教程。"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:18
 msgid "For us to begin with, mxnet module is required to be installed."
-msgstr ""
+msgstr "首先，我们需要安装 mxnet 模块。"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:20
 msgid "A quick solution is"
-msgstr ""
+msgstr "一个快速的解决办法是"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:26
 msgid ""
 "or please refer to official installation guide. "
 "https://mxnet.apache.org/versions/master/install/index.html"
 msgstr ""
+"或者你也可以参考官方安装指南。 https://mxnet.apache.org/versions/master/install/index.html"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:45
 msgid "Download Resnet18 model from Gluon Model Zoo"
-msgstr ""
+msgstr "从 Gluon Model Zoo 中下载 Resnet18 模型"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:46
 msgid ""
 "In this section, we download a pretrained imagenet model and classify an "
 "image."
-msgstr ""
+msgstr "在这一节中，我们下载一个预训练的 imagenet 模型并将一张图片进行分类。"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:97
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:168
 msgid "Out:"
-msgstr ""
+msgstr "输出:"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:106
 msgid "Compile the Graph"
-msgstr ""
+msgstr "编译计算图"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:107
 msgid ""
-"Now we would like to port the Gluon model to a portable computational "
-"graph. It's as easy as several lines. We support MXNet static "
-"graph(symbol) and HybridBlock in mxnet.gluon"
+"Now we would like to port the Gluon model to a portable computational graph."
+" It's as easy as several lines. We support MXNet static graph(symbol) and "
+"HybridBlock in mxnet.gluon"
 msgstr ""
+"现在我们想将 Gluon 模型移植到一个可移植的计算图上。 它非常简单，就几行代码。 我们在 mxnet.gluon 中支持 MXNet "
+"静态图（symbol）和 HybridBlock "
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:126
 msgid "now compile the graph"
-msgstr ""
+msgstr "现在编译计算图"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:142
 msgid "Execute the portable graph on TVM"
-msgstr ""
+msgstr "在 TVM 上执行计算图"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:143
-msgid "Now, we would like to reproduce the same forward computation using TVM."
-msgstr ""
+msgid ""
+"Now, we would like to reproduce the same forward computation using TVM."
+msgstr "现在，我们想使用 TVM 重现相同的前向计算。 "
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:177
 msgid "Use MXNet symbol with pretrained weights"
-msgstr ""
+msgstr "使用带有预训练权重的 MXNet symbol"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:178
 msgid ""
-"MXNet often use `arg_params` and `aux_params` to store network parameters"
-" separately, here we show how to use these weights with existing API"
+"MXNet often use `arg_params` and `aux_params` to store network parameters "
+"separately, here we show how to use these weights with existing API"
 msgstr ""
+"MXNet 通常使用 `arg_params` 和 `aux_params` 分开存储网络参数，这里我们将展示如何在现有 API 中使用这些权重"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:205
 msgid "for a normal mxnet model, we start from here"
-msgstr ""
+msgstr "对于普通的 mxnet 模型，我们从这里开始"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:233
 msgid ":download:`Download Python source code: from_mxnet.py <from_mxnet.py>`"
-msgstr ""
+msgstr ":download:`下载 Python 源代码: from_mxnet.py <from_mxnet.py>`"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:239
-msgid ":download:`Download Jupyter notebook: from_mxnet.ipynb <from_mxnet.ipynb>`"
-msgstr ""
+msgid ""
+":download:`Download Jupyter notebook: from_mxnet.ipynb <from_mxnet.ipynb>`"
+msgstr ":download:`下载 Jupyter notebook: from_mxnet.ipynb <from_mxnet.ipynb>`"
 
 #: ../../_staging/how_to/compile_models/from_mxnet.rst:246
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

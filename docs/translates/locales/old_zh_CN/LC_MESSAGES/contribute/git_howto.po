@@ -1,37 +1,41 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-09-18 07:41+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/contribute/git_howto.rst:22
 msgid "Git Usage Tips"
-msgstr ""
+msgstr "Git 使用技巧"
 
 #: ../../_staging/contribute/git_howto.rst:24
 msgid "Here are some tips for git workflow."
-msgstr ""
+msgstr "以下是在工作中 Git 的一些使用技巧。"
 
 #: ../../_staging/contribute/git_howto.rst:26
 msgid "## How to resolve conflict with main"
-msgstr ""
+msgstr "## 如何解决与 main 的冲突"
 
 #: ../../_staging/contribute/git_howto.rst:28
 msgid "First rebase to most recent main"
-msgstr ""
+msgstr "首次 rebase 到最近的 main"
 
 #: ../../_staging/contribute/git_howto.rst:38
 msgid "The git may show some conflicts it cannot merge, say `conflicted.py`."
@@ -59,15 +63,15 @@ msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:63
 msgid ""
-"Sometimes we want to combine multiple commits, especially when later "
-"commits are only fixes to previous ones, to create a PR with set of "
-"meaningful commits. You can do it by following steps."
+"Sometimes we want to combine multiple commits, especially when later commits"
+" are only fixes to previous ones, to create a PR with set of meaningful "
+"commits. You can do it by following steps."
 msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:66
 msgid ""
-"Before doing so, configure the default editor of git if you haven't done "
-"so before."
+"Before doing so, configure the default editor of git if you haven't done so "
+"before."
 msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:72
@@ -76,8 +80,8 @@ msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:78
 msgid ""
-"It will pop up an text editor. Set the first commit as `pick`, and change"
-" later ones to `squash`."
+"It will pop up an text editor. Set the first commit as `pick`, and change "
+"later ones to `squash`."
 msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:79
@@ -96,10 +100,9 @@ msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:90
 msgid ""
-"You can always use git reset to reset your version to the most recent "
-"main. Note that all your ***local changes will get lost***. So only do it"
-" when you do not have local changes or when your pull request just get "
-"merged."
+"You can always use git reset to reset your version to the most recent main. "
+"Note that all your ***local changes will get lost***. So only do it when you"
+" do not have local changes or when your pull request just get merged."
 msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:100
@@ -108,15 +111,15 @@ msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:101
 msgid ""
-"Sometimes we could mistakenly reset a branch to a wrong commit. When that"
-" happens, you can use the following command to show the list of recent "
+"Sometimes we could mistakenly reset a branch to a wrong commit. When that "
+"happens, you can use the following command to show the list of recent "
 "commits"
 msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:109
 msgid ""
-"Once you get the right hashtag, you can use git reset again to change the"
-" head to the right commit."
+"Once you get the right hashtag, you can use git reset again to change the "
+"head to the right commit."
 msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:114
@@ -126,10 +129,9 @@ msgstr ""
 #: ../../_staging/contribute/git_howto.rst:116
 msgid ""
 "Sometimes it is useful to only apply your k-latest changes on top of the "
-"main. This usually happens when you have other m-commits that are already"
-" merged before these k-commits. Directly rebase against the main might "
-"cause merge conflicts on these first m-commits(which are can be safely "
-"discarded)."
+"main. This usually happens when you have other m-commits that are already "
+"merged before these k-commits. Directly rebase against the main might cause "
+"merge conflicts on these first m-commits(which are can be safely discarded)."
 msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:121
@@ -148,8 +150,7 @@ msgstr ""
 
 #: ../../_staging/contribute/git_howto.rst:136
 msgid ""
-"The previous two tips requires force push, this is because we altered the"
-" path of the commits. It is fine to force push to your own fork, as long "
-"as the commits changed are only yours."
+"The previous two tips requires force push, this is because we altered the "
+"path of the commits. It is fine to force push to your own fork, as long as "
+"the commits changed are only yours."
 msgstr ""
-

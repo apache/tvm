@@ -1,21 +1,26 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# juzi, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:35+0000\n"
+"Last-Translator: juzi, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:4
 msgid ""
@@ -26,161 +31,177 @@ msgstr ""
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:11
 msgid "Using External Libraries in Relay"
-msgstr ""
+msgstr "在Relay中使用外部库"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:12
 msgid ""
 "**Author**: `Masahiro Masuda <https://github.com/masahi>`_, `Truman Tian "
 "<https://github.com/SiNZeRo>`_"
 msgstr ""
+"**作者**: `Masahiro Masuda <https://github.com/masahi>`_, `Truman Tian "
+"<https://github.com/SiNZeRo>`_"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:14
 msgid ""
-"This is a short tutorial on how to use external libraries such as cuDNN, "
-"or cuBLAS with Relay."
-msgstr ""
+"This is a short tutorial on how to use external libraries such as cuDNN, or "
+"cuBLAS with Relay."
+msgstr "这是一个关于如何使用外部库（如cuDNN或带Relay的cuBLAS）的简短教程。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:16
 msgid ""
 "Relay uses TVM internally to generate target specific code. For example, "
 "with cuda backend TVM generates cuda kernels for all layers in the user "
-"provided network. But sometimes it is also helpful to incorporate "
-"external libraries developed by various vendors into Relay. Luckily, TVM "
-"has a mechanism to transparently call into these libraries. For Relay "
-"users, all we need to do is just to set a target string appropriately."
+"provided network. But sometimes it is also helpful to incorporate external "
+"libraries developed by various vendors into Relay. Luckily, TVM has a "
+"mechanism to transparently call into these libraries. For Relay users, all "
+"we need to do is just to set a target string appropriately."
 msgstr ""
+"Relay在内部使用TVM生成特定于目标的代码。例如，使用cuda后端，TVM为用户提供网络中的所有层生成cuda内核。但有时将不同供应商开发的外部库合并到Relay中也很有帮助。幸运的是，TVM有一种机制可以透明地调用这些库。对于Relay用户，我们所需要做的只是适当地设置一个目标字符串。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:21
 msgid ""
-"Before we can use external libraries from Relay, your TVM needs to be "
-"built with libraries you want to use. For example, to use cuDNN, "
-"USE_CUDNN option in `cmake/config.cmake` needs to be enabled, and cuDNN "
-"include and library directories need to be specified if necessary."
+"Before we can use external libraries from Relay, your TVM needs to be built "
+"with libraries you want to use. For example, to use cuDNN, USE_CUDNN option "
+"in `cmake/config.cmake` needs to be enabled, and cuDNN include and library "
+"directories need to be specified if necessary."
 msgstr ""
+"在使用Relay的外部库之前，您的TVM需要使用您想要使用的库构建。例如，要使用cuDNN，需要启用`cmake/config.cmake`中的use_cuDNN选项，必要时需要指定cuDNN"
+" include和library目录。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:24
 msgid "To begin with, we import Relay and TVM."
-msgstr ""
+msgstr "首先，我们输入Relay和TVM。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:44
 msgid "Create a simple network"
-msgstr ""
+msgstr "创建一个简单的网络"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:45
 msgid ""
 "Let's create a very simple network for demonstration. It consists of "
 "convolution, batch normalization, and ReLU activation."
-msgstr ""
+msgstr "让我们创建一个非常简单的网络进行演示。它包括卷积、批量标准化和ReLU激活。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:79
 msgid "Build and run with cuda backend"
-msgstr ""
+msgstr "使用cuda后端构建并运行"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:80
 msgid ""
-"We build and run this network with cuda backend, as usual. By setting the"
-" logging level to DEBUG, the result of Relay graph compilation will be "
-"dumped as pseudo code."
-msgstr ""
+"We build and run this network with cuda backend, as usual. By setting the "
+"logging level to DEBUG, the result of Relay graph compilation will be dumped"
+" as pseudo code."
+msgstr "像平常一样，我们使用cuda后端构建并运行这个网络。通过日志将记录级别设置为DEBUG，Relay graph编译的结果将作为伪代码转储。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:107
 msgid ""
-"The generated pseudo code should look something like below. Note how bias"
-" add, batch normalization, and ReLU activation are fused into the "
-"convolution kernel. TVM generates a single, fused kernel from this "
-"representation."
-msgstr ""
+"The generated pseudo code should look something like below. Note how bias "
+"add, batch normalization, and ReLU activation are fused into the convolution"
+" kernel. TVM generates a single, fused kernel from this representation."
+msgstr "生成的伪代码应该如下所示。注意如何添加偏差、规范化批处理和ReLU激活融合到卷积内核中。TVM从这个表示中生成一个单一的融合内核。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:511
 msgid "Use cuDNN for a convolutional layer"
-msgstr ""
+msgstr "将cuDNN用于卷积层"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:512
 msgid ""
-"We can use cuDNN to replace convolution kernels with cuDNN ones. To do "
-"that, all we need to do is to append the option \" -libs=cudnn\" to the "
-"target string."
-msgstr ""
+"We can use cuDNN to replace convolution kernels with cuDNN ones. To do that,"
+" all we need to do is to append the option \" -libs=cudnn\" to the target "
+"string."
+msgstr "我们可以用cuDNN代替卷积核。要做到这一点，我们只需在目标字符串中附加\" -libs=cudnn\"选项。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:537
 msgid ""
 "Note that if you use cuDNN, Relay cannot fuse convolution with layers "
 "following it. This is because layer fusion happens at the level of TVM "
-"internal representation(IR). Relay treats external libraries as black "
-"box, so there is no way to fuse them with TVM IR."
+"internal representation(IR). Relay treats external libraries as black box, "
+"so there is no way to fuse them with TVM IR."
 msgstr ""
+"请注意，若使用cuDNN，则Relay无法将卷积层与它后面的层融合。这是因为层融合发生在TVM内部表示为（IR）级别。Relay将外部库视为黑盒，因此无法将它们与TVM"
+" IR进行融合。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:541
 msgid ""
-"The pseudo code below shows that cuDNN convolution + bias add + batch "
-"norm + ReLU turned into two stages of computation, one for cuDNN call and"
-" the other for the rest of operations."
+"The pseudo code below shows that cuDNN convolution + bias add + batch norm +"
+" ReLU turned into two stages of computation, one for cuDNN call and the "
+"other for the rest of operations."
 msgstr ""
+"下面的伪代码显示了cuDNN卷积 + bias add + batch norm + "
+"ReLU变成了两个计算阶段，一个用于cuDNN调用，另一个用于其余操作。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:562
 msgid "Verify the result"
-msgstr ""
+msgstr "验证结果"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:563
 msgid "We can check that the results of two runs match."
-msgstr ""
+msgstr "我们可以检查两次运行的结果是否匹配。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:578
 msgid "Conclusion"
-msgstr ""
+msgstr "结论"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:579
 msgid ""
-"This tutorial covered the usage of cuDNN with Relay. We also have support"
-" for cuBLAS. If cuBLAS is enabled, it will be used inside a fully "
-"connected layer (relay.dense). To use cuBLAS, set a target string as "
-"\"cuda -libs=cublas\". You can use both cuDNN and cuBLAS with \"cuda "
+"This tutorial covered the usage of cuDNN with Relay. We also have support "
+"for cuBLAS. If cuBLAS is enabled, it will be used inside a fully connected "
+"layer (relay.dense). To use cuBLAS, set a target string as \"cuda "
+"-libs=cublas\". You can use both cuDNN and cuBLAS with \"cuda "
 "-libs=cudnn,cublas\"."
 msgstr ""
+"本教程介绍了Relay中cuDNN的使用。我们也支持cuBLAS。如果启用了cuBLAS，它将在完全连接的层（relay.dense）内使用。要使用cuBLAS，请将目标字符串设置为\"cuda"
+" -libs=cublas\"。您可以将cuDNN和cuBLAS与\"cuda -libs=cudnn,cublas\"一起使用。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:584
 msgid ""
 "For ROCm backend, we have support for MIOpen and rocBLAS. They can be "
 "enabled with target \"rocm -libs=miopen,rocblas\"."
-msgstr ""
+msgstr "对于ROCm后端，我们支持MIOpen和rocBLAS。它们可以通过目标“rocm-libs=miopen，rocblas”启用。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:587
 msgid ""
-"Being able to use external libraries is great, but we need to keep in "
-"mind some cautions."
-msgstr ""
+"Being able to use external libraries is great, but we need to keep in mind "
+"some cautions."
+msgstr "虽然能够使用外部库很好，但我们需要记住一些注意事项。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:589
 msgid ""
 "First, the use of external libraries may restrict your usage of TVM and "
-"Relay. For example, MIOpen only supports NCHW layout and fp32 data type "
-"at the moment, so you cannot use other layouts or data type in TVM."
+"Relay. For example, MIOpen only supports NCHW layout and fp32 data type at "
+"the moment, so you cannot use other layouts or data type in TVM."
 msgstr ""
+"首先，使用外部库可能会限制您对TVM和Relay的使用。例如，MIOpen目前只支持NCHW布局和fp32数据类型，因此您不能在TVM中使用其他布局或数据类型。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:592
 msgid ""
-"Second, and more importantly, external libraries restrict the possibility"
-" of operator fusion during graph compilation, as shown above. TVM and "
-"Relay aim to achieve the best performance on a variety of hardwares, with"
-" joint operator level and graph level optimization. To achieve this goal,"
-" we should continue developing better optimizations for TVM and Relay, "
-"while using external libraries as a nice way to fall back to existing "
-"implementation when necessary."
+"Second, and more importantly, external libraries restrict the possibility of"
+" operator fusion during graph compilation, as shown above. TVM and Relay aim"
+" to achieve the best performance on a variety of hardwares, with joint "
+"operator level and graph level optimization. To achieve this goal, we should"
+" continue developing better optimizations for TVM and Relay, while using "
+"external libraries as a nice way to fall back to existing implementation "
+"when necessary."
 msgstr ""
+"第二，也是更重要的一点，外部库限制了图形编译期间运算符融合的可能性，如上所示。TVM和Relay旨在通过联合操作员级和图形级优化，在各种硬件上实现最佳性能。为了实现这个目标，我们应该继续为TVM和Relay开发更好的优化，同时使用外部库在必要时返回到现有的实现是一种很好的方法。"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:609
 msgid ""
 ":download:`Download Python source code: using_external_lib.py "
 "<using_external_lib.py>`"
 msgstr ""
+":download:`下载Python源代码: using_external_lib.py <using_external_lib.py>`"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:615
 msgid ""
 ":download:`Download Jupyter notebook: using_external_lib.ipynb "
 "<using_external_lib.ipynb>`"
 msgstr ""
+":download:`下载Jupyter notebook: using_external_lib.ipynb "
+"<using_external_lib.ipynb>`"
 
 #: ../../_staging/how_to/work_with_relay/using_external_lib.rst:622
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

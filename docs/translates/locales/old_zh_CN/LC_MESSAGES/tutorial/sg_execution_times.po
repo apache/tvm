@@ -1,25 +1,29 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:40+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/tutorial/sg_execution_times.rst:7
 msgid "Computation times"
-msgstr ""
+msgstr "计算时间"
 
 #: ../../_staging/tutorial/sg_execution_times.rst:8
 msgid "**09:14.269** total execution time for **tutorial** files:"
@@ -56,7 +60,8 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/tutorial/sg_execution_times.rst:15
-msgid "**00:00.691**: :ref:`sphx_glr_tutorial_intro_topi.py` (``intro_topi.py``)"
+msgid ""
+"**00:00.691**: :ref:`sphx_glr_tutorial_intro_topi.py` (``intro_topi.py``)"
 msgstr ""
 
 #: ../../_staging/tutorial/sg_execution_times.rst:16
@@ -80,4 +85,3 @@ msgid ""
 "**00:00.054**: :ref:`sphx_glr_tutorial_tvmc_command_line_driver.py` "
 "(``tvmc_command_line_driver.py``)"
 msgstr ""
-

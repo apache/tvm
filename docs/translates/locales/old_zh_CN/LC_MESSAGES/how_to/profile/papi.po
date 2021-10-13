@@ -1,21 +1,21 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:33+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/profile/papi.rst:20
 msgid "Getting Started With PAPI"
@@ -23,13 +23,13 @@ msgstr ""
 
 #: ../../_staging/how_to/profile/papi.rst:22
 msgid ""
-"The Performance Application Programming Interface (PAPI) is a library "
-"that provides performance counters on a variety of platforms. Performance"
-" counters provide accurate low-level information about processors "
-"behavior during a given execution run. This information can contain "
-"simple metrics like total cycle count, cache misses, and instructions "
-"executed as well as more high level information like total FLOPS and warp"
-" occupancy. PAPI makes these metrics available while profiling."
+"The Performance Application Programming Interface (PAPI) is a library that "
+"provides performance counters on a variety of platforms. Performance "
+"counters provide accurate low-level information about processors behavior "
+"during a given execution run. This information can contain simple metrics "
+"like total cycle count, cache misses, and instructions executed as well as "
+"more high level information like total FLOPS and warp occupancy. PAPI makes "
+"these metrics available while profiling."
 msgstr ""
 
 #: ../../_staging/how_to/profile/papi.rst:31
@@ -38,8 +38,8 @@ msgstr ""
 
 #: ../../_staging/how_to/profile/papi.rst:33
 msgid ""
-"PAPI can either be installed using your package manager (``apt-get "
-"install libpapi-dev`` on Ubuntu), or from source here: "
+"PAPI can either be installed using your package manager (``apt-get install "
+"libpapi-dev`` on Ubuntu), or from source here: "
 "https://bitbucket.org/icl/papi/src/master/."
 msgstr ""
 
@@ -55,8 +55,8 @@ msgstr ""
 
 #: ../../_staging/how_to/profile/papi.rst:47
 msgid ""
-"If PAPI is installed in a non-standard place, you can specify where it is"
-" like so:"
+"If PAPI is installed in a non-standard place, you can specify where it is "
+"like so:"
 msgstr ""
 
 #: ../../_staging/how_to/profile/papi.rst:55
@@ -67,8 +67,8 @@ msgstr ""
 msgid ""
 "If TVM has been built with PAPI (see above), then you can pass a "
 ":py:class:`tvm.runtime.profiling.PAPIMetricCollector` to "
-":py:meth:`tvm.runtime.GraphModule.profile` to collect performance "
-"metrics. Here is an example:"
+":py:meth:`tvm.runtime.GraphModule.profile` to collect performance metrics. "
+"Here is an example:"
 msgstr ""
 
 #: ../../_staging/how_to/profile/papi.rst:91
@@ -77,7 +77,6 @@ msgstr ""
 
 #: ../../_staging/how_to/profile/papi.rst:113
 msgid ""
-"You can find a list of available metrics by running the ``papi_avail`` "
-"and ``papi_native_avail`` commands."
+"You can find a list of available metrics by running the ``papi_avail`` and "
+"``papi_native_avail`` commands."
 msgstr ""
-

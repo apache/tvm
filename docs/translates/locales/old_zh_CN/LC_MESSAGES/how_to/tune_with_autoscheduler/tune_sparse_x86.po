@@ -1,33 +1,36 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-10-13 01:34+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:4
 msgid ""
 "Click :ref:`here "
-"<sphx_glr_download_how_to_tune_with_autoscheduler_tune_sparse_x86.py>` to"
-" download the full example code"
+"<sphx_glr_download_how_to_tune_with_autoscheduler_tune_sparse_x86.py>` to "
+"download the full example code"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:11
 msgid ""
-"Auto-scheduling Sparse Matrix Multiplication on CPU with Custom Sketch "
-"Rule"
+"Auto-scheduling Sparse Matrix Multiplication on CPU with Custom Sketch Rule"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:12
@@ -36,18 +39,18 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:14
 msgid ""
-"This is a tutorial on how to use the auto-scheduler to tune a sparse "
-"matrix multiplication for CPUs."
+"This is a tutorial on how to use the auto-scheduler to tune a sparse matrix "
+"multiplication for CPUs."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:17
 msgid ""
-"Auto-scheduler is designed to explore the schedule with best performance "
-"for a given computation declaration automatically. While sometimes, we "
-"may have a demand to try some special ops which may not been well-"
-"supported by auto-scheduler's default sketch rules and result in poor "
-"performance. Fortunately, auto-scheduler currently allows user to provide"
-" a CustomSketch to cover these cases."
+"Auto-scheduler is designed to explore the schedule with best performance for"
+" a given computation declaration automatically. While sometimes, we may have"
+" a demand to try some special ops which may not been well-supported by auto-"
+"scheduler's default sketch rules and result in poor performance. "
+"Fortunately, auto-scheduler currently allows user to provide a CustomSketch "
+"to cover these cases."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:22
@@ -59,9 +62,9 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:25
 msgid ""
-"Note that this tutorial will not run on Windows or recent versions of "
-"macOS. To get it to run, you will need to wrap the body of this tutorial "
-"in a :code:`if __name__ == \"__main__\":` block."
+"Note that this tutorial will not run on Windows or recent versions of macOS."
+" To get it to run, you will need to wrap the body of this tutorial in a "
+":code:`if __name__ == \"__main__\":` block."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:50
@@ -70,10 +73,10 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:51
 msgid ""
-"To begin with, let us define the computation of a sparse matmul with "
-"several relu and bias add. The function should return the list of "
-"input/output tensors. From these tensors, the auto-scheduler can get the "
-"whole computational graph."
+"To begin with, let us define the computation of a sparse matmul with several"
+" relu and bias add. The function should return the list of input/output "
+"tensors. From these tensors, the auto-scheduler can get the whole "
+"computational graph."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:82
@@ -82,17 +85,17 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:83
 msgid ""
-"During schedule tuning, auto-scheduler will use random inputs to measure "
-"the performance of a generated schedule. While we cannot directly use a "
-"random array as the input of a sparse op, for the \"indices\" and "
-"\"indptr\" array are meaningful for the computation."
+"During schedule tuning, auto-scheduler will use random inputs to measure the"
+" performance of a generated schedule. While we cannot directly use a random "
+"array as the input of a sparse op, for the \"indices\" and \"indptr\" array "
+"are meaningful for the computation."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:87
 msgid ""
-"To solve this problem, we register these as special buffers, and load "
-"them when process program measuring. See the "
-"`tvm.auto_scheduler.measure.py` for more details."
+"To solve this problem, we register these as special buffers, and load them "
+"when process program measuring. See the `tvm.auto_scheduler.measure.py` for "
+"more details."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:120
@@ -101,8 +104,8 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:121
 msgid ""
-"We then create a search task with M=N=K=512 and dtype=\"float32\" If your"
-" machine supports avx instructions, you can"
+"We then create a search task with M=N=K=512 and dtype=\"float32\" If your "
+"machine supports avx instructions, you can"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:124
@@ -110,9 +113,7 @@ msgid "replace \"llvm\" below with \"llvm -mcpu=core-avx2\" to enable AVX2"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:125
-msgid ""
-"replace \"llvm\" below with \"llvm -mcpu=skylake-avx512\" to enable "
-"AVX-512"
+msgid "replace \"llvm\" below with \"llvm -mcpu=skylake-avx512\" to enable AVX-512"
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:164
@@ -120,7 +121,7 @@ msgstr ""
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:350
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:435
 msgid "Out:"
-msgstr ""
+msgstr "输出:"
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:184
 msgid "Write the custom sketch for sparse dense op"
@@ -128,21 +129,20 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:185
 msgid ""
-"Before tuning, we will need to define the CustomSketchRule for the sparse"
-" dense op."
+"Before tuning, we will need to define the CustomSketchRule for the sparse "
+"dense op."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:187
 msgid ""
-"CustomSketchRule consists of two parts: the condition function and the "
-"apply function."
+"CustomSketchRule consists of two parts: the condition function and the apply"
+" function."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:189
 msgid ""
-"condition function: describe when to apply this sketch rule. For example,"
-" we can only apply the rule to the sparse ops by matching their name and "
-"tag."
+"condition function: describe when to apply this sketch rule. For example, we"
+" can only apply the rule to the sparse ops by matching their name and tag."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:191
@@ -159,17 +159,17 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:260
 msgid ""
-":code:`num_measure_trials` is the number of measurement trials we can use"
-" during the search. We only make 10 trials in this tutorial for a fast "
-"demonstration. In practice, 1000 is a good value for the search to "
-"converge. You can do more trials according to your time budget."
+":code:`num_measure_trials` is the number of measurement trials we can use "
+"during the search. We only make 10 trials in this tutorial for a fast "
+"demonstration. In practice, 1000 is a good value for the search to converge."
+" You can do more trials according to your time budget."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:263
 msgid ""
-"In addition, we use :code:`RecordToFile` to dump measurement records into"
-" a file `sparse_dense.json`. The measurement records can be used to query"
-" the history best, resume the search, and do more analyses later."
+"In addition, we use :code:`RecordToFile` to dump measurement records into a "
+"file `sparse_dense.json`. The measurement records can be used to query the "
+"history best, resume the search, and do more analyses later."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:267
@@ -178,8 +178,8 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:268
 msgid ""
-"Here, we need to create a :code:`auto_scheduler.SketchPolicy` object, and"
-" add the custom sketch rule as a `init_search_callbacks`."
+"Here, we need to create a :code:`auto_scheduler.SketchPolicy` object, and "
+"add the custom sketch rule as a `init_search_callbacks`."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:297
@@ -189,8 +189,8 @@ msgstr ""
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:298
 msgid ""
 "Now we get all inputs ready. We can kick off the search and let the auto-"
-"scheduler do its magic. After some measurement trials, we can load the "
-"best schedule from the log file and apply it."
+"scheduler do its magic. After some measurement trials, we can load the best "
+"schedule from the log file and apply it."
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:333
@@ -226,6 +226,7 @@ msgid ""
 msgstr ""
 
 #: ../../_staging/how_to/tune_with_autoscheduler/tune_sparse_x86.rst:508
-msgid "`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
 msgstr ""
-
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

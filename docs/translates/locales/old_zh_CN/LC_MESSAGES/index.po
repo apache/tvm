@@ -1,43 +1,43 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) 2020 - 2021, Apache Software Foundation
 # This file is distributed under the same license as the tvm package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2021.
-#
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"PO-Revision-Date: 2021-09-18 07:38+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
-#: ../../_staging/index.rst:31
+#: ../../_staging/index.rst:31 ../../_staging/index.rst:31
 msgid "Getting Started"
 msgstr ""
 
-#: ../../_staging/index.rst:38
+#: ../../_staging/index.rst:38 ../../_staging/index.rst:38
 msgid "User Guide"
 msgstr ""
 
-#: ../../_staging/index.rst:45
+#: ../../_staging/index.rst:45 ../../_staging/index.rst:45
 msgid "Developer Guide"
 msgstr ""
 
-#: ../../_staging/index.rst:52
+#: ../../_staging/index.rst:52 ../../_staging/index.rst:52
 msgid "Architecture  Guide"
 msgstr ""
 
-#: ../../_staging/index.rst:58
+#: ../../_staging/index.rst:58 ../../_staging/index.rst:58
 msgid "Topic Guides"
 msgstr ""
 
-#: ../../_staging/index.rst:65
+#: ../../_staging/index.rst:65 ../../_staging/index.rst:65
 msgid "Reference Guide"
 msgstr ""
 
@@ -47,14 +47,13 @@ msgstr ""
 
 #: ../../_staging/index.rst:21
 msgid ""
-"Welcome to the the documentation for Apache TVM, a deep learning compiler"
-" that enables access to high-performance machine learning anywhere for "
-"everyone. TVM's diverse community of hardware vendors, compiler engineers"
-" and ML researchers work together to build a unified, programmable "
-"software stack, that enriches the entire ML technology ecosystem and make"
-" it accessible to the wider ML community. TVM empowers users to leverage "
-"community-driven ML-based optimizations to push the limits and amplify "
-"the reach of their research and development, which in turn raises the "
-"collective performance of all ML, while driving its costs down."
+"Welcome to the the documentation for Apache TVM, a deep learning compiler "
+"that enables access to high-performance machine learning anywhere for "
+"everyone. TVM's diverse community of hardware vendors, compiler engineers "
+"and ML researchers work together to build a unified, programmable software "
+"stack, that enriches the entire ML technology ecosystem and make it "
+"accessible to the wider ML community. TVM empowers users to leverage "
+"community-driven ML-based optimizations to push the limits and amplify the "
+"reach of their research and development, which in turn raises the collective"
+" performance of all ML, while driving its costs down."
 msgstr ""
-
