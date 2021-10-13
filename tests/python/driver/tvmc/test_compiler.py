@@ -397,7 +397,7 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
 
     tvmc_package = tvmc.compiler.compile_model(
         tvmc_model,
-        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 --executor=aot",
+        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
         output_format="mlf",
         package_path=output_file_name,
         pass_context_configs=["tir.disable_vectorize=true"],
@@ -455,7 +455,7 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
 
         tvmc_package = tvmc.compiler.compile_model(
             tvmc_model,
-            target=f"ethos-u -accelerator_config={accel_type}, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 --executor=aot",
+            target=f"ethos-u -accelerator_config={accel_type}, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
             output_format="mlf",
             package_path=output_file_name,
             pass_context_configs=["tir.disable_vectorize=true"],
