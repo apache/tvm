@@ -61,6 +61,10 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
+
+ZEPHYR_VERSION = "2.5"
+
+
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
 try:
@@ -342,7 +346,26 @@ class Handler(server.ProjectAPIHandler):
         "aot_demo": "memory microtvm_rpc_common common",
     }
 
+    def _get_platform_version(self) -> str:
+        with open(pathlib.Path(os.getenv('ZEPHYR_BASE')) / "VERSION", "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                line = line.replace(" ", "")
+                line = line.replace("\n", "")
+                line = line.replace("\r", "")
+                if "VERSION_MAJOR" in line:
+                    version_major = line.split("=")[1]
+                if "VERSION_MINOR" in line:
+                    version_minor = line.split("=")[1]
+
+        return f"{version_major}.{version_minor}"
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
+        # Check Zephyr version
+        version = self._get_platform_version()
+        if version != ZEPHYR_VERSION:
+            raise ValueError(f"Zephyr version does not math: {version} != {ZEPHYR_VERSION}")
+
         project_dir = pathlib.Path(project_dir)
         # Make project directory.
         project_dir.mkdir()
