@@ -112,7 +112,10 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
   opt.UnsafeFPMath = true;
   opt.NoInfsFPMath = true;
   opt.NoNaNsFPMath = true;
+
+#if TVM_LLVM_VERSION >= 50
   opt.NoSignedZerosFPMath = true;
+#endif
 
   // Assume no generated code ever needs to handle floating point exceptions.
   opt.NoTrappingFPMath = true;
@@ -164,7 +167,7 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
   }
 
   llvm::TargetMachine* tm = llvm_target->createTargetMachine(
-      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_, llvm::None, llvm_opt);
+      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_, llvm::CodeModel::Small, llvm_opt);
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 

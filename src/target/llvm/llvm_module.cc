@@ -260,26 +260,48 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
     // See https://llvm.org/docs/LangRef.html#fast-math-flags for details
     Bool fast_math_all = target->GetAttr<Bool>("fast-math").value_or(Bool(false));
+    Bool fast_math_nnan = target->GetAttr<Bool>("fast-math-nnan").value_or(Bool(false));
+    Bool fast_math_ninf = target->GetAttr<Bool>("fast-math-ninf").value_or(Bool(false));
+    Bool fast_math_nsz = target->GetAttr<Bool>("fast-math-nsz").value_or(Bool(false));
+    Bool fast_math_arcp = target->GetAttr<Bool>("fast-math-arcp").value_or(Bool(false));
+
     llvm::FastMathFlags fmf;
     if (fast_math_all) {
-      fmf.setFast(fast_math_all);
-    } else {
-      Bool fast_math_nnan = target->GetAttr<Bool>("fast-math-nnan").value_or(Bool(false));
-      Bool fast_math_ninf = target->GetAttr<Bool>("fast-math-ninf").value_or(Bool(false));
-      Bool fast_math_nsz = target->GetAttr<Bool>("fast-math-nsz").value_or(Bool(false));
-      Bool fast_math_arcp = target->GetAttr<Bool>("fast-math-arcp").value_or(Bool(false));
-      Bool fast_math_contract = target->GetAttr<Bool>("fast-math-contract").value_or(Bool(false));
-      Bool fast_math_afn = target->GetAttr<Bool>("fast-math-afn").value_or(Bool(false));
-      Bool fast_math_reassoc = target->GetAttr<Bool>("fast-math-reassoc").value_or(Bool(false));
-
-      fmf.setNoNaNs(fast_math_nnan);
-      fmf.setNoInfs(fast_math_ninf);
-      fmf.setNoSignedZeros(fast_math_nsz);
-      fmf.setAllowReciprocal(fast_math_arcp);
-      fmf.setAllowContract(fast_math_contract);
-      fmf.setApproxFunc(fast_math_afn);
-      fmf.setAllowReassoc(fast_math_reassoc);
+#if TVM_LLVM_VERSION >= 60
+      fmf.setFast();
+#else
+      fmf.setUnsafeAlgebra();
+#endif
     }
+
+    if (fast_math_nnan) {
+      fmf.setNoNaNs();
+    }
+    if (fast_math_ninf) {
+      fmf.setNoInfs();
+    }
+    if (fast_math_nsz) {
+      fmf.setNoSignedZeros();
+    }
+    if (fast_math_arcp) {
+      fmf.setAllowReciprocal();
+    }
+
+#if TVM_LLVM_VERSION >= 60
+    Bool fast_math_contract = target->GetAttr<Bool>("fast-math-contract").value_or(Bool(false));
+    Bool fast_math_afn = target->GetAttr<Bool>("fast-math-afn").value_or(Bool(false));
+    Bool fast_math_reassoc = target->GetAttr<Bool>("fast-math-reassoc").value_or(Bool(false));
+    if (fast_math_contract) {
+      fmf.setAllowContract();
+    }
+    if (fast_math_afn) {
+      fmf.setApproxFunc();
+    }
+    if (fast_math_reassoc) {
+      fmf.setAllowReassoc();
+    }
+#endif
+
     cg->SetFastMathFlag(fmf);
 
     cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
