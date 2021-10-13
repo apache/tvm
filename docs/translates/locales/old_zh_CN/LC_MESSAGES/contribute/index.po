@@ -24,7 +24,7 @@ msgstr ""
 
 #: ../../_staging/contribute/index.rst:19
 msgid "Contributor Guide"
-msgstr ""
+msgstr "贡献值指南"
 
 #: ../../_staging/contribute/index.rst:21
 msgid ""
