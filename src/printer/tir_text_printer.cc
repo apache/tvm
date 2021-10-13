@@ -65,6 +65,8 @@ Doc TIRTextPrinter::Print(const ObjectRef& node) {
     return PrintRange(node.as<RangeNode>());
   } else if (node->IsInstance<BufferNode>()) {
     return PrintBuffer(node.as<BufferNode>());
+  } else if (node->IsInstance<DataProducerNode>()) {
+    return PrintProducer(node.as<DataProducerNode>());
   } else if (node->IsInstance<StringObj>()) {
     return PrintString(node.as<StringObj>());
   } else if (node->IsInstance<BufferRegionNode>()) {
@@ -199,6 +201,19 @@ Doc TIRTextPrinter::PrintBuffer(const BufferNode* op) {
   }
 }
 
+Doc TIRTextPrinter::PrintProducer(const DataProducerNode* op) {
+  const DataProducer& prod = GetRef<DataProducer>(op);
+
+  if (meta_->InMeta(prod)) {
+    return meta_->GetMetaNode(prod);
+  } else if (memo_producer_.count(prod)) {
+    return memo_producer_[prod];
+  } else {
+    memo_producer_[prod] = AllocProducer(prod);
+    return DataProducerNode2Doc(op, memo_producer_[prod]);
+  }
+}
+
 Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   doc << Doc::Text(": Buffer(") << Print(buf->data) << ", " << PrintDType(buf->dtype) << ", "
       << Print(buf->shape) << ", " << Print(buf->strides);
@@ -218,6 +233,11 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
     doc << ", type=" << Doc::StrLiteral("auto");
   }
   return doc << ")";
+}
+
+Doc TIRTextPrinter::DataProducerNode2Doc(const DataProducerNode* prod, Doc doc) {
+  return doc << Doc::Text(": DataProducer(") << Print(prod->GetNameHint()) << ", "
+             << PrintDType(prod->GetDataType()) << ", " << Print(prod->GetShape()) << ")";
 }
 
 Doc TIRTextPrinter::PrintBufferRegion(const BufferRegionNode* op) {
@@ -439,10 +459,23 @@ Doc TIRTextPrinter::VisitStmt_(const BufferStoreNode* op) {
   return doc;
 }
 
+Doc TIRTextPrinter::VisitStmt_(const ProducerStoreNode* op) {
+  Doc doc;
+  doc << Print(op->producer) << Print(op->indices) << " = " << Print(op->value);
+  return doc;
+}
+
 Doc TIRTextPrinter::VisitStmt_(const BufferRealizeNode* op) {
   Doc doc;
   doc << "realize(" << Print(op->buffer) << ", " << Print(op->bounds) << ", "
       << Print(op->condition) << PrintBody(op->body) << ")";
+  return doc;
+}
+
+Doc TIRTextPrinter::VisitStmt_(const ProducerRealizeNode* op) {
+  Doc doc;
+  doc << "producer_realize(" << Print(op->producer) << ", " << Print(op->bounds) << ", "
+      << Print(op->condition) << ", " << PrintBody(op->body) << ")";
   return doc;
 }
 
@@ -706,6 +739,20 @@ Doc TIRTextPrinter::AllocBuf(const Buffer& buffer) {
   }
   Doc val = GetUniqueName(name);
   memo_buf_[buffer] = val;
+  return val;
+}
+
+Doc TIRTextPrinter::AllocProducer(const DataProducer& producer) {
+  const auto& it = memo_producer_.find(producer);
+  if (it != memo_producer_.end()) {
+    return it->second;
+  }
+  std::string name = producer->GetNameHint();
+  if (name.length() == 0 || !std::isalpha(name[0])) {
+    name = "tensor_" + name;
+  }
+  Doc val = GetUniqueName(name);
+  memo_producer_[producer] = val;
   return val;
 }
 
