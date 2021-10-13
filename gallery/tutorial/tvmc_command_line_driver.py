@@ -197,8 +197,8 @@ capabilities, and set the stage for understanding how TVM works.
 # requirement for the script.
 #
 # .. code-block:: python
-#    :caption: preprocess.py
-#    :name: preprocess.py
+#     :caption: preprocess.py
+#     :name: preprocess.py
 #
 #     #!python ./preprocess.py
 #     from tvm.contrib.download import download_testdata
