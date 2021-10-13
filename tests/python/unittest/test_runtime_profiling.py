@@ -179,8 +179,11 @@ def test_report_serialization():
     report = vm.profile(data, func_name="main")
 
     report2 = Report.from_json(report.json())
-    # equality on reports compares pointers, so we compare the printed results instead.
-    assert str(report) == str(report2)
+    # Equality on reports compares pointers, so we compare the printed
+    # results instead.  Use .csv() instead of str(), because str()
+    # includes aggregates whose values may be impacted by otherwise
+    # negligible conversion errors. (2 occurrences / 3000 trials)
+    assert report.csv() == report2.csv()
 
 
 if __name__ == "__main__":
