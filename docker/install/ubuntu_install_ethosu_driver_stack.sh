@@ -24,7 +24,7 @@ fvp_dir="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
 ethosu_driver_ver="21.05"
-cmsis_ver="5.7.0"
+cmsis_ver="5.8.0"
 
 mkdir -p /opt/arm
 
