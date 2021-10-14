@@ -824,7 +824,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
   /*!
    * \brief Compile a pattern match expression
-   * It first converts the pattern match expression into a desicision tree, the condition
+   * It first converts the pattern match expression into a decision tree, the condition
    * could be object comparison or variable binding. If any of the condition fails in a clause,
    * the decision tree switches to check the conditions of next clause and so on. If no clause
    * matches the value, a fatal node is inserted.
