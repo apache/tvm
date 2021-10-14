@@ -24,7 +24,6 @@ import re
 import tvm
 from tvm import relay
 from tvm.relay.adt import Pattern
-from tvm.relay.backend import compile_engine
 from tvm.relay.expr import Expr, GlobalVar, Var
 from tvm.relay.function import Function
 from tvm.relay.expr_functor import ExprFunctor
@@ -61,7 +60,6 @@ class PythonConverter(ExprFunctor):
         super().__init__()
         self.mod = mod
         self.tgt = target
-        self.engine = compile_engine.get()
         self.fun_no = 0
         self.var_no = 0
         self.var_map = {}
@@ -153,7 +151,10 @@ class PythonConverter(ExprFunctor):
     def parse_numpy_array(self, arr):
         """Given a Numpy array, produces an appropriate Python array
         or numerical literal representing its contents."""
-        parse_single = lambda i: NameConstant(i) if isinstance(i, bool) else Num(i)
+
+        def parse_single(i):
+            return NameConstant(i) if isinstance(i, bool) else Num(i)
+
         if arr.ndim == 0:
             return parse_single(arr.item())
         if arr.ndim == 1:

@@ -66,7 +66,8 @@ def test_basic():
     # const shape
     # i32 -> i32
     check(2, 2, 32, "int32")
-    check(2 ** 16, 2 ** 16, 32, "int32")  # i32 + i32 is not promoted to i64 even if overflow
+    # i32 + i32 is not promoted to i64 even if overflow
+    check(2 ** 16, 2 ** 16, 32, "int32")
     # i64 -> i32
     check(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
     check(const(2 ** 16, dtype="int64"), const(2 ** 16, dtype="int64"), 32, "int64")
@@ -188,7 +189,7 @@ def test_slice():
 
 
 def test_relay_basic():
-    engine = relay.backend.compile_engine.get()
+    engine = relay.backend.te_compiler.get()
 
     def check(shapex, shapey, target_bits, target_dtype):
         x = relay.var("x", shape=shapex)
@@ -230,7 +231,7 @@ def test_relay_basic():
 
 
 def test_relay_take():
-    engine = relay.backend.compile_engine.get()
+    engine = relay.backend.te_compiler.get()
 
     def check(shape, index, target_bits, target_dtype):
         x = relay.var("x", shape=shape)

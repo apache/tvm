@@ -41,8 +41,7 @@ class LoweredOutput(Object):
     """Lowered output"""
 
     def __init__(self, outputs, implement):
-        self.__init_handle_by_constructor__(
-            _backend._make_LoweredOutput, outputs, implement)
+        self.__init_handle_by_constructor__(_backend._make_LoweredOutput, outputs, implement)
 
 
 @tvm._ffi.register_object("relay.CCacheKey")
@@ -59,8 +58,7 @@ class CCacheKey(Object):
     """
 
     def __init__(self, source_func, target):
-        self.__init_handle_by_constructor__(
-            _backend._make_CCacheKey, source_func, target)
+        self.__init_handle_by_constructor__(_backend._make_CCacheKey, source_func, target)
 
 
 @tvm._ffi.register_object("relay.CCacheValue")
@@ -211,8 +209,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         if cfg.is_fallback:
             # Skip fallback config
             continue
-        logger.info("Implementation %s for %s has cost %.2e",
-                    impl.name, op.name, cfg.cost)
+        logger.info("Implementation %s for %s has cost %.2e", impl.name, op.name, cfg.cost)
         if best_cfg is None or best_cfg.cost > cfg.cost:
             best_autotvm_impl = impl
             best_cfg = cfg
@@ -315,8 +312,7 @@ def lower_call(call, inputs, target):
         new_fields = []
         for field in ret_type.fields:
             if isinstance(field, _ty.TensorType):
-                new_fields.append(_ty.TensorType(
-                    get_shape(field.shape), field.dtype))
+                new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
             else:
                 new_fields.append(field)
         ret_type = _ty.TupleType(new_fields)
@@ -334,8 +330,7 @@ def lower_call(call, inputs, target):
             reenable_tracing = True
 
     if not is_dyn:
-        best_impl, outputs = select_implementation(
-            op, call.attrs, inputs, ret_type, target)
+        best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
         best_impl, outputs = select_implementation(
@@ -346,11 +341,6 @@ def lower_call(call, inputs, target):
     if reenable_tracing:
         env.tracing = True
     return LoweredOutput(outputs, best_impl)
-
-
-def lower_shape_func(self, source_func, target=None):
-    key = _get_cache_key(source_func, target)
-    return _backend._CompileEngineLowerShapeFunc(self, key)
 
 
 def jit(self, source_func, target=None):
@@ -378,36 +368,6 @@ def clear(self):
     _backend._TECompilerClear(self)
 
 
-def items(self):
-    """List items in the cache.
-
-    Returns
-    -------
-    item_list : List[Tuple[CCacheKey, CCacheValue]]
-        The list of items.
-    """
-    res = _backend._CompileEngineListItems(self)
-    assert len(res) % 2 == 0
-    return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
-
-
-def shape_func_items(self):
-    """List items in the shape_func_cache.
-
-    Returns
-    -------
-    item_list : List[Tuple[CCacheKey, CCacheValue]]
-        The list of shape_func_items.
-    """
-    res = _backend._CompileEngineListShapeFuncItems(self)
-    assert len(res) % 2 == 0
-    return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
-
-
-def get_current_ccache_key(self):
-    return _backend._CompileEngineGetCurrentCCacheKey(self)
-
-
 def dump(self):
     """Return a string representation of engine dump.
 
@@ -418,7 +378,7 @@ def dump(self):
     """
     items = self.items()
     res = "====================================\n"
-    res += "CompilerEngine dump, %d items cached\n" % len(items)
+    res += "TE Compiler cached func dump, %d items cached\n" % len(items)
     for k, v in items:
         res += "------------------------------------\n"
         res += "target={}\n".format(k.target)
@@ -474,6 +434,6 @@ def get():
     Returns
     -------
     engine : tvm.relay.backend.TECompiler
-        The compile engine.
+        The TE Compiler.
     """
     return _backend._TECompilerGlobal()
