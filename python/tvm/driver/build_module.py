@@ -16,27 +16,23 @@
 # under the License.
 
 # pylint: disable=invalid-name
-"""The build utils in python.
-"""
+"""The build utils in python."""
 
 from typing import Union, Optional, List, Mapping
-import warnings
 
 import tvm.tir
 
 from tvm.runtime import Module
 from tvm.runtime import ndarray
 from tvm.ir import container
-from tvm.ir import CallingConv
 from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
-from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm.target import Target
 from tvm.tir.buffer import Buffer
 from tvm.tir.expr import Var
+from tvm.driver import _ffi_api as _driver_ffi
 
 from . import _ffi_api as ffi
 
@@ -104,8 +100,8 @@ def lower(
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
         The argument lists to the function for TE schedule.
-        It should be None if we want to lower TensorIR.
 
+        It should be None if we want to lower TensorIR.
     name : str
         The name of the result function.
 
@@ -132,98 +128,6 @@ def lower(
     raise ValueError("Expected input to be an IRModule, PrimFunc or Schedule, but got, ", type(inp))
 
 
-def _build_for_device(input_mod, target, target_host):
-    """Build the lowered functions for a device with the given compilation
-    target.
-
-    Parameters
-    ----------
-    input_mod : IRModule
-        The schedule to be built.
-
-    target : str or :any:`tvm.target.Target`
-        The target and option of the compilation.
-
-    target_host : str or :any:`tvm.target.Target`
-        The host compilation target.
-
-    Returns
-    -------
-    fhost : IRModule
-        The host IRModule.
-
-    mdev : tvm.module
-        A module that contains device code.
-    """
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
-    device_type = ndarray.device(target.kind.name, 0).device_type
-
-    mod_mixed = input_mod
-    mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
-
-    opt_mixed = [
-        tvm.tir.transform.VerifyMemory(),
-        tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
-    ]
-    if len(mod_mixed.functions) == 1:
-        opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
-
-    if PassContext.current().config.get("tir.detect_global_barrier", False):
-        opt_mixed += [tvm.tir.transform.ThreadSync("global")]
-    opt_mixed += [
-        tvm.tir.transform.ThreadSync("shared"),
-        tvm.tir.transform.ThreadSync("warp"),
-        tvm.tir.transform.InferFragment(),
-        tvm.tir.transform.LowerThreadAllreduce(),
-        tvm.tir.transform.MakePackedAPI(),
-        tvm.tir.transform.SplitHostDevice(),
-    ]
-    mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
-
-    # device optimizations
-    opt_device = tvm.transform.Sequential(
-        [
-            tvm.tir.transform.Filter(
-                lambda f: "calling_conv" in f.attrs
-                and f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH
-            ),
-            tvm.tir.transform.LowerWarpMemory(),
-            tvm.tir.transform.Simplify(),
-            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-            tvm.tir.transform.LowerCustomDatatypes(),
-            tvm.tir.transform.LowerIntrin(),
-        ]
-    )
-    mod_dev = opt_device(mod_mixed)
-
-    # host optimizations
-    opt_host = tvm.transform.Sequential(
-        [
-            tvm.tir.transform.Filter(
-                lambda f: "calling_conv" not in f.attrs
-                or f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH
-            ),
-            tvm.tir.transform.Apply(lambda f: f.with_attr("target", target_host)),
-            tvm.tir.transform.LowerTVMBuiltin(),
-            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-            tvm.tir.transform.LowerCustomDatatypes(),
-            tvm.tir.transform.LowerIntrin(),
-            tvm.tir.transform.CombineContextCall(),
-        ]
-    )
-    mod_host = opt_host(mod_mixed)
-
-    if device_type == ndarray.cpu(0).device_type and target_host == target:
-        assert len(mod_dev.functions) == 0
-    if "gpu" in target.keys and len(mod_dev.functions) == 0:
-        warnings.warn(
-            "Specified target %s, but cannot find device code, did you do " "bind?" % target
-        )
-
-    rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev.functions) != 0 else None
-    return mod_host, rt_mod_dev
-
-
 def build(
     inputs: Union[schedule.Schedule, PrimFunc, IRModule, Mapping[str, IRModule]],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
@@ -237,7 +141,8 @@ def build(
 
     Parameters
     ----------
-    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule,
+        tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
@@ -253,7 +158,7 @@ def build(
         setup the dimensions and parameters correctly.
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
+        otherwise a stackvm interpreter is used.
 
     name : Optional[str]
         The name of result function.
@@ -350,21 +255,11 @@ def build(
         target_input_mod, target_host
     )
 
-    mod_host_all = tvm.IRModule({})
+    rt_mod_host = _driver_ffi.finalize_module(target_input_mod, target_host)
 
-    device_modules = []
-    for tar, input_mod in target_input_mod.items():
-        mod_host, mdev = _build_for_device(input_mod, tar, target_host)
-        mod_host_all.update(mod_host)
-        device_modules.append(mdev)
-
-    # Generate a unified host module.
-    rt_mod_host = codegen.build_module(mod_host_all, target_host)
-
-    # Import all modules.
-    for mdev in device_modules:
-        if mdev:
-            rt_mod_host.import_module(mdev)
+    target_input_mod, target_host = Target.check_and_update_host_consist(
+        target_input_mod, target_host
+    )
 
     if not isinstance(target_host, Target):
         target_host = Target(target_host)
