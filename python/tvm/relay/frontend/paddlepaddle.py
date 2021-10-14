@@ -1055,7 +1055,7 @@ class GraphProto:
         final_params = dict()
         for var in free_vars:
             if var.name_hint in self.params:
-                final_params = self.params[var.name_hint]
+                final_params[var.name_hint] = self.params[var.name_hint]
         self.params = final_params
         return mod, self.params
 
