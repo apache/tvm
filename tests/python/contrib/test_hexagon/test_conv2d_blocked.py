@@ -162,6 +162,7 @@ def conv2d_packed_filter(
     stride,
     padding,
     dtype,
+    h_split_factor,
     storage_scope="global",
 ):
     """
@@ -260,15 +261,45 @@ def conv2d_packed_filter(
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
-    # Perform scheduling
-    n, hid, wid, cid, hoff, woff, coff = s[Y].op.axis
-    slice = s[Y].fuse(wid, cid)
+    # cache read for the input / activation (X)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
+
+    # cache write for the output (Y)
     Yl = s.cache_write(Y, storage_scope)
 
-    s[Yl].compute_at(s[Y], hid)
-    n, hid, slice, hoff, woff, coff = s[Yl].op.axis
-    s[Xl].compute_at(s[Yl], slice)
+    ########################
+    # cache write schedule #
+    ########################
+
+    # loop schedule corresponding with nhwc8h8w32c layout
+    # using k to represent output channel
+    n, ho, wo, ko, hi, wi, ki = s[Y].op.axis
+
+    # loop split h and compute cache write at outer loop split
+    # to increase cache usage by factor of h_split_factor
+    hoo, hoi = s[Y].split(ho, factor=h_split_factor)
+    s[Yl].compute_at(s[Y], hoo)
+
+    ####################
+    # compute schedule #
+    ####################
+
+    # loop schedule corresponding with nhwc8h8w32c layout
+    # using k to represent output channel
+    n, ho, wo, ko, hi, wi, ki = s[Yl].op.axis
+
+    # reduction axes
+    # using rc to represent (reduction) input channel
+    rh, rw, rc = s[Yl].op.reduce_axis
+
+    # split input channel by the block size
+    rco, rci = s[Yl].split(rc, factor=block_C)
+
+    # loop split h and compute cache write at outer loop split
+    # to increase cache usage by factor of h_split_factor
+    hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
+    s[Yl].reorder(n, hoo, hoi, wo, ko, rco, hi, wi, ki, rci)
+    s[Xl].compute_at(s[Yl], hoo)
 
     binds = {}
     if storage_scope and storage_scope != "global":
@@ -287,6 +318,7 @@ def conv2d_packed_filter_nhwhwc(
     stride,
     padding,
     dtype,
+    h_split_factor,
     storage_scope="global",
 ):
     """
@@ -299,7 +331,7 @@ def conv2d_packed_filter_nhwhwc(
     assert kernel_size == tuple(shape_oihw8i32o4i[2:4])
 
     block_shape = get_block_shape()
-    block_H, block_W, _ = block_shape
+    block_H, block_W, block_C = block_shape
     shape = get_packed_activation_layout(shape_nhwc, block_shape, packed_C=False)
     logical_output_shape = get_conv2d_nhwc_shape(
         shape_nhwc,
@@ -372,18 +404,62 @@ def conv2d_packed_filter_nhwhwc(
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
-    n, ho, wo, hi, wi, k = s[Y].op.axis
-    rh, rw, rc = s[Y].op.reduce_axis
-
-    rco, rci = s[Y].split(rc, factor=32)
-    s[Y].reorder(n, rco, wo, ho, k, hi, wi)
+    # cache read for the input / activation (X)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
-    s[Xl].compute_at(s[Y], rco)
 
-    ko, ki = s[Y].split(k, factor=32)
-    s[Y].reorder(n, rco, wo, ho, ko, hi, wi, ki)
-    Fl = s.cache_read(filt_packed, storage_scope, [Y])
-    s[Fl].compute_at(s[Y], ko)
+    # cache write for the output (Y)
+    Yl = s.cache_write(Y, storage_scope)
+
+    ########################
+    # cache write schedule #
+    ########################
+
+    # loop schedule corresponding with nhw8h8wc layout
+    # using k to represent output channel
+    n, ho, wo, hi, wi, k = s[Y].op.axis
+
+    # split output channel by the block size
+    ko, ki = s[Y].split(k, factor=block_C)
+
+    # loop split h and compute cache write at outer loop split
+    # to increase cache usage by factor of h_split_factor
+    hoo, hoi = s[Y].split(ho, factor=h_split_factor)
+    s[Y].reorder(n, hoo, hoi, wo, ko, hi, wi, ki)
+    s[Yl].compute_at(s[Y], hoo)
+
+    ####################
+    # compute schedule #
+    ####################
+
+    # loop schedule corresponding with nhw8h8wc layout
+    # using k to represent output channel
+    n, ho, wo, hi, wi, k = s[Yl].op.axis
+
+    # reduction axes
+    # using rc to represent (reduction) input channel
+    rh, rw, rc = s[Yl].op.reduce_axis
+
+    # split output & input channel by the block size
+    ko, ki = s[Yl].split(k, factor=block_C)
+    rco, rci = s[Yl].split(rc, factor=block_C)
+
+    # loop split h and compute cache write at outer loop split
+    # to increase cache usage by factor of h_split_factor
+    hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
+    s[Yl].reorder(n, hoo, hoi, wo, ko, rco, hi, wi, ki, rci)
+    s[Xl].compute_at(s[Yl], hoo)
+
+    #######################
+    # cache read schedule #
+    #######################
+
+    # loop schedule corresponding with nhw8h8wc layout
+    # using k to represent output channel
+    n, ho, wo, hi, wi, c = s[Xl].op.axis
+
+    # split intput channel by the block size
+    co, ci = s[Xl].split(c, factor=block_C)
+    s[Xl].reorder(n, ho, wo, co, hi, wi, ci)
 
     binds = {}
     if storage_scope and storage_scope != "global":
@@ -397,13 +473,14 @@ def conv2d_packed_filter_nhwhwc(
 
 class BaseConv2d:
     batch = tvm.testing.parameter(1)
-    in_size = tvm.testing.parameter(8, 56)
+    in_size = tvm.testing.parameter(8, 56, 64)
     in_channel = tvm.testing.parameter(64)
     out_channel = tvm.testing.parameter(64)
-    kernel = tvm.testing.parameter(3)
+    kernel = tvm.testing.parameter(1, 3)
     stride = tvm.testing.parameter(1)
-    pad = tvm.testing.parameter(1)
+    pad = tvm.testing.parameter(0, 1)
     dtype = tvm.testing.parameter("float32")
+    h_split_factor = tvm.testing.parameter(1, 2)
 
 
 class TestConv2dLogical(BaseConv2d):
@@ -445,6 +522,7 @@ class TestConv2dPackedFilter(BaseConv2d):
         pad,
         dtype,
         target,
+        h_split_factor,
     ):
         inputs = [
             np.random.uniform(0, 255, size=shape_nhwc).astype(dtype),
@@ -465,6 +543,7 @@ class TestConv2dPackedFilter(BaseConv2d):
             stride=(stride, stride),
             padding=(pad, pad, pad, pad),
             dtype=dtype,
+            h_split_factor=h_split_factor,
         )
         return output, ref_output
 
