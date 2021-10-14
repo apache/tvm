@@ -122,7 +122,7 @@ PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {
   // generate surrounding loops automatically
   Stmt res = script_completer(func->body);
   // generate root block automatically
-  if (script_completer.contains_block && !contain_root) {
+  if ((script_completer.contains_block || root_allocates.size()) && !contain_root) {
     res = Block({}, {}, {}, "root", res, NullOpt, root_allocates);
     res = BlockRealize({}, Bool(true), Downcast<Block>(res));
   }
