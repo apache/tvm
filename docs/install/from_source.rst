@@ -107,7 +107,7 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
       .. code:: bash
 
-          export TVM_LOG_DEBUG=1
+          export TVM_LOG_DEBUG="ir/transform.cc=1;relay/ir/transform.cc=1"
 
 - TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 
