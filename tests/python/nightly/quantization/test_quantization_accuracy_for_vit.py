@@ -14,15 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
 import os
 import sys
+import logging
+
+import pytest
+
+pytest.importorskip("onnx")
+
+import onnx
+
+import tvm
 from tvm import relay
 from tvm.relay import quantize as qtz
-import logging
-import onnx
 import tvm.testing
-import mxnet as mx
 from test_quantization_accuracy import Config, get_val_data, eval_acc
 
 logging.basicConfig(level=logging.INFO)
