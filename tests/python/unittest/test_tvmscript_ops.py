@@ -144,7 +144,6 @@ def _check_alloc_zero_dim_buffer(f):
     # tvm func execution
     f(tvm_data, tvm_out)
     tvm.testing.assert_allclose(tvm_out.numpy(), np_out, rtol=1e-5)
-    print("test alloc_zero_dim_buffer end")
 
 
 def test_alloc_zero_dim_buffer_round_trip():
