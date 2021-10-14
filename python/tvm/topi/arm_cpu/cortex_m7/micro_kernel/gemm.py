@@ -30,7 +30,7 @@ from . import common
 ##########################
 
 # NOTE this is transposed matmul (A * B^T)
-def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
+def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype, stride_w=1):
     """Defines a SIMD-accelerated transposed matmul."""
     # we generate a unique ID for every intrinsic definition, to prevent name
     # collisions in the generated source (e.g., if there are multiple operators
@@ -51,12 +51,14 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     # TODO(weberlo, areusch): support more dtypes?
     assert in_dtype in ("int8", "int16")
     assert out_dtype == "int32"
-    A = te.placeholder((M, K), name="a", dtype=in_dtype)
+    A = te.placeholder((M * stride_w - (stride_w - 1), K), name="a", dtype=in_dtype)
     B = te.placeholder((N, K), name="b", dtype=in_dtype)
     k = te.reduce_axis((0, K), name="k")
     C = te.compute(
         (M, N),
-        lambda i, j: te.sum(A[i, k].astype(out_dtype) * B[j, k].astype(out_dtype), axis=k),
+        lambda i, j: te.sum(
+            A[i * stride_w, k].astype(out_dtype) * B[j, k].astype(out_dtype), axis=k
+        ),
         name="c",
     )
     A_buf = tvm.tir.decl_buffer(
@@ -83,7 +85,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
                     aa.access_ptr("r"),
                     bb.access_ptr("r"),
                     cc.access_ptr("w"),
-                    aa.strides[0],
+                    aa.strides[0] * stride_w,
                     bb.strides[0],
                     cc.strides[0],
                 )
@@ -108,7 +110,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
                     aa.access_ptr("r"),
                     bb.access_ptr("r"),
                     cc.access_ptr("w"),
-                    aa.strides[0],
+                    aa.strides[0] * stride_w,
                     bb.strides[0],
                     cc.strides[0],
                 )

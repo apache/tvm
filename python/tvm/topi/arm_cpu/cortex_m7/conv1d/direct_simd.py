@@ -22,6 +22,7 @@ from tvm import te
 from tvm.topi.utils import simplify, traverse_inline
 from tvm.topi.nn.pad import pad
 from tvm.topi.nn.utils import get_pad_tuple1d
+from tvm.tir.expr import Mul
 
 from ..micro_kernel.gemm import (
     intrin_gemm_MxKxN,
@@ -144,6 +145,9 @@ def conv1d_nwc_direct_simd_schedule(cfg, outs):
         conv = op
         data_vec = conv.input_tensors[0]
 
+        source_index_w = output.op.body[0].source[0].a.value.indices[1].a
+        stride_w = source_index_w.b.value if isinstance(source_index_w, Mul) else 1
+
         # tile reduction axes
         n, ow, co = sched[conv].op.axis
         kw, ci = sched[conv].op.reduce_axis
@@ -158,7 +162,7 @@ def conv1d_nwc_direct_simd_schedule(cfg, outs):
 
         cfg["reorder_0_simd"].apply(sched, conv, [n, owo, owi, coo, coi, kw, cio, cii])
 
-        gemm, uniq_id = intrin_gemm_MxKxN(M, K, N, data_vec.dtype, output.dtype)
+        gemm, uniq_id = intrin_gemm_MxKxN(M, K, N, data_vec.dtype, output.dtype, stride_w)
         sched[output].tensorize(owi, gemm)
         sched[output].pragma(n, "import_c", gemm_MxKxN_impl(M, K, N, uniq_id))
 
