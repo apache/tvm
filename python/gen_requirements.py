@@ -198,6 +198,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "sphinx_autodoc_annotation",
                 "sphinx_gallery",
                 "sphinx_rtd_theme",
+                "types-psutil",
             ],
         ),
     ),
