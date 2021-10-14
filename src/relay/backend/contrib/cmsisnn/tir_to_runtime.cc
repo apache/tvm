@@ -81,6 +81,8 @@ class CMSISNNModuleNode : public runtime::ModuleNode {
 
   const char* type_key() const { return "c"; }
 
+  std::string GetFormat() { return fmt_; }
+
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_symbol") {
       return PackedFunc(

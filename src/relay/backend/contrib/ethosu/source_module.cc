@@ -89,6 +89,8 @@ class EthosUModuleNode : public ModuleNode {
 
   std::string GetSource(const std::string& format) final { return c_source; }
 
+  std::string GetFormat() { return fmt_; }
+
   std::string GetCS() { return cmms_hex; }
 
   /*!
