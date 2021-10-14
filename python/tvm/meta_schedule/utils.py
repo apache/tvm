@@ -61,7 +61,8 @@ def cpu_count(logical: bool = True) -> int:
 
 
 def get_global_func_with_default_on_worker(
-    name: Union[None, str, Callable], default: Callable,
+    name: Union[None, str, Callable],
+    default: Callable,
 ) -> Callable:
     """Get the registered global function on the worker process.
 
@@ -97,7 +98,9 @@ def get_global_func_with_default_on_worker(
 
 
 def get_global_func_on_rpc_session(
-    session: RPCSession, name: str, extra_error_msg: Optional[str] = None,
+    session: RPCSession,
+    name: str,
+    extra_error_msg: Optional[str] = None,
 ) -> PackedFunc:
     """Get a PackedFunc from the global registry from an RPCSession.
 
@@ -212,7 +215,7 @@ def _get_hex_address(handle: ctypes.c_void_p) -> str:
     ----------
     handle : ctypes.c_void_p
         The handle to be converted.
-    
+
     Returns
     -------
     result : str

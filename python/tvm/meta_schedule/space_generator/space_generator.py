@@ -35,7 +35,10 @@ if TYPE_CHECKING:
 class SpaceGenerator(Object):
     """The abstract design space generator interface."""
 
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+    def initialize_with_tune_context(
+        self,
+        tune_context: "TuneContext",
+    ) -> None:
         """Initialize the design space generator with tuning context.
 
         Parameters

@@ -142,7 +142,8 @@ SearchStrategy SearchStrategy::ReplayTrace(int num_trials_per_iter, int num_tria
 }
 
 TVM_REGISTER_NODE_TYPE(ReplayTraceNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ReplayTrace").set_body_typed(SearchStrategy::ReplayTrace);
+TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayTrace")
+    .set_body_typed(SearchStrategy::ReplayTrace);
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 
 """ The task scheduler that allocates the time resources when tuning multiple tasks together
+
 The details of the "gradient" strategy below can be found in the section 6 of this paper:
 L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor : Generating High-Performance Tensor
 Programs for Deep Learning." (OSDI 2020).
@@ -604,7 +605,12 @@ class PrintTableInfo(TaskSchedulerCallback):
             total_latency_str = "-"
         print(
             "Estimated total latency: %s ms\tTrials: %d\tUsed time : %.0f s\tNext ID: %d\t"
-            % (total_latency_str, task_scheduler.ct, time.time() - task_scheduler.tic, task_id,)
+            % (
+                total_latency_str,
+                task_scheduler.ct,
+                time.time() - task_scheduler.tic,
+                task_id,
+            )
         )
 
 
@@ -632,6 +638,10 @@ class LogEstimatedLatency(TaskSchedulerCallback):
         with open(self.log_file, "a") as filep:
             filep.write(
                 "ElapsedTime(s)\t%.0f\tEstimatedLatency(ms)\t%s\tTrials\t%d\n"
-                % (time.time() - task_scheduler.tic, total_latency_str, task_scheduler.ct,)
+                % (
+                    time.time() - task_scheduler.tic,
+                    total_latency_str,
+                    task_scheduler.ct,
+                )
             )
             filep.flush()

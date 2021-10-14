@@ -22,7 +22,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
-from tvm.tir.schedule import Schedule, Trace
+from tvm.tir.schedule import Schedule
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
@@ -47,7 +47,11 @@ class MeasureCandidate(Object):
     sch: Schedule
     args_info: List[ArgInfo]
 
-    def __init__(self, sch: Schedule, args_info: List[ArgInfo]) -> None:
+    def __init__(
+        self,
+        sch: Schedule,
+        args_info: List[ArgInfo],
+    ) -> None:
         """Constructor.
 
         Parameters
@@ -71,7 +75,10 @@ class SearchStrategy(Object):
     before usage and post-tuned after usage.
     """
 
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+    def initialize_with_tune_context(
+        self,
+        tune_context: "TuneContext",
+    ) -> None:
         """Initialize the search strategy with tuning context.
 
         Parameters

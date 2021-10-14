@@ -53,6 +53,12 @@ class TuneContext(Object):
         The design space generator.
     search_strategy : Optional[SearchStrategy] = None
         The search strategy.
+    sch_rules : List[ScheduleRule] = []
+        The schedule rules.
+    postproc : List[Postproc] = []
+        The post processings.
+    mutator : List[Mutator] = []
+        The mutators.
     task_name : Optional[str] = None
         The name of the tuning task.
     rand_state : int = -1
@@ -73,6 +79,9 @@ class TuneContext(Object):
     target: Optional[Target]
     space_generator: "SpaceGenerator"
     search_strategy: "SearchStrategy"
+    sch_rules: List["ScheduleRule"]
+    postproc: List["Postproc"]
+    mutator: List["Mutator"]
     task_name: Optional[str]
     rand_state: int
     num_threads: int
