@@ -70,8 +70,8 @@ class GemmCollector(tvm.relay.ExprVisitor):
             self.signature["ret_shape"] = op.ret_type.shape
             self.signature["ret_dtype"] = op.ret_type.dtype
 
-
-cutlass_profiler = gen_gemm.CutlassGemmProfiler("75", "../../../3rdparty/cutlass", "./temp")
+sm = "86"
+cutlass_profiler = gen_gemm.CutlassGemmProfiler(sm, "../../../3rdparty/cutlass", "./temp")
 
 for var in mod.get_global_vars():
     fun_name = var.name_hint
@@ -152,10 +152,8 @@ with tvm.transform.PassContext(opt_level=3):
 
 
 lib_path = "compiled.so"
-# cutlass_path = "../../../3rdparty/cutlass/include"
-# cutlass_util_path = "../../../3rdparty/cutlass/tools/util/include"
-cutlass_path = "/home/masa/projects/dev/tvm/3rdparty/cutlass/include"
-cutlass_util_path = "/home/masa/projects/dev/tvm/3rdparty/cutlass/tools/util/include"
+cutlass_path = "../../../3rdparty/cutlass/include"
+cutlass_util_path = "../../../3rdparty/cutlass/tools/util/include"
 workdir = "tmp"
 
 os.makedirs(workdir, exist_ok=True)
@@ -164,7 +162,7 @@ kwargs = {}
 kwargs["cc"] = "nvcc"
 kwargs["options"] = [
     "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-    "-gencode=arch=compute_75,code=[sm_75,compute_75]",
+    "-gencode=arch=compute_%s,code=[sm_%s,compute_%s]" % (sm, sm, sm),
     "-Xcompiler=-fPIC",
     "-Xcompiler=-Wconversion",
     "-Xcompiler=-fno-strict-aliasing",

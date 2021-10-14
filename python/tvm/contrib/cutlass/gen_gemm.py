@@ -175,7 +175,7 @@ def GenerateSM75_TensorOp_1688(dtype):
         ),
     ]
 
-    min_cc = 75
+    min_cc = 80
     max_cc = 1024
 
     alignment_constraints = [8, 4, 2, 1]
