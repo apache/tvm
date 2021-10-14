@@ -1,3 +1,27 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file src/relay/backend/contrib/cutlass/codegen.cc
+ * \brief Implementation of CUTLASS codegen.
+ */
+
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -23,7 +47,6 @@ static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"}, {"float32", "floa
 
 Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
   Str2StrMap args;
-  LOG(INFO) << attrs;
   auto arg0_dtype = std::string(attrs["arg0_dtype"].as<StringObj>()->data);
   auto arg1_dtype = std::string(attrs["arg1_dtype"].as<StringObj>()->data);
   auto ret_dtype = std::string(attrs["ret_dtype"].as<StringObj>()->data);
@@ -51,7 +74,7 @@ inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int in
   os << stmt;
 }
 
-std::string DenseOp(std::string id, const Str2StrMap& attrs) {
+std::string DenseOp(std::string id, const Str2StrMap& attrs, const std::vector<std::string>& func_args) {
   bool has_bias = false;
   if (attrs.at("op_type") == "cutlass.dense_bias" ||
       attrs.at("op_type") == "cutlass.dense_bias_relu" ||
@@ -90,11 +113,12 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs) {
 
   // Create a tuple of gemm kernel arguments. This is later passed as arguments to launch
   // instantiated CUTLASS kernel
-  id = "cutlass_0";
-  CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + id + "_i0);\n");
-  CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + id + "_i1);\n");
+  ICHECK(func_args.size() >= 2);
+  CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + func_args[0] + ");\n");
+  CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + func_args[1] + ");\n");
   if (has_bias) {
-    CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + id + "_i2);\n");
+    ICHECK(func_args.size() >= 3);
+    CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + ");\n");
   }
   CutlassPrint(gemm_decl, "void* ptr_out = (void*)(out0);\n");
 
@@ -281,10 +305,10 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
                                            {"nn.dense", add_or_bias_add, "nn.hardswish"});
       return GenerateBody(dense_call, "cutlass_dense_bias_hardswish", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
-      // TODO more ops to be added
-      LOG(FATAL) << "Unknown composite function: " << pattern_name;
-      return {};
     }
+    // TODO more ops to be added
+    LOG(FATAL) << "Unknown composite function: " << pattern_name;
+    return {};
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
@@ -330,7 +354,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     if (func_name == "cutlass_dense" || func_name == "cutlass_dense_bias" ||
         func_name == "cutlass_dense_bias_relu" || func_name == "cutlass_dense_bias_gelu" ||
         func_name == "cutlass_dense_bias_hardswish") {
-      ret.decl = DenseOp(ext_func_id_, attribute_args);
+      ret.decl = DenseOp(ext_func_id_, attribute_args, func_args);
     }
     return ret;
   }
