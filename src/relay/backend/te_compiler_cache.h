@@ -62,7 +62,7 @@ struct LoweredOutputNode : public Object {
     v->Visit("outputs", &outputs);
     v->Visit("implementation", &implementation);
   }
-
+  print("lowered  out struct");
   static constexpr const char* _type_key = "relay.LoweredOutput";
   TVM_DECLARE_FINAL_OBJECT_INFO(LoweredOutputNode, Object);
 };
