@@ -74,7 +74,8 @@ inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int in
   os << stmt;
 }
 
-std::string DenseOp(std::string id, const Str2StrMap& attrs, const std::vector<std::string>& func_args) {
+std::string DenseOp(std::string id, const Str2StrMap& attrs,
+                    const std::vector<std::string>& func_args) {
   bool has_bias = false;
   if (attrs.at("op_type") == "cutlass.dense_bias" ||
       attrs.at("op_type") == "cutlass.dense_bias_relu" ||
