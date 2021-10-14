@@ -75,6 +75,17 @@ function(assign_source_group group)
     endforeach()
 endfunction(assign_source_group)
 
+function(tvm_micro_add_copy_file var src dest)
+    get_filename_component(basename "${src}" NAME)
+    get_filename_component(dest_parent_dir "${dest}" DIRECTORY)
+    add_custom_command(
+        OUTPUT "${dest}"
+        COMMAND "${CMAKE_COMMAND}" -E copy "${src}" "${dest}"
+        DEPENDS "${src}")
+    list(APPEND "${var}" "${dest}")
+    set("${var}" "${${var}}" PARENT_SCOPE)
+endfunction(tvm_micro_add_copy_file)
+
 # From cmake documentation:
 # True if the constant is 1, ON, YES, TRUE, Y, or a non-zero number.
 # False if the constant is 0, OFF, NO, FALSE, N, IGNORE, NOTFOUND, the empty string, or ends in the suffix -NOTFOUND.
