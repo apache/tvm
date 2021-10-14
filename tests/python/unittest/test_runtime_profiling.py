@@ -180,10 +180,14 @@ def test_report_serialization():
 
     report2 = Report.from_json(report.json())
     # Equality on reports compares pointers, so we compare the printed
-    # results instead.  Use .csv() instead of str(), because str()
-    # includes aggregates whose values may be impacted by otherwise
+    # results instead.
+
+    # Use .table() instead of str(), because str() includes aggregate
+    # and column summations whose values may be impacted by otherwise
     # negligible conversion errors. (2 occurrences / 3000 trials)
-    assert report.csv() == report2.csv()
+    assert report.table(aggregate=False, col_sums=False) == report2.table(
+        aggregate=False, col_sums=False
+    )
 
 
 if __name__ == "__main__":
