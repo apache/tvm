@@ -452,11 +452,23 @@ class CountNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(CountNode, Object);
 };
 
-/*! \brief String representation of an array or NDArray shapes
+/*! \brief String representation of an array of NDArray shapes
  *  \param shapes Array of NDArrays to get the shapes of.
  *  \return A textual representation of the shapes. For example: `float32[2], int64[1, 2]`.
  */
 String ShapeString(const std::vector<NDArray>& shapes);
+/*! \brief String representation of shape encoded as an NDArray
+ *  \param shape NDArray containing the shape.
+ *  \param dtype The dtype of the shape.
+ *  \return A textual representation of the shape. For example: `float32[2]`.
+ */
+String ShapeString(NDArray shape, DLDataType dtype);
+/*! \brief String representation of a shape encoded as a vector
+ *  \param shape Shape as a vector of integers.
+ *  \param dtype The dtype of the shape.
+ *  \return A textual representation of the shape. For example: `float32[2]`.
+ */
+String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
 
 }  // namespace profiling
 }  // namespace runtime
