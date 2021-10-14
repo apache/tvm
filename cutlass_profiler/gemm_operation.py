@@ -10,7 +10,7 @@ import shutil
 import functools
 import operator
 
-from .library import *
+from library import *
 
 
 ###################################################################################################
@@ -39,7 +39,7 @@ class GemmOperation:
   #
   def is_complex(self):
     complex_operators = [
-      MathOperation.multiply_add_complex, 
+      MathOperation.multiply_add_complex,
       MathOperation.multiply_add_complex_gaussian
     ]
     return self.tile_description.math_instruction.math_operation in complex_operators
@@ -67,7 +67,7 @@ class GemmOperation:
   #
   def core_name(self):
     ''' The basic operation kind is prefixed with a letter indicating the accumulation type. '''
-    
+
     inst_shape = ''
     inst_operation = ''
     intermediate_type = ''
@@ -118,7 +118,7 @@ class GemmOperation:
   def layout_name(self):
     if self.is_complex() or self.is_planar_complex():
       return "%s%s" % (
-        ShortComplexLayoutNames[(self.A.layout, self.A.complex_transform)], 
+        ShortComplexLayoutNames[(self.A.layout, self.A.complex_transform)],
         ShortComplexLayoutNames[(self.B.layout, self.B.complex_transform)]
       )
     return "%s%s" % (ShortLayoutTypeNames[self.A.layout], ShortLayoutTypeNames[self.B.layout])
@@ -142,7 +142,7 @@ class GemmOperation:
         'alignment': "%d" % self.A.alignment,
       }
     )
-  
+
   #
   def leading_dim(self):
     ''' lda, ldb, ldc, according to the leading dimension. '''
@@ -483,7 +483,7 @@ class EmitSparseGemmInstance:
     epilogue_vector_length = int(min(operation.C.alignment * DataTypeSize[operation.C.element], 128) / DataTypeSize[operation.C.element])
 
     residual = ''
-    
+
     values = {
       'operation_name': operation.procedural_name(),
       'element_a': DataTypeTag[operation.A.element],
@@ -531,7 +531,7 @@ class EmitGemmUniversalInstance:
   def __init__(self):
     self.gemm_template = """
 // Gemm operator ${operation_name}
-using ${operation_name}_base = 
+using ${operation_name}_base =
   typename cutlass::gemm::kernel::DefaultGemmUniversal<
     ${element_b}, ${layout_b}, ${transform_b}, ${align_b},    // transposed B operand
     ${element_a}, ${layout_a}, ${transform_a}, ${align_a},    // transposed A operand
@@ -554,12 +554,12 @@ using ${operation_name}_base =
 >::GemmKernel;
 
 // Define named type
-struct ${operation_name} : 
+struct ${operation_name} :
   public ${operation_name}_base { };
 """
     self.gemm_template_interleaved = """
 // Gemm operator ${operation_name}
-using ${operation_name}_base = 
+using ${operation_name}_base =
   typename cutlass::gemm::kernel::DefaultGemmUniversal<
     ${element_a}, ${layout_a}, ${transform_a}, ${align_a},
     ${element_b}, ${layout_b}, ${transform_b}, ${align_b},
@@ -582,7 +582,7 @@ using ${operation_name}_base =
 >::GemmKernel;
 
 // Define named type
-struct ${operation_name} : 
+struct ${operation_name} :
   public ${operation_name}_base { };
 """
 
@@ -680,7 +680,7 @@ class EmitGemmPlanarComplexInstance:
     ${math_operator}
   >::GemmKernel;
 
-  struct ${operation_name} : 
+  struct ${operation_name} :
     public Operation_${operation_name} { };
 """
 
@@ -930,7 +930,7 @@ void initialize_${configuration_name}(Manifest &manifest) {
       'compile_guard_start': SubstituteTemplate(self.wmma_guard_start, {'sm_number': str(operation.arch)}) \
         if operation.tile_description.math_instruction.opcode_class == OpcodeClass.WmmaTensorOp else "",
       'compile_guard_end': "#endif" \
-        if operation.tile_description.math_instruction.opcode_class == OpcodeClass.WmmaTensorOp else "" 
+        if operation.tile_description.math_instruction.opcode_class == OpcodeClass.WmmaTensorOp else ""
       }))
 
   def __exit__(self, exception_type, exception_value, traceback):
@@ -943,13 +943,12 @@ void initialize_${configuration_name}(Manifest &manifest) {
     self.configuration_file.write(SubstituteTemplate(self.initialize_function_template, {
       'configuration_name': self.configuration_name
       }))
-   
+
     for instance_wrapper in self.instance_wrappers:
-      self.configuration_file.write(instance_wrapper) 
+      self.configuration_file.write(instance_wrapper)
 
     self.configuration_file.write(self.epilogue_template)
     self.configuration_file.close()
 
 ###################################################################################################
 ###################################################################################################
-

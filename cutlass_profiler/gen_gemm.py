@@ -1,9 +1,9 @@
 import os
 from collections import namedtuple
-from kernel_gen.gemm_operation import GemmOperation, EmitGemmInstance, EmitGemmEpilogueInstance
-from kernel_gen.gemm_profiler import GemmProfiler
-from kernel_gen.compile_engine import CompileEngine
-from kernel_gen.library import *
+from gemm_operation import GemmOperation, EmitGemmInstance, EmitGemmEpilogueInstance
+from gemm_profiler import GemmProfiler
+from compile_engine import CompileEngine
+from library import *
 
 
 def CreateGemmOperator(layouts,
@@ -30,9 +30,9 @@ def CreateGemmOperator(layouts,
     for tile_description in tile_descriptions:
       for alignment in alignment_constraints:
         for complex_transform in complex_transforms:
-  
+
             alignment_c = min(8, alignment)
- 
+
             A = TensorDescription(element_a, layout[0], alignment, complex_transform[0])
             B = TensorDescription(element_b, layout[1], alignment, complex_transform[1])
             C = TensorDescription(element_c, layout[2], alignment_c)
@@ -107,7 +107,7 @@ def GenerateSM75_TensorOp_1688(dtype):
     if (dtype == "float32" and math_inst.element_a == DataType.f16) or \
              (dtype == "float16" and math_inst.element_a == DataType.f32) :
       continue
-     
+
     tile_descriptions = [
       TileDescription([256, 128, 32], 2, [4, 2, 1], math_inst, min_cc, max_cc),
       TileDescription([128, 256, 32], 2, [2, 4, 1], math_inst, min_cc, max_cc),
@@ -124,10 +124,10 @@ def GenerateSM75_TensorOp_1688(dtype):
       math_inst.element_accumulator,
       math_inst.element_accumulator,
     ]
-    
+
     out = CreateGemmOperator(layouts, tile_descriptions, \
       data_type, alignment_constraints)
-        
+
     # Avoid emitting two kernels if the accumulator type does not differ from the input type (e.g. F16 accumulation)
     if math_inst.element_a != math_inst.element_accumulator:
       data_type_mixed = [
@@ -149,7 +149,7 @@ GENERATOR_FUNC_TABLE = {
 class CutlassGemmProfiler(object):
   def __init__(self, cuda_arch, cutlass_path, binary_path):
     self.engine = CompileEngine(cuda_arch, cutlass_path, binary_path)
-  
+
   # find out kernels that cannot be supported
   def check_align(self, op_name, M, N, K):
     aligns = re.findall(r'align[1|2|4|8]', op_name)
