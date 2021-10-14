@@ -5,6 +5,7 @@
 # 
 # Translators:
 # HLearning, 2021
+# DH Luo, 2021
 # 
 #, fuzzy
 msgid ""
@@ -13,7 +14,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:34+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -27,6 +28,8 @@ msgid ""
 "<sphx_glr_download_how_to_tune_with_autotvm_tune_conv2d_cuda.py>` to "
 "download the full example code"
 msgstr ""
+"点击 :ref:`此处 "
+"<sphx_glr_download_how_to_tune_with_autotvm_tune_conv2d_cuda.py>` 获取完整示例代码"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_conv2d_cuda.rst:11
 msgid "Tuning High Performance Convolution on NVIDIA GPUs"
@@ -34,7 +37,7 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_conv2d_cuda.rst:12
 msgid "**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_"
-msgstr ""
+msgstr "**作者**: `Lianmin Zheng <https://github.com/merrymercy>`_"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_conv2d_cuda.rst:14
 msgid ""
@@ -52,7 +55,7 @@ msgstr ""
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_conv2d_cuda.rst:23
 msgid "Install dependencies"
-msgstr ""
+msgstr "安装依赖"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_conv2d_cuda.rst:24
 msgid ""
@@ -134,13 +137,15 @@ msgstr ""
 msgid ""
 ":download:`Download Python source code: tune_conv2d_cuda.py "
 "<tune_conv2d_cuda.py>`"
-msgstr ""
+msgstr ":download:`Python 源码下载: tune_conv2d_cuda.py <tune_conv2d_cuda.py>`"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_conv2d_cuda.rst:340
 msgid ""
 ":download:`Download Jupyter notebook: tune_conv2d_cuda.ipynb "
 "<tune_conv2d_cuda.ipynb>`"
 msgstr ""
+":download:`Jupyter notebook 下载: tune_conv2d_cuda.ipynb "
+"<tune_conv2d_cuda.ipynb>`"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_conv2d_cuda.rst:347
 msgid ""

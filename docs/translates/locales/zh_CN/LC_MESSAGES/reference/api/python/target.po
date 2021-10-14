@@ -7,6 +7,7 @@
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
 # HLearning, 2021
 # JiaKui Hu, 2021
+# DH Luo, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +16,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:37+0000\n"
-"Last-Translator: JiaKui Hu, 2021\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -25,7 +26,7 @@ msgstr ""
 
 #: ../../_staging/reference/api/python/target.rst:19
 msgid "tvm.target"
-msgstr ""
+msgstr "tvm.target"
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:1
 msgid "Target description and codgen module."
@@ -41,7 +42,7 @@ msgstr ""
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:9
 msgid "**-device=<device name>**"
-msgstr ""
+msgstr "**-device=<device name>**"
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:11
 msgid "The device name."
@@ -49,7 +50,7 @@ msgstr ""
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:13
 msgid "**-mtriple=<target triple>**"
-msgstr ""
+msgstr "**-mtriple=<target triple>**"
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:15
 msgid "Specify the target triple, which is useful for cross compilation."
@@ -57,7 +58,7 @@ msgstr ""
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:18
 msgid "**-mcpu=<cpuname>**"
-msgstr ""
+msgstr "**-mcpu=<cpuname>**"
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:20
 msgid ""
@@ -68,7 +69,7 @@ msgstr ""
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:24
 msgid "**-mattr=a1,+a2,-a3,...**"
-msgstr ""
+msgstr "**-mattr=a1,+a2,-a3,...**"
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:26
 msgid ""
@@ -79,7 +80,7 @@ msgstr ""
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:30
 msgid "**-mabi=<abi>**"
-msgstr ""
+msgstr "**-mabi=<abi>**"
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:32
 msgid "Generate code for the specified ABI, for example \"lp64d\"."
@@ -87,7 +88,7 @@ msgstr ""
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:34
 msgid "**-system-lib**"
-msgstr ""
+msgstr "**-system-lib**"
 
 #: ../../../python/tvm/target/__init__.pydocstring of tvm.target:36
 msgid ""
@@ -123,7 +124,7 @@ msgstr ""
 #: ../../../python/tvm/target/__init__.pydocstring of
 #: tvm.target:1:<autosummary>:1
 msgid ":obj:`GenericFunc <tvm.target.GenericFunc>`\\ \\(\\)"
-msgstr ""
+msgstr ":obj:`GenericFunc <tvm.target.GenericFunc>`\\ \\(\\)"
 
 #: ../../../python/tvm/target/__init__.pydocstring of
 #: tvm.target:1:<autosummary>:1
@@ -137,7 +138,7 @@ msgstr "**函数：**"
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`create <tvm.target.create>`\\ \\(target\\)"
-msgstr ""
+msgstr ":obj:`create <tvm.target.create>`\\ \\(target\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -147,7 +148,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`cuda <tvm.target.cuda>`\\ \\(\\[model\\, options\\]\\)"
-msgstr ""
+msgstr ":obj:`cuda <tvm.target.cuda>`\\ \\(\\[model\\, options\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -158,7 +159,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`rocm <tvm.target.rocm>`\\ \\(\\[model\\, options\\]\\)"
-msgstr ""
+msgstr ":obj:`rocm <tvm.target.rocm>`\\ \\(\\[model\\, options\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -169,7 +170,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`mali <tvm.target.mali>`\\ \\(\\[model\\, options\\]\\)"
-msgstr ""
+msgstr ":obj:`mali <tvm.target.mali>`\\ \\(\\[model\\, options\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -180,7 +181,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`intel_graphics <tvm.target.intel_graphics>`\\ \\(\\[model\\, options\\]\\)"
-msgstr ""
+msgstr ":obj:`intel_graphics <tvm.target.intel_graphics>`\\ \\(\\[model\\, options\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -192,7 +193,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`arm_cpu <tvm.target.arm_cpu>`\\ \\(\\[model\\, options\\]\\)"
-msgstr ""
+msgstr ":obj:`arm_cpu <tvm.target.arm_cpu>`\\ \\(\\[model\\, options\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -202,7 +203,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`rasp <tvm.target.rasp>`\\ \\(\\[options\\]\\)"
-msgstr ""
+msgstr ":obj:`rasp <tvm.target.rasp>`\\ \\(\\[options\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -213,7 +214,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`bifrost <tvm.target.bifrost>`\\ \\(\\[model\\, options\\]\\)"
-msgstr ""
+msgstr ":obj:`bifrost <tvm.target.bifrost>`\\ \\(\\[model\\, options\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -225,7 +226,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`riscv_cpu <tvm.target.riscv_cpu>`\\ \\(\\[model\\, options\\]\\)"
-msgstr ""
+msgstr ":obj:`riscv_cpu <tvm.target.riscv_cpu>`\\ \\(\\[model\\, options\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -235,7 +236,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`hexagon <tvm.target.hexagon>`\\ \\(\\[cpu\\_ver\\]\\)"
-msgstr ""
+msgstr ":obj:`hexagon <tvm.target.hexagon>`\\ \\(\\[cpu\\_ver\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -247,7 +248,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`list_tags <tvm.target.list_tags>`\\ \\(\\)"
-msgstr ""
+msgstr ":obj:`list_tags <tvm.target.list_tags>`\\ \\(\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -261,7 +262,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`generic_func <tvm.target.generic_func>`\\ \\(fdefault\\)"
-msgstr ""
+msgstr ":obj:`generic_func <tvm.target.generic_func>`\\ \\(fdefault\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -276,6 +277,8 @@ msgid ""
 ":obj:`get_native_generic_func <tvm.target.get_native_generic_func>`\\ "
 "\\(name\\)"
 msgstr ""
+":obj:`get_native_generic_func <tvm.target.get_native_generic_func>`\\ "
+"\\(name\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -288,6 +291,8 @@ msgid ""
 ":obj:`override_native_generic_func "
 "<tvm.target.override_native_generic_func>`\\ \\(func\\_name\\)"
 msgstr ""
+":obj:`override_native_generic_func "
+"<tvm.target.override_native_generic_func>`\\ \\(func\\_name\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -331,7 +336,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`current <tvm.target.Target.current>`\\ \\(\\[allow\\_none\\]\\)"
-msgstr ""
+msgstr ":obj:`current <tvm.target.Target.current>`\\ \\(\\[allow\\_none\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -343,7 +348,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
 msgid ":obj:`list_kinds <tvm.target.Target.list_kinds>`\\ \\(\\)"
-msgstr ""
+msgstr ":obj:`list_kinds <tvm.target.Target.list_kinds>`\\ \\(\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -359,6 +364,9 @@ msgid ""
 "<tvm.target.Target.check_and_update_host_consist>`\\ \\(target\\[\\, "
 "...\\]\\)"
 msgstr ""
+":obj:`check_and_update_host_consist "
+"<tvm.target.Target.check_and_update_host_consist>`\\ \\(target\\[\\, "
+"...\\]\\)"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target:1:<autosummary>:1
@@ -374,7 +382,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target.current:1:<autosummary>:1
 msgid ":obj:`model <tvm.target.Target.model>`\\"
-msgstr ""
+msgstr ":obj:`model <tvm.target.Target.model>`\\"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target.current:1:<autosummary>:1
@@ -385,7 +393,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target.current:1:<autosummary>:1
 msgid ":obj:`mcpu <tvm.target.Target.mcpu>`\\"
-msgstr ""
+msgstr ":obj:`mcpu <tvm.target.Target.mcpu>`\\"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target.current:1:<autosummary>:1
@@ -396,7 +404,7 @@ msgstr ""
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target.current:1:<autosummary>:1
 msgid ":obj:`mattr <tvm.target.Target.mattr>`\\"
-msgstr ""
+msgstr ":obj:`mattr <tvm.target.Target.mattr>`\\"
 
 #: ../../../python/tvm/target/target.pydocstring of
 #: tvm.target.target.Target.current:1:<autosummary>:1
@@ -602,6 +610,8 @@ msgid ""
 ":obj:`set_default <tvm.target.GenericFunc.set_default>`\\ \\(func\\[\\, "
 "allow\\_override\\]\\)"
 msgstr ""
+":obj:`set_default <tvm.target.GenericFunc.set_default>`\\ \\(func\\[\\, "
+"allow\\_override\\]\\)"
 
 #: ../../../python/tvm/target/generic_func.pydocstring of
 #: tvm.target.generic_func.GenericFunc.set_default:1:<autosummary>:1
@@ -618,6 +628,8 @@ msgid ""
 ":obj:`register <tvm.target.GenericFunc.register>`\\ \\(func\\, "
 "key\\_list\\[\\, allow\\_override\\]\\)"
 msgstr ""
+":obj:`register <tvm.target.GenericFunc.register>`\\ \\(func\\, "
+"key\\_list\\[\\, allow\\_override\\]\\)"
 
 #: ../../../python/tvm/target/generic_func.pydocstring of
 #: tvm.target.generic_func.GenericFunc.set_default:1:<autosummary>:1

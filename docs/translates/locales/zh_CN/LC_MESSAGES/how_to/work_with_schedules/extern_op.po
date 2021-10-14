@@ -6,6 +6,7 @@
 # Translators:
 # HLearning, 2021
 # Xiaoyu Zhang, 2021
+# DH Luo, 2021
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:35+0000\n"
-"Last-Translator: Xiaoyu Zhang, 2021\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -138,12 +139,12 @@ msgstr ""
 
 #: ../../_staging/how_to/work_with_schedules/extern_op.rst:198
 msgid ":download:`Download Python source code: extern_op.py <extern_op.py>`"
-msgstr ""
+msgstr ":download:`Python 源码下载: extern_op.py <extern_op.py>`"
 
 #: ../../_staging/how_to/work_with_schedules/extern_op.rst:204
 msgid ""
 ":download:`Download Jupyter notebook: extern_op.ipynb <extern_op.ipynb>`"
-msgstr ""
+msgstr ":download:`Jupyter notebook 下载: extern_op.ipynb <extern_op.ipynb>`"
 
 #: ../../_staging/how_to/work_with_schedules/extern_op.rst:211
 msgid ""

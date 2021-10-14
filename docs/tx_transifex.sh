@@ -1,4 +1,5 @@
 #!/bin/bash
+ln -s /usr/local/bin/tx /usr/bin/tx
 
 # tx_transifex.sh [init]/[update]/[push]/[pull]
 
@@ -67,6 +68,7 @@ then
 
     cd $SCRIPTFOLD/.tx/
     tx pull -l $LANGUAGE
+    # /usr/local/bin/tx pull -l $LANGUAGE
     
     echo "done."
     exit

@@ -7,6 +7,7 @@
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
 # 长德 司, 2021
 # HLearning, 2021
+# 安杰 许, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +16,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:29+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: 安杰 许, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -32,21 +33,21 @@ msgid ""
 "This document is intended for developers who want to understand the "
 "architecture of TVM and/or actively develop on the project. This page is "
 "organized as follows:"
-msgstr ""
+msgstr "本文档适用于想要了解TVM架构和/或积极开发项目的开发人员。本页的布局如下："
 
 #: ../../_staging/arch/index.rst:25
 msgid ""
 "The `Example Compilation Flow`_ gives an overview of the steps that TVM "
 "takes to turn a high level description of a model into a deployable module. "
 "To get started, please read this section first."
-msgstr ""
+msgstr "`编译流程示例`_概述了TVM所采取的将一个模型的高层描述转化为一个可部署的模块的步骤。 请从阅读本节开始。"
 
 #: ../../_staging/arch/index.rst:28
 msgid ""
 "The `Logical Architecture Components`_ section describes the logical "
 "components. The sections after are specific guides focused on each logical "
 "component, organized by the component's name."
-msgstr ""
+msgstr "`逻辑体系架构组件`_ 章节 描述了逻辑组件。后面的部分按组件的名称，分为每个部件的特定指南。"
 
 #: ../../_staging/arch/index.rst:32
 msgid ""
@@ -54,12 +55,14 @@ msgid ""
 "describes how TVM interacts with each supported physical device and code-"
 "generation target."
 msgstr ""
+" :ref:`Device/Target Interactions <tvm-target-specific-overview>` "
+"页面描述了TVM怎样与每个支持的物理设备和代码生成目标进行交互。"
 
 #: ../../_staging/arch/index.rst:36
 msgid ""
 "Feel free to also check out the :ref:`dev-how-to` for useful development "
 "tips."
-msgstr ""
+msgstr "请随意查看 :ref:`开发者指南`以寻求有用的开发技巧"
 
 #: ../../_staging/arch/index.rst:38
 msgid ""
@@ -70,22 +73,23 @@ msgid ""
 "review the logical modules of the codebase and their relationship. This part"
 " provides a static overarching view of the design."
 msgstr ""
+"这个指南补充了一些架构的补充视图。首先我们回顾一个单个端到端的编译流程，并讨论关键的数据结构和转换。这个基于runtime的视图，主要关注运行编译器时，各个组件的交互。然后我们会回顾各逻辑模块的基本代码和他们之间的关系。这一部分提供了一个设计的静态的总体视图。"
 
 #: ../../_staging/arch/index.rst:45
 msgid "Example Compilation Flow"
-msgstr ""
+msgstr "编译流程示例"
 
 #: ../../_staging/arch/index.rst:47
 msgid ""
 "In this guide, we will study an example compilation flow in the compiler. "
 "The figure below shows the flow. At a high-level, it contains several steps:"
-msgstr ""
+msgstr "本教程中，我们会学习在编译器中的一个编译流程示例。下图展示了这个流程。在高层次上，包含了几个步骤。"
 
 #: ../../_staging/arch/index.rst:49
 msgid ""
 "Import: The frontend component ingests a model into an IRModule, which "
 "contains a collection of functions that internally represent the model."
-msgstr ""
+msgstr "导入：前端组件将模型摄入变成一个IR模块，这个IR模块包含了一批函数，这些函数在内部表示了这个模型。"
 
 #: ../../_staging/arch/index.rst:50
 msgid ""
@@ -95,6 +99,7 @@ msgid ""
 "also allow target to affect the configuration of the transformation "
 "pipeline."
 msgstr ""
+"转换：编译器将一个IR模块转换为另一个在功能上等效或大约等效（例如：在量化情况下）的IR模块。许多转换是独立于目标（即后端）的。我们还允许目标来影响转换pipeline的配置。"
 
 #: ../../_staging/arch/index.rst:53
 msgid ""
@@ -103,16 +108,18 @@ msgid ""
 "encapsulated as a `runtime.Module` that can be exported, loaded, and "
 "executed on the target runtime environment."
 msgstr ""
+"目标转化：编译器将IR模块转化为（codegen）一个可以被目标指定的可执行格式。这个目标转化的结果会被封装成可以在目标runtime环境下被输出，读取和执行的"
+" `runtime.Module` 。"
 
 #: ../../_staging/arch/index.rst:55
 msgid ""
 "Runtime Execution: the user loads back a `runtime.Module` and runs the "
 "compiled functions in the supported runtime environment."
-msgstr ""
+msgstr "Runtime执行：用户读回一个 `runtime.Module`并且在支持的runtime环境下运行编译后的函数。"
 
 #: ../../_staging/arch/index.rst:64
 msgid "Key data structures"
-msgstr ""
+msgstr "关键数据结构"
 
 #: ../../_staging/arch/index.rst:66
 msgid ""
@@ -122,6 +129,7 @@ msgid ""
 "breakdown a system into logical components that either define a collection "
 "of key data structures or transformations among the data structures."
 msgstr ""
+"设计和理解一个复杂系统的最佳方法之一就是去明确关键的数据结构和操纵（转换）这些数据结构的api。一旦我们明确了关键的数据结构，我们就可以将系统拆分为逻辑组件，这些逻辑组件可以定义一批关键数据结构或者定义数据结构之间的转换。"
 
 #: ../../_staging/arch/index.rst:70
 msgid ""
@@ -129,6 +137,7 @@ msgid ""
 "IRModule (intermediate representation module) contains a collection of "
 "functions. Currently, we support two primary variants of functions."
 msgstr ""
+"**IRModule**是整个堆栈中主要的数据结构。一个IR模块（IRmodule，中间表示模块）包含一组函数。目前我们支持两种主要的函数变体。"
 
 #: ../../_staging/arch/index.rst:73
 msgid ""
@@ -137,6 +146,8 @@ msgid ""
 "relay.Function as a computational graph with additional support for control-"
 "flow, recursion, and complex data structures."
 msgstr ""
+"**relay::Function** "
+"是一种高级函数程序表示。一个relay.Function通常对应一个端到端模型。你可以将relay.Function看作一个计算图，额外带有对控制流，递归和复杂数据结构的支持。"
 
 #: ../../_staging/arch/index.rst:75
 msgid ""

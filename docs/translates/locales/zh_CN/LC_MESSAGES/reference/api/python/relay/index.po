@@ -7,6 +7,7 @@
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
 # JiaKui Hu, 2021
 # HLearning, 2021
+# DH Luo, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +16,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:38+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -25,7 +26,7 @@ msgstr ""
 
 #: ../../_staging/reference/api/python/relay/index.rst:19
 msgid "tvm.relay"
-msgstr ""
+msgstr "tvm.relay"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of tvm.relay:1
 msgid "The Relay IR namespace containing the IR definition and compiler."
@@ -38,7 +39,7 @@ msgstr "**函数：**"
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`setrecursionlimit <tvm.relay.setrecursionlimit>`\\ \\(n\\)"
-msgstr ""
+msgstr ":obj:`setrecursionlimit <tvm.relay.setrecursionlimit>`\\ \\(n\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -51,6 +52,8 @@ msgid ""
 ":obj:`build <tvm.relay.build>`\\ \\(ir\\_mod\\[\\, target\\, "
 "target\\_host\\, params\\, ...\\]\\)"
 msgstr ""
+":obj:`build <tvm.relay.build>`\\ \\(ir\\_mod\\[\\, target\\, "
+"target\\_host\\, params\\, ...\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -65,6 +68,8 @@ msgid ""
 ":obj:`create_executor <tvm.relay.create_executor>`\\ \\(\\[kind\\, mod\\, "
 "device\\, target\\, ...\\]\\)"
 msgstr ""
+":obj:`create_executor <tvm.relay.create_executor>`\\ \\(\\[kind\\, mod\\, "
+"device\\, target\\, ...\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -75,7 +80,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`optimize <tvm.relay.optimize>`\\ \\(mod\\[\\, target\\, params\\]\\)"
-msgstr ""
+msgstr ":obj:`optimize <tvm.relay.optimize>`\\ \\(mod\\[\\, target\\, params\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -89,6 +94,8 @@ msgid ""
 ":obj:`build_config <tvm.relay.build_config>`\\ \\(\\[opt\\_level\\, "
 "required\\_pass\\, ...\\]\\)"
 msgstr ""
+":obj:`build_config <tvm.relay.build_config>`\\ \\(\\[opt\\_level\\, "
+"required\\_pass\\, ...\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -98,7 +105,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`ShapeVar <tvm.relay.ShapeVar>`\\ \\(name\\)"
-msgstr ""
+msgstr ":obj:`ShapeVar <tvm.relay.ShapeVar>`\\ \\(name\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -109,7 +116,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`scalar_type <tvm.relay.scalar_type>`\\ \\(dtype\\)"
-msgstr ""
+msgstr ":obj:`scalar_type <tvm.relay.scalar_type>`\\ \\(dtype\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -123,6 +130,8 @@ msgid ""
 ":obj:`var <tvm.relay.var>`\\ \\(name\\_hint\\[\\, type\\_annotation\\, "
 "shape\\, dtype\\]\\)"
 msgstr ""
+":obj:`var <tvm.relay.var>`\\ \\(name\\_hint\\[\\, type\\_annotation\\, "
+"shape\\, dtype\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -133,7 +142,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`const <tvm.relay.const>`\\ \\(value\\[\\, dtype\\]\\)"
-msgstr ""
+msgstr ":obj:`const <tvm.relay.const>`\\ \\(value\\[\\, dtype\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -144,7 +153,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`bind <tvm.relay.bind>`\\ \\(expr\\, binds\\)"
-msgstr ""
+msgstr ":obj:`bind <tvm.relay.bind>`\\ \\(expr\\, binds\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -155,7 +164,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`abs <tvm.relay.abs>`\\ \\(data\\)"
-msgstr ""
+msgstr ":obj:`abs <tvm.relay.abs>`\\ \\(data\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -169,7 +178,7 @@ msgstr "Compute element-wise absolute of data."
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`acos <tvm.relay.acos>`\\ \\(data\\)"
-msgstr ""
+msgstr ":obj:`acos <tvm.relay.acos>`\\ \\(data\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -180,7 +189,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`acosh <tvm.relay.acosh>`\\ \\(data\\)"
-msgstr ""
+msgstr ":obj:`acosh <tvm.relay.acosh>`\\ \\(data\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -191,7 +200,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`add <tvm.relay.add>`\\ \\(lhs\\, rhs\\)"
-msgstr ""
+msgstr ":obj:`add <tvm.relay.add>`\\ \\(lhs\\, rhs\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -202,7 +211,7 @@ msgstr "Addition with numpy-style broadcasting."
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`adv_index <tvm.relay.adv_index>`\\ \\(inputs\\)"
-msgstr ""
+msgstr ":obj:`adv_index <tvm.relay.adv_index>`\\ \\(inputs\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -212,7 +221,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`all <tvm.relay.all>`\\ \\(data\\[\\, axis\\, keepdims\\, exclude\\]\\)"
-msgstr ""
+msgstr ":obj:`all <tvm.relay.all>`\\ \\(data\\[\\, axis\\, keepdims\\, exclude\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -223,7 +232,7 @@ msgstr "Computes the logical AND of boolean array elements over given axes."
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`any <tvm.relay.any>`\\ \\(data\\[\\, axis\\, keepdims\\, exclude\\]\\)"
-msgstr ""
+msgstr ":obj:`any <tvm.relay.any>`\\ \\(data\\[\\, axis\\, keepdims\\, exclude\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -234,7 +243,7 @@ msgstr "Computes the logical OR of boolean array elements over given axes."
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`arange <tvm.relay.arange>`\\ \\(start\\[\\, stop\\, step\\, dtype\\]\\)"
-msgstr ""
+msgstr ":obj:`arange <tvm.relay.arange>`\\ \\(start\\[\\, stop\\, step\\, dtype\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -248,6 +257,8 @@ msgid ""
 ":obj:`argmax <tvm.relay.argmax>`\\ \\(data\\[\\, axis\\, keepdims\\, "
 "exclude\\, ...\\]\\)"
 msgstr ""
+":obj:`argmax <tvm.relay.argmax>`\\ \\(data\\[\\, axis\\, keepdims\\, "
+"exclude\\, ...\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -261,6 +272,8 @@ msgid ""
 ":obj:`argmin <tvm.relay.argmin>`\\ \\(data\\[\\, axis\\, keepdims\\, "
 "exclude\\, ...\\]\\)"
 msgstr ""
+":obj:`argmin <tvm.relay.argmin>`\\ \\(data\\[\\, axis\\, keepdims\\, "
+"exclude\\, ...\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
@@ -271,7 +284,7 @@ msgstr "Returns the indices of the minimum values along an axis."
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid ":obj:`argsort <tvm.relay.argsort>`\\ \\(data\\[\\, axis\\, is\\_ascend\\, dtype\\]\\)"
-msgstr ""
+msgstr ":obj:`argsort <tvm.relay.argsort>`\\ \\(data\\[\\, axis\\, is\\_ascend\\, dtype\\]\\)"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring

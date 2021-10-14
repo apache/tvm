@@ -7,6 +7,7 @@
 # HLearning, 2021
 # Xiaoyu Zhang, 2021
 # juzi, 2021
+# DH Luo, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +16,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:40+0000\n"
-"Last-Translator: juzi, 2021\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -28,6 +29,8 @@ msgid ""
 "Click :ref:`here <sphx_glr_download_tutorial_cross_compilation_and_rpc.py>` "
 "to download the full example code"
 msgstr ""
+"点击 :ref:`此处 <sphx_glr_download_tutorial_cross_compilation_and_rpc.py>` "
+"获取完整示例代码"
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:13
 msgid "Cross Compilation and RPC"
@@ -38,6 +41,8 @@ msgid ""
 "**Author**: `Ziheng Jiang <https://github.com/ZihengJiang/>`_, `Lianmin "
 "Zheng <https://github.com/merrymercy/>`_"
 msgstr ""
+"**作者**: `Ziheng Jiang <https://github.com/ZihengJiang/>`_, `Lianmin Zheng "
+"<https://github.com/merrymercy/>`_"
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:16
 msgid ""
@@ -150,7 +155,7 @@ msgstr ""
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:150
 msgid "-mcpu=<cpuname>"
-msgstr ""
+msgstr "-mcpu=<cpuname>"
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:151
 msgid ""
@@ -161,7 +166,7 @@ msgstr ""
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:158
 msgid "-mattr=a1,+a2,-a3,..."
-msgstr ""
+msgstr "-mattr=a1,+a2,-a3,..."
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:153
 msgid ""
@@ -266,12 +271,16 @@ msgid ""
 ":download:`Download Python source code: cross_compilation_and_rpc.py "
 "<cross_compilation_and_rpc.py>`"
 msgstr ""
+":download:`Python 源码下载: cross_compilation_and_rpc.py "
+"<cross_compilation_and_rpc.py>`"
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:335
 msgid ""
 ":download:`Download Jupyter notebook: cross_compilation_and_rpc.ipynb "
 "<cross_compilation_and_rpc.ipynb>`"
 msgstr ""
+":download:`Jupyter notebook 下载: cross_compilation_and_rpc.ipynb "
+"<cross_compilation_and_rpc.ipynb>`"
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:342
 msgid ""

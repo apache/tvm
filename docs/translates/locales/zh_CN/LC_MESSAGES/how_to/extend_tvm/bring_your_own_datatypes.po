@@ -6,6 +6,7 @@
 # Translators:
 # HLearning, 2021
 # Huan Mei, 2021
+# DH Luo, 2021
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:33+0000\n"
-"Last-Translator: Huan Mei, 2021\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -28,6 +29,8 @@ msgid ""
 "<sphx_glr_download_how_to_extend_tvm_bring_your_own_datatypes.py>` to "
 "download the full example code"
 msgstr ""
+"点击 :ref:`此处 "
+"<sphx_glr_download_how_to_extend_tvm_bring_your_own_datatypes.py>` 获取完整示例代码"
 
 #: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:11
 msgid "Bring Your Own Datatypes to TVM"
@@ -38,6 +41,8 @@ msgid ""
 "**Authors**: `Gus Smith <https://github.com/gussmith23>`_, `Andrew Liu "
 "<https://github.com/hypercubestart>`_"
 msgstr ""
+"**作者**: `Gus Smith <https://github.com/gussmith23>`_, `Andrew Liu "
+"<https://github.com/hypercubestart>`_"
 
 #: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:14
 msgid ""
@@ -336,12 +341,16 @@ msgid ""
 ":download:`Download Python source code: bring_your_own_datatypes.py "
 "<bring_your_own_datatypes.py>`"
 msgstr ""
+":download:`Python 源码下载: bring_your_own_datatypes.py "
+"<bring_your_own_datatypes.py>`"
 
 #: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:664
 msgid ""
 ":download:`Download Jupyter notebook: bring_your_own_datatypes.ipynb "
 "<bring_your_own_datatypes.ipynb>`"
 msgstr ""
+":download:`Jupyter notebook 下载: bring_your_own_datatypes.ipynb "
+"<bring_your_own_datatypes.ipynb>`"
 
 #: ../../_staging/how_to/extend_tvm/bring_your_own_datatypes.rst:671
 msgid ""

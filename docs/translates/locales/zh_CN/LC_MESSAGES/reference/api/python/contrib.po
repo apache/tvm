@@ -6,6 +6,7 @@
 # Translators:
 # HLearning, 2021
 # JiaKui Hu, 2021
+# DH Luo, 2021
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:36+0000\n"
-"Last-Translator: JiaKui Hu, 2021\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -24,7 +25,7 @@ msgstr ""
 
 #: ../../_staging/reference/api/python/contrib.rst:19
 msgid "tvm.contrib"
-msgstr ""
+msgstr "tvm.contrib"
 
 #: ../../../python/tvm/contrib/__init__.pydocstring of tvm.contrib:1
 msgid "Contrib APIs of TVM python package."
@@ -559,7 +560,7 @@ msgstr ""
 
 #: ../../_staging/reference/api/python/contrib.rst:47
 msgid "tvm.contrib.dlpack"
-msgstr ""
+msgstr "tvm.contrib.dlpack"
 
 #: ../../../python/tvm/contrib/dlpack.pydocstring of tvm.contrib.dlpack:1
 msgid "Wrapping functions to bridge frameworks with DLPack support to TVM"

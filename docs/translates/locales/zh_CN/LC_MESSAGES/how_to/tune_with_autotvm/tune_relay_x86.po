@@ -7,6 +7,7 @@
 # HLearning, 2021
 # juzi, 2021
 # Jin Wang, 2021
+# DH Luo, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +16,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:34+0000\n"
-"Last-Translator: Jin Wang, 2021\n"
+"Last-Translator: DH Luo, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -29,6 +30,8 @@ msgid ""
 "<sphx_glr_download_how_to_tune_with_autotvm_tune_relay_x86.py>` to download "
 "the full example code"
 msgstr ""
+"点击 :ref:`此处 <sphx_glr_download_how_to_tune_with_autotvm_tune_relay_x86.py>` "
+"获取完整示例代码"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_x86.rst:13
 msgid "Auto-tuning a Convolutional Network for x86 CPU"
@@ -39,6 +42,8 @@ msgid ""
 "**Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Eddie Yan "
 "<https://github.com/eqy>`_"
 msgstr ""
+"**作者**: `Yao Wang <https://github.com/kevinthesun>`_, `Eddie Yan "
+"<https://github.com/eqy>`_"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_x86.rst:16
 msgid ""
@@ -114,13 +119,14 @@ msgstr ""
 msgid ""
 ":download:`Download Python source code: tune_relay_x86.py "
 "<tune_relay_x86.py>`"
-msgstr ""
+msgstr ":download:`Python 源码下载: tune_relay_x86.py <tune_relay_x86.py>`"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_x86.rst:346
 msgid ""
 ":download:`Download Jupyter notebook: tune_relay_x86.ipynb "
 "<tune_relay_x86.ipynb>`"
 msgstr ""
+":download:`Jupyter notebook 下载: tune_relay_x86.ipynb <tune_relay_x86.ipynb>`"
 
 #: ../../_staging/how_to/tune_with_autotvm/tune_relay_x86.rst:353
 msgid ""
