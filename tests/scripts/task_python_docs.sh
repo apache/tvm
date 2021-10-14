@@ -76,7 +76,7 @@ cd ..
 # Rust doc
 cd rust
 # Temp disable rust doc build
-# cargo doc --workspace --no-deps
+cargo doc --workspace --no-deps
 cd ..
 
 # Prepare the doc dir
@@ -86,7 +86,7 @@ rm -f _docs/.buildinfo
 mkdir -p _docs/reference/api
 mv docs/doxygen/html _docs/reference/api/doxygen
 mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
-# mv rust/target/doc _docs/api/rust
+mv rust/target/doc _docs/api/rust
 mv web/dist/docs _docs/reference/api/typedoc
 
 echo "Start creating the docs tarball.."
