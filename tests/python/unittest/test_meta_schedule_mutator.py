@@ -50,23 +50,11 @@ class Matmul:
 
 
 def test_meta_schedule_mutator():
-    class TestMutator(PyMutator):
-        def initialize_with_tune_context(self, tune_context: TuneContext) -> None:
-            pass
-
+    class FancyMutator(PyMutator):
         def apply(self, trace: Trace) -> Optional[Trace]:
-            try:
-                trace = Trace(trace.insts, {})
-            except:
-                trace = None
-            return trace
+            return Trace(trace.insts, {})
 
-        def __str__(self) -> str:
-            return f"TestMutator({_get_hex_address(self.handle)})"
-
-    mutator = TestMutator()
-    pattern = re.compile(r"TestMutator\(0x[a-f|0-9]*\)")
-    assert pattern.match(str(mutator))
+    mutator = FancyMutator()
     sch = Schedule(Matmul)
     res = mutator.apply(sch.trace)
     assert res is not None
@@ -75,5 +63,17 @@ def test_meta_schedule_mutator():
     assert_structural_equal(sch.mod, new_sch.mod)
 
 
+def test_meta_schedule_mutator_as_string():
+    class YetAnotherFancyMutator(PyMutator):
+        def __str__(self) -> str:
+            return f"YetAnotherFancyMutator({_get_hex_address(self.handle)})"
+
+    mutator = YetAnotherFancyMutator()
+    pattern = re.compile(r"YetAnotherFancyMutator\(0x[a-f|0-9]*\)")
+    assert pattern.match(str(mutator))
+
+
 if __name__ == "__main__":
     test_meta_schedule_mutator()
+    test_meta_schedule_mutator_as_string()
+

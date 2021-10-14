@@ -63,46 +63,43 @@ def schedule_matmul(sch: Schedule):
 
 
 def test_meta_schedule_postproc():
-    class TestPostproc(PyPostproc):
+    class FancyPostproc(PyPostproc):
         def apply(self, sch: Schedule) -> bool:
-            try:
-                schedule_matmul(sch)
-                return True
-            except:
-                return False
+            schedule_matmul(sch)
+            return True
 
-        def __str__(self) -> str:
-            return f"TestPostproc({_get_hex_address(self.handle)})"
-
-    postproc = TestPostproc()
-    pattern = re.compile(r"TestPostproc\(0x[a-f|0-9]*\)")
-    assert pattern.match(str(postproc))
-    sch = Schedule(Matmul)
-    new_sch = sch.copy()
+    postproc = FancyPostproc()
+    mod = Matmul
+    sch = Schedule(mod)
     assert postproc.apply(sch)
     try:
-        tvm.ir.assert_structural_equal(sch.mod, new_sch.mod)
-        raise ValueError("The post processing did not change the schedule.")
+        tvm.ir.assert_structural_equal(sch.mod, mod)
+        raise Exception("The post processing did not change the schedule.")
     except (ValueError):
         _check_correct(sch)
 
 
 def test_meta_schedule_postproc_fail():
-    class TestPostproc(PyPostproc):
-        def initialize_with_tune_context(self, tune_context: TuneContext) -> None:
-            pass
-
+    class FailingPostproc(PyPostproc):
         def apply(self, sch: Schedule) -> bool:
-            try:
-                raise ValueError("This is a test.")
-            except:
-                return False
+            return False
 
-    postproc = TestPostproc()
+    postproc = FailingPostproc()
     sch = Schedule(Matmul)
     assert not postproc.apply(sch)
+
+
+def test_meta_schedule_postproc_as_string():
+    class NotSoFancyPostProc(PyPostproc):
+        def __str__(self) -> str:
+            return f"NotSoFancyPostProc({_get_hex_address(self.handle)})"
+
+    postproc = NotSoFancyPostProc()
+    pattern = re.compile(r"NotSoFancyPostProc\(0x[a-f|0-9]*\)")
+    assert pattern.match(str(postproc))
 
 
 if __name__ == "__main__":
     test_meta_schedule_postproc()
     test_meta_schedule_postproc_fail()
+    test_meta_schedule_postproc_as_string()

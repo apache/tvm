@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The task scheduler that allocates the time resources when
-tuning multiple tasks together. The details of the "gradient"
-strategy below can be found in the section 6 of this paper:
-L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor :
-Generating High-Performance Tensor Programs for Deep Learning"
-(OSDI 2020).
+# pylint: disable=invalid-name
+
+""" The task scheduler that allocates the time resources when tuning multiple tasks together
+The details of the "gradient" strategy below can be found in the section 6 of this paper:
+L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor : Generating High-Performance Tensor
+Programs for Deep Learning." (OSDI 2020).
 """
 import os
 import time

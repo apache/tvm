@@ -58,34 +58,38 @@ def _check_correct(schedule: Schedule):
 
 
 def test_meta_schedule_schedule_rule():
-    class TestScheduleRule(PyScheduleRule):
-        def initialize_with_tune_context(self, tune_context: TuneContext) -> None:
-            pass
-
+    class FancyScheduleRule(PyScheduleRule):
         def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
-            new_sch = sch.copy()
-            i, j, k = new_sch.get_loops(block=block)
-            i_0, i_1, i_2, i_3 = new_sch.split(loop=i, factors=[2, 4, 64, 2])
-            j_0, j_1, j_2, j_3 = new_sch.split(loop=j, factors=[4, 64, 2, 2])
-            k_0, k_1 = new_sch.split(loop=k, factors=[32, 32])
-            new_sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3)
-            return [new_sch]
+            i, j, k = sch.get_loops(block=block)
+            i_0, i_1, i_2, i_3 = sch.split(loop=i, factors=[2, 4, 64, 2])
+            j_0, j_1, j_2, j_3 = sch.split(loop=j, factors=[4, 64, 2, 2])
+            k_0, k_1 = sch.split(loop=k, factors=[32, 32])
+            sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3)
+            return [sch]
 
-        def __str__(self) -> str:
-            return f"TestScheduleRule({_get_hex_address(self.handle)})"
-
-    sch_rule = TestScheduleRule()
-    pattern = re.compile(r"TestScheduleRule\(0x[a-f|0-9]*\)")
-    assert pattern.match(str(sch_rule))
-    sch = Schedule(Matmul)
+    sch_rule = FancyScheduleRule()
+    mod = Matmul
+    sch = Schedule(mod)
     res = sch_rule.apply(sch, block=sch.get_block("matmul"))
     assert len(res) == 1
     try:
-        tvm.ir.assert_structural_equal(sch.mod, res[0].mod)
-        raise ValueError("The schedule rule did not change the schedule.")
+        tvm.ir.assert_structural_equal(mod, res[0].mod)
+        raise Exception("The schedule rule did not change the schedule.")
     except (ValueError):
         _check_correct(res[0])
 
 
+def test_meta_schedule_schedule_rule_as_string():
+    class YetStillSomeFancyScheduleRule(PyScheduleRule):
+        def __str__(self) -> str:
+            return f"YetStillSomeFancyScheduleRule({_get_hex_address(self.handle)})"
+
+    sch_rule = YetStillSomeFancyScheduleRule()
+    pattern = re.compile(r"YetStillSomeFancyScheduleRule\(0x[a-f|0-9]*\)")
+    assert pattern.match(str(sch_rule))
+
+
 if __name__ == "__main__":
     test_meta_schedule_schedule_rule()
+    test_meta_schedule_schedule_rule_as_string()
+

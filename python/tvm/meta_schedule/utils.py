@@ -16,7 +16,6 @@
 # under the License.
 """Utilities for meta schedule"""
 import ctypes
-from ctypes import c_void_p
 import json
 import os
 import shutil
@@ -206,12 +205,12 @@ def structural_hash(mod: IRModule) -> str:
     return str(shash)
 
 
-def _get_hex_address(handle: c_void_p) -> str:
+def _get_hex_address(handle: ctypes.c_void_p) -> str:
     """Get the hexadecimal address of a handle.
 
     Parameters
     ----------
-    handle : c_void_p
+    handle : ctypes.c_void_p
         The handle to be converted.
     
     Returns
