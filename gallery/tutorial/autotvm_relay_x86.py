@@ -106,7 +106,7 @@ onnx_model = onnx.load(model_path)
 # TVMC has adopted NumPy's ``.npz`` format for both input and output data.
 #
 # As input for this tutorial, we will use the image of a cat, but you can feel
-# free to substitute image for any of your choosing.
+# free to substitute this image for any of your choosing.
 #
 # .. image:: https://s3.amazonaws.com/model-server/inputs/kitten.jpg
 #    :height: 224px
