@@ -1,0 +1,50 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:33+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/optimize_operators/sg_execution_times.rst:7
+msgid "Computation times"
+msgstr "计算时间"
+
+#: ../../_staging/how_to/optimize_operators/sg_execution_times.rst:8
+msgid ""
+"**00:28.628** total execution time for **how_to_optimize_operators** files:"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/sg_execution_times.rst:10
+msgid ""
+"**00:26.176**: :ref:`sphx_glr_how_to_optimize_operators_opt_gemm.py` "
+"(``opt_gemm.py``)"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/sg_execution_times.rst:11
+msgid ""
+"**00:01.356**: "
+":ref:`sphx_glr_how_to_optimize_operators_opt_conv_tensorcore.py` "
+"(``opt_conv_tensorcore.py``)"
+msgstr ""
+
+#: ../../_staging/how_to/optimize_operators/sg_execution_times.rst:12
+msgid ""
+"**00:01.097**: :ref:`sphx_glr_how_to_optimize_operators_opt_conv_cuda.py` "
+"(``opt_conv_cuda.py``)"
+msgstr ""

@@ -156,32 +156,30 @@ msgid ""
 "threading, and vector/tensor instructions. It is usually used to represent "
 "an operator program that executes a (possibly-fused) layer in a model."
 msgstr ""
-"**tir::PrimFunc** "
-"是一种低级程序表示，包含元素，包含循环嵌套选择、多维加载/存储、线程和向量/张量指令等元素。它通常被用于表示在一个模型模型中处理一个（可能融合的）层的算子程序。"
 
 #: ../../_staging/arch/index.rst:78
 msgid ""
 "During the compilation, a relay function may be lowered to multiple "
 "tir::PrimFunc functions and a top-level function that calls into those "
 "tir::PrimFunc functions."
-msgstr "在编译时，一个relay 函数可能被底层化为多个tir::PrimFunc 函数 和一个调用这些tir::PrimFunc函数的顶层函数。"
+msgstr ""
 
 #: ../../_staging/arch/index.rst:82
 msgid "Transformations"
-msgstr "转换"
+msgstr ""
 
 #: ../../_staging/arch/index.rst:84
 msgid ""
 "Now that we have covered the key data structures, let us talk about the "
 "transformations. Each transformation could serve one of the following "
 "purposes:"
-msgstr "现在我们已经介绍了关键数据结构，让我们来讨论转换。每个转换都被可用于以下目的之一："
+msgstr ""
 
 #: ../../_staging/arch/index.rst:86
 msgid ""
 "optimization: transform a program to an equivalent, possibly more optimized "
 "version."
-msgstr "优化：将程序转换为一个等效的或者更优化的版本。"
+msgstr ""
 
 #: ../../_staging/arch/index.rst:87
 msgid ""

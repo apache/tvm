@@ -1,0 +1,58 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:36+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/reference/publications.rst:19
+msgid "Publications"
+msgstr ""
+
+#: ../../_staging/reference/publications.rst:21
+msgid ""
+"TVM is developed as part of peer-reviewed research in machine learning "
+"compiler framework for CPUs, GPUs, and machine learning accelerators."
+msgstr ""
+
+#: ../../_staging/reference/publications.rst:24
+msgid ""
+"This document includes references to publications describing the research, "
+"results, and design underlying TVM."
+msgstr ""
+
+#: ../../_staging/reference/publications.rst:27
+msgid ""
+"`TVM: An Automated End-to-End Optimizing Compiler for Deep Learning "
+"<https://arxiv.org/abs/1802.04799>`_"
+msgstr ""
+
+#: ../../_staging/reference/publications.rst:28
+msgid ""
+"`Learning to Optimize Tensor Programs "
+"<https://arxiv.org/pdf/1805.08166.pdf>`_"
+msgstr ""
+
+#: ../../_staging/reference/publications.rst:29
+msgid ""
+"`Ansor: Generating High-Performance Tensor Programs for Deep Learning "
+"<https://arxiv.org/abs/2006.06762>`_"
+msgstr ""
+
+#: ../../_staging/reference/publications.rst:30
+msgid ""
+"`Nimble: Efficiently Compiling Dynamic Neural Networks for Model Inference "
+"<https://arxiv.org/abs/2006.03031>`_"
+msgstr ""

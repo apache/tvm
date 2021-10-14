@@ -1,0 +1,260 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# juzi, 2021
+# DH Luo, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:34+0000\n"
+"Last-Translator: DH Luo, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_tune_with_autotvm_tune_relay_cuda.py>` to download"
+" the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:11
+msgid "Auto-tuning a Convolutional Network for NVIDIA GPU"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:12
+msgid ""
+"**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Eddie Yan "
+"<https://github.com/eqy/>`_"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:14
+msgid ""
+"Auto-tuning for specific devices and workloads is critical for getting the "
+"best performance. This is a tutorial on how to tune a whole convolutional "
+"network for NVIDIA GPU."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:18
+msgid ""
+"The operator implementation for NVIDIA GPU in TVM is written in template "
+"form. The template has many tunable knobs (tile factor, unrolling, etc). We "
+"will tune all convolution and depthwise convolution operators in the neural "
+"network. After tuning, we produce a log file which stores the best knob "
+"values for all required operators. When the TVM compiler compiles these "
+"operators, it will query this log file to get the best knob values."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:25
+msgid ""
+"We also released pre-tuned parameters for some NVIDIA GPUs. You can go to "
+"`NVIDIA GPU Benchmark <https://github.com/apache/tvm/wiki/Benchmark#nvidia-"
+"gpu>`_ to see the results."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:29
+msgid ""
+"Note that this tutorial will not run on Windows or recent versions of macOS."
+" To get it to run, you will need to wrap the body of this tutorial in a "
+":code:`if __name__ == \"__main__\":` block."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:34
+msgid "Install dependencies"
+msgstr "安装依赖"
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:35
+msgid ""
+"To use the autotvm package in tvm, we need to install some extra "
+"dependencies. (change \"3\" to \"2\" if you use python2):"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:42
+msgid ""
+"To make TVM run faster during tuning, it is recommended to use cython as FFI"
+" of tvm. In the root directory of tvm, execute:"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:50
+msgid "Now return to python code. Import packages."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:73
+msgid "Define Network"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:74
+msgid ""
+"First we need to define the network in relay frontend API. We can load some "
+"pre-defined network from :code:`tvm.relay.testing`. We can also load models "
+"from MXNet, ONNX and TensorFlow."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:131
+msgid "Set Tuning Options"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:132
+msgid "Before tuning, we apply some configurations."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:163
+msgid "How to set tuning options"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:165
+msgid "In general, the default value provided here works well."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:167
+msgid ""
+"If you have large time budget, you can set :code:`n_trial`, "
+":code:`early_stopping` larger, which makes the tuning runs longer."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:170
+msgid ""
+"If you have multiple devices, you can use all of them for measurement to "
+"accelerate the tuning process. (see the 'Scale up measurement` section "
+"below)."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:175
+msgid "Begin Tuning"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:176
+msgid ""
+"Now we can extract tuning tasks from the network and begin tuning. Here, we "
+"provide a simple utility function to tune a list of tasks. This function is "
+"just an initial implementation which tunes them in sequential order. We will"
+" introduce a more sophisticated tuning scheduler in the future."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:242
+msgid ""
+"Finally, we launch tuning jobs and evaluate the end-to-end performance."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:290
+msgid "Sample Output"
+msgstr "样本输出"
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:291
+msgid ""
+"The tuning needs to compile many programs and extract feature from them. So "
+"a high performance CPU is recommended. One sample output is listed below. It"
+" takes about 4 hours to get the following output on a 32T AMD Ryzen "
+"Threadripper. The tuning target is NVIDIA 1080 Ti. (You can see some errors "
+"during compilation. If the tuning is not stuck, it is okay.)"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:321
+msgid ""
+"As a reference baseline, the time cost of MXNet + TensorRT on resnet-18 is "
+"1.30ms. So we are a little faster."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:323
+msgid "**Experiencing Difficulties?**"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:325
+msgid ""
+"The auto tuning module is error-prone. If you always see \" 0.00/ 0.00 "
+"GFLOPS\", then there must be something wrong."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:328
+msgid ""
+"First, make sure you set the correct configuration of your device. Then, you"
+" can print debug information by adding these lines in the beginning of the "
+"script. It will print every measurement result, where you can find useful "
+"error messages."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:338
+msgid ""
+"Finally, always feel free to ask our community for help on "
+"https://discuss.tvm.apache.org"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:343
+msgid "Scale up measurement by using multiple devices"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:344
+msgid ""
+"If you have multiple devices, you can use all of them for measurement. TVM "
+"uses the RPC Tracker to manage distributed devices. The RPC Tracker is a "
+"centralized controller node. We can register all devices to the tracker. For"
+" example, if we have 10 GPU cards, we can register all of them to the "
+"tracker, and run 10 measurements in parallel, accelerating the tuning "
+"process."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:350
+msgid ""
+"To start an RPC tracker, run this command on the host machine. The tracker "
+"is required during the whole tuning process, so we need to open a new "
+"terminal for this command:"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:358
+msgid "The expected output is"
+msgstr "预期输出是"
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:364
+msgid ""
+"Then open another new terminal for the RPC server. We need to start one "
+"dedicated server for each device. We use a string key to distinguish the "
+"types of devices. You can pick a name you like. (Note: For rocm backend, "
+"there are some internal errors with the compiler, we need to add `--no-fork`"
+" to the argument list.)"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:374
+msgid "After registering devices, we can confirm it by querying rpc_tracker"
+msgstr "注册设备后，我们可以通过查询rpc_tracker确认"
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:380
+msgid ""
+"For example, if we have four 1080ti, two titanx and one gfx900, the output "
+"can be"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:393
+msgid ""
+"Finally, we need to change the tuning option to use RPCRunner. Use the code "
+"below to replace the corresponding part above."
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:437
+msgid ""
+":download:`Download Python source code: tune_relay_cuda.py "
+"<tune_relay_cuda.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:443
+msgid ""
+":download:`Download Jupyter notebook: tune_relay_cuda.ipynb "
+"<tune_relay_cuda.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/tune_with_autotvm/tune_relay_cuda.rst:450
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

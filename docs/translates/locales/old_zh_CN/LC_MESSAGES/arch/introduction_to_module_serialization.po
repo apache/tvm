@@ -1,0 +1,227 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:29+0000\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:19
+msgid "Introduction to Module Serialization"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:21
+msgid ""
+"When to deploy TVM runtime module, no matter whether it is CPU or GPU, TVM "
+"only needs one single dynamic shared library. The key is our unified module "
+"serialization mechanism. This document will introduce TVM module "
+"serialization format standard and implementation details."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:27
+msgid "Module Export Example"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:29
+msgid "Let us build one ResNet-18 workload for GPU as an example first."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:62
+msgid "Serialization"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:64
+msgid ""
+"The entrance API is ``export_library`` of ``tvm.module.Module``. Inside this"
+" function, we will do the following steps:"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:67
+msgid "Collect all DSO modules (LLVM modules and C modules)"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:69
+msgid ""
+"Once we have DSO modules, we will call ``save`` function to save them into "
+"files."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:71
+msgid ""
+"Next, we will check whether we have imported modules, such as CUDA, OpenCL "
+"or anything else. We don't restrict the module type here. Once we have "
+"imported modules, we will create one file named ``devc.o`` / ``dev.cc`` (so "
+"that we could embed the binary blob data of import modules into one dynamic "
+"shared library), then call function ``_PackImportsToLLVM`` or "
+"``_PackImportsToC`` to do module serialization."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:77
+msgid ""
+"Finally, we call ``fcompile`` which invokes ``_cc.create_shared`` to get "
+"dynamic shared library."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:81
+msgid ""
+"For C source modules, we will compile them and link them together with the "
+"DSO module."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:83
+msgid ""
+"Use ``_PackImportsToLLVM`` or ``_PackImportsToC`` depends on whether we "
+"enable LLVM in TVM. They achieve the same goal in fact."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:88
+msgid "Under the Hood of Serialization and Format Standard"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:90
+msgid ""
+"As said before, we will do the serialization work in the "
+"``_PackImportsToLLVM`` or ``_PackImportsToC``. They both call "
+"``SerializeModule`` to serialize the runtime module. In ``SerializeModule`` "
+"function, we firstly construct one helper class ``ModuleSerializer``. It "
+"will take ``module`` to do some initialization work, like marking module "
+"index. Then we could use its ``SerializeModule`` to serialize module."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:95
+msgid ""
+"For better understanding, let us dig the implementation of this class a "
+"little deeper."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:97
+msgid "The following code is used to construct ``ModuleSerializer``:"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:110
+msgid ""
+"In ``CreateModuleIndex()``, We will inspect module import relationship using"
+" DFS and create index for them. Note the root module is fixed at location 0."
+" In our example, we have module relationship like this:"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:119
+msgid "So LLVM module will have index 0, CUDA module will have index 1."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:121
+msgid ""
+"After constructing module index, we will try to construct import tree "
+"(``CreateImportTree()``), which will be used to restore module import "
+"relationship when we load the exported library back. In our design, we use "
+"CSR format to store import tree, each row is parent index, the child indices"
+" correspond to its children index. In code, we use ``import_tree_row_ptr_`` "
+"and ``import_tree_child_indices_`` to represent them."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:128
+msgid ""
+"After initialization, we could serialize module using ``SerializeModule`` "
+"function. In its function logic, we will assume the serialization format "
+"like this:"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:142
+msgid ""
+"``binary_blob_size`` is the number of blobs we will have in this "
+"serialization step. There will be three blobs in our example which are "
+"created for LLVM module, CUDA module, and ``_import_tree``, respectively."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:146
+msgid ""
+"``binary_blob_type_key`` is the blob type key of module. For LLVM / C "
+"module, whose blob type key is ``_lib``. For CUDA module, it is ``cuda``, "
+"which could be got by ``module->type_key()``."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:149
+msgid ""
+"``binary_blob_logic`` is the logic handling of blob. For most of blob (like "
+"CUDA, OpenCL), we will call ``SaveToBinary`` function to serialize blob into"
+" binary. However, like LLVM / C module, we will only write ``_lib`` to "
+"indicate this is a DSO module."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:154
+msgid ""
+"Whether or not it is required to implement the SaveToBinary virtual function"
+" depends on how the module is used. For example, If the module has "
+"information we need when we load the dynamic shared library back, we should "
+"do. Like CUDA module, we need its binary data passing to GPU driver when we "
+"load the dynamic shared library, so we should implement ``SaveToBinary`` to "
+"serialize its binary data. But for host module (like DSO), we don't need "
+"other information when we load the dynamic shared library, so we don't need "
+"to implement ``SaveToBinary``. However, if in the future, we want to record "
+"some meta information of DSO module, we could implement ``SaveToBinary`` for"
+" DSO module too."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:163
+msgid ""
+"Finally, we will write one key ``_import_tree`` unless our module only has "
+"one DSO module and it is in the root. It is used to reconstruct the module "
+"import relationship when we load the exported library back as said before. "
+"The ``import_tree_logic`` is just to write ``import_tree_row_ptr_`` and "
+"``import_tree_child_indices_`` into stream."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:169
+msgid ""
+"After this step, we will pack it into a symbol "
+"``runtime::symbol::tvm_dev_mblob`` that can be recovered in the dynamic "
+"libary."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:173
+msgid ""
+"Now, we complete the serialization part. As you have seen, we could support "
+"arbitrary modules to import ideally."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:178
+msgid "Deserialization"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:180
+msgid ""
+"The entrance API is ``tvm.runtime.load``. This function is to call "
+"``_LoadFromFile`` in fact. If we dig it a little deeper, this is "
+"``Module::LoadFromFile``. In our example, the file is ``deploy.so``, "
+"according to the function logic, we will call ``module.loadfile_so`` in "
+"``dso_library.cc``. The key is here:"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:198
+msgid ""
+"As said before, we will pack the blob into the symbol "
+"``runtime::symbol::tvm_dev_mblob``. During deserialization part, we will "
+"inspect it. If we have ``runtime::symbol::tvm_dev_mblob``, we will call "
+"``ProcessModuleBlob``, whose logic like this:"
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:223
+msgid ""
+"After this, we will set the ``ctx_address`` to be the ``root_module`` so "
+"that allow lookup of symbol from root (so all symbols are visible)."
+msgstr ""
+
+#: ../../_staging/arch/introduction_to_module_serialization.rst:226
+msgid "Finally, we complete the deserialization part."
+msgstr ""
