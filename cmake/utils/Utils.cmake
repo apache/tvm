@@ -86,6 +86,8 @@ function(tvm_micro_add_copy_file var src dest)
     set("${var}" "${${var}}" PARENT_SCOPE)
 endfunction(tvm_micro_add_copy_file)
 
+set(MICROTVM_TEMPLATE_PROJECTS "${CMAKE_CURRENT_BINARY_DIR}/microtvm_template_projects")
+
 # From cmake documentation:
 # True if the constant is 1, ON, YES, TRUE, Y, or a non-zero number.
 # False if the constant is 0, OFF, NO, FALSE, N, IGNORE, NOTFOUND, the empty string, or ends in the suffix -NOTFOUND.

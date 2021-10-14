@@ -14,30 +14,30 @@
 # the License.
 
 if(USE_MICRO)
-  message(STATUS "Add Zephyr for microTVM")
+  message(STATUS "Add Arduino for microTVM")
 
-  function(microtvm_add_zephyr)
+  function(microtvm_add_arduino)
     list(
       APPEND
-      ZEPHYR_FILE_COPY_JOBS
-      "apps/microtvm/zephyr/template_project microtvm_api_server.py -> zephyr"
-      "apps/microtvm/zephyr/template_project boards.json -> zephyr"
-      "apps/microtvm/zephyr/template_project CMakeLists.txt.template -> zephyr"
-      "apps/microtvm/zephyr/template_project/src/aot_demo *.c -> zephyr/src/aot_demo"
-      "apps/microtvm/zephyr/template_project/src/aot_demo *.h -> zephyr/src/aot_demo"
-      "apps/microtvm/zephyr/template_project/src/host_driven *.c -> zephyr/src/host_driven"
-      "apps/microtvm/zephyr/template_project/qemu-hack * -> zephyr/qemu-hack"
-      "apps/microtvm/zephyr/template_project/crt_config *.h -> zephyr/crt_config"
+      ARDUINO_FILE_COPY_JOBS
+      "apps/microtvm/arduino/template_project microtvm_api_server.py -> arduino"
+      "apps/microtvm/arduino/template_project boards.json -> arduino"
+      "apps/microtvm/arduino/template_project/src/example_project *.c -> arduino/src/example_project"
+      "apps/microtvm/arduino/template_project/src/example_project *.h -> arduino/src/example_project"
+      "apps/microtvm/arduino/template_project/src/example_project *.ino -> arduino/src/example_project"
+      "apps/microtvm/arduino/template_project/src/host_driven *.c -> arduino/src/host_driven"
+      "apps/microtvm/arduino/template_project/src/host_driven *.ino -> arduino/src/host_driven"
+      "apps/microtvm/arduino/template_project/crt_config *.h -> arduino/crt_config"
     )
 
-    foreach(job_spec IN LISTS ZEPHYR_FILE_COPY_JOBS)
+    foreach(job_spec IN LISTS ARDUINO_FILE_COPY_JOBS)
       string(REPLACE " " ";" job_spec "${job_spec}")
       list(LENGTH job_spec job_spec_length)
       math(EXPR job_spec_length_mod "${job_spec_length} % 3")
       if(NOT "${job_spec_length_mod}" EQUAL 1)
         message(
           FATAL_ERROR
-            "Zephyr copy job spec list length is ${job_spec_length}; parsed job spec is ${job_spec}"
+            "Arduino copy job spec list length is ${job_spec_length}; parsed job spec is ${job_spec}"
         )
       endif()
       math(EXPR job_spec_stop "${job_spec_length} - 3")
@@ -57,22 +57,22 @@ if(USE_MICRO)
         if("${copy_files_length}" EQUAL 0)
           message(
             FATAL_ERROR
-              "Zephyr copy job matched 0 files: ${job_src_base}/${copy_pattern} -> ${copy_dest}"
+              "Arduino copy job matched 0 files: ${job_src_base}/${copy_pattern} -> ${copy_dest}"
           )
         endif()
         foreach(copy_src IN LISTS copy_files)
           get_filename_component(
             dest_path "${MICROTVM_TEMPLATE_PROJECTS}/${copy_dest}/${copy_src}"
             ABSOLUTE)
-          tvm_micro_add_copy_file(zephyr_template_deps
+          tvm_micro_add_copy_file(arduino_template_deps
                                   ${job_src_base}/${copy_src} ${dest_path})
         endforeach()
       endforeach()
     endforeach()
 
-    add_custom_target(zephyr DEPENDS ${zephyr_template_deps})
+    add_custom_target(arduino DEPENDS ${arduino_template_deps})
   endfunction()
 
-  microtvm_add_zephyr()
+  microtvm_add_arduino()
 
 endif(USE_MICRO)
