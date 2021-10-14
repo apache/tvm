@@ -253,16 +253,3 @@ class CutlassGemmProfiler(object):
             op["runtime"] = out
         output = sorted(ops, key=lambda i: i["runtime"])
         return output[0]
-
-
-if __name__ == "__main__":
-    compiler = CompileEngine("75", "./cutlass", "./temp")
-    ops = GenerateSM75_TensorOp_1688()
-    for op in ops:
-        out = compiler.evaluate(op["name"], op["src"], [4096, 4096, 4096])
-        op["runtime"] = out
-    # get fastest
-    output = sorted(ops, key=lambda i: i["runtime"])
-    print(output[0]["name"])
-    print(output[0]["runtime"])
-    print(output[0]["opdef"])

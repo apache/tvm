@@ -522,106 +522,6 @@ class EmitGemmEpilogueInstance:
                 template = self.gemm_template
 
         return SubstituteTemplate(template, values)
-
-
-###################################################################################################
-
-
-class EmitSparseGemmInstance:
-    """ Responsible for emitting a CUTLASS template definition"""
-
-    def __init__(self):
-        self.gemm_template = """
-  // Gemm operator ${operation_name}
-  using Operation_${operation_name} = cutlass::gemm::device::SparseGemm<
-    ${element_a}, ${layout_a},
-    ${element_b}, ${layout_b},
-    ${element_c}, ${layout_c},
-    ${element_accumulator},
-    ${opcode_class},
-    ${arch},
-    cutlass::gemm::GemmShape<${threadblock_shape_m}, ${threadblock_shape_n}, ${threadblock_shape_k}>,
-    cutlass::gemm::GemmShape<${warp_shape_m}, ${warp_shape_n}, ${warp_shape_k}>,
-    cutlass::gemm::GemmShape<${instruction_shape_m}, ${instruction_shape_n}, ${instruction_shape_k}>,
-    ${epilogue_functor}<
-      ${element_c},
-      ${epilogue_vector_length},
-      ${element_accumulator},
-      ${element_epilogue}
-    >,
-    ${swizzling_functor},
-    ${stages},
-    ${align_a},
-    ${align_b},
-    false,
-    ${math_operation}
-    ${residual}
-  >;
-"""
-
-    def emit(self, operation):
-
-        warp_shape = [
-            operation.tile_description.threadblock_shape[idx]
-            // operation.tile_description.warp_count[idx]
-            for idx in range(3)
-        ]
-
-        epilogue_vector_length = int(
-            min(operation.C.alignment * DataTypeSize[operation.C.element], 128)
-            / DataTypeSize[operation.C.element]
-        )
-
-        residual = ""
-
-        values = {
-            "operation_name": operation.procedural_name(),
-            "element_a": DataTypeTag[operation.A.element],
-            "layout_a": LayoutTag[operation.A.layout],
-            "element_b": DataTypeTag[operation.B.element],
-            "layout_b": LayoutTag[operation.B.layout],
-            "element_c": DataTypeTag[operation.C.element],
-            "layout_c": LayoutTag[operation.C.layout],
-            "element_accumulator": DataTypeTag[operation.accumulator_type()],
-            "opcode_class": OpcodeClassTag[
-                operation.tile_description.math_instruction.opcode_class
-            ],
-            "arch": "cutlass::arch::Sm%d" % operation.arch,
-            "threadblock_shape_m": str(operation.tile_description.threadblock_shape[0]),
-            "threadblock_shape_n": str(operation.tile_description.threadblock_shape[1]),
-            "threadblock_shape_k": str(operation.tile_description.threadblock_shape[2]),
-            "warp_shape_m": str(warp_shape[0]),
-            "warp_shape_n": str(warp_shape[1]),
-            "warp_shape_k": str(warp_shape[2]),
-            "instruction_shape_m": str(
-                operation.tile_description.math_instruction.instruction_shape[0]
-            ),
-            "instruction_shape_n": str(
-                operation.tile_description.math_instruction.instruction_shape[1]
-            ),
-            "instruction_shape_k": str(
-                operation.tile_description.math_instruction.instruction_shape[2]
-            ),
-            "epilogue_vector_length": str(epilogue_vector_length),
-            "element_epilogue": str(DataTypeTag[operation.element_epilogue]),
-            "epilogue_functor": EpilogueFunctorTag[operation.epilogue_functor],
-            "swizzling_functor": SwizzlingFunctorTag[operation.swizzling_functor],
-            "stages": str(operation.tile_description.stages),
-            "align_a": str(operation.A.alignment),
-            "align_b": str(operation.B.alignment),
-            "transform_a": ComplexTransformTag[operation.A.complex_transform],
-            "transform_b": ComplexTransformTag[operation.B.complex_transform],
-            "math_operation": MathOperationTag[
-                operation.tile_description.math_instruction.math_operation
-            ],
-            "residual": residual,
-        }
-
-        template = self.gemm_template
-
-        return SubstituteTemplate(template, values)
-
-
 ###################################################################################################
 
 
@@ -768,188 +668,6 @@ struct ${operation_name} :
         }
 
         return SubstituteTemplate(gemm_template, values)
-
-
-###################################################################################################
-
-#
-class EmitGemmPlanarComplexInstance:
-    """ Responsible for emitting a CUTLASS template definition"""
-
-    def __init__(self):
-        self.template = """
-  // Gemm operator ${operation_name}
-  using Operation_${operation_name} = typename cutlass::gemm::kernel::DefaultGemmPlanarComplexUniversal<
-    ${element_a}, ${layout_a}, ${transform_a}, ${alignment_a},
-    ${element_b}, ${layout_b}, ${transform_b}, ${alignment_b},
-    ${element_c}, cutlass::layout::RowMajor,
-    ${element_accumulator},
-    ${opcode_class},
-    ${arch},
-    cutlass::gemm::GemmShape<${threadblock_shape_m}, ${threadblock_shape_n}, ${threadblock_shape_k}>,
-    cutlass::gemm::GemmShape<${warp_shape_m}, ${warp_shape_n}, ${warp_shape_k}>,
-    cutlass::gemm::GemmShape<${instruction_shape_m}, ${instruction_shape_n}, ${instruction_shape_k}>,
-    cutlass::epilogue::thread::LinearCombinationPlanarComplex<
-      ${element_c},
-      ${alignment_c},
-      ${element_accumulator},
-      ${element_epilogue}
-    >,
-    cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
-    ${stages},
-    ${math_operator}
-  >::GemmKernel;
-
-  struct ${operation_name} :
-    public Operation_${operation_name} { };
-"""
-
-    def emit(self, operation):
-
-        warp_shape = [
-            operation.tile_description.threadblock_shape[idx]
-            // operation.tile_description.warp_count[idx]
-            for idx in range(3)
-        ]
-
-        # exchange and transpose A and B types, layouts, and complex transforms since the C layout is row-major
-        transposed_layout_A = TransposedLayout[operation.A.layout]
-        transposed_layout_B = TransposedLayout[operation.B.layout]
-
-        values = {
-            "operation_name": operation.procedural_name(),
-            "element_a": DataTypeTag[operation.B.element],
-            "layout_a": LayoutTag[transposed_layout_B],
-            "transform_a": ComplexTransformTag[operation.B.complex_transform],
-            "alignment_a": str(operation.B.alignment),
-            "element_b": DataTypeTag[operation.A.element],
-            "layout_b": LayoutTag[transposed_layout_A],
-            "transform_b": ComplexTransformTag[operation.A.complex_transform],
-            "alignment_b": str(operation.A.alignment),
-            "element_c": DataTypeTag[operation.C.element],
-            "layout_c": LayoutTag[operation.C.layout],
-            "element_accumulator": DataTypeTag[
-                operation.tile_description.math_instruction.element_accumulator
-            ],
-            "opcode_class": OpcodeClassTag[
-                operation.tile_description.math_instruction.opcode_class
-            ],
-            "arch": "cutlass::arch::Sm%d" % operation.arch,
-            "threadblock_shape_m": str(operation.tile_description.threadblock_shape[0]),
-            "threadblock_shape_n": str(operation.tile_description.threadblock_shape[1]),
-            "threadblock_shape_k": str(operation.tile_description.threadblock_shape[2]),
-            "warp_shape_m": str(warp_shape[0]),
-            "warp_shape_n": str(warp_shape[1]),
-            "warp_shape_k": str(warp_shape[2]),
-            "instruction_shape_m": str(
-                operation.tile_description.math_instruction.instruction_shape[0]
-            ),
-            "instruction_shape_n": str(
-                operation.tile_description.math_instruction.instruction_shape[1]
-            ),
-            "instruction_shape_k": str(
-                operation.tile_description.math_instruction.instruction_shape[2]
-            ),
-            "alignment_c": str(operation.C.alignment),
-            "element_epilogue": str(DataTypeTag[operation.element_epilogue]),
-            "stages": str(operation.tile_description.stages),
-            "math_operator": "cutlass::arch::OpMultiplyAdd",
-        }
-
-        return SubstituteTemplate(self.template, values)
-
-
-###################################################################################################
-
-#
-class EmitGemmPlanarComplexArrayInstance:
-    """ Responsible for emitting a CUTLASS template definition"""
-
-    def __init__(self):
-        self.template = """
-  // Gemm operator ${operation_name}
-  using Operation_${operation_name} = typename cutlass::gemm::kernel::DefaultGemmPlanarComplexUniversal<
-    ${element_a}, ${layout_a}, ${transform_a}, ${alignment_a},
-    ${element_b}, ${layout_b}, ${transform_b}, ${alignment_b},
-    ${element_c}, cutlass::layout::RowMajor,
-    ${element_accumulator},
-    ${opcode_class},
-    ${arch},
-    cutlass::gemm::GemmShape<${threadblock_shape_m}, ${threadblock_shape_n}, ${threadblock_shape_k}>,
-    cutlass::gemm::GemmShape<${warp_shape_m}, ${warp_shape_n}, ${warp_shape_k}>,
-    cutlass::gemm::GemmShape<${instruction_shape_m}, ${instruction_shape_n}, ${instruction_shape_k}>,
-    cutlass::epilogue::thread::LinearCombinationPlanarComplex<
-      ${element_c},
-      ${alignment_c},
-      ${element_accumulator},
-      ${element_epilogue}
-    >,
-    cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
-    ${stages},
-    ${math_operator}
-  >::GemmArrayKernel;
-
-  struct ${operation_name} : public Operation_${operation_name} { };
-"""
-
-    def emit(self, operation):
-
-        warp_shape = [
-            operation.tile_description.threadblock_shape[idx]
-            // operation.tile_description.warp_count[idx]
-            for idx in range(3)
-        ]
-
-        # exchange and transpose A and B types, layouts, and complex transforms since the C layout is row-major
-        transposed_layout_A = TransposedLayout[operation.A.layout]
-        transposed_layout_B = TransposedLayout[operation.B.layout]
-
-        values = {
-            "operation_name": operation.procedural_name(),
-            "element_a": DataTypeTag[operation.B.element],
-            "layout_a": LayoutTag[transposed_layout_B],
-            "transform_a": ComplexTransformTag[operation.B.complex_transform],
-            "alignment_a": str(operation.B.alignment),
-            "element_b": DataTypeTag[operation.A.element],
-            "layout_b": LayoutTag[transposed_layout_A],
-            "transform_b": ComplexTransformTag[operation.A.complex_transform],
-            "alignment_b": str(operation.A.alignment),
-            "element_c": DataTypeTag[operation.C.element],
-            "layout_c": LayoutTag[operation.C.layout],
-            "element_accumulator": DataTypeTag[
-                operation.tile_description.math_instruction.element_accumulator
-            ],
-            "opcode_class": OpcodeClassTag[
-                operation.tile_description.math_instruction.opcode_class
-            ],
-            "arch": "cutlass::arch::Sm%d" % operation.arch,
-            "threadblock_shape_m": str(operation.tile_description.threadblock_shape[0]),
-            "threadblock_shape_n": str(operation.tile_description.threadblock_shape[1]),
-            "threadblock_shape_k": str(operation.tile_description.threadblock_shape[2]),
-            "warp_shape_m": str(warp_shape[0]),
-            "warp_shape_n": str(warp_shape[1]),
-            "warp_shape_k": str(warp_shape[2]),
-            "instruction_shape_m": str(
-                operation.tile_description.math_instruction.instruction_shape[0]
-            ),
-            "instruction_shape_n": str(
-                operation.tile_description.math_instruction.instruction_shape[1]
-            ),
-            "instruction_shape_k": str(
-                operation.tile_description.math_instruction.instruction_shape[2]
-            ),
-            "alignment_c": str(operation.C.alignment),
-            "element_epilogue": str(DataTypeTag[operation.element_epilogue]),
-            "stages": str(operation.tile_description.stages),
-            "math_operator": "cutlass::arch::OpMultiplyAdd",
-        }
-
-        return SubstituteTemplate(self.template, values)
-
-
-###################################################################################################
-
-
 ###################################################################################################
 #
 # Emitters functions for all targets
@@ -966,18 +684,12 @@ class EmitGemmConfigurationLibrary:
 
         self.instance_emitter = {
             GemmKind.Gemm: EmitGemmInstance,
-            GemmKind.Sparse: EmitSparseGemmInstance,
             GemmKind.Universal: EmitGemmUniversalInstance,
-            GemmKind.PlanarComplex: EmitGemmPlanarComplexInstance,
-            GemmKind.PlanarComplexArray: EmitGemmPlanarComplexArrayInstance,
         }
 
         self.gemm_kind_wrappers = {
             GemmKind.Gemm: "GemmOperation",
-            GemmKind.Sparse: "GemmSparseOperation",
             GemmKind.Universal: "GemmUniversalOperation",
-            GemmKind.PlanarComplex: "GemmPlanarComplexOperation",
-            GemmKind.PlanarComplexArray: "GemmPlanarComplexArrayOperation",
         }
 
         self.wmma_guard_start = "#if defined(CUTLASS_ARCH_WMMA_SM${sm_number}_ENABLED)"
@@ -988,30 +700,11 @@ ${compile_guard_start}
   manifest.append(new ${gemm_kind}<Operation_${operation_name}>("${operation_name}"));
 ${compile_guard_end}
 """,
-            GemmKind.Sparse: """
-${compile_guard_start}
-  manifest.append(new ${gemm_kind}<Operation_${operation_name}>("${operation_name}"));
-${compile_guard_end}
-""",
             GemmKind.Universal: """
 ${compile_guard_start}
   manifest.append(new ${gemm_kind}<
       cutlass::gemm::device::GemmUniversalAdapter<${operation_name}>
     >("${operation_name}"));
-${compile_guard_end}
-""",
-            GemmKind.PlanarComplex: """
-${compile_guard_start}
-  manifest.append(new ${gemm_kind}<
-    cutlass::gemm::device::GemmUniversalAdapter<${operation_name}>
-  >("${operation_name}"));
-${compile_guard_end}
-""",
-            GemmKind.PlanarComplexArray: """
-${compile_guard_start}
-  manifest.append(new ${gemm_kind}<
-    cutlass::gemm::device::GemmUniversalAdapter<${operation_name}>
-  >("${operation_name}"));
 ${compile_guard_end}
 """,
         }
