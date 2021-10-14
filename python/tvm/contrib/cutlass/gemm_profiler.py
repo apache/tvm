@@ -1,3 +1,21 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+
 from jinja2 import Template
 
 
@@ -49,11 +67,11 @@ cudaError_t CutlassGemmRCR(
   using namespace std::chrono;
   {{OperatorDef}}
   Operation_{{OperatorName}} gemm_operator;
-  Operation_{{OperatorName}}::Arguments args({M, N, K},  
-                              {A, lda},    
-                              {B, ldb},   
-                              {C, ldc}, 
-                              {C, ldc}, 
+  Operation_{{OperatorName}}::Arguments args({M, N, K},
+                              {A, lda},
+                              {B, ldb},
+                              {C, ldc},
+                              {C, ldc},
                               {alpha, beta});
   cutlass::Status status = gemm_operator(args);
   CUTLASS_CHECK(status)
@@ -209,4 +227,3 @@ int main(int argc, const char *arg[]) {
                                DTypeC=dtype_c,
                                LeadingDim=ld)
     return src
-

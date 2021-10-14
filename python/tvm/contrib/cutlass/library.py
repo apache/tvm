@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 #
 # \file library.py
 #
@@ -12,12 +28,12 @@ import enum
 
 # The following block implements enum.auto() for Python 3.5 variants that don't include it such
 # as the default 3.5.2 on Ubuntu 16.04.
-# 
+#
 # https://codereview.stackexchange.com/questions/177309/reimplementing-pythons-enum-auto-for-compatibility
 
 try:
   from enum import auto as enum_auto
-except ImportError: 
+except ImportError:
   __cutlass_library_auto_enum = 0
   def enum_auto() -> int:
     global __cutlass_library_auto_enum
@@ -115,7 +131,7 @@ DataTypeNames = {
   DataType.cs8: "cs8",
   DataType.cs16: "cs16",
   DataType.cs32: "cs32",
-  DataType.cs64: "cs64", 
+  DataType.cs64: "cs64",
 }
 
 DataTypeTag = {
@@ -245,7 +261,7 @@ class MathOperation(enum.Enum):
 
 #
 MathOperationTag = {
-  MathOperation.multiply_add: 'cutlass::arch::OpMultiplyAdd', 
+  MathOperation.multiply_add: 'cutlass::arch::OpMultiplyAdd',
   MathOperation.multiply_add_saturate: 'cutlass::arch::OpMultiplyAddSaturate',
   MathOperation.xor_popc: 'cutlass::arch::OpXorPopc',
   MathOperation.multiply_add_fast_bf16: 'cutlass::arch::OpMultiplyAddFastBF16',
@@ -362,17 +378,17 @@ OpcodeClassTag = {
 #
 class OperationKind(enum.Enum):
   Gemm = enum_auto()
-  Conv2d = enum_auto()        
-  Conv3d = enum_auto()        
+  Conv2d = enum_auto()
+  Conv3d = enum_auto()
 
 #
 OperationKindNames = {
   OperationKind.Gemm: 'gemm'
-  , OperationKind.Conv2d: 'conv2d'  
-  , OperationKind.Conv3d: 'conv3d' 
+  , OperationKind.Conv2d: 'conv2d'
+  , OperationKind.Conv3d: 'conv3d'
 }
 
-# 
+#
 class Target(enum.Enum):
   library = enum_auto()
 

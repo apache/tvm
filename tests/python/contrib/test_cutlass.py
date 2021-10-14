@@ -6,13 +6,13 @@ from tvm.relay import transform
 from tvm.relay.op.contrib.register import get_pattern_table
 import numpy as np
 import time
-from scipy.special import erf
+import os
+from tvm.contrib.cutlass import gen_gemm
 
 
 M = 1820
 N = 768
 K = 768
-
 
 def get_cpu_op_count(mod):
     """Traverse graph counting ops offloaded to TVM."""
@@ -67,8 +67,8 @@ class GemmCollector(tvm.relay.ExprVisitor):
       self.signature["ret_shape"] = op.ret_type.shape
       self.signature["ret_dtype"] = op.ret_type.dtype
 
-import gen_gemm
-cutlass_profiler = gen_gemm.CutlassGemmProfiler("75", "./cutlass", "./temp")
+
+cutlass_profiler = gen_gemm.CutlassGemmProfiler("75", "../../../3rdparty/cutlass", "./temp")
 
 for var in mod.get_global_vars():
   fun_name = var.name_hint
@@ -152,10 +152,14 @@ with tvm.transform.PassContext(opt_level=3):
 
 
 lib_path = "compiled.so"
-cutlass_path = "/home/masa/projects/dev/tvm/cutlass_profiler/cutlass/include"
-cutlass_util_path = "/home/masa/projects/dev/tvm/cutlass_profiler/cutlass/tools/util/include"
-workdir = "/home/masa/projects/dev/tvm/cutlass_profiler/tmp"
-#workdir = None
+# cutlass_path = "../../../3rdparty/cutlass/include"
+# cutlass_util_path = "../../../3rdparty/cutlass/tools/util/include"
+cutlass_path = "/home/masa/projects/dev/tvm/3rdparty/cutlass/include"
+cutlass_util_path = "/home/masa/projects/dev/tvm/3rdparty/cutlass/tools/util/include"
+workdir = "tmp"
+
+os.makedirs(workdir, exist_ok=True)
+
 kwargs = {}
 kwargs["cc"] = "nvcc"
 kwargs["options"] = ["-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
