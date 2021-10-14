@@ -20,9 +20,9 @@ from jinja2 import Template
 
 
 class GemmProfiler(object):
-  def __init__(self):
-    self.template = Template(
-"""
+    def __init__(self):
+        self.template = Template(
+            """
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -217,13 +217,15 @@ int main(int argc, const char *arg[]) {
   return result == cudaSuccess ? 0 : -1;
 }
 """
-    )
+        )
 
-  def emit(self, op_name, op_def, dtype_a, dtype_b, dtype_c, ld):
-    src = self.template.render(OperatorName=op_name,
-                               OperatorDef=op_def,
-                               DTypeA=dtype_a,
-                               DTypeB=dtype_b,
-                               DTypeC=dtype_c,
-                               LeadingDim=ld)
-    return src
+    def emit(self, op_name, op_def, dtype_a, dtype_b, dtype_c, ld):
+        src = self.template.render(
+            OperatorName=op_name,
+            OperatorDef=op_def,
+            DTypeA=dtype_a,
+            DTypeB=dtype_b,
+            DTypeC=dtype_c,
+            LeadingDim=ld,
+        )
+        return src
