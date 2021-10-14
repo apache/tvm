@@ -29,22 +29,20 @@ def element_wise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
     # body
-    with T.block([], "root"):
+    with T.block("root"):
         T.reads([])
         T.writes([])
         B = T.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.block([128, 128], "B") as [vi, vj]:
-                    T.bind(vi, i0)
-                    T.bind(vj, ax1)
+                with T.block("B"):
+                    vi, vj = T.axis.remap("SS", [i0, ax1])
                     T.reads([A[vi, vj]])
                     T.writes([B[vi, vj]])
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.block([128, 128], "C") as [vi_1, vj_1]:
-                    T.bind(vi_1, i0)
-                    T.bind(vj_1, i1)
+                with T.block("C"):
+                    vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
                     T.reads([B[vi_1, vj_1]])
                     T.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
@@ -55,23 +53,21 @@ def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
     # body
-    with T.block([], "root"):
+    with T.block("root"):
         T.reads([])
         T.writes([])
         B = T.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.block([128, 128], "B") as [vi, vj]:
-                    T.bind(vi, i0)
-                    T.bind(vj, ax1)
+                with T.block("B"):
+                    vi, vj = T.axis.remap("SS", [i0, ax1])
                     T.reads([A[vi, vj]])
                     T.writes([B[vi, vj]])
                     T.block_attr({"buffer_dim_align":[[0, 0, 128, 127]]})
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.block([128, 128], "C") as [vi_1, vj_1]:
-                    T.bind(vi_1, i0)
-                    T.bind(vj_1, i1)
+                with T.block("C"):
+                    vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
                     T.reads([B[vi_1, vj_1]])
                     T.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
@@ -82,23 +78,21 @@ def element_wise_invalid_annotation(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
     # body
-    with T.block([], "root"):
+    with T.block("root"):
         T.reads([])
         T.writes([])
         B = T.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.block([128, 128], "B") as [vi, vj]:
+                with T.block("B"):
                     T.block_attr({"buffer_dim_align": [0]})
-                    T.bind(vi, i0)
-                    T.bind(vj, ax1)
+                    vi, vj = T.axis.remap("SS", [i0, ax1])
                     T.reads([A[vi, vj]])
                     T.writes([B[vi, vj]])
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.block([128, 128], "C") as [vi_1, vj_1]:
-                    T.bind(vi_1, i0)
-                    T.bind(vj_1, i1)
+                with T.block("C"):
+                    vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
                     T.reads([B[vi_1, vj_1]])
                     T.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = (B[vi_1, vj_1] + T.float32(1))
