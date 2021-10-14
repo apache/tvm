@@ -92,3 +92,13 @@ cd "${ethosu_dir}"
 git clone "https://github.com/ARM-software/CMSIS_5.git" cmsis
 cd cmsis
 git checkout -f tags/${cmsis_ver}
+
+# Build Driver
+mkdir ${ethosu_dir}/core_driver/build && cd ${ethosu_dir}/core_driver/build
+cmake -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DETHOSU_LOG_SEVERITY=debug -DTARGET_CPU=cortex-m55 ..
+make
+
+# Build NN Library
+mkdir ${ethosu_dir}/cmsis/CMSIS/NN/build/ && cd ${ethosu_dir}/cmsis/CMSIS/NN/build/
+cmake .. -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DTARGET_CPU=cortex-m55 -DBUILD_CMSIS_NN_FUNCTIONS=YES
+make
