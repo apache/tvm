@@ -58,14 +58,8 @@ LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation im
   auto n = make_object<LoweredOutputNode>();
   n->outputs = std::move(outputs);
   n->implementation = std::move(impl);
-  VLOG(1) << outputs;
   data_ = std::move(n);
 }
-
-TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
-    .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
-      return LoweredOutput(outputs, impl);
-    });
 
 CCacheKey::CCacheKey(Function source_func, Target target) {
   auto n = make_object<CCacheKeyNode>();
