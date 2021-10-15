@@ -311,6 +311,9 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
       if (frame.find("Argument Shapes") != frame.end()) {
         name += Downcast<String>(frame["Argument Shapes"]);
       }
+      if (frame.find("Device") != frame.end()) {
+        name += Downcast<String>(frame["Device"]);
+      }
 
       if (aggregates.find(name) == aggregates.end()) {
         aggregates[name] = {i};
