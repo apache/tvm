@@ -80,9 +80,8 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
         baseline_outputs = (baseline_outputs.numpy(),)
 
     mod, params = relay.frontend.from_paddle(baseline_model, input_shape_dict)
-    parms_num = min(len(input_names), len(mod["main"].params))
     compiled_names = []
-    for arg in mod["main"].params[:parms_num]:
+    for arg in mod["main"].params:
         assert arg.name_hint in input_names or arg.name_hint in params
         if arg.name_hint in input_names:
             compiled_names.append(arg.name_hint)
