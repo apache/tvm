@@ -367,7 +367,7 @@ class Handler(server.ProjectAPIHandler):
         # Check Zephyr version
         version = self._get_platform_version()
         if version != ZEPHYR_VERSION:
-            message = f"Zephyr version does not math: {version} != {ZEPHYR_VERSION}"
+            message = f"Zephyr version found is not supported: found {version}, expected {ZEPHYR_VERSION}."
             if options.get("warning_as_error") is not None and options["warning_as_error"]:
                 raise ValueError(message)
             _LOG.warning(message)

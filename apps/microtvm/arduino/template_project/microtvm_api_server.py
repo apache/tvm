@@ -358,7 +358,7 @@ class Handler(server.ProjectAPIHandler):
         # Check Arduino version
         version = self._get_platform_version(options["arduino_cli_cmd"])
         if version != ARDUINO_CLI_VERSION:
-            message = f"Arduino CLI version does not match: {version} != {ARDUINO_CLI_VERSION}"
+            message = f"Arduino CLI version found is not supported: found {version}, expected {ARDUINO_CLI_VERSION}."
             if options.get("warning_as_error") is not None and options["warning_as_error"]:
                 raise ValueError(message)
             _LOG.warning(message)
