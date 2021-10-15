@@ -200,7 +200,91 @@ def GenerateSM75_TensorOp_1688(dtype):
     return ops
 
 
-GENERATOR_FUNC_TABLE = {"GenerateSM75_TensorOp_1688": GenerateSM75_TensorOp_1688}
+def GenerateSM80_TensorOp_16816(dtype):
+    assert dtype == "float16"
+    ops = []
+    layouts = [
+        (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    ]
+
+    math_instructions = [
+        MathInstruction(
+            [16, 8, 16],
+            DataType.f16,
+            DataType.f16,
+            DataType.f32,
+            OpcodeClass.TensorOp,
+            MathOperation.multiply_add,
+        ),
+        MathInstruction(
+            [16, 8, 16],
+            DataType.f16,
+            DataType.f16,
+            DataType.f16,
+            OpcodeClass.TensorOp,
+            MathOperation.multiply_add,
+        ),
+    ]
+
+    min_cc = 80
+    max_cc = 1024
+    max_cc_smem_limited = 80
+
+    alignment_constraints = [8, 4, 2]
+
+    for math_inst in math_instructions:
+        tile_descriptions = [
+            TileDescription([256, 128, 32], 3, [4, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 256, 32], 3, [2, 4, 1], math_inst, min_cc, max_cc),
+            TileDescription([256, 64, 32], 4, [4, 1, 1], math_inst, min_cc, max_cc),
+            TileDescription([64, 256, 32], 4, [1, 4, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 128, 32], 3, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 128, 32], 4, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 128, 32], 5, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 64, 32], 6, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([64, 128, 32], 6, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([64, 64, 32], 10, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([256, 128, 64], 3, [4, 2, 1], math_inst, min_cc, max_cc_smem_limited),
+            TileDescription([128, 256, 64], 3, [2, 4, 1], math_inst, min_cc, max_cc_smem_limited),
+            TileDescription([256, 64, 64], 4, [4, 1, 1], math_inst, min_cc, max_cc_smem_limited),
+            TileDescription([64, 256, 64], 4, [1, 4, 1], math_inst, min_cc, max_cc_smem_limited),
+            TileDescription([128, 128, 64], 4, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 64, 64], 3, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([64, 128, 64], 3, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([64, 64, 64], 5, [2, 2, 1], math_inst, min_cc, max_cc),
+        ]
+
+        data_type = [
+            math_inst.element_a,
+            math_inst.element_b,
+            math_inst.element_accumulator,
+            math_inst.element_accumulator,
+        ]
+
+        out = CreateGemmOperator(layouts, tile_descriptions, data_type, alignment_constraints)
+
+        # Avoid emitting two kernels if the accumulator type does not differ from the input type (e.g. F16 accumulation)
+        if math_inst.element_a != math_inst.element_accumulator:
+
+            data_type_mixed = [
+                math_inst.element_a,
+                math_inst.element_b,
+                math_inst.element_a,
+                math_inst.element_accumulator,
+            ]
+
+            out = CreateGemmOperator(
+                layouts, tile_descriptions, data_type_mixed, alignment_constraints
+            )
+
+        ops.extend(out)
+    return ops
+
+
+GENERATOR_FUNC_TABLE = {
+    "GenerateSM75_TensorOp_1688": GenerateSM75_TensorOp_1688,
+    "GenerateSM80_TensorOp_16816": GenerateSM80_TensorOp_16816,
+}
 
 
 class CutlassGemmProfiler(object):

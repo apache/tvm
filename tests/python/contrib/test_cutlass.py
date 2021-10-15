@@ -20,7 +20,7 @@ weight = relay.var("weight", shape=(N, K), dtype="float16")
 bias = relay.var("bias", shape=(N,), dtype="float16")
 gemm_out = relay.nn.dense(data, weight)
 gemm_out = relay.nn.bias_add(gemm_out, bias)
-gemm_out = relay.nn.relu(gemm_out)
+# gemm_out = relay.nn.relu(gemm_out)
 # gemm_out = relay.nn.dense(gemm_out, weight)
 out = gemm_out
 
@@ -48,7 +48,6 @@ class GemmCollector(tvm.relay.ExprVisitor):
             self.signature["ret_shape"] = op.ret_type.shape
             self.signature["ret_dtype"] = op.ret_type.dtype
 
-
 sm = "86"
 cutlass_profiler = gen_gemm.CutlassGemmProfiler(sm, "../../../3rdparty/cutlass", "./temp")
 
@@ -70,7 +69,7 @@ for var in mod.get_global_vars():
         KK = arg0_shape[1]
         NN = arg1_shape[0]
         out = cutlass_profiler.profile(
-            "GenerateSM75_TensorOp_1688", new_attrs["arg0_dtype"], MM, NN, KK
+            "GenerateSM80_TensorOp_16816", new_attrs["arg0_dtype"], MM, NN, KK
         )
         if new_attrs["op_type"] == "cutlass.dense":
             new_attrs["cutlass_op_def"] = out["opdef"]
@@ -159,11 +158,10 @@ y = rt_mod.get_output(0)
 
 print("np computing...")
 np_out = np.dot(np_data, np_weight.T)
-# np_out = np.dot(np_out, np_weight.T)
 np_out = np_out + np_bias
-np_out = np_out * (np_out > 0)
+# np_out = np.dot(np_out, np_weight.T)
+# np_out = np_out * (np_out > 0)
 # np_out = np_out*(0.5+erf(np_out * np.sqrt(0.5)) * 0.5)
-
 
 try:
     np.testing.assert_allclose(y.asnumpy(), np_out, atol=1e-2, rtol=1e-2)
