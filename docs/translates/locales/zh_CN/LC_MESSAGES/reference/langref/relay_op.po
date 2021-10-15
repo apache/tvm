@@ -5,6 +5,7 @@
 # 
 # Translators:
 # HLearning, 2021
+# juzi, 2021
 # DH Luo, 2021
 # 
 #, fuzzy
@@ -61,7 +62,7 @@ msgstr ":obj:`tvm.relay.log <tvm.relay.log>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Compute elementwise log of data."
-msgstr "Compute elementwise log of data."
+msgstr "数据的点对应对数运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.sqrt <tvm.relay.sqrt>`"
@@ -69,7 +70,7 @@ msgstr ":obj:`tvm.relay.sqrt <tvm.relay.sqrt>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Compute elementwise sqrt of data."
-msgstr "Compute elementwise sqrt of data."
+msgstr "数据的点对应平方根运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.rsqrt <tvm.relay.rsqrt>`"
@@ -77,7 +78,7 @@ msgstr ":obj:`tvm.relay.rsqrt <tvm.relay.rsqrt>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Compute elementwise rsqrt of data."
-msgstr "Compute elementwise rsqrt of data."
+msgstr "数据的点对应平方根倒数运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.exp <tvm.relay.exp>`"
@@ -85,7 +86,7 @@ msgstr ":obj:`tvm.relay.exp <tvm.relay.exp>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Compute elementwise exp of data."
-msgstr "Compute elementwise exp of data."
+msgstr "数据的点对应以 e 为底的指数运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.sigmoid <tvm.relay.sigmoid>`"
@@ -93,7 +94,7 @@ msgstr ":obj:`tvm.relay.sigmoid <tvm.relay.sigmoid>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Compute elementwise sigmoid of data."
-msgstr "Compute elementwise sigmoid of data."
+msgstr "数据的点对应 sigmoid 运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.add <tvm.relay.add>`"
@@ -101,7 +102,7 @@ msgstr ":obj:`tvm.relay.add <tvm.relay.add>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Addition with numpy-style broadcasting."
-msgstr "Addition with numpy-style broadcasting."
+msgstr "Numpy 风格的广播加法运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.subtract <tvm.relay.subtract>`"
@@ -109,7 +110,7 @@ msgstr ":obj:`tvm.relay.subtract <tvm.relay.subtract>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Subtraction with numpy-style broadcasting."
-msgstr "Subtraction with numpy-style broadcasting."
+msgstr "Numpy 风格的广播减法运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.multiply <tvm.relay.multiply>`"
@@ -117,7 +118,7 @@ msgstr ":obj:`tvm.relay.multiply <tvm.relay.multiply>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Multiplication with numpy-style broadcasting."
-msgstr "Multiplication with numpy-style broadcasting."
+msgstr "Numpy 风格的广播乘法运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.divide <tvm.relay.divide>`"
@@ -125,7 +126,7 @@ msgstr ":obj:`tvm.relay.divide <tvm.relay.divide>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Division with numpy-style broadcasting."
-msgstr "Division with numpy-style broadcasting."
+msgstr "Numpy 风格的广播除法运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.mod <tvm.relay.mod>`"
@@ -133,7 +134,7 @@ msgstr ":obj:`tvm.relay.mod <tvm.relay.mod>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Mod with numpy-style broadcasting."
-msgstr "Mod with numpy-style broadcasting."
+msgstr "Numpy 风格的广播取模运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.tanh <tvm.relay.tanh>`"
@@ -141,7 +142,7 @@ msgstr ":obj:`tvm.relay.tanh <tvm.relay.tanh>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Compute element-wise tanh of data."
-msgstr "Compute element-wise tanh of data."
+msgstr "数据的点对应 tanh 运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.concatenate <tvm.relay.concatenate>`"
@@ -149,7 +150,7 @@ msgstr ":obj:`tvm.relay.concatenate <tvm.relay.concatenate>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Concatenate the input tensors along the given axis."
-msgstr "Concatenate the input tensors along the given axis."
+msgstr "根据给定的轴连接输入张量。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.expand_dims <tvm.relay.expand_dims>`"
@@ -157,7 +158,7 @@ msgstr ":obj:`tvm.relay.expand_dims <tvm.relay.expand_dims>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Insert `num_newaxis` axes at the position given by `axis`."
-msgstr "Insert `num_newaxis` axes at the position given by `axis`."
+msgstr "在 `axis` 给定的位置插入 `num_newaxis` 坐标轴。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.softmax <tvm.relay.nn.softmax>`"
@@ -165,7 +166,7 @@ msgstr ":obj:`tvm.relay.nn.softmax <tvm.relay.nn.softmax>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Computes softmax."
-msgstr "Computes softmax."
+msgstr "计算 softmax。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.log_softmax <tvm.relay.nn.log_softmax>`"
@@ -173,7 +174,7 @@ msgstr ":obj:`tvm.relay.nn.log_softmax <tvm.relay.nn.log_softmax>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Computes log softmax."
-msgstr "Computes log softmax."
+msgstr "计算 log_softmax。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.relu <tvm.relay.nn.relu>`"
@@ -181,7 +182,7 @@ msgstr ":obj:`tvm.relay.nn.relu <tvm.relay.nn.relu>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Rectified linear unit."
-msgstr "Rectified linear unit."
+msgstr "修正线性单元。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.dropout <tvm.relay.nn.dropout>`"
@@ -189,7 +190,7 @@ msgstr ":obj:`tvm.relay.nn.dropout <tvm.relay.nn.dropout>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Applies the dropout operation to the input array."
-msgstr "Applies the dropout operation to the input array."
+msgstr "对输入数列使用 dropout 算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.batch_norm <tvm.relay.nn.batch_norm>`"
@@ -197,7 +198,7 @@ msgstr ":obj:`tvm.relay.nn.batch_norm <tvm.relay.nn.batch_norm>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "Batch normalization layer (Ioffe and Szegedy, 2014)."
-msgstr "Batch normalization layer (Ioffe and Szegedy, 2014)."
+msgstr "批量处理规范化层 （Ioffe and Szegedy, 2014）。"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.bias_add <tvm.relay.nn.bias_add>`"
@@ -205,7 +206,7 @@ msgstr ":obj:`tvm.relay.nn.bias_add <tvm.relay.nn.bias_add>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:62:<autosummary>:1
 msgid "add_bias operator."
-msgstr "add_bias operator."
+msgstr "add_bias 算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:63
 msgid "**Level 2: Convolutions**"
@@ -221,7 +222,7 @@ msgstr ":obj:`tvm.relay.nn.conv2d <tvm.relay.nn.conv2d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "2D convolution."
-msgstr "2D convolution."
+msgstr "2D 卷积。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.conv2d_transpose <tvm.relay.nn.conv2d_transpose>`"
@@ -229,7 +230,7 @@ msgstr ":obj:`tvm.relay.nn.conv2d_transpose <tvm.relay.nn.conv2d_transpose>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Two dimensional transposed convolution operator."
-msgstr "Two dimensional transposed convolution operator."
+msgstr "二维转置卷积算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.conv3d <tvm.relay.nn.conv3d>`"
@@ -237,7 +238,7 @@ msgstr ":obj:`tvm.relay.nn.conv3d <tvm.relay.nn.conv3d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "3D convolution."
-msgstr "3D convolution."
+msgstr "3D 卷积。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.conv3d_transpose <tvm.relay.nn.conv3d_transpose>`"
@@ -245,7 +246,7 @@ msgstr ":obj:`tvm.relay.nn.conv3d_transpose <tvm.relay.nn.conv3d_transpose>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "3D transpose convolution."
-msgstr "3D transpose convolution."
+msgstr "3D 转置卷积。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.dense <tvm.relay.nn.dense>`"
@@ -253,7 +254,7 @@ msgstr ":obj:`tvm.relay.nn.dense <tvm.relay.nn.dense>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Dense operator."
-msgstr "Dense operator."
+msgstr "稠密算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.max_pool2d <tvm.relay.nn.max_pool2d>`"
@@ -261,7 +262,7 @@ msgstr ":obj:`tvm.relay.nn.max_pool2d <tvm.relay.nn.max_pool2d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "2D maximum pooling operator."
-msgstr "2D maximum pooling operator."
+msgstr "2D 最大池化算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.max_pool3d <tvm.relay.nn.max_pool3d>`"
@@ -269,7 +270,7 @@ msgstr ":obj:`tvm.relay.nn.max_pool3d <tvm.relay.nn.max_pool3d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "3D maximum pooling operator."
-msgstr "3D maximum pooling operator."
+msgstr "3D 最大池化算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.avg_pool2d <tvm.relay.nn.avg_pool2d>`"
@@ -277,7 +278,7 @@ msgstr ":obj:`tvm.relay.nn.avg_pool2d <tvm.relay.nn.avg_pool2d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "2D average pooling operator."
-msgstr "2D average pooling operator."
+msgstr "2D 平均池化算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.avg_pool3d <tvm.relay.nn.avg_pool3d>`"
@@ -285,7 +286,7 @@ msgstr ":obj:`tvm.relay.nn.avg_pool3d <tvm.relay.nn.avg_pool3d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "3D average pooling operator."
-msgstr "3D average pooling operator."
+msgstr "3D 平均池化算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.global_max_pool2d <tvm.relay.nn.global_max_pool2d>`"
@@ -294,7 +295,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "2D global maximum pooling operator."
-msgstr "2D global maximum pooling operator."
+msgstr "2D 全局最大池化算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.global_avg_pool2d <tvm.relay.nn.global_avg_pool2d>`"
@@ -303,7 +304,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "2D global average pooling operator."
-msgstr "2D global average pooling operator."
+msgstr "2D 全局平均池化算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.upsampling <tvm.relay.nn.upsampling>`"
@@ -311,7 +312,7 @@ msgstr ":obj:`tvm.relay.nn.upsampling <tvm.relay.nn.upsampling>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Upsampling."
-msgstr "Upsampling."
+msgstr "上采样。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.upsampling3d <tvm.relay.nn.upsampling3d>`"
@@ -319,7 +320,7 @@ msgstr ":obj:`tvm.relay.nn.upsampling3d <tvm.relay.nn.upsampling3d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "3D Upsampling."
-msgstr "3D Upsampling."
+msgstr "3D 上采样。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.batch_flatten <tvm.relay.nn.batch_flatten>`"
@@ -327,7 +328,7 @@ msgstr ":obj:`tvm.relay.nn.batch_flatten <tvm.relay.nn.batch_flatten>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "BatchFlatten."
-msgstr "BatchFlatten."
+msgstr "展平批。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.pad <tvm.relay.nn.pad>`"
@@ -335,7 +336,7 @@ msgstr ":obj:`tvm.relay.nn.pad <tvm.relay.nn.pad>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Padding"
-msgstr "Padding"
+msgstr "填充"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.lrn <tvm.relay.nn.lrn>`"
@@ -344,8 +345,7 @@ msgstr ":obj:`tvm.relay.nn.lrn <tvm.relay.nn.lrn>`"
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ""
 "This operator takes data as input and does local response normalization."
-msgstr ""
-"This operator takes data as input and does local response normalization."
+msgstr "该算子将数据作为输入，并进行局部响应归一化。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.l2_normalize <tvm.relay.nn.l2_normalize>`"
@@ -353,7 +353,7 @@ msgstr ":obj:`tvm.relay.nn.l2_normalize <tvm.relay.nn.l2_normalize>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Perform L2 normalization on the input data"
-msgstr "Perform L2 normalization on the input data"
+msgstr "对输入数据执行L2标准化"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.bitpack <tvm.relay.nn.bitpack>`"
@@ -361,7 +361,7 @@ msgstr ":obj:`tvm.relay.nn.bitpack <tvm.relay.nn.bitpack>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Tensor packing for bitserial operations."
-msgstr "Tensor packing for bitserial operations."
+msgstr "对于位序列算子的张量包装。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.bitserial_dense <tvm.relay.nn.bitserial_dense>`"
@@ -369,7 +369,7 @@ msgstr ":obj:`tvm.relay.nn.bitserial_dense <tvm.relay.nn.bitserial_dense>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Bitserial Dense operator."
-msgstr "Bitserial Dense operator."
+msgstr "位序列稠密算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.bitserial_conv2d <tvm.relay.nn.bitserial_conv2d>`"
@@ -377,7 +377,7 @@ msgstr ":obj:`tvm.relay.nn.bitserial_conv2d <tvm.relay.nn.bitserial_conv2d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "2D convolution using bitserial computation."
-msgstr "2D convolution using bitserial computation."
+msgstr "使用位序列计算的 2D 卷积。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ""
@@ -389,7 +389,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "2D convolution with winograd algorithm."
-msgstr "2D convolution with winograd algorithm."
+msgstr "基于 Winograd 算法的 2D 卷积。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ""
@@ -401,8 +401,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Weight Transformation part for 2D convolution with winograd algorithm."
-msgstr ""
-"Weight Transformation part for 2D convolution with winograd algorithm."
+msgstr "基于 Winograd 算法对 2D 卷积的转换部分进行加权。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ""
@@ -414,7 +413,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "3D convolution with winograd algorithm."
-msgstr "3D convolution with winograd algorithm."
+msgstr "基于 Winograd 算法的 3D 卷积。"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ""
@@ -426,8 +425,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "Weight Transformation part for 3D convolution with winograd algorithm."
-msgstr ""
-"Weight Transformation part for 3D convolution with winograd algorithm."
+msgstr "基于 Winograd 算法对 3D 卷积的转换部分进行加权。"
 
 #: ../../_staging/reference/langref/relay_op.rst:96
 msgid "**Level 3: Additional Math And Transform Operators**"
@@ -446,9 +444,7 @@ msgstr ":obj:`tvm.relay.nn.leaky_relu <tvm.relay.nn.leaky_relu>`"
 msgid ""
 "This operator takes data as input and does Leaky version of a Rectified "
 "Linear Unit."
-msgstr ""
-"This operator takes data as input and does Leaky version of a Rectified "
-"Linear Unit."
+msgstr "该算子将数据作为输入，并代入带泄露的修正线性单元。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.prelu <tvm.relay.nn.prelu>`"
@@ -460,7 +456,7 @@ msgstr ":obj:`tvm.relay.reshape <tvm.relay.reshape>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Reshape the input array."
-msgstr "Reshape the input array."
+msgstr "重塑输入数组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.reshape_like <tvm.relay.reshape_like>`"
@@ -468,7 +464,7 @@ msgstr ":obj:`tvm.relay.reshape_like <tvm.relay.reshape_like>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Reshapes the input tensor by the size of another tensor."
-msgstr "Reshapes the input tensor by the size of another tensor."
+msgstr "根据其他张量的形状，对输入张量进行重塑。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.copy <tvm.relay.copy>`"
@@ -476,7 +472,7 @@ msgstr ":obj:`tvm.relay.copy <tvm.relay.copy>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Copy a tensor."
-msgstr "Copy a tensor."
+msgstr "复制张量。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.transpose <tvm.relay.transpose>`"
@@ -484,7 +480,7 @@ msgstr ":obj:`tvm.relay.transpose <tvm.relay.transpose>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Permutes the dimensions of an array."
-msgstr "Permutes the dimensions of an array."
+msgstr "对数组进行换维操作。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.squeeze <tvm.relay.squeeze>`"
@@ -492,7 +488,7 @@ msgstr ":obj:`tvm.relay.squeeze <tvm.relay.squeeze>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Squeeze axes in the array."
-msgstr "Squeeze axes in the array."
+msgstr "对数组进行维度压缩。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.floor <tvm.relay.floor>`"
@@ -500,7 +496,7 @@ msgstr ":obj:`tvm.relay.floor <tvm.relay.floor>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Compute element-wise floor of data."
-msgstr "Compute element-wise floor of data."
+msgstr "数据的点对应向下取整运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.ceil <tvm.relay.ceil>`"
@@ -508,7 +504,7 @@ msgstr ":obj:`tvm.relay.ceil <tvm.relay.ceil>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Compute element-wise ceil of data."
-msgstr "Compute element-wise ceil of data."
+msgstr "数据的点对应向上取整运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.sign <tvm.relay.sign>`"
@@ -517,7 +513,7 @@ msgstr ":obj:`tvm.relay.sign <tvm.relay.sign>`"
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Compute element-wise absolute of data."
-msgstr "Compute element-wise absolute of data."
+msgstr "数据的点对应取绝对值运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.trunc <tvm.relay.trunc>`"
@@ -525,7 +521,7 @@ msgstr ":obj:`tvm.relay.trunc <tvm.relay.trunc>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Compute element-wise trunc of data."
-msgstr "Compute element-wise trunc of data."
+msgstr "数据的点对应舍尾取整运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.clip <tvm.relay.clip>`"
@@ -533,7 +529,7 @@ msgstr ":obj:`tvm.relay.clip <tvm.relay.clip>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Clip the elements in `a` between `a_min` and `a_max`."
-msgstr "Clip the elements in `a` between `a_min` and `a_max`."
+msgstr "将 `a` 中的元素裁剪至 `a_min` 到 `a_max` 之间。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.round <tvm.relay.round>`"
@@ -541,7 +537,7 @@ msgstr ":obj:`tvm.relay.round <tvm.relay.round>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Compute element-wise round of data."
-msgstr "Compute element-wise round of data."
+msgstr "数据的点对应四舍五入运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.abs <tvm.relay.abs>`"
@@ -553,7 +549,7 @@ msgstr ":obj:`tvm.relay.negative <tvm.relay.negative>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Compute element-wise negative of data."
-msgstr "Compute element-wise negative of data."
+msgstr "数据的点对应取相反数运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.take <tvm.relay.take>`"
@@ -561,7 +557,7 @@ msgstr ":obj:`tvm.relay.take <tvm.relay.take>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Take elements from an array along an axis."
-msgstr "Take elements from an array along an axis."
+msgstr "从数组的一条轴上取元素。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.zeros <tvm.relay.zeros>`"
@@ -569,7 +565,7 @@ msgstr ":obj:`tvm.relay.zeros <tvm.relay.zeros>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Fill array with zeros."
-msgstr "Fill array with zeros."
+msgstr "用0填充数组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.zeros_like <tvm.relay.zeros_like>`"
@@ -577,7 +573,7 @@ msgstr ":obj:`tvm.relay.zeros_like <tvm.relay.zeros_like>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Returns an array of zeros, with same type and shape as the input."
-msgstr "Returns an array of zeros, with same type and shape as the input."
+msgstr "返回一个与输入数据相同数据类型与尺寸的全零数组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.ones <tvm.relay.ones>`"
@@ -585,7 +581,7 @@ msgstr ":obj:`tvm.relay.ones <tvm.relay.ones>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Fill array with ones."
-msgstr "Fill array with ones."
+msgstr "用1填充数组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.ones_like <tvm.relay.ones_like>`"
@@ -593,7 +589,7 @@ msgstr ":obj:`tvm.relay.ones_like <tvm.relay.ones_like>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Returns an array of ones, with same type and shape as the input."
-msgstr "Returns an array of ones, with same type and shape as the input."
+msgstr "返回一个与输入数据相同数据类型与尺寸的全一数组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.gather <tvm.relay.gather>`"
@@ -601,7 +597,7 @@ msgstr ":obj:`tvm.relay.gather <tvm.relay.gather>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Gather values along given axis from given indices."
-msgstr "Gather values along given axis from given indices."
+msgstr "在给定的轴上对给定索引的值进行聚合。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.gather_nd <tvm.relay.gather_nd>`"
@@ -611,9 +607,7 @@ msgstr ":obj:`tvm.relay.gather_nd <tvm.relay.gather_nd>`"
 msgid ""
 "Gather elements or slices from data and store to a tensor whose shape is "
 "defined by indices."
-msgstr ""
-"Gather elements or slices from data and store to a tensor whose shape is "
-"defined by indices."
+msgstr "聚合数据的元素或切片，并将其储存到一个尺寸由索引定义的张量里。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.full <tvm.relay.full>`"
@@ -621,7 +615,7 @@ msgstr ":obj:`tvm.relay.full <tvm.relay.full>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Fill array with scalar value."
-msgstr "Fill array with scalar value."
+msgstr "用标量填充数组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.full_like <tvm.relay.full_like>`"
@@ -632,8 +626,7 @@ msgstr ":obj:`tvm.relay.full_like <tvm.relay.full_like>`"
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ""
 "Return a scalar value array with the same shape and type as the input array."
-msgstr ""
-"Return a scalar value array with the same shape and type as the input array."
+msgstr "返回一个与输入数据相同数据类型与尺寸的标量数组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.cast <tvm.relay.cast>`"
@@ -641,7 +634,7 @@ msgstr ":obj:`tvm.relay.cast <tvm.relay.cast>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Cast input tensor to data type."
-msgstr "Cast input tensor to data type."
+msgstr "转换输入向量的数据类型。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.reinterpret <tvm.relay.reinterpret>`"
@@ -649,7 +642,7 @@ msgstr ":obj:`tvm.relay.reinterpret <tvm.relay.reinterpret>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Reinterpret input tensor to data type."
-msgstr "Reinterpret input tensor to data type."
+msgstr "将输入张量重新解释为指定数据类型。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.split <tvm.relay.split>`"
@@ -657,7 +650,7 @@ msgstr ":obj:`tvm.relay.split <tvm.relay.split>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Split input tensor along axis by sections or indices."
-msgstr "Split input tensor along axis by sections or indices."
+msgstr "沿轴按照一个元素或数组对输入张量进行切分。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.arange <tvm.relay.arange>`"
@@ -665,7 +658,7 @@ msgstr ":obj:`tvm.relay.arange <tvm.relay.arange>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Return evenly spaced values within a given interval."
-msgstr "Return evenly spaced values within a given interval."
+msgstr "在给定范围内返回均匀间隔的值。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.meshgrid <tvm.relay.meshgrid>`"
@@ -673,7 +666,7 @@ msgstr ":obj:`tvm.relay.meshgrid <tvm.relay.meshgrid>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Create coordinate matrices from coordinate vectors."
-msgstr "Create coordinate matrices from coordinate vectors."
+msgstr "从坐标向量中创建坐标矩阵。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.stack <tvm.relay.stack>`"
@@ -681,7 +674,7 @@ msgstr ":obj:`tvm.relay.stack <tvm.relay.stack>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Join a sequence of arrays along a new axis."
-msgstr "Join a sequence of arrays along a new axis."
+msgstr "沿新轴连接一个数组序列。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.repeat <tvm.relay.repeat>`"
@@ -689,7 +682,7 @@ msgstr ":obj:`tvm.relay.repeat <tvm.relay.repeat>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Repeats elements of an array."
-msgstr "Repeats elements of an array."
+msgstr "重复数组元素。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.tile <tvm.relay.tile>`"
@@ -697,7 +690,7 @@ msgstr ":obj:`tvm.relay.tile <tvm.relay.tile>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Repeats the whole array multiple times."
-msgstr "Repeats the whole array multiple times."
+msgstr "将整个数组重复若干次。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.reverse <tvm.relay.reverse>`"
@@ -707,9 +700,7 @@ msgstr ":obj:`tvm.relay.reverse <tvm.relay.reverse>`"
 msgid ""
 "Reverses the order of elements along given axis while preserving array "
 "shape."
-msgstr ""
-"Reverses the order of elements along given axis while preserving array "
-"shape."
+msgstr "在保持数组形状不变的情况下，沿给定的轴反转元素顺序。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.reverse_sequence <tvm.relay.reverse_sequence>`"
@@ -717,7 +708,7 @@ msgstr ":obj:`tvm.relay.reverse_sequence <tvm.relay.reverse_sequence>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Reverse the tensor for variable length slices."
-msgstr "Reverse the tensor for variable length slices."
+msgstr "将张量内的每个可变长度切片进行翻转。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.unravel_index <tvm.relay.unravel_index>`"
@@ -727,9 +718,7 @@ msgstr ":obj:`tvm.relay.unravel_index <tvm.relay.unravel_index>`"
 msgid ""
 "Convert a flat index or array of flat indices into a tuple of coordinate "
 "arrays."
-msgstr ""
-"Convert a flat index or array of flat indices into a tuple of coordinate "
-"arrays."
+msgstr "将平面索引或平面索引数组转换为坐标数组的元组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid ":obj:`tvm.relay.sparse_to_dense <tvm.relay.sparse_to_dense>`"
@@ -737,7 +726,7 @@ msgstr ":obj:`tvm.relay.sparse_to_dense <tvm.relay.sparse_to_dense>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:140:<autosummary>:1
 msgid "Converts a sparse representation into a dense tensor."
-msgstr "Converts a sparse representation into a dense tensor."
+msgstr "将稀疏张量表示转换为稠密张量。"
 
 #: ../../_staging/reference/langref/relay_op.rst:141
 msgid "**Level 4: Broadcast and Reductions**"
@@ -749,7 +738,7 @@ msgstr ":obj:`tvm.relay.right_shift <tvm.relay.right_shift>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Right shift with numpy-style broadcasting."
-msgstr "Right shift with numpy-style broadcasting."
+msgstr "Numpy 风格的广播向右移位运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.left_shift <tvm.relay.left_shift>`"
@@ -757,7 +746,7 @@ msgstr ":obj:`tvm.relay.left_shift <tvm.relay.left_shift>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Left shift with numpy-style broadcasting."
-msgstr "Left shift with numpy-style broadcasting."
+msgstr "Numpy 风格的广播向左移位运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.equal <tvm.relay.equal>`"
@@ -765,7 +754,7 @@ msgstr ":obj:`tvm.relay.equal <tvm.relay.equal>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Broadcasted elementwise test for (lhs == rhs)."
-msgstr "Broadcasted elementwise test for (lhs == rhs)."
+msgstr "对于(lhs == rhs)，进行基于广播后的点对应判断。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.not_equal <tvm.relay.not_equal>`"
@@ -773,7 +762,7 @@ msgstr ":obj:`tvm.relay.not_equal <tvm.relay.not_equal>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Broadcasted elementwise test for (lhs != rhs)."
-msgstr "Broadcasted elementwise test for (lhs != rhs)."
+msgstr "对于(lhs != rhs)，进行基于广播后的点对应判断。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.greater <tvm.relay.greater>`"
@@ -781,7 +770,7 @@ msgstr ":obj:`tvm.relay.greater <tvm.relay.greater>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Broadcasted elementwise test for (lhs > rhs)."
-msgstr "Broadcasted elementwise test for (lhs > rhs)."
+msgstr "对于(lhs > rhs)，进行基于广播后的点对应判断。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.greater_equal <tvm.relay.greater_equal>`"
@@ -789,7 +778,7 @@ msgstr ":obj:`tvm.relay.greater_equal <tvm.relay.greater_equal>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Broadcasted elementwise test for (lhs >= rhs)."
-msgstr "Broadcasted elementwise test for (lhs >= rhs)."
+msgstr "对于(lhs >= rhs)，进行基于广播后的点对应判断。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.less <tvm.relay.less>`"
@@ -797,7 +786,7 @@ msgstr ":obj:`tvm.relay.less <tvm.relay.less>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Broadcasted elementwise test for (lhs < rhs)."
-msgstr "Broadcasted elementwise test for (lhs < rhs)."
+msgstr "对于(lhs < rhs)，进行基于广播后的点对应判断。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.less_equal <tvm.relay.less_equal>`"
@@ -805,7 +794,7 @@ msgstr ":obj:`tvm.relay.less_equal <tvm.relay.less_equal>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Broadcasted elementwise test for (lhs <= rhs)."
-msgstr "Broadcasted elementwise test for (lhs <= rhs)."
+msgstr "对于(lhs <= rhs)，进行基于广播后的点对应判断。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.all <tvm.relay.all>`"
@@ -813,7 +802,7 @@ msgstr ":obj:`tvm.relay.all <tvm.relay.all>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the logical AND of boolean array elements over given axes."
-msgstr "Computes the logical AND of boolean array elements over given axes."
+msgstr "沿着给定的轴对布尔数组的元素执行逻辑与计算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.any <tvm.relay.any>`"
@@ -821,7 +810,7 @@ msgstr ":obj:`tvm.relay.any <tvm.relay.any>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the logical OR of boolean array elements over given axes."
-msgstr "Computes the logical OR of boolean array elements over given axes."
+msgstr "沿着给定的轴对布尔数组的元素执行逻辑或计算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.logical_and <tvm.relay.logical_and>`"
@@ -829,7 +818,7 @@ msgstr ":obj:`tvm.relay.logical_and <tvm.relay.logical_and>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "logical AND with numpy-style broadcasting."
-msgstr "logical AND with numpy-style broadcasting."
+msgstr "Numpy 风格的广播逻辑与运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.logical_or <tvm.relay.logical_or>`"
@@ -837,7 +826,7 @@ msgstr ":obj:`tvm.relay.logical_or <tvm.relay.logical_or>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "logical OR with numpy-style broadcasting."
-msgstr "logical OR with numpy-style broadcasting."
+msgstr "Numpy 风格的广播逻辑或运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.logical_not <tvm.relay.logical_not>`"
@@ -845,7 +834,7 @@ msgstr ":obj:`tvm.relay.logical_not <tvm.relay.logical_not>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Compute element-wise logical not of data."
-msgstr "Compute element-wise logical not of data."
+msgstr "数据的点对应逻辑否运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.logical_xor <tvm.relay.logical_xor>`"
@@ -853,7 +842,7 @@ msgstr ":obj:`tvm.relay.logical_xor <tvm.relay.logical_xor>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "logical XOR with numpy-style broadcasting."
-msgstr "logical XOR with numpy-style broadcasting."
+msgstr "Numpy 风格的广播逻辑异或运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.maximum <tvm.relay.maximum>`"
@@ -861,7 +850,7 @@ msgstr ":obj:`tvm.relay.maximum <tvm.relay.maximum>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Maximum with numpy-style broadcasting."
-msgstr "Maximum with numpy-style broadcasting."
+msgstr "Numpy 风格的广播取最大值运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.minimum <tvm.relay.minimum>`"
@@ -869,7 +858,7 @@ msgstr ":obj:`tvm.relay.minimum <tvm.relay.minimum>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Minimum with numpy-style broadcasting."
-msgstr "Minimum with numpy-style broadcasting."
+msgstr "Numpy 风格的广播取最小值运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.power <tvm.relay.power>`"
@@ -877,7 +866,7 @@ msgstr ":obj:`tvm.relay.power <tvm.relay.power>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Power with numpy-style broadcasting."
-msgstr "Power with numpy-style broadcasting."
+msgstr "Numpy 风格的广播幂运算。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.where <tvm.relay.where>`"
@@ -887,9 +876,7 @@ msgstr ":obj:`tvm.relay.where <tvm.relay.where>`"
 msgid ""
 "Selecting elements from either x or y depending on the value of the "
 "condition."
-msgstr ""
-"Selecting elements from either x or y depending on the value of the "
-"condition."
+msgstr "根据 condition 的值来决定选择 x 或 y 的元素。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.argmax <tvm.relay.argmax>`"
@@ -897,7 +884,7 @@ msgstr ":obj:`tvm.relay.argmax <tvm.relay.argmax>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Returns the indices of the maximum values along an axis."
-msgstr "Returns the indices of the maximum values along an axis."
+msgstr "沿轴返回最大值的索引。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.argmin <tvm.relay.argmin>`"
@@ -905,7 +892,7 @@ msgstr ":obj:`tvm.relay.argmin <tvm.relay.argmin>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Returns the indices of the minimum values along an axis."
-msgstr "Returns the indices of the minimum values along an axis."
+msgstr "沿轴返回最小值的索引。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.sum <tvm.relay.sum>`"
@@ -913,7 +900,7 @@ msgstr ":obj:`tvm.relay.sum <tvm.relay.sum>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the sum of array elements over given axes."
-msgstr "Computes the sum of array elements over given axes."
+msgstr "计算给定轴上数组元素的和。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.max <tvm.relay.max>`"
@@ -921,7 +908,7 @@ msgstr ":obj:`tvm.relay.max <tvm.relay.max>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the max of array elements over given axes."
-msgstr "Computes the max of array elements over given axes."
+msgstr "计算给定轴上数组元素的最大值。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.min <tvm.relay.min>`"
@@ -929,7 +916,7 @@ msgstr ":obj:`tvm.relay.min <tvm.relay.min>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the min of array elements over given axes."
-msgstr "Computes the min of array elements over given axes."
+msgstr "计算给定轴上数组元素的最小值。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.mean <tvm.relay.mean>`"
@@ -937,7 +924,7 @@ msgstr ":obj:`tvm.relay.mean <tvm.relay.mean>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the mean of array elements over given axes."
-msgstr "Computes the mean of array elements over given axes."
+msgstr "计算给定轴上数组元素的平均值。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.variance <tvm.relay.variance>`"
@@ -945,7 +932,7 @@ msgstr ":obj:`tvm.relay.variance <tvm.relay.variance>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the variance of data over given axes."
-msgstr "Computes the variance of data over given axes."
+msgstr "计算给定轴上数组元素的方差。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.std <tvm.relay.std>`"
@@ -953,7 +940,7 @@ msgstr ":obj:`tvm.relay.std <tvm.relay.std>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the standard deviation of data over given axes."
-msgstr "Computes the standard deviation of data over given axes."
+msgstr "计算给定轴上数组元素的标准差。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.mean_variance <tvm.relay.mean_variance>`"
@@ -961,7 +948,7 @@ msgstr ":obj:`tvm.relay.mean_variance <tvm.relay.mean_variance>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the mean and variance of data over given axes."
-msgstr "Computes the mean and variance of data over given axes."
+msgstr "计算给定轴上数组元素的平均值与方差。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.mean_std <tvm.relay.mean_std>`"
@@ -969,7 +956,7 @@ msgstr ":obj:`tvm.relay.mean_std <tvm.relay.mean_std>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the mean and standard deviation of data over given axes."
-msgstr "Computes the mean and standard deviation of data over given axes."
+msgstr "计算给定轴上数组元素的平均值与标准差。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.prod <tvm.relay.prod>`"
@@ -977,7 +964,7 @@ msgstr ":obj:`tvm.relay.prod <tvm.relay.prod>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Computes the products of array elements over given axes."
-msgstr "Computes the products of array elements over given axes."
+msgstr "计算给定轴上数组元素的乘积。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.strided_slice <tvm.relay.strided_slice>`"
@@ -985,7 +972,7 @@ msgstr ":obj:`tvm.relay.strided_slice <tvm.relay.strided_slice>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid "Strided slice of an array."
-msgstr "Strided slice of an array."
+msgstr "提取数组的分段切片。"
 
 #: ../../_staging/reference/langref/relay_op.rst:178:<autosummary>:1
 msgid ":obj:`tvm.relay.broadcast_to <tvm.relay.broadcast_to>`"
@@ -995,9 +982,7 @@ msgstr ":obj:`tvm.relay.broadcast_to <tvm.relay.broadcast_to>`"
 msgid ""
 "Return a scalar value array with the same type, broadcast to the provided "
 "shape."
-msgstr ""
-"Return a scalar value array with the same type, broadcast to the provided "
-"shape."
+msgstr "将标量数组广播至给定的形状并返回，且不改变其数据类型。"
 
 #: ../../_staging/reference/langref/relay_op.rst:179
 msgid "**Level 5: Vision/Image Operators**"
@@ -1009,7 +994,7 @@ msgstr ":obj:`tvm.relay.image.resize1d <tvm.relay.image.resize1d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Image resize1d operator."
-msgstr "Image resize1d operator."
+msgstr "图像 1 维重塑算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid ":obj:`tvm.relay.image.resize2d <tvm.relay.image.resize2d>`"
@@ -1017,7 +1002,7 @@ msgstr ":obj:`tvm.relay.image.resize2d <tvm.relay.image.resize2d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Image resize2d operator."
-msgstr "Image resize2d operator."
+msgstr "图像 2 维重塑算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid ":obj:`tvm.relay.image.resize3d <tvm.relay.image.resize3d>`"
@@ -1025,7 +1010,7 @@ msgstr ":obj:`tvm.relay.image.resize3d <tvm.relay.image.resize3d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Image resize3d operator."
-msgstr "Image resize3d operator."
+msgstr "图像 3 维重塑算子。"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid ""
@@ -1035,7 +1020,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Crop input images and resize them."
-msgstr "Crop input images and resize them."
+msgstr "裁剪并调整输入图像的大小。"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid ":obj:`tvm.relay.image.dilation2d <tvm.relay.image.dilation2d>`"
@@ -1043,7 +1028,7 @@ msgstr ":obj:`tvm.relay.image.dilation2d <tvm.relay.image.dilation2d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Morphological Dilation 2D."
-msgstr "Morphological Dilation 2D."
+msgstr "2D 形态学膨胀。"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid ""
@@ -1053,7 +1038,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Generate prior(anchor) boxes from data, sizes and ratios."
-msgstr "Generate prior(anchor) boxes from data, sizes and ratios."
+msgstr "在 data 中，根据 sizes 和 ratios 生成先验框（锚框）。"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid ""
@@ -1065,7 +1050,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Location transformation for multibox detection"
-msgstr "Location transformation for multibox detection"
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid ":obj:`tvm.relay.vision.nms <tvm.relay.vision.nms>`"
@@ -1073,7 +1058,7 @@ msgstr ":obj:`tvm.relay.vision.nms <tvm.relay.vision.nms>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Non-maximum suppression operations."
-msgstr "Non-maximum suppression operations."
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid ":obj:`tvm.relay.vision.yolo_reorg <tvm.relay.vision.yolo_reorg>`"
@@ -1081,7 +1066,7 @@ msgstr ":obj:`tvm.relay.vision.yolo_reorg <tvm.relay.vision.yolo_reorg>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:194:<autosummary>:1
 msgid "Yolo reorg operation used in darknet models."
-msgstr "Yolo reorg operation used in darknet models."
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:195
 msgid "**Level 6: Algorithm Operators**"
@@ -1095,9 +1080,7 @@ msgstr ":obj:`tvm.relay.argsort <tvm.relay.argsort>`"
 msgid ""
 "Performs sorting along the given axis and returns an array of indicies "
 "having same shape as an input array that index data in sorted order."
-msgstr ""
-"Performs sorting along the given axis and returns an array of indicies "
-"having same shape as an input array that index data in sorted order."
+msgstr "沿给定轴对数组执行排序操作后，保持数组形状不变，输出排序数组对应的索引数组。"
 
 #: ../../_staging/reference/langref/relay_op.rst:203:<autosummary>:1
 msgid ":obj:`tvm.relay.topk <tvm.relay.topk>`"
@@ -1105,7 +1088,7 @@ msgstr ":obj:`tvm.relay.topk <tvm.relay.topk>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:203:<autosummary>:1
 msgid "Get the top k elements in an input tensor along the given axis."
-msgstr "Get the top k elements in an input tensor along the given axis."
+msgstr "沿给定的轴，获取输入张量的最大 k 个元素。"
 
 #: ../../_staging/reference/langref/relay_op.rst:204
 msgid "**Level 10: Temporary Operators**"
@@ -1130,7 +1113,7 @@ msgstr ":obj:`tvm.relay.slice_like <tvm.relay.slice_like>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid "Slice the first input with respect to the second input."
-msgstr "Slice the first input with respect to the second input."
+msgstr "按照第二个输出值的形状对第一个输出值进行切分。"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.shape_of <tvm.relay.shape_of>`"
@@ -1138,7 +1121,7 @@ msgstr ":obj:`tvm.relay.shape_of <tvm.relay.shape_of>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid "Get shape of a tensor."
-msgstr "Get shape of a tensor."
+msgstr "获得张量的形状。"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.ndarray_size <tvm.relay.ndarray_size>`"
@@ -1146,7 +1129,7 @@ msgstr ":obj:`tvm.relay.ndarray_size <tvm.relay.ndarray_size>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid "Get number of elements of input tensor."
-msgstr "Get number of elements of input tensor."
+msgstr "获得张量的元素数量。"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.layout_transform <tvm.relay.layout_transform>`"
@@ -1154,7 +1137,7 @@ msgstr ":obj:`tvm.relay.layout_transform <tvm.relay.layout_transform>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid "Transform the layout of a tensor"
-msgstr "Transform the layout of a tensor"
+msgstr "变换张量的布局。"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.device_copy <tvm.relay.device_copy>`"
@@ -1162,7 +1145,7 @@ msgstr ":obj:`tvm.relay.device_copy <tvm.relay.device_copy>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid "Copy data from the source device to the destination device."
-msgstr "Copy data from the source device to the destination device."
+msgstr "将数据从源设备复制到目标设备。"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.annotation.on_device <tvm.relay.annotation.on_device>`"
@@ -1174,8 +1157,6 @@ msgid ""
 "Annotates an expression with the device type on which its result should be "
 "stored."
 msgstr ""
-"Annotates an expression with the device type on which its result should be "
-"stored."
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.reverse_reshape <tvm.relay.reverse_reshape>`"
@@ -1186,8 +1167,6 @@ msgid ""
 "Reshapes the input array where the special values are inferred from right to"
 " left."
 msgstr ""
-"Reshapes the input array where the special values are inferred from right to"
-" left."
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.sequence_mask <tvm.relay.sequence_mask>`"
@@ -1198,8 +1177,6 @@ msgid ""
 "Sets all elements outside the expected length of the sequence to a constant "
 "value."
 msgstr ""
-"Sets all elements outside the expected length of the sequence to a constant "
-"value."
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.batch_matmul <tvm.relay.nn.batch_matmul>`"
@@ -1207,7 +1184,7 @@ msgstr ":obj:`tvm.relay.nn.batch_matmul <tvm.relay.nn.batch_matmul>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid "Compute batch matrix multiplication of `tensor_a` and `tensor_b`."
-msgstr "Compute batch matrix multiplication of `tensor_a` and `tensor_b`."
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ""
@@ -1217,7 +1194,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid "2D adaptive max pooling operator."
-msgstr "2D adaptive max pooling operator."
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ""
@@ -1227,7 +1204,7 @@ msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid "2D adaptive average pooling operator."
-msgstr "2D adaptive average pooling operator."
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:226:<autosummary>:1
 msgid ":obj:`tvm.relay.one_hot <tvm.relay.one_hot>`"
@@ -1238,8 +1215,6 @@ msgid ""
 "Returns a one-hot tensor where the locations repsented by indices take value"
 " on_value, other locations take value off_value."
 msgstr ""
-"Returns a one-hot tensor where the locations repsented by indices take value"
-" on_value, other locations take value off_value."
 
 #: ../../_staging/reference/langref/relay_op.rst:227
 msgid "**Level 11: Dialect Operators**"
@@ -1247,7 +1222,7 @@ msgstr "**级别 11：Dialect 算子**"
 
 #: ../../_staging/reference/langref/relay_op.rst:229
 msgid "This level supports dialect operators."
-msgstr "This level supports dialect operators."
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:235:<autosummary>:1
 msgid ":obj:`tvm.relay.qnn.op.requantize <tvm.relay.qnn.op.requantize>`"
@@ -1255,7 +1230,7 @@ msgstr ":obj:`tvm.relay.qnn.op.requantize <tvm.relay.qnn.op.requantize>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:235:<autosummary>:1
 msgid "Requantized operator."
-msgstr "Requantized operator."
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:235:<autosummary>:1
 msgid ":obj:`tvm.relay.qnn.op.conv2d <tvm.relay.qnn.op.conv2d>`"
@@ -1263,4 +1238,4 @@ msgstr ":obj:`tvm.relay.qnn.op.conv2d <tvm.relay.qnn.op.conv2d>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:235:<autosummary>:1
 msgid "Quantized 2D convolution."
-msgstr "Quantized 2D convolution."
+msgstr ""

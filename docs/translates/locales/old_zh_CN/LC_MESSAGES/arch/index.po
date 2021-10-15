@@ -187,7 +187,7 @@ msgstr "优化：将程序转换为一个等效的或者更优化的版本。"
 msgid ""
 "lowering: transform a program to a lower-level representation that is closer"
 " to the target."
-msgstr ""
+msgstr "底层化：将一个程序转化为更靠近目标，更底层的表达式。"
 
 #: ../../_staging/arch/index.rst:89
 msgid ""
@@ -196,6 +196,7 @@ msgid ""
 "folding and dead-code elimination, and tensor-computation specific passes "
 "such as layout transformation and scaling factor folding."
 msgstr ""
+"**relay/transform**包含一组优化模型的passes。优化包含常见的程序优化比如常数折叠和死码消除，以及张量特定的passes例如布局转换和比例因子折叠。"
 
 #: ../../_staging/arch/index.rst:93
 msgid ""
@@ -204,23 +205,25 @@ msgid ""
 "conv2d-relu) segments. We call these segments of functions. This process "
 "helps us to divide the original problem into two sub-problems:"
 msgstr ""
+"在relay优化pipeline的末尾，我们会运行一个pass（FuseOps）来将端到端函数（例如：MobileNet）拆分为子函数（例如"
+"：conv2d-relu）段。我们把这些称为函数段。这个过程帮助我们将原始的问题分为两个子问题。"
 
 #: ../../_staging/arch/index.rst:97
 msgid "Compilation and optimization for each sub-function."
-msgstr ""
+msgstr "子函数的编译和优化。"
 
 #: ../../_staging/arch/index.rst:98
 msgid ""
 "Overall execution structure: we need to do a sequence of calls into the "
 "generated sub-functions to execute the whole model."
-msgstr ""
+msgstr "总体执行结构：我们需要对生成的子函数做一系列的调用来执行整个模型。"
 
 #: ../../_staging/arch/index.rst:100
 msgid ""
 "We use the low-level tir phase to compile and optimize each sub-functions. "
 "For specific targets, we may also directly go to the target translation "
 "phase and use external code generators."
-msgstr ""
+msgstr "我们用底层tir阶段来编译和优化每个子函数。对特定的目标，我们也可以直接进入目标转化阶段并使用外部代码生成器。"
 
 #: ../../_staging/arch/index.rst:103
 msgid ""
@@ -234,6 +237,8 @@ msgid ""
 " by a unified **runtime.Module** interface, which we will discuss in the "
 "latter part of the guide."
 msgstr ""
+"有几种不同的方法（在relay/backend）里来处理对整个执行问题的调用。对于具有已知形状且没有控制流的简单模型，我们可以底层化为一个将执行结构存储在图像里的图像执行器。我们也支持用于动态执行的虚拟机后端。最后，我们计划支持提前编译，将高层执行结构编译为可执行的和被生成的原语函数。所有的这些执行模式都被封装在一个同意的"
+" **runtime.Module** 接口，我们将在这个指南的后半部分讨论这个接口。"
 
 #: ../../_staging/arch/index.rst:105
 msgid ""
@@ -245,6 +250,8 @@ msgid ""
 "also optimizations passes, such as access index simplification and dead code"
 " elimination."
 msgstr ""
+"**tir/transform**包含TIR层函数的转换passes。很多tir "
+"passes的目的是底层化。例如，有些passes将多维访问扁平化为一维指针访问，来内部函数扩展为目标指定函数，以及修饰函数入口来满足runtime调用习惯。当然，也有一些优化passes比如访问索引简化和死码消除。"
 
 #: ../../_staging/arch/index.rst:107
 msgid ""
