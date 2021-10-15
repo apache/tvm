@@ -126,7 +126,7 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
   ICHECK(ifm->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
       << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for ifm but was "
       << ifm->dtype;
-  ICHECK(weight->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
+  ICHECK(weight->dtype == DataType::UInt(8) || weight->dtype == DataType::Int(8))
       << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for weight but was "
       << weight->dtype;
   ICHECK(scale_bias->dtype == DataType::UInt(8))
