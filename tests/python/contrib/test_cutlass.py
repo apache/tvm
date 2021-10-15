@@ -15,40 +15,19 @@ N = 768
 K = 768
 
 
-def get_cpu_op_count(mod):
-    """Traverse graph counting ops offloaded to TVM."""
-
-    class Counter(tvm.relay.ExprVisitor):
-        def __init__(self):
-            super().__init__()
-            self.count = 0
-
-        def visit_call(self, call):
-            if isinstance(call.op, tvm.ir.Op):
-                self.count += 1
-
-            super().visit_call(call)
-
-    c = Counter()
-    c.visit(mod["main"])
-    return c.count
-
-
 data = relay.var("data", shape=(M, K), dtype="float16")
 weight = relay.var("weight", shape=(N, K), dtype="float16")
 bias = relay.var("bias", shape=(N,), dtype="float16")
 gemm_out = relay.nn.dense(data, weight)
-# gemm_out = relay.nn.bias_add(gemm_out, bias)
+gemm_out = relay.nn.bias_add(gemm_out, bias)
 # gemm_out = relay.nn.relu(gemm_out)
 # gemm_out = relay.nn.gelu(gemm_out)
 # gemm_out = relay.nn.dense(gemm_out, weight)
 out = gemm_out
 
 mod = tvm.IRModule.from_expr(out)
-### dataflow rewrite
 mod = transform.MergeComposite(get_pattern_table("cutlass"))(mod)
 mod = transform.AnnotateTarget(["cutlass"])(mod)
-# mod = transform.MergeCompilerRegions()(mod) // we don't need this in byoc cutlass
 mod = transform.PartitionGraph()(mod)
 # mod = transform.InferType()(mod)
 is_nt = False
@@ -133,14 +112,9 @@ np_data = np.random.uniform(-1, 1, (M, K)).astype("float16")
 np_weight = np.random.uniform(-1, 1, (N, K)).astype("float16")
 np_bias = np.random.uniform(-1, 1, (N,)).astype("float16")
 
-if is_nt:
-    tvm_data = np_data.T
-    tvm_weight = np_weight.T
-    tvm_bias = np_bias
-else:
-    tvm_data = np_data
-    tvm_weight = np_weight
-    tvm_bias = np_bias
+tvm_data = np_data
+tvm_weight = np_weight
+tvm_bias = np_bias
 
 params = {"weight": tvm_weight, "bias": tvm_bias}
 
@@ -150,7 +124,6 @@ with tvm.transform.PassContext(opt_level=3):
     # print("====================")
     # print(lib.imported_modules[1].get_source())
     lib = relay.build(mod, target=target, params=params)
-
 
 lib_path = "compiled.so"
 cutlass_path = "../../../3rdparty/cutlass/include"
@@ -175,9 +148,7 @@ kwargs["options"] = [
 lib.export_library(lib_path, workspace_dir=workdir, **kwargs)
 lib = runtime.load_module(lib_path)
 
-
 ctx = tvm.gpu()
-# rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
 rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](ctx))
 
 x = tvm.nd.array(tvm_data, device=ctx)
@@ -190,7 +161,7 @@ y = rt_mod.get_output(0)
 print("np computing...")
 np_out = np.dot(np_data, np_weight.T)
 # np_out = np.dot(np_out, np_weight.T)
-# np_out = np_out + np_bias
+np_out = np_out + np_bias
 # np_out = np_out * (np_out > 0)
 # np_out = np_out*(0.5+erf(np_out * np.sqrt(0.5)) * 0.5)
 
