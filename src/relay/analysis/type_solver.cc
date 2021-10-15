@@ -233,10 +233,9 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     tvm::Array<IndexExpr> shape;
     if (tt1->shape.size() != tt2->shape.size()) {
       this->solver_->Emit(Diagnostic::Error(this->span)
-                          << "tensor type `" << PrettyPrint(tt1) << "` has "
-                          << tt1->shape.size() << " dimensions, while `"
-                          << PrettyPrint(tt2) << "` has " << tt2->shape.size()
-                          << " dimensions");
+                          << "tensor type `" << PrettyPrint(tt1) << "` has " << tt1->shape.size()
+                          << " dimensions, while `" << PrettyPrint(tt2) << "` has "
+                          << tt2->shape.size() << " dimensions");
       return Type(nullptr);
     }
 
