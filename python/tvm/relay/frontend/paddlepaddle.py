@@ -43,7 +43,6 @@ from .common import (
 __all__ = ["from_paddle"]
 
 
-<<<<<<< HEAD
 def _autopad(
     data,
     strides,
@@ -94,20 +93,6 @@ def _autopad(
     if isinstance(pad_value, (float, int)):
         pad_value = _op.const(pad_value)
     return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
-=======
-def _get_pad_size(in_size, dilated_kernel_size, stride_size):
-    """Calculate the paddings size for Conv/Pool in SAME padding mode."""
-
-    if stride_size == 1 or in_size % stride_size == 0:
-        pad = max(dilated_kernel_size - stride_size, 0)
-    else:
-        pad = max(dilated_kernel_size - (in_size % stride_size), 0)
-
-    pad_before = pad // 2
-    pad_after = pad - pad_before
-
-    return [pad_before, pad_after]
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
 
 
 def _dtype_shape_promotion(inputs):
@@ -143,7 +128,6 @@ def shape_of(x, dtype="int32"):
 
 def _convert_dtype_value(val):
     """Converts a Paddle type id to a string."""
-<<<<<<< HEAD
 
     convert_dtype_map = {
         21: "int8",
@@ -161,25 +145,6 @@ def _convert_dtype_value(val):
         raise NotImplementedError(msg)
     return convert_dtype_map[val]
 
-=======
-
-    convert_dtype_map = {
-        21: "int8",
-        20: "uint8",
-        6: "float64",
-        5: "float32",
-        4: "float16",
-        3: "int64",
-        2: "int32",
-        1: "int16",
-        0: "bool",
-    }
-    if val not in convert_dtype_map:
-        msg = "Paddle data type value %d is not handled yet." % (val)
-        raise NotImplementedError(msg)
-    return convert_dtype_map[val]
-
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
 
 def convert_unary_op(g, op, block):
     """Operator converter for all the unary operators."""
@@ -201,15 +166,6 @@ def convert_unary_op(g, op, block):
 
 def convert_binary_logical_op(g, op, block):
     """Operator converter for logical op."""
-<<<<<<< HEAD
-=======
-
-    ipt0 = g.get_node(op.input("X")[0])
-    ipt1 = g.get_node(op.input("Y")[0])
-    op_func = get_relay_op(op.type)
-    out = op_func(ipt0, ipt1)
-    g.add_node(op.output("Out")[0], out)
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
 
     ipt0 = g.get_node(op.input("X")[0])
     ipt1 = g.get_node(op.input("Y")[0])
@@ -217,10 +173,7 @@ def convert_binary_logical_op(g, op, block):
     out = op_func(ipt0, ipt1)
     g.add_node(op.output("Out")[0], out)
 
-<<<<<<< HEAD
 
-=======
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
 def convert_arg_max_min(g, op, block):
     """Operator converter for arg_max and arg_min."""
 
@@ -333,26 +286,9 @@ def convert_conv2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-<<<<<<< HEAD
         dilations = [1, 1]
         input_x = _autopad(input_x, strides, [k_h, k_w], dilations)
         paddings = [0, 0]
-=======
-        if strides[0] == 1 and strides[1] == 1:
-            pad_h = _get_pad_size(0, (k_h - 1) * dilations[0] + 1, strides[0])
-            pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
-        else:
-            input_shape = shape_of(input_x)
-            h_w = _op.strided_slice(input_shape, [2], [4])
-            try:
-                in_h, in_w = infer_value(h_w, g.get_params()).numpy().tolist()
-            except Exception as e:
-                msg = "Dynamic shape is not supported in SAME padding algorithm while stride!=1"
-                raise tvm.error.OpAttributeInvalid(msg) from e
-            pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-            pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
-        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
             paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
@@ -1064,10 +1000,7 @@ _convert_map = {
     "shape": convert_shape,
     "slice": convert_slice,
     "softmax": convert_softmax,
-<<<<<<< HEAD
     "squeeze2": convert_squeeze,
-=======
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
     "tanh": convert_unary_op,
     "unsqueeze2": convert_unsqueeze,
 }
@@ -1221,36 +1154,18 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """Convert a PaddlePaddle model into an equivalent Relay Function.
     PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model,
     and PaddlePaddle scope stores all the weights of PaddlePaddle model.
-<<<<<<< HEAD
-=======
-
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
     Parameters
     ----------
     program_or_layer : object of `paddle.static.Program` or `paddle.jit.TranslatedLayer`
         Loaded model by `paddle.static.load_inference_model` or `paddle.jit.load`
-<<<<<<< HEAD
     shape_dict : dict of str to tuple/list, optional
         The input shape of model
     scope : object of `paddle.static.Scope`, optional
         The scope that saves all the weights of model, use `paddle.static.global_scope` by default
-=======
-
-    shape_dict : dict of str to tuple/list, optional
-        The input shape of model
-
-    scope : object of `paddle.static.Scope`, optional
-        The scope that saves all the weights of model, use `paddle.static.global_scope` by default
-
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
     Returns
     -------
     mod : tvm.IRModule
         The relay module for compilation
-<<<<<<< HEAD
-=======
-
->>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
     params : dict of str to tvm.nd.NDArray
     """
 
