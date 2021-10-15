@@ -24,6 +24,7 @@ import tvm.testing
 import tvm.topi.testing
 from tvm import relay
 from tvm.contrib import graph_executor
+import pytest
 
 import paddle
 import paddle.nn as nn
@@ -79,11 +80,11 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
         baseline_outputs = (baseline_outputs.numpy(),)
 
     mod, params = relay.frontend.from_paddle(baseline_model, input_shape_dict)
-    parms_num = min(len(input_names), len(mod["main"].params))
     compiled_names = []
-    for arg in mod["main"].params[:parms_num]:
-        assert arg.name_hint in input_names
-        compiled_names.append(arg.name_hint)
+    for arg in mod["main"].params:
+        assert arg.name_hint in input_names or arg.name_hint in params
+        if arg.name_hint in input_names:
+            compiled_names.append(arg.name_hint)
 
     with tvm.transform.PassContext(opt_level=3):
         for target, dev in tvm.testing.enabled_targets():
@@ -125,9 +126,7 @@ def test_forward_add_subtract():
 
 
 @tvm.testing.uses_gpu
-def test_forward_argmax():
-    input_shape = [1, 3, 10, 10]
-
+def test_forward_arg_max_min():
     class ArgMax(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -148,11 +147,70 @@ def test_forward_argmax():
         def forward(self, inputs):
             return inputs.argmax(axis=2, keepdim=True)
 
-    input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(ArgMax(), input_data=input_data)
-    verify_model(ArgMax1(), input_data=input_data)
-    verify_model(ArgMax2(), input_data=input_data)
-    verify_model(ArgMax3(), input_data=input_data)
+    class ArgMin(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.argmin(inputs)
+
+    class ArgMin1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return inputs.argmin(axis=1)
+
+    class ArgMin2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return inputs.argmax(axis=1, keepdim=False)
+
+    class ArgMin3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return inputs.argmin(axis=2, keepdim=True)
+
+    input_shapes = [[256], [5, 28], [10, 5, 4], [1, 3, 8, 8]]
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(ArgMax(), input_data=input_data)
+        verify_model(ArgMin(), input_data=input_data)
+    for input_shape in input_shapes[1:]:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(ArgMax1(), input_data=input_data)
+        verify_model(ArgMax2(), input_data=input_data)
+        verify_model(ArgMin1(), input_data=input_data)
+        verify_model(ArgMin2(), input_data=input_data)
+    for input_shape in input_shapes[2:]:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(ArgMax3(), input_data=input_data)
+        verify_model(ArgMin3(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_argsort():
+    class ArgSort1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.argsort(inputs)
+
+    class ArgSort2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.argsort(inputs, axis=0, descending=True)
+
+    class ArgSort3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.argsort(inputs, axis=-1, descending=True)
+
+    input_shapes = [[256], [10, 20], [10, 5, 3], [1, 3, 5, 5]]
+    for input_shape in input_shapes:
+        # Avoid duplicate elements in the array which will bring
+        # different results with different sort algorithms
+        np.random.seed(13)
+        np_data = np.random.choice(range(-5000, 5000), np.prod(input_shape), replace=False)
+        input_data = paddle.to_tensor(np_data.reshape(input_shape).astype("int64"))
+        verify_model(ArgSort1(), [input_data])
+        verify_model(ArgSort2(), [input_data])
+        verify_model(ArgSort3(), [input_data])
 
 
 @tvm.testing.uses_gpu
@@ -160,6 +218,11 @@ def test_forward_assign():
     @paddle.jit.to_static
     def assign(inputs):
         return paddle.assign(inputs)
+
+    @paddle.jit.to_static
+    def assign_value(inputs):
+        x = paddle.to_tensor(np.array([3]).astype("float32"))
+        return inputs + x
 
     input_shape = [2, 3]
     input_data = paddle.rand(input_shape, dtype="float32")
@@ -176,6 +239,7 @@ def test_forward_assign():
             input_data2,
         ],
     )
+    verify_model(assign_value, [input_data])
 
 
 @tvm.testing.uses_gpu
@@ -242,6 +306,31 @@ def test_forward_cast():
 
 
 @tvm.testing.uses_gpu
+def test_forward_check_tensor():
+    class IsFinite(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cast(paddle.isfinite(inputs), "int32")
+
+    class IsNan(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cast(paddle.isnan(inputs), "int32")
+
+    class IsInf(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.cast(paddle.isinf(inputs), "int32")
+
+    input_shapes = [[32], [8, 32], [2, 5, 20], [2, 3, 8, 8], [2, 2, 3, 6, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(IsFinite(), input_data=input_data)
+        verify_model(IsNan(), input_data=input_data)
+        verify_model(IsInf(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_concat_unsqueeze():
     @paddle.jit.to_static
     def concat_unsqueeze1(inputs):
@@ -293,31 +382,51 @@ def test_forward_cumsum():
 
 @tvm.testing.uses_gpu
 def test_forward_conv():
-    conv2d_input_shape = [1, 3, 10, 10]
-
     class Conv2D1(nn.Layer):
-        def __init__(self):
+        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"):
             super(Conv2D1, self).__init__()
-            self.conv = nn.Conv2D(3, 6, 7, bias_attr=True)
+            self.conv = nn.Conv2D(
+                3,
+                6,
+                3,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                padding_mode=padding_mode,
+            )
             self.softmax = nn.Softmax()
 
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
 
-    class Conv2D2(nn.Layer):
-        def __init__(self):
-            super(Conv2D2, self).__init__()
-            self.conv = nn.Conv2D(3, 6, 7, groups=3, bias_attr=False)
-            self.softmax = nn.Softmax()
+    input_shapes = [[1, 3, 10, 10], [1, 3, 12, 12]]
 
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(Conv2D1(), input_data=input_data)
+        verify_model(Conv2D1(stride=2, padding="VALID", dilation=3), input_data=input_data)
+        verify_model(Conv2D1(stride=2, padding="SAME", dilation=3), input_data=input_data)
+        verify_model(
+            Conv2D1(stride=2, padding=3, dilation=3, padding_mode="replicate"),
+            input_data=input_data,
+        )
+        verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_dot():
+    class Dot(nn.Layer):
         @paddle.jit.to_static
-        def forward(self, inputs):
-            return self.softmax(self.conv(inputs))
+        def forward(self, x, y):
+            return paddle.dot(x, y)
 
-    conv2d_input_data = paddle.rand(conv2d_input_shape, dtype="float32")
-    verify_model(Conv2D1(), input_data=conv2d_input_data)
-    verify_model(Conv2D2(), input_data=conv2d_input_data)
+    input_shapes = [[128], [8, 24]]
+    for input_shape in input_shapes:
+        x_data = paddle.rand(input_shape, dtype="float32")
+        y_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(Dot(), input_data=[x_data, y_data])
 
 
 @tvm.testing.uses_gpu
@@ -330,6 +439,93 @@ def test_forward_dropout():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(dropout, input_data=input_data[0, 0])
     verify_model(dropout, input_data=input_data)
+
+
+def test_forward_elemwise():
+    class ElemwiseAPI(nn.Layer):
+        def __init__(self, api_name):
+            super(ElemwiseAPI, self).__init__()
+            self.api_name_ = api_name
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, api_name, None)
+                if self.func:
+                    break
+
+        @paddle.jit.to_static
+        def forward(self, input1, input2):
+            y = self.func(input1, input2)
+            if "equal" in self.api_name_ or "than" in self.api_name_:
+                # for compare operation, cast boolean result to int32
+                y = paddle.cast(y, "int32")
+            return y
+
+    api_list = [
+        "equal",
+    ]
+    x_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
+    y_shapes = [[1], [8, 20], [4, 1, 1], [2, 3, 8, 8], [2, 3, 3, 9, 1]]
+    for x_shape, y_shape in zip(x_shapes, y_shapes):
+        x_data = paddle.randint(1, 1000, x_shape, dtype="int32")
+        y_data = paddle.randint(1, 1000, y_shape, dtype="int32")
+        for api_name in api_list:
+            verify_model(ElemwiseAPI(api_name), [x_data, y_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_expand():
+    @paddle.jit.to_static
+    def expand1(inputs):
+        return paddle.expand(inputs, shape=[2, 128])
+
+    @paddle.jit.to_static
+    def expand2(inputs):
+        return paddle.expand(inputs, shape=[2, 1, 4, 16])
+
+    @paddle.jit.to_static
+    def expand3(inputs):
+        return paddle.expand(inputs, shape=[2, 1, 3, 7, 7])
+
+    @paddle.jit.to_static
+    def expand4(inputs):
+        shape = paddle.to_tensor(np.array([2, 128]).astype("int32"))
+        return paddle.expand(inputs, shape=shape)
+
+    @paddle.jit.to_static
+    def expand5(inputs):
+        shape = paddle.to_tensor(np.array([2, 1, 4, 16]).astype("int32"))
+        return paddle.expand(inputs, shape=shape)
+
+    @paddle.jit.to_static
+    def expand6(inputs):
+        shape = paddle.to_tensor(np.array([2, 1, 3, 7, 7]).astype("int32"))
+        return paddle.expand(inputs, shape=shape)
+
+    data = paddle.rand([128], dtype="float32")
+    verify_model(expand1, input_data=[data])
+    verify_model(expand4, input_data=[data])
+    data = paddle.rand([4, 16], dtype="float32")
+    verify_model(expand2, input_data=[data])
+    verify_model(expand5, input_data=[data])
+    data = paddle.rand([1, 3, 7, 7], dtype="float32")
+    verify_model(expand3, input_data=[data])
+    verify_model(expand6, input_data=[data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_expand_as():
+    class ExpandAs(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            z = paddle.expand_as(x, y)
+            z += y
+            return z
+
+    x_shapes = [[1], [8, 128], [8, 1, 1], [2, 3, 229, 229], [2, 3, 3, 224, 1]]
+    y_shapes = [[128], [8, 128], [8, 200, 300], [2, 3, 229, 229], [2, 3, 3, 224, 224]]
+    for x_shape, y_shape in zip(x_shapes, y_shapes):
+        x_data = paddle.rand(x_shape, dtype="float32")
+        y_data = paddle.rand(y_shape, dtype="float32")
+        verify_model(ExpandAs(), [x_data, y_data])
 
 
 @tvm.testing.uses_gpu
@@ -346,6 +542,26 @@ def test_forward_shape_full():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(full1, input_data=[input_data])
     verify_model(full2, input_data=[input_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_squeeze():
+    class Squeeze(nn.Layer):
+        def __init__(self, axis=None):
+            super(Squeeze, self).__init__()
+            self.axis = axis
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.squeeze(inputs, axis=self.axis)
+
+    input_shapes = [[1, 1, 3, 1, 5], [5, 1, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(Squeeze(axis=None), input_data=input_data)
+        verify_model(Squeeze(axis=1), input_data=input_data)
+    input_data = paddle.rand([1], dtype="float32")
+    verify_model(Squeeze(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -433,6 +649,32 @@ def test_forward_leaky_relu():
 
 
 @tvm.testing.uses_gpu
+def test_forward_logical_api():
+    class LogicalAPI(nn.Layer):
+        def __init__(self, api_name):
+            super(LogicalAPI, self).__init__()
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, api_name, None)
+                if self.func:
+                    break
+
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            out = paddle.to_tensor([True, True, True])
+            z = self.func(x, y, out=out)
+            return paddle.cast(z, "int32")
+
+    x_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
+    y_shapes = [[1], [8, 20], [4, 1, 1], [2, 3, 8, 8], [2, 3, 3, 9, 1]]
+    for x_shape, y_shape in zip(x_shapes, y_shapes):
+        x_data = paddle.randint(0, 2, x_shape).astype("bool")
+        y_data = paddle.randint(0, 2, y_shape).astype("bool")
+        verify_model(LogicalAPI("logical_and"), [x_data, y_data])
+        verify_model(LogicalAPI("logical_or"), [x_data, y_data])
+        verify_model(LogicalAPI("logical_xor"), [x_data, y_data])
+
+
+@tvm.testing.uses_gpu
 def test_forward_look_up():
     @paddle.jit.to_static
     def look_up(inputs, weight):
@@ -506,35 +748,55 @@ def test_forward_matmul():
 
 @tvm.testing.uses_gpu
 def test_forward_pool2d():
-    @paddle.jit.to_static
-    def pool2d1(inputs):
-        return nn.functional.avg_pool2d(inputs, kernel_size=2, stride=2, padding=0)
+    class Pool2D1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.avg_pool2d(inputs, kernel_size=2, stride=2, padding=0)
 
-    @paddle.jit.to_static
-    def pool2d2(inputs):
-        return nn.functional.adaptive_avg_pool2d(inputs, output_size=[3, 3])
+    class Pool2D2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.adaptive_avg_pool2d(inputs, output_size=[3, 3])
 
-    @paddle.jit.to_static
-    def pool2d3(inputs):
-        return nn.functional.max_pool2d(
-            inputs, kernel_size=2, stride=2, padding=0, return_mask=True
-        )
+    class Pool2D3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.avg_pool2d(
+                inputs,
+                kernel_size=3,
+                stride=1,
+                padding=[1, 1],
+                exclusive=False,
+                divisor_override=2.5,
+            )
 
-    input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
-    verify_model(pool2d1, input_data=input_data)
-    verify_model(pool2d2, input_data=input_data)
-    # verify_model(pool2d3, input_data=input_data)
+    input_shapes = [[1, 2, 8, 8], [1, 3, 10, 10]]
+    for input_shape in input_shapes:
+        input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
+        verify_model(Pool2D1(), input_data=input_data)
+        verify_model(Pool2D2(), input_data=input_data)
+        verify_model(Pool2D3(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
-def test_forward_relu():
-    @paddle.jit.to_static
-    def relu(inputs):
-        return nn.functional.relu(inputs)
+def test_forward_pad3d():
+    class Pad3D(nn.Layer):
+        def __init__(self, padding=0, mode="constant", value=0.0, data_format="NCDHW"):
+            super(Pad3D, self).__init__()
+            self.pad3d = paddle.nn.Pad3D(padding, mode=mode, value=value, data_format=data_format)
 
-    input_shape = [10, 10]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(relu, input_data=input_data)
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.pad3d(inputs)
+
+    input_shapes = [[1, 2, 2, 5, 5], [1, 2, 2, 5, 9]]
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(Pad3D(padding=2), input_data=input_data)
+    verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1]), input_data=input_data)
+    verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1], value=0.3), input_data=input_data)
+    verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1], mode="reflect"), input_data=input_data)
+    verify_model(Pad3D(padding=3, mode="replicate"), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -623,39 +885,30 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
-def test_forward_tanh():
-    @paddle.jit.to_static
-    def tanh(inputs):
-        return paddle.tanh(inputs)
+def test_forward_math_api():
+    class MathAPI(nn.Layer):
+        def __init__(self, api_name):
+            super(MathAPI, self).__init__()
+            for candidate in (paddle, paddle.nn.functional):
+                self.func = getattr(candidate, api_name, None)
+                if self.func:
+                    break
 
-    input_shape = [1, 3, 10, 10]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(tanh, input_data=input_data)
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.func(inputs)
+
+    api_list = [
+        "exp",
+        "relu",
+        "tanh",
+    ]
+    input_shapes = [[128], [2, 100], [10, 2, 5], [7, 3, 4, 1]]
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        for api_name in api_list:
+            verify_model(MathAPI(api_name), input_data=input_data)
 
 
 if __name__ == "__main__":
-    test_forward_add_subtract()
-    test_forward_argmax()
-    test_forward_assign()
-    test_forward_batch_norm()
-    test_forward_cast()
-    test_forward_concat_unsqueeze()
-    test_forward_cumsum()
-    test_forward_conv()
-    test_forward_dropout()
-    test_forward_shape_full()
-    test_forward_ones_like()
-    test_forward_gelu()
-    test_forward_hard_sigmoid()
-    test_forward_hard_swish()
-    test_forward_layer_norm()
-    test_forward_leaky_relu()
-    test_forward_look_up()
-    test_forward_multiply()
-    test_forward_matmul()
-    test_forward_pool2d()
-    test_forward_relu()
-    test_forward_reshape()
-    test_forward_scale()
-    test_forward_slice()
-    test_forward_tanh()
+    pytest.main([__file__])
