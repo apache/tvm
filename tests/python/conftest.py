@@ -53,13 +53,14 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    skip_corstone300 = pytest.mark.skip(reason="Need --enable-corstone300-tests option to run")
-    skip_non_corstone300 = pytest.mark.skip(reason="Test shold be marked 'corstone300' to run")
-
     for item in items:
         if config.getoption("--enable-corstone300-tests"):
             if not "corstone300" in item.keywords:
-                item.add_marker(skip_non_corstone300)
+                item.add_marker(
+                    pytest.mark.skip(reason="Test shold be marked 'corstone300' to run")
+                )
         else:
             if "corstone300" in item.keywords:
-                item.add_marker(skip_corstone300)
+                item.add_marker(
+                    pytest.mark.skip(reason="Need --enable-corstone300-tests option to run")
+                )
