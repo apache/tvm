@@ -46,12 +46,11 @@ def xcrun(cmd):
 
 
 def __get_min_os_version(sdk):
-    if sdk == "macosx" or sdk == "iphonesimulator":
+    if sdk in ("macosx", "iphonesimulator"):
         return None
-    elif sdk == "iphoneos":
+    if sdk == "iphoneos":
         return "13.0"
-    else:
-        raise RuntimeError("Unsupported sdk: %s" % sdk)
+    raise RuntimeError("Unsupported sdk: %s" % sdk)
 
 
 def __get_min_os_version_cmd(sdk, min_os_version):
@@ -144,7 +143,7 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     min_target = __get_min_os_version_cmd(sdk, min_os_version)
     if sdk == "macosx":
         language_version = "-std=macos-metal2.3"
-    elif sdk == "iphoneos" or sdk == "iphonesimulator":
+    elif sdk in ("iphoneos", "iphonesimulator"):
         language_version = "-std=ios-metal2.3"
     else:
         raise RuntimeError("Unsupported sdk: %s" % sdk)
