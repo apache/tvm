@@ -43,18 +43,56 @@ from .common import (
 __all__ = ["from_paddle"]
 
 
-def _get_pad_size(in_size, dilated_kernel_size, stride_size):
-    """Calculate the paddings size for Conv/Pool in SAME padding mode."""
+def _autopad(
+    data,
+    strides,
+    kernel_shape,
+    dilations,
+    pad_type="constant",
+    pad_value=0.0,
+):
+    """Perform padding under SAME mode for dynamic and fixed input shapes.
+    This implementation refers to ONNX frontend.
+    """
 
-    if stride_size == 1 or in_size % stride_size == 0:
-        pad = max(dilated_kernel_size - stride_size, 0)
-    else:
-        pad = max(dilated_kernel_size - (in_size % stride_size), 0)
+    # get attributes as constants
+    strides = _op.const(np.array(strides), dtype="int64")
+    dilated_kernel_shape = _op.const(
+        np.array(
+            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
+        ),
+        dtype="int64",
+    )
+    # get input shape
+    ndim = len(infer_shape(data))
+    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
 
-    pad_before = pad // 2
-    pad_after = pad - pad_before
+    # set up integer constants
+    zero = _op.const(0, dtype="int64")
+    two = _op.const(2, dtype="int64")
 
-    return [pad_before, pad_after]
+    # Calculate total padding
+    mod = _op.mod(shape, strides)
+
+    left = _op.maximum(dilated_kernel_shape - strides, zero)
+    right = _op.maximum(dilated_kernel_shape - mod, zero)
+
+    total_pad = _op.where(_op.equal(mod, zero), left, right)
+
+    # split total padding into before and after
+    pad_before = _op.floor_divide(total_pad, two)
+    pad_after = total_pad - pad_before
+
+    pad = _op.concatenate(
+        [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
+    )
+
+    # pad N and C with zeros
+    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
+
+    if isinstance(pad_value, (float, int)):
+        pad_value = _op.const(pad_value)
+    return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
 
 
 def _dtype_shape_promotion(inputs):
@@ -248,24 +286,13 @@ def convert_conv2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        if strides[0] == 1 and strides[1] == 1:
-            pad_h = _get_pad_size(0, (k_h - 1) * dilations[0] + 1, strides[0])
-            pad_w = _get_pad_size(0, (k_w - 1) * dilations[1] + 1, strides[1])
-        else:
-            input_shape = shape_of(input_x)
-            h_w = _op.strided_slice(input_shape, [2], [4])
-            try:
-                in_h, in_w = infer_value(h_w, g.get_params()).numpy().tolist()
-            except Exception as e:
-                msg = "Dynamic shape is not supported in SAME padding algorithm while stride!=1"
-                raise tvm.error.OpAttributeInvalid(msg) from e
-            pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-            pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
-        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
+        dilations = [1, 1]
+        input_x = _autopad(input_x, strides, [k_h, k_w], dilations)
+        paddings = [0, 0]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
             paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
-        if len(paddings) == 4:
+        elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
         msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
@@ -686,6 +713,39 @@ def convert_mul(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_padding(g, op, block):
+    """Operator converter for padding."""
+
+    input_x = g.get_node(op.input("X")[0])
+    input_padding = op.input("Paddings")
+    if input_padding:
+        padding = g.get_node(input_padding[0])
+        padding = infer_value(padding, g.get_params()).numpy().tolist()
+    else:
+        padding = op.attr("paddings")
+    padding = op.attr("paddings")
+    value = op.attr("value")
+    data_format = op.attr("data_format")
+    mode = op.attr("mode")
+    assert mode != "circular", "Don't support mod='circular' for PaddlePaddle's padding"
+    if mode == "replicate":
+        mode = "edge"
+
+    pad_len = len(padding)
+    new_paddings = [0] * (pad_len + 4)
+    for i in range(0, pad_len, 2):
+        index = -1 - i
+        if data_format[:2] != "NC":
+            index = -3 - i
+        new_paddings[index] = padding[i + 1]
+        new_paddings[index - 1] = padding[i]
+
+    new_paddings = [new_paddings[i : i + 2] for i in range(0, len(new_paddings), 2)]
+
+    out = _op.nn.pad(input_x, new_paddings, pad_value=value, pad_mode=mode)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_pool2d(g, op, block):
     """Operator converter for pool2d."""
 
@@ -696,17 +756,19 @@ def convert_pool2d(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     pooling_type = op.attr("pooling_type")
+
     if global_pooling:
         adaptive = True
         ksize = [1, 1]
 
     input_x = g.get_node(op.input("X")[0])
-    in_h, in_w = infer_shape(input_x)[2:]
+    _, _, in_h, in_w = infer_shape(input_x)
 
     op_map = {
         "avg": "avg_pool2d",
         "max": "max_pool2d",
     }
+
     strides = op.attr("strides")
     if isinstance(strides, int):
         strides = [strides, strides]
@@ -718,22 +780,38 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        pad_h = _get_pad_size(in_h, ksize[0], strides[0])
-        pad_w = _get_pad_size(in_w, ksize[1], strides[1])
-        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
+        dilations = [1, 1]
+        input_x = _autopad(input_x, strides, ksize, dilations)
+        paddings = [0, 0]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
             paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
-        if len(paddings) == 4:
+        elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
         msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
+    if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
+        ksize[0] = in_h
+    if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
+        ksize[1] = in_w
+
     if not adaptive:
-        out = getattr(_op.nn, op_map[pooling_type])(
-            input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
-        )
+        if pooling_type == "avg":
+            exclusive = op.attr("exclusive")
+            out = _op.nn.avg_pool2d(
+                input_x,
+                pool_size=ksize,
+                strides=strides,
+                padding=paddings,
+                ceil_mode=ceil_mode,
+                count_include_pad=not exclusive,
+            )
+        else:
+            out = getattr(_op.nn, op_map[pooling_type])(
+                input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
+            )
     else:
         out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(input_x, output_size=ksize)
     g.add_node(op.output("Out")[0], out)
@@ -854,6 +932,17 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_squeeze(g, op, block):
+    """Operator converter for squeeze2."""
+
+    x = g.get_node(op.input("X")[0])
+    axes = op.attr("axes")
+    if not axes:
+        axes = None
+    x = _op.squeeze(x, axis=axes)
+    g.add_node(op.output("Out")[0], x)
+
+
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
 
@@ -904,6 +993,7 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
+    "pad3d": convert_padding,
     "pool2d": convert_pool2d,
     "relu": convert_unary_op,
     "reshape2": convert_reshape,
@@ -911,6 +1001,7 @@ _convert_map = {
     "shape": convert_shape,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "squeeze2": convert_squeeze,
     "tanh": convert_unary_op,
     "unsqueeze2": convert_unsqueeze,
 }
