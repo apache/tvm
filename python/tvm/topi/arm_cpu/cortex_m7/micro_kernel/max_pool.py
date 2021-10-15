@@ -87,7 +87,7 @@ def intrin_max(shape, in_dtype, out_dtype):
 def max_impl(uniq_id):
     """Emit C code for pool impl."""
     cc_code = (
-        common.cc_code
+        common.common_includes
         + f"""
 
 
@@ -134,7 +134,8 @@ __STATIC_FORCEINLINE int32_t max8_{uniq_id}(
     if ( n > N || (N - n) < 4 )
       n = N;
     retcode = max8_loop_{uniq_id}(arg, res, n);
-    if ( (N -= n) == 0 )
+    N -= n;
+    if ( N == 0 )
       goto out;
     arg += n; res += n;
   }}
@@ -150,8 +151,8 @@ __STATIC_FORCEINLINE int32_t max8_{uniq_id}(
     *pres32 ++ = res32;
   }}
 
-  if ( N % 4 != 0 ) {{
-    retcode = max8_loop_{uniq_id}((int8_t *)parg32, (int8_t *)pres32, N % 4);
+  if ( N & 0x3 ) {{
+    retcode = max8_loop_{uniq_id}((int8_t *)parg32, (int8_t *)pres32, N & 0x3);
     goto out;
   }}
 

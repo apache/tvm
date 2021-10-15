@@ -130,7 +130,7 @@ def gemm_MxKxN_impl(M, K, N, uniq_id):
     bb_pad_size = N * K
     # code reference: CMSIS-NN paper (https://arxiv.org/abs/1801.06601)
     cc_code = (
-        common.cc_code
+        common.common_includes
         + f"""
 
 

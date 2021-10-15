@@ -95,7 +95,7 @@ def intrin_sum(shape, in_dtype, out_dtype, reset=False):
 def sum_impl(N, uniq_id):
     """Emit C code for sum impl."""
     cc_code = (
-        common.cc_code
+        common.common_includes
         + f"""
 
 #ifdef __cplusplus
@@ -118,10 +118,6 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
   int n;
   int32_t *p32;
   int32_t res = reset ? 0 : *res16;
-
-#ifdef GROVETY_OP_BENCHMARK
-  perf_timer_start(2);
-#endif
 
   if ( arr_offset % 4 != 0 ) {{
     res += *arr;

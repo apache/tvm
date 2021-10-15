@@ -18,7 +18,7 @@
 """Defines common C code for all microkernel operations."""
 
 
-cc_code = """
+common_includes = """
 
 #include <stdint.h>
 #include <stdlib.h>
