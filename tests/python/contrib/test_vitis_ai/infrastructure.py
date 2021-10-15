@@ -18,24 +18,23 @@
 
 """Expose Vitis-AI test functions to the Python frontend"""
 
+from tvm.contrib import utils
+from tvm.contrib import graph_executor
+from tvm.contrib.target import vitis_ai
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
+from tvm.relay import transform
+from tvm import runtime
+from tvm import relay
+import tvm
+import pyxir.contrib.target.DPUCZDX8G
+import pyxir.contrib.target.DPUCADX8G
 import sys
 import numpy as np
 
 import pytest
 
 pytest.importorskip("pyxir")
-import pyxir.contrib.target.DPUCADX8G
-import pyxir.contrib.target.DPUCZDX8G
-
-import tvm
-from tvm import relay
-from tvm import runtime
-from tvm.relay import transform
-from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
-from tvm.relay.build_module import bind_params_by_name
-from tvm.contrib.target import vitis_ai
-from tvm.contrib import graph_executor
-from tvm.contrib import utils
 
 
 def get_cpu_op_count(mod):
@@ -99,7 +98,7 @@ def build_module(
             ), "Got {} Vitis-AI partitions, expected {}".format(
                 partition_count, vitis_ai_partitions
             )
-        relay.backend.compile_engine.get().clear()
+        relay.backend.te_compiler.get().clear()
         return relay.build(mod, target, params=params)
 
 

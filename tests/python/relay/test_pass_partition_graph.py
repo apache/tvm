@@ -950,7 +950,7 @@ def test_dnnl_fuse():
         ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
             i_data, **ref_params
         )
-        # compile_engine.get().clear()
+        te_compiler.get().clear()
 
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
 

@@ -24,6 +24,7 @@ import re
 import tvm
 from tvm import relay
 from tvm.relay.adt import Pattern
+from tvm.relay.backend import te_compiler
 from tvm.relay.expr import Expr, GlobalVar, Var
 from tvm.relay.function import Function
 from tvm.relay.expr_functor import ExprFunctor
@@ -241,11 +242,11 @@ class PythonConverter(ExprFunctor):
         the generated Python code."""
 
         # compile the function and register globally
-        cc_key = compile_engine.CCacheKey(op, self.tgt)
+        cc_key = te_compiler.CCacheKey(op, self.tgt)
         func_hash = tvm.ir.structural_hash(op)
         op_name = "_lowered_op_{}".format(func_hash)
         if not tvm.get_global_func(op_name, allow_missing=True):
-            jitted = self.engine.jit(cc_key, self.tgt)
+            jitted = self.te_compiler.jit(cc_key, self.tgt)
             tvm.register_func(op_name, jitted)
 
         def convert_input(py_input, arg_type):
