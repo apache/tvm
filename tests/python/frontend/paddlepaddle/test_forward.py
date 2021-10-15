@@ -430,6 +430,20 @@ def test_forward_dot():
 
 
 @tvm.testing.uses_gpu
+def test_forward_dot():
+    class Dot(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, x, y):
+            return paddle.dot(x, y)
+
+    input_shapes = [[128], [8, 24]]
+    for input_shape in input_shapes:
+        x_data = paddle.rand(input_shape, dtype="float32")
+        y_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(Dot(), input_data=[x_data, y_data])
+
+
+@tvm.testing.uses_gpu
 def test_forward_dropout():
     @paddle.jit.to_static
     def dropout(inputs):
@@ -779,6 +793,7 @@ def test_forward_pool2d():
 
 
 @tvm.testing.uses_gpu
+<<<<<<< HEAD
 def test_forward_pad3d():
     class Pad3D(nn.Layer):
         def __init__(self, padding=0, mode="constant", value=0.0, data_format="NCDHW"):
@@ -800,6 +815,8 @@ def test_forward_pad3d():
 
 
 @tvm.testing.uses_gpu
+=======
+>>>>>>> a0a33fb0da7ed36fe743c7e98df8db30d2e87125
 def test_forward_reshape():
     @paddle.jit.to_static
     def reshape1(inputs, x):

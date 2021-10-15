@@ -417,7 +417,7 @@ class Parser {
    * Useful for matching optional tokens, effectively looksahead by one.
    */
   bool WhenMatch(const TokenType& token_type) {
-    VLOG(1) << "Parser::WhenMatch: Peek() == " << Peek();
+    VLOG(9) << "Parser::WhenMatch: Peek() == " << Peek();
     if (Peek()->token_type == token_type) {
       Consume(token_type);
       return true;
@@ -594,7 +594,7 @@ class Parser {
   template <typename R>
   R WithSpan(std::function<R()> parser) {
     auto start_span = Peek()->span;
-    VLOG(0) << "WithSpan: start_span = " << start_span;
+    VLOG(9) << "WithSpan: start_span = " << start_span;
     R ast = parser();
     if (ast.defined()) {
       // The token at the head of the stream is now 1 past where we parsed. So we find its start
@@ -608,7 +608,7 @@ class Parser {
         span_pos--;
       }
       auto end_token = tokens.at(span_pos);
-      VLOG(0) << "WithSpan: end_span = " << end_token->span;
+      VLOG(9) << "WithSpan: end_span = " << end_token->span;
       ast->span = start_span.Merge(end_token->span);
     }
     return ast;
@@ -668,7 +668,7 @@ class Parser {
   template <typename T>
   Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
                          std::function<bool()> before_stop = nullptr) {
-    VLOG(0) << "Parser::ParseSequence: start=" << ToString(start) << " sep=" << ToString(sep)
+    VLOG(9) << "Parser::ParseSequence: start=" << ToString(start) << " sep=" << ToString(sep)
             << " stop=" << ToString(stop);
     Match(start);
 
@@ -686,7 +686,7 @@ class Parser {
     if (WhenMatch(stop)) {
       return Array<T>();
     } else {
-      VLOG(0) << "Parser::ParseSequence: parse first";
+      VLOG(9) << "Parser::ParseSequence: parse first";
       auto data = parse();
       Array<T> elements = {data};
 
@@ -695,7 +695,7 @@ class Parser {
         // parse '( expr ',' * ')'
       } else if (WhenMatch(sep)) {
         while (true) {
-          VLOG(0) << "Parser::ParseSequence: parse element";
+          VLOG(9) << "Parser::ParseSequence: parse element";
           if (WhenMatch(stop)) {
             break;
           } else {
@@ -893,12 +893,12 @@ class Parser {
 
   /*! \brief Parse a single Relay expression. */
   Expr ParseExpr() {
-    VLOG(0) << "Parser::ParseExpr";
+    VLOG(9) << "Parser::ParseExpr";
     return WithSpan<Expr>([this] {
       std::vector<Expr> exprs;
 
       while (true) {
-        VLOG(0) << "Parser::ParseExpr: parsing a single expression";
+        VLOG(9) << "Parser::ParseExpr: parsing a single expression";
         auto next = Peek();
         switch (next->token_type) {
           // For graph or let, match first rhs, then invoke ParseBindingExpr
@@ -1011,7 +1011,7 @@ class Parser {
     // This ensures for n sequential bindings
     // the call depth will be the same before
     // and after parsing the n bindings.
-    VLOG(0) << "Parser::ParseBindingExpr";
+    VLOG(9) << "Parser::ParseBindingExpr";
     std::vector<std::tuple<Var, Expr, Span>> bindings;
     int scopes = 0;
 
@@ -1085,15 +1085,13 @@ class Parser {
    * Handles things of the form [T1, ..., TN](arg1: U1, ..., argN : UN) -> Ret { body }.
    */
   Function ParseFunctionDef() {
-    VLOG(0) << "Parser::ParseFunctionDef";
+    VLOG(9) << "Parser::ParseFunctionDef";
     return WithSpan<Function>([&]() {
       PushScope();
       PushTypeScope();
 
       Array<TypeVar> generics;
       if (Peek()->token_type == TokenType::kLSquare) {
-        // If we have generics we need to add a type scope.
-        PushTypeScope();
         generics = ParseSequence<TypeVar>(
             TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
               auto type_var_name = Match(TokenType::kIdentifier).ToString();
@@ -1149,7 +1147,7 @@ class Parser {
   /*! \brief Parse an if-expression. */
   Expr ParseIf() {
     return WithSpan<Expr>([&]() {
-      VLOG(0) << "Parser::ParseIf";
+      VLOG(9) << "Parser::ParseIf";
       Consume(TokenType::kIf);
 
       auto guard = WithSpan<Expr>([&] { return Parens<Expr>([&] { return ParseExpr(); }); });
@@ -1188,7 +1186,7 @@ class Parser {
    * This function recursively parses a pattern.
    */
   Pattern ParsePattern() {
-    VLOG(0) << "Parser::ParsePattern";
+    VLOG(9) << "Parser::ParsePattern";
     auto next = Peek();
     switch (next->token_type) {
       case TokenType::kUnderscore: {
@@ -1251,7 +1249,7 @@ class Parser {
   }
 
   Expr ParseExprBinOp() {
-    VLOG(0) << "Parser::ParseExprBinOp";
+    VLOG(9) << "Parser::ParseExprBinOp";
     return WithSpan<Expr>([this] {
       // We must parse at least one expression, the default
       // case is that there is no operator and we will fall
@@ -1335,7 +1333,7 @@ class Parser {
   }
 
   ObjectRef ParseAttributeValue() {
-    VLOG(0) << "Parser::ParseAttributeValue";
+    VLOG(9) << "Parser::ParseAttributeValue";
     auto next = Peek();
     switch (next->token_type) {
       case TokenType::kFloat:
@@ -1377,7 +1375,7 @@ class Parser {
   }
 
   Map<String, ObjectRef> ParseAttrs() {
-    VLOG(0) << "Parser::ParseAttrs";
+    VLOG(9) << "Parser::ParseAttrs";
     Map<String, ObjectRef> kwargs;
     while (Peek()->token_type == TokenType::kIdentifier) {
       auto key = GetHierarchicalName(ParseHierarchicalName().data);
@@ -1389,14 +1387,14 @@ class Parser {
       kwargs.Set(key, value);
       WhenMatch(TokenType::kComma);
     }
-    VLOG(0) << "Parser::ParseAttrs: kwargs=" << kwargs;
+    VLOG(9) << "Parser::ParseAttrs: kwargs=" << kwargs;
     return kwargs;
   }
 
   Expr ParseCallArgs(Expr op) {
     ICHECK(op.defined()) << "the operator must be defined";
 
-    VLOG(0) << "Parser::ParseCallArgs";
+    VLOG(9) << "Parser::ParseCallArgs";
     Attrs attrs;
     std::string op_key;
     bool is_op = false;
@@ -1444,6 +1442,10 @@ class Parser {
                     ICHECK(attr_obj.defined());
                     attrs = Downcast<Attrs>(attr_obj);
                   }
+                } else {
+                  this->diag_ctx.EmitFatal(Diagnostic::Error(op->span)
+                                           << "unable to determine the 'attrs_type_key' with which "
+                                              "to represent the call attributes for this operator");
                 }
               }
               return true;
@@ -1469,7 +1471,7 @@ class Parser {
   }
 
   Expr ParseCallExpr() {
-    VLOG(0) << "Parser::ParseCallExpr";
+    VLOG(9) << "Parser::ParseCallExpr";
     return WithSpan<Expr>([this] {
       Expr expr = ParseAtomicExpr();
       // Parse as many call args as possible, building up expression
@@ -1498,7 +1500,7 @@ class Parser {
   }
 
   Expr GetOp(const std::string& op_name, const Span& span) {
-    VLOG(0) << "op_name=" << op_name << " span=" << span;
+    VLOG(9) << "op_name=" << op_name << " span=" << span;
     try {
       return Op::Get(op_name);
     } catch (const Error& e) {
@@ -1511,7 +1513,7 @@ class Parser {
   }
 
   Expr ParseAtomicExpr() {
-    VLOG(0) << "Parser::ParseAtomicExpr";
+    VLOG(9) << "Parser::ParseAtomicExpr";
     Expr expr = WithSpan<Expr>([this] {
       auto next = Peek();
       switch (next->token_type) {
@@ -1647,7 +1649,7 @@ class Parser {
       auto token = Match(TokenType::kInteger);
       auto index = token.ToNumber();
       auto span = token->span.Merge(expr->span);
-      VLOG(0) << "Parser::ParseAtomicExpr: tuple get item";
+      VLOG(9) << "Parser::ParseAtomicExpr: tuple get item";
       return relay::TupleGetItem(expr, index, span);
     } else {
       return expr;
@@ -1867,8 +1869,8 @@ class Parser {
 };
 
 Parser InitParser(const std::string& file_name, const std::string& file_content,
-                  Optional<IRModule> init_module) {
-  VLOG(0) << "InitParser: file_name: " << file_name << "file_content_size: " << file_content.size();
+                  const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
+  VLOG(9) << "InitParser: file_name: " << file_name << "file_content_size: " << file_content.size();
   SourceName src_name = SourceName::Get(file_name);
   Source source(src_name, file_content);
 
@@ -1886,19 +1888,33 @@ Parser InitParser(const std::string& file_name, const std::string& file_content,
   auto tokens_and_table = Tokenize(diag_ctx, source);
 
   auto tokens = tokens_and_table.first;
-  auto meta_data_table = tokens_and_table.second;
+  MetaTable meta_data_table = tokens_and_table.second.ToMetadata();
 
-  return Parser(module, diag_ctx, source, tokens, DefaultOpTable(), meta_data_table.ToMetadata());
+  // Merge any entries in init_meta_table into anything captured in the #[metadata] section
+  // of the file_content. Metadata references within file_content must use indexes which account
+  // for this ordering.
+  for (const auto& pair : init_meta_table) {
+    Array<ObjectRef> items;
+    if (meta_data_table.count(pair.first)) {
+      items = meta_data_table[pair.first];
+    }
+    for (const auto& obj : pair.second) {
+      items.push_back(obj);
+    }
+    meta_data_table.Set(pair.first, items);
+  }
+
+  return Parser(module, diag_ctx, source, tokens, DefaultOpTable(), std::move(meta_data_table));
 }
 
-IRModule ParseModule(std::string file_name, std::string file_content,
-                     Optional<IRModule> init_module) {
-  VLOG(0) << "ParseModule";
-  auto parser = InitParser(file_name, file_content, init_module);
+IRModule ParseModule(const std::string& file_name, const std::string& file_content,
+                     const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
+  VLOG(9) << "ParseModule";
+  auto parser = InitParser(file_name, file_content, init_module, init_meta_table);
   auto mod = parser.ParseModule();
   ICHECK(mod.defined()) << "The parser must return a non-null module.";
-  // NB(@jroesch): it is very important that we render any errors before we procede
-  // if there were any errors which allow the parser to procede we must render them
+  // NB(@jroesch): it is very important that we render any errors before we proceed
+  // if there were any errors which allow the parser to proceed we must render them
   // here.
   parser.diag_ctx.Render();
   auto infer_type = tvm::relay::transform::InferType();
@@ -1906,22 +1922,28 @@ IRModule ParseModule(std::string file_name, std::string file_content,
   return infer_type(mod);
 }
 
-Expr ParseExpr(std::string file_name, std::string file_content) {
-  VLOG(0) << "ParseExpr";
-  auto parser = InitParser(file_name, file_content, Optional<IRModule>());
+Expr ParseExpr(const std::string& file_name, const std::string& file_content) {
+  VLOG(9) << "ParseExpr";
+  auto parser = InitParser(file_name, file_content, Optional<IRModule>(), MetaTable());
   parser.ParseSemVer(false);
   parser.PushScope();
   auto expr = parser.ParseExpr();
   parser.Match(TokenType::kEndOfFile);
-  // NB(@jroesch): it is very important that we render any errors before we procede
-  // if there were any errors which allow the parser to procede we must render them
+  // NB(@jroesch): it is very important that we render any errors before we proceed
+  // if there were any errors which allow the parser to proceed we must render them
   // here.
   parser.diag_ctx.Render();
   return expr;
 }
 
+TVM_REGISTER_GLOBAL("parser.ParseModuleInContext")
+    .set_body_typed([](const std::string& file_name, const std::string& file_content,
+                       const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
+      return ParseModule(file_name, file_content, init_module, init_meta_table);
+    });
+
 TVM_REGISTER_GLOBAL("parser.ParseModule")
-    .set_body_typed([](tvm::String file_name, tvm::String file_content) {
+    .set_body_typed([](const std::string& file_name, const std::string& file_content) {
       return ParseModule(file_name, file_content);
     });
 

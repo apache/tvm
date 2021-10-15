@@ -60,6 +60,8 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
 
     def _schedule(cfg, s, C):
         A, B = s[C].op.input_tensors
+        if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
+            s[B].compute_inline()
         batch, m_dim, k_dim = get_const_tuple(A.shape)
         batch, n_dim, k_dim = get_const_tuple(B.shape)
         data_dtype = A.dtype

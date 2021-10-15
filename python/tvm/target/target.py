@@ -31,6 +31,11 @@ from . import _ffi_api
 class TargetKind(Object):
     """Kind of a compilation target"""
 
+    @property
+    def options(self):
+        """Returns the dict of available option names and types"""
+        return dict(_ffi_api.ListTargetKindOptions(self))
+
 
 @tvm._ffi.register_object
 class Target(Object):
@@ -286,7 +291,7 @@ MICRO_SUPPORTED_MODELS = {
     "atsamd51": ["-mcpu=cortex-m4"],
     "cxd5602gg": ["-mcpu=cortex-m4"],
     "esp32": [],
-    "imxrt1060": ["-mcpu=cortex-m7"],
+    "imxrt10xx": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],

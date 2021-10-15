@@ -337,7 +337,8 @@ void VerifyTensorizeBody(const ComputeOpNode* self, const Stage& stage,
     }
     ICHECK(expr_equal(lhs, rhs)) << "Failed to match the compute with TensorIntrin " << intrin->name
                                  << "'s declaration "
-                                 << " provided= " << lhs << ", intrin=  " << rhs;
+                                 << " provided= " << lhs << ", intrin=  " << rhs
+                                 << ", running this stage: " << stage;
   }
 }
 

@@ -22,7 +22,6 @@
 #include <tvm/runtime/crt/page_allocator.h>
 
 #include "crt_config.h"
-#include "platform.cc"
 
 #define ROUND_UP(qty, modulo) (((qty) + ((modulo)-1)) / (modulo) * (modulo))
 

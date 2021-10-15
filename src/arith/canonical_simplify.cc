@@ -535,6 +535,40 @@ void SumExprNode::AddToSelf(const SumExpr& other, int64_t scale) {
   this->AddToSelf(other->base * scale);
 }
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SplitExprNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SplitExprNode*>(node.get());
+      auto factor_str = [](int64_t f) {
+        return f == SplitExprNode::kPosInf ? std::string("+inf") : std::to_string(f);
+      };
+      p->stream << "split(";
+      p->Print(op->index);
+      p->stream << ", lower=" << factor_str(op->lower_factor)
+                << ", upper=" << factor_str(op->upper_factor) << ", scale=" << op->scale
+                << ", div_mode=";
+      switch (op->div_mode) {
+        // No "default", so that the compiler will emit a warning if more div modes are
+        // added that are not covered by the switch.
+        case kTruncDiv:
+          p->stream << "truncdiv";
+          break;
+        case kFloorDiv:
+          p->stream << "floordiv";
+          break;
+      }
+      p->stream << ')';
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SumExprNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SumExprNode*>(node.get());
+      p->stream << "sum(base=" << op->base;
+      for (const SplitExpr& s : op->args) {
+        p->stream << ", ";
+        p->Print(s);
+      }
+    });
+
 // Sub-class RewriteSimplifier::Impl to take benefit of
 // rewriter for condition simplification etc.
 class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {

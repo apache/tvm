@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utilities for meta schedule"""
+import json
 import os
 import shutil
-from typing import Any, Callable, Union
+from typing import Any, Callable, List, Optional, Union
 
-import psutil
-
+import psutil  # type: ignore
+import tvm
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError
-from tvm.ir import Array, Map
-from tvm.runtime import String
+from tvm.ir import Array, Map, IRModule
+from tvm.rpc import RPCSession
+from tvm.runtime import PackedFunc, String
 from tvm.tir import FloatImm, IntImm
 
 
@@ -94,6 +96,37 @@ def get_global_func_with_default_on_worker(
         ) from error
 
 
+def get_global_func_on_rpc_session(
+    session: RPCSession,
+    name: str,
+    extra_error_msg: Optional[str] = None,
+) -> PackedFunc:
+    """Get a PackedFunc from the global registry from an RPCSession.
+
+    Parameters
+    ----------
+    session : RPCSession
+        The RPCSession to be retrieved from
+    name : str
+        The name of the PackedFunc
+    extra_error_msg : Optional[str]
+        Extra information to provide in the error message
+
+    Returns
+    -------
+    result : PackedFunc
+        The result
+    """
+    try:
+        result = session.get_function(name)
+    except AttributeError as error:
+        error_msg = f'Unable to find function "{name}" on the remote RPC server.'
+        if extra_error_msg:
+            error_msg = f"{error_msg} {extra_error_msg}"
+        raise AttributeError(error_msg) from error
+    return result
+
+
 @register_func("meta_schedule.remove_build_dir")
 def remove_build_dir(artifact_path: str) -> None:
     """Clean up the build directory"""
@@ -126,3 +159,49 @@ def _json_de_tvm(obj: Any) -> Any:
     if isinstance(obj, Map):
         return {_json_de_tvm(k): _json_de_tvm(v) for k, v in obj.items()}
     raise TypeError("Not supported type: " + str(type(obj)))
+
+
+@register_func("meta_schedule.json_obj2str")
+def json_obj2str(json_obj: Any) -> str:
+    json_obj = _json_de_tvm(json_obj)
+    return json.dumps(json_obj)
+
+
+@register_func("meta_schedule.batch_json_str2obj")
+def batch_json_str2obj(json_strs: List[str]) -> List[Any]:
+    """Covert a list of JSON strings to a list of json objects.
+    Parameters
+    ----------
+    json_strs : List[str]
+        The list of JSON strings
+    Returns
+    -------
+    result : List[Any]
+        The list of json objects
+    """
+    return [
+        json.loads(json_str)
+        for json_str in map(str.strip, json_strs)
+        if json_str and (not json_str.startswith("#")) and (not json_str.startswith("//"))
+    ]
+
+
+def structural_hash(mod: IRModule) -> str:
+    """Get the structural hash of a module.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The module to be hashed.
+
+    Returns
+    -------
+    result : str
+        The structural hash of the module.
+    """
+    shash = tvm.ir.structural_hash(mod)
+    if shash < 0:
+        # Workaround because `structural_hash` returns a size_t, i.e., unsigned integer
+        # but ffi can't handle unsigned integers properly so it's parsed into a negative number
+        shash += 1 << 64
+    return str(shash)

@@ -123,7 +123,7 @@ class BuildModule(object):
             to setup the dimensions and parameters correctly.
             target_host is used to specify the host side codegen target.
             By default, llvm is used if it is enabled,
-            otherwise a stackvm intepreter is used.
+            otherwise a stackvm interpreter is used.
 
         params : dict of str to NDArray
             Input parameters to the graph that do not change
@@ -303,7 +303,7 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
         setup the dimensions and parameters correctly.
         target_host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
+        otherwise a stackvm interpreter is used.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
@@ -452,7 +452,7 @@ def bind_params_by_name(func, params):
 class GraphExecutor(_interpreter.Executor):
     """Wrapper around Executor interface.
 
-    This executor is used for debug and testing purpoes.
+    This executor is used for debug and testing purposes.
 
     Parameters
     ----------
