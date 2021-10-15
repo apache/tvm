@@ -31,16 +31,7 @@ import requests
 import tvm.micro
 
 
-TEMPLATE_PROJECT_DIR = (
-    pathlib.Path(__file__).parent
-    / ".."
-    / ".."
-    / ".."
-    / "apps"
-    / "microtvm"
-    / "zephyr"
-    / "template_project"
-).resolve()
+TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
 
 BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
 

@@ -24,16 +24,8 @@ import tvm.target.target
 from tvm.micro import project
 from tvm import micro, relay
 
-TEMPLATE_PROJECT_DIR = (
-    pathlib.Path(__file__).parent
-    / ".."
-    / ".."
-    / ".."
-    / "apps"
-    / "microtvm"
-    / "arduino"
-    / "template_project"
-).resolve()
+TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("arduino"))
+
 
 BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
 
