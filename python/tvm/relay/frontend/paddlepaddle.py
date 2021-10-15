@@ -47,7 +47,7 @@ def _autopad(
     data,
     strides,
     kernel_shape,
-    dilations,
+    dilations=[1, 1],
     pad_type="constant",
     pad_value=0.0,
 ):
@@ -780,8 +780,7 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        dilations = [1, 1]
-        input_x = _autopad(input_x, strides, ksize, dilations)
+        input_x = _autopad(input_x, strides, ksize)
         paddings = [0, 0]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
