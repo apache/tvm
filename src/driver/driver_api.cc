@@ -288,9 +288,11 @@ IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
   return mod;
 }
 
-tir::PrimFunc ScheduleToPrimFunc(te::Schedule sch, const Array<ObjectRef>& args,
-                                 const std::string& name,
-                                 const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+// Convert te schedule to IRModule
+IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
+                          const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+  sch = sch.normalize();
+
   transform::PassContext pass_ctx = transform::PassContext::Current();
   bool debug_keep_trivial_loop =
       pass_ctx->GetConfig<Bool>("tir.debug_keep_trivial_loop", Bool(false)).value();
@@ -307,21 +309,10 @@ tir::PrimFunc ScheduleToPrimFunc(te::Schedule sch, const Array<ObjectRef>& args,
   tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
   f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
-  return f;
-}
-
-// Convert te schedule to IRModule
-IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-                          const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  sch = sch.normalize();
-
-  tir::PrimFunc f = ScheduleToPrimFunc(sch, args, name, binds);
-
   // Mark this schedule as being converted from an TE schedule. Makes sure that
   // the correct TE passes are run.
   f = WithAttr(std::move(f), "from_legacy_te_schedule", Bool(true));
 
-  transform::PassContext pass_ctx = transform::PassContext::Current();
   bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
 
   if (noalias) {
