@@ -63,33 +63,11 @@ class GemmOperation:
         self.swizzling_functor = swizzling_functor
 
     #
-    def is_complex(self):
-        complex_operators = [
-            MathOperation.multiply_add_complex,
-            MathOperation.multiply_add_complex_gaussian,
-        ]
-        return self.tile_description.math_instruction.math_operation in complex_operators
-
-    #
-    def is_planar_complex(self):
-        return self.gemm_kind in (GemmKind.PlanarComplex, GemmKind.PlanarComplexArray)
-
-    #
     def accumulator_type(self):
-        accum = self.tile_description.math_instruction.element_accumulator
-
-        if self.is_complex():
-            return get_complex_from_real(accum)
-
-        return accum
+        return self.tile_description.math_instruction.element_accumulator
 
     #
     def short_math_name(self):
-        if (
-            self.tile_description.math_instruction.math_operation
-            == MathOperation.multiply_add_complex_gaussian
-        ):
-            return "g%s" % ShortDataTypeNames[self.accumulator_type()]
         return ShortDataTypeNames[self.accumulator_type()]
 
     #
@@ -100,19 +78,13 @@ class GemmOperation:
         inst_operation = ""
         intermediate_type = ""
 
-        math_operations_map = {
-            MathOperation.xor_popc: "xor",
-        }
-
         if (
             self.tile_description.math_instruction.opcode_class == OpcodeClass.TensorOp
             or self.tile_description.math_instruction.opcode_class == OpcodeClass.WmmaTensorOp
         ):
 
             math_op = self.tile_description.math_instruction.math_operation
-            math_op_string = (
-                math_operations_map[math_op] if math_op in math_operations_map.keys() else ""
-            )
+            math_op_string = ""
 
             inst_shape = "%d%d%d" % tuple(self.tile_description.math_instruction.instruction_shape)
             inst_shape += math_op_string
@@ -134,21 +106,18 @@ class GemmOperation:
     #
     def extended_name(self):
         """ Append data types if they differ from compute type. """
-        if self.is_complex():
-            extended_name = "${core_name}"
+        if (
+            self.C.element != self.tile_description.math_instruction.element_accumulator
+            and self.A.element != self.tile_description.math_instruction.element_accumulator
+        ):
+            extended_name = "${element_c}_${core_name}_${element_a}"
+        elif (
+            self.C.element == self.tile_description.math_instruction.element_accumulator
+            and self.A.element != self.tile_description.math_instruction.element_accumulator
+        ):
+            extended_name = "${core_name}_${element_a}"
         else:
-            if (
-                self.C.element != self.tile_description.math_instruction.element_accumulator
-                and self.A.element != self.tile_description.math_instruction.element_accumulator
-            ):
-                extended_name = "${element_c}_${core_name}_${element_a}"
-            elif (
-                self.C.element == self.tile_description.math_instruction.element_accumulator
-                and self.A.element != self.tile_description.math_instruction.element_accumulator
-            ):
-                extended_name = "${core_name}_${element_a}"
-            else:
-                extended_name = "${core_name}"
+            extended_name = "${core_name}"
 
         extended_name = SubstituteTemplate(
             extended_name,
@@ -163,11 +132,6 @@ class GemmOperation:
 
     #
     def layout_name(self):
-        if self.is_complex() or self.is_planar_complex():
-            return "%s%s" % (
-                ShortComplexLayoutNames[(self.A.layout, self.A.complex_transform)],
-                ShortComplexLayoutNames[(self.B.layout, self.B.complex_transform)],
-            )
         return "%s%s" % (ShortLayoutTypeNames[self.A.layout], ShortLayoutTypeNames[self.B.layout])
 
     #
@@ -225,6 +189,8 @@ class GemmOperation:
         return self.procedural_name()
 
 
+complex_transform_tag = "cutlass::ComplexTransform::kNone"
+
 ###################################################################################################
 #
 # Emits single instances of a CUTLASS device-wide operator
@@ -259,32 +225,6 @@ class EmitGemmInstance:
     ${align_a},
     ${align_b},
     false,
-    ${math_operation}
-    ${residual}
-  >;
-"""
-        self.gemm_complex_template = """
-  // Gemm operator ${operation_name}
-  using Operation_${operation_name} = cutlass::gemm::device::GemmComplex<
-    ${element_a}, ${layout_a},
-    ${element_b}, ${layout_b},
-    ${element_c}, ${layout_c},
-    ${element_accumulator},
-    ${opcode_class},
-    ${arch},
-    cutlass::gemm::GemmShape<${threadblock_shape_m}, ${threadblock_shape_n}, ${threadblock_shape_k}>,
-    cutlass::gemm::GemmShape<${warp_shape_m}, ${warp_shape_n}, ${warp_shape_k}>,
-    cutlass::gemm::GemmShape<${instruction_shape_m}, ${instruction_shape_n}, ${instruction_shape_k}>,
-    ${epilogue_functor}<
-      ${element_c},
-      ${epilogue_vector_length},
-      ${element_accumulator},
-      ${element_epilogue}
-    >,
-    ${swizzling_functor},
-    ${stages},
-    ${transform_a},
-    ${transform_b},
     ${math_operation}
     ${residual}
   >;
@@ -338,20 +278,14 @@ class EmitGemmInstance:
             "stages": str(operation.tile_description.stages),
             "align_a": str(operation.A.alignment),
             "align_b": str(operation.B.alignment),
-            "transform_a": ComplexTransformTag[operation.A.complex_transform],
-            "transform_b": ComplexTransformTag[operation.B.complex_transform],
+            "transform_a": complex_transform_tag,
+            "transform_b": complex_transform_tag,
             "math_operation": MathOperationTag[
                 operation.tile_description.math_instruction.math_operation
             ],
             "residual": residual,
         }
-
-        # import ipdb
-        # ipdb.set_trace()
-
-        template = self.gemm_complex_template if operation.is_complex() else self.gemm_template
-
-        return SubstituteTemplate(template, values)
+        return SubstituteTemplate(self.gemm_template, values)
 
 
 ###################################################################################################
@@ -420,33 +354,6 @@ class EmitGemmEpilogueInstance:
     ${residual}
   >;
 """
-        self.gemm_complex_template = """
-  // Gemm operator ${operation_name}
-  using Operation_${operation_name} = cutlass::gemm::device::GemmComplex<
-    ${element_a}, ${layout_a},
-    ${element_b}, ${layout_b},
-    ${element_c}, ${layout_c},
-    ${element_accumulator},
-    ${opcode_class},
-    ${arch},
-    cutlass::gemm::GemmShape<${threadblock_shape_m}, ${threadblock_shape_n}, ${threadblock_shape_k}>,
-    cutlass::gemm::GemmShape<${warp_shape_m}, ${warp_shape_n}, ${warp_shape_k}>,
-    cutlass::gemm::GemmShape<${instruction_shape_m}, ${instruction_shape_n}, ${instruction_shape_k}>,
-    ${epilogue_functor}<
-      ${element_c},
-      ${epilogue_vector_length},
-      ${element_accumulator},
-      ${element_epilogue},
-      cutlass::epilogue::thread::ScaleType::NoBetaScaling
-    >,
-    ${swizzling_functor},
-    ${stages},
-    ${transform_a},
-    ${transform_b},
-    ${math_operation}
-    ${residual}
-  >;
-"""
 
     def emit(self, operation):
 
@@ -497,31 +404,22 @@ class EmitGemmEpilogueInstance:
             "stages": str(operation.tile_description.stages),
             "align_a": str(operation.A.alignment),
             "align_b": str(operation.B.alignment),
-            "transform_a": ComplexTransformTag[operation.A.complex_transform],
-            "transform_b": ComplexTransformTag[operation.B.complex_transform],
+            "transform_a": complex_transform_tag,
+            "transform_b": complex_transform_tag,
             "math_operation": MathOperationTag[
                 operation.tile_description.math_instruction.math_operation
             ],
             "residual": residual,
         }
 
-        # import ipdb
-        # ipdb.set_trace()
-
-        if operation.is_complex():
-            template = self.gemm_complex_template
+        if values["epilogue_functor"] == EpilogueFunctorTag[EpilogueFunctor.LinearCombinationGelu]:
+            template = self.gemm_gelu_template
         else:
-            if (
-                values["epilogue_functor"]
-                == EpilogueFunctorTag[EpilogueFunctor.LinearCombinationGelu]
-                or values["epilogue_functor"]
-                == EpilogueFunctorTag[EpilogueFunctor.LinearCombinationHardswish]
-            ):
-                template = self.gemm_gelu_template
-            else:
-                template = self.gemm_template
+            template = self.gemm_template
 
         return SubstituteTemplate(template, values)
+
+
 ###################################################################################################
 
 
@@ -660,14 +558,16 @@ struct ${operation_name} :
             "stages": str(operation.tile_description.stages),
             "align_a": str(operation.A.alignment),
             "align_b": str(operation.B.alignment),
-            "transform_a": ComplexTransformTag[operation.A.complex_transform],
-            "transform_b": ComplexTransformTag[operation.B.complex_transform],
+            "transform_a": complex_transform_tag,
+            "transform_b": complex_transform_tag,
             "math_operation": MathOperationTag[
                 operation.tile_description.math_instruction.math_operation
             ],
         }
 
         return SubstituteTemplate(gemm_template, values)
+
+
 ###################################################################################################
 #
 # Emitters functions for all targets

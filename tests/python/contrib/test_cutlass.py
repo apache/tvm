@@ -70,6 +70,7 @@ class GemmCollector(tvm.relay.ExprVisitor):
             self.signature["ret_shape"] = op.ret_type.shape
             self.signature["ret_dtype"] = op.ret_type.dtype
 
+
 sm = "86"
 cutlass_profiler = gen_gemm.CutlassGemmProfiler(sm, "../../../3rdparty/cutlass", "./temp")
 

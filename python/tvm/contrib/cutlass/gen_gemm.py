@@ -16,8 +16,6 @@
 # under the License.
 
 
-import os
-from collections import namedtuple
 from .gemm_operation import GemmOperation, EmitGemmInstance, EmitGemmEpilogueInstance
 from .gemm_profiler import GemmProfiler
 from .compile_engine import CompileEngine
@@ -29,18 +27,12 @@ def CreateGemmOperator(
     tile_descriptions,
     data_type,
     alignment_constraints,
-    complex_transforms=None,
     epilogue_functor=EpilogueFunctor.LinearCombination,
     swizzling_functor=SwizzlingFunctor.Identity8,
 ):
     ret = []
     emiter = EmitGemmInstance()
     profiler = GemmProfiler()
-
-    if complex_transforms is None:
-        complex_transforms = [
-            (ComplexTransform.none, ComplexTransform.none),
-        ]
 
     element_a, element_b, element_c, element_epilogue = data_type
     # by default, only generate the largest tile and largest alignment
@@ -51,92 +43,78 @@ def CreateGemmOperator(
     for layout in layouts:
         for tile_description in tile_descriptions:
             for alignment in alignment_constraints:
-                for complex_transform in complex_transforms:
+                alignment_c = min(8, alignment)
 
-                    alignment_c = min(8, alignment)
+                A = TensorDescription(element_a, layout[0], alignment)
+                B = TensorDescription(element_b, layout[1], alignment)
+                C = TensorDescription(element_c, layout[2], alignment_c)
 
-                    A = TensorDescription(element_a, layout[0], alignment, complex_transform[0])
-                    B = TensorDescription(element_b, layout[1], alignment, complex_transform[1])
-                    C = TensorDescription(element_c, layout[2], alignment_c)
+                op_entry = {}
+                op = GemmOperation(
+                    GemmKind.Universal,
+                    tile_description.minimum_compute_capability,
+                    tile_description,
+                    A,
+                    B,
+                    C,
+                    element_epilogue,
+                    epilogue_functor,
+                    swizzling_functor,
+                )
+                op_bias = GemmOperation(
+                    GemmKind.Universal,
+                    tile_description.minimum_compute_capability,
+                    tile_description,
+                    A,
+                    B,
+                    C,
+                    element_epilogue,
+                    EpilogueFunctor.LinearCombinationBias,
+                    swizzling_functor,
+                )
+                op_bias_relu = GemmOperation(
+                    GemmKind.Universal,
+                    tile_description.minimum_compute_capability,
+                    tile_description,
+                    A,
+                    B,
+                    C,
+                    element_epilogue,
+                    EpilogueFunctor.LinearCombinationRelu,
+                    swizzling_functor,
+                )
+                op_bias_gelu = GemmOperation(
+                    GemmKind.Universal,
+                    tile_description.minimum_compute_capability,
+                    tile_description,
+                    A,
+                    B,
+                    C,
+                    element_epilogue,
+                    EpilogueFunctor.LinearCombinationGelu,
+                    swizzling_functor,
+                )
 
-                    op_entry = {}
-                    op = GemmOperation(
-                        GemmKind.Universal,
-                        tile_description.minimum_compute_capability,
-                        tile_description,
-                        A,
-                        B,
-                        C,
-                        element_epilogue,
-                        epilogue_functor,
-                        swizzling_functor,
-                    )
-                    op_bias = GemmOperation(
-                        GemmKind.Universal,
-                        tile_description.minimum_compute_capability,
-                        tile_description,
-                        A,
-                        B,
-                        C,
-                        element_epilogue,
-                        EpilogueFunctor.LinearCombinationBias,
-                        swizzling_functor,
-                    )
-                    op_bias_relu = GemmOperation(
-                        GemmKind.Universal,
-                        tile_description.minimum_compute_capability,
-                        tile_description,
-                        A,
-                        B,
-                        C,
-                        element_epilogue,
-                        EpilogueFunctor.LinearCombinationRelu,
-                        swizzling_functor,
-                    )
-                    op_bias_gelu = GemmOperation(
-                        GemmKind.Universal,
-                        tile_description.minimum_compute_capability,
-                        tile_description,
-                        A,
-                        B,
-                        C,
-                        element_epilogue,
-                        EpilogueFunctor.LinearCombinationGelu,
-                        swizzling_functor,
-                    )
-                    op_bias_hardswish = GemmOperation(
-                        GemmKind.Universal,
-                        tile_description.minimum_compute_capability,
-                        tile_description,
-                        A,
-                        B,
-                        C,
-                        element_epilogue,
-                        EpilogueFunctor.LinearCombinationHardswish,
-                        swizzling_functor,
-                    )
-                    op_entry["op"] = op
-                    op_entry["name"] = op.procedural_name()
-                    emiter = EmitGemmInstance()
-                    op_entry["opdef"] = emiter.emit(op)
-                    emiter = EmitGemmEpilogueInstance()
-                    op_entry["opdef_bias"] = emiter.emit(op_bias)
-                    emiter = EmitGemmEpilogueInstance()
-                    op_entry["opdef_bias_relu"] = emiter.emit(op_bias_relu)
-                    emiter = EmitGemmEpilogueInstance()
-                    op_entry["opdef_bias_gelu"] = emiter.emit(op_bias_gelu)
-                    emiter = EmitGemmEpilogueInstance()
-                    op_entry["opdef_bias_hardswish"] = emiter.emit(op_bias_hardswish)
-                    op_entry["src"] = profiler.emit(
-                        op.procedural_name(),
-                        op_entry["opdef"],
-                        DataTypeTag[element_a],
-                        DataTypeTag[element_b],
-                        DataTypeTag[element_c],
-                        op.leading_dim(),
-                    )
-                    op_entry["runtime"] = 9999999
-                    ret.append(op_entry)
+                op_entry["op"] = op
+                op_entry["name"] = op.procedural_name()
+                emiter = EmitGemmInstance()
+                op_entry["opdef"] = emiter.emit(op)
+                emiter = EmitGemmEpilogueInstance()
+                op_entry["opdef_bias"] = emiter.emit(op_bias)
+                emiter = EmitGemmEpilogueInstance()
+                op_entry["opdef_bias_relu"] = emiter.emit(op_bias_relu)
+                emiter = EmitGemmEpilogueInstance()
+                op_entry["opdef_bias_gelu"] = emiter.emit(op_bias_gelu)
+                op_entry["src"] = profiler.emit(
+                    op.procedural_name(),
+                    op_entry["opdef"],
+                    DataTypeTag[element_a],
+                    DataTypeTag[element_b],
+                    DataTypeTag[element_c],
+                    op.leading_dim(),
+                )
+                op_entry["runtime"] = 9999999
+                ret.append(op_entry)
     return ret
 
 
