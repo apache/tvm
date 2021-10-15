@@ -418,7 +418,7 @@ def parse_shape_string(inputs_string):
     ----------
     inputs_string: str
         A string of the form "input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]" that
-        indicates the desired shape for specific model inputs. Colons and forward slashes
+        indicates the desired shape for specific model inputs. Colons, forward slashes and dot
         within input_names are supported. Spaces are supported inside of dimension arrays.
 
     Returns
@@ -432,7 +432,8 @@ def parse_shape_string(inputs_string):
     # * Spaces inside arrays
     # * forward slashes inside names (but not at the beginning or end)
     # * colons inside names (but not at the beginning or end)
-    pattern = r"(?:\w+\/)?[:\w]+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
+    # * dot inside names
+    pattern = r"(?:\w+\/)?[:\w.]+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
     input_mappings = re.findall(pattern, inputs_string)
     if not input_mappings:
         raise argparse.ArgumentTypeError(
