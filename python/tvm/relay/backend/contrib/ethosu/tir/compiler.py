@@ -19,7 +19,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprMutator
-from tvm.driver.build_module import schedule_to_primfunc
+from tvm.driver.build_module import schedule_to_module
 
 from .passes import ReplaceOperators, RemoveZeroStores, EncodeConstants
 from .scheduler import schedule
@@ -64,6 +64,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
             "no_unroll_loop_with_extent_one": True,
         },
         "tir.UnrollLoop": {"auto_max_depth": -1},
+        "tir.noalias": True,
         "tir.debug_keep_trivial_loop": True,
     }
     # Merge two configs
@@ -72,9 +73,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
     sch = sch.normalize()
 
     with tvm.transform.PassContext(config=curr_cfg):
-        func = schedule_to_primfunc(sch, args, name)
-        func = func.with_attr("tir.noalias", True)
-        mod = tvm.IRModule({name: func})
+        mod = schedule_to_module(sch, args, name)
 
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.StorageFlatten(64)(mod)

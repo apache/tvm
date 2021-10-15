@@ -42,7 +42,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../driver/utils.h"
 #include "search_policy/utils.h"
 #include "utils.h"
 
@@ -1263,26 +1262,24 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
   Array<te::Tensor> tensors;
 
   std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
+
+  // When inlining, replace const matrices with const values.
+  // Produces wrong IR, but good enough for feature extraction, and
+  // can improve the speed of feature extraction/search.  Must be
+  // called before ScheduleToModule to have an effect.
   sch = sch.normalize_for_feature_extraction();
 
   try {
     const std::string& name = "main";
-    GlobalVar global_var(name);
-
     auto pass_ctx = tvm::transform::PassContext::Current();
-    tir::PrimFunc f = ScheduleToPrimFunc(sch, Array<ObjectRef>{tensors.begin(), tensors.end()},
-                                         name, std::unordered_map<te::Tensor, te::Buffer>());
 
-    bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+    auto mod = ScheduleToModule(sch, Array<ObjectRef>{tensors.begin(), tensors.end()}, name,
+                                std::unordered_map<te::Tensor, te::Buffer>());
+
     bool disable_vectorize =
         pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
     bool instrument_bound_checkers =
         pass_ctx->GetConfig<Bool>("tir.instrument_bound_checkers", Bool(false)).value();
-
-    if (noalias) {
-      f = WithAttr(std::move(f), "tir.noalias", Bool(true));
-    }
-    auto mod = IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 
     if (IsGPUTask(task)) {
       auto pass_list = Array<tvm::transform::Pass>();
@@ -1310,9 +1307,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     const auto& optimize =
         tir::transform::Sequential(Array<tvm::transform::Pass>{tir::transform::Simplify()});
     mod = optimize(std::move(mod));
-    const auto& it = mod->functions.find(global_var);
-    ICHECK(it != mod->functions.end());
-    const auto& prim_func = (*it).second.as<PrimFuncNode>();
+    PrimFunc prim_func = Downcast<PrimFunc>(mod->Lookup(name));
     GetPerStoreFeature(prim_func->body, task->hardware_params->cache_line_bytes, max_n_bufs,
                        feature);
   } catch (Error& e) {

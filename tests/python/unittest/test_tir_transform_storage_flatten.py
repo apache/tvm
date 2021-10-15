@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm.driver.build_module import schedule_to_primfunc
+from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
 from tvm.relay import GlobalVar
 
@@ -34,8 +34,7 @@ def test_flatten2():
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="A")
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name="A2")
 
-    func = schedule_to_primfunc(s, [Ab, A2b], binds={A: Ab, A2: A2b})
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [Ab, A2b], binds={A: Ab, A2: A2b})
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
 
@@ -69,8 +68,7 @@ def test_flatten_storage_align():
     s = te.create_schedule(A2.op)
     s[A1].storage_align(A1.op.axis[0], 2, 1)
 
-    func = schedule_to_primfunc(s, [A, A2])
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A, A2])
     mod = tvm.transform.Sequential(
         [tvm.tir.transform.StorageFlatten(64), tvm.tir.transform.Simplify()]
     )(mod)

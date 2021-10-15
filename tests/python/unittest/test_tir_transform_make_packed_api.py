@@ -18,7 +18,7 @@ import numpy
 
 import tvm
 from tvm import te
-from tvm.driver.build_module import schedule_to_primfunc
+from tvm.driver.build_module import schedule_to_module
 
 
 def test_makeapi():
@@ -29,8 +29,7 @@ def test_makeapi():
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     s = te.create_schedule(C.op)
 
-    func = schedule_to_primfunc(s, [n, A, B, C])
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [n, A, B, C])
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     mod = tvm.tir.transform.Apply(
         lambda f: f.with_attr(

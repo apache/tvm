@@ -19,13 +19,12 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.driver.build_module import schedule_to_primfunc
+from tvm.driver.build_module import schedule_to_module
 from tvm.topi.math import cast
 
 
 def run_passes(sch, args):
-    func = schedule_to_primfunc(sch, args)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(sch, args)
     return tvm.transform.Sequential(
         [
             tvm.tir.transform.StorageFlatten(64),

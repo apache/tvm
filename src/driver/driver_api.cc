@@ -34,8 +34,6 @@
 #include <mutex>
 #include <stack>
 
-#include "utils.h"
-
 namespace tvm {
 
 // Register build pipeline related options
@@ -290,6 +288,28 @@ IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
   return mod;
 }
 
+tir::PrimFunc ScheduleToPrimFunc(te::Schedule sch, const Array<ObjectRef>& args,
+                                 const std::string& name,
+                                 const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  bool debug_keep_trivial_loop =
+      pass_ctx->GetConfig<Bool>("tir.debug_keep_trivial_loop", Bool(false)).value();
+
+  // Before TIR transformation.
+  tir::Stmt stmt = te::ScheduleOps(sch, te::InferBound(sch), debug_keep_trivial_loop);
+  bool compact = te::VerifyCompactBuffer(stmt);
+
+  Map<te::Tensor, tir::Buffer> out_binds;
+  Array<ObjectRef> out_arg_list;
+  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
+
+  // Build the function, converting from te::Tensor to tir::Buffer
+  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
+  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
+
+  return f;
+}
+
 // Convert te schedule to IRModule
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                           const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
@@ -322,42 +342,6 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
       }
       IRModule mod = ScheduleToModule(std::move(sch), args, name, c_binds);
       return mod;
-    });
-
-tir::PrimFunc ScheduleToPrimFunc(te::Schedule sch, const Array<ObjectRef>& args,
-                                 const std::string& name,
-                                 const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-  bool debug_keep_trivial_loop =
-      pass_ctx->GetConfig<Bool>("tir.debug_keep_trivial_loop", Bool(false)).value();
-
-  // Before TIR transformation.
-  tir::Stmt stmt = te::ScheduleOps(sch, te::InferBound(sch), debug_keep_trivial_loop);
-  bool compact = te::VerifyCompactBuffer(stmt);
-
-  Map<te::Tensor, tir::Buffer> out_binds;
-  Array<ObjectRef> out_arg_list;
-  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
-
-  // Build the function, converting from te::Tensor to tir::Buffer
-  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
-  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
-
-  return f;
-}
-
-TVM_REGISTER_GLOBAL("driver.schedule_to_primfunc")
-    .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
-                       const Map<te::Tensor, tir::Buffer>& binds) {
-      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
-      // Check to make sure binds is not null before doing the conversion;
-      if (binds.defined()) {
-        for (auto kv : binds) {
-          c_binds.insert({kv.first, kv.second});
-        }
-      }
-      tir::PrimFunc func = ScheduleToPrimFunc(std::move(sch), args, name, c_binds);
-      return func;
     });
 
 IRModule LowerModule(IRModule mod, bool simple_mode) {

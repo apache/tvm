@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import te, relay
-from tvm.driver.build_module import schedule_to_primfunc
+from tvm.driver.build_module import schedule_to_module
 from tvm.tir import const
 
 
@@ -40,8 +40,7 @@ def lower_sch(sch, args, target_bits):
             raise ValueError("args must be Tensor, Buffer or Var")
     sch = sch.normalize()
 
-    func = schedule_to_primfunc(sch, args)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(sch, args)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     return tvm.tir.transform.NarrowDataType(target_bits)(mod)["main"].body
 

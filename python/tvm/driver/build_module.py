@@ -89,37 +89,6 @@ def schedule_to_module(
     return ffi.schedule_to_module(sch, args, name, binds)
 
 
-def schedule_to_primfunc(
-    sch: schedule.Schedule,
-    args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
-    name: str = "main",
-    binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
-) -> IRModule:
-    """According to the given schedule, form a function.
-
-    This is a low-level function intended for testing purposes, and
-    does not apply any optimization passes.  In general, `tvm.lower`
-    and `tvm.build` should be used instead.
-
-    Parameters
-    ----------
-    sch : tvm.te.schedule.Schedule
-        The given scheduler to form the raw body
-    args : list of Buffer or Tensor or Var
-        The argument lists to the function.
-    name : str
-        The name of result function, default name is "main"
-    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
-        The binds information
-
-    Returns
-    -------
-    The body formed according to the given schedule
-
-    """
-    return ffi.schedule_to_primfunc(sch, args, name, binds)
-
-
 def lower(
     inp: Union[schedule.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,

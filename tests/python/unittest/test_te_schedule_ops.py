@@ -18,7 +18,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.driver.build_module import schedule_to_primfunc
+from tvm.driver.build_module import schedule_to_module
 
 
 def test_schedule0():
@@ -28,8 +28,8 @@ def test_schedule0():
     A1 = te.compute((m, l), lambda i, j: A[i, j], name="A1")
     s = te.create_schedule(A1.op)
 
-    func = schedule_to_primfunc(s, [A, A1])
-    assert isinstance(func, tvm.tir.PrimFunc)
+    mod = schedule_to_module(s, [A, A1])
+    assert isinstance(mod["main"], tvm.tir.PrimFunc)
 
 
 def test_schedule1():
@@ -42,8 +42,8 @@ def test_schedule1():
     xo, xi = s[A1].split(A1.op.axis[0], 8)
     s[A1].pragma(xo, "auto_unroll_max_step", 10)
 
-    func = schedule_to_primfunc(s, [A, A1])
-    assert isinstance(func, tvm.tir.PrimFunc)
+    mod = schedule_to_module(s, [A, A1])
+    assert isinstance(mod["main"], tvm.tir.PrimFunc)
 
 
 def test_schedule2():
@@ -57,8 +57,8 @@ def test_schedule2():
     xo, xi = s[A2].split(A2.op.axis[0], 8)
     s[A1].compute_at(s[A2], xo)
 
-    func = schedule_to_primfunc(s, [A, A2])
-    assert isinstance(func, tvm.tir.PrimFunc)
+    mod = schedule_to_module(s, [A, A2])
+    assert isinstance(mod["main"], tvm.tir.PrimFunc)
 
 
 def test_schedule_scan():

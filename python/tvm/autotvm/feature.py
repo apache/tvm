@@ -42,8 +42,8 @@ def ana_lower(sch, args, binds=None, simple_mode=True):
     # Phase 0
     context = tvm.transform.PassContext(config={"tir.debug_keep_trivial_loop": True})
     with context:
-        func = build_module.schedule_to_primfunc(sch, args, binds=binds)
-    mod = tvm.IRModule.from_expr(func._move())
+        mod = build_module.schedule_to_module(sch, args, binds=binds)
+
     mod = tvm.tir.transform.StorageFlatten(64)(mod._move())
     mod = tvm.tir.transform.Simplify()(mod._move())
     assert simple_mode

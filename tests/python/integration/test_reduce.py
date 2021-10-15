@@ -19,7 +19,7 @@ import numpy as np
 
 import tvm
 from tvm import te, topi
-from tvm.driver.build_module import schedule_to_primfunc
+from tvm.driver.build_module import schedule_to_module
 import tvm.testing
 import tvm.topi.testing
 
@@ -533,8 +533,7 @@ def test_reduce_storage_reuse():
     target = tvm.target.Target("cuda")
 
     def run_passes(sch, args):
-        func = schedule_to_primfunc(sch, args)
-        mod = tvm.IRModule.from_expr(func)
+        mod = schedule_to_module(sch, args)
         mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
         return tvm.transform.Sequential(
             [
