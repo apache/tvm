@@ -16,6 +16,7 @@
 # under the License.
 """iOS RPC Server tests."""
 # pylint: disable=invalid-name, no-value-for-parameter, missing-function-docstring, import-error
+import sys
 import multiprocessing
 import pytest
 import numpy as np
@@ -438,20 +439,4 @@ def test_check_auto_schedule_tuning(host, port):  # pylint: disable=too-many-loc
 
 
 if __name__ == "__main__":
-    test_rpc_standalone()
-    test_rpc_proxy()
-    test_rpc_tracker()
-    # test_rpc_tracker_via_proxy()
-
-    test_can_call_remote_function_with_rpc_standalone()
-    test_can_call_remote_function_with_rpc_proxy()
-    test_can_call_remote_function_with_rpc_tracker()
-    # test_can_call_remote_function_with_rpc_tracker_via_proxy()
-
-    test_basic_functionality_of_rpc_session()
-    test_cleanup_workspace_after_session_end()
-    test_graph_executor_remote_run()
-
-    test_check_auto_schedule_tuning()
-
-    server_ios_launcher.ServerIOSLauncher.shutdown_booted_devices()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

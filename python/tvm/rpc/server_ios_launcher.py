@@ -245,6 +245,18 @@ class ServerIOSLauncher:
     bundle_id = os.environ.get("BUNDLE_ID")
     bundle_path = os.environ.get("BUNDLE_PATH")
 
+    class ConsoleMarkers(Enum):
+        """
+        Marker-messages that iOS RPC Server should print to the console output
+        when its states change (see apps/ios_rpc/tvmrpc/RPCServer.mm).
+        """
+
+        STOPPED = "PROCESS_STOPPED"
+        CALLSTACK = "First throw call stack"
+        CONNECTED = "[IOS-RPC] STATE: 2"  # 0 means state Tracker/Proxy is connected
+        SERVER_IP = "[IOS-RPC] IP: "
+        SERVER_PORT = "[IOS-RPC] PORT: "
+
     def __init__(self, mode, host, port, key):
         if not ServerIOSLauncher.is_compatible_environment():
             raise RuntimeError(
@@ -272,7 +284,9 @@ class ServerIOSLauncher:
         self.server_was_started = False
         self.launch_process = launch_ios_rpc(self.udid, self.bundle_id, host, port, key, mode)
         self._wait_launch_complete(
-            waiting_time=60, should_print_host_and_port=mode == RPCServerMode.standalone.value
+            waiting_time=60,
+            hz=10,
+            should_print_host_and_port=mode == RPCServerMode.standalone.value,
         )
         self.server_was_started = True
 
@@ -335,7 +349,7 @@ class ServerIOSLauncher:
             )
 
         maybe_booted = check_booted_device(target_devices)
-        if maybe_booted != {}:
+        if maybe_booted:
             self.external_booted_device = maybe_booted
         else:
             take_latest_model = True
@@ -343,9 +357,24 @@ class ServerIOSLauncher:
             boot_device(get_device_uid(target_device))
             ServerIOSLauncher.booted_devices.append(target_device)
 
-    def _wait_launch_complete(self, waiting_time, should_print_host_and_port=False):
+    def _wait_launch_complete(self, waiting_time, hz, should_print_host_and_port=False):
         # pylint: disable=too-many-locals
-        """Wait for the iOS RPC server to start."""
+        """
+        Wait for the iOS RPC server to start.
+
+        waiting_time : int
+            The maximum waiting time during which it is necessary
+            to receive a message from RPC Server.
+
+        hz : int
+            The frequency of checking (in hertz) messages from RPC Server.
+            Checks for messages from the server will occur every 1 / hz second.
+
+        should_print_host_and_port : bool
+            A flag that indicates that RPC Server should print the host and port
+            on which it was started.
+            Used for standalone mode.
+        """
 
         class Switch:
             """A simple helper class for boolean switching."""
@@ -353,8 +382,8 @@ class ServerIOSLauncher:
             def __init__(self):
                 self._on = False
 
-            def to_switch(self):
-                """Switch flag."""
+            def toggle(self):
+                """Toggle flag."""
                 self._on = not self._on
 
             @property
@@ -363,50 +392,47 @@ class ServerIOSLauncher:
                 return self._on
 
         def watchdog():
-            hz = 10
             for _ in range(waiting_time * hz):
                 time.sleep(1.0 / hz)
                 if switch_have_data.on:
                     break
             if not switch_have_data.on:
                 self.launch_process.terminate()
-                switch_process_was_terminated.to_switch()
+                switch_process_was_terminated.toggle()
 
         switch_have_data = Switch()
         switch_process_was_terminated = Switch()
         watchdog_thread = threading.Thread(target=watchdog)
 
-        marker_stopped = "PROCESS_STOPPED"
-        marker_callstack = "First throw call stack"
-        marker_connected = "[IOS-RPC] STATE: 2"  # 0 means state Tracker/Proxy is connected
-        marker_server_ip = "[IOS-RPC] IP: "
-        marker_server_port = "[IOS-RPC] PORT: "
-
         host, port = None, None
         watchdog_thread.start()
         for line in self.launch_process.stdout:
             if not switch_have_data.on:
-                switch_have_data.to_switch()
+                switch_have_data.toggle()
 
-            found = str(line).find(marker_stopped)
+            found = str(line).find(ServerIOSLauncher.ConsoleMarkers.STOPPED.value)
             if found != -1:
                 raise RuntimeError("[ERROR] Crash during RCP Server launch.. ")
 
-            found = str(line).find(marker_callstack)
+            found = str(line).find(ServerIOSLauncher.ConsoleMarkers.CALLSTACK.value)
             if found != -1:
                 raise RuntimeError("[ERROR] Crash during RCP Server launch.. ")
 
-            found = str(line).find(marker_server_ip)
+            found = str(line).find(ServerIOSLauncher.ConsoleMarkers.SERVER_IP.value)
             if found != -1:
-                ip = str(line)[found + len(marker_server_ip) :].rstrip("\n")
+                ip = str(line)[
+                    found + len(ServerIOSLauncher.ConsoleMarkers.SERVER_IP.value) :
+                ].rstrip("\n")
                 host = ip
 
-            found = str(line).find(marker_server_port)
+            found = str(line).find(ServerIOSLauncher.ConsoleMarkers.SERVER_PORT.value)
             if found != -1:
-                port = str(line)[found + len(marker_server_port) :].rstrip("\n")
+                port = str(line)[
+                    found + len(ServerIOSLauncher.ConsoleMarkers.SERVER_PORT.value) :
+                ].rstrip("\n")
                 port = int(port)
 
-            if str(line).find(marker_connected) != -1:
+            if str(line).find(ServerIOSLauncher.ConsoleMarkers.CONNECTED.value) != -1:
                 # rpc server reports that it successfully connected
                 break
         watchdog_thread.join()
