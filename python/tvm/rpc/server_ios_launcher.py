@@ -261,11 +261,26 @@ class ServerIOSLauncher:
         """
         Marker-messages that iOS RPC Server should print to the console output
         when its states change (see apps/ios_rpc/tvmrpc/RPCServer.mm).
+
+        STOPPED : str
+            iOS RPC Server process was stopped
+
+        CALLSTACK : str
+            Call stack if RPC Server was stopped with an error.
+
+        CONNECTED : str
+            RPC Server reports that it successfully connected.
+
+        SERVER_IP : str
+            IP on which RPC Server started (for standalone mode).
+
+        SERVER_PORT : str
+            HOST on which RPC Server started (for standalone mode).
         """
 
         STOPPED = "PROCESS_STOPPED"
         CALLSTACK = "First throw call stack"
-        CONNECTED = "[IOS-RPC] STATE: 2"  # 0 means state Tracker/Proxy is connected
+        CONNECTED = "[IOS-RPC] STATE: 2"
         SERVER_IP = "[IOS-RPC] IP: "
         SERVER_PORT = "[IOS-RPC] PORT: "
 
