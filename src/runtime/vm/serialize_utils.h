@@ -59,13 +59,13 @@ struct VMFunctionSerializer {
   /*! \brief The parameters of the VMFunction. */
   std::vector<std::string> params;
   /*! \brief The device type of each parameter of the VMFunction. */
-  std::vector<Index> params_device_type;
+  std::vector<DLDeviceType> params_device_type;
 
   VMFunctionSerializer() = default;
 
   VMFunctionSerializer(const std::string& name, Index register_file_size, size_t num_instructions,
                        const std::vector<std::string>& params,
-                       const std::vector<Index>& params_device_type)
+                       const std::vector<DLDeviceType>& params_device_type)
       : name(name),
         register_file_size(register_file_size),
         num_instructions(num_instructions),

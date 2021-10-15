@@ -52,8 +52,8 @@ Build the Shared Library
 Our goal is to build the shared libraries:
 
    - On Linux the target library are `libtvm.so` and `libtvm_runtime.so`
-   - On macOS the target library are `libtvm.dylib` and `libtvm_runtime.dylib` 
-   - On Windows the target library are `libtvm.dll` and `libtvm_runtime.dll` 
+   - On macOS the target library are `libtvm.dylib` and `libtvm_runtime.dylib`
+   - On Windows the target library are `libtvm.dll` and `libtvm_runtime.dll`
 
 It is also possible to :ref:`build the runtime <deploy-and-integration>` library only.
 
@@ -74,14 +74,14 @@ linux operating systems, execute (in a terminal):
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
-Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by 
+Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by
 Homebrew to ensure the dependencies are correctly installed and configured:
 
-.. code:: bash 
+.. code:: bash
 
-    brew install gcc git cmake 
-    brew install llvm 
-    brew install python@3.8 
+    brew install gcc git cmake
+    brew install llvm
+    brew install python@3.8
 
 
 We use cmake to build the library.
@@ -107,7 +107,7 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
       .. code:: bash
 
-          export TVM_LOG_DEBUG=1
+          export TVM_LOG_DEBUG="ir/transform.cc=1;relay/ir/transform.cc=1"
 
 - TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 
@@ -303,20 +303,20 @@ like ``virtualenv``.
 
        pip3 install --user tornado psutil xgboost cloudpickle
 
-Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed, 
-including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and 
+Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed,
+including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and
 configuration. A workaround for this is to do the following commands:
 
-    .. code:: bash 
+    .. code:: bash
 
         brew install openblas gfortran
 
-        pip install pybind11 cython pythran   
-        
-        export OPENBLAS=/opt/homebrew/opt/openblas/lib/ 
-        
+        pip install pybind11 cython pythran  
+
+        export OPENBLAS=/opt/homebrew/opt/openblas/lib/
+
         pip install scipy --no-use-pep517
-        
+
         pip install xgboost
 
 Install Contrib Libraries

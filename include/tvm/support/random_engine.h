@@ -103,6 +103,16 @@ class LinearCongruentialEngine {
   }
 
   /*!
+   * \brief Fork a new seed for another RNG from current random state.
+   * \return The forked seed.
+   */
+  TRandState ForkSeed() {
+    // In order for reproducibility, we computer the new seed using RNG's random state and a
+    // different set of parameters. Note that both 32767 and 1999999973 are prime numbers.
+    return ((*this)() * 32767) % 1999999973;
+  }
+
+  /*!
    * \brief Construct a random number generator with a random state pointer.
    * \param rand_state_ptr The random state pointer given in result_type*.
    * \note The random state is not checked for whether it's nullptr and whether it's in the range of

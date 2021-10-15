@@ -216,6 +216,50 @@ def test_add():
     check_result(mod, ref_mod, {"data0": data0, "data1": data1}, shape, tol=1e-5)
 
 
+def test_multiply():
+    """Test a subgraph with a single add operator."""
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    dtype = "float32"
+    shape = (10, 10)
+
+    def gen_multiply():
+        data0 = relay.var("data0", shape=shape, dtype=dtype)
+        data1 = relay.var("data1", shape=shape, dtype=dtype)
+        out = relay.multiply(data0, data1)
+
+        func = relay.Function([data0, data1], out)
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
+        mod = tvm.IRModule()
+        mod[glb_var] = func
+        mod = transform.InferType()(mod)
+
+        data0 = relay.var("data0", shape=shape, dtype=dtype)
+        data1 = relay.var("data1", shape=shape, dtype=dtype)
+        main_f = relay.Function([data0, data1], glb_var(data0, data1))
+        mod["main"] = main_f
+        mod = transform.InferType()(mod)
+
+        data0 = relay.var("data0", shape=shape, dtype=dtype)
+        data1 = relay.var("data1", shape=shape, dtype=dtype)
+        out = relay.multiply(data0, data1)
+        main_f = relay.Function([data0, data1], out)
+        ref_mod = tvm.IRModule()
+        ref_mod["main"] = main_f
+        ref_mod = transform.InferType()(ref_mod)
+
+        return mod, ref_mod
+
+    mod, ref_mod = gen_multiply()
+
+    data0 = np.random.uniform(0, 1, shape).astype(dtype)
+    data1 = np.random.uniform(0, 1, shape).astype(dtype)
+    check_result(mod, ref_mod, {"data0": data0, "data1": data1}, shape, tol=1e-5)
+
+
 def test_relu():
     """Test a subgraph with a single ReLU operator."""
     if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
@@ -225,7 +269,7 @@ def test_relu():
     dtype = "float32"
     shape = (1, 32, 14, 14)
 
-    def gen_relu():
+    def gen_relu(shape):
         data0 = relay.var("data0", shape=shape, dtype=dtype)
         out = relay.nn.relu(data0)
 
@@ -250,18 +294,22 @@ def test_relu():
 
         return mod, ref_mod
 
-    mod, ref_mod = gen_relu()
+    def check(shape):
+        mod, ref_mod = gen_relu(shape)
 
-    data0 = np.random.uniform(-1, 1, shape).astype(dtype)
-    check_result(
-        mod,
-        ref_mod,
-        {
-            "data0": data0,
-        },
-        (1, 32, 14, 14),
-        tol=1e-5,
-    )
+        data0 = np.random.uniform(-1, 1, shape).astype(dtype)
+        check_result(
+            mod,
+            ref_mod,
+            {
+                "data0": data0,
+            },
+            shape,
+            tol=1e-5,
+        )
+
+    check(shape=(1, 32, 14, 14))
+    check(shape=(1, 32))
 
 
 def test_dense():
@@ -668,6 +716,7 @@ def test_partial_constant():
 if __name__ == "__main__":
     test_conv2d()
     test_add()
+    test_multiply()
     test_relu()
     test_dense()
     test_bn()

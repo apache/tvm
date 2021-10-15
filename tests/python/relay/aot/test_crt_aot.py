@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import relay
+from tvm import relay, TVMError
 from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
@@ -299,13 +299,22 @@ def test_mobilenet(debug_calculated_workspaces, workspace_byte_alignment):
     interface_api = "c"
     test_runner = AOT_DEFAULT_RUNNER
 
+    # TODO(@Mousius) - Enable memory planning to take into account debug information
+    debugging_memory_overhead = 1024 * 1024
+
     mod, params = testing.mobilenet.get_workload(batch_size=1)
     data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
     data = np.random.uniform(size=data_shape).astype("float32")
     inputs = {"data": data}
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
-        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(
+            module=mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            extra_memory_in_bytes=debugging_memory_overhead,
+        ),
         test_runner,
         interface_api,
         use_unpacked_api,
@@ -604,7 +613,7 @@ def test_name_sanitiser_name_clash():
     inputs = {"input::-1": x_data, "input::-2": y_data, "input:--2": t_data}
     output_list = generate_ref_data(func, inputs)
 
-    with pytest.raises(ValueError, match="Sanitized input tensor name clash"):
+    with pytest.raises(TVMError, match="Sanitized input tensor name clash"):
         compile_and_run(
             AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
             test_runner,
@@ -673,12 +682,12 @@ def test_aot_codegen_backend_alloc_workspace_calls():
         }
         """
     )
-    compiled_runtime_modules = compile_models(
-        AOTTestModel(module=relay_mod, inputs=None, outputs=None),
-        "c",
-        True,
+    compiled_test_mods = compile_models(
+        models=AOTTestModel(module=relay_mod, inputs=None, outputs=None),
+        interface_api="c",
+        use_unpacked_api=True,
     )
-    source = compiled_runtime_modules[0].lib.imported_modules[0].get_source()
+    source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
     # There should be three allocates created for three primitive relay function
     # calls in the main for the above relay snippet.
     assert source.count("TVMBackendAllocWorkspace") == 3

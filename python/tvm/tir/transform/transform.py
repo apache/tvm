@@ -628,8 +628,8 @@ def CompactBufferAllocation():
     .. code-block:: python
 
         for i in range(0, 16):
-            with tir.block([]):
-                B = tir.alloc_buffer(16, 16)
+            with T.block([]):
+                B = T.alloc_buffer(16, 16)
                 for j in range(0, 16):
                     B[i, j] = A[i, j] + 1
                 for j in range(0, 16):
@@ -643,8 +643,8 @@ def CompactBufferAllocation():
     .. code-block:: python
 
         for i in range(0, 16):
-            with tir.block([]):
-                B = tir.alloc_buffer(1, 16)
+            with T.block([]):
+                B = T.alloc_buffer(1, 16)
                 for j in range(0, 16):
                     B[0, j] = A[i, j] + 1
                 for j in range(0, 16):
@@ -715,3 +715,14 @@ def MergeDynamicSharedMemoryAllocations():
         The result pass
     """
     return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore
+
+
+def ConvertForLoopsToSerial():
+    """Convert Parallel For Loops to Serial For Loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
