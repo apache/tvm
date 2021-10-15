@@ -25,13 +25,10 @@ def pattern_table():
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
     dense_bias_pat = ("cutlass.dense_bias",
                       make_gemm_pattern(True, None))
-    # dense_bias_relu_pat = ("cutlass.dense_bias_relu",
-    #                        make_gemm_pattern(True, "nn.relu"))
-    # dense_bias_gelu_pat = ("cutlass.dense_bias_gelu",
-    #                        make_gemm_pattern(True, "nn.gelu"))
+    dense_bias_relu_pat = ("cutlass.dense_bias_relu",
+                           make_gemm_pattern(True, "nn.relu"))
     cutlass_patterns = [
-        # dense_bias_gelu_pat,
-        # dense_bias_relu_pat,
+        dense_bias_relu_pat,
         dense_bias_pat,
         dense_pat,
     ]

@@ -20,8 +20,7 @@ weight = relay.var("weight", shape=(N, K), dtype="float16")
 bias = relay.var("bias", shape=(N,), dtype="float16")
 gemm_out = relay.nn.dense(data, weight)
 gemm_out = relay.nn.bias_add(gemm_out, bias)
-# gemm_out = relay.nn.relu(gemm_out)
-# gemm_out = relay.nn.gelu(gemm_out)
+gemm_out = relay.nn.relu(gemm_out)
 # gemm_out = relay.nn.dense(gemm_out, weight)
 out = gemm_out
 
@@ -162,7 +161,7 @@ print("np computing...")
 np_out = np.dot(np_data, np_weight.T)
 # np_out = np.dot(np_out, np_weight.T)
 np_out = np_out + np_bias
-# np_out = np_out * (np_out > 0)
+np_out = np_out * (np_out > 0)
 # np_out = np_out*(0.5+erf(np_out * np.sqrt(0.5)) * 0.5)
 
 

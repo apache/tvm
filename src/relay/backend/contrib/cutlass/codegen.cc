@@ -419,7 +419,7 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_elementwise.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
-    // code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_hardswish.h>\n";
+    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias.h>\n";
 
     ICHECK(ref->IsInstance<FunctionNode>());
     auto res = GenCutlassFunc(Downcast<Function>(ref));
