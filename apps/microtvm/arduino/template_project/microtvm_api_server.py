@@ -36,6 +36,8 @@ import serial
 import serial.tools.list_ports
 from tvm.micro.project_api import server
 
+_LOG = logging.getLogger("MicroTVM API Server")
+
 MODEL_LIBRARY_FORMAT_RELPATH = pathlib.Path("src") / "model" / "model.tar"
 API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
 BUILD_DIR = API_SERVER_DIR / "build"
@@ -43,7 +45,7 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
-ARDUINO_CLI_VERSION = "0.18.3"
+ARDUINO_CLI_VERSION = 0.18
 
 
 class BoardAutodetectFailed(Exception):
@@ -139,6 +141,11 @@ PROJECT_OPTIONS = [
     ),
     server.ProjectOption(
         "verbose", help="True to pass --verbose flag to arduino-cli compile and upload"
+    ),
+    server.ProjectOption(
+        "warning_as_error",
+        choices=(True, False),
+        help="Tread warnings as errors.",
     ),
 ]
 
@@ -337,22 +344,24 @@ class Handler(server.ProjectAPIHandler):
         # It's probably a standard C/C++ header
         return include_path
 
-    def _get_platform_version(self, arduino_cli_path: str) -> str:
+    def _get_platform_version(self, arduino_cli_path: str) -> float:
         version_output = subprocess.check_output([arduino_cli_path, "version"], encoding="utf-8")
         version_output = (
             version_output.replace("\n", "").replace("\r", "").replace(":", "").lower().split(" ")
         )
-        version_index = version_output.index("version") + 1
+        full_version = version_output[version_output.index("version") + 1].split(".")
+        version = float(f"{full_version[0]}.{full_version[1]}")
 
-        return version_output[version_index]
+        return version
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Arduino version
         version = self._get_platform_version(options["arduino_cli_cmd"])
         if version != ARDUINO_CLI_VERSION:
-            raise ValueError(
-                f"Arduino CLI version does not math: {version} != {ARDUINO_CLI_VERSION}"
-            )
+            message = f"Arduino CLI version does not match: {version} != {ARDUINO_CLI_VERSION}"
+            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+                raise ValueError(message)
+            _LOG.warning(message)
 
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)

@@ -44,7 +44,7 @@ import yaml
 from tvm.micro.project_api import server
 
 
-_LOG = logging.getLogger(__name__)
+_LOG = logging.getLogger("MicroTVM API Server")
 
 
 API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
@@ -62,7 +62,7 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 BOARDS = API_SERVER_DIR / "boards.json"
 
 
-ZEPHYR_VERSION = "2.5"
+ZEPHYR_VERSION = 2.5
 
 
 # Data structure to hold the information microtvm_api_server.py needs
@@ -269,6 +269,11 @@ PROJECT_OPTIONS = [
         "config_main_stack_size",
         help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
     ),
+    server.ProjectOption(
+        "warning_as_error",
+        choices=(True, False),
+        help="Tread warnings as errors.",
+    ),
 ]
 
 
@@ -346,7 +351,7 @@ class Handler(server.ProjectAPIHandler):
         "aot_demo": "memory microtvm_rpc_common common",
     }
 
-    def _get_platform_version(self) -> str:
+    def _get_platform_version(self) -> float:
         with open(pathlib.Path(os.getenv("ZEPHYR_BASE")) / "VERSION", "r") as f:
             lines = f.readlines()
             for line in lines:
@@ -356,13 +361,16 @@ class Handler(server.ProjectAPIHandler):
                 if "VERSION_MINOR" in line:
                     version_minor = line.split("=")[1]
 
-        return f"{version_major}.{version_minor}"
+        return float(f"{version_major}.{version_minor}")
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Zephyr version
         version = self._get_platform_version()
         if version != ZEPHYR_VERSION:
-            raise ValueError(f"Zephyr version does not math: {version} != {ZEPHYR_VERSION}")
+            message = f"Zephyr version does not math: {version} != {ZEPHYR_VERSION}"
+            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+                raise ValueError(message)
+            _LOG.warning(message)
 
         project_dir = pathlib.Path(project_dir)
         # Make project directory.
