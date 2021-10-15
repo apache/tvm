@@ -255,7 +255,7 @@ def build(
         target_input_mod, target_host
     )
 
-    rt_mod_host = _driver_ffi.finalize_module(target_input_mod, target_host)
+    rt_mod_host = _driver_ffi.preprocess_module(target_input_mod, target_host)
 
     target_input_mod, target_host = Target.check_and_update_host_consist(
         target_input_mod, target_host

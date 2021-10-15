@@ -425,7 +425,8 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
   return {host_mod, device_mod};
 }
 
-runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Target& host_target) {
+runtime::Module PreProcessModuleForBuild(const Map<Target, IRModule>& inputs_arg,
+                                         const Target& host_target) {
   std::vector<runtime::Module> device_modules;
   Map<Target, IRModule> inputs = inputs_arg;
   Target target_host = host_target;
@@ -479,9 +480,9 @@ runtime::Module FinalizeModule(const Map<Target, IRModule>& inputs_arg, const Ta
   return complete_mod;
 }
 
-TVM_REGISTER_GLOBAL("driver.finalize_module")
+TVM_REGISTER_GLOBAL("driver.preprocess_module")
     .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target host_target) {
-      return FinalizeModule(inputs_arg, host_target);
+      return PreProcessModuleForBuild(inputs_arg, host_target);
     });
 
 runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
