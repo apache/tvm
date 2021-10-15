@@ -29,6 +29,7 @@
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -410,7 +411,6 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
 
   // Table formatting
   std::set<std::string> unique_headers;
-
   for (auto row : aggregated_calls) {
     for (auto p : row) {
       unique_headers.insert(p.first);
