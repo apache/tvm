@@ -99,40 +99,52 @@ def get_device_uid(target_device: Dict) -> AnyStr:
     return target_device["udid"]
 
 
+def check_call_with_runtime_error(cmd: AnyStr, error_message: AnyStr) -> None:
+    """Calling the function `subprocess.check_call` and catching its possible thrown exception."""
+
+    try:
+        subprocess.check_call(cmd.split(" "))
+    except subprocess.CalledProcessError as called_process_error:
+        raise called_process_error from RuntimeError(error_message)
+
+
 def boot_device(udid: AnyStr) -> None:
     """Boot the device by its unique ID."""
 
-    os.system(f"xcrun simctl boot {udid}")
+    cmd = f"xcrun simctl boot {udid}"
+    error_message = f"Failed to boot device with unique id: {udid}"
+    check_call_with_runtime_error(cmd, error_message)
     if not is_booted(udid):
-        raise RuntimeError(f"Failed to boot device with unique id: {udid}")
+        raise RuntimeError(error_message)
 
 
 def shutdown_device(udid: AnyStr) -> None:
     """Shutdown the device by its unique ID."""
 
-    os.system(f"xcrun simctl shutdown {udid}")
+    cmd = f"xcrun simctl shutdown {udid}"
+    error_message = f"Failed to shut down device with unique id: {udid}"
+    check_call_with_runtime_error(cmd, error_message)
     if not is_turned_off(udid):
-        raise RuntimeError(f"Failed to shut down device with unique id: {udid}")
+        raise RuntimeError(error_message)
 
 
 def deploy_bundle_to_simulator(udid: AnyStr, bundle_path: AnyStr) -> None:
     """Deploy iOS RPC bundle <bundle_path> to simulator with its unique ID <udid>."""
 
-    ret_code = os.system(f"xcrun simctl install {udid} {bundle_path}")
-    if ret_code != 0:
-        raise RuntimeError(
-            f"Failed to deploy bundle <{bundle_path}> to device with unique id: {udid}"
-        )
+    check_call_with_runtime_error(
+        cmd=f"xcrun simctl install {udid} {bundle_path}",
+        error_message=f"Failed to deploy bundle <{bundle_path}> to device with unique id: {udid}",
+    )
 
 
 def delete_bundle_from_simulator(udid: AnyStr, bundle_id: AnyStr) -> None:
     """Delete iOS RPC bundle <bundle_id> from simulator with its unique ID <udid>."""
 
-    ret_code = os.system(f"xcrun simctl uninstall {udid} {bundle_id}")
-    if ret_code != 0:
-        raise RuntimeError(
-            f"Failed to uninstall bundle <{bundle_id}> from device with unique id: {udid}"
-        )
+    check_call_with_runtime_error(
+        cmd=f"xcrun simctl uninstall {udid} {bundle_id}",
+        error_message=f"Failed to uninstall bundle <{bundle_id}> "
+        f"from device with unique id: {udid}",
+    )
 
 
 def launch_ios_rpc(
@@ -182,11 +194,11 @@ def launch_ios_rpc(
 def terminate_ios_rpc(udid: AnyStr, bundle_id: AnyStr) -> None:
     """Terminate iOS RPC application."""
 
-    ret_code = os.system(f"xcrun simctl terminate {udid} {bundle_id}")
-    if ret_code != 0:
-        raise RuntimeError(
-            f"Failed to terminate bundle <{bundle_id}> from device with unique id: {udid}"
-        )
+    check_call_with_runtime_error(
+        cmd=f"xcrun simctl terminate {udid} {bundle_id}",
+        error_message=f"Failed to terminate bundle <{bundle_id}> "
+        f"from device with unique id: {udid}",
+    )
 
 
 def is_booted(udid: AnyStr) -> bool:
@@ -293,7 +305,7 @@ class ServerIOSLauncher:
     def terminate(self):
         """Terminate iOS RPC server."""
 
-        if self.server_was_started:
+        if self.bundle_was_deployed and self.server_was_started:
             try:
                 terminate_ios_rpc(self.udid, self.bundle_id)
                 self.launch_process.terminate()
