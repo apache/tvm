@@ -45,7 +45,23 @@ def xcrun(cmd):
     return out.strip()
 
 
-def create_dylib(output, objects, arch, sdk="macosx"):
+def __get_min_os_version(sdk):
+    if sdk in ("macosx", "iphonesimulator"):
+        return None
+    if sdk == "iphoneos":
+        return "13.0"
+    raise RuntimeError("Unsupported sdk: %s" % sdk)
+
+
+def __get_min_os_version_cmd(sdk, min_os_version):
+    if min_os_version is None:
+        min_os_version = __get_min_os_version(sdk)
+    if min_os_version is not None:
+        return "-mios-version-min=" + min_os_version
+    return ""
+
+
+def create_dylib(output, objects, arch, sdk="macosx", min_os_version=None):
     """Create dynamic library.
 
     Parameters
@@ -71,6 +87,7 @@ def create_dylib(output, objects, arch, sdk="macosx"):
     cmd += ["-dynamiclib"]
     cmd += ["-arch", arch]
     cmd += ["-isysroot", sdk_path]
+    cmd += [__get_min_os_version_cmd(sdk, min_os_version)]
     cmd += ["-o", output]
     if isinstance(objects, str):
         cmd += [objects]
@@ -90,7 +107,7 @@ def create_dylib(output, objects, arch, sdk="macosx"):
 create_dylib.output_format = "dylib"
 
 
-def compile_metal(code, path_target=None, sdk="macosx"):
+def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     """Compile metal with CLI tool from env.
 
     Parameters
@@ -123,7 +140,14 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     #
     #   xcrun -sdk macosx metal -c MyLibrary.metal -o MyLibrary.air
     #   xcrun -sdk macosx metallib MyLibrary.air -o MyLibrary.metallib
-    cmd1 = ["xcrun", "-sdk", sdk, "metal", "-O3"]
+    min_target = __get_min_os_version_cmd(sdk, min_os_version)
+    if sdk == "macosx":
+        language_version = "-std=macos-metal2.3"
+    elif sdk in ("iphoneos", "iphonesimulator"):
+        language_version = "-std=ios-metal2.3"
+    else:
+        raise RuntimeError("Unsupported sdk: %s" % sdk)
+    cmd1 = ["xcrun", "-sdk", sdk, "metal", language_version, min_target, "-O3"]
     cmd1 += ["-c", temp_code, "-o", temp_ir]
     cmd2 = ["xcrun", "-sdk", sdk, "metallib"]
     cmd2 += [temp_ir, "-o", file_target]
