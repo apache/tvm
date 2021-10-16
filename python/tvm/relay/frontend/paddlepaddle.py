@@ -18,6 +18,7 @@
 # pylint: disable=import-outside-toplevel
 """Paddle: PArallel Distributed Deep LEarning."""
 
+import warnings
 import numpy as np
 
 import tvm
@@ -47,7 +48,7 @@ def _autopad(
     data,
     strides,
     kernel_shape,
-    dilations=[1, 1],
+    dilations=(1, 1),
     pad_type="constant",
     pad_value=0.0,
 ):
