@@ -1163,8 +1163,10 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
     ----------
     program_or_layer : object of `paddle.static.Program` or `paddle.jit.TranslatedLayer`
         Loaded model by `paddle.static.load_inference_model` or `paddle.jit.load`
+
     shape_dict : dict of str to tuple/list, optional
         The input shape of model
+
     scope : object of `paddle.static.Scope`, optional
         The scope that saves all the weights of model, use `paddle.static.global_scope` by default
 
@@ -1172,6 +1174,7 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
     -------
     mod : tvm.IRModule
         The relay module for compilation
+
     params : dict of str to tvm.nd.NDArray
     """
 
