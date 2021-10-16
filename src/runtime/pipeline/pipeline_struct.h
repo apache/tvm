@@ -98,9 +98,9 @@ class Dependent {
   void SetDepModInputIndx(const int modIndx, const uint8_t inputIndx) {
     assert(modIndx <= DEPENDENT_MAX);
     assert(inputIndx <= TYP_MAX(DEP_INDX_TYPE));
-    if (modIndx == 0) {
+    if (modIndx == -1) {
       bFinal = true;
-      outputIndx = inputIndx - 1;
+      outputIndx = inputIndx;
     } else {
       dependent[modIndx] = inputIndx;
     }
@@ -109,7 +109,7 @@ class Dependent {
 
   int GetOutputIndx(void) { return outputIndx; }
 
-  int GetDepModInputIndx(const int modIndx) { return dependent[modIndx - 1]; }
+  int GetDepModInputIndx(const int modIndx) { return dependent[modIndx]; }
 
   void RemoveDependentRef(const int modIndx) {
     dependent[modIndx] = 0;
@@ -471,8 +471,8 @@ class RuntimeData {
        * cross device memory copy to set input data.
        */
       int inputIndx = data[i]->dependent.GetDepModInputIndx(runtimeIndx);
-      if (inputIndx > 0) {
-        runtimePtr->SetInput(inputIndx - 1, data[i]->dlData.data);
+      if (inputIndx = 0) {
+        runtimePtr->SetInput(inputIndx, data[i]->dlData.data);
         /* data getused remove dependent reference for current runtime
          */
         data[i]->dependent.RemoveDependentRef(runtimeIndx);

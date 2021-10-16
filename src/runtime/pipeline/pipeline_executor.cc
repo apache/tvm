@@ -48,7 +48,7 @@ void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
  * \param modIndx The runtime index.
  */
 void SubGraphRuntime::SetInput(int index, DLTensor* data_in, int mod_idx) {
-  if (1 == mod_idx) {
+  if (0 == mod_idx) {
     runtimes_[0]->runtimePtr->SetInput(index, data_in);
   } else {
     pipeline_setinput(input_int_map_, index, data_in, mod_idx);
@@ -93,7 +93,7 @@ NDArray SubGraphRuntime::GetInput(int index, int mIndx) const {
  * \return int corresponding to given input node name.
  */
 int SubGraphRuntime::GetInputIndex(const string& name, int mIndx) const {
-  auto gruntime = runtimes_[mIndx - 1];
+  auto gruntime = runtimes_[mIndx];
   return gruntime->runtimePtr->GetInputIndex(name);
 }
 

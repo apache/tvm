@@ -92,7 +92,7 @@ def build_pipeline(mod_n_configs, export_path=None):
         mconf = mod_config["pipeline"].copy()
         # Get mod device config
         dev = mod_config["dev"]
-        mod_indx = mconf["mod_indx"] - 1
+        mod_indx = mconf["mod_indx"]
         assert mod_indx < config_len
         build_func = relay.build
         # if there is a self defined build function then use it.
@@ -197,7 +197,7 @@ class PipelineModule(object):
         self._get_num_outputs = module["get_num_outputs"]
         self._get_num_inputs = module["get_num_inputs"]
 
-    def set_input(self, key, value, mod_idx=1, params=None):
+    def set_input(self, key, value, mod_idx=0, params=None):
         """Set inputs to the module via kwargs
 
         Parameters
@@ -214,12 +214,12 @@ class PipelineModule(object):
         params : dict of str to NDArray
             Additional arguments
         """
-        assert mod_idx >= 1
+        assert mod_idx >= 0
         self._set_input(key, tvm.nd.array(value, tvm.cpu()), mod_idx)
 
         if params:
             for param in params:
-                self.graph_modules_[mod_idx - 1].set_input(**param)
+                self.graph_modules_[mod_idx].set_input(**param)
 
     def run(self):
         """Run forward execution of the graph"""

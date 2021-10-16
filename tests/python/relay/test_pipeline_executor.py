@@ -184,7 +184,7 @@ def run_modules(mod_configs, dev, target, dname, data, iMod, iName, iData):
                 # input_name indicate the input index number.
                 mod_indx = dep["mod_indx"]
                 input_name = dep["input_name"]
-                if mod_indx == 0:
+                if mod_indx == -1:
                     final_output[input_name] = output_data
                 else:
                     if mod_indx in mod_input:
@@ -217,7 +217,7 @@ def get_network():
 
     net = relay.multiply(net, mv3)
     net_output2 = relay.subtract(net, mv2)
-    net = relay.add(net, net)
+    net = relay.add(net, mv3)
     func = relay.Function([data, data21], net)
     mod = tvm.IRModule.from_expr(func)
     return mod, dshape
@@ -306,7 +306,7 @@ def run_pipeline(target):
     d3 = np.full(dshape, 10).astype("float32")
     for data in datas:
         pipeline_module.set_input("data", data)
-        pipeline_module.set_input("data_1", data, mod_idx=2)
+        pipeline_module.set_input("data_1", data, mod_idx=1)
         pipeline_module.run()
 
     """

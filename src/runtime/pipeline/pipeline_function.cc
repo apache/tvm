@@ -149,8 +149,8 @@ size_t pipeline_init(Array<Module> modules, SHARED_RUNTIME_VEC* runtimes,
     /* set prev and next for RuntimeItem, runtime need these information to
      * poll data from prev and do notification for next.
      */
-    if (i < len - 1) {
-      (*runtimes)[i]->next = (*runtimes)[i + 1];
+    if (i > 0) {
+      (*runtimes)[i - 1]->next = (*runtimes)[i];
     }
     if (i == len - 1) {
       (*runtimes)[i]->next = (*runtimes)[0];
@@ -193,7 +193,7 @@ void pipeline_run(const SHARED_RUNTIME_VEC& runtimes, const MOD_DLDATA_MAP_PTR i
   for (auto modInputs : *indxInputs) {
     int modIndx = modInputs.first;
     for (auto inputs : modInputs.second) {
-      outputs.push_back(make_shared<OutputData>(modIndx, inputs.first + 1, inputs.second->data));
+      outputs.push_back(make_shared<OutputData>(modIndx, inputs.first, inputs.second->data));
     }
   }
 
