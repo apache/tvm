@@ -1,4 +1,5 @@
 import tvm.ir
+from tvm.relay import transform
 from ...dataflow_pattern import wildcard, is_op, is_constant
 from .register import register_pattern_table
 
@@ -20,8 +21,7 @@ def make_gemm_pattern(with_bias=True, with_act=None):
         return is_op(with_act)(gemm_out)
 
 
-@register_pattern_table("cutlass")
-def pattern_table():
+def get_pattern_table():
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
     dense_bias_pat = ("cutlass.dense_bias",
                       make_gemm_pattern(True, None))
@@ -33,3 +33,10 @@ def pattern_table():
         dense_pat,
     ]
     return cutlass_patterns
+
+
+def partition_for_cutlass(mod):
+    mod = transform.MergeComposite(get_pattern_table())(mod)
+    mod = transform.AnnotateTarget(["cutlass"])(mod)
+    mod = transform.PartitionGraph()(mod)
+    return mod
