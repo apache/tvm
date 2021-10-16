@@ -792,6 +792,9 @@ def convert_pool2d(g, op, block):
         msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
+    # handle with special case
+    # while kernel size less than input size
+    # shrink kernel size to input size
     if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
         ksize[0] = in_h
     if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
