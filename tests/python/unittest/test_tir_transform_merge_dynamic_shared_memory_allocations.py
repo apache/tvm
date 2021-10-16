@@ -14,20 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
 import numpy as np
+
+import tvm
 import tvm.testing
+from tvm import te
+from tvm.driver.build_module import schedule_to_module
 from tvm.topi.math import cast
 
 
 def run_passes(sch, args):
-    bounds = tvm.te.schedule.InferBound(sch)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc(args, stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(sch, args)
     return tvm.transform.Sequential(
         [
             tvm.tir.transform.StorageFlatten(64),
