@@ -44,6 +44,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 
 using runtime::PackedFunc;
 using runtime::TVMArgs;
@@ -287,24 +288,24 @@ IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
   return mod;
 }
 
+// Convert te schedule to IRModule
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                           const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  // Convert te schedule to IRModule
-  Array<ObjectRef> out_arg_list;
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-
   sch = sch.normalize();
 
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  bool debug_keep_trivial_loop =
+      pass_ctx->GetConfig<Bool>("tir.debug_keep_trivial_loop", Bool(false)).value();
+
   // Before TIR transformation.
-  Map<tir::IterVar, Range> bounds = te::InferBound(sch);
-  tir::Stmt stmt = te::ScheduleOps(sch, std::move(bounds), false);
+  tir::Stmt stmt = te::ScheduleOps(sch, te::InferBound(sch), debug_keep_trivial_loop);
   bool compact = te::VerifyCompactBuffer(stmt);
 
   Map<te::Tensor, tir::Buffer> out_binds;
+  Array<ObjectRef> out_arg_list;
   GetBinds(args, compact, binds, &out_binds, &out_arg_list);
 
-  // Build the function
-  // At this point binds is only te::Tensors
+  // Build the function, converting from te::Tensor to tir::Buffer
   tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
   f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
@@ -325,7 +326,7 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
                        const Map<te::Tensor, tir::Buffer>& binds) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
-      if (binds.get() != nullptr) {
+      if (binds.defined()) {
         for (auto kv : binds) {
           c_binds.insert({kv.first, kv.second});
         }

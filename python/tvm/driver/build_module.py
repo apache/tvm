@@ -67,6 +67,11 @@ def schedule_to_module(
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
 ) -> IRModule:
     """According to the given schedule, form a function.
+
+    This is a low-level function intended for testing purposes, and
+    does not apply any optimization passes.  In general, `tvm.lower`
+    and `tvm.build` should be used instead.
+
     Parameters
     ----------
     sch : tvm.te.schedule.Schedule
