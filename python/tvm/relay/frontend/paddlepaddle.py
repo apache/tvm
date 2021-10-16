@@ -1158,6 +1158,7 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """Convert a PaddlePaddle model into an equivalent Relay Function.
     PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model,
     and PaddlePaddle scope stores all the weights of PaddlePaddle model.
+
     Parameters
     ----------
     program_or_layer : object of `paddle.static.Program` or `paddle.jit.TranslatedLayer`
@@ -1166,6 +1167,7 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
         The input shape of model
     scope : object of `paddle.static.Scope`, optional
         The scope that saves all the weights of model, use `paddle.static.global_scope` by default
+
     Returns
     -------
     mod : tvm.IRModule
