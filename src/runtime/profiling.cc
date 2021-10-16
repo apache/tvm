@@ -181,7 +181,7 @@ String ShapeString(const std::vector<NDArray>& shapes) {
 
 String ReportNode::AsCSV() const {
   // get unique headers
-  std::unordered_set<std::string> unique_headers;
+  std::set<std::string> unique_headers;
 
   for (auto row : calls) {
     for (auto p : row) {
@@ -407,7 +407,7 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
   }
 
   // Table formatting
-  std::unordered_set<std::string> unique_headers;
+  std::set<std::string> unique_headers;
 
   for (auto row : aggregated_calls) {
     for (auto p : row) {
@@ -415,10 +415,11 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
     }
   }
 
-  std::vector<std::string> headers = {"Name", "Duration (us)",
-                                      "Percent"};  // always include these headers
+  // always include these headers in this order
+  std::vector<std::string> headers = {"Name",   "Duration (us)", "Percent",
+                                      "Device", "Count",         "Argument Shapes"};
   for (auto header : unique_headers) {
-    if (header != "Name" && header != "Duration (us)" && header != "Percent") {
+    if (std::find(headers.begin(), headers.end(), header) == headers.end()) {
       headers.push_back(header);
     }
   }
