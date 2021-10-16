@@ -8,6 +8,7 @@
 # JiaKui Hu, 2021
 # HLearning, 2021
 # DH Luo, 2021
+# juzi, 2021
 # 
 #, fuzzy
 msgid ""
@@ -16,7 +17,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:38+0000\n"
-"Last-Translator: DH Luo, 2021\n"
+"Last-Translator: juzi, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -173,7 +174,7 @@ msgstr ":obj:`abs <tvm.relay.abs>`\\ \\(data\\)"
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay.op.tensor.sign:1
 msgid "Compute element-wise absolute of data."
-msgstr "Compute element-wise absolute of data."
+msgstr "数据的点对应取绝对值运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -206,7 +207,7 @@ msgstr ":obj:`add <tvm.relay.add>`\\ \\(lhs\\, rhs\\)"
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.add:1
 msgid "Addition with numpy-style broadcasting."
-msgstr "Addition with numpy-style broadcasting."
+msgstr "Numpy 风格的广播加法运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -227,7 +228,7 @@ msgstr ":obj:`all <tvm.relay.all>`\\ \\(data\\[\\, axis\\, keepdims\\, exclude\\
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.all:1
 msgid "Computes the logical AND of boolean array elements over given axes."
-msgstr "Computes the logical AND of boolean array elements over given axes."
+msgstr "沿着给定的轴对布尔数组的元素执行逻辑与计算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -238,7 +239,7 @@ msgstr ":obj:`any <tvm.relay.any>`\\ \\(data\\[\\, axis\\, keepdims\\, exclude\\
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.any:1
 msgid "Computes the logical OR of boolean array elements over given axes."
-msgstr "Computes the logical OR of boolean array elements over given axes."
+msgstr "沿着给定的轴对布尔数组的元素执行逻辑或计算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -249,7 +250,7 @@ msgstr ":obj:`arange <tvm.relay.arange>`\\ \\(start\\[\\, stop\\, step\\, dtype\
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.arange:1
 msgid "Return evenly spaced values within a given interval."
-msgstr "Return evenly spaced values within a given interval."
+msgstr "在给定范围内返回均匀间隔的值。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -264,7 +265,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.argmax:1
 msgid "Returns the indices of the maximum values along an axis."
-msgstr "Returns the indices of the maximum values along an axis."
+msgstr "沿轴返回最大值的索引。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -279,7 +280,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.argmin:1
 msgid "Returns the indices of the minimum values along an axis."
-msgstr "Returns the indices of the minimum values along an axis."
+msgstr "沿轴返回最小值的索引。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -292,9 +293,7 @@ msgstr ":obj:`argsort <tvm.relay.argsort>`\\ \\(data\\[\\, axis\\, is\\_ascend\\
 msgid ""
 "Performs sorting along the given axis and returns an array of indicies "
 "having same shape as an input array that index data in sorted order."
-msgstr ""
-"Performs sorting along the given axis and returns an array of indicies "
-"having same shape as an input array that index data in sorted order."
+msgstr "沿给定轴对数组执行排序操作后，保持数组形状不变，输出排序数组对应的索引数组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -406,9 +405,7 @@ msgstr ""
 msgid ""
 "Return a scalar value array with the same type, broadcast to the provided "
 "shape."
-msgstr ""
-"Return a scalar value array with the same type, broadcast to the provided "
-"shape."
+msgstr "将标量数组广播至给定的形状并返回，且不改变其数据类型。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -429,8 +426,7 @@ msgstr ""
 #: tvm.relay.op.transform.full_like:1
 msgid ""
 "Return a scalar value array with the same shape and type as the input array."
-msgstr ""
-"Return a scalar value array with the same shape and type as the input array."
+msgstr "返回一个与输入数据相同数据类型与尺寸的标量数组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1597,7 +1593,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.tanh:1
 msgid "Compute element-wise tanh of data."
-msgstr "Compute element-wise tanh of data."
+msgstr "数据的点对应 tanh 运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1

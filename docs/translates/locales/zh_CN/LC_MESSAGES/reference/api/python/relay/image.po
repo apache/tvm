@@ -8,6 +8,7 @@
 # JiaKui Hu, 2021
 # HLearning, 2021
 # DH Luo, 2021
+# juzi, 2021
 # 
 #, fuzzy
 msgid ""
@@ -16,7 +17,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:37+0000\n"
-"Last-Translator: DH Luo, 2021\n"
+"Last-Translator: juzi, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -60,7 +61,7 @@ msgstr ""
 #: tvm.relay.op.image.image.affine_grid:1:<autosummary>:1
 #: ../../_staging/docstring of tvm.relay.op.image.image.crop_and_resize:1
 msgid "Crop input images and resize them."
-msgstr "Crop input images and resize them."
+msgstr "裁剪并调整输入图像的大小。"
 
 #: ../../_staging/docstring of
 #: tvm.relay.op.image.image.affine_grid:1:<autosummary>:1
@@ -98,7 +99,7 @@ msgstr ""
 #: tvm.relay.op.image.image.affine_grid:1:<autosummary>:1
 #: ../../_staging/docstring of tvm.relay.op.image.image.resize1d:1
 msgid "Image resize1d operator."
-msgstr "Image resize1d operator."
+msgstr "图像 1 维重塑算子。"
 
 #: ../../_staging/docstring of
 #: tvm.relay.op.image.image.affine_grid:1:<autosummary>:1
@@ -111,7 +112,7 @@ msgstr ""
 #: tvm.relay.op.image.image.affine_grid:1:<autosummary>:1
 #: ../../_staging/docstring of tvm.relay.op.image.image.resize2d:1
 msgid "Image resize2d operator."
-msgstr "Image resize2d operator."
+msgstr "图像 2 维重塑算子。"
 
 #: ../../_staging/docstring of
 #: tvm.relay.op.image.image.affine_grid:1:<autosummary>:1
@@ -124,7 +125,7 @@ msgstr ""
 #: tvm.relay.op.image.image.affine_grid:1:<autosummary>:1
 #: ../../_staging/docstring of tvm.relay.op.image.image.resize3d:1
 msgid "Image resize3d operator."
-msgstr "Image resize3d operator."
+msgstr "图像 3 维重塑算子。"
 
 #: ../../_staging/docstring of tvm.relay.op.image.image.affine_grid:3
 msgid ""

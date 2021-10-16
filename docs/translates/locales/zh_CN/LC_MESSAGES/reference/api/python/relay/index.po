@@ -437,7 +437,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.cast:1
 msgid "Cast input tensor to data type."
-msgstr "Cast input tensor to data type."
+msgstr "转换输入向量的数据类型。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -459,7 +459,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.ceil:1
 msgid "Compute element-wise ceil of data."
-msgstr "Compute element-wise ceil of data."
+msgstr "数据的点对应向上取整运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -469,7 +469,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid "Clip the elements in `a` between `a_min` and `a_max`."
-msgstr "Clip the elements in `a` between `a_min` and `a_max`."
+msgstr "将 `a` 中的元素裁剪至 `a_min` 到 `a_max` 之间。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -498,7 +498,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.concatenate:1
 msgid "Concatenate the input tensors along the given axis."
-msgstr "Concatenate the input tensors along the given axis."
+msgstr "根据给定的轴连接输入张量。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -509,7 +509,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.copy:1
 msgid "Copy a tensor."
-msgstr "Copy a tensor."
+msgstr "复制张量。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -572,7 +572,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid "Copy data from the source device to the destination device."
-msgstr "Copy data from the source device to the destination device."
+msgstr "将数据从源设备复制到目标设备。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -583,7 +583,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.divide:1
 msgid "Division with numpy-style broadcasting."
-msgstr "Division with numpy-style broadcasting."
+msgstr "Numpy 风格的广播除法运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -605,7 +605,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.equal:1
 msgid "Broadcasted elementwise test for (lhs == rhs)."
-msgstr "Broadcasted elementwise test for (lhs == rhs)."
+msgstr "对于(lhs == rhs)，进行基于广播后的点对应判断。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -627,7 +627,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.exp:1
 msgid "Compute elementwise exp of data."
-msgstr "Compute elementwise exp of data."
+msgstr "数据的点对应以 e 为底的指数运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -638,7 +638,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.expand_dims:1
 msgid "Insert `num_newaxis` axes at the position given by `axis`."
-msgstr "Insert `num_newaxis` axes at the position given by `axis`."
+msgstr "在 `axis` 给定的位置插入 `num_newaxis` 坐标轴。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -665,7 +665,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.floor:1
 msgid "Compute element-wise floor of data."
-msgstr "Compute element-wise floor of data."
+msgstr "数据的点对应向下取整运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -698,7 +698,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.full:1
 msgid "Fill array with scalar value."
-msgstr "Fill array with scalar value."
+msgstr "用标量填充数组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -714,7 +714,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.gather:1
 msgid "Gather values along given axis from given indices."
-msgstr "Gather values along given axis from given indices."
+msgstr "在给定的轴上对给定索引的值进行聚合。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -729,9 +729,7 @@ msgstr ""
 msgid ""
 "Gather elements or slices from data and store to a tensor whose shape is "
 "defined by indices."
-msgstr ""
-"Gather elements or slices from data and store to a tensor whose shape is "
-"defined by indices."
+msgstr "聚合数据的元素或切片，并将其储存到一个尺寸由索引定义的张量里。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -742,7 +740,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.greater:1
 msgid "Broadcasted elementwise test for (lhs > rhs)."
-msgstr "Broadcasted elementwise test for (lhs > rhs)."
+msgstr "对于(lhs > rhs)，进行基于广播后的点对应判断。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -753,7 +751,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.greater_equal:1
 msgid "Broadcasted elementwise test for (lhs >= rhs)."
-msgstr "Broadcasted elementwise test for (lhs >= rhs)."
+msgstr "对于(lhs >= rhs)，进行基于广播后的点对应判断。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -809,7 +807,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.layout_transform:1
 msgid "Transform the layout of a tensor"
-msgstr "Transform the layout of a tensor"
+msgstr "变换张量的布局。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -820,7 +818,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.left_shift:1
 msgid "Left shift with numpy-style broadcasting."
-msgstr "Left shift with numpy-style broadcasting."
+msgstr "Numpy 风格的广播向左移位运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -831,7 +829,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.less:1
 msgid "Broadcasted elementwise test for (lhs < rhs)."
-msgstr "Broadcasted elementwise test for (lhs < rhs)."
+msgstr "对于(lhs < rhs)，进行基于广播后的点对应判断。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -842,7 +840,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.less_equal:1
 msgid "Broadcasted elementwise test for (lhs <= rhs)."
-msgstr "Broadcasted elementwise test for (lhs <= rhs)."
+msgstr "对于(lhs <= rhs)，进行基于广播后的点对应判断。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -853,7 +851,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.log:1
 msgid "Compute elementwise log of data."
-msgstr "Compute elementwise log of data."
+msgstr "数据的点对应对数运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -886,7 +884,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.logical_and:1
 msgid "logical AND with numpy-style broadcasting."
-msgstr "logical AND with numpy-style broadcasting."
+msgstr "Numpy 风格的广播逻辑与运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -897,7 +895,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.logical_not:1
 msgid "Compute element-wise logical not of data."
-msgstr "Compute element-wise logical not of data."
+msgstr "数据的点对应逻辑否运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -908,7 +906,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.logical_or:1
 msgid "logical OR with numpy-style broadcasting."
-msgstr "logical OR with numpy-style broadcasting."
+msgstr "Numpy 风格的广播逻辑或运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -919,7 +917,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.logical_xor:1
 msgid "logical XOR with numpy-style broadcasting."
-msgstr "logical XOR with numpy-style broadcasting."
+msgstr "Numpy 风格的广播逻辑异或运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -958,7 +956,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.max:1
 msgid "Computes the max of array elements over given axes."
-msgstr "Computes the max of array elements over given axes."
+msgstr "计算给定轴上数组元素的最大值。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -969,7 +967,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.maximum:1
 msgid "Maximum with numpy-style broadcasting."
-msgstr "Maximum with numpy-style broadcasting."
+msgstr "Numpy 风格的广播取最大值运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -980,7 +978,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.mean:1
 msgid "Computes the mean of array elements over given axes."
-msgstr "Computes the mean of array elements over given axes."
+msgstr "计算给定轴上数组元素的平均值。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -991,7 +989,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.mean_std:1
 msgid "Computes the mean and standard deviation of data over given axes."
-msgstr "Computes the mean and standard deviation of data over given axes."
+msgstr "计算给定轴上数组元素的平均值与标准差。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1004,7 +1002,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.mean_variance:1
 msgid "Computes the mean and variance of data over given axes."
-msgstr "Computes the mean and variance of data over given axes."
+msgstr "计算给定轴上数组元素的平均值与方差。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1015,7 +1013,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.meshgrid:1
 msgid "Create coordinate matrices from coordinate vectors."
-msgstr "Create coordinate matrices from coordinate vectors."
+msgstr "从坐标向量中创建坐标矩阵。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1026,7 +1024,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.min:1
 msgid "Computes the min of array elements over given axes."
-msgstr "Computes the min of array elements over given axes."
+msgstr "计算给定轴上数组元素的最小值。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1037,7 +1035,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.minimum:1
 msgid "Minimum with numpy-style broadcasting."
-msgstr "Minimum with numpy-style broadcasting."
+msgstr "Numpy 风格的广播取最小值运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1048,7 +1046,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.mod:1
 msgid "Mod with numpy-style broadcasting."
-msgstr "Mod with numpy-style broadcasting."
+msgstr "Numpy 风格的广播取模运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1059,7 +1057,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.multiply:1
 msgid "Multiplication with numpy-style broadcasting."
-msgstr "Multiplication with numpy-style broadcasting."
+msgstr "Numpy 风格的广播乘法运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1070,7 +1068,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.ndarray_size:1
 msgid "Get number of elements of input tensor."
-msgstr "Get number of elements of input tensor."
+msgstr "获得张量的元素数量。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1081,7 +1079,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.negative:1
 msgid "Compute element-wise negative of data."
-msgstr "Compute element-wise negative of data."
+msgstr "数据的点对应取相反数运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1092,7 +1090,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.not_equal:1
 msgid "Broadcasted elementwise test for (lhs != rhs)."
-msgstr "Broadcasted elementwise test for (lhs != rhs)."
+msgstr "对于(lhs != rhs)，进行基于广播后的点对应判断。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1107,8 +1105,6 @@ msgid ""
 "Returns a one-hot tensor where the locations repsented by indices take value"
 " on_value, other locations take value off_value."
 msgstr ""
-"Returns a one-hot tensor where the locations repsented by indices take value"
-" on_value, other locations take value off_value."
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1119,7 +1115,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.ones:1
 msgid "Fill array with ones."
-msgstr "Fill array with ones."
+msgstr "用1填充数组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1130,7 +1126,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.ones_like:1
 msgid "Returns an array of ones, with same type and shape as the input."
-msgstr "Returns an array of ones, with same type and shape as the input."
+msgstr "返回一个与输入数据相同数据类型与尺寸的全一数组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1141,7 +1137,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.power:1
 msgid "Power with numpy-style broadcasting."
-msgstr "Power with numpy-style broadcasting."
+msgstr "Numpy 风格的广播幂运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1152,7 +1148,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.prod:1
 msgid "Computes the products of array elements over given axes."
-msgstr "Computes the products of array elements over given axes."
+msgstr "计算给定轴上数组元素的乘积。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1163,7 +1159,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.reinterpret:1
 msgid "Reinterpret input tensor to data type."
-msgstr "Reinterpret input tensor to data type."
+msgstr "将输入张量重新解释为指定数据类型。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1173,7 +1169,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid "Repeats elements of an array."
-msgstr "Repeats elements of an array."
+msgstr "重复数组元素。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1184,7 +1180,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.reshape:1
 msgid "Reshape the input array."
-msgstr "Reshape the input array."
+msgstr "重塑输入数组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1196,7 +1192,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid "Reshapes the input tensor by the size of another tensor."
-msgstr "Reshapes the input tensor by the size of another tensor."
+msgstr "根据其他张量的形状，对输入张量进行重塑。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1208,9 +1204,7 @@ msgstr ""
 msgid ""
 "Reverses the order of elements along given axis while preserving array "
 "shape."
-msgstr ""
-"Reverses the order of elements along given axis while preserving array "
-"shape."
+msgstr "在保持数组形状不变的情况下，沿给定的轴反转元素顺序。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1224,8 +1218,6 @@ msgid ""
 "Reshapes the input array where the special values are inferred from right to"
 " left."
 msgstr ""
-"Reshapes the input array where the special values are inferred from right to"
-" left."
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1237,7 +1229,7 @@ msgstr ""
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
 msgid "Reverse the tensor for variable length slices."
-msgstr "Reverse the tensor for variable length slices."
+msgstr "将张量内的每个可变长度切片进行翻转。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1248,7 +1240,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.right_shift:1
 msgid "Right shift with numpy-style broadcasting."
-msgstr "Right shift with numpy-style broadcasting."
+msgstr "Numpy 风格的广播向右移位运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1259,7 +1251,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.round:1
 msgid "Compute element-wise round of data."
-msgstr "Compute element-wise round of data."
+msgstr "数据的点对应四舍五入运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1270,7 +1262,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.rsqrt:1
 msgid "Compute elementwise rsqrt of data."
-msgstr "Compute elementwise rsqrt of data."
+msgstr "数据的点对应平方根倒数运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1347,8 +1339,6 @@ msgid ""
 "Sets all elements outside the expected length of the sequence to a constant "
 "value."
 msgstr ""
-"Sets all elements outside the expected length of the sequence to a constant "
-"value."
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1359,7 +1349,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.shape_of:1
 msgid "Get shape of a tensor."
-msgstr "Get shape of a tensor."
+msgstr "获得张量的形状。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1370,7 +1360,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.sigmoid:1
 msgid "Compute elementwise sigmoid of data."
-msgstr "Compute elementwise sigmoid of data."
+msgstr "数据的点对应 sigmoid 运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1408,7 +1398,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.slice_like:1
 msgid "Slice the first input with respect to the second input."
-msgstr "Slice the first input with respect to the second input."
+msgstr "按照第二个输出值的形状对第一个输出值进行切分。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1457,7 +1447,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.sparse_to_dense:1
 msgid "Converts a sparse representation into a dense tensor."
-msgstr "Converts a sparse representation into a dense tensor."
+msgstr "将稀疏张量表示转换为稠密张量。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1468,7 +1458,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.split:1
 msgid "Split input tensor along axis by sections or indices."
-msgstr "Split input tensor along axis by sections or indices."
+msgstr "沿轴按照一个元素或数组对输入张量进行切分。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1479,7 +1469,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.sqrt:1
 msgid "Compute elementwise sqrt of data."
-msgstr "Compute elementwise sqrt of data."
+msgstr "数据的点对应平方根运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1490,7 +1480,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.squeeze:1
 msgid "Squeeze axes in the array."
-msgstr "Squeeze axes in the array."
+msgstr "对数组进行维度压缩。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1501,7 +1491,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.stack:1
 msgid "Join a sequence of arrays along a new axis."
-msgstr "Join a sequence of arrays along a new axis."
+msgstr "沿新轴连接一个数组序列。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1512,7 +1502,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.std:1
 msgid "Computes the standard deviation of data over given axes."
-msgstr "Computes the standard deviation of data over given axes."
+msgstr "计算给定轴上数组元素的标准差。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1538,7 +1528,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.strided_slice:1
 msgid "Strided slice of an array."
-msgstr "Strided slice of an array."
+msgstr "提取数组的分段切片。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1549,7 +1539,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.subtract:1
 msgid "Subtraction with numpy-style broadcasting."
-msgstr "Subtraction with numpy-style broadcasting."
+msgstr "Numpy 风格的广播减法运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1560,7 +1550,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.sum:1
 msgid "Computes the sum of array elements over given axes."
-msgstr "Computes the sum of array elements over given axes."
+msgstr "计算给定轴上数组元素的和。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1571,7 +1561,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.take:1
 msgid "Take elements from an array along an axis."
-msgstr "Take elements from an array along an axis."
+msgstr "从数组的一条轴上取元素。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1604,7 +1594,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.tile:1
 msgid "Repeats the whole array multiple times."
-msgstr "Repeats the whole array multiple times."
+msgstr "将整个数组重复若干次。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1617,7 +1607,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.algorithm.topk:1
 msgid "Get the top k elements in an input tensor along the given axis."
-msgstr "Get the top k elements in an input tensor along the given axis."
+msgstr "沿给定的轴，获取输入张量的最大 k 个元素。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1628,7 +1618,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.transform.transpose:1
 msgid "Permutes the dimensions of an array."
-msgstr "Permutes the dimensions of an array."
+msgstr "对数组进行换维操作。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1639,7 +1629,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.trunc:1
 msgid "Compute element-wise trunc of data."
-msgstr "Compute element-wise trunc of data."
+msgstr "数据的点对应舍尾取整运算。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1662,9 +1652,7 @@ msgstr ""
 msgid ""
 "Convert a flat index or array of flat indices into a tuple of coordinate "
 "arrays."
-msgstr ""
-"Convert a flat index or array of flat indices into a tuple of coordinate "
-"arrays."
+msgstr "将平面索引或平面索引数组转换为坐标数组的元组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1677,7 +1665,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.reduce.variance:1
 msgid "Computes the variance of data over given axes."
-msgstr "Computes the variance of data over given axes."
+msgstr "计算给定轴上数组元素的方差。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1690,9 +1678,7 @@ msgstr ""
 msgid ""
 "Selecting elements from either x or y depending on the value of the "
 "condition."
-msgstr ""
-"Selecting elements from either x or y depending on the value of the "
-"condition."
+msgstr "根据 condition 的值来决定选择 x 或 y 的元素。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1703,7 +1689,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.zeros:1
 msgid "Fill array with zeros."
-msgstr "Fill array with zeros."
+msgstr "用0填充数组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1
@@ -1714,7 +1700,7 @@ msgstr ""
 #: tvm.relay:1:<autosummary>:1 ../../../python/tvm/relay/__init__.pydocstring
 #: of tvm.relay.op.tensor.zeros_like:1
 msgid "Returns an array of zeros, with same type and shape as the input."
-msgstr "Returns an array of zeros, with same type and shape as the input."
+msgstr "返回一个与输入数据相同数据类型与尺寸的全零数组。"
 
 #: ../../../python/tvm/relay/__init__.pydocstring of
 #: tvm.relay:1:<autosummary>:1

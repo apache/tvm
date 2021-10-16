@@ -5,8 +5,9 @@
 # 
 # Translators:
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
-# JiaKui Hu, 2021
 # HLearning, 2021
+# JiaKui Hu, 2021
+# juzi, 2021
 # 
 #, fuzzy
 msgid ""
@@ -15,7 +16,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:38+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: juzi, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -78,7 +79,7 @@ msgstr ""
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
 msgid "2D adaptive average pooling operator."
-msgstr "2D adaptive average pooling operator."
+msgstr ""
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -114,7 +115,7 @@ msgstr ""
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
 msgid "2D adaptive max pooling operator."
-msgstr "2D adaptive max pooling operator."
+msgstr ""
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -152,7 +153,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.avg_pool2d:1
 msgid "2D average pooling operator."
-msgstr "2D average pooling operator."
+msgstr "2D 平均池化算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -178,7 +179,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.avg_pool3d:1
 msgid "3D average pooling operator."
-msgstr "3D average pooling operator."
+msgstr "3D 平均池化算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -189,7 +190,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.batch_flatten:1
 msgid "BatchFlatten."
-msgstr "BatchFlatten."
+msgstr ""
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -202,7 +203,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.batch_matmul:1
 msgid "Compute batch matrix multiplication of `tensor_a` and `tensor_b`."
-msgstr "Compute batch matrix multiplication of `tensor_a` and `tensor_b`."
+msgstr ""
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -214,7 +215,7 @@ msgstr ""
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
 msgid "Batch normalization layer (Ioffe and Szegedy, 2014)."
-msgstr "Batch normalization layer (Ioffe and Szegedy, 2014)."
+msgstr "批量处理规范化层 （Ioffe and Szegedy, 2014）。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -238,7 +239,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.bias_add:1
 msgid "add_bias operator."
-msgstr "add_bias operator."
+msgstr "add_bias 算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -251,7 +252,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.bitpack:1
 msgid "Tensor packing for bitserial operations."
-msgstr "Tensor packing for bitserial operations."
+msgstr "对于位序列算子的张量包装。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -264,7 +265,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.bitserial_conv2d:1
 msgid "2D convolution using bitserial computation."
-msgstr "2D convolution using bitserial computation."
+msgstr "使用位序列计算的 2D 卷积。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -276,7 +277,7 @@ msgstr ""
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
 msgid "Bitserial Dense operator."
-msgstr "Bitserial Dense operator."
+msgstr "位序列稠密算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -343,8 +344,7 @@ msgstr ""
 #: ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.contrib_conv2d_winograd_weight_transform:1
 msgid "Weight Transformation part for 2D convolution with winograd algorithm."
-msgstr ""
-"Weight Transformation part for 2D convolution with winograd algorithm."
+msgstr "基于 Winograd 算法对 2D 卷积的转换部分进行加权。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -364,7 +364,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.contrib_conv2d_winograd_without_weight_transform:1
 msgid "2D convolution with winograd algorithm."
-msgstr "2D convolution with winograd algorithm."
+msgstr "基于 Winograd 算法的 2D 卷积。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -377,8 +377,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.contrib_conv3d_winograd_weight_transform:1
 msgid "Weight Transformation part for 3D convolution with winograd algorithm."
-msgstr ""
-"Weight Transformation part for 3D convolution with winograd algorithm."
+msgstr "基于 Winograd 算法对 3D 卷积的转换部分进行加权。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -391,7 +390,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.contrib_conv3d_winograd_without_weight_transform:1
 msgid "3D convolution with winograd algorithm."
-msgstr "3D convolution with winograd algorithm."
+msgstr "基于 Winograd 算法的 3D 卷积。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -405,7 +404,7 @@ msgstr ""
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
 msgid "Dense operator."
-msgstr "Dense operator."
+msgstr "稠密算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -457,7 +456,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.conv2d:1
 msgid "2D convolution."
-msgstr "2D convolution."
+msgstr "2D 卷积。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -470,7 +469,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.conv2d_transpose:1
 msgid "Two dimensional transposed convolution operator."
-msgstr "Two dimensional transposed convolution operator."
+msgstr "二维转置卷积算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -483,7 +482,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.conv3d:1
 msgid "3D convolution."
-msgstr "3D convolution."
+msgstr "3D 卷积。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -496,7 +495,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.conv3d_transpose:1
 msgid "3D transpose convolution."
-msgstr "3D transpose convolution."
+msgstr "3D 转置卷积。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -591,7 +590,7 @@ msgstr ""
 #: tvm.relay.op.nn.nn.dropout:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.dropout_raw:1
 msgid "Applies the dropout operation to the input array."
-msgstr "Applies the dropout operation to the input array."
+msgstr "对输入数列使用 dropout 算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -609,7 +608,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.softmax:1
 msgid "Computes softmax."
-msgstr "Computes softmax."
+msgstr "计算 softmax。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -681,7 +680,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.global_avg_pool2d:1
 msgid "2D global average pooling operator."
-msgstr "2D global average pooling operator."
+msgstr "2D 全局平均池化算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -720,7 +719,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.global_max_pool2d:1
 msgid "2D global maximum pooling operator."
-msgstr "2D global maximum pooling operator."
+msgstr "2D 全局最大池化算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -773,7 +772,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.l2_normalize:1
 msgid "Perform L2 normalization on the input data"
-msgstr "Perform L2 normalization on the input data"
+msgstr "对输入数据执行L2标准化"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -801,9 +800,7 @@ msgstr ""
 msgid ""
 "This operator takes data as input and does Leaky version of a Rectified "
 "Linear Unit."
-msgstr ""
-"This operator takes data as input and does Leaky version of a Rectified "
-"Linear Unit."
+msgstr "该算子将数据作为输入，并代入带泄露的修正线性单元。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -814,7 +811,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.log_softmax:1
 msgid "Computes log softmax."
-msgstr "Computes log softmax."
+msgstr "计算 log_softmax。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -827,7 +824,6 @@ msgstr ""
 msgid ""
 "This operator takes data as input and does local response normalization."
 msgstr ""
-"This operator takes data as input and does local response normalization."
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -863,7 +859,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.max_pool2d:1
 msgid "2D maximum pooling operator."
-msgstr "2D maximum pooling operator."
+msgstr "2D 最大池化算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -889,7 +885,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.max_pool3d:1
 msgid "3D maximum pooling operator."
-msgstr "3D maximum pooling operator."
+msgstr "3D 最大池化算子。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -924,7 +920,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.pad:1
 msgid "Padding"
-msgstr "Padding"
+msgstr "填充"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -940,7 +936,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.relu:1
 msgid "Rectified linear unit."
-msgstr "Rectified linear unit."
+msgstr "修正线性单元。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -1030,7 +1026,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.upsampling:1
 msgid "Upsampling."
-msgstr "Upsampling."
+msgstr "上采样。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of
 #: tvm.relay.expr.Constant:1:<autosummary>:1
@@ -1043,7 +1039,7 @@ msgstr ""
 #: tvm.relay.expr.Constant:1:<autosummary>:1 ../../_staging/docstring of
 #: tvm.relay.op.nn.nn.upsampling3d:1
 msgid "3D Upsampling."
-msgstr "3D Upsampling."
+msgstr "3D 上采样。"
 
 #: ../../../python/tvm/relay/expr.pydocstring of tvm.relay.expr.Constant:0
 #: ../../_staging/docstring of tvm.relay.op.nn.nn.adaptive_avg_pool1d:0
