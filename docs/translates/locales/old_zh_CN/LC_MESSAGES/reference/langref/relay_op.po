@@ -328,7 +328,7 @@ msgstr ":obj:`tvm.relay.nn.batch_flatten <tvm.relay.nn.batch_flatten>`"
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid "BatchFlatten."
-msgstr "展平批。"
+msgstr ""
 
 #: ../../_staging/reference/langref/relay_op.rst:95:<autosummary>:1
 msgid ":obj:`tvm.relay.nn.pad <tvm.relay.nn.pad>`"

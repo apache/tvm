@@ -6,8 +6,9 @@
 # Translators:
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
 # JiaKui Hu, 2021
-# 安杰 许, 2021
 # HLearning, 2021
+# 安杰 许, 2021
+# juzi, 2021
 # 
 #, fuzzy
 msgid ""
@@ -16,7 +17,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:37+0000\n"
-"Last-Translator: HLearning, 2021\n"
+"Last-Translator: juzi, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -187,7 +188,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.reduction.argmax:1
 msgid "Returns the indices of the maximum values along an axis."
-msgstr "Returns the indices of the maximum values along an axis."
+msgstr "沿轴返回最大值的索引。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ""
@@ -199,7 +200,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.reduction.argmin:1
 msgid "Returns the indices of the minimum values along an axis."
-msgstr "Returns the indices of the minimum values along an axis."
+msgstr "沿轴返回最小值的索引。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ""
@@ -643,7 +644,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.transform.gather:1
 msgid "Gather values along given axis from given indices."
-msgstr "Gather values along given axis from given indices."
+msgstr "在给定的轴上对给定索引的值进行聚合。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`gather_nd <tvm.topi.tvm.topi.gather_nd>`\\ \\(a\\, indices\\)"
@@ -883,7 +884,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.broadcast.logical_not:1
 msgid "Compute element-wise logical not of data."
-msgstr "Compute element-wise logical not of data."
+msgstr "数据的点对应逻辑否运算。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`logical_or <tvm.topi.tvm.topi.logical_or>`\\ \\(lhs\\, rhs\\)"
@@ -972,7 +973,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.transform.meshgrid:1
 msgid "Create coordinate matrices from coordinate vectors."
-msgstr "Create coordinate matrices from coordinate vectors."
+msgstr "从坐标向量中创建坐标矩阵。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`min <tvm.topi.tvm.topi.min>`\\ \\(data\\[\\, axis\\, keepdims\\]\\)"
@@ -1046,8 +1047,6 @@ msgid ""
 "Returns a one-hot tensor where the locations repsented by indices take value"
 " on_value, other locations take value off_value."
 msgstr ""
-"Returns a one-hot tensor where the locations repsented by indices take value"
-" on_value, other locations take value off_value."
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`power <tvm.topi.tvm.topi.power>`\\ \\(lhs\\, rhs\\)"
@@ -1085,7 +1084,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.transform.repeat:1
 msgid "Repeats elements of an array."
-msgstr "Repeats elements of an array."
+msgstr "重复数组元素。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`reshape <tvm.topi.tvm.topi.reshape>`\\ \\(a\\, newshape\\)"
@@ -1105,7 +1104,7 @@ msgstr ""
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid "Reverse the tensor for variable length slices."
-msgstr "Reverse the tensor for variable length slices."
+msgstr "将张量内的每个可变长度切片进行翻转。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`right_shift <tvm.topi.tvm.topi.right_shift>`\\ \\(lhs\\, rhs\\)"
@@ -1197,8 +1196,6 @@ msgid ""
 "Sets all elements outside the expected length of the sequence to a constant "
 "value."
 msgstr ""
-"Sets all elements outside the expected length of the sequence to a constant "
-"value."
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`shape <tvm.topi.tvm.topi.shape>`\\ \\(array\\[\\, dtype\\]\\)"
@@ -1277,7 +1274,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of
 #: tvm.topi.transform.sparse_to_dense:1
 msgid "Converts a sparse representation into a dense tensor."
-msgstr "Converts a sparse representation into a dense tensor."
+msgstr "将稀疏张量表示转换为稠密张量。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ""
@@ -1318,7 +1315,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.transform.stack:1
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.transform.tile:1
 msgid "Repeats the whole array multiple times."
-msgstr "Repeats the whole array multiple times."
+msgstr "将整个数组重复若干次。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ""
@@ -1376,7 +1373,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.transform.take:1
 msgid "Take elements from an array along an axis."
-msgstr "Take elements from an array along an axis."
+msgstr "从数组的一条轴上取元素。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ""
@@ -1431,7 +1428,7 @@ msgstr ""
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi.sort.topk:1
 msgid "Get the top k elements in an input tensor along the given axis."
-msgstr "Get the top k elements in an input tensor along the given axis."
+msgstr "沿给定的轴，获取输入张量的最大 k 个元素。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`transpose <tvm.topi.tvm.topi.transpose>`\\ \\(a\\[\\, axes\\]\\)"
@@ -1474,9 +1471,7 @@ msgstr ""
 msgid ""
 "Convert a flat index or array of flat indices into a tuple of coordinate "
 "arrays."
-msgstr ""
-"Convert a flat index or array of flat indices into a tuple of coordinate "
-"arrays."
+msgstr "将平面索引或平面索引数组转换为坐标数组的元组。"
 
 #: ../../../python/tvm/topi/__init__.pydocstring of tvm.topi:1:<autosummary>:1
 msgid ":obj:`where <tvm.topi.tvm.topi.where>`\\ \\(condition\\, x\\, y\\)"
@@ -4617,7 +4612,7 @@ msgstr ""
 #: ../../../python/tvm/topi/nn/__init__.pydocstring of
 #: tvm.topi.nn.batch_matmul.batch_matmul:1
 msgid "Compute batch matrix multiplication of `tensor_a` and `tensor_b`."
-msgstr "Compute batch matrix multiplication of `tensor_a` and `tensor_b`."
+msgstr ""
 
 #: ../../../python/tvm/topi/nn/depthwise_conv2d.pydocstring of
 #: tvm.topi.nn.depthwise_conv2d.Workload:1:<autosummary>:1
