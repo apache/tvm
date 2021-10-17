@@ -1070,7 +1070,7 @@ def fixed_point_multiply(data, multiplier, shift):
         The input tensor.
     multiplier : int
         The integer multiplier of the fixed point constant.
-    a_max : float
+    shift : int
         The integer shift of the fixed point constant.
 
     Returns
