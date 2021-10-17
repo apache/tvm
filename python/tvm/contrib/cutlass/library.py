@@ -214,13 +214,11 @@ def SubstituteTemplate(template, values):
 #
 class GemmKind(enum.Enum):
     Gemm = enum_auto()
-    Universal = enum_auto()
 
 
 #
 GemmKindNames = {
     GemmKind.Gemm: "gemm",
-    GemmKind.Universal: "gemm",
 }
 
 #
