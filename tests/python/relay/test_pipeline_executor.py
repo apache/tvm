@@ -277,7 +277,7 @@ def run_pipeline(target):
 
     mconfig3["pipeline"] = {
         "mod_indx": 2,
-        "output": [{"output_indx": 0, "dependent": [{"mod_indx": -1, "input_name": "1"}]}],
+        "output": [{"output_indx": 0, "dependent": [{"mod_indx": -1, "input_name": "0"}]}],
     }
     mod_config[mods[2]] = mconfig3
 

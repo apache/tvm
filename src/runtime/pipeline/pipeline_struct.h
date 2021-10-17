@@ -112,7 +112,7 @@ class Dependent {
   int GetDepModInputIndx(const int modIndx) { return dependent[modIndx]; }
 
   void RemoveDependentRef(const int modIndx) {
-    dependent[modIndx] = 0;
+    dependent[modIndx] = -1;
     depNum--;
   }
 
@@ -471,7 +471,7 @@ class RuntimeData {
        * cross device memory copy to set input data.
        */
       int inputIndx = data[i]->dependent.GetDepModInputIndx(runtimeIndx);
-      if (inputIndx = 0) {
+      if (inputIndx >= 0) {
         runtimePtr->SetInput(inputIndx, data[i]->dlData.data);
         /* data getused remove dependent reference for current runtime
          */
