@@ -66,8 +66,6 @@ def profile_and_build(mod, params, sm):
                 new_attrs["cutlass_op_def"] = out["opdef_bias"]
             elif new_attrs["op_type"] == "cutlass.dense_bias_relu":
                 new_attrs["cutlass_op_def"] = out["opdef_bias_relu"]
-            elif new_attrs["op_type"] == "cutlass.dense_bias_gelu":
-                new_attrs["cutlass_op_def"] = out["opdef_bias_gelu"]
             else:
                 raise ValueError("%s pattern is not implemented." % new_attrs["op_type"])
             new_attrs["cutlass_op_name"] = out["name"]

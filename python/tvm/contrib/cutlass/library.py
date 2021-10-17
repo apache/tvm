@@ -226,19 +226,14 @@ GemmKindNames = {
 #
 class EpilogueFunctor(enum.Enum):
     LinearCombination = enum_auto()
-    LinearCombinationClamp = enum_auto()
     LinearCombinationRelu = enum_auto()
-    LinearCombinationBiasRelu = enum_auto()
-    LinearCombinationGelu = enum_auto()
     LinearCombinationBias = enum_auto()
 
 
 #
 EpilogueFunctorTag = {
     EpilogueFunctor.LinearCombination: "cutlass::epilogue::thread::LinearCombination",
-    EpilogueFunctor.LinearCombinationClamp: "cutlass::epilogue::thread::LinearCombinationClamp",
     EpilogueFunctor.LinearCombinationRelu: "cutlass::epilogue::thread::LinearCombinationRelu",
-    EpilogueFunctor.LinearCombinationGelu: "cutlass::epilogue::thread::LinearCombinationGELU",
     EpilogueFunctor.LinearCombinationBias: "cutlass::epilogue::thread::LinearCombination",
 }
 

@@ -83,17 +83,6 @@ def CreateGemmOperator(
                     EpilogueFunctor.LinearCombinationRelu,
                     swizzling_functor,
                 )
-                op_bias_gelu = GemmOperation(
-                    GemmKind.Universal,
-                    tile_description.minimum_compute_capability,
-                    tile_description,
-                    A,
-                    B,
-                    C,
-                    element_epilogue,
-                    EpilogueFunctor.LinearCombinationGelu,
-                    swizzling_functor,
-                )
 
                 op_entry["op"] = op
                 op_entry["name"] = op.procedural_name()
@@ -104,7 +93,6 @@ def CreateGemmOperator(
                 emiter = EmitGemmEpilogueInstance()
                 op_entry["opdef_bias_relu"] = emiter.emit(op_bias_relu)
                 emiter = EmitGemmEpilogueInstance()
-                op_entry["opdef_bias_gelu"] = emiter.emit(op_bias_gelu)
                 op_entry["src"] = profiler.emit(
                     op.procedural_name(),
                     op_entry["opdef"],

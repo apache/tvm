@@ -327,34 +327,6 @@ class EmitGemmEpilogueInstance:
     ${residual}
   >;
 """
-        self.gemm_gelu_template = """
-  // Gemm operator ${operation_name}
-  using Operation_${operation_name} = cutlass::gemm::device::Gemm<
-    ${element_a}, ${layout_a},
-    ${element_b}, ${layout_b},
-    ${element_c}, ${layout_c},
-    ${element_accumulator},
-    ${opcode_class},
-    ${arch},
-    cutlass::gemm::GemmShape<${threadblock_shape_m}, ${threadblock_shape_n}, ${threadblock_shape_k}>,
-    cutlass::gemm::GemmShape<${warp_shape_m}, ${warp_shape_n}, ${warp_shape_k}>,
-    cutlass::gemm::GemmShape<${instruction_shape_m}, ${instruction_shape_n}, ${instruction_shape_k}>,
-    ${epilogue_functor}<
-      ${element_c},
-      ${epilogue_vector_length},
-      ${element_accumulator},
-      ${element_epilogue}
-    >,
-    ${swizzling_functor},
-    ${stages},
-    ${align_a},
-    ${align_b},
-    false,
-    ${math_operation}
-    ${residual}
-  >;
-"""
-
     def emit(self, operation):
 
         warp_shape = [
@@ -411,13 +383,7 @@ class EmitGemmEpilogueInstance:
             ],
             "residual": residual,
         }
-
-        if values["epilogue_functor"] == EpilogueFunctorTag[EpilogueFunctor.LinearCombinationGelu]:
-            template = self.gemm_gelu_template
-        else:
-            template = self.gemm_template
-
-        return SubstituteTemplate(template, values)
+        return SubstituteTemplate(self.gemm_template, values)
 
 
 ###################################################################################################
