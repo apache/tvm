@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
-from .gemm_operation import GemmOperation, EmitGemmInstance, EmitGemmEpilogueInstance
+from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfiler
 from .compile_engine import CompileEngine
 from .library import *
@@ -35,10 +33,6 @@ def CreateGemmOperator(
     profiler = GemmProfiler()
 
     element_a, element_b, element_c, element_epilogue = data_type
-    # by default, only generate the largest tile and largest alignment
-    # if manifest.args.kernels == '':
-    #  tile_descriptions = [tile_descriptions[0],]
-    #  alignment_constraints = [alignment_constraints[0],]
 
     for layout in layouts:
         for tile_description in tile_descriptions:
@@ -81,13 +75,12 @@ def CreateGemmOperator(
                     swizzling_functor,
                 )
 
+                emiter = EmitGemmInstance()
                 op_entry["op"] = op
                 op_entry["name"] = op.procedural_name()
-                emiter = EmitGemmInstance()
                 op_entry["opdef"] = emiter.emit(op)
-                emiter = EmitGemmEpilogueInstance()
-                op_entry["opdef_bias"] = emiter.emit(op_bias)
-                op_entry["opdef_bias_relu"] = emiter.emit(op_bias_relu)
+                op_entry["opdef_bias"] = emiter.emit(op_bias, no_beta_scaling=True)
+                op_entry["opdef_bias_relu"] = emiter.emit(op_bias_relu, no_beta_scaling=True)
                 op_entry["src"] = profiler.emit(
                     op.procedural_name(),
                     op_entry["opdef"],
@@ -105,7 +98,6 @@ def GenerateSM75_TensorOp_1688(dtype):
     ops = []
     layouts = [
         (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
-        # (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.RowMajor),
     ]
 
     math_instructions = [
