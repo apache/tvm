@@ -52,6 +52,7 @@ class CUDAModuleNode : public runtime::ModuleNode {
                           std::string cuda_source)
       : data_(data), fmt_(fmt), fmap_(fmap), cuda_source_(cuda_source) {
     std::fill(module_.begin(), module_.end(), nullptr);
+    LOG(INFO) << cuda_source_;
   }
   // destructor
   ~CUDAModuleNode() {

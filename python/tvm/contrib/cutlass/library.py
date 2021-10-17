@@ -226,13 +226,14 @@ class EpilogueFunctor(enum.Enum):
     LinearCombination = enum_auto()
     LinearCombinationRelu = enum_auto()
     LinearCombinationBias = enum_auto()
-
+    LinearCombinationGelu = enum_auto()
 
 #
 EpilogueFunctorTag = {
     EpilogueFunctor.LinearCombination: "cutlass::epilogue::thread::LinearCombination",
     EpilogueFunctor.LinearCombinationRelu: "cutlass::epilogue::thread::LinearCombinationRelu",
     EpilogueFunctor.LinearCombinationBias: "cutlass::epilogue::thread::LinearCombination",
+    EpilogueFunctor.LinearCombinationGelu: "cutlass::epilogue::thread::LinearCombinationGELU",
 }
 
 #

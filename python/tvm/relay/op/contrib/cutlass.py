@@ -19,6 +19,14 @@ from ...dataflow_pattern import wildcard, is_op, is_constant
 from .register import register_pattern_table
 
 
+def make_gelu_pattern(bias_out):
+    mul = is_op("multiply")(bias_out, is_constant())
+    erf = is_op("cast")(is_op("erf")(is_op("cast")(mul)))
+    mul_half = is_op("multiply")(erf, is_constant())
+    add = is_op("add")(mul_half, is_constant())
+    return is_op("multiply")(add, bias_out)
+
+
 def make_gemm_pattern(with_bias=True, with_act=None):
     data = wildcard()
     weight = wildcard()
@@ -32,15 +40,20 @@ def make_gemm_pattern(with_bias=True, with_act=None):
 
     if with_act is None:
         return gemm_out
-    elif isinstance(with_act, str) and with_act == "nn.relu":
-        return is_op(with_act)(gemm_out)
+    if isinstance(with_act, str) and with_act == "relu":
+        return is_op("nn.relu")(gemm_out)
+
+    assert isinstance(with_act, str) and with_act == "gelu"
+    return make_gelu_pattern(gemm_out)
 
 
 def get_pattern_table():
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
     dense_bias_pat = ("cutlass.dense_bias", make_gemm_pattern(True, None))
-    dense_bias_relu_pat = ("cutlass.dense_bias_relu", make_gemm_pattern(True, "nn.relu"))
+    dense_bias_relu_pat = ("cutlass.dense_bias_relu", make_gemm_pattern(True, "relu"))
+    dense_bias_gelu_pat = ("cutlass.dense_bias_gelu", make_gemm_pattern(True, "gelu"))
     cutlass_patterns = [
+        dense_bias_gelu_pat,
         dense_bias_relu_pat,
         dense_bias_pat,
         dense_pat,

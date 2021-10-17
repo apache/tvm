@@ -78,7 +78,8 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
                     const std::vector<std::string>& func_args) {
   bool has_bias = false;
   if (attrs.at("op_type") == "cutlass.dense_bias" ||
-      attrs.at("op_type") == "cutlass.dense_bias_relu") {
+      attrs.at("op_type") == "cutlass.dense_bias_relu" ||
+      attrs.at("op_type") == "cutlass.dense_bias_gelu") {
     has_bias = true;
   }
   std::ostringstream gemm_decl;
@@ -98,7 +99,11 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
   // Initialize alpha for dot product computation
   CutlassPrint(gemm_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
-  CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
+  if (attrs.at("op_type") == "cutlass.dense_bias_gelu") {
+    CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(1);\n");
+  } else {
+    CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
+  }
 
   // Split K dimension into 1 partitions
   CutlassPrint(gemm_decl, "int split_k_slices = 1;\n");
@@ -125,7 +130,11 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   }
   CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
   if (has_bias) {
-    CutlassPrint(gemm_decl, " {alpha},\n");
+    if (attrs.at("op_type") == "cutlass.dense_bias_gelu") {
+      CutlassPrint(gemm_decl, " {alpha, beta},\n");
+    } else {
+      CutlassPrint(gemm_decl, " {alpha},\n");
+    }
   } else {
     CutlassPrint(gemm_decl, " {alpha, beta},\n");
   }
@@ -251,11 +260,8 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       return GenerateBody(dense_call, "cutlass_dense", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias") {
-      // const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 1, {"nn.dense",
-      // "nn.bias_add"});
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->op.as<OpNode>()->name;
-
       const auto* dense_call =
           GetRootCall(callee->body.as<CallNode>(), 1, {"nn.dense", add_or_bias_add});
       return GenerateBody(dense_call, "cutlass_dense_bias", GetArgumentNames(caller),
@@ -266,6 +272,14 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       const auto* dense_call =
           GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.relu"});
       return GenerateBody(dense_call, "cutlass_dense_bias_relu", GetArgumentNames(caller),
+                          DenseArgs(std::ref(attrs_)));
+    } else if (pattern_name == "cutlass.dense_bias_gelu") {
+      const CallNode* current_call = callee->body.as<CallNode>();
+      std::string add_or_bias_add = current_call->args[1].as<CallNode>()->op.as<OpNode>()->name;
+      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 8,
+                                           {"nn.dense", add_or_bias_add, "multiply", "cast", "erf",
+                                            "cast", "multiply", "add", "multiply"});
+      return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     }
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
@@ -313,7 +327,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     }
     decl_stream << ");";
     if (func_name == "cutlass_dense" || func_name == "cutlass_dense_bias" ||
-        func_name == "cutlass_dense_bias_relu") {
+        func_name == "cutlass_dense_bias_relu" || func_name == "cutlass_dense_bias_gelu") {
       ret.decl = DenseOp(ext_func_id_, attribute_args, func_args);
     }
     return ret;
@@ -375,6 +389,7 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cutlass/util/reference/host/tensor_fill.h>\n";
     code_stream_ << "#include <cutlass/gemm/device/gemm.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
+    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
 
     ICHECK(ref->IsInstance<FunctionNode>());
     auto res = GenCutlassFunc(Downcast<Function>(ref));

@@ -119,6 +119,35 @@ class GemmOperation:
             },
         )
 
+    def leading_dim(self):
+        """ lda, ldb, ldc, according to the leading dimension. """
+        if self.A.layout == LayoutType.RowMajor:
+            lda = "K"
+        elif self.A.layout == LayoutType.ColumnMajor:
+            lda = "M"
+        else:
+            ValueError("The layout of A is not implemented.")
+
+        if self.B.layout == LayoutType.RowMajor:
+            ldb = "N"
+        elif self.B.layout == LayoutType.ColumnMajor:
+            ldb = "K"
+        else:
+            ValueError("The layout of B is not implemented.")
+
+        if self.C.layout == LayoutType.RowMajor:
+            ldc = "N"
+        elif self.C.layout == LayoutType.ColumnMajor:
+            ldc = "M"
+        else:
+            ValueError("The layout of B is not implemented.")
+
+        return SubstituteTemplate(
+            "int lda = ${lda_val};\n\tint ldb = ${ldb_val};\n\tint ldc = ${ldc_val};\n",
+            {"lda_val": lda, "ldb_val": ldb, "ldc_val": ldc,},
+        )
+
+
 
 class EmitGemmInstance:
     """ Responsible for emitting a CUTLASS template definition"""

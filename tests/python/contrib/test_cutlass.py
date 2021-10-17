@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import math
 import tvm
 from tvm import relay
 import numpy as np
@@ -48,6 +49,15 @@ def get_dense_bias(M, N, K):
 
 def get_dense_bias_relu(M, N, K):
     return relay.nn.relu(get_dense_bias(M, N, K))
+
+
+def get_dense_bias_gelu(M, N, K):
+    bias_add = get_dense_bias(M, N, K)
+    mul = bias_add * relay.const((1.0 / math.sqrt(2.0)), dtype="float16")
+    erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
+    mul_half = erf * relay.const(0.5, dtype="float16")
+    add = mul_half + relay.const(0.5, dtype="float16")
+    return add * bias_add
 
 
 def verify(func, M, N, K):
@@ -89,4 +99,8 @@ def test_dense_bias_relu():
     verify(get_dense_bias_relu(M, N, K), M, N, K)
 
 
-test_dense_bias_relu()
+def test_dense_bias_gelu():
+    verify(get_dense_bias_gelu(M, N, K), M, N, K)
+
+
+test_dense_bias_gelu()
