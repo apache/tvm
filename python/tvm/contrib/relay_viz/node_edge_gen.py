@@ -32,21 +32,21 @@ class Node:
     """Node carry information used by `plotter.Graph` interface."""
 
     def __init__(self, node_id: Union[int, str], node_type: str, node_detail: str):
-        self._node_id = node_id
-        self._node_type = node_type
-        self._node_detail = node_detail
+        self._id = node_id
+        self._type = node_type
+        self._detail = node_detail
 
     @property
-    def node_id(self) -> Union[int, str]:
-        return self._node_id
+    def identity(self) -> Union[int, str]:
+        return self._id
 
     @property
-    def node_type(self) -> str:
-        return self._node_type
+    def type_str(self) -> str:
+        return self._type
 
     @property
-    def node_detail(self) -> str:
-        return self._node_detail
+    def detail(self) -> str:
+        return self._detail
 
 
 class Edge:
@@ -71,9 +71,9 @@ class NodeEdgeGenerator(abc.ABC):
     @abc.abstractmethod
     def get_node_edges(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         relay_param: Dict[str, tvm.runtime.NDArray],
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         """Generate node and edges consumed by Graph interfaces
         The returned tuple containing Node and a list of Edge instances.
@@ -93,9 +93,9 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
 
     def var_node(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         relay_param: Dict[str, tvm.runtime.NDArray],
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         """Render rule for a relay var node"""
         node_id = node_to_id[node]
@@ -117,9 +117,9 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
 
     def function_node(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         _: Dict[str, tvm.runtime.NDArray],  # relay_param
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         """Render rule for a relay function node"""
         node_details = []
@@ -137,9 +137,9 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
 
     def call_node(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         _: Dict[str, tvm.runtime.NDArray],  # relay_param
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         """Render rule for a relay call node"""
         node_id = node_to_id[node]
@@ -168,22 +168,11 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
         edge_info = [Edge(arg, node_id) for arg in args]
         return node_info, edge_info
 
-    def let_node(
-        self,
-        node: relay.expr.ExprWithOp,
-        _: Dict[str, tvm.runtime.NDArray],  # relay_param
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
-    ) -> Tuple[Union[Node, None], List[Edge]]:
-        node_id = node_to_id[node]
-        node_info = Node(node_id, "Let", "")
-        edge_info = [Edge(node_to_id[node.value], node_id), Edge(node_id, node_to_id[node.var])]
-        return node_info, edge_info
-
     def tuple_node(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         _: Dict[str, tvm.runtime.NDArray],  # relay_param
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         node_id = node_to_id[node]
         node_info = Node(node_id, "Tuple", "")
@@ -192,9 +181,9 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
 
     def tuple_get_item_node(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         _: Dict[str, tvm.runtime.NDArray],  # relay_param
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         node_id = node_to_id[node]
         node_info = Node(node_id, "TupleGetItem", "idx: {}".format(node.index))
@@ -203,13 +192,13 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
 
     def constant_node(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         _: Dict[str, tvm.runtime.NDArray],  # relay_param
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         node_id = node_to_id[node]
         node_detail = "shape: {}, dtype: {}".format(node.data.shape, node.data.dtype)
-        node_info = Node(node_id, "Const", "\n".join(node_detail))
+        node_info = Node(node_id, "Const", node_detail)
         edge_info = []
         return node_info, edge_info
 
@@ -220,21 +209,19 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
         self.render_rules = {
             tvm.relay.Function: self.function_node,
             tvm.relay.expr.Call: self.call_node,
-            tvm.relay.expr.Let: self.let_node,
             tvm.relay.expr.Var: self.var_node,
             tvm.relay.expr.Tuple: self.tuple_node,
             tvm.relay.expr.TupleGetItem: self.tuple_get_item_node,
             tvm.relay.expr.Constant: self.constant_node,
-            tvm.relay.expr.If: self.null,
             tvm.relay.expr.GlobalVar: self.null,
             tvm.ir.Op: self.null,
         }
 
     def get_node_edges(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         relay_param: Dict[str, tvm.runtime.NDArray],
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         try:
             node_info, edge_info = self.render_rules[type(node)](node, relay_param, node_to_id)

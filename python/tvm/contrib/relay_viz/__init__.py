@@ -90,7 +90,7 @@ class RelayVisualizer:
         for node in node_to_id:
             node_info, edge_info = self._ne_generator.get_node_edges(node, relay_param, node_to_id)
             if node_info is not None:
-                graph.node(node_info.node_id, node_info.node_type, node_info.node_detail)
+                graph.node(node_info.identity, node_info.type_str, node_info.detail)
             for edge in edge_info:
                 graph.edge(edge.start, edge.end)
 

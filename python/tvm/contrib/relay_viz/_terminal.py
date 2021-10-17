@@ -48,9 +48,9 @@ class TermNodeEdgeGenerator(NodeEdgeGenerator):
 
     def get_node_edges(
         self,
-        node: relay.expr.ExprWithOp,
+        node: relay.Expr,
         relay_param: Dict[str, tvm.runtime.NDArray],
-        node_to_id: Dict[relay.expr.ExprWithOp, Union[int, str]],
+        node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[Node, None], List[Edge]]:
         """Generate node and edges consumed by TermGraph interfaces"""
         if isinstance(node, relay.Call):
