@@ -239,7 +239,7 @@ EpilogueFunctorTag = {
     EpilogueFunctor.LinearCombinationClamp: "cutlass::epilogue::thread::LinearCombinationClamp",
     EpilogueFunctor.LinearCombinationRelu: "cutlass::epilogue::thread::LinearCombinationRelu",
     EpilogueFunctor.LinearCombinationGelu: "cutlass::epilogue::thread::LinearCombinationGELU",
-    EpilogueFunctor.LinearCombinationBias: "cutlass::epilogue::thread::LinearCombinationBias",
+    EpilogueFunctor.LinearCombinationBias: "cutlass::epilogue::thread::LinearCombination",
 }
 
 #
