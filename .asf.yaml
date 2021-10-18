@@ -32,3 +32,17 @@ github:
     - vulkan
     - spirv
     - machine-learning
+
+  # Triage perm for collaborators(test run)
+  #
+  # The perm is given based on needs and not based on
+  # evaluation of past contributions. The rationale
+  # is that people may need the permission to start
+  # contributing in this way. It serves to diversify
+  # the ways to contribute.
+  #
+  # There is a limited number of slots. To enable broad
+  # participation, permission is given on a three month
+  # cycle. PMC may review and recycle slots when necessary.
+  collaborators:
+    - denise-k
