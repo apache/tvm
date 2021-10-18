@@ -63,7 +63,7 @@ pipeline_name_to_indx(const Array<Module>& graphRuntimes,
       // -1 is global module/pipelineexecutor
       if (modIndx >= 0) {
         auto mGetIndex = ((Module)graphRuntimes[modIndx]).GetFunction("get_input_index");
-        confRet[outConf.first][modIndx] = (static_cast<int>(mGetIndex(conf.second))) + 1;
+        confRet[outConf.first][modIndx] = (static_cast<int>(mGetIndex(conf.second)));
       } else {
         confRet[outConf.first][modIndx] = stoi(conf.second);
       }
