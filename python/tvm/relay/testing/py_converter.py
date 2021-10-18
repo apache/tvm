@@ -243,7 +243,7 @@ class PythonConverter(ExprFunctor):
         the generated Python code."""
 
         # compile the function and register globally
-        cc_key = self.tec.CCacheKey(op, self.tgt)
+        cc_key = te_compiler.CCacheKey(op, self.tgt)
         func_hash = tvm.ir.structural_hash(op)
         op_name = "_lowered_op_{}".format(func_hash)
         if not tvm.get_global_func(op_name, allow_missing=True):
