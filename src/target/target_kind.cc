@@ -230,7 +230,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("fast-math-arcp")
     .add_attr_option<Bool>("fast-math-contract")
     .add_attr_option<Bool>("fast-math-reassoc")
-    .add_attr_option<Integer>("O")
+    .add_attr_option<Integer>("opt-level")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
