@@ -21,6 +21,7 @@ import tvm.testing
 from tvm import relay
 from tvm import autotvm
 from tvm import topi
+from tvm.relay.backend import te_compiler
 from tvm.relay.testing import run_infer_type
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 import tvm.testing
@@ -162,8 +163,7 @@ def test_select_implementation():
 
 
 def test_te_compiler():
-    te_compiler = relay.backend.te_compiler.get()
-    # print(te_compiler)
+    tec = relay.backend.te_compiler.get()
 
     def get_func(shape):
         x = relay.var("x", shape=shape)
@@ -174,20 +174,20 @@ def test_te_compiler():
         mod = relay.transform.InferType()(mod)
         return mod["main"]
 
-    z1 = te_compiler.lower(get_func((10,)), "llvm")
-    z2 = te_compiler.lower(get_func((10,)), "llvm")
-    z3 = te_compiler.lower(get_func(()), "llvm")
+    z1 = tec.lower(get_func((10,)), "llvm")
+    z2 = tec.lower(get_func((10,)), "llvm")
+    z3 = tec.lower(get_func(()), "llvm")
     assert z1.same_as(z2)
     assert not z3.same_as(z1)
     if tvm.testing.device_enabled("cuda"):
-        z4 = te_compiler.lower(get_func(()), "cuda")
+        z4 = tec.lower(get_func(()), "cuda")
         assert not z3.same_as(z4)
 
     # Test JIT target
     for target in ["llvm"]:
         dev = tvm.device(target)
         if tvm.testing.device_enabled(target):
-            f = te_compiler.jit(get_func((10,)), target)
+            f = tec.jit(get_func((10,)), target)
             x = tvm.nd.array(np.ones(10).astype("float32"), device=dev)
             y = tvm.nd.empty((10,), device=dev)
             f(x, y)

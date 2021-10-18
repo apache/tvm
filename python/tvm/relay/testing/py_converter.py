@@ -61,6 +61,7 @@ class PythonConverter(ExprFunctor):
         super().__init__()
         self.mod = mod
         self.tgt = target
+        self.tec = te_compiler.get()
         self.fun_no = 0
         self.var_no = 0
         self.var_map = {}
@@ -242,11 +243,11 @@ class PythonConverter(ExprFunctor):
         the generated Python code."""
 
         # compile the function and register globally
-        cc_key = te_compiler.CCacheKey(op, self.tgt)
+        cc_key = self.tec.CCacheKey(op, self.tgt)
         func_hash = tvm.ir.structural_hash(op)
         op_name = "_lowered_op_{}".format(func_hash)
         if not tvm.get_global_func(op_name, allow_missing=True):
-            jitted = self.te_compiler.jit(cc_key, self.tgt)
+            jitted = self.tec.jit(cc_key, self.tgt)
             tvm.register_func(op_name, jitted)
 
         def convert_input(py_input, arg_type):
