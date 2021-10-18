@@ -20,7 +20,18 @@ import os
 import tempfile
 import subprocess
 from .gemm_operation import GemmOperation, EmitGemmInstance
-from .library import *
+from .library import (
+    EpilogueFunctor,
+    SwizzlingFunctor,
+    TensorDescription,
+    DataTypeTag,
+    LayoutType,
+    MathInstruction,
+    DataType,
+    OpcodeClass,
+    MathOperation,
+    TileDescription,
+)
 
 
 class GemmProfiler(object):
