@@ -272,7 +272,7 @@ PROJECT_OPTIONS = [
     server.ProjectOption(
         "warning_as_error",
         choices=(True, False),
-        help="Tread warnings as errors.",
+        help="Treat warnings as errors.",
     ),
 ]
 
