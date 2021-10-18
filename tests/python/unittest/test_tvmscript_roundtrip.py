@@ -2672,10 +2672,12 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-        with T.init():
-            C[vi, vj] = T.float32(0)
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = T.float32(0)
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
 @T.prim_func
@@ -2685,11 +2687,13 @@ def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128])
 
     for i, j in T.grid(128, 128):
-        with T.block([128, 128], "init") as [vi, vj]:
+        with T.block("init"):
+            vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
 
         for k in range(128):
-            with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
@@ -2699,11 +2703,14 @@ def element_wise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
 
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * T.float32(2)
-
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + T.float32(1)
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * T.float32(2)
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
 @T.prim_func
@@ -2712,9 +2719,9 @@ def predicate(b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), "float32")
 
     for i, jo, ji in T.grid(16, 4, 5):
-        with T.block([16, 16], "update") as [vi, vj]:
-            T.bind(vi, i)
-            T.bind(vj, jo * 4 + ji)
+        with T.block("update"):
+            vi = T.axis.S(16, i)
+            vj = T.axis.S(16, jo * 4 + ji)
             T.where(jo * 4 + ji < 16)
             C[vi, vj] = B[vi, vj] + T.float32(1)
 
@@ -2807,12 +2814,16 @@ def match_buffer_region(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16), "float32")
     B = T.match_buffer(b, (1), "float32")
 
-    with T.block([16, 4]) as [vi, vj]:
-        C = T.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
-        with T.block([4]) as [vii]:
-            D = T.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
-            for i, j in T.grid(4, 4):
-                B[0] += D[i, 0, j]
+    for i, j in T.grid(16, 4):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            C = T.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
+            for ii in range(4):
+                with T.block():
+                    vii = T.axis.S(4, ii)
+                    D = T.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
+                    for i, j in T.grid(4, 4):
+                        B[0] += D[i, 0, j]
 
 
 def test_match_buffer_region():
@@ -2844,8 +2855,8 @@ def block_elements(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     B = T.match_buffer(b, (1, 1), "float32")
 
-    with T.block([1], "update") as [vi]:
-        T.bind(vi, 0)
+    with T.block("update"):
+        vi = T.axis.S(1, 0)
         T.where(True)
         T.reads(A[0:16, 0:16])
         T.writes(B[0, 0])
@@ -2879,11 +2890,11 @@ def opaque_block(a: T.handle, b: T.handle) -> None:
 
     for i in range(16):
         for j in range(16):
-            with T.block([]):
+            with T.block():
                 T.reads([])
                 T.writes(A[i, j])
                 A[i, j] = T.float32(0)
-        with T.block([]):
+        with T.block():
             T.reads([A[i, 0:16]])
             T.writes([B[i, 0:16]])
             for j in range(16):
@@ -2927,7 +2938,7 @@ def rank0_block(a: T.handle) -> None:
     B = T.alloc_buffer((), "float32")
     T.store(B.data, 0, T.load("float32", A.data, 0))
 
-    with T.block([], "update") as []:
+    with T.block("update") as []:
         T.reads([A[()]])
         T.writes([B[()]])
         for i in range(1):
@@ -2969,8 +2980,10 @@ def test_minmax():
 def abs(a: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
 
-    with T.block([128, 128], "A") as [vi, vj]:
-        A[vi, vj] = T.abs(A[vi, vj])
+    for i, j in T.grid(128, 128):
+        with T.block("A"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            A[vi, vj] = T.abs(A[vi, vj])
 
 
 def test_abs():
@@ -3011,15 +3024,13 @@ def test_simplify_bracket():
 @T.prim_func
 def var_with_same_name(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        A[vi, vj] = 0
-    with T.block([16, 16]) as [vi, vj]:
-        A[vi, vj] = 0
     for i, j in T.grid(16, 16):
-        with T.block([16, 16]) as [vi, vj]:
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
             A[vi, vj] = 0
     for i, j in T.grid(16, 16):
-        with T.block([16, 16]) as [vi, vj]:
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
             A[vi, vj] = 0
 
 
@@ -3029,13 +3040,9 @@ def test_same_name_var():
     rt_func = tvm.script.from_source(out_str)
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert out_str.count("with T.block([16, 16]) as [vi, vj]") == 4
+    assert out_str.count('vi, vj = T.axis.remap("SS", [i, j])') == 2
     assert out_str.find("vi_") == -1
     assert out_str.find("vj_") == -1
-
-    assert out_str.count("for i0, i1 in T.grid(16, 16)") == 2
-    assert out_str.find("i0_") == -1
-    assert out_str.find("i1_") == -1
 
     assert out_str.count("for i, j in T.grid(16, 16)") == 2
     assert out_str.find("i_") == -1
@@ -3047,11 +3054,13 @@ def while_loop(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16,), "float32")
     B = T.match_buffer(b, (16,), "float32")
     i = T.alloc_buffer((), "int32", scope="local")
-    with T.block([16]) as [vi]:
-        B[vi] = 0
-    while i[()] < 10:
-        for j in range(16):
-            B[j] += A[j]
+    for ii in range(16):
+        with T.block():
+            vi = T.axis.S(16, ii)
+            B[vi] = 0
+        while i[()] < 10:
+            for j in range(16):
+                B[j] += A[j]
 
 
 def test_while_loop():

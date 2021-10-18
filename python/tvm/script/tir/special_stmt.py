@@ -21,17 +21,18 @@ from typing import Callable, List, Optional, Tuple, Any, Mapping, Union
 
 import synr
 from synr import ast
+from tvm.ir.expr import PrimExpr, Range
 
 import tvm.tir
 from tvm.runtime import Object
 from tvm import te
 from tvm.ir import Span
-from tvm.tir import IntImm
+from tvm.tir import IntImm, IterVar
 
 from .node import BufferSlice
 from .utils import buffer_slice_to_region
 
-from ..context_maintainer import ContextMaintainer
+from ..context_maintainer import BlockInfo, ContextMaintainer
 from ..registry import register
 from ..utils import (
     get_param_list,
@@ -132,9 +133,10 @@ class MatchBuffer(SpecialStmt):
             buffer_type="default",
             span=None,
         ):
-            if not isinstance(self.node, ast.Assign):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
                 self.context.report_error(
-                    "match_buffer must be assigned to a buffer, e.g. A = match_buffer(...)",
+                    "`match_buffer` must be assigned to a single buffer, "
+                    "e.g. A = match_buffer(...)",
                     self.node.span,
                 )
             if strides is None:
@@ -143,10 +145,11 @@ class MatchBuffer(SpecialStmt):
             offset_factor = convert_to_int(
                 offset_factor, "offset_factor", self.context.report_error, self.node.span
             )
+            buffer_name: str = self.node.lhs[0].id.name
             buffer = tvm.tir.decl_buffer(
                 shape,
                 dtype,
-                self.node.lhs.id.name,
+                buffer_name,
                 data,
                 strides,
                 elem_offset,
@@ -173,7 +176,7 @@ class MatchBuffer(SpecialStmt):
                     + str(type(param)),
                     self.node.rhs.params[0].span,
                 )
-            self.context.update_symbol(self.node.lhs.id.name, buffer, self.node)
+            self.context.update_symbol(buffer_name, buffer, self.node)
 
         super().__init__(match_buffer, def_symbol=True)
 
@@ -201,9 +204,9 @@ class BufferDeclare(SpecialStmt):
             buffer_type="default",
             span=None,
         ):
-            if not isinstance(self.node, ast.Assign):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
                 self.context.report_error(
-                    "buffer_decl must be assigned to a buffer, e.g. A = buffer_decl(...)",
+                    "`buffer_decl` must be assigned to a single buffer, e.g. A = buffer_decl(...)",
                     self.node.span,
                 )
 
@@ -213,10 +216,11 @@ class BufferDeclare(SpecialStmt):
             offset_factor = convert_to_int(
                 offset_factor, "offset_factor", self.context.report_error, self.node.span
             )
+            buffer_name: str = self.node.lhs[0].id.name
             buffer = tvm.tir.decl_buffer(
                 shape,
                 dtype,
-                self.node.lhs.id.name,
+                buffer_name,
                 data,
                 strides,
                 elem_offset,
@@ -226,7 +230,7 @@ class BufferDeclare(SpecialStmt):
                 buffer_type,
                 span=span,
             )
-            self.context.update_symbol(self.node.lhs.id.name, buffer, self.node)
+            self.context.update_symbol(buffer_name, buffer, self.node)
             return buffer
 
         super().__init__(buffer_decl, def_symbol=True)
@@ -257,9 +261,10 @@ class AllocBuffer(SpecialStmt):
             buffer_type="default",
             span=None,
         ):
-            if not isinstance(self.node, ast.Assign):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
                 self.context.report_error(
-                    "alloc_buffer must be assigned to a buffer, e.g. A = alloc_buffer(...)",
+                    "`alloc_buffer` must be assigned to a single buffer, "
+                    "e.g. A = alloc_buffer(...)",
                     self.node.span,
                 )
 
@@ -269,10 +274,11 @@ class AllocBuffer(SpecialStmt):
             offset_factor = convert_to_int(
                 offset_factor, "offset_factor", self.context.report_error, self.node.span
             )
+            buffer_name: str = self.node.lhs[0].id.name
             buffer = tvm.tir.decl_buffer(
                 shape,
                 dtype,
-                self.node.lhs.id.name,
+                buffer_name,
                 data,
                 strides,
                 elem_offset,
@@ -283,30 +289,9 @@ class AllocBuffer(SpecialStmt):
                 span=span,
             )
             self.context.current_block_scope().alloc_buffers.append(buffer)
-            self.context.update_symbol(self.node.lhs.id.name, buffer, self.node)
+            self.context.update_symbol(buffer_name, buffer, self.node)
 
         super().__init__(alloc_buffer, def_symbol=True)
-
-
-@register
-class BlockVarBind(SpecialStmt):
-    """Special function bind(block_iter, binding_value)
-
-    Example
-    -------
-    .. code-block:: python
-
-        T.bind(vx, i)
-    """
-
-    def __init__(self):
-        def bind(iter_var, values, span=None):
-            block_scope = self.context.current_block_scope()
-            if iter_var in block_scope.iter_bindings:
-                self.context.report_error("Duplicate iter_var bindings of " + str(iter_var), span)
-            block_scope.iter_bindings[iter_var] = values
-
-        super().__init__(bind, def_symbol=False)
 
 
 @register
@@ -412,6 +397,315 @@ class BlockAttr(SpecialStmt):
         super().__init__(block_attr, def_symbol=False)
 
 
+class BlockAxis(SpecialStmt):
+    """Special stmt for defining a spatial block axis
+    axis.S(dom, iter_value)
+
+    Example
+    -------
+    .. code-block:: python
+
+        vi = T.axis.S(128, i * 4 + j)
+    """
+
+    def axis(
+        self,
+        var_name: str,
+        dom: Union[PrimExpr, Range],
+        value: PrimExpr,
+        iter_type: int,
+        span: Optional[Span] = None,
+    ) -> None:
+        """
+        Helper function for creating block axis
+
+        Parameters
+        ----------
+        var_name : str
+            The name_hint of var
+
+        dom : Union[PrimExpr, Range]
+            The iter domain.
+
+        value : PrimExpr
+            The binding value
+
+        iter_type : int
+            The iteration type.
+
+        span : Optional[Span]
+            The location of this for in the source code.
+        """
+        assert self.context, "call 'exit_scope' before 'enter_scope'"
+        block_scope: BlockInfo = self.context.current_block_scope()
+        if var_name in [iter_var.var.name for iter_var in block_scope.iter_vars]:
+            self.context.report_error("Duplicate block axis " + var_name, self.node.span)
+
+        block_var = tvm.tir.Var(var_name, dtype="int32")
+        dom = tvm.runtime.convert(dom)
+        if isinstance(dom, PrimExpr):
+            dom = tvm.ir.Range.from_min_extent(0, dom)
+        elif not isinstance(dom, tvm.ir.Range):
+            self.context.report_error(
+                f"Block axis domain expected PrimExpr or Range, but got {type(value)}",
+                self.node.span,
+            )
+        value = tvm.runtime.convert(value)
+        if not isinstance(value, PrimExpr):
+            self.context.report_error(
+                f"Block axis value expected PrimExpr, but got {type(value)}",
+                self.node.span,
+            )
+        iter_var = tvm.tir.IterVar(dom, block_var, iter_type)
+        block_scope.iter_vars.append(iter_var)
+        block_scope.iter_values.append(value)
+        self.context.update_symbol(var_name, block_var, self.node)
+
+
+@register
+class BlockAxisSpatial(BlockAxis):
+    """Special stmt for defining a spatial block axis
+    axis.spatial(dom, iter_value)
+
+    Example
+    -------
+    .. code-block:: python
+
+        vi = T.axis.spatial(128, k)
+    """
+
+    def __init__(self):
+        def axis_spatial(
+            dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr, span: Span = None
+        ):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
+                self.context.report_error(
+                    "`axis.spatial` must be assigned to a var, e.g. vi = axis.spatial(...)",
+                    self.node.span,
+                )
+            self.axis(self.node.lhs[0].id.name, dom, value, IterVar.DataPar)
+
+        super().__init__(axis_spatial, def_symbol=True)
+
+    def signature(self) -> Tuple[str, Tuple[list, list, Any]]:
+        return "tir.axis.spatial", get_param_list(self.func)
+
+
+@register
+class BlockAxisS(BlockAxis):
+    """The sugar special stmt for defining a spatial block axis
+    axis.S(dom, iter_value)
+
+    Example
+    -------
+    .. code-block:: python
+
+        vi = T.axis.S(128, k)
+    """
+
+    def __init__(self):
+        def axis_spatial(
+            dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr, span: Span = None
+        ):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
+                self.context.report_error(
+                    "`axis.S` must be assigned to a var, e.g. vi = axis.S(...)",
+                    self.node.span,
+                )
+            self.axis(self.node.lhs[0].id.name, dom, value, IterVar.DataPar)
+
+        super().__init__(axis_spatial, def_symbol=True)
+
+    def signature(self) -> Tuple[str, Tuple[list, list, Any]]:
+        return "tir.axis.S", get_param_list(self.func)
+
+
+@register
+class BlockAxisReduce(BlockAxis):
+    """Special stmt for defining a reduce block axis
+    axis.reduce(dom, iter_value)
+
+    Example
+    -------
+    .. code-block:: python
+
+        vi = T.axis.reduce(128, k)
+    """
+
+    def __init__(self):
+        def axis_reduce(
+            dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr, span: Span = None
+        ):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
+                self.context.report_error(
+                    "`axis.reduce` must be assigned` to a var, e.g. vi = axis.reduce(...)",
+                    self.node.span,
+                )
+            self.axis(self.node.lhs[0].id.name, dom, value, IterVar.CommReduce)
+
+        super().__init__(axis_reduce, def_symbol=True)
+
+    def signature(self) -> Tuple[str, Tuple[list, list, Any]]:
+        return "tir.axis.reduce", get_param_list(self.func)
+
+
+@register
+class BlockAxisR(BlockAxis):
+    """The sugar special stmt for defining a reduce block axis
+    axis.R(dom, iter_value)
+
+    Example
+    -------
+    .. code-block:: python
+
+        vi = T.axis.R(128, k)
+    """
+
+    def __init__(self):
+        def axis_reduce(
+            dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr, span: Span = None
+        ):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
+                self.context.report_error(
+                    "`axis.R` must be assigned to a var, e.g. vi = axis.R(...)",
+                    self.node.span,
+                )
+            self.axis(self.node.lhs[0].id.name, dom, value, IterVar.CommReduce)
+
+        super().__init__(axis_reduce, def_symbol=True)
+
+    def signature(self) -> Tuple[str, Tuple[list, list, Any]]:
+        return "tir.axis.R", get_param_list(self.func)
+
+
+@register
+class BlockAxisScan(BlockAxis):
+    """Special stmt for defining a ordered block axis
+    axis.scan(dom, iter_value)
+
+    Example
+    -------
+    .. code-block:: python
+
+        vi = T.axis.scan(128, k)
+    """
+
+    def __init__(self):
+        def axis_scan(
+            dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr, span: Span = None
+        ):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
+                self.context.report_error(
+                    "`axis.scan` must be assigned to a var, e.g. vi = axis.scan(...)",
+                    self.node.span,
+                )
+            self.axis(self.node.lhs[0].id.name, dom, value, IterVar.Ordered)
+
+        super().__init__(axis_scan, def_symbol=True)
+
+    def signature(self) -> Tuple[str, Tuple[list, list, Any]]:
+        return "tir.axis.scan", get_param_list(self.func)
+
+
+@register
+class BlockAxisOpaque(BlockAxis):
+    """Special stmt for defining a opaque block axis
+    axis.opaque(dom, iter_value)
+
+    Example
+    -------
+    .. code-block:: python
+
+        vi = T.axis.opaque(128, k)
+    """
+
+    def __init__(self):
+        def axis_opaque(
+            dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr, span: Span = None
+        ):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
+                self.context.report_error(
+                    "`axis.opaque` must be assigned to a var, e.g. vi = axis.opaque(...)",
+                    self.node.span,
+                )
+            self.axis(self.node.lhs[0].id.name, dom, value, IterVar.DimInfo)
+
+        super().__init__(axis_opaque, def_symbol=True)
+
+    def signature(self) -> Tuple[str, Tuple[list, list, Any]]:
+        return "tir.axis.opaque", get_param_list(self.func)
+
+
+@register
+class BlockAxisRemap(BlockAxis):
+    """Special stmt for remapping loops vars to block axes.
+    axis.remap(iter_type, iter_value)
+
+    Note
+    ----
+    Iter_type is a string consisting of 'S' and 'R', where 'S' means
+    for spatial and 'R' means for reduce.
+
+    Example
+    -------
+    .. code-block:: python
+
+        vi, vj = T.axis.remap("SS", [i, j])
+    """
+
+    def __init__(self):
+        def axis_remap(iter_types: str, loop_vars: List[tvm.tir.expr.Var], span: Span = None):
+            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) >= 1:
+                self.context.report_error(
+                    "`axis.remap` must be assigned to one or more vars, "
+                    "e.g. vi, vj = axis.remap(...)",
+                    self.node.span,
+                )
+            var_num: int = len(self.node.lhs)
+            if var_num != len(iter_types):
+                self.context.report_error(
+                    f"`iter_type` expected {var_num} charactor(s), "
+                    f"but got {len(iter_types)}: {iter_types}",
+                    span,
+                )
+            if var_num != len(loop_vars):
+                self.context.report_error(
+                    f"`iter_type` expected {var_num} loop var(s), "
+                    f"but got {len(loop_vars)}: {loop_vars}",
+                    span,
+                )
+            for var, iter_ty, loop_var in zip(self.node.lhs, iter_types, loop_vars):
+                iter_type: int
+                if iter_ty == "S":
+                    iter_type = IterVar.DataPar
+                elif iter_ty == "R":
+                    iter_type = IterVar.CommReduce
+                else:
+                    self.context.report_error(
+                        f'`iter_type` only expected "S" (for spatial) or "R" (for reduce), '
+                        f'but got "{iter_ty}"',
+                        span,
+                    )
+
+                if not isinstance(loop_var, tvm.tir.expr.Var):
+                    self.context.report_error(
+                        f"Values of `axis.remap` expected single loop var, but got {loop_var}",
+                        loop_var.span,
+                    )
+                loops = self.context.loop_stack
+                if loop_var not in loops:
+                    self.context.report_error(
+                        f"Cannot find loop var {loop_var} in loop nesting.",
+                        span,
+                    )
+                self.axis(var.id.name, loops[loop_var], loop_var, iter_type)
+
+        super().__init__(axis_remap, def_symbol=True)
+
+    def signature(self) -> Tuple[str, Tuple[list, list, Any]]:
+        return "tir.axis.remap", get_param_list(self.func)
+
+
 @register
 class BlockPredicate(SpecialStmt):
     """Special function where(predicate)
@@ -449,7 +743,12 @@ class VarDef(SpecialStmt):
             assert isinstance(
                 self.node, ast.Assign
             ), f"VarDef expected ast.Assign but got {type(self.node)}"
-            v = te.var(self.node.lhs.id.name, dtype, span=span)
+            names = [x.id.name for x in self.node.lhs]
+            if len(names) != 1:
+                self.context.report_error(
+                    f"VarDef expected assign to only one var, but got {names}", span
+                )
+            v = te.var(names[0], dtype, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(var, def_symbol=True)
@@ -464,8 +763,13 @@ class BufferVarDef(SpecialStmt):
             assert isinstance(
                 self.node, ast.Assign
             ), f"BufferVarDef expected ast.Assign but got {type(self.node)}"
+            names = [x.id.name for x in self.node.lhs]
+            if len(names) != 1:
+                self.context.report_error(
+                    f"VarDef expected assign to only one var, but got {names}", span
+                )
             ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
-            v = te.var(self.node.lhs.id.name, ptr_type, span=span)
+            v = te.var(names[0], ptr_type, span=span)
             self.context.update_symbol(v.name, v, self.node)
 
         super().__init__(buffer_var, def_symbol=True)
@@ -480,7 +784,12 @@ class EnvThread(SpecialStmt):
             assert isinstance(
                 self.node, ast.Assign
             ), f"EnvThread expected ast.Assign but got {type(self.node)}"
-            v = te.var(self.node.lhs.id.name, span=span)
+            names = [x.id.name for x in self.node.lhs]
+            if len(names) != 1:
+                self.context.report_error(
+                    f"VarDef expected assign to only one var, but got {names}", span
+                )
+            v = te.var(names[0], span=span)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v, self.node)
 

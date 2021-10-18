@@ -32,10 +32,14 @@ def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 @T.prim_func
@@ -44,10 +48,12 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.block([128, 128], "init") as [vi, vj]:
+        with T.block("init"):
+            vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
@@ -55,22 +61,28 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
-    with T.block([128], "B") as vi:
-        T.reads([A[0:128, 0:128]])
-        T.writes([B[0:128, 0:128]])
-        B[vi, 0] = A[vi, 0]
-        if A[vi, 0] == 0.0:
-            with T.block([], "C"):
-                T.reads([A[0:128, 0:128]])
-                T.writes([B[0:128, 0:128]])
-                with T.block([128], "D") as vj:
-                    B[vi, vj] = A[vi, vj] * 3.0
-        else:
-            with T.block([], "E"):
-                T.reads([A[0:128, 0:128]])
-                T.writes([B[0:128, 0:128]])
-                with T.block([128], "F") as vj:
-                    B[vi, vj] = A[vi, vj] * 2.0
+    for i in range(128):
+        with T.block("B"):
+            vi = T.axis.S(128, i)
+            T.reads([A[0:128, 0:128]])
+            T.writes([B[0:128, 0:128]])
+            B[vi, 0] = A[vi, 0]
+            if A[vi, 0] == 0.0:
+                with T.block("C"):
+                    T.reads([A[0:128, 0:128]])
+                    T.writes([B[0:128, 0:128]])
+                    for j in range(128):
+                        with T.block("D"):
+                            vj = T.axis.S(128, j)
+                            B[vi, vj] = A[vi, vj] * 3.0
+            else:
+                with T.block("E"):
+                    T.reads([A[0:128, 0:128]])
+                    T.writes([B[0:128, 0:128]])
+                    for j in range(128):
+                        with T.block("F"):
+                            vj = T.axis.S(128, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
