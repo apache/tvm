@@ -94,3 +94,10 @@ def test_invalid_colon():
 def test_invalid_slashes(shape_string):
     with pytest.raises(argparse.ArgumentTypeError):
         tvmc.common.parse_shape_string(shape_string)
+
+
+def test_dot():
+    # Check dot in input name
+    shape_string = "input.1:[10,10,10]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    assert shape_dict == {"input.1": [10, 10, 10]}
