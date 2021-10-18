@@ -60,7 +60,7 @@ def get_dense_bias_gelu(M, N, K):
     return add * bias_add
 
 
-def verify(func, M, N, K):
+def verify(func, M, N, K, atol=1e-5, rtol=1e-5):
     mod = tvm.IRModule.from_expr(func)
     np_data = np.random.uniform(-1, 1, (M, K)).astype("float16")
     np_weight = np.random.uniform(-1, 1, (N, K)).astype("float16")
@@ -76,7 +76,7 @@ def verify(func, M, N, K):
     out = get_output(rt_mod, x)
     ref_out = get_output(rt_mod_ref, x)
 
-    np.testing.assert_allclose(out, ref_out, atol=1e-5, rtol=1e-5)
+    np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
 
     print("CUTLASS:", rt_mod.benchmark(dev, number=1, repeat=600))
     print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
@@ -100,7 +100,7 @@ def test_dense_bias_relu():
 
 
 def test_dense_bias_gelu():
-    verify(get_dense_bias_gelu(M, N, K), M, N, K)
+    verify(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3)
 
 
 test_dense_bias_gelu()
