@@ -86,7 +86,6 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(gemm_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
   CutlassPrint(gemm_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
   CutlassPrint(gemm_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
-  // TODO: this is wrong, need to be accumulator
   CutlassPrint(gemm_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
   CutlassPrint(gemm_decl, attrs.at("op_def"));
   CutlassPrint(gemm_decl, "using Gemm = Operation_" + attrs.at("op_name") + ";\n");
@@ -178,33 +177,10 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     return {output};
   }
 
-  std::vector<Output> VisitExpr_(const TupleNode* node) final {
-    std::vector<Output> outs;
-    for (auto field : node->fields) {
-      auto res = VisitExpr(field);
-      ICHECK_EQ(res.size(), 1U) << "Don't support tuple test";
-      outs.push_back(res[0]);
-    }
-    return outs;
-  }
-
-  std::vector<Output> VisitExpr_(const TupleGetItemNode* op) final {
-    auto res = VisitExpr(op->tuple);
-    ICHECK_GT(res.size(), static_cast<size_t>(op->index));
-
-    // Only keep the item we want for the child node.
-    // The other items should still be required for the primary outputs.
-    return {res[op->index]};
-  }
-
   std::vector<Output> VisitExpr_(const CallNode* call) final {
-    GenerateBodyOutput ret;
-    if (const auto* func = call->op.as<FunctionNode>()) {
-      ret = GenerateCompositeFunctionCall(func, call);
-    } else {
-      ret = GenerateOpCall(call);
-    }
-
+    const auto* func = call->op.as<FunctionNode>();
+    ICHECK(func) << "Only composite function is supported for CUTLASS.";
+    GenerateBodyOutput ret = GenerateCompositeFunctionCall(func, call);
     ext_func_body_.push_back(ret.decl);
     return ret.outputs;
   }
@@ -214,12 +190,6 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
   }
 
  private:
-  struct GenerateBodyOutput {
-    std::string decl;
-    std::vector<std::string> buffers;
-    std::vector<Output> outputs;
-  };
-
   std::vector<std::string> GetArgumentNames(const CallNode* call) {
     std::vector<std::string> arg_names;
     for (size_t i = 0; i < call->args.size(); ++i) {
@@ -229,25 +199,6 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       }
     }
     return arg_names;
-  }
-
-  GenerateBodyOutput GenerateOpCall(const CallNode* call) {
-    const auto* op_node = call->op.as<OpNode>();
-    ICHECK(op_node) << "Expect OpNode, but got " << call->op->GetTypeKey();
-
-    using ArgFunType = std::function<Str2StrMap(const Map<String, ObjectRef>&)>;
-    static const std::map<std::string, std::pair<std::string, ArgFunType>> op_map = {
-        {"nn.dense", {"cutlass_dense", DenseArgs}},
-        // TODO: more to be added
-    };
-
-    const auto op_name = GetRef<Op>(op_node)->name;
-    const auto iter = op_map.find(op_name);
-    if (iter != op_map.end()) {
-      return GenerateBody(call, iter->second.first, iter->second.second(attrs_));
-    }
-    LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
-    return {};
   }
 
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
@@ -284,11 +235,6 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     }
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
     return {};
-  }
-
-  GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
-                                  const Str2StrMap& attribute_args) {
-    return GenerateBody(root_call, func_name, GetArgumentNames(root_call), attribute_args);
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
@@ -341,8 +287,6 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
    * output to a buffer that may be consumed by other kernels.
    */
   int buf_idx_{0};
-  /*! \brief The index of global constants. */
-  int const_idx_{0};
   /*! \brief The arguments used by a wrapped function that calls CUTLASS kernels. */
   Array<Var> ext_func_args_;
   /*! \brief Statement of the function that will be compiled using CUTLASS kernels. */
@@ -351,17 +295,12 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
   std::string const_array_name_;
   /*! \brief The declaration of intermediate buffers. */
   std::vector<std::string> buf_decl_;
-  /*! \brief The variable name to constant mapping. */
-  Array<String> const_vars_;
-
-  friend class CutlassModuleCodegen;
 };  // class CodegenCutlass
 
 class CutlassModuleCodegen : public CSourceModuleCodegenBase {
  public:
   std::pair<std::string, Array<String>> GenCutlassFunc(const Function& func) {
     ICHECK(func.defined()) << "Input error: expect a Relay function.";
-
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);
     const auto* attrs = func->attrs.as<DictAttrsNode>();
@@ -370,7 +309,7 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     CodegenCutlass builder(sid, dict);
     auto out = builder.VisitExpr(func->body);
     code_stream_ << builder.JIT(out);
-    return {sid, builder.const_vars_};
+    return {sid, {}};
   }
 
   runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
@@ -403,12 +342,8 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
   }
 
  private:
-  /*!
-   * \brief The code stream that prints the code that will be compiled using
-   * external codegen tools
-   */
+  /*! \brief The code stream that will be compiled by NVCC */
   std::ostringstream code_stream_;
-
 };  // CutlassModuleCodegen
 
 /*!
