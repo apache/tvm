@@ -143,7 +143,7 @@ class EpilogueFunctor(enum.Enum):
     LinearCombinationBias = enum_auto()
     LinearCombinationGelu = enum_auto()
 
-#
+
 EpilogueFunctorTag = {
     EpilogueFunctor.LinearCombination: "cutlass::epilogue::thread::LinearCombination",
     EpilogueFunctor.LinearCombinationRelu: "cutlass::epilogue::thread::LinearCombinationRelu",
@@ -151,7 +151,7 @@ EpilogueFunctorTag = {
     EpilogueFunctor.LinearCombinationGelu: "cutlass::epilogue::thread::LinearCombinationGELU",
 }
 
-#
+
 class SwizzlingFunctor(enum.Enum):
     Identity1 = enum_auto()
     Identity2 = enum_auto()

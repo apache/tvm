@@ -24,7 +24,7 @@ import subprocess
 
 class GemmProfiler(object):
     def __init__(self):
-        with open(os.path.join(os.path.dirname(__file__), "profiler.cu.template")) as f:
+        with open(os.path.join(os.path.dirname(__file__), "profiler_template.cu")) as f:
             self.template = Template(f.read())
 
     def emit(self, op_name, op_def, dtype_a, dtype_b, dtype_c, ld):
