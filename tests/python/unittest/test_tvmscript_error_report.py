@@ -155,33 +155,83 @@ def test_allocate_with_buffers():
     check_error(allocate_with_buffers, 2)
 
 
-def inconsistent_binding() -> None:
-    with T.block([128, 128]) as [vi]:  # error
+def inconsistent_binding_value() -> None:
+    for i, j in T.grid(16, 16):
+        vi, vj = T.axis.remap("SS", [i])  # error
+        T.evaluate(1.0)
+
+
+def inconsistent_binding_type() -> None:
+    for i, j in T.grid(16, 16):
+        vi, vj = T.axis.remap("S", [i, j])  # error
         T.evaluate(1.0)
 
 
 def test_inconsistent_binding():
-    check_error(inconsistent_binding, 2)
+    check_error(inconsistent_binding_value, 3)
+    check_error(inconsistent_binding_type, 3)
+
+
+def error_remap_type() -> None:
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("TT", [i, j])  # error
+            T.evaluate(1.0)
+
+
+def error_remap_value() -> None:
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i + j, j])  # error
+            T.evaluate(1.0)
+
+
+def test_error_remap_args():
+    check_error(error_remap_type, 4)
+    check_error(error_remap_value, 4)
 
 
 def invalid_block_axes(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
-    with T.block([A]) as [vi]:  # error
-        T.evaluate(1.0)
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi = T.axis.S(i, A)  # error
+            T.evaluate(1.0)
 
 
 def test_invalid_block_axes():
-    check_error(invalid_block_axes, 3)
+    check_error(invalid_block_axes, 5)
 
 
-def miss_block_bind() -> None:
-    with T.block([16, 16]) as [vi, vj]:  # error
-        T.bind(vi, 1)
-        T.evaluate(1.0)
+def duplicate_block_axes() -> None:
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi = T.axis.S(16, i)
+            vi = T.axis.S(16, j)  # error
+            T.evaluate(1.0)
+
+
+def duplicate_block_axes_remap() -> None:
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vi = T.axis.remap("SS", [i, j])  # error
+            T.evaluate(1.0)
+
+
+def test_duplicate_block_axes():
+    check_error(duplicate_block_axes, 5)
+    check_error(duplicate_block_axes_remap, 4)
+
+
+def miss_block_bind_value() -> None:
+    for i, j in T.grid(128, 128):
+        with T.block():
+            vi = T.axis.S(i)  # error
+            T.evaluate(1.0)
 
 
 def test_miss_block_bind():
-    check_error(miss_block_bind, 2)
+    check_error(miss_block_bind_value, 4)
 
 
 def invalid_loop_var() -> None:
@@ -203,74 +253,99 @@ def test_inconsistent_grid():
 
 
 def invalid_match_buffer_region() -> None:
-    with T.block([16, 16]) as [vi, vj]:
-        A = T.match_buffer(vi)  # error
-        T.evaluate(1.0)
+    for i, j in T.grid(128, 128):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            A = T.match_buffer(vi)  # error
+            T.evaluate(1.0)
 
 
 def test_invalid_match_buffer_region():
-    check_error(invalid_match_buffer_region, 3)
+    check_error(invalid_match_buffer_region, 5)
 
 
 def duplicate_buffer() -> None:
     A = T.alloc_buffer((128, 128), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        A = T.alloc_buffer((128, 128), "float32")  # error
-        T.evaluate(1.0)
+    for i, j in T.grid(128, 128):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            A = T.alloc_buffer((128, 128), "float32")  # error
+            T.evaluate(1.0)
 
 
 def test_duplicate_buffer():
-    check_error(duplicate_buffer, 4)
+    check_error(duplicate_buffer, 6)
 
 
 def duplicate_reads() -> None:
     A = T.alloc_buffer((128, 128), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        T.reads(A[0:8, 0:8])
-        T.reads(A[0:16, 0:16])  # error
-        T.evaluate(1.0)
+    for i, j in T.grid(128, 128):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[0:8, 0:8])
+            T.reads(A[0:16, 0:16])  # error
+            T.evaluate(1.0)
 
 
 def duplicate_writes() -> None:
     A = T.alloc_buffer((128, 128), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        T.writes(A[0:8, 0:8])
-        T.writes(A[0:16, 0:16])  # error
-        T.evaluate(1.0)
+    for i, j in T.grid(128, 128):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.writes(A[0:8, 0:8])
+            T.writes(A[0:16, 0:16])  # error
+            T.evaluate(1.0)
 
 
 def duplicate_predicate() -> None:
-    with T.block([16, 16]) as [vi, vj]:
-        T.where(1)
-        T.where(0)  # error
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.where(1)
+            T.where(0)  # error
 
 
 def duplicate_annotations() -> None:
-    with T.block([16, 16]) as [vi, vj]:
-        T.block_attr({})
-        T.block_attr({})  # error
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.block_attr({})
+            T.block_attr({})  # error
 
 
 def duplicate_init() -> None:
-    with T.block([16, 16]) as [vi, vj]:
-        with T.init():
-            T.evaluate(1.0)
-        with T.init():  # error
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            with T.init():
+                T.evaluate(1.0)
+            with T.init():  # error
+                T.evaluate(1.0)
+
+
+def duplicate_axes() -> None:
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            vi = T.axis.S(i, 16)  # error
             T.evaluate(1.0)
 
 
 def test_duplicate_block_signature():
-    check_error(duplicate_reads, 5)
-    check_error(duplicate_writes, 5)
-    check_error(duplicate_predicate, 4)
-    check_error(duplicate_annotations, 4)
-    check_error(duplicate_init, 5)
+    check_error(duplicate_reads, 7)
+    check_error(duplicate_writes, 7)
+    check_error(duplicate_predicate, 6)
+    check_error(duplicate_annotations, 6)
+    check_error(duplicate_init, 7)
+    check_error(duplicate_axes, 5)
 
 
 def opaque_access_during_complete(a: T.handle) -> None:  # error
     A = T.match_buffer(a, (16, 16), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        T.evaluate(T.load("float32", A.data, vi * 16 + vj))
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.evaluate(T.load("float32", A.data, vi * 16 + vj))
 
 
 def test_opaque_access_during_complete():
@@ -279,55 +354,65 @@ def test_opaque_access_during_complete():
 
 def convert_slice_to_bufferload() -> None:
     A = T.alloc_buffer((128, 128), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        A[vi, vj] = A[vi : vi + 2, vj] + 1  # error
+    for i, j in T.grid(128, 128):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            A[vi, vj] = A[vi : vi + 2, vj] + 1  # error
 
 
 def test_convert_slice_to_bufferload():
-    check_error(convert_slice_to_bufferload, 4)
+    check_error(convert_slice_to_bufferload, 6)
 
 
 def error_index_type() -> None:
     A = T.alloc_buffer((128, 128), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        A[vi, vj] = A[vi, 0.0] + 1  # error
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            A[vi, vj] = A[vi, 0.0] + 1  # error
 
 
 def error_bufferslice_index_type() -> None:
     A = T.alloc_buffer((1,), "float32")
     B = T.alloc_buffer((16, 16), "float32")
     C = T.alloc_buffer((16, 16), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        C[vi, vj] = B[vi, A[0]]  # error
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, A[0]]  # error
 
 
 def test_error_index_type():
-    check_error(error_index_type, 4)
-    check_error(error_bufferslice_index_type, 6)
+    check_error(error_index_type, 6)
+    check_error(error_bufferslice_index_type, 8)
 
 
 def error_index_with_stop() -> None:
     A = T.alloc_buffer((128, 128), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        A[vi, vj] = A[vi, 1:10] + 1  # error
+    for i, j in T.grid(128, 128):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            A[vi, vj] = A[vi, 1:10] + 1  # error
 
 
 def error_bufferslice_index_with_stop() -> None:
     A = T.alloc_buffer((1,), "int32")
     B = T.alloc_buffer((16, 16), "float32")
     C = T.alloc_buffer((16, 16), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        C[vi, vj] = B[vi, A[0:1]]  # error
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, A[0:1]]  # error
 
 
 def test_error_index_with_stop_slice():
-    check_error(error_index_with_stop, 4)
-    check_error(error_bufferslice_index_with_stop, 6)
+    check_error(error_index_with_stop, 6)
+    check_error(error_bufferslice_index_with_stop, 8)
 
 
 def mismatch_args() -> None:
     A = T.alloc_buffer((128, 128), "float32")
-    with T.block([16, 16]) as [vi, vj]:
+    with T.block():
         T.reads(A[0, 0], A[1, 1])  # error
         T.evaluate(1.0)
 
@@ -338,8 +423,7 @@ def test_mismatch_args():
 
 def special_stmt_except() -> None:
     A = T.alloc_buffer("(128, 128)", "float32")  # error
-    with T.block([16, 16]) as [vi, vj]:
-        T.evaluate(1.0)
+    T.evaluate(1.0)
 
 
 def scope_handler_except() -> None:
@@ -368,7 +452,7 @@ def test_tvm_exception_catch():
 def buffer_shape_mismatch(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes([A[i, j * 4 : j * 4 + 4]])
             sub_A = T.match_buffer(
@@ -383,7 +467,7 @@ def test_match_buffer_shape_mismatch():
 
 
 def high_dim_store() -> None:
-    with T.block([], "root"):
+    with T.block("root"):
         B = T.allocate([256], "float32", "global")
         for i, j in T.grid(16, 16):
             B[i, j] = 1.0  # error: Store is only allowed with one index
@@ -391,6 +475,15 @@ def high_dim_store() -> None:
 
 def test_high_dim_store():
     check_error(high_dim_store, 5)
+
+
+def block_has_option_vars() -> None:
+    with T.block("root") as x:  # error: block does not support option_vars
+        T.evaluate(0.0)
+
+
+def test_block_has_option_vars():
+    check_error(block_has_option_vars, 2)
 
 
 def check_error(func, rel_lineno):
@@ -415,6 +508,8 @@ def check_error(func, rel_lineno):
             d.span.line - 1 == rel_lineno
         ), f"Expected error to be on line {rel_lineno}, but it was on {d.span.line - 1}"
 
+
+# TODO(Siyuan): block iter errors.
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
