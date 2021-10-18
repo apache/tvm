@@ -1,3 +1,21 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -62,42 +80,6 @@ cudaError_t CutlassGemmRCR(
   return cudaSuccess;
 }
 
-template<typename DType>
-__global__ void InitializeMatrix_kernel(
-  DType *matrix,
-  int ldm,
-  int rows,
-  int columns,
-  int seed = 0) {
-
-  int i = threadIdx.x + blockIdx.x * blockDim.x;
-  int j = threadIdx.y + blockIdx.y * blockDim.y;
-
-  if (i < rows && j < columns) {
-    int offset = i + j * rows;
-
-    // Generate arbitrary elements.
-    int const k = 16807;
-    int const m = 16;
-    float value = float(((offset + seed) * k % m) - m / 2);
-
-    matrix[offset] = value;
-  }
-}
-
-template<typename DType>
-cudaError_t InitializeMatrix(DType *matrix, int ldm, int rows, int columns, int seed = 0) {
-
-  dim3 block(16, 16);
-  dim3 grid(
-    (rows + block.x - 1) / block.x,
-    (columns + block.y - 1) / block.y
-  );
-
-  InitializeMatrix_kernel<DType><<< grid, block >>>(matrix, ldm, rows, columns, seed);
-
-  return cudaGetLastError();
-}
 
 template<typename DType>
 cudaError_t AllocateMatrix(DType **matrix, int ldm, int rows, int columns, int seed = 0) {
@@ -122,9 +104,6 @@ cudaError_t AllocateMatrix(DType **matrix, int ldm, int rows, int columns, int s
       << cudaGetErrorString(result) << std::endl;
     return result;
   }
-
-  // Initialize matrix elements to arbitrary small integers.
-  result = InitializeMatrix<DType>(*matrix, ldm, rows, columns, seed);
 
   if (result != cudaSuccess) {
     std::cerr << "Failed to initialize matrix: "
