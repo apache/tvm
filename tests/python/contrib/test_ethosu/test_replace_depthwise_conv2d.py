@@ -29,16 +29,76 @@ from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
 @pytest.mark.parametrize(
     "trial",
     [
-        [(1, 8, 8, 3), 3, (3, 2), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC"],
-        [(1, 8, 8, 3), 3, (1, 1), (2, 1), (1, 1), (1, 1), "TANH", "NHWC", "NHWC"],
-        [(1, 8, 8, 3), 3, (1, 1), (0, 0), (1, 1), (1, 1), "NONE", "NHWC", "NHWC"],
-        [(1, 1, 1, 1), 1, (1, 1), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC"],
-        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (1, 2), "SIGMOID", "NHWC", "NHWC"],
-        [(1, 8, 2, 8, 16), 18, (1, 1), (2, 1), (1, 1), (1, 1), "CLIP", "NHCWB16", "NHWC"],
-        [(1, 7, 9, 40), 40, (3, 2), (1, 2), (2, 1), (1, 2), "CLIP", "NHWC", "NHCWB16"],
-        [(1, 4, 12, 9, 16), 182, (2, 3), (6, 3), (2, 2), (1, 1), "CLIP", "NHCWB16", "NHCWB16"],
-        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (2, 2), "CLIP", "NHWC", "NHWC"],
-        [(1, 7, 9, 41), 41, (3, 2), (1, 2), (2, 1), (2, 2), "CLIP", "NHWC", "NHCWB16"],
+        [(1, 8, 8, 3), 3, (3, 2), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC", "int8", "int8"],
+        [(1, 8, 8, 3), 3, (1, 1), (2, 1), (1, 1), (1, 1), "TANH", "NHWC", "NHWC", "int8", "int8"],
+        [(1, 8, 8, 3), 3, (1, 1), (0, 0), (1, 1), (1, 1), "NONE", "NHWC", "NHWC", "uint8", "int8"],
+        [(1, 1, 1, 1), 1, (1, 1), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC", "uint8", "int8"],
+        [
+            (1, 7, 9, 4),
+            4,
+            (3, 2),
+            (1, 2),
+            (2, 1),
+            (1, 2),
+            "SIGMOID",
+            "NHWC",
+            "NHWC",
+            "uint8",
+            "uint8",
+        ],
+        [
+            (1, 8, 2, 8, 16),
+            18,
+            (1, 1),
+            (2, 1),
+            (1, 1),
+            (1, 1),
+            "CLIP",
+            "NHCWB16",
+            "NHWC",
+            "int8",
+            "int8",
+        ],
+        [
+            (1, 7, 9, 40),
+            40,
+            (3, 2),
+            (1, 2),
+            (2, 1),
+            (1, 2),
+            "CLIP",
+            "NHWC",
+            "NHCWB16",
+            "int8",
+            "int8",
+        ],
+        [
+            (1, 4, 12, 9, 16),
+            182,
+            (2, 3),
+            (6, 3),
+            (2, 2),
+            (1, 1),
+            "CLIP",
+            "NHCWB16",
+            "NHCWB16",
+            "int8",
+            "int8",
+        ],
+        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (2, 2), "CLIP", "NHWC", "NHWC", "int8", "int8"],
+        [
+            (1, 7, 9, 41),
+            41,
+            (3, 2),
+            (1, 2),
+            (2, 1),
+            (2, 2),
+            "CLIP",
+            "NHWC",
+            "NHCWB16",
+            "int8",
+            "int8",
+        ],
         [
             (1, 13, 12, 19, 16),
             182,
@@ -49,6 +109,8 @@ from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
             "CLIP",
             "NHCWB16",
             "NHCWB16",
+            "int8",
+            "int8",
         ],
     ],
 )
@@ -63,8 +125,10 @@ def test_depthwise_conv2d_single(trial):
         activation,
         ifm_layout,
         ofm_layout,
+        dtype,
+        weight_dtype,
     ):
-        ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
         depthwise = make_ethosu_depthwise_conv2d(
             ifm,
             channels,
@@ -75,6 +139,7 @@ def test_depthwise_conv2d_single(trial):
             activation,
             ifm_layout,
             ofm_layout,
+            weight_dtype,
         )
         func = relay.Function(relay.analysis.free_vars(depthwise), depthwise)
         func = run_opt_pass(func, relay.transform.InferType())
@@ -99,6 +164,8 @@ def test_depthwise_conv2d_single(trial):
         activation,
         ifm_layout,
         ofm_layout,
+        dtype,
+        _,
     ) = trial
     dilated_kernel_h = (kernel_shape[0] - 1) * dilation[0] + 1
     dilated_kernel_w = (kernel_shape[1] - 1) * dilation[1] + 1
@@ -125,7 +192,7 @@ def test_depthwise_conv2d_single(trial):
         ofm_stride_h = 16 * ofm_width * ((channels - 1) // 16 + 1)
 
     answer = [
-        "int8",
+        dtype,
         ifm_shape[1],
         ifm_shape[2] if ifm_layout == "NHWC" else ifm_shape[3],
         channels,
@@ -142,7 +209,7 @@ def test_depthwise_conv2d_single(trial):
         ifm_stride_h,
         ifm_stride_w,
         ifm_stride_c,
-        "int8",
+        dtype,
         ofm_height,
         ofm_width,
         channels,
