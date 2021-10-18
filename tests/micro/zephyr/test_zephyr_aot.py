@@ -47,6 +47,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
         "nrf5340dk_nrf5340_cpuapp",
         "nucleo_l4r5zi",
         "qemu_cortex_r5",
+        "qemu_riscv32",
     ]:
         pytest.skip(msg="Model does not fit.")
 
