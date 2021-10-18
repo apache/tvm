@@ -311,10 +311,11 @@ within_subsection_order = {
         "bring_your_own_datatypes.py",
     ],
     "micro": [
+        "micro_autotune.py",
         "micro_reference_vm.py",
         "micro_tflite.py",
-        "cortex_m_ethosu.py",
-    ],    
+        "micro_ethosu.py",
+    ],
 }
 
 
@@ -357,6 +358,7 @@ sphinx_gallery_conf = {
     "gallery_dirs": gallery_dirs,
     "subsection_order": subsection_order,
     "filename_pattern": os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", ".py"),
+    "find_mayavi_figures": False,
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],
