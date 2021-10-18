@@ -37,22 +37,25 @@ def get_valid_counts(
     out_buf = T.match_buffer(out, (1, 2500, 6), "float32")
     out_indices_buf = T.match_buffer(out_indices, (1, 2500), "int32")
 
-    with T.block([1], "init") as [vi]:
+    with T.block("init"):
+        vi = T.axis.S(1, 0)
         valid_count_buf[vi] = T.int32(0)
-        with T.block([2500], "update") as [vj]:
-            T.reads([data_buf[vi, vj, 6]])
-            T.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
-            if (data_buf[vi, vj, score_index] > score_threshold) and (
-                (id_index < 0) or (data_buf[vi, vj, id_index] >= T.float32(0))
-            ):
-                for k in T.serial(0, 6):
-                    out_buf[vi, valid_count_buf[vi], k] = data_buf[vi, vj, k]
-                out_indices_buf[vi, valid_count_buf[vi]] = vj
-                valid_count_buf[vi] = valid_count_buf[vi] + 1
-            if vj >= valid_count_buf[vi]:
-                for k in T.serial(0, 6):
-                    out_buf[vi, vj, k] = T.float32(-1)
-                out_indices_buf[vi, vj] = T.int32(-1)
+        for j in range(2500):
+            with T.block("update"):
+                vj = T.axis.S(2500, j)
+                T.reads([data_buf[vi, vj, 6]])
+                T.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
+                if (data_buf[vi, vj, score_index] > score_threshold) and (
+                    (id_index < 0) or (data_buf[vi, vj, id_index] >= T.float32(0))
+                ):
+                    for k in T.serial(0, 6):
+                        out_buf[vi, valid_count_buf[vi], k] = data_buf[vi, vj, k]
+                    out_indices_buf[vi, valid_count_buf[vi]] = vj
+                    valid_count_buf[vi] = valid_count_buf[vi] + 1
+                if vj >= valid_count_buf[vi]:
+                    for k in T.serial(0, 6):
+                        out_buf[vi, vj, k] = T.float32(-1)
+                    out_indices_buf[vi, vj] = T.int32(-1)
 
 
 def _check_get_valid_counts_with_numpy(f, dshape, score_threshold, id_index, score_index):
@@ -117,7 +120,7 @@ def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
 def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
     B = T.match_buffer(b, (), "float32")
-    with T.block([], "root"):
+    with T.block("root"):
         T.reads([])
         T.writes([])
         C = T.alloc_buffer((), "float32")

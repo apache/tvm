@@ -32,7 +32,7 @@ def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in range(0, 16):
-        with T.block([]):
+        with T.block():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
             B = T.alloc_buffer([1, 16], "float32", scope="global")
@@ -67,7 +67,7 @@ def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
     for i0 in T.thread_binding(0, 4, thread="blockIdx.x"):
         for i1 in T.thread_binding(0, 2, thread="threadIdx.x"):
             for i2 in T.thread_binding(0, 2, thread="vthread"):
-                with T.block([]):
+                with T.block():
                     T.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
                     T.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
                     B = T.alloc_buffer([1, 16], "float32", scope="local")
@@ -108,17 +108,17 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
     C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        with T.block([]):
+        with T.block():
             T.reads(A[i, m])
             T.writes(C[i, m])
             B = T.alloc_buffer((m,), "float32", scope="global")
             for j in range(0, m):
-                with T.block([]) as []:
+                with T.block() as []:
                     T.reads(A[i, j])
                     T.writes(B[j])
                     B[j] = A[i, j] + 1.0
             for j in range(0, m):
-                with T.block([]) as []:
+                with T.block() as []:
                     T.reads(B[j])
                     T.writes(C[i, j])
                     C[i, j] = B[j] * 2.0
@@ -143,7 +143,7 @@ def compacted_predicate_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (32), "float32")
 
     for i, j in T.grid(5, 7):
-        with T.block([]) as []:
+        with T.block() as []:
             T.reads(A[i * 7 + j])
             T.writes(C[i * 7 + j])
             T.where(i * 7 + j < 32)
@@ -166,7 +166,7 @@ def compacted_unit_loop_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (32), "float32")
 
     for x, y, z in T.grid(4, 1, 8):
-        with T.block([]) as []:
+        with T.block() as []:
             T.reads(A[x * 8 + y * 8 + z])
             T.writes(C[x * 8 + y * 8 + z])
             C[x * 8 + y * 8 + z] = A[x * 8 + y * 8 + z] + 1.0
@@ -187,7 +187,7 @@ def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        with T.block([]) as []:
+        with T.block() as []:
             T.reads(A[i])
             T.writes(D[i])
             B = T.alloc_buffer((32,), scope="global")
@@ -215,7 +215,7 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i0 in range(0, 4):
-        with T.block([]):
+        with T.block():
             T.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
             T.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
             B = T.alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
