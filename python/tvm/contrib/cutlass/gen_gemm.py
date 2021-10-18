@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""TODO"""
 import os
 from jinja2 import Template
 from .gemm_operation import GemmOperation, EmitGemmInstance
@@ -39,7 +40,7 @@ class GemmProfiler(object):
         return src
 
 
-def CreateGemmOperator(
+def create_gemm_operator(
     layouts,
     tile_descriptions,
     data_type,
@@ -47,6 +48,7 @@ def CreateGemmOperator(
     epilogue_functor=EpilogueFunctor.LinearCombination,
     swizzling_functor=SwizzlingFunctor.Identity8,
 ):
+    """TODO"""
     ret = []
     emiter = EmitGemmInstance()
     profiler = GemmProfiler()
@@ -124,7 +126,8 @@ def CreateGemmOperator(
     return ret
 
 
-def GenerateSM75_TensorOp_1688(dtype):
+def generate_sm75_tensor_op_1688(dtype):
+    """TODO"""
     ops = []
     layouts = [
         (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
@@ -147,15 +150,6 @@ def GenerateSM75_TensorOp_1688(dtype):
             OpcodeClass.TensorOp,
             MathOperation.multiply_add,
         ),
-        # TODO: Is the instruction shape correct?
-        MathInstruction(
-            [16, 8, 8],
-            DataType.f32,
-            DataType.f32,
-            DataType.f32,
-            OpcodeClass.TensorOp,
-            MathOperation.multiply_add,
-        ),
     ]
 
     min_cc = 80
@@ -164,12 +158,6 @@ def GenerateSM75_TensorOp_1688(dtype):
     alignment_constraints = [8, 4, 2, 1]
 
     for math_inst in math_instructions:
-        # float32 can and only can use the 32,32,32 MathInstruction.
-        if (dtype == "float32" and math_inst.element_a == DataType.f16) or (
-            dtype == "float16" and math_inst.element_a == DataType.f32
-        ):
-            continue
-
         tile_descriptions = [
             TileDescription([256, 128, 32], 2, [4, 2, 1], math_inst, min_cc, max_cc),
             TileDescription([128, 256, 32], 2, [2, 4, 1], math_inst, min_cc, max_cc),
@@ -187,9 +175,8 @@ def GenerateSM75_TensorOp_1688(dtype):
             math_inst.element_accumulator,
         ]
 
-        out = CreateGemmOperator(layouts, tile_descriptions, data_type, alignment_constraints)
+        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
 
-        # Avoid emitting two kernels if the accumulator type does not differ from the input type (e.g. F16 accumulation)
         if math_inst.element_a != math_inst.element_accumulator:
             data_type_mixed = [
                 math_inst.element_a,
@@ -197,7 +184,7 @@ def GenerateSM75_TensorOp_1688(dtype):
                 math_inst.element_a,
                 math_inst.element_accumulator,
             ]
-            out = CreateGemmOperator(
+            out = create_gemm_operator(
                 layouts, tile_descriptions, data_type_mixed, alignment_constraints
             )
 
@@ -205,7 +192,8 @@ def GenerateSM75_TensorOp_1688(dtype):
     return ops
 
 
-def GenerateSM80_TensorOp_16816(dtype):
+def generate_sm80_tensor_op_16816(dtype):
+    """TODO"""
     assert dtype == "float16"
     ops = []
     layouts = [
@@ -266,9 +254,8 @@ def GenerateSM80_TensorOp_16816(dtype):
             math_inst.element_accumulator,
         ]
 
-        out = CreateGemmOperator(layouts, tile_descriptions, data_type, alignment_constraints)
+        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
 
-        # Avoid emitting two kernels if the accumulator type does not differ from the input type (e.g. F16 accumulation)
         if math_inst.element_a != math_inst.element_accumulator:
 
             data_type_mixed = [
@@ -278,7 +265,7 @@ def GenerateSM80_TensorOp_16816(dtype):
                 math_inst.element_accumulator,
             ]
 
-            out = CreateGemmOperator(
+            out = create_gemm_operator(
                 layouts, tile_descriptions, data_type_mixed, alignment_constraints
             )
 
@@ -287,8 +274,8 @@ def GenerateSM80_TensorOp_16816(dtype):
 
 
 GENERATOR_FUNC_TABLE = {
-    "GenerateSM75_TensorOp_1688": GenerateSM75_TensorOp_1688,
-    "GenerateSM80_TensorOp_16816": GenerateSM80_TensorOp_16816,
+    "sm75": generate_sm75_tensor_op_1688,
+    "sm80": generate_sm80_tensor_op_16816,
 }
 
 
@@ -329,12 +316,7 @@ class CompileEngine(object):
             if len(args) > 3:
                 cmd.append(str(args[3]))
         sp = subprocess.run(cmd, capture_output=True)
-        try:
-            print("command: " + str(cmd))
-            print("time: " + str(sp.stdout))
-            rt = float(sp.stdout)
-        except:
-            rt = 9999999
+        rt = float(sp.stdout)
         return rt
 
     def evaluate(self, op_name, src, args=None):
@@ -347,7 +329,7 @@ class CutlassGemmProfiler(object):
         self.engine = CompileEngine(cuda_arch, cutlass_path, binary_path)
 
     # find out kernels that cannot be supported
-    def check_align(self, op_name, M, N, K):
+    def check_align(self, op_name, M):
         aligns = re.findall(r"align[1|2|4|8]", op_name)
         assert len(aligns) == 1
         align = int(aligns[0][-1])
@@ -363,10 +345,8 @@ class CutlassGemmProfiler(object):
         for gen in op_geneators:
             ops += GENERATOR_FUNC_TABLE[gen](dtype)
         for op in ops:
-            if not self.check_align(op["name"], M, N, K):
-                continue
-            print(op["name"])
-            out = self.engine.evaluate(op["name"], op["src"], [M, N, K])
-            op["runtime"] = out
+            if self.check_align(op["name"], M):
+                out = self.engine.evaluate(op["name"], op["src"], [M, N, K])
+                op["runtime"] = out
         output = sorted(ops, key=lambda i: i["runtime"])
         return output[0]

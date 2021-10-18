@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
+"""TODO"""
 import tvm
 from tvm import runtime, relay
 from tvm.relay.op.contrib.cutlass import partition_for_cutlass
-from . import gen_gemm
+from .gen_gemm import CutlassGemmProfiler
 
 
 class GemmCollector(tvm.relay.ExprVisitor):
@@ -37,8 +37,9 @@ class GemmCollector(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
 
 
-def profile_and_build(mod, params, sm):
-    cutlass_profiler = gen_gemm.CutlassGemmProfiler(sm, "../../../3rdparty/cutlass", "./temp")
+def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
+    """TODO"""
+    cutlass_profiler = CutlassGemmProfiler(sm, "../../../3rdparty/cutlass", tmp_dir)
     mod = partition_for_cutlass(mod)
     for var in mod.get_global_vars():
         fun_name = var.name_hint
@@ -58,7 +59,7 @@ def profile_and_build(mod, params, sm):
             KK = arg0_shape[1]
             NN = arg1_shape[0]
             out = cutlass_profiler.profile(
-                "GenerateSM80_TensorOp_16816", new_attrs["arg0_dtype"], MM, NN, KK
+                "sm%d" % sm, new_attrs["arg0_dtype"], MM, NN, KK
             )
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]
@@ -81,7 +82,6 @@ def profile_and_build(mod, params, sm):
                 new_attrs["lda"] = "M"
                 new_attrs["ldb"] = "N"
                 new_attrs["ldc"] = "N"
-                is_nt = True
             else:
                 raise ValueError("%s unsupported operation" % new_attrs["cutlass_op_name"])
             new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
@@ -95,23 +95,16 @@ def profile_and_build(mod, params, sm):
             mod.update_func(var, new_func)
 
     with tvm.transform.PassContext(opt_level=3):
-        # json, lib, param = relay.build(mod, target=target, params=params)
-        # print("====================")
-        # print(lib.imported_modules[1].get_source())
         lib = relay.build(mod, target="cuda", params=params)
 
-    lib_path = "compiled.so"
     cutlass_path = "../../../3rdparty/cutlass/include"
     cutlass_util_path = "../../../3rdparty/cutlass/tools/util/include"
-    workdir = "tmp"
-
-    os.makedirs(workdir, exist_ok=True)
 
     kwargs = {}
     kwargs["cc"] = "nvcc"
     kwargs["options"] = [
         "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-        "-gencode=arch=compute_%s,code=[sm_%s,compute_%s]" % (sm, sm, sm),
+        "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
         "-Xcompiler=-fPIC",
         "-Xcompiler=-Wconversion",
         "-Xcompiler=-fno-strict-aliasing",
@@ -120,8 +113,8 @@ def profile_and_build(mod, params, sm):
         "-I" + cutlass_path,
         "-I" + cutlass_util_path,
     ]
-    lib.export_library(lib_path, workspace_dir=workdir, **kwargs)
+    lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
     lib = runtime.load_module(lib_path)
-    ctx = tvm.gpu()
-    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](ctx))
-    return rt_mod, ctx
+    dev = tvm.device("cuda", 0)
+    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+    return rt_mod, dev

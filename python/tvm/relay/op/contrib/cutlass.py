@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""TODO"""
 from tvm.relay import transform
 from ...dataflow_pattern import wildcard, is_op, is_constant
-from .register import register_pattern_table
 
 
 def make_gelu_pattern(bias_out):
@@ -28,6 +28,7 @@ def make_gelu_pattern(bias_out):
 
 
 def make_gemm_pattern(with_bias=True, with_act=None):
+    """TODO"""
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -48,6 +49,7 @@ def make_gemm_pattern(with_bias=True, with_act=None):
 
 
 def get_pattern_table():
+    """TODO"""
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
     dense_bias_pat = ("cutlass.dense_bias", make_gemm_pattern(True, None))
     dense_bias_relu_pat = ("cutlass.dense_bias_relu", make_gemm_pattern(True, "relu"))
@@ -62,6 +64,7 @@ def get_pattern_table():
 
 
 def partition_for_cutlass(mod):
+    """TODO"""
     mod = transform.MergeComposite(get_pattern_table())(mod)
     mod = transform.AnnotateTarget(["cutlass"])(mod)
     mod = transform.PartitionGraph()(mod)
