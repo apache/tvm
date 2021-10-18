@@ -110,4 +110,12 @@ then
 
     echo "--finish create the $DOCS/_build/html_$LANGUAGE"
     echo "done."
+
+    echo "start to generate sitemap for website."
+    # old html fold: $DOCS/_build/last_html_$LANGUAGE
+    # new html fold: $DOCS/_build/html_$LANGUAGE
+
+    # run your script here.
+
+    echo "done"
 fi

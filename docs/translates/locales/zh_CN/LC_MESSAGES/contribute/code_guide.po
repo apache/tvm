@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# yi hu, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-09-18 07:41+0000\n"
+"Last-Translator: yi hu, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,30 +23,30 @@ msgstr ""
 
 #: ../../_staging/contribute/code_guide.rst:21
 msgid "Code Guide and Tips"
-msgstr ""
+msgstr "代码指南和提示"
 
 #: ../../_staging/contribute/code_guide.rst:23
 msgid ""
 "This is a document used to record tips in TVM codebase for reviewers and "
 "contributors. Most of them are summarized through lessons during the "
 "contributing and process."
-msgstr ""
+msgstr "本文档用于为审阅者和贡献者在TVM代码库中记录提示。其中大部分都是从贡献和审核过程中的教训里总结得到。"
 
 #: ../../_staging/contribute/code_guide.rst:28
 msgid "C++ Code Styles"
-msgstr ""
+msgstr "C++ 代码规范"
 
 #: ../../_staging/contribute/code_guide.rst:29
 msgid "Use the Google C/C++ style."
-msgstr ""
+msgstr "使用Google C/C++ 规范"
 
 #: ../../_staging/contribute/code_guide.rst:30
 msgid "The public facing functions are documented in doxygen format."
-msgstr ""
+msgstr "面向大众的函数按照Doxygen格式进行记录"
 
 #: ../../_staging/contribute/code_guide.rst:31
 msgid "Favor concrete type declaration over ``auto`` as long as it is short."
-msgstr ""
+msgstr "尽量使用简短的具体类型声明而不是``auto``"
 
 #: ../../_staging/contribute/code_guide.rst:32
 msgid ""
@@ -50,10 +54,11 @@ msgid ""
 "value. Except when the function consumes the value by copy constructor or "
 "move, pass by value is better than pass by const reference in such cases."
 msgstr ""
+"尽量通过常量引用传递（例如``const Expr&``）而不是数值传递。除非在函数通过复制构造函数或移动来使用数值时，数值传递才比常量引用传递更好。"
 
 #: ../../_staging/contribute/code_guide.rst:35
 msgid "Favor ``const`` member function when possible."
-msgstr ""
+msgstr "尽量使用 ``const``成员函数"
 
 #: ../../_staging/contribute/code_guide.rst:37
 msgid ""
@@ -62,52 +67,57 @@ msgid ""
 "same version of the clang-format as the main one. You can also use the "
 "following command via docker."
 msgstr ""
+"我们使用`clang-format`来确保代码规范。因为不同版本的clang-format可能会有差异，我们推荐使用和主分支相同版本的clang-"
+"format。您也可以通过docker使用如下指令。"
 
 #: ../../_staging/contribute/code_guide.rst:47
 msgid ""
 "clang-format is also not perfect, when necessary, you can use disble clang-"
 "format on certain code regions."
-msgstr ""
+msgstr "clang-format也不是完美的，如有必要，您也可以在特定代码区域不使用clang-format。"
 
 #: ../../_staging/contribute/code_guide.rst:58
 msgid ""
 "Because clang-format may not recognize macros, it is recommended to use "
 "macro like normal function styles."
-msgstr ""
+msgstr "因为clang-format可能无法识别宏，因此我们推荐按照普通代码规范使用宏。"
 
 #: ../../_staging/contribute/code_guide.rst:79
 msgid "Python Code Styles"
-msgstr ""
+msgstr "Python代码规范"
 
 #: ../../_staging/contribute/code_guide.rst:80
 msgid ""
 "The functions and classes are documented in `numpydoc "
 "<https://numpydoc.readthedocs.io/en/latest/>`_ format."
-msgstr ""
+msgstr "函数和类的规范记录在`numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ 中."
 
 #: ../../_staging/contribute/code_guide.rst:81
 msgid "Check your code style using ``make pylint``"
-msgstr ""
+msgstr "通过``make pylint``检查您的代码规范。"
 
 #: ../../_staging/contribute/code_guide.rst:82
 msgid "Stick to language features as in ``python 3.6``"
-msgstr ""
+msgstr "和``python 3.6``的语言特性保持一致"
 
 #: ../../_staging/contribute/code_guide.rst:86
 msgid "Writing Python Tests"
-msgstr ""
+msgstr "编写Python测试代码"
 
 #: ../../_staging/contribute/code_guide.rst:87
 msgid ""
 "We use `pytest <https://docs.pytest.org/en/stable/>`_ for all python "
 "testing. ``tests/python`` contains all the tests."
 msgstr ""
+"我们使用 `pytest "
+"<https://docs.pytest.org/en/stable/>`_进行所有的python测试。``tests/python``被包含在所有的测试中。"
 
 #: ../../_staging/contribute/code_guide.rst:89
 msgid ""
 "If you want your test to run over a variety of targets, use the "
 ":py:func:`tvm.testing.parametrize_targets` decorator. For example:"
 msgstr ""
+"如果您希望您的测试能在各种目标环境下运行，请使用:py:func:`tvm.testing.parametrize_targets`装饰器。例如："
 
 #: ../../_staging/contribute/code_guide.rst:97
 msgid ""
@@ -119,10 +129,13 @@ msgid ""
 ":py:func:`tvm.testing`. For example, CUDA tests use the "
 "``@tvm.testing.requires_cuda`` decorator."
 msgstr ""
+"将会使用``target=\"llvm\"``，``target=\"cuda\"``和一些其它参数运行``test_mytest``。这也通过CI保证您的测试运行在正确的硬件上。如果您只希望针对几个环境进行测试，请使用``@tvm.testing.parametrize_targets(\"target_1\","
+" \"target_2\")``。如果您希望在单个场景下进行测试，请使用 "
+":py:func:`tvm.testing`里的相关的装饰器。例如，CUDA测试使用``@tvm.testing.requires_cuda``装饰器。"
 
 #: ../../_staging/contribute/code_guide.rst:100
 msgid "Handle Integer Constant Expression"
-msgstr ""
+msgstr "处理整数常量表达式"
 
 #: ../../_staging/contribute/code_guide.rst:101
 msgid ""
@@ -132,13 +145,14 @@ msgid ""
 "flow, we should use symbolic expression as much as possible. So the "
 "generated code works for shapes that are not known ahead of time."
 msgstr ""
+"我们在TVM中经常需要处理整数常量表达式。在这样做之前，我们想要问的第一个问题是，是否真的有必要得到一个整数常量。如果符号表达式也有效并符合逻辑，我们应该尽量使用符号表达式。因此生成的代码适用于事先未知的形状。"
 
 #: ../../_staging/contribute/code_guide.rst:103
 msgid ""
 "Note that in some cases we cannot know certain information, e.g. sign of "
 "symbolic variable, it is ok to make assumptions in certain cases. While "
 "adding precise support if the variable is constant."
-msgstr ""
+msgstr "注意在某些情况下我们不能获取特定信息，例如符号变量的符号，因此在某些情况下可以做出假设。但如果变量是常量，则需要添加精准支持。"
 
 #: ../../_staging/contribute/code_guide.rst:105
 msgid ""
@@ -147,3 +161,4 @@ msgid ""
 " overflow. We can always reconstruct an integer with the corresponding "
 "expression type via ``make_const``. The following code gives an example."
 msgstr ""
+"如果我们必须获得整数常量表达式，我们应该使用类型``int64_t``的常量值而不是``int``的，来避免潜在的整数溢出。我们总可以通过``make_const``用相应的表达式类型重新构建一个整数。下列代码提供了一个示例。"

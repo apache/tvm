@@ -260,10 +260,14 @@ msgid ""
 "optimizations such as register allocation to the downstream compilers and "
 "only focus on optimizations that are not covered by them."
 msgstr ""
+"LLVM, CUDA C "
+"可以和其他目标编译器可以在目标阶段进行许多底层优化。所以，我们将底层优化如寄存器分配留给下游编译器，而只关注于它们未能涵盖的优化。"
 
 #: ../../_staging/arch/index.rst:110
 msgid "Search-space and Learning-based Transformations"
 msgstr ""
+"搜索空间和基于学习的转换\n"
+"Search-space and Learning-based Transformations"
 
 #: ../../_staging/arch/index.rst:112
 msgid ""
@@ -274,6 +278,7 @@ msgid ""
 "limited to, multi-dimensional tensor access, loop tiling behavior, special "
 "accelerator memory hierarchy, and threading."
 msgstr ""
+"目前为止，我们讨论过的转换过程都是确定和基于规则的。TVM堆栈的一个设计目标就是去支持不同硬件平台上的高性能代码优化。为此，我们需要尽可能多的研究优化的选择，包括但不限于多维张量访问，循环平铺表现，特殊的加速器内存层级和线程。"
 
 #: ../../_staging/arch/index.rst:114
 msgid ""
@@ -287,6 +292,7 @@ msgid ""
 "scheduling combination. The search procedure is usually guided by a machine "
 "learning algorithm."
 msgstr ""
+"很难定义一种启发式方法来决定所有的选择。相反，我们将采取基于搜索和学习的方法。我们首先定义一组可以用来转换程序的操作。示例操作包括循环转换、内联、向量化。我们将这些操作称为**调度原语**。调度原语的集合定义了我们可以对程序进行优化的搜索空间。然后，系统搜索不同的可能调度序列来选择最佳调度组合。搜索过程通常由机器学习算法引导。"
 
 #: ../../_staging/arch/index.rst:121
 msgid ""
@@ -296,6 +302,7 @@ msgid ""
 "application phase is **exactly like** the rule-based transformations, "
 "enabling us to share the same interface convention with tradition passes."
 msgstr ""
+"一旦搜索完成，我们可以为（可能融合的）算子记录最佳调度序列。然后，编译器可以查找最佳调度序列并将其应用于程序。值得注意的是，此调度应用程序阶段与基于规则的转换**完全相同**，使我们能够与传统的passes共享接口协定。"
 
 #: ../../_staging/arch/index.rst:125
 msgid ""
@@ -304,10 +311,13 @@ msgid ""
 "AutoTVM(auto_scheduler). We expect to expand the learning-based "
 "transformations to more areas as we continue to develop the TVM stack."
 msgstr ""
+"我们使用基于搜索的优化来处理初始tir函数生成问题。该模块的这一部分称为AutoTVM（自动调度程序）。随着我们继续开发TVM堆栈，我们希望将基于学习的转换扩展到更多领域。"
 
 #: ../../_staging/arch/index.rst:129
 msgid "Target Translation"
 msgstr ""
+"目标转化\n"
+"Target Translation"
 
 #: ../../_staging/arch/index.rst:131
 msgid ""
@@ -320,6 +330,9 @@ msgid ""
 "lightweight as possible. Vast majority of transformations and lowering "
 "should be performed before the target translation phase."
 msgstr ""
+"目标转换阶段将IRModule转换为对应目标可执行的文件格式。对于x86和ARM等后端，我们使用LLVM IRBuilder构建内存中的LLVM "
+"IR。我们还可以生成源代码级语言，如CUDA "
+"C和OpenCL。最后，我们支持通过外部代码生成器将Relay函数（子图）直接转化到特定目标。重要的是，最终代码生成阶段应尽可能轻简。绝大多数转换和底层化应在目标转化阶段之前执行。"
 
 #: ../../_staging/arch/index.rst:138
 msgid ""
@@ -327,11 +340,11 @@ msgid ""
 "transformations before the target translation phase can also be affected by "
 "the target — for example, a target's vector length would change the "
 "vectorization behavior."
-msgstr ""
+msgstr "我们还提供了一个目标结构来特定编译目标。目标转化阶段之前的变换也会受到目标的影响-例如，目标的向量长度会改变向量化行为。"
 
 #: ../../_staging/arch/index.rst:144
 msgid "Runtime Execution"
-msgstr ""
+msgstr "Runtime 执行"
 
 #: ../../_staging/arch/index.rst:146
 msgid ""
@@ -340,12 +353,16 @@ msgid ""
 "Python, C++, Rust, Go, Java, and JavaScript. The code snippet below shows "
 "such an example in Python:"
 msgstr ""
+"TVM runtime的主要目的是提供一个最小的API用于加载和执行编译后的文件，使用它们选择的语言包括Python，C++，Rust， Go，Java"
+" 还有JavaScript。以下的代码片段展示了一个使用Python的例子。"
 
 #: ../../_staging/arch/index.rst:159
 msgid ""
 ":py:class:`tvm.runtime.Module` encapsulates the result of compilation. A "
 "runtime.Module contains a GetFunction method to obtain PackedFuncs by name."
 msgstr ""
+":py:class:`tvm.runtime.Module` 封装了编译的结果。一个runtime.Module 包含一个Getfunction "
+"方法来按名称获得PackedFuncs。"
 
 #: ../../_staging/arch/index.rst:161
 msgid ""
@@ -355,6 +372,9 @@ msgid ""
 "runtime.PackedFunc, runtime.Module, runtime.NDArray, and other sub-classes "
 "of runtime.Object."
 msgstr ""
+":py:class:`tvm.runtime.PackedFunc`是两种生成函数的类型擦除函数接口。一个 runtime.PackedFunc "
+"可以接受参数然后返回以下类型的返回值: POD 类型(int, float), string, runtime.PackedFunc, "
+"runtime.Module, runtime.NDArray, 和其他runtime.Object的子类。"
 
 #: ../../_staging/arch/index.rst:164
 msgid ""
@@ -365,13 +385,17 @@ msgid ""
 " call into another PackedFunc from a CUDAModule that is backed by the CUDA "
 "driver API. The same mechanism can be used for OpenCL kernels."
 msgstr ""
+":py:class:`tvm.runtime.Module` 和 :py:class:`tvm.runtime.PackedFunc` "
+"是模块化runtime的强大机制。 例如, 为了在CUDA得到上述 `addone` 函数,我们可以使用 LLVM "
+"来生成主机端代码以计算启动参数(如线程组的大小) "
+"然后从CUDA驱动程序API支持的CUDAModule调用另一个PackedFunc。同样的机制也可以用于OpenCL内核。"
 
 #: ../../_staging/arch/index.rst:166
 msgid ""
 "The above example only deals with a simple `addone` function. The code "
 "snippet below gives an example of an end-to-end model execution using the "
 "same interface:"
-msgstr ""
+msgstr "上述例子仅仅设计了一个简单的 `addone` 函数。下列的代码片段给了一个端到端模型使用相同接口来执行的例子。"
 
 #: ../../_staging/arch/index.rst:183
 msgid ""
@@ -379,38 +403,39 @@ msgid ""
 "sufficient to encapsulate both operator level programs (such as addone), as "
 "well as the end-to-end models."
 msgstr ""
+"主要结论是，runtime.Module 和 runtime.PackedFunc足够处理算子级别的程序（比如addone）以及端到端模型。"
 
 #: ../../_staging/arch/index.rst:186
 msgid "Summary and Discussions"
-msgstr ""
+msgstr "总结与讨论"
 
 #: ../../_staging/arch/index.rst:188
 msgid "In summary, the key data structures in the compilation flows are:"
-msgstr ""
+msgstr "总的来说，编译流中的关键数据结构是："
 
 #: ../../_staging/arch/index.rst:190
 msgid "IRModule: contains relay.Function and tir.PrimFunc"
-msgstr ""
+msgstr "IRModule: 包含 relay.Function 和 tir.PrimFunc。"
 
 #: ../../_staging/arch/index.rst:191
 msgid "runtime.Module: contains runtime.PackedFunc"
-msgstr ""
+msgstr "runtime.Module: 包含 runtime.PackedFunc。"
 
 #: ../../_staging/arch/index.rst:193
 msgid ""
 "Most parts of the compilation are transformations among the key data "
 "structures."
-msgstr ""
+msgstr "编译的大部分流程是关键数据结构之间的转换。"
 
 #: ../../_staging/arch/index.rst:195
 msgid ""
 "relay/transform and tir/transform are determinstic rule-based "
 "transformations"
-msgstr ""
+msgstr "relay/transform 和 tir/transform 是基于规则的确定性转换。"
 
 #: ../../_staging/arch/index.rst:196
 msgid "auto_scheduler and autotvm contains the search-based transformations"
-msgstr ""
+msgstr "auto_scheduler 和 autotvm 包含基于搜索的转换。"
 
 #: ../../_staging/arch/index.rst:198
 msgid ""
@@ -420,33 +445,35 @@ msgid ""
 "except that the data structure of interest changes from the numpy.ndarray to"
 " tvm.IRModule. Here are some example use-cases:"
 msgstr ""
+"最后，编译流程示例只是TVM堆栈的一个经典用例。我们将这些关键数据结构和转换提供pyhon和C++API。因此，你可以使用TVM就像使用numpy一样，除了关注的数据结构从numpy.ndarray"
+" 变成 tvm.IRModule。一下是一些使用示例。"
 
 #: ../../_staging/arch/index.rst:202
 msgid "Directly construct IRModule using the python API."
-msgstr ""
+msgstr "用python API直接构造 IRModule。"
 
 #: ../../_staging/arch/index.rst:203
 msgid "Compose a custom set of transformations(e.g. customize quantization)."
-msgstr ""
+msgstr "组成一组自定变换（如自定义量化）。"
 
 #: ../../_staging/arch/index.rst:204
 msgid "Manipulate the IR directly using TVM's python API."
-msgstr ""
+msgstr "直接使用TVM提供的python API操作IR。"
 
 #: ../../_staging/arch/index.rst:208
 msgid "Logical Architecture Components"
-msgstr ""
+msgstr "逻辑架构组件"
 
 #: ../../_staging/arch/index.rst:214
 msgid "TVM Architecture Diagram"
-msgstr ""
+msgstr "TVM体系架构图"
 
 #: ../../_staging/arch/index.rst:216
 msgid ""
 "The above figure shows the major logical components in the project. Please "
 "read the following sections for information about the components and their "
 "relations."
-msgstr ""
+msgstr "上方图片展示了项目中的主要逻辑组件。有关组件及其之间关系的信息请阅读接下来的章节。"
 
 #: ../../_staging/arch/index.rst:221
 msgid "tvm/support"
@@ -456,7 +483,7 @@ msgstr "tvm/support"
 msgid ""
 "The support module contains the most common utilities for the "
 "infrastructure, such as generic arena allocator, socket, and logging."
-msgstr ""
+msgstr "support 模块包含基础结构最常用的实用程序，例如通用arena分配器，套接字和日志。"
 
 #: ../../_staging/arch/index.rst:226
 msgid "tvm/runtime"
@@ -469,6 +496,8 @@ msgid ""
 "stable standard set of C APIs to interface with frontend languages such as "
 "Python and Rust."
 msgstr ""
+"runtime 是 TVM 堆栈的基础。它提供了加载和执行编译文件的机制。runtime给前端语言如 Python 和 Rust，定义了一套稳定的 C "
+"API 接口。"
 
 #: ../../_staging/arch/index.rst:231
 msgid ""
@@ -478,6 +507,9 @@ msgid ""
 "system allows the developer to introduce new data structures to the runtime,"
 " such as Array, Map, and new IR data structures."
 msgstr ""
+"`runtime::Object` 是除了 `runtime::PackedFunc`之外在TVM "
+"runtime里面一个重要的数据结构.它是一个引用计数基类，具有类型索引，给runtime类型检查和向下转型提供支持。Object "
+"系统允许开发者向runtime引进新的数据结构，比如数组，映射还有新的IR数据结构。"
 
 #: ../../_staging/arch/index.rst:235
 msgid ""
@@ -487,6 +519,9 @@ msgid ""
 "manipulated from the Python frontend. We use the PackedFunc mechanism to "
 "expose various APIs to the frontend."
 msgstr ""
+"除了部署应用之外，编译器本身还大量使用TVM "
+"runtime机制。所有的IR数据结构都是`runtime::Object`的子类，所以它们能直接被python前端直接访问和操作。我们用PackedFunc"
+" 机制向前端公开各种API。"
 
 #: ../../_staging/arch/index.rst:239
 msgid ""
@@ -495,6 +530,7 @@ msgid ""
 "runtime modules define APIs for device memory allocation and device function"
 " serialization."
 msgstr ""
+"支持不同硬件后端的runtime在runtime子目录里定义（如runtime/opencl）。这些硬件特定的runtime模块定义了设备内存分配和设备函数的序列化的API。"
 
 #: ../../_staging/arch/index.rst:242
 msgid ""
@@ -503,6 +539,7 @@ msgid ""
 "the execution performance. The rpc infrastructure enables data collection "
 "from a wide range of hardware backends for learning-based optimizations."
 msgstr ""
+"`runtime/rpc`实现对PackedFunc的rpc支持。我们可以使用RPC机制将交叉编译库发送到远程设备，并对执行性能进行基准测试。rpc基础设施支持从各种硬件后端收集数据，以进行基于学习的优化。"
 
 #: ../../_staging/arch/index.rst:264
 msgid "tvm/node"
@@ -513,20 +550,20 @@ msgid ""
 "The node module adds additional features on top of the `runtime::Object` for"
 " IR data structures. The main features include reflection, serialization, "
 "structural equivalence, and hashing."
-msgstr ""
+msgstr "node模块给IR数据结构在 `runtime::Object`之上添加了其他功能。主要功能包括反射、序列化、结构等价和散列。"
 
 #: ../../_staging/arch/index.rst:268
 msgid ""
 "Thanks to the node module, we can directly access any field of the TVM's "
 "IRNode by their name in Python."
-msgstr ""
+msgstr "多亏了node模块，我们可以使用TVM IRNode在python里面的名字来访问它们的任何字段。"
 
 #: ../../_staging/arch/index.rst:279
 msgid ""
 "We can also serialize arbitrary IR node into a JSON format, and load them "
 "back. The ability to save/store, and inspect an IR node provides a "
 "foundation for making the compiler more accessible."
-msgstr ""
+msgstr "我们还可以将任意IR node序列化为JSON格式，然后重新加载它们。保存/存储和检查IRnode的能力为编译器更好的可访问性提供了基础。"
 
 #: ../../_staging/arch/index.rst:284
 msgid "tvm/ir"

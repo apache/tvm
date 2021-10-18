@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# 安杰 许, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:29+0000\n"
+"Last-Translator: 安杰 许, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,57 +23,57 @@ msgstr ""
 
 #: ../../_staging/arch/runtime.rst:21
 msgid "TVM Runtime System"
-msgstr ""
+msgstr "TVM runtime系统"
 
 #: ../../_staging/arch/runtime.rst:23
 msgid ""
 "TVM supports multiple programming languages for the compiler stack "
 "development and deployment. In this note, we explain the key elements of the"
 " TVM runtime."
-msgstr ""
+msgstr "TVM支持多种编程语言用于编译器堆栈的开发和部署。在本文中，我们会解释TVM runtime的关键元素。"
 
 #: ../../_staging/arch/runtime.rst:28
 msgid "We need to satisfy quite a few interesting requirements:"
-msgstr ""
+msgstr "我们需要满足许多有趣的要求："
 
 #: ../../_staging/arch/runtime.rst:30
 msgid ""
 "Deployment: invoke the compiled function from python/javascript/c++ "
 "language."
-msgstr ""
+msgstr "部署：用python/javascrip/c++语言调用编译后的函数。"
 
 #: ../../_staging/arch/runtime.rst:31
 msgid ""
 "Debug: define a function in python and call that from a compiled function."
-msgstr ""
+msgstr "调试：用python定义一个函数并在一个编译后的函数中调用它。"
 
 #: ../../_staging/arch/runtime.rst:32
 msgid ""
 "Link: write driver code to call device specific code (CUDA) and call it from"
 " compiled host function."
-msgstr ""
+msgstr "链接：编写驱动代码来调用设备特定代码（CUDA）并在编译后的主机函数中调用它。"
 
 #: ../../_staging/arch/runtime.rst:33
 msgid ""
 "Prototype: define an IR pass from python and call that from C++ backend."
-msgstr ""
+msgstr "原型：用python定义一个IR pass然后从C++后端中调用。"
 
 #: ../../_staging/arch/runtime.rst:34
 msgid "Expose: compiler stack developed in c++ to front-end (i.e, python)"
-msgstr ""
+msgstr "公开：从用c++开发的编译器堆栈到前端（如python）"
 
 #: ../../_staging/arch/runtime.rst:35
 msgid ""
 "Experiment: ship a compiled function to an embedded device to directly run "
 "there."
-msgstr ""
+msgstr "实验：将编译后的函数发送到嵌入式设备来直接运行。"
 
 #: ../../_staging/arch/runtime.rst:37
 msgid ""
 "We want to be able to define a function from any language and call from "
 "another. We also want the runtime core to be minimal to deploy to embedded "
 "devices."
-msgstr ""
+msgstr "我们想要能用任何语言定义一个函数然后用另一个语言来调用它。我们还希望runtime核能小到足以部署在嵌入式设备上。"
 
 #: ../../_staging/arch/runtime.rst:43
 msgid "PackedFunc"
