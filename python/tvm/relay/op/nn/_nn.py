@@ -246,6 +246,26 @@ def legalize_conv2d(attrs, inputs, types):
     return topi.nn.conv2d_legalize(attrs, inputs, types)
 
 
+
+@reg.register_convert_op_layout("nn.conv1d")
+def convert_conv1d(attrs, inputs, tinfos, desired_layouts):
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    data, weight = inputs
+
+    # First check if there is a LayoutConfig scope, and if so, whether
+    # it indicates we should ignore this layer or not.
+    layout_config = LayoutConfig.current
+    if layout_config is not None:
+        skip_layer = layout_config.check_skip()
+        if skip_layer:
+            return relay.nn.conv1d(data, weight, **attrs)
+
+    new_attrs = dict(attrs)
+    
+    return relay.nn.conv1d(data, weight, **attrs)
+
 @reg.register_convert_op_layout("nn.conv2d")
 def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     """Convert Layout pass registration for conv2d op.

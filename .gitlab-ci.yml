@@ -19,7 +19,7 @@ cache:
 
 before_script:
   - apt-get update
-  - apt-get install -y build-essential cmake ninja-build 
+  - apt-get install -y build-essential cmake ninja-build python3
 
 #sca:
 #  script:
@@ -33,4 +33,7 @@ test:
     - cmake ..
     - cmake --build . 
     - export PYTHONPATH=${PWD}/../python/
+    - python3 python/gen_requirements.py
+    - python3 -m pip install -r python/requirements/all-prod.txt
+    - python3 -m pip install -r python/requirements/dev.txt
     - py.test ../test
