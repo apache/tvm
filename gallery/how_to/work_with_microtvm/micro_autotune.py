@@ -223,7 +223,7 @@ with tvm.autotvm.apply_history_best("microtvm_autotune.log.txt"):
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    str(tvm.micro.get_microtvm_template_projects("crt")),
     lowered_tuned,
     temp_dir / "project",
     {"verbose": False},
