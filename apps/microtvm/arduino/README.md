@@ -15,4 +15,4 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-This directory code to interface microTVM with [Arduino](https://www.arduino.cc/).
+This directory contains code to interface microTVM with [Arduino](https://www.arduino.cc/).
