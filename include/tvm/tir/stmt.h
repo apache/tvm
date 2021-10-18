@@ -521,6 +521,13 @@ class AllocateNode : public StmtNode {
   PrimExpr condition;
   /*! \brief The body to be executed. */
   Stmt body;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  Map<String, ObjectRef> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
@@ -528,13 +535,14 @@ class AllocateNode : public StmtNode {
     v->Visit("extents", &extents);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("annotations", &annotations);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
            equal(extents, other->extents) && equal(condition, other->condition) &&
-           equal(body, other->body);
+           equal(body, other->body) && equal(annotations, other->annotations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -543,6 +551,7 @@ class AllocateNode : public StmtNode {
     hash_reduce(extents);
     hash_reduce(condition);
     hash_reduce(body);
+    hash_reduce(annotations);
   }
 
   /*!
@@ -570,7 +579,8 @@ class AllocateNode : public StmtNode {
 class Allocate : public Stmt {
  public:
   TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Span span = Span());
+                   Stmt body, Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                   Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
 };
@@ -1068,17 +1078,17 @@ class MatchBufferRegion : public ObjectRef {
  * \note Block's body is parameterized by iter vars.
  * \code
  *
- *  with tir.block([extent0, extent1, ...], name) as [v0, v1, ...]:
- *      tir.bind(v0, value0)
- *      tir.bind(v1, value1)
+ *  with T.block([extent0, extent1, ...], name) as [v0, v1, ...]:
+ *      T.bind(v0, value0)
+ *      T.bind(v1, value1)
  *      ...
- *      tir.reads([buffer0[start:end, ...], ...])
- *      tir.writes([buffer1[start:end, ...], ...])
- *      tir.where(predicate)
- *      buffer2 = tir.alloc_buffer(shape, dtype)
- *      buffer3 = tir.match_buffer(source_buffer[start:end, ...])
- *      tir.attr({attr_key: attr_value, ...})
- *      with tir.init():
+ *      T.reads([buffer0[start:end, ...], ...])
+ *      T.writes([buffer1[start:end, ...], ...])
+ *      T.where(predicate)
+ *      buffer2 = T.alloc_buffer(shape, dtype)
+ *      buffer3 = T.match_buffer(source_buffer[start:end, ...])
+ *      T.attr({attr_key: attr_value, ...})
+ *      with T.init():
  *          // init body
  *      // body
  *

@@ -16,7 +16,8 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm.script import ty
+from tvm.driver.build_module import schedule_to_module
+from tvm.script import tir as T
 from tvm.relay import GlobalVar
 
 
@@ -30,14 +31,10 @@ def test_flatten2():
     s = te.create_schedule(A2.op)
     xo, xi = s[A2].split(A2.op.axis[0], 8)
     s[A1].compute_at(s[A2], xo)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="A")
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name="A2")
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([Ab, A2b], stmt, {A: Ab, A2: A2b})
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [Ab, A2b], binds={A: Ab, A2: A2b})
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
 
@@ -70,12 +67,8 @@ def test_flatten_storage_align():
 
     s = te.create_schedule(A2.op)
     s[A1].storage_align(A1.op.axis[0], 2, 1)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A, A2])
     mod = tvm.transform.Sequential(
         [tvm.tir.transform.StorageFlatten(64), tvm.tir.transform.Simplify()]
     )(mod)
@@ -134,10 +127,10 @@ def test_flatten_double_buffer():
     assert count[0] == 4
 
 
-@tvm.script.tir
-def tir_func(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [2, 2])
-    B = tir.match_buffer(a, [2, 2])
+@T.prim_func
+def tir_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [2, 2])
+    B = T.match_buffer(a, [2, 2])
     A[0, 1] = B[1, 1]
 
 

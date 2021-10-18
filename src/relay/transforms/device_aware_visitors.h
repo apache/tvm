@@ -42,18 +42,19 @@ namespace transform {
 
 /*!
  * \brief Helper class for expression transformers which need to keep track of the device
- * holding the results of expressions and bound variables. This is recovered from the
- * "on_device" function attributes and fixed "on_device" CallNodes added by the PlanDevices
- * pass.
+ * holding the results of expressions. This is recovered from function attributes and "on_device"
+ * CallNodes added by the PlanDevices pass.
  *
- * \sa \p DeviceAwareExpr{Visitor,Mutator}.
+ * \sa \p DeviceAwareExpr{Functor,Visitor,Mutator}.
  */
 class LexicalOnDeviceMixin {
  protected:
+  explicit LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod);
+
   /*!
    * \brief Returns the device type on which the result of \p expr should/will be stored, assuming
-   * Push/Pop DeviceType/BoundVar have been correctly called. Returns \p kInvalidDeviceType if
-   * stack is empty and no bound vars have device types.
+   * Push/Pop DeviceType/BoundVar have been correctly called. May return \p kInvalidDeviceType if
+   * the device planning pass has not been run.
    */
   DLDeviceType GetInScopeDeviceType(const Expr& expr) const;
 
@@ -64,7 +65,7 @@ class LexicalOnDeviceMixin {
   void ExitFunctionBody();
 
   /*! \brief Push a device type onto the lexical device stack. Ignore if \p kInvalidDeviceType. */
-  void PushDeviceType(const DLDeviceType device_type);
+  void PushDeviceType(DLDeviceType device_type);
 
   /*! \brief Pop a device type from the lexical device stack. Ignore if stack is empty. */
   void PopDeviceType();
@@ -92,16 +93,28 @@ class LexicalOnDeviceMixin {
 
   /*!
    * \brief The stack of lexically enclosing "on_device" devices types, from outermost to innermost.
-   * When visiting an expression other than a variable we can assume the expression result is
-   * to be stored on device_type_.back().
+   * When visiting an expression other than a variable we can assume the expression's result is to
+   * be stored on device_type_.back().
    */
   std::vector<DLDeviceType> expr_device_types_;
+
   /*!
-   * \brief A map from in-scope variable to their device types. We may assume the variable is only
-   * ever bound to a value stored on this device at runtime.
+   * \brief A map from in-scope local variables to their device types. We may assume the variable is
+   * only ever bound to a value stored on this device at runtime.
+   *
+   * Note: We're playing it safe and keying by object refs here just in case the Relay expression
+   * being rewritten has no module or other global to keep it alive.
    */
   std::unordered_map<Var, DLDeviceType, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>
       var_device_types_;
+
+  /*!
+   * \brief A map from global variables to their device types, ie the "result_device_type" of the
+   * function they are bound to in the module we are working on. We calculate this explicitly so
+   * that we don't neeed to hold on to any module, which is often in the process of being rewritten.
+   */
+  std::unordered_map<GlobalVar, DLDeviceType, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>
+      global_var_device_types_;
 };
 
 template <typename FType>
@@ -119,6 +132,9 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
   using TSuper = ExprFunctor<void(const Expr& n)>;
 
  public:
+  explicit DeviceAwareExprFunctor(const Optional<IRModule>& maybe_mod)
+      : LexicalOnDeviceMixin(maybe_mod) {}
+
   void VisitExpr_(const FunctionNode* function_node) {
     if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
       // No tracking inside primitive functions.
@@ -229,6 +245,9 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
 /*! \brief ExprVisitor which tracks devices. */
 class DeviceAwareExprVisitor : public ExprVisitor, public LexicalOnDeviceMixin {
  public:
+  explicit DeviceAwareExprVisitor(const Optional<IRModule>& maybe_mod)
+      : LexicalOnDeviceMixin(maybe_mod) {}
+
   using ExprVisitor::VisitExpr_;
 
   void VisitExpr_(const FunctionNode* function_node) final;
@@ -272,6 +291,9 @@ class DeviceAwareExprVisitor : public ExprVisitor, public LexicalOnDeviceMixin {
 /*! \brief ExprMutator which tracks devices. */
 class DeviceAwareExprMutator : public ExprMutator, public LexicalOnDeviceMixin {
  public:
+  explicit DeviceAwareExprMutator(const Optional<IRModule>& maybe_mod)
+      : LexicalOnDeviceMixin(maybe_mod) {}
+
   Expr VisitExpr_(const FunctionNode* function_node) final;
   Expr VisitExpr_(const LetNode* let_node) final;
   Expr VisitExpr_(const CallNode* call_node) final;

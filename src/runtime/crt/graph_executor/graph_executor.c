@@ -445,6 +445,7 @@ int TVMGraphExecutorGraphAttr_Load(TVMGraphExecutorGraphAttr* attr, JSONReader* 
         status = -1;
         break;
       }
+      reader->BeginArray(reader);
       size_t num_items = 0;
       if (reader->ArrayLength(reader, &num_items) != 0) {
         fprintf(stderr, "error determing list_int length\n");

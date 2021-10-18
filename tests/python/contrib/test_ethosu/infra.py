@@ -29,7 +29,9 @@ from typing import List
 import os
 import struct
 import numpy
+import math
 from enum import IntEnum
+import tensorflow as tf
 
 from ethosu.vela.register_command_stream_generator import CmdMode
 from ethosu.vela.register_command_stream_generator import cmd0
@@ -64,26 +66,6 @@ class VelaArtifacts:
         self.flash = dict()
         self.sram = dict()
         self.npu_ops = set()
-
-
-def parse_relay_tflite_model(tflite_model, input_tensor, input_shape, input_dtype):
-    mod_, params_ = relay.frontend.from_tflite(
-        tflite_model,
-        shape_dict={input_tensor: input_shape},
-        dtype_dict={input_tensor: input_dtype},
-    )
-    return mod_, params_
-
-
-def parse_tflite_model(model_file):
-    try:
-        import tflite
-
-        return tflite.Model.GetRootAsModel(model_file, 0)
-    except AttributeError:
-        import tflite.Model
-
-        return tflite.Model.Model.GetRootAsModel(model_file, 0)
 
 
 def print_payload(payload):
@@ -228,14 +210,14 @@ def _create_test_runner(accel):
     )
 
 
-def build_source(module, inputs, outputs, accel="ethos-u55-256"):
+def build_source(module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0):
     test_runner = _create_test_runner(accel)
     return compile_models(
         models=AOTTestModel(
             module=module,
             inputs=inputs,
             outputs=outputs,
-            output_tolerance=10,
+            output_tolerance=output_tolerance,
             extra_memory_in_bytes=16 * 1024 * 1024,
         ),
         interface_api="c",
@@ -270,6 +252,58 @@ def flatten_numpy_data(data):
     return reshaped_data
 
 
+class InputGenerator:
+    def __init__(self, random_state):
+        self._random_state = random_state
+
+    def generate(self, size, dtype):
+        if dtype == numpy.float32:
+            print("random float32")
+            return self._random_state.uniform(-1, 1, size).astype(dtype)
+        else:
+            print("random (u)int min=%d max=%d", numpy.iinfo(dtype).min, numpy.iinfo(dtype).max)
+            low = numpy.iinfo(dtype).min
+            high = numpy.iinfo(dtype).max + 1
+            return self._random_state.randint(low, high, size, dtype)
+
+
+def generate_ref_data_tflite(model):
+    """
+    This method generates reference data by running the specified model on tflite with random input data.
+    The random input data and generated output data are returned.
+    """
+    expected_output_data = {}
+    interpreter = tf.lite.Interpreter(model_content=model)
+    interpreter.allocate_tensors()
+
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    # Initialize random generators with a fixed seed to get deterministic results
+    seed = 0
+    random_state = numpy.random.RandomState(seed)
+
+    inputgen = InputGenerator(random_state)
+
+    # Generate input data
+    input_data = {
+        input_detail["name"]: inputgen.generate(
+            input_detail["shape"],
+            input_detail["dtype"],
+        )
+        for input_detail in input_details
+    }
+    for index, value in enumerate(input_data.values()):
+        interpreter.set_tensor(index, value)
+    interpreter.invoke()
+
+    expected_output_data = [
+        interpreter.get_tensor(output_detail["index"]) for output_detail in output_details
+    ]
+
+    return input_data, expected_output_data
+
+
 def generate_weights_data(shape, dtype):
     size = 1
     for dim in shape:
@@ -278,7 +312,7 @@ def generate_weights_data(shape, dtype):
 
 
 def get_convolutional_args(call, include_buffers=False, remove_constants=False):
-    """A method to extract the arguments from conv2d or depthwise2d extern call."""
+    """A method to extract the arguments from conv2d or depthwise_conv2d extern call."""
     args = call.args
     conv_args = []
     remove_indices = [0]
@@ -297,6 +331,44 @@ def get_convolutional_args(call, include_buffers=False, remove_constants=False):
             conv_args.append(arg)
 
     return conv_args
+
+
+def compute_ofm_shape(ifm_shape, padding, kernel_shape, strides, dilation=[1, 1]):
+    assert len(strides) == 2
+    assert len(dilation) == 2
+    assert len(kernel_shape) == 2
+    if padding.lower() == "valid":
+        h = math.ceil((ifm_shape[1] - (kernel_shape[0] - 1) * dilation[0]) / strides[0])
+        w = math.ceil((ifm_shape[2] - (kernel_shape[1] - 1) * dilation[1]) / strides[1])
+    if padding.lower() == "same":
+        h = math.ceil(ifm_shape[1] / strides[0])
+        w = math.ceil(ifm_shape[2] / strides[1])
+    ofm_shape = [ifm_shape[0], h, w, ifm_shape[3]]
+    return ofm_shape
+
+
+def compute_padding_shape(ifm_shape, ofm_shape, padding, kernel_shape, strides, dilation=[1, 1]):
+    assert len(strides) == 2
+    assert len(dilation) == 2
+    assert len(kernel_shape) == 2
+    if padding.lower() == "valid":
+        return [0, 0, 0, 0]
+    if padding.lower() == "same":
+        effective_kernel_shape = [
+            dilation[0] * (kernel_shape[0] - 1) + 1,
+            dilation[1] * (kernel_shape[1] - 1) + 1,
+        ]
+        pad_along_height = max(
+            (ofm_shape[1] - 1) * strides[0] + effective_kernel_shape[0] - ifm_shape[1], 0
+        )
+        pad_along_width = max(
+            (ofm_shape[2] - 1) * strides[1] + effective_kernel_shape[1] - ifm_shape[2], 0
+        )
+        pad_top = pad_along_height // 2
+        pad_bottom = pad_along_height - pad_top
+        pad_left = pad_along_width // 2
+        pad_right = pad_along_width - pad_left
+        return [pad_top, pad_left, pad_bottom, pad_right]
 
 
 def make_ethosu_conv2d(
@@ -343,3 +415,48 @@ def make_ethosu_conv2d(
         ofm_layout=ofm_layout,
     )
     return conv
+
+
+def make_ethosu_depthwise_conv2d(
+    ifm,
+    channels,
+    kernel_shape,
+    padding,
+    strides,
+    dilation,
+    activation="NONE",
+    ifm_layout="NHWC",
+    ofm_layout="NHWC",
+    weight_dtype="int8",
+):
+    # params
+    weight_shape = (channels, kernel_shape[0], kernel_shape[1], 1)
+    padding = get_pad_tuple(padding, kernel_shape)
+
+    scale_bias_data = generate_weights_data((weight_shape[0], 10), "uint8")
+    scale_bias = relay.const(scale_bias_data, dtype="uint8")
+    weight_data = generate_weights_data(weight_shape, weight_dtype)
+    weight = relay.const(weight_data, dtype=weight_dtype)
+    depthwise = ethosu_ops.ethosu_depthwise_conv2d(
+        ifm,
+        weight,
+        scale_bias,
+        lut=relay.const([], dtype="int8"),
+        ifm_scale=0.6,
+        ifm_zero_point=11,
+        weight_zero_point=13,
+        ofm_scale=0.26,
+        ofm_zero_point=15,
+        kernel_shape=kernel_shape,
+        ofm_channels=channels,
+        strides=strides,
+        padding=padding,
+        dilation=dilation,
+        activation=activation,
+        clip_min=15 if activation == "CLIP" else 0,
+        clip_max=105 if activation == "CLIP" else 0,
+        upscale="NONE",
+        ifm_layout=ifm_layout,
+        ofm_layout=ofm_layout,
+    )
+    return depthwise

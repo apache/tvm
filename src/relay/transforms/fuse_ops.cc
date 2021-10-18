@@ -31,8 +31,9 @@
 #include <tvm/tir/op.h>
 
 #include "../../support/arena.h"
-#include "pass_utils.h"
-#include "pattern_utils.h"
+#include "../op/annotation/annotation.h"
+#include "./pass_utils.h"
+#include "./pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -1028,7 +1029,7 @@ Pass FuseOps(int fuse_opt_level) {
         auto max_fuse_depth = pc->GetConfig("relay.FuseOps.max_depth", Integer(kMaxFusedOps));
         return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));
       };
-  return CreateFunctionPass(pass_func, 1, "FuseOps", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "FuseOps", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FuseOps").set_body_typed(FuseOps);

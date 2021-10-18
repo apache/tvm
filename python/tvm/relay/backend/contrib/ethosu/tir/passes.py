@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler"""
+"""The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler."""
 import numpy as np  # type: ignore
 
 import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
 from .convolution import get_conv2d_params
+from .depthwise import get_depthwise_conv2d_params
 from .transform import get_copy_params
 from .utils import get_weights_pointer, get_scale_bias_pointer
 
@@ -52,6 +53,7 @@ def ReplaceOperators():
     op_map = {
         "ethosu_conv2d": get_conv2d_params,
         "ethosu_copy": get_copy_params,
+        "ethosu_depthwise_conv2d": get_depthwise_conv2d_params,
     }
     pointer_to_producer = {}
     pointer_to_consumer = {}
@@ -299,7 +301,7 @@ def EncodeConstants(const_dict):
     pointer_to_buffer = {}
     rewrite_buffer = {}
     rewrite_pointer = {}
-    accel_type = vela_api.get_target_accel_type()  # type: ignore
+    accel_config = vela_api.get_accelerator_config()
 
     def _align_scale_bias(tir_extern_call, bias):
         """Align the scale_bias to 16 bytes."""
@@ -314,7 +316,7 @@ def EncodeConstants(const_dict):
 
     def _encode_weights(tir_extern_call, weights):
         """Encode the weights for a TIR extern call."""
-        value_bytes = vela_api.encode_weights(tir_extern_call, weights, accel_type)
+        value_bytes = vela_api.encode_weights(tir_extern_call, weights, accel_config)
         value = np.frombuffer(value_bytes, dtype="uint8")
         return value
 

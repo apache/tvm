@@ -115,7 +115,7 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::Type* t_tvm_func_handle_{nullptr};
   llvm::Type* t_tvm_value_{nullptr};
   llvm::Type* t_tvm_shape_index_{nullptr};
-  llvm::Type* t_tvm_context_{nullptr};
+  llvm::Type* t_tvm_device_{nullptr};
   llvm::Type* t_tvm_type_{nullptr};
   llvm::Type* t_tvm_array_{nullptr};
 
@@ -160,12 +160,12 @@ void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* t
   func_handle_map_.clear();
   t_tvm_value_ = llvm::StructType::create({t_float64_}, "t_tvm_value");
   t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, DataType::ShapeIndex().bits());
-  t_tvm_context_ = llvm::StructType::create({t_int_, t_int_}, "t_tvm_context");
+  t_tvm_device_ = llvm::StructType::create({t_int_, t_int_}, "t_tvm_device");
   t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_}, "t_tvm_type");
   t_tvm_func_handle_ = t_void_p_;
   // DLTensor
   t_tvm_array_ = llvm::StructType::create(
-      {t_void_p_, t_tvm_context_, t_int_, t_tvm_type_, t_tvm_shape_index_->getPointerTo(),
+      {t_void_p_, t_tvm_device_, t_int_, t_tvm_type_, t_tvm_shape_index_->getPointerTo(),
        t_tvm_shape_index_->getPointerTo(), t_int64_},
       "t_tvm_array");
 
@@ -644,7 +644,7 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
     } else {
       ICHECK(t.is_handle());
       buf = builder_->CreatePointerCast(buf, t_tvm_value_->getPointerTo());
-      buf = builder_->CreateInBoundsGEP(t_void_p_, buf, index);
+      buf = builder_->CreateInBoundsGEP(t_tvm_value_, buf, index);
       return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, t_void_p_->getPointerTo()));
     }
   }

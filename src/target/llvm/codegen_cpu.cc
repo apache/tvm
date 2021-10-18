@@ -44,16 +44,34 @@ void CodeGenCPU::Init(const std::string& module_name, llvm::TargetMachine* tm,
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
   export_system_symbols_.clear();
-  // TVM runtime types
+
+  // Runtime types.
+
   t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, DataType::ShapeIndex().bits());
-  t_tvm_context_ = llvm::StructType::create({t_int_, t_int_});
+  // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
+  // typedef struct { DLDeviceType device_type; int device_id; } DLDevice;
+  t_tvm_device_ = llvm::StructType::create({t_int_, t_int_});
+  // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
+  // typedef struct { uint8_t code; uint8_t bits; uint16_t lanes; } DLDataType;
   t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_});
+  // Defined in include/tvm/runtime/c_runtime_api.h:
+  // typedef void* TVMFunctionHandle;
   t_tvm_func_handle_ = t_void_p_;
-  t_tvm_array_ = llvm::StructType::create({t_void_p_, t_tvm_context_, t_int_, t_tvm_type_,
+  // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
+  // typedef struct { ... } DLTensor;
+  t_tvm_array_ = llvm::StructType::create({t_void_p_, t_tvm_device_, t_int_, t_tvm_type_,
                                            t_tvm_shape_index_->getPointerTo(),
                                            t_tvm_shape_index_->getPointerTo(), t_int64_});
+  // Defined in include/tvm/runtime/c_runtime_api.h:
+  // typedef union { ... } TVMValue;
   t_tvm_value_ = llvm::StructType::create({t_float64_});
+  // Defined in include/tvm/runtime/c_backend_api.h:
+  // typedef struct { void* sync_handle; int32_t num_task; } TVMParallelGroupEnv;
   t_tvm_parallel_group_env_ = llvm::StructType::create({t_int32_->getPointerTo(), t_int32_});
+  // Defined in include/tvm/runtime/c_backend_api.h:
+  // typedef int (*TVMBackendPackedCFunc)(TVMValue* args, int* type_codes, int num_args,
+  //                                      TVMValue* out_ret_value, int* out_ret_tcode,
+  //                                      void* resource_handle);
   ftype_tvm_backend_packed_c_func_ = llvm::FunctionType::get(
       t_int_,
       {t_tvm_func_handle_, t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
@@ -62,21 +80,36 @@ void CodeGenCPU::Init(const std::string& module_name, llvm::TargetMachine* tm,
   t_tvm_crt_func_registry_ = llvm::StructType::create(
       {t_char_->getPointerTo(), ftype_tvm_backend_packed_c_func_->getPointerTo()});
   t_tvm_crt_module_ = llvm::StructType::create({t_tvm_crt_func_registry_->getPointerTo()});
+  // Defined in include/tvm/runtime/c_backend_api.h:
+  // typedef int (*FTVMParallelLambda)(int task_id, TVMParallelGroupEnv* penv, void* cdata);
   ftype_tvm_parallel_lambda_ = llvm::FunctionType::get(
       t_int_, {t_int_, t_tvm_parallel_group_env_->getPointerTo(), t_void_p_}, false);
   md_tbaa_ctx_ptr_ = md_builder_->createTBAAScalarTypeNode("ctx_ptr", md_tbaa_root_);
+
   // Runtime functions.
+
+  // Defined in include/tvm/runtime/c_runtime_api.h:
+  // int TVMFuncCall(TVMFunctionHandle func, TVMValue* arg_values, int* type_codes, int num_args,
+  //                 TVMValue* ret_val, int* ret_type_code);
   ftype_tvm_func_call_ = llvm::FunctionType::get(
       t_int_,
       {t_tvm_func_handle_, t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
        t_tvm_value_->getPointerTo(), t_int_->getPointerTo()},
       false);
+  // Defined in include/tvm/runtime/c_backend_api.h:
+  // int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionHandle* out);
   ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
       t_int_, {t_void_p_, t_char_->getPointerTo(), t_tvm_func_handle_->getPointerTo()}, false);
+  // Defined in include/tvm/runtime/c_runtime_api.h:
+  // void TVMAPISetLastError(const char* msg);
   ftype_tvm_api_set_last_error_ =
       llvm::FunctionType::get(t_void_, {t_char_->getPointerTo()}, false);
+  // Defined in include/tvm/runtime/c_backend_api.h:
+  // int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_task);
   ftype_tvm_parallel_launch_ = llvm::FunctionType::get(
       t_int_, {ftype_tvm_parallel_lambda_->getPointerTo(), t_void_p_, t_int_}, false);
+  // Defined in include/tvm/runtime/c_backend_api.h:
+  // int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
   ftype_tvm_parallel_barrier_ =
       llvm::FunctionType::get(t_int_, {t_int_, t_tvm_parallel_group_env_->getPointerTo()}, false);
   ftype_tvm_static_init_callback_ = llvm::FunctionType::get(t_int_, {t_void_p_}, false);
@@ -88,6 +121,8 @@ void CodeGenCPU::Init(const std::string& module_name, llvm::TargetMachine* tm,
   // initialize TVM runtime API
   if (system_lib && !target_c_runtime) {
     // We will need this in environment for backward registration.
+    // Defined in include/tvm/runtime/c_backend_api.h:
+    // int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
     f_tvm_register_system_symbol_ = llvm::Function::Create(
         llvm::FunctionType::get(t_int_, {t_char_->getPointerTo(), t_void_p_}, false),
         llvm::Function::ExternalLinkage, "TVMBackendRegisterSystemLibSymbol", module_.get());
