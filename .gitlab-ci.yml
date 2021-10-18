@@ -34,6 +34,7 @@ test:
     - cmake ..
     - cmake --build . 
     - export PYTHONPATH=${PWD}/../python/
+    - cd ..
     - python3 python/gen_requirements.py
     - python3 -m pip install -r python/requirements/all-prod.txt
     - python3 -m pip install -r python/requirements/dev.txt
