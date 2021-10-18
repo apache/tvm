@@ -25,27 +25,19 @@ String ScheduleError::RenderReport(const String& primitive) const {
   IRModule mod = this->mod();
   std::ostringstream os;
 
-  // print IRModule
+  // get locations of interest
   Array<ObjectRef> locs = LocationsOfInterest();
   int n_locs = locs.size();
   std::vector<String> roi_names;
   roi_names.reserve(n_locs);
-
-  os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
-     << "'.\n\nThe IR is:\n"
-     << AsTVMScript(mod);
-
-  // print region of interest
   if (n_locs > 0) {
-    os << "Regions of interest:\n";
     for (const ObjectRef& obj : locs) {
       String name = obj->GetTypeKey() + '#' + std::to_string(roi_names.size());
-      os << name << "\n" << obj;
       roi_names.emplace_back(std::move(name));
     }
-    os << "\n";
   }
 
+  // print IR module
   runtime::TypedPackedFunc<String(ObjectRef)> annotate =
       runtime::TypedPackedFunc<String(ObjectRef)>([](const ObjectRef& expr) -> String {
         std::string annotations = std::string(10, '^');
