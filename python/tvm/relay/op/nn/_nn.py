@@ -246,7 +246,6 @@ def legalize_conv2d(attrs, inputs, types):
     return topi.nn.conv2d_legalize(attrs, inputs, types)
 
 
-
 @reg.register_convert_op_layout("nn.conv1d")
 def convert_conv1d(attrs, inputs, tinfos, desired_layouts):
     # pylint: disable=import-outside-toplevel
@@ -263,8 +262,9 @@ def convert_conv1d(attrs, inputs, tinfos, desired_layouts):
             return relay.nn.conv1d(data, weight, **attrs)
 
     new_attrs = dict(attrs)
-    
+
     return relay.nn.conv1d(data, weight, **attrs)
+
 
 @reg.register_convert_op_layout("nn.conv2d")
 def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
