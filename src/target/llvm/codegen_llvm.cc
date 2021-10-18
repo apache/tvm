@@ -345,7 +345,26 @@ void CodeGenLLVM::Optimize() {
 
   // place optimization pass
   llvm::PassManagerBuilder builder;
-  builder.OptLevel = 3;
+
+  // Use the same opt-level as specified in TargetMachine for running passes
+  llvm::CodeGenOpt::Level opt_level = target_machine_->getOptLevel();
+
+  switch (opt_level) {
+    case llvm::CodeGenOpt::Level::None:
+      builder.OptLevel = 0;
+      break;
+    case llvm::CodeGenOpt::Level::Less:
+      builder.OptLevel = 1;
+      break;
+
+    case llvm::CodeGenOpt::Level::Default:
+      builder.OptLevel = 2;
+      break;
+
+    default:
+      // CodeGenOpt::Level::Aggressive
+      builder.OptLevel = 3;
+  }
 
 #if TVM_LLVM_VERSION >= 50
   builder.Inliner = llvm::createFunctionInliningPass(builder.OptLevel, 0, false);
@@ -412,7 +431,7 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
   } else {
     return etype;
   }
-}
+}  // namespace codegen
 
 llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
   if (auto* ptr = type.as<PrimTypeNode>()) {
