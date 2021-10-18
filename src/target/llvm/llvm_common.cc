@@ -111,6 +111,7 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
   opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
   opt.UnsafeFPMath = false;
   opt.NoInfsFPMath = false;
+  opt.NoNaNsFPMath = true;
   if (soft_float_abi) {
     opt.FloatABIType = llvm::FloatABI::Soft;
   } else {
