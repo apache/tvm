@@ -28,6 +28,7 @@ before_script:
 
 test:
   script:
+    - set -e
     - mkdir build 
     - cd build 
     - cmake ..
@@ -36,4 +37,7 @@ test:
     - python3 python/gen_requirements.py
     - python3 -m pip install -r python/requirements/all-prod.txt
     - python3 -m pip install -r python/requirements/dev.txt
-    - py.test ../test
+    - tests/scripts/task_python_unittest.sh
+    - tests/scripts/task_python_topi.sh
+    - tests/scripts/task_python_frontend.sh
+    - tests/scripts/task_python_integration.sh
