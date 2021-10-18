@@ -374,7 +374,7 @@ def test_rpc_large_array(temp_dir, board, west_cmd, tvm_debug, shape):
 @tvm.testing.requires_micro
 def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     """Test AutoTune for microTVM Zephyr"""
-    if board in ["qemu_riscv32"]:
+    if board in ["qemu_riscv32", "qemu_riscv64"]:
         pytest.xfail(f"Autotune fails on  {board}.")
 
     model = test_utils.ZEPHYR_BOARDS[board]
