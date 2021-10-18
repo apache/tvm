@@ -375,7 +375,6 @@ class TECompiler(Object):
         jited_func: tvm.runtime.PackedFunc
             The result of jited function.
         """
-        print("caling jit \n")
         key = _get_cache_key(source_func, target)
         return _backend._TECompilerJIT(self, key)
 
