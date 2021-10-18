@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir, te
+from tvm import te
 from tvm.script import tir as T
 
 # pylint: disable=no-self-argument
@@ -28,10 +28,13 @@ class WithInit:
         A = T.match_buffer(a, [64, 64, 64])
         B = T.match_buffer(b, [64])
 
-        with T.block([64, T.reduce_axis(0, 64), T.reduce_axis(32, 64)]) as [i, j, k]:
-            with T.init():
-                B[i] = T.float32(0)
-            B[i] += A[i, j, k]
+        for i0, j0 in T.grid(64, 64):
+            for k0 in T.serial(32, 64):
+                with T.block():
+                    i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    with T.init():
+                        B[i] = T.float32(0)
+                    B[i] += A[i, j, k]
 
 
 @tvm.script.ir_module
@@ -41,10 +44,13 @@ class WithBranch:
         A = T.match_buffer(a, [64, 64, 64])
         B = T.match_buffer(b, [64])
 
-        with T.block([64, T.reduce_axis(0, 64), T.reduce_axis(32, 64)]) as [i, j, k]:
-            if (j == 0) and (k == 32):
-                B[i] = T.float32(0)
-            B[i] += A[i, j, k]
+        for i0, j0 in T.grid(64, 64):
+            for k0 in T.serial(32, 64):
+                with T.block():
+                    i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    if (j == 0) and (k == 32):
+                        B[i] = T.float32(0)
+                    B[i] += A[i, j, k]
 
 
 @tvm.script.ir_module
@@ -54,12 +60,15 @@ class InitWithMatchBuffer:
         A = T.match_buffer(a, [64, 64, 64])
         B = T.match_buffer(b, [64])
 
-        with T.block([64, T.reduce_axis(0, 64), T.reduce_axis(32, 64)]) as [i, j, k]:
-            BB = T.match_buffer(B[i], ())
-            AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
-            with T.init():
-                BB[()] = T.float32(0)
-            BB[()] += AA[j, k]
+        for i0, j0 in T.grid(64, 64):
+            for k0 in T.serial(32, 64):
+                with T.block():
+                    i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    BB = T.match_buffer(B[i], ())
+                    AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
+                    with T.init():
+                        BB[()] = T.float32(0)
+                    BB[()] += AA[j, k]
 
 
 @tvm.script.ir_module
@@ -69,17 +78,21 @@ class BranchWithMatchBuffer:
         A = T.match_buffer(a, [64, 64, 64])
         B = T.match_buffer(b, [64])
 
-        with T.block([64, T.reduce_axis(0, 64), T.reduce_axis(32, 64)]) as [i, j, k]:
-            BB = T.match_buffer(B[i], ())
-            AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
-            if (j == 0) and (k == 32):
-                BB[()] = T.float32(0)
-            BB[()] += AA[j, k]
+        for i0, j0 in T.grid(64, 64):
+            for k0 in T.serial(32, 64):
+                with T.block():
+                    i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    BB = T.match_buffer(B[i], ())
+                    AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
+                    if (j == 0) and (k == 32):
+                        BB[()] = T.float32(0)
+                    BB[()] += AA[j, k]
 
 
 def test_lower_reduction():
     origin_mod = WithInit
     mod = tvm.tir.transform.LowerInitBlock()(origin_mod)
+    print(mod.script())
     tvm.ir.assert_structural_equal(mod, WithBranch, True)
 
 
