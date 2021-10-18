@@ -14,16 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, invalid-name
 """TODO"""
 import os
-from .gemm_operation import GemmOperation, EmitGemmInstance
-from .library import *
 import tempfile
 import subprocess
+from .gemm_operation import GemmOperation, EmitGemmInstance
+from .library import *
 
 
 class GemmProfiler(object):
+    """TODO"""
+
     def __init__(self):
         from jinja2 import Template
 
@@ -128,7 +130,7 @@ def create_gemm_operator(
     return ret
 
 
-def generate_sm75_tensor_op_1688(dtype):
+def generate_sm75_tensor_op_1688():
     """TODO"""
     ops = []
     layouts = [
@@ -194,9 +196,8 @@ def generate_sm75_tensor_op_1688(dtype):
     return ops
 
 
-def generate_sm80_tensor_op_16816(dtype):
+def generate_sm80_tensor_op_16816():
     """TODO"""
-    assert dtype == "float16"
     ops = []
     layouts = [
         (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
@@ -282,6 +283,8 @@ GENERATOR_FUNC_TABLE = {
 
 
 class CompileEngine(object):
+    """TODO"""
+
     def __init__(self, cuda_arch, cutlass_path, binary_prefix):
         self.cuda_arch = cuda_arch
         self.binary_prefix = binary_prefix
@@ -317,7 +320,7 @@ class CompileEngine(object):
             cmd.append(str(args[2]))
             if len(args) > 3:
                 cmd.append(str(args[3]))
-        sp = subprocess.run(cmd, capture_output=True)
+        sp = subprocess.run(cmd, capture_output=True, check=True)
         rt = float(sp.stdout)
         return rt
 
@@ -327,6 +330,8 @@ class CompileEngine(object):
 
 
 class CutlassGemmProfiler(object):
+    """TODO"""
+
     def __init__(self, cuda_arch, cutlass_path, binary_path):
         self.engine = CompileEngine(cuda_arch, cutlass_path, binary_path)
 
@@ -337,15 +342,15 @@ class CutlassGemmProfiler(object):
         align = int(aligns[0][-1])
         if M % align != 0:
             return False
-        else:
-            return True
+        return True
 
-    def profile(self, op_geneators, dtype, M, N, K):
+    def profile(self, op_geneators, M, N, K):
+        """TODO"""
         ops = []
         if isinstance(op_geneators, str):
             op_geneators = [op_geneators]
         for gen in op_geneators:
-            ops += GENERATOR_FUNC_TABLE[gen](dtype)
+            ops += GENERATOR_FUNC_TABLE[gen]()
         for op in ops:
             if self.check_align(op["name"], M):
                 out = self.engine.evaluate(op["name"], op["src"], [M, N, K])

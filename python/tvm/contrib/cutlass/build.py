@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """TODO"""
 import tvm
 from tvm import runtime, relay
@@ -22,6 +23,8 @@ from .gen_gemm import CutlassGemmProfiler
 
 
 class GemmCollector(tvm.relay.ExprVisitor):
+    """TODO"""
+
     def __init__(self):
         super().__init__()
         self.signature = {}
@@ -58,7 +61,7 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
             MM = arg0_shape[0]
             KK = arg0_shape[1]
             NN = arg1_shape[0]
-            out = cutlass_profiler.profile("sm%d" % sm, new_attrs["arg0_dtype"], MM, NN, KK)
+            out = cutlass_profiler.profile("sm%d" % sm, MM, NN, KK)
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]
             elif new_attrs["op_type"] == "cutlass.dense_bias":

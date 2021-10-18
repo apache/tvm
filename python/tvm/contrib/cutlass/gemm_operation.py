@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """TODO"""
 from .library import *
 
 
 class GemmOperation:
+    """TODO"""
+
     def __init__(
         self,
         arch,
@@ -49,20 +52,13 @@ class GemmOperation:
     def core_name(self):
         """ The basic operation kind is prefixed with a letter indicating the accumulation type. """
         inst_shape = ""
-        inst_operation = ""
         intermediate_type = ""
 
         if (
             self.tile_description.math_instruction.opcode_class == OpcodeClass.TensorOp
             or self.tile_description.math_instruction.opcode_class == OpcodeClass.WmmaTensorOp
         ):
-
-            math_op = self.tile_description.math_instruction.math_operation
-            math_op_string = ""
-
             inst_shape = "%d%d%d" % tuple(self.tile_description.math_instruction.instruction_shape)
-            inst_shape += math_op_string
-
             if (
                 self.tile_description.math_instruction.element_a != self.A.element
                 and self.tile_description.math_instruction.element_a
@@ -92,7 +88,7 @@ class GemmOperation:
         else:
             extended_name = "${core_name}"
 
-        extended_name = SubstituteTemplate(
+        extended_name = substitute_template(
             extended_name,
             {
                 "element_a": DataTypeNames[self.A.element],
@@ -107,14 +103,13 @@ class GemmOperation:
         return "%s%s" % (ShortLayoutTypeNames[self.A.layout], ShortLayoutTypeNames[self.B.layout])
 
     def procedural_name(self):
-        """ The full procedural name indicates architecture, extended name, tile size, and layout. """
+        """The full procedural name indicates architecture, extended name, tile size,
+        and layout.
+        """
         threadblock = self.tile_description.procedural_name()
-
         opcode_class_name = OpcodeClassNames[self.tile_description.math_instruction.opcode_class]
 
-        alignment = max([self.A.alignment, self.B.alignment, self.C.alignment])
-
-        return SubstituteTemplate(
+        return substitute_template(
             "cutlass_${opcode_class}_${extended_name}_${threadblock}_${layout}_align${alignment}",
             {
                 "opcode_class": opcode_class_name,
@@ -148,7 +143,7 @@ class GemmOperation:
         else:
             ValueError("The layout of B is not implemented.")
 
-        return SubstituteTemplate(
+        return substitute_template(
             "int lda = ${lda_val};\n\tint ldb = ${ldb_val};\n\tint ldc = ${ldc_val};\n",
             {
                 "lda_val": lda,
@@ -201,6 +196,7 @@ class EmitGemmInstance:
 """
 
     def emit(self, operation, no_beta_scaling=False):
+        """TODO"""
         warp_shape = [
             operation.tile_description.threadblock_shape[idx]
             // operation.tile_description.warp_count[idx]
@@ -255,7 +251,7 @@ class EmitGemmInstance:
             "residual": residual,
         }
 
-        gemm_template = SubstituteTemplate(
+        gemm_template = substitute_template(
             self.gemm_template,
             {
                 "epilogue": self.epilogue_no_beta_scaling
@@ -263,4 +259,4 @@ class EmitGemmInstance:
                 else self.epilogue_default
             },
         )
-        return SubstituteTemplate(gemm_template, values)
+        return substitute_template(gemm_template, values)
