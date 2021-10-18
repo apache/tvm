@@ -19,7 +19,7 @@
 import re
 import logging
 
-from tvm import topi
+from tvm import relay, topi
 from ....target import arm_isa
 from ....topi.generic import conv2d as conv2d_generic
 from .generic import *
@@ -54,7 +54,7 @@ def schedule_pool_arm_cpu(attrs, outs, target):
     """schedule pooling ops arm cpu"""
     layout = attrs.layout
     isa = arm_isa.IsaAnalyzer(target)
-    avg_pool = hasattr(attrs, "count_include_pad")
+    avg_pool = isinstance(attrs, relay.op.op_attrs.AvgPool2DAttrs)
     with target:
         if (
             avg_pool
