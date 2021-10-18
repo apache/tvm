@@ -14,10 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
+from jinja2 import Template
 from .gemm_operation import GemmOperation, EmitGemmInstance
-from .gemm_profiler import GemmProfiler
 from .compile_engine import CompileEngine
 from .library import *
+
+
+class GemmProfiler(object):
+    def __init__(self):
+        with open(os.path.join(os.path.dirname(__file__), "profiler.cu.template")) as f:
+            self.template = Template(f.read())
+
+    def emit(self, op_name, op_def, dtype_a, dtype_b, dtype_c, ld):
+        src = self.template.render(
+            OperatorName=op_name,
+            OperatorDef=op_def,
+            DTypeA=dtype_a,
+            DTypeB=dtype_b,
+            DTypeC=dtype_c,
+            LeadingDim=ld,
+        )
+        return src
 
 
 def CreateGemmOperator(
