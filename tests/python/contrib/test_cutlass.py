@@ -24,7 +24,7 @@ from tvm.contrib.cutlass import profile_and_build
 def get_ref_rt_mod(mod, params):
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
-    dev = tvm.gpu()
+    dev = tvm.device("cuda", 0)
     rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
     return rt_mod, dev
 
@@ -61,6 +61,8 @@ def get_dense_bias_gelu(M, N, K):
 
 
 def verify(func, M, N, K, atol=1e-5, rtol=1e-5):
+    if not tvm.get_global_func("relay.ext.tensorrt", True):
+        return
     mod = tvm.IRModule.from_expr(func)
     np_data = np.random.uniform(-1, 1, (M, K)).astype("float16")
     np_weight = np.random.uniform(-1, 1, (N, K)).astype("float16")
@@ -69,7 +71,7 @@ def verify(func, M, N, K, atol=1e-5, rtol=1e-5):
     params = {"weight": np_weight, "bias": np_bias}
 
     rt_mod_ref, dev = get_ref_rt_mod(mod, params)
-    rt_mod, dev = profile_and_build(mod, params, "80")
+    rt_mod, dev = profile_and_build(mod, params, 80, tmp_dir="tmp2")
 
     x = tvm.nd.array(np_data, device=dev)
 

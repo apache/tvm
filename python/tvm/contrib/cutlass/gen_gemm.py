@@ -17,9 +17,11 @@
 # pylint: disable=import-outside-toplevel, invalid-name
 """TODO"""
 import os
+import re
 import tempfile
 import subprocess
 from .gemm_operation import GemmOperation, EmitGemmInstance
+from .gemm_profiler import GemmProfiler
 from .library import (
     EpilogueFunctor,
     SwizzlingFunctor,
@@ -32,27 +34,6 @@ from .library import (
     MathOperation,
     TileDescription,
 )
-
-
-class GemmProfiler(object):
-    """TODO"""
-
-    def __init__(self):
-        from jinja2 import Template
-
-        with open(os.path.join(os.path.dirname(__file__), "profiler_template.cu")) as f:
-            self.template = Template(f.read())
-
-    def emit(self, op_name, op_def, dtype_a, dtype_b, dtype_c, ld):
-        src = self.template.render(
-            OperatorName=op_name,
-            OperatorDef=op_def,
-            DTypeA=dtype_a,
-            DTypeB=dtype_b,
-            DTypeC=dtype_c,
-            LeadingDim=ld,
-        )
-        return src
 
 
 def create_gemm_operator(
@@ -331,8 +312,12 @@ class CompileEngine(object):
             cmd.append(str(args[2]))
             if len(args) > 3:
                 cmd.append(str(args[3]))
-        sp = subprocess.run(cmd, capture_output=True, check=True)
-        rt = float(sp.stdout)
+        try:
+            sp = subprocess.run(cmd, capture_output=True, check=True)
+            rt = float(sp.stdout)
+            print(op_name, rt)
+        except subprocess.CalledProcessError:
+            rt = 999999
         return rt
 
     def evaluate(self, op_name, src, args=None):
