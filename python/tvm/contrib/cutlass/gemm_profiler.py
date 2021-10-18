@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=import-outside-toplevel, invalid-name
 """TODO"""
 
 
@@ -148,7 +148,8 @@ cudaError_t TestCutlassGemm(int M, int N, int K, DTypeC alpha, DTypeC beta) {
     cudaFree(B);
     return result;
   }
-  result = CutlassGemmRCR<DTypeA, DTypeB, DTypeC>(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassGemmRCR<DTypeA, DTypeB, DTypeC>(M, N, K, alpha, A, lda, B, ldb,
+                                                  beta, C_cutlass, ldc);
   if (result != cudaSuccess) {
     std::cerr << "CUTLASS GEMM kernel failed: "
       << cudaGetErrorString(result) << std::endl;
