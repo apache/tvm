@@ -24,13 +24,18 @@ namespace tir {
 String ScheduleError::RenderReport(const String& primitive) const {
   IRModule mod = this->mod();
   std::ostringstream os;
-  os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
-     << "'.\n\nThe IR is:\n"
-     << AsTVMScript(mod);
+
+  // print IRModule
   Array<ObjectRef> locs = LocationsOfInterest();
   int n_locs = locs.size();
   std::vector<String> roi_names;
   roi_names.reserve(n_locs);
+
+  os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
+     << "'.\n\nThe IR is:\n"
+     << AsTVMScript(mod);
+
+  // print region of interest
   if (n_locs > 0) {
     os << "Regions of interest:\n";
     for (const ObjectRef& obj : locs) {
@@ -40,6 +45,18 @@ String ScheduleError::RenderReport(const String& primitive) const {
     }
     os << "\n";
   }
+
+  runtime::TypedPackedFunc<String(ObjectRef)> annotate =
+      runtime::TypedPackedFunc<String(ObjectRef)>([](const ObjectRef& expr) -> String {
+        std::string annotations = std::string(10, '^');
+        return annotations;
+      });
+
+  os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
+     << "'.\n\nThe IR with diagnostic is:\n"
+     << AsTVMScriptWithDiagnostic(mod, "tir", false, annotate);
+
+  // print error message
   std::string msg = DetailRenderTemplate();
   for (int i = 0; i < n_locs; ++i) {
     std::string src = "{" + std::to_string(i) + "}";

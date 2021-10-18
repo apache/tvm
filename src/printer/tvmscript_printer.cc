@@ -91,7 +91,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    */
   TVM_DLL Doc Print(const ObjectRef& node);
 
- private:
+ protected:
   /*! \brief The tir prefix */
   String tir_prefix_;
   /*! \brief whether show meta data */
@@ -1343,12 +1343,106 @@ Doc TVMScriptPrinter::PrintLoopStack() {
   return res;
 }
 
+/*!
+ * \brief The printer for TVMScript with diagnostic
+ * \details The printer obtain the precedence of the top-level operation when printing each
+ *          subexpression to decide whether or not parentheses is needed.
+ */
+class TVMScriptPrinterWithDiagnostic : public TVMScriptPrinter {
+ public:
+  explicit TVMScriptPrinterWithDiagnostic(const String& tir_prefix, bool show_meta,
+                                          runtime::TypedPackedFunc<String(ObjectRef)> annotate)
+      : TVMScriptPrinter(tir_prefix, show_meta), annotate_(std::move(annotate)) {}
+
+ protected:
+  /*! \brief additional comment function */
+  runtime::TypedPackedFunc<String(ObjectRef)> annotate_;
+  Doc VisitStmt_(const ForNode* op) override;
+  Doc VisitStmt_(const BlockRealizeNode* op) override;
+  Doc PrintAnnotation(const Stmt& stmt, int length);
+};
+
+Doc TVMScriptPrinterWithDiagnostic::VisitStmt_(const ForNode* op) {
+  Doc doc;
+
+  //
+  var_not_in_headers_.insert(op->loop_var.get());
+  const auto* body = op->body.as<ForNode>();
+  bool simple_loop = op->kind == ForKind::kSerial && op->annotations.empty() && is_zero(op->min);
+  if (simple_loop) loop_stack_.push_back(GetRef<For>(op));
+  // It is a loop that can be compressed, let the loops below print it out
+  if (simple_loop && body != nullptr) {
+    Doc result = Print(GetRef<For>(body));
+    TryDeallocVar(op->loop_var);
+    return result;
+  }
+  // It is a loop that can not be compressed
+  bool print_above = !loop_stack_.empty();
+  // print loops above if needed
+  if (print_above) {
+    doc << PrintLoopStack();
+    loop_stack_.clear();
+  }
+  if (!simple_loop) {
+    // print current loop if needed
+    Doc current_loop;
+    current_loop << PrintLoop(GetRef<For>(op))
+                 << PrintAnnotation(GetRef<Stmt>(op), doc.str().size())
+                 << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+    doc << (print_above ? Doc::Indent(4, Doc::NewLine() << current_loop) : current_loop);
+  } else {
+    doc << PrintAnnotation(GetRef<Stmt>(op), doc.str().size())
+        << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+  }
+  TryDeallocVar(op->loop_var);
+  return doc;
+}
+
+Doc TVMScriptPrinterWithDiagnostic::VisitStmt_(const BlockRealizeNode* op) {
+  const auto* block_op = op->block.as<BlockNode>();
+  // print block name and block vars
+  Doc doc = PrintBlockVar(block_op);
+
+  // annotation
+  doc << PrintAnnotation(GetRef<Stmt>(op), doc.str().size());
+
+  // print predicate, binding, read/write tensor region, annotations
+  Doc block_attr_doc = PrintBlockAttr(op);
+  // print body
+  Doc body = PrintBlockBody(block_op);
+  doc << Doc::Indent(4, block_attr_doc << Doc::NewLine() << body);
+  for (const auto& iter_var : block_op->iter_vars) {
+    TryDeallocVar(iter_var->var);
+  }
+  return doc;
+}
+
+Doc TVMScriptPrinterWithDiagnostic::PrintAnnotation(const Stmt& stmt, int length) {
+  Doc doc;
+  // annotation
+  if (annotate_ != nullptr) {
+    String annotated_stmt = std::string(length, '^');
+    if (!annotated_stmt.empty()) {
+      doc << Doc::NewLine() << annotated_stmt;
+    }
+  }
+  return doc;
+}
+
 String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
   return TVMScriptPrinter(tir_prefix, show_meta).Print(mod).str() + "\n";
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
+
+String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
+                                 runtime::TypedPackedFunc<String(ObjectRef)> annotate) {
+  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
+  return TVMScriptPrinterWithDiagnostic(tir_prefix, show_meta, annotate).Print(mod).str() + "\n";
+}
+
+TVM_REGISTER_GLOBAL("script.AsTVMScriptWithDiagnostic").set_body_typed(AsTVMScriptWithDiagnostic);
 
 }  // namespace tir
 }  // namespace tvm
