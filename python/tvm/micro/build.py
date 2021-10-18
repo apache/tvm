@@ -80,6 +80,18 @@ def get_standalone_crt_dir() -> str:
 
 
 def get_microtvm_template_projects(platform: str) -> str:
+    """Find microTVM template project directory for specific platform.
+
+    Parameters
+    ----------
+    platform : str
+        Platform type which should be defined in MicroTVMTemplateProject.
+
+    Returns
+    -------
+    str :
+        Path to template project directory for platform.
+    """
     if platform not in MicroTVMTemplateProject.list():
         raise ValueError(f"platform {platform} is not supported.")
 
