@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=import-outside-toplevel
 """TODO"""
 import os
-from jinja2 import Template
 from .gemm_operation import GemmOperation, EmitGemmInstance
 from .library import *
 import tempfile
@@ -25,6 +25,8 @@ import subprocess
 
 class GemmProfiler(object):
     def __init__(self):
+        from jinja2 import Template
+
         with open(os.path.join(os.path.dirname(__file__), "profiler_template.cu")) as f:
             self.template = Template(f.read())
 

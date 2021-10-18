@@ -70,7 +70,12 @@ class GemmOperation:
             ):
                 intermediate_type = DataTypeNames[self.tile_description.math_instruction.element_a]
 
-        return "%s%s%s%s" % (self.short_math_name(), inst_shape, intermediate_type, "gemm",)
+        return "%s%s%s%s" % (
+            self.short_math_name(),
+            inst_shape,
+            intermediate_type,
+            "gemm",
+        )
 
     def extended_name(self):
         """ Append data types if they differ from compute type. """
@@ -145,9 +150,12 @@ class GemmOperation:
 
         return SubstituteTemplate(
             "int lda = ${lda_val};\n\tint ldb = ${ldb_val};\n\tint ldc = ${ldc_val};\n",
-            {"lda_val": lda, "ldb_val": ldb, "ldc_val": ldc,},
+            {
+                "lda_val": lda,
+                "ldb_val": ldb,
+                "ldc_val": ldc,
+            },
         )
-
 
 
 class EmitGemmInstance:
