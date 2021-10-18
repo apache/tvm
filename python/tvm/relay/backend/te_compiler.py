@@ -256,44 +256,22 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     return best_plevel_impl, outputs[best_plevel_impl]
 
 
-@tvm._ffi.register_object("relay.TECompiler")
-class TECompiler(Object):
-    """TECompiler to get lowered code."""
-
-    def __init__(self):
-        raise RuntimeError("Cannot construct a TECompiler")
-
-    def lower(self, source_func, target=None, mod_name="default"):
-        """Lower a source_func to a CachedFunc.
-
-        Parameters
-        ----------
-        source_func : Union[tvm.relay.Function, CCacheKey]
-            The source relay function.
-
-        target : tvm.Target
-            The target platform.
-
-        Returns
-        -------
-        cached_func: CachedFunc
-            The result of lowering.
-        """
-        # pylint: disable=broad-except, import-outside-toplevel
-        try:
-            mod_name = mangle_module_name(mod_name)
-            key = _get_cache_key(source_func, target)
-            print(key)
-            return _backend._TECompilerLower(self, key, mod_name)
-        except Exception:
-            import traceback
-
-            msg = traceback.format_exc()
-            msg += "Error during compile func\n"
-            msg += "--------------------------\n"
-            msg += source_func.astext(show_meta_data=False)
-            msg += "--------------------------\n"
-            raise RuntimeError(msg)
+def get_shape(shape):
+    """Convert the shape to correct dtype and vars."""
+    ret = []
+    for dim in shape:
+        if isinstance(dim, tvm.tir.IntImm):
+            if libinfo()["INDEX_DEFAULT_I64"] == "ON":
+                ret.append(dim)
+            else:
+                val = int(dim)
+                assert val <= np.iinfo(np.int32).max
+                ret.append(tvm.tir.IntImm("int32", val))
+        elif isinstance(dim, tvm.tir.Any):
+            ret.append(te.var("any_dim", "int32"))
+        else:
+            ret.append(dim)
+    return ret
 
 
 @tvm._ffi.register_func("relay.backend.lower_call")
@@ -343,89 +321,78 @@ def lower_call(call, inputs, target):
     return LoweredOutput(outputs, best_impl)
 
 
-def jit(self, source_func, target=None):
-    """JIT a source_func to a tvm.runtime.PackedFunc.
+@tvm._ffi.register_object("relay.TECompiler")
+class TECompiler(Object):
+    """TECompiler to get lowered code."""
 
-    Parameters
-    ----------
-    source_func : Union[tvm.relay.Function, CCacheKey]
-        The source relay function.
+    def __init__(self):
+        raise RuntimeError("Cannot construct a TECompiler")
 
-    target : tvm.Target
-        The target platform.
+    def lower(self, source_func, target=None, mod_name="default"):
+        """Lower a source_func to a CachedFunc.
 
-    Returns
-    -------
-    jited_func: tvm.runtime.PackedFunc
-        The result of jited function.
-    """
-    key = _get_cache_key(source_func, target)
-    return _backend._TECompilerJIT(self, key)
+        Parameters
+        ----------
+        source_func : Union[tvm.relay.Function, CCacheKey]
+            The source relay function.
 
+        target : tvm.Target
+            The target platform.
 
-def clear(self):
-    """clear the existing cached functions"""
-    _backend._TECompilerClear(self)
+        Returns
+        -------
+        cached_func: CachedFunc
+            The result of lowering.
+        """
+        # pylint: disable=broad-except, import-outside-toplevel
+        try:
+            mod_name = mangle_module_name(mod_name)
+            key = _get_cache_key(source_func, target)
+            return _backend._TECompilerLower(self, key, mod_name)
+        except Exception:
+            import traceback
 
+            msg = traceback.format_exc()
+            msg += "Error during compile func\n"
+            msg += "--------------------------\n"
+            msg += source_func.astext(show_meta_data=False)
+            msg += "--------------------------\n"
+            raise RuntimeError(msg)
 
-def dump(self):
-    """Return a string representation of engine dump.
+    def jit(self, source_func, target=None):
+        """JIT a source_func to a tvm.runtime.PackedFunc.
 
-    Returns
-    -------
-    dump : str
-        The dumped string representation
-    """
-    items = self.items()
-    res = "====================================\n"
-    res += "TE Compiler cached func dump, %d items cached\n" % len(items)
-    for k, v in items:
-        res += "------------------------------------\n"
-        res += "target={}\n".format(k.target)
-        res += "use_count={}\n".format(v.use_count)
-        res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
-        res += "----relay function----\n"
-        res += k.source_func.astext() + "\n"
-        res += "----tir function----- \n"
-        res += "inputs={}\n".format(v.cached_func.inputs)
-        res += "outputs={}\n".format(v.cached_func.outputs)
-        res += "function: \n"
-        res += v.cached_func.funcs.astext() + "\n"
-    res += "===================================\n"
-    shape_func_items = self.shape_func_items()
-    res += "%d shape_func_items cached\n" % len(shape_func_items)
-    for k, v in shape_func_items:
-        res += "------------------------------------\n"
-        res += "target={}\n".format(k.target)
-        res += "use_count={}\n".format(v.use_count)
-        res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
-        res += "----relay function----\n"
-        res += k.source_func.astext() + "\n"
-        res += "----tir function----- \n"
-        res += "inputs={}\n".format(v.cached_func.inputs)
-        res += "outputs={}\n".format(v.cached_func.outputs)
-        res += "function: \n"
-        res += v.cached_func.funcs.astext() + "\n"
-    res += "===================================\n"
-    return res
+        Parameters
+        ----------
+        source_func : Union[tvm.relay.Function, CCacheKey]
+            The source relay function.
 
+        target : tvm.Target
+            The target platform.
 
-def get_shape(shape):
-    """Convert the shape to correct dtype and vars."""
-    ret = []
-    for dim in shape:
-        if isinstance(dim, tvm.tir.IntImm):
-            if libinfo()["INDEX_DEFAULT_I64"] == "ON":
-                ret.append(dim)
-            else:
-                val = int(dim)
-                assert val <= np.iinfo(np.int32).max
-                ret.append(tvm.tir.IntImm("int32", val))
-        elif isinstance(dim, tvm.tir.Any):
-            ret.append(te.var("any_dim", "int32"))
-        else:
-            ret.append(dim)
-    return ret
+        Returns
+        -------
+        jited_func: tvm.runtime.PackedFunc
+            The result of jited function.
+        """
+        print("caling jit \n")
+        key = _get_cache_key(source_func, target)
+        return _backend._TECompilerJIT(self, key)
+
+    def clear(self):
+        """clear the existing cached functions"""
+        _backend._TECompilerClear(self)
+
+    def items(self):
+        """List items in the cache.
+        Returns
+        -------
+        item_list : List[Tuple[CCacheKey, CCacheValue]]
+            The list of items.
+        """
+        res = _backend._TECompilerListItems(self)
+        assert len(res) % 2 == 0
+        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
 
 
 def get():

@@ -346,6 +346,12 @@ TVM_REGISTER_GLOBAL("relay.backend._TECompilerLower")
 TVM_REGISTER_GLOBAL("relay.backend._TECompilerJIT")
     .set_body_typed([](TECompiler self, CCacheKey key) { return self->JIT(key); });
 
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerListItems").set_body_typed([](TECompiler self) {
+  TECompilerImpl* ptr = dynamic_cast<TECompilerImpl*>(self.operator->());
+  ICHECK(ptr != nullptr);
+  return ptr->ListItems();
+});
+
 using AnalysisRemapping = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>;
 
 std::tuple<bool, int, int> IsDeviceCopy(const Function& func) {

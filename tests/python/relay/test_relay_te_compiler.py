@@ -163,6 +163,7 @@ def test_select_implementation():
 
 def test_te_compiler():
     te_compiler = relay.backend.te_compiler.get()
+    # print(te_compiler)
 
     def get_func(shape):
         x = relay.var("x", shape=shape)
@@ -191,7 +192,6 @@ def test_te_compiler():
             y = tvm.nd.empty((10,), device=dev)
             f(x, y)
             tvm.testing.assert_allclose(y.numpy(), x.numpy() * 3)
-    te_compiler.dump()
 
 
 # Note: Once the te compiler is removed, we should keep this test so that
