@@ -18,7 +18,7 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
-from tvm import topi
+from tvm import topi, relay
 from tvm.topi.utils import get_const_tuple
 
 from tvm.runtime import convert
@@ -267,9 +267,6 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     data, weight = inputs
 
     # First check if there is a LayoutConfig scope, and if so, whether
@@ -363,9 +360,6 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     data, weight = inputs
     new_attrs = dict(attrs)
     assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
@@ -446,9 +440,6 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     data, weight = inputs
     new_attrs = dict(attrs)
     assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv3d's inputs"
@@ -517,11 +508,11 @@ reg.register_pattern("nn.max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_convert_op_layout("nn.max_pool2d")
 def convert_max_pool2d(attrs, inputs, tinfos, desired_layouts):
-    """Convert Layout pass registration for deformable conv2d op.
+    """Convert Layout pass registration for max_pool2d op.
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current pooling
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     tinfos : list of types
@@ -533,9 +524,6 @@ def convert_max_pool2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     # stick by convertng layout and out_layout to use NHWC and NHWC,
     #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
     new_attrs = dict(attrs)
@@ -561,11 +549,11 @@ reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_convert_op_layout("nn.avg_pool2d")
 def convert_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
-    """Convert Layout pass registration for deformable conv2d op.
+    """Convert Layout pass registration for avg_pool2d op.
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current pooling
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     tinfos : list of types
@@ -577,9 +565,6 @@ def convert_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     # stick by convertng layout and out_layout to use NHWC and NHWC,
     #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
     new_attrs = dict(attrs)
@@ -620,11 +605,11 @@ reg.register_pattern("nn.global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_convert_op_layout("nn.global_max_pool2d")
 def convert_global_max_pool2d(attrs, inputs, tinfos, desired_layouts):
-    """Convert Layout pass registration for deformable conv2d op.
+    """Convert Layout pass registration for global_max_pool2d op.
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current pooling
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     tinfos : list of types
@@ -636,9 +621,6 @@ def convert_global_max_pool2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     # stick by convertng layout and out_layout to use NHWC and NHWC,
     #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
     new_attrs = dict(attrs)
@@ -654,11 +636,11 @@ reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_convert_op_layout("nn.global_avg_pool2d")
 def convert_global_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
-    """Convert Layout pass registration for deformable conv2d op.
+    """Convert Layout pass registration for global_avg_pool2d op.
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current pooling
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     tinfos : list of types
@@ -670,9 +652,6 @@ def convert_global_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     # stick by convertng layout and out_layout to use NHWC and NHWC,
     #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
     new_attrs = dict(attrs)
@@ -912,9 +891,6 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     data, offset, weight = inputs
     new_attrs = dict(attrs)
     for attr in new_attrs:
