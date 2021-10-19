@@ -77,7 +77,7 @@ msgstr "我们想要能用任何语言定义一个函数然后用另一个语言
 
 #: ../../_staging/arch/runtime.rst:43
 msgid "PackedFunc"
-msgstr ""
+msgstr "PackedFunc"
 
 #: ../../_staging/arch/runtime.rst:45
 msgid ""
@@ -85,10 +85,12 @@ msgid ""
 "challenges listed.  A single ``PackedFunc`` object represents a function "
 "call whose caller and callee may be in different languages."
 msgstr ""
+"我们发现，`PackedFunc`_是一种简单但优雅的解决方案，可以解决提出的挑战。单个 ``PackedFunc`` "
+"对象表示一个函数调用，这个函数的调用方和被调用方可能使用的不同语言。"
 
 #: ../../_staging/arch/runtime.rst:49
 msgid "The following code block provides an example in C++"
-msgstr ""
+msgstr "下面代码块提供了一个C++中的例子"
 
 #: ../../_staging/arch/runtime.rst:71
 msgid ""
@@ -99,6 +101,9 @@ msgid ""
 "hood, when we call a PackedFunc, it packs the input arguments to TVMArgs on "
 "stack, and gets the result back via TVMRetValue."
 msgstr ""
+"在上述代码块中，我们定义了一个PackedFunc MyAdd。 它有两个参数： ``args`` 表示输入参数， ``rv`` "
+"表示返回值。这个函数被类型擦除，即这个函数签名不限制要传入的输入类型和要返回的类型。在后台，当我们调用一个 "
+"PackedFunc,它将输入参数打包到堆栈上的TVMArgs，然后通过TVMRetValue得到返回结果。"
 
 #: ../../_staging/arch/runtime.rst:77
 msgid ""
@@ -108,6 +113,8 @@ msgid ""
 "new type function created. The following example registers PackedFunc in C++"
 " and calls from python."
 msgstr ""
+"多亏于C++中的模板技巧，我们可以像调用一个正常函数一样调用一个 PackedFunc。因为他的类型擦除特性，我们可以从动态语言像python调用一个 "
+"PackedFunc，而无需为每一个新类型函数的生成添加额外的粘合代码。下面的示例用C++注册了 PackedFunc然后用python来调用它。"
 
 #: ../../_staging/arch/runtime.rst:94
 msgid ""
@@ -115,26 +122,27 @@ msgid ""
 "structure. We restrict a list of possible types which can be passed. Here "
 "are the common ones:"
 msgstr ""
+"PackedFunc的大部分魔力在于``TVMArgs`` 和 ``TVMRetValue``的结构。我们限制了一系列可能会被传输的类型。以下是常见的："
 
 #: ../../_staging/arch/runtime.rst:98
 msgid "int, float and string"
-msgstr ""
+msgstr "int, float 和 string"
 
 #: ../../_staging/arch/runtime.rst:99
 msgid "PackedFunc itself"
-msgstr ""
+msgstr "PackedFunc 本身"
 
 #: ../../_staging/arch/runtime.rst:100
 msgid "Module for compiled modules"
-msgstr ""
+msgstr "编译模块的模块"
 
 #: ../../_staging/arch/runtime.rst:101
 msgid "DLTensor* for tensor object exchange"
-msgstr ""
+msgstr "用于张量对象交换的DLTensor*"
 
 #: ../../_staging/arch/runtime.rst:102
 msgid "TVM Object to represent any object in IR"
-msgstr ""
+msgstr "表示任意IR对象的TVM对象"
 
 #: ../../_staging/arch/runtime.rst:104
 msgid ""
@@ -143,12 +151,13 @@ msgid ""
 "use-case of deep learning deployment as most functions only take DLTensor or"
 " numbers."
 msgstr ""
+"该限制使得实现简单，无需序列化。尽管PackedFunc是最小的，但对于深度学习部署的用例来说已经足够了，因为大多数函数只接受DLTensor或数字。"
 
 #: ../../_staging/arch/runtime.rst:108
 msgid ""
 "Since one PackedFunc can take another PackedFunc as an argument, we can pass"
 " functions from python (as PackedFunc) to C++."
-msgstr ""
+msgstr "既然一个PackedFunc可以将另一个PackedFunc当作输入，我们可以把函数（作为PackedFunc）从python传给C++。"
 
 #: ../../_staging/arch/runtime.rst:132
 msgid ""
@@ -157,21 +166,23 @@ msgid ""
 "`javascript`_. This philosophy of embedded API is very like Lua, except that"
 " we don't have a new language but use C++."
 msgstr ""
+"TVM提供一个允许我们将PackedFunc嵌入到任何语言的`最小 C API`_。除了python，目前我们还支持 `java`_ 和 "
+"`javascript`_。这种嵌入式API的概念非常像Lua，只是我们没有用新的语言而是使用C++。"
 
 #: ../../_staging/arch/runtime.rst:142
 msgid ""
 "One fun fact about PackedFunc is that we use it for both compiler and "
 "deployment stack."
-msgstr ""
+msgstr "一个关于PackedFunc的有趣的事实是，我们在编译器和部署堆栈都用到了它。"
 
 #: ../../_staging/arch/runtime.rst:144
 msgid ""
 "All compiler pass functions of TVM are exposed to frontend as PackedFunc"
-msgstr ""
+msgstr "TVM所有的编译pass函数都作为PackedFunc公开给了前端，"
 
 #: ../../_staging/arch/runtime.rst:145
 msgid "The compiled module also returns the compiled function as PackedFunc"
-msgstr ""
+msgstr "编译后的模块也将作为 PackedFunc的编译后函数返回。"
 
 #: ../../_staging/arch/runtime.rst:147
 msgid ""
@@ -179,6 +190,7 @@ msgid ""
 "deployment runtime. The resulting runtime takes around 200K - 600K depending"
 " on how many runtime driver modules (e.g., CUDA) get included."
 msgstr ""
+"为了保持runtime的最小化，我们将IR对象支持与部署runtime分离。根据包含的驱动模块的数量（如CUDA），生成的runtime大概占200-600K。"
 
 #: ../../_staging/arch/runtime.rst:149
 msgid ""
@@ -187,10 +199,11 @@ msgid ""
 " wrap small functions. In summary, the PackedFunc is the universal glue in "
 "TVM where we use it extensively to support our compiler and deployment."
 msgstr ""
+"与普通函数相比，调用PackedFunc的开销很小，因为它只在堆栈上保存了一些值。因此，只要我们不包装小函数就可以了。总之，PackedFunc是TVM中的通用粘合剂，我们在TVM中广泛使用它来支持编译器和部署。"
 
 #: ../../_staging/arch/runtime.rst:156
 msgid "Module"
-msgstr ""
+msgstr "模块"
 
 #: ../../_staging/arch/runtime.rst:158
 msgid ""
@@ -202,6 +215,7 @@ msgid ""
 "user. We can certainly not do it for each type of functions, so again "
 "PackedFunc is our answer."
 msgstr ""
+"由于TVM支持多种类型的设备，我们需要支持不同类型的驱动程序。我们必须使用驱动程序API加载内核，以压缩格式设置参数并启动内核。我们还需要修补驱动程序API，以便公开的函数是线程安全的。因此，我们经常需要在C++中实现这些驱动程序粘合，并将它们公开给用户。我们当然不能对每种类型的函数都这样做，所以PackedFunc仍是我们的答案。"
 
 #: ../../_staging/arch/runtime.rst:164
 msgid ""
@@ -212,6 +226,8 @@ msgid ""
 " device code and callback into any PackedFunc(e.g., python) from generated "
 "code."
 msgstr ""
+"TVM将编译对象定义为 "
+"`模块`_。用户就可以从模块中以PackedFunc的形式得到编译后的函数。生成的编译代码可以在runtime中动态得从模块中获得函数。它在第一次调用中缓存函数句柄，并在后续调用中再次使用。我们使用它链接设备代码并用生成的代码调回到到任意PackedFunc（例如python）中。"
 
 #: ../../_staging/arch/runtime.rst:170
 msgid ""
@@ -221,6 +237,8 @@ msgid ""
 "easy, and we do not need to redo the host code generation for each type of "
 "device."
 msgstr ""
+"ModuleNode "
+"是一个抽象类，可以被每种设备实现。到目前为止，我们支持CUDA、Metal、OpenCL和加载动态共享库的模块。这种抽象易于引入新设备，并且我们不需要为每种类型的设备重新生成主机代码。"
 
 #: ../../_staging/arch/runtime.rst:175
 msgid "Remote Deployment"

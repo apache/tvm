@@ -327,6 +327,10 @@ msgid ""
 "the Range of any other IterVar, only those belonging to the stage's "
 "root_iter_vars."
 msgstr ""
+"回想一下， InferBound 调用了 InferRootBound，然后在阶段图中的每个阶段调用 :ref:`PassDownDomain` "
+"。InferRootBound 的目的是设置阶段的操作(operation)的每个 root_iter_var 范围。这些范围将使用 "
+":ref:`PassDownDomain`  被传播到阶段的其余 IterVars。请注意，InferRootBound 不会设置任何其他 "
+"IterVar 的范围，而只会设置那些属于该阶段的 root_iter_vars。"
 
 #: ../../_staging/arch/inferbound.rst:201
 msgid ""
