@@ -154,11 +154,9 @@ capabilities, and set the stage for understanding how TVM works.
 #   Specifying the correct target (option ``--target``) can have a huge
 #   impact on the performance of the compiled module, as it can take
 #   advantage of hardware features available on the target. For more
-#   information, please refer to `Auto-tuning a convolutional network
-#   for x86 CPU <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html#define-network>`_.
-#   We recommend identifying which CPU you are running, along with optional features,
-#   and set the target appropriately.
-#
+#   information, please refer to :ref:`Auto-tuning a convolutional network for
+#   x86 CPU <tune_relay_x86>`. We recommend identifying which CPU you are
+#   running, along with optional features, and set the target appropriately.
 
 ################################################################################
 # Running the Model from The Compiled Module with TVMC
