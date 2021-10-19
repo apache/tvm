@@ -50,9 +50,10 @@ InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs,
   ObjectPtr<T> params = make_object<T>(*attrs_ptr);
 
   if (params->out_layout != "") {
-    // when users specify the out_layout of pooling, transforms.ConvertLayout pass will
-    //   follow user's preference
-    ICHECK_EQ(params->layout, params->out_layout);
+    // when users specify the out_layout of pooling, follow user's preference
+    ICHECK_EQ(params->layout, params->out_layout)
+        << "Pooling input/output layouts mismatch: " << params->layout << " vs. "
+        << params->out_layout;
   } else if (new_in_layouts.defined()) {
     // the pooling is using an inferred layout (i.e., new_in_layouts[0]) given by relay caller
     ICHECK_EQ(new_in_layouts.size(), 1);

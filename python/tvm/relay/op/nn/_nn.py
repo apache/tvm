@@ -515,6 +515,35 @@ reg.register_schedule("nn.max_pool2d", strategy.schedule_pool)
 reg.register_pattern("nn.max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_convert_op_layout("nn.max_pool2d")
+def convert_max_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for deformable conv2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of one layout string
+        layout string defining our desired layout for input and output.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    # stick by convertng layout and out_layout to use NHWC and NHWC,
+    #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
+    new_attrs = dict(attrs)
+    new_attrs["layout"] = str(desired_layouts[0])
+    new_attrs["out_layout"] = str(desired_layouts[0])
+    return relay.nn.max_pool2d(*inputs, **new_attrs)
+
+
 # max_pool3d
 reg.register_schedule("nn.max_pool3d", strategy.schedule_pool)
 reg.register_pattern("nn.max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
@@ -528,6 +557,35 @@ reg.register_pattern("nn.avg_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 # avg_pool2d
 reg.register_schedule("nn.avg_pool2d", strategy.schedule_pool)
 reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_convert_op_layout("nn.avg_pool2d")
+def convert_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for deformable conv2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of one layout string
+        layout string defining our desired layout for input and output.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    # stick by convertng layout and out_layout to use NHWC and NHWC,
+    #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
+    new_attrs = dict(attrs)
+    new_attrs["layout"] = str(desired_layouts[0])
+    new_attrs["out_layout"] = str(desired_layouts[0])
+    return relay.nn.avg_pool2d(*inputs, **new_attrs)
 
 
 # avg_pool3d
@@ -560,9 +618,67 @@ reg.register_schedule("nn.global_max_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_convert_op_layout("nn.global_max_pool2d")
+def convert_global_max_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for deformable conv2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of one layout string
+        layout string defining our desired layout for input and output.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    # stick by convertng layout and out_layout to use NHWC and NHWC,
+    #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
+    new_attrs = dict(attrs)
+    new_attrs["layout"] = str(desired_layouts[0])
+    new_attrs["out_layout"] = str(desired_layouts[0])
+    return relay.nn.global_max_pool2d(*inputs, **new_attrs)
+
+
 # global_avg_pool2d
 reg.register_schedule("nn.global_avg_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_convert_op_layout("nn.global_avg_pool2d")
+def convert_global_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for deformable conv2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of one layout string
+        layout string defining our desired layout for input and output.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    # stick by convertng layout and out_layout to use NHWC and NHWC,
+    #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
+    new_attrs = dict(attrs)
+    new_attrs["layout"] = str(desired_layouts[0])
+    new_attrs["out_layout"] = str(desired_layouts[0])
+    return relay.nn.global_avg_pool2d(*inputs, **new_attrs)
 
 
 # adaptive_max_pool2d
