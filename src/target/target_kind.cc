@@ -230,6 +230,15 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
+    // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
+    .add_attr_option<Bool>("fast-math")  // implies all the below
+    .add_attr_option<Bool>("fast-math-nnan")
+    .add_attr_option<Bool>("fast-math-ninf")
+    .add_attr_option<Bool>("fast-math-nsz")
+    .add_attr_option<Bool>("fast-math-arcp")
+    .add_attr_option<Bool>("fast-math-contract")
+    .add_attr_option<Bool>("fast-math-reassoc")
+    .add_attr_option<Integer>("opt-level")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
