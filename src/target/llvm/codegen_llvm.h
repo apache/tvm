@@ -78,6 +78,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   virtual void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
                     bool system_lib, bool dynamic_lookup, bool target_c_runtime);
+
+  /*!
+   * \brief Turn on fast math flags for floating point operations.
+   * \param fmf FastMathFlags to use for code generation.
+   */
+  void SetFastMathFlag(llvm::FastMathFlags fmf);
+
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
