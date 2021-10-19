@@ -255,8 +255,8 @@ print(rt_mod.benchmark(dev, number=1, repeat=n_repeat))
 #    * Set the environment variable TVM_NUM_THREADS to the number of physical cores
 #    * Choose the best target for your hardware, such as "llvm -mcpu=skylake-avx512" or
 #      "llvm -mcpu=cascadelake" (more CPUs with AVX512 would come in the future)
-#    * Perform autotuning - `Auto-tuning a convolution network for x86 CPU
-#      <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html>`_.
-#    * To get best inference performance on ARM CPU, change target argument according to your
-#      device and follow `Auto-tuning a convolution network for ARM CPU
-#      <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_arm.html>`_.
+#    * Perform autotuning - :ref:`Auto-tuning a convolution network for x86 CPU
+#      <tune_relay_x86>`.
+#    * To get best inference performance on ARM CPU, change target argument
+#      according to your device and follow :ref:`Auto-tuning a convolution
+#      network for ARM CPU <tune_relay_arm>`.

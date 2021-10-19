@@ -512,7 +512,7 @@ if tgt.kind.name.startswith("opencl"):
 #     before it moves on to the next stage.
 #
 #   A complete description of these primitives can be found in the
-#   [Schedule Primitives](https://tvm.apache.org/docs/tutorials/language/schedule_primitives.html) docs page.
+#   :ref:`Schedule Primitives <schedule_primitives>` docs page.
 
 ################################################################################
 # Example 2: Manually Optimizing Matrix Multiplication with TE
