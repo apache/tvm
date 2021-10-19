@@ -748,7 +748,14 @@ def log_softmax(data, axis=-1):
 
 
 def max_pool1d(
-    data, pool_size=(1,), strides=(1,), dilation=(1,), padding=(0,), layout="NCW", out_layout="", ceil_mode=False
+    data,
+    pool_size=(1,),
+    strides=(1,),
+    dilation=(1,),
+    padding=(0,),
+    layout="NCW",
+    out_layout="",
+    ceil_mode=False,
 ):
     r"""1D maximum pooling operator.
 
@@ -801,7 +808,9 @@ def max_pool1d(
     if isinstance(dilation, int):
         dilation = (dilation,)
     padding = get_pad_tuple1d(padding)
-    return _make.max_pool1d(data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode)
+    return _make.max_pool1d(
+        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode
+    )
 
 
 def max_pool2d(
@@ -873,7 +882,9 @@ def max_pool2d(
     if isinstance(dilation, int):
         dilation = (dilation, dilation)
     padding = get_pad_tuple2d(padding)
-    return _make.max_pool2d(data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode)
+    return _make.max_pool2d(
+        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode
+    )
 
 
 def max_pool3d(
@@ -938,7 +949,9 @@ def max_pool3d(
     if isinstance(dilation, int):
         dilation = (dilation, dilation, dilation)
     padding = get_pad_tuple3d(padding)
-    return _make.max_pool3d(data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode)
+    return _make.max_pool3d(
+        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode
+    )
 
 
 def avg_pool1d(
@@ -1007,7 +1020,15 @@ def avg_pool1d(
         dilation = (dilation,)
     padding = get_pad_tuple1d(padding)
     return _make.avg_pool1d(
-        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode, count_include_pad
+        data,
+        pool_size,
+        strides,
+        dilation,
+        padding,
+        layout,
+        out_layout,
+        ceil_mode,
+        count_include_pad,
     )
 
 
@@ -1086,7 +1107,15 @@ def avg_pool2d(
         dilation = (dilation, dilation)
     padding = get_pad_tuple2d(padding)
     return _make.avg_pool2d(
-        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode, count_include_pad
+        data,
+        pool_size,
+        strides,
+        dilation,
+        padding,
+        layout,
+        out_layout,
+        ceil_mode,
+        count_include_pad,
     )
 
 
@@ -1157,7 +1186,15 @@ def avg_pool3d(
         dilation = (dilation, dilation, dilation)
     padding = get_pad_tuple3d(padding)
     return _make.avg_pool3d(
-        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode, count_include_pad
+        data,
+        pool_size,
+        strides,
+        dilation,
+        padding,
+        layout,
+        out_layout,
+        ceil_mode,
+        count_include_pad,
     )
 
 
@@ -1206,7 +1243,9 @@ def max_pool2d_grad(
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.max_pool2d_grad(out_grad, data, pool_size, strides, padding, layout, out_layout, ceil_mode)
+    return _make.max_pool2d_grad(
+        out_grad, data, pool_size, strides, padding, layout, out_layout, ceil_mode
+    )
 
 
 def avg_pool2d_grad(
@@ -1259,7 +1298,15 @@ def avg_pool2d_grad(
         The computed result.
     """
     return _make.avg_pool2d_grad(
-        out_grad, data, pool_size, strides, padding, layout, out_layout, ceil_mode, count_include_pad
+        out_grad,
+        data,
+        pool_size,
+        strides,
+        padding,
+        layout,
+        out_layout,
+        ceil_mode,
+        count_include_pad,
     )
 
 

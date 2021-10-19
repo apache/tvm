@@ -2054,8 +2054,15 @@ def test_conv_max_pool_uses_specified_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight = relay.var("weight", shape=(64, 64, 3, 3))
-        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1),
-                            data_layout="NCHW", kernel_layout="OIHW")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
         y = relay.nn.relu(y)
         y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout="NCHW")
         y = relay.nn.batch_flatten(y)
@@ -2067,8 +2074,15 @@ def test_conv_max_pool_uses_specified_convert_layout():
         weight = relay.var("weight", shape=(64, 64, 3, 3))
         x = relay.layout_transform(x, "NCHW", "NHWC")
         weight = relay.layout_transform(weight, "OIHW", "OHWI")
-        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1),
-                            data_layout="NHWC", kernel_layout="OHWI")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="OHWI",
+        )
         y = relay.nn.relu(y)
         y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout="NHWC", out_layout="NHWC")
         y = relay.layout_transform(y, "NHWC", "NCHW")
@@ -2078,10 +2092,7 @@ def test_conv_max_pool_uses_specified_convert_layout():
 
     a = before()
     a = run_opt_pass(
-        a,
-        transform.ConvertLayout(
-            {"nn.conv2d": ["NHWC", "OHWI"], "nn.max_pool2d": ["NHWC"]}
-        )
+        a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"], "nn.max_pool2d": ["NHWC"]})
     )
     b = run_opt_pass(expected(), transform.InferType())
 
@@ -2145,7 +2156,10 @@ def test_conv_bias_pool_uses_specified_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "OIHW"], "nn.max_pool2d": ["NHWC"]}))
+    a = run_opt_pass(
+        a,
+        transform.ConvertLayout({"nn.conv2d": ["NCHW", "OIHW"], "nn.max_pool2d": ["NHWC"]}),
+    )
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
@@ -2254,7 +2268,9 @@ def test_deformable_conv_bias_pool_uses_specified_convert_layout():
         y = relay.nn.relu(y)
         if max_pool_layout != layout_map["dst"]["data_layout"]:
             y = relay.layout_transform(y, layout_map["dst"]["data_layout"], max_pool_layout)
-        y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout=max_pool_layout, out_layout=max_pool_layout)
+        y = relay.nn.max_pool2d(
+            y, pool_size=(2, 2), layout=max_pool_layout, out_layout=max_pool_layout
+        )
         y = relay.cast(y, "int32")
         y = relay.nn.batch_flatten(y)
         y = relay.Function(analysis.free_vars(y), y)
@@ -2262,7 +2278,12 @@ def test_deformable_conv_bias_pool_uses_specified_convert_layout():
 
     # NHWC -> NCHW
     a = before(1, 3, 224, 224, 32, 3, 3, "NHWC")
-    a = run_opt_pass(a, transform.ConvertLayout({"nn.deformable_conv2d": ["NCHW", "default"], "nn.max_pool2d": ["NHWC"]}))
+    a = run_opt_pass(
+        a,
+        transform.ConvertLayout(
+            {"nn.deformable_conv2d": ["NCHW", "default"], "nn.max_pool2d": ["NHWC"]}
+        ),
+    )
     # - in the before() func, its last argument "NHWC" is also the layout of max_pool
     b = run_opt_pass(
         # max_pool has its own layout argument
@@ -2273,7 +2294,12 @@ def test_deformable_conv_bias_pool_uses_specified_convert_layout():
 
     # NCHW -> NHWC
     a = before(1, 3, 224, 224, 32, 3, 3, "NCHW")
-    a = run_opt_pass(a, transform.ConvertLayout({"nn.deformable_conv2d": ["NHWC", "default"], "nn.max_pool2d": ["NCHW"]}))
+    a = run_opt_pass(
+        a,
+        transform.ConvertLayout(
+            {"nn.deformable_conv2d": ["NHWC", "default"], "nn.max_pool2d": ["NCHW"]}
+        ),
+    )
     # - in the before() func, its last argument "NCHW" is also the layout of max_pool
     b = run_opt_pass(
         # max_pool has its own layout argument
@@ -2334,7 +2360,12 @@ def test_resnet_pool_uses_specified_convert_layout():
         return relay.Function(analysis.free_vars(y), y)
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"], "nn.global_max_pool2d": ["NHWC"]}))
+    a = run_opt_pass(
+        a,
+        transform.ConvertLayout(
+            {"nn.conv2d": ["NCHW", "default"], "nn.global_max_pool2d": ["NHWC"]}
+        ),
+    )
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
