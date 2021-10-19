@@ -48,7 +48,6 @@ def make_gemm_pattern(with_bias=True, with_act=None):
     return make_gelu_pattern(gemm_out)
 
 
-
 def partition_for_cutlass(mod):
     """TODO"""
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
