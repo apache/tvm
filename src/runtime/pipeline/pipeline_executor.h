@@ -28,8 +28,10 @@
 
 #include <array>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "pipeline_scheduler.h"
@@ -70,11 +72,56 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
 
   /*!
    * \brief Get the number of outputs.
-   *
    * \return The number of outputs.
    */
   int NumOutputs() const { return num_outputs_; }
-
+  /*!\brief Return the number of inputs*/
+  int NumInputs() const;
+  /*!
+   * \brief Use the input name to set the input data of pipeline executor.
+   * \param input_name The input name.
+   * \param data_in The input data.
+   */
+  void SetInput(std::string input_name, DLTensor* data_in);
+  /*!
+   * \brief Use the input name to get the input data.
+   * \param input name The input name.
+   * \return Return input data.
+   */
+  NDArray GetInput(std::string input_name);
+  /*!
+   * \brief Use the param name to get the specific backend runtime then use the param_key_name
+   *  to set param data for the said backend runtime.
+   */
+  void SetParam(std::string param_name, std::string param_key_name, DLTensor* data_in);
+  /*!
+   * \brief Run the pipeline executor.
+   * \param serialized_mode Whether run the pipeline executor in serialized mode.
+   */
+  void Run(bool serialized_mode);
+  /*!
+   * \brief Stop the pipeline executor.
+   */
+  void Stop();
+  /*!
+   * \brief Get a list output of pipeline. For one input data the pipeline may generate multiple
+   *  outputs, this function will return all of these outputs in a list.
+   * \return A list of output data.
+   */
+  Array<NDArray> GetOutput();
+  /*!
+   * \brief A pipeline input with a specific name correspond with a input of a specific
+   *  backend module, this function return a module index and a input index in "pair"
+   *  form for a input name.
+   *  return Return a module index and a input index.
+   */
+  std::pair<int, int> GetInputIndex(const std::string& name);
+  /*!
+   * \brief A pipeline params with a specific name correspond with the params of a specific
+   *  backend module, this function return the module index for the params name.
+   *  return Return backend runtime module index.
+   */
+  int GetParamModuleIndex(const std::string& name);
   /*!\brief Load the module files information.*/
   ModuleConfig& LoadModuleConfig(dmlc::JSONReader* reader) {
     reader->BeginArray();
@@ -112,41 +159,40 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   }
 
  private:
-  /*!\brief The class used to execute and schedule the pipeline logic.*/
-  PipelineScheduler pipeline_scheduler_;
-  /*!\brief The dependency information of each graph runtime module of the pipeline.*/
-  PipelineConfig pipeline_config_;
-  /*!\brief The module information used to create the graph runtimes.*/
-  ModuleConfig mod_config_;
-  /*!\brief How many outputs are in this pipeline executor.*/
-  size_t num_outputs_ = 0;
   /*!\brief Json loader.*/
-  PipelineConfig& LoadPipelineConfig(dmlc::JSONReader* reader) {
-    reader->BeginArray();
-    while (reader->NextArrayItem()) {
-      std::string key;
-      reader->BeginObject();
-      int mod_idx = -1;
-      OutputMap output;
-      std::string dev;
-      while (reader->NextObjectItem(&key)) {
-        if (key == "mod_idx") {
-          reader->Read(&mod_idx);
-        } else if (key == "dev") {
-          reader->Read(&dev);
-        } else if (key == "output") {
-          reader->Read(&output);
-        } else {
-          LOG(FATAL) << "do not support key " << key;
-        }
+  ConfigPipelineExecution& LoadConfigPipelineExecution(dmlc::JSONReader* reader) {
+    reader->BeginObject();
+    std::string key;
+    while (reader->NextObjectItem(&key)) {
+      if (key == "module_connection") {
+        reader->Read(&pipeline_config_);
+      } else if (key == "input_connection") {
+        reader->Read(&input_connection_config);
+      } else if (key == "param_connection") {
+        reader->Read(&param_connection_config);
+      } else {
+        LOG(FATAL) << "do not support key " << key;
       }
-      ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
-      // Check if the output is successfully read.
-      ICHECK(!output.Empty()) << "Invalid output binding result.";
-      pipeline_config_.Insert(mod_idx, output);
     }
     return pipeline_config_;
   }
+
+  /*!\brief The class used to execute and schedule the pipeline logic.*/
+  PipelineScheduler pipeline_scheduler_;
+  /*!\brief The dependency information of each graph runtime module of the pipeline.*/
+  ConfigPipelineExecution pipeline_config_;
+  /*!\brief The mapping of global input and backend runtime module input.*/
+  InputConnectionConfig input_connection_config;
+  /*!\brief The mapping of global params and backend runtime module params.*/
+  ParamConnectionConfig param_connection_config;
+  /*!\brief The module information used to create the graph runtimes.*/
+  ModuleConfig mod_config_;
+  /*!The list of backend runtime module.*/
+  std::vector<std::shared_ptr<BackendRuntime>> runtimes_;
+  /*!\brief How many outputs are in this pipeline executor.*/
+  size_t num_outputs_ = 0;
+  /*!\brief The list of pipeline output*/
+  Array<NDArray> output_array;
 };
 }  // namespace runtime
 }  // namespace tvm

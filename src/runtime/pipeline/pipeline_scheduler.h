@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "pipeline_struct.h"
+
 namespace tvm {
 namespace runtime {
 /*!
@@ -40,13 +41,40 @@ class PipelineScheduler {
    * \brief Initialize the pipeline.
    * \param modules The list of graph executor module.
    * \param pipeline_config The dependency information of each graph executor module.
+   * \return Return a list of backend runtime module.
    */
-  size_t PipelineInit(const std::vector<Module>& modules, const PipelineConfig& pipeline_config);
+  std::vector<std::shared_ptr<BackendRuntime>> PipelineInit(
+      const std::vector<Module>& modules, ConfigPipelineExecution pipeline_config);
+  /*!
+   * \brief Execute pipeline.
+   * \param runtimes A list of backend runtimes module.
+   * \param pipeline_config The dependency information of each graph executor module.
+   * \param serialize_mode If the execution is serialized.
+   */
+  void PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
+                   ConfigPipelineExecution pipeline_config, bool serialize_mode = false);
+  /*!
+   * \brief Exeute in the serialized mode.
+   * \param runtimes A list of backend runtimes module.
+   * \param pipeline_config The dependency information of each graph executor module.
+   */
+  void PipelineRunSerial(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
+                         ConfigPipelineExecution pipeline_config);
+  /*!
+   * \brief Stop the pipeline exection.
+   */
+  void PipelineStop();
+  /*!
+   * \brief Get a list of outputs of the pipeline execution.
+   */
+  Array<NDArray> PipelineGetOutput();
 
  private:
   /*!\brief The list of graph executors.*/
-  std::vector<Module> graph_modules_;
+  std::vector<tvm::runtime::Module> graph_modules_;
+  /*!\brief A list of NDArray used to record the outputs.*/
+  Array<NDArray> output_array;
 };
-}  // namespace runtime
-}  // namespace tvm
+};      // namespace runtime
+};      // namespace tvm
 #endif  // TVM_RUNTIME_PIPELINE_PIPELINE_SCHEDULER_H_

@@ -17,6 +17,7 @@
 """Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
 import os
+import numpy as np
 import tvm._ffi
 from tvm import relay
 from tvm.relay.transform import InferType
@@ -49,12 +50,17 @@ def build(pipe_configs):
         Common interface for pipeline executor factory modules.
     """
     libs = {}
-    mod_n_configs = pipe_configs.get_config()
+    config = pipe_configs.get_config()
+    if "module_connection" not in config:
+        raise RuntimeError('"module_connection" is missing')
+
+    mod_n_configs = config["module_connection"]
     config_len = len(mod_n_configs)
-    string_config = [{} for _ in range(config_len)]
+    module_string_config = [{} for _ in range(config_len)]
+    # Build the backend modules then create the config of the connections in string form.
     for ir_mod, mod_config in mod_n_configs.items():
-        mconf = mod_config["pipeline"].copy()
-        mod_idx = mconf["mod_idx"]
+        pipe_config = mod_config["pipeline"].copy()
+        mod_idx = pipe_config["mod_idx"]
         dev = mod_config["dev"]
         target = mod_config["target"]
         build_func = relay.build
@@ -70,10 +76,19 @@ def build(pipe_configs):
             mod_name=mod_config["mod_name"],
         )
 
-        mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
+        pipe_config["dev"] = "{},{}".format(dev.device_type, dev.device_id)
         # Create a pipeline configuration.
-        string_config[mod_idx] = mconf
+        module_string_config[mod_idx] = pipe_config
         libs[mod_idx] = {"lib": lib, "dev": dev}
+
+    # Merge the "input_connection", the "param_connection" and the "module_connection" into one
+    # configuration.
+    string_config = {}
+    if "input_connection" not in config:
+        raise RuntimeError('"input_connection" is missing')
+    string_config["input_connection"] = config["input_connection"]
+    string_config["param_connection"] = config["param_connection"]
+    string_config["module_connection"] = module_string_config
 
     return PipelineExecutorFactoryModule(libs, string_config)
 
@@ -93,7 +108,70 @@ class PipelineModule(object):
         else:
             self.module = module
         # Get the packed functions from the pipeline executor.
+        self._run = self.module["run"]
+        self._stop = self.module["stop"]
+        self._set_input = self.module["set_input"]
+        self._set_param = self.module["set_param"]
+        self._get_input = self.module["get_input"]
+        self._get_output = self.module["get_output"]
+        self._get_num_inputs = self.module["get_num_inputs"]
         self._get_num_outputs = self.module["get_num_outputs"]
+
+    def run(self, sync=False):
+        """Run the pipeline executor."""
+        self._run(sync)
+
+    def stop(self):
+        """Stop the pipeline executor."""
+        self._stop()
+
+    def set_input(self, key, value):
+        """Set inputs to the module via "value".
+        Parameters
+        ----------
+        key : str
+            The input key
+
+        value : array_like.
+            The input value
+        """
+        self._set_input(key, tvm.nd.array(value, tvm.cpu()))
+
+    def set_params(self, params_name, params_data):
+        """Set params to the module via param name and params data.
+        Parameters
+        ----------
+        params_name : str
+            The params name
+
+        params_data : dict of str to NDArray
+            A list of params data and params key name.
+        """
+        if params_data:
+            keys = list(params_data.keys())
+            keys.sort(key=lambda x: -np.prod(params_data[x].shape))
+            for k in keys:
+                self._set_param(params_name, k, tvm.nd.array(params_data[k], tvm.cpu()))
+
+    def get_input(self, key):
+        """Get the input via a input name.
+        Parameters
+        ----------
+        key : str
+            The input key
+        """
+        self._get_input(key)
+
+    def get_output(self):
+        """Get the output.
+
+        Parameters:
+        -----------
+        out : Array[NDArray]
+            A list of output data.
+        """
+
+        return self._get_output()
 
     @property
     def num_outputs(self):
@@ -104,6 +182,16 @@ class PipelineModule(object):
             The number of outputs.
         """
         return self._get_num_outputs()
+
+    @property
+    def num_inputs(self):
+        """Get the number of inputs.
+        Returns
+        -------
+        count : int
+            The number of inputs.
+        """
+        return self._get_num_inputs()
 
     @staticmethod
     def load_library(config_file_name):
@@ -154,7 +242,7 @@ class PipelineConfig(object):
             The class who owns this interface.
 
         io_type : str
-            The I/O type of this interface. It can only be "input" or "output".
+            The I/O type of this interface. It can only be "input" or "output" or "param".
 
         name : str/integer
             Name, for input it is string such as "data0", for output it is an integer such as 0.
@@ -199,12 +287,21 @@ class PipelineConfig(object):
             return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
 
         def __repr__(self):
-            # Get all binding information.
-            ret = "  |{}: ".format(self.name)
+            # Get all binding information in the form of string.
+            ret, _ = self.format()
+            return ret
+
+        def format(self):
+            """Obtain binding information in the form of string and dictionary."""
+            str_format = "  |{}: ".format(self.name)
+            dict_format = {"interface_name": self.name, "connection": []}
             for binding in self.bindings:
                 mname, dname = binding.get_name()
-                ret += "{0}:{1} ".format(mname, dname)
-            return ret
+                midx = binding.get_owner_idx()
+                dict_format["connection"].append({"mod_idx": midx, "interface_name": dname})
+                str_format += "{0}:{1} ".format(mname, dname)
+
+            return str_format, dict_format
 
         def check_dag_acyclic(self, start, inputs):
             """This is to check whether the DAG containing these input interfaces is acyclic.
@@ -245,6 +342,15 @@ class PipelineConfig(object):
             if self.io_owner == binding.io_owner:
                 raise RuntimeError(f"Can not bind itself.")
 
+            if self.io_type == "param" and not self.is_pipeline_executor_interface():
+                raise RuntimeError(f'Only a pipeline executor can do "param" binding!')
+
+            if self.io_type == "param" and binding.io_type != "param":
+                raise RuntimeError(
+                    f"A global param interface can only bind with a module \
+                                     param interface!"
+                )
+
             if not self.is_pipeline_executor_interface() and self.io_type == "input":
                 raise RuntimeError(f"Module can only bind from output interface!")
 
@@ -265,7 +371,11 @@ class PipelineConfig(object):
             if self.is_pipeline_executor_interface() and self.io_type == "output":
                 raise RuntimeError(f"Global output can not be used as binding start point.")
 
-            if self.is_pipeline_executor_interface() and binding.io_type != "input":
+            if (
+                self.is_pipeline_executor_interface()
+                and self.io_type == "input"
+                and binding.io_type != "input"
+            ):
                 raise RuntimeError(f"Global input can only bind with module input.")
 
             self.bindings.append(binding)
@@ -342,6 +452,7 @@ class PipelineConfig(object):
             self.output_type = InferType()(mod)["main"].checked_type.ret_type
             self.input_bindings = PipelineConfig.BindingList(self, "input")
             self.output_bindings = PipelineConfig.BindingList(self, "output")
+            self.param_binding = PipelineConfig.Binding(self, "param", "param")
 
         def __eq__(self, other):
             if isinstance(other, PipelineConfig.ModuleWrapper):
@@ -353,11 +464,13 @@ class PipelineConfig(object):
             if isinstance(key, str):
                 if key == "input":
                     return self.input_bindings
-
                 if key == "output":
                     return self.output_bindings
+                if key == "param":
+                    return self.param_binding
+                raise RuntimeError(f"{key} not found!")
 
-            raise RuntimeError(f"{key} not found!")
+            raise RuntimeError(f'The data type of "key" is not supported!')
 
         def get_data_type(self, key, interface_type):
             """Get the module interface data type according to the key value and interface type.
@@ -411,14 +524,22 @@ class PipelineConfig(object):
         self.mod_wrapper = {}
         self.input_bindings = self.BindingList(self, "input")
         self.output_bindings = self.BindingList(self, "output")
+        # The mapping of global parameters and module parameters.
+        self.param_bindings = self.BindingList(self, "param")
 
     def __str__(self):
         # Get configuration information as a string.
 
         # Use topological sort to get correct module order.
         self.dag_topology_sort()
+
+        # Get param dependencies.
+        param_dump = "Params\n"
+        for param_name in self.param_bindings.bindings:
+            inf = self.param_bindings.bindings[param_name]
+            param_dump += str(inf) + "\n"
         # Get the input dependencies.
-        input_dump = "Inputs\n"
+        input_dump = "\nInputs\n"
         for input_name in self.input_bindings.bindings:
             inf = self.input_bindings.bindings[input_name]
             input_dump += str(inf) + "\n"
@@ -444,7 +565,7 @@ class PipelineConfig(object):
         for name in sorted(output.keys()):
             output_dump += f"  |output({name}) : {output[name]}\n"
 
-        return input_dump + output_dump + connections_dump
+        return param_dump + input_dump + output_dump + connections_dump
 
     def __getitem__(self, key):
         if isinstance(key, tvm.ir.module.IRModule):
@@ -457,6 +578,8 @@ class PipelineConfig(object):
                 return self.input_bindings
             if key == "output":
                 return self.output_bindings
+            if key == "param":
+                return self.param_bindings
 
         raise RuntimeError(f"{key} not found.")
 
@@ -465,9 +588,24 @@ class PipelineConfig(object):
         will be used to create pipeline executor.
         """
 
+        def check_data_param(data_dict):
+            if "interface_name" not in data_dict:
+                raise RuntimeError(f'"inteface_name" is missing in global config!"')
+            if "connection" not in data_dict:
+                raise RuntimeError(f'"connection" is missing!"')
+            # The global interface mapping should be one-to-one.
+            if len(data_dict["connection"]) == 0:
+                raise RuntimeError(f"The global interface map is empty!")
+            if len(data_dict["connection"]) > 1:
+                raise RuntimeError(f"A global interface maps multiple module interfaces!")
+            if "mod_idx" not in data_dict["connection"][0]:
+                raise RuntimeError(f'"mod_idx" is missing!')
+
         # Use topological sort to get the correct order of modules.
         self.dag_topology_sort()
         mconfig = {}
+        module_connection = {}
+        input_connection = {}
         for mod in self.mod_wrapper:
             # Generate pipeline configuration.
             mconf = {}
@@ -495,7 +633,7 @@ class PipelineConfig(object):
             mconf["mod_idx"] = module.idx
             mconf["output"] = output_conf
 
-            mconfig[mod] = {
+            module_connection[mod] = {
                 "pipeline": mconf,
                 "target_host": module.target_host,
                 "mod_name": "default",
@@ -505,6 +643,36 @@ class PipelineConfig(object):
                 "dev": module.dev,
             }
 
+        # Create a mapping of global input and module input.
+        input_connection = []
+        for input_name in self.input_bindings.bindings:
+            _, input_dict = self.input_bindings.bindings[input_name].format()
+            # Check the correctness of "input_dict".
+            check_data_param(input_dict)
+            if "interface_name" not in input_dict["connection"][0]:
+                raise RuntimeError(f'"interface_name is missing in connection config"!')
+            # Establish the mapping of global interface and the mapping of module interfaces.
+            input_map = {
+                "global_interface_name": input_dict["interface_name"],
+                "mod_idx": input_dict["connection"][0]["mod_idx"],
+                "module_interface_name": input_dict["connection"][0]["interface_name"],
+            }
+            input_connection.append(input_map)
+
+        # Create a mapping of global param and module param.
+        param_connection = []
+        for param_name in self.param_bindings.bindings:
+            _, param_dict = self.param_bindings.bindings[param_name].format()
+            check_data_param(param_dict)
+            param_map = {
+                "global_param_name": param_dict["interface_name"],
+                "mod_idx": param_dict["connection"][0]["mod_idx"],
+            }
+            param_connection.append(param_map)
+
+        mconfig["module_connection"] = module_connection
+        mconfig["input_connection"] = input_connection
+        mconfig["param_connection"] = param_connection
         return mconfig
 
     def dag_topology_sort(self):
@@ -627,13 +795,13 @@ class PipelineExecutorFactoryModule(object):
             )
 
             # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
-            graph, lib, params = self.pipeline_mods[lib_index]["lib"]
+            lib = self.pipeline_mods[lib_index]["lib"]
             # Export the lib, graph, and parameters to disk.
             lib.export_library(mconfig["lib_name"])
             with open(mconfig["json_name"], "w") as file_handle:
-                file_handle.write(graph)
+                file_handle.write(lib.graph_json)
             with open(mconfig["params_name"], "wb") as file_handle:
-                file_handle.write(relay.save_param_dict(params))
+                file_handle.write(relay.save_param_dict(lib.params))
 
             load_config.append(mconfig)
 

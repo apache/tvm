@@ -21,6 +21,8 @@
  * \file pipeline_executor.cc
  */
 #include "pipeline_executor.h"
+
+#include <utility>
 namespace tvm {
 namespace runtime {
 /*!
@@ -34,13 +36,134 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
   if (name == "get_num_outputs") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumOutputs(); });
+  } else if (name == "get_num_inputs") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumInputs(); });
+  } else if (name == "set_input") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0])) {
+        this->SetInput(args[0].operator String(), args[1]);
+      } else {
+        LOG(FATAL) << "Function only support the input name value in the form of string";
+      }
+    });
+  } else if (name == "set_param") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0]) && String::CanConvertFrom(args[1])) {
+        this->SetParam(args[0].operator String(), args[1].operator String(), args[2]);
+      } else {
+        LOG(FATAL) << "Function only support the params name and keyin the form of string";
+      }
+    });
+  } else if (name == "get_output") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetOutput(); });
+  } else if (name == "get_input") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0])) {
+        *rv = this->GetInput(args[0].operator String());
+      } else {
+        LOG(FATAL) << "Function only support the input name value in the form of string";
+      }
+    });
+  } else if (name == "run") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(args[0]); });
+  } else if (name == "stop") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Stop(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc();
   }
   return nullptr;
 }
+/*!
+ * \brief There are some input called pipeline global input that user need to use function
+    "set_input" to set the data for it, this function return the number of such global input.
+   \return Return the number of pipeline global input.
+ */
 
+int PipelineExecutor::NumInputs() const {
+  // The number of inputs obtained from the input configuration.
+  size_t config_inputs_num = input_connection_config.size(), ret = 0;
+  // The number of inputs obtained from the graph runtime and pipeline configuration.
+  size_t internal_inputs_num = pipeline_config_.GetInputOutputBindingNum();
+  for (auto runtime : runtimes_) {
+    ret += runtime->NumInputs();
+  }
+  // Use the summary of all backend runtime module input number to minus the internal inputs
+  // number, then we will get the pipeline global input number
+  ret -= internal_inputs_num;
+  // Check whether these two numbers are equal.
+  if (config_inputs_num != ret) {
+    LOG(FATAL) << "The number of inputs from the configuration file is inconsistent!";
+  }
+  return ret;
+}
+/*!
+ * \brief Return the input index and module index for a given input name.
+ * \param name The input name.
+ * \return std::pair<int, int> The module index and the input index.
+ */
+std::pair<int, int> PipelineExecutor::GetInputIndex(const std::string& name) {
+  std::pair<int, std::string> index = input_connection_config[name];
+  auto gruntime = runtimes_[index.first];
+  return std::make_pair(index.first, gruntime->GetInputIndex(index.second));
+}
+/*!
+ * \brief Return the module index for a given input param name.
+ * \param name The params name.
+ * \return int The module index.
+ */
+int PipelineExecutor::GetParamModuleIndex(const std::string& name) {
+  return param_connection_config[name];
+}
+/*!
+ * \brief set input to the graph module.
+ * \param input_name The input name.
+ * \param data_in The input data.
+ */
+void PipelineExecutor::SetInput(std::string input_name, DLTensor* data_in) {
+  std::pair<int, int> indexs = this->GetInputIndex(input_name);
+  runtimes_[indexs.first]->SetInput(indexs.second, data_in);
+}
+
+/*!
+ * \brief get input from the graph module.
+ * \param input_name The input name.
+ * \return Return the input data for a specific input name.
+ */
+NDArray PipelineExecutor::GetInput(std::string input_name) {
+  std::pair<int, int> indexs = this->GetInputIndex(input_name);
+  return runtimes_[indexs.first]->GetInput(indexs.second);
+}
+/*!
+ * \brief set param to a graph module.
+ * \param input_name The input name.
+ * \param data_in The input data.
+ */
+void PipelineExecutor::SetParam(std::string param_name, std::string param_key_name,
+                                DLTensor* data_in) {
+  // Get the module index from the param name.
+  auto runtime = runtimes_[this->GetParamModuleIndex(param_name)];
+  // Get the param index from the param key name
+  int index = runtime->GetInputIndex(param_key_name);
+  runtime->SetInput(index, data_in);
+}
+/*!
+ * \brief Run the pipeline executor.
+ * \param serialized_mode Whether run the pipeline executor in serialized mode.
+ */
+void PipelineExecutor::Run(bool serialized_mode) {
+  pipeline_scheduler_.PipelineRun(runtimes_, pipeline_config_, serialized_mode);
+}
+/*!
+ * \brief Stop the pipeline executor.
+ */
+void PipelineExecutor::Stop() { pipeline_scheduler_.PipelineStop(); }
+/*!
+ * \brief return A list of pipeline global output data.
+ */
+Array<NDArray> PipelineExecutor::GetOutput(void) { return pipeline_scheduler_.PipelineGetOutput(); }
 /*!
  * \brief Use the mod_config information to create a graph runtime list.
  * \param mod_config The config information that generates by the export library function call.
@@ -96,7 +219,6 @@ std::vector<Module> PipelineExecutor::CreateGraphModules(const ModuleConfig& mod
   }
   return ret;
 }
-
 /*!
  * \brief Initialize the pipeline executor with a list of modules to be pipelined
  *  and config in JSON format.
@@ -108,11 +230,12 @@ void PipelineExecutor::Init(const std::vector<Module>& modules, const std::strin
   // Use JSONReader to load pipeline configuration.
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
-  PipelineConfig& pipeline_config = this->LoadPipelineConfig(&reader);
+  ConfigPipelineExecution& pipeline_config = this->LoadConfigPipelineExecution(&reader);
   ICHECK(!pipeline_config.Empty()) << "The pipeline config information is empty.";
+  num_outputs_ = pipeline_config.GetGlobalOutputNum();
   // Initialize the pipeline function class used for pipeline thread pool management
-  // and schedule etc. This function returns the number of output.
-  num_outputs_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config);
+  // and schedule etc. This function returns a list of backend runtime.
+  runtimes_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config);
   return;
 }
 
