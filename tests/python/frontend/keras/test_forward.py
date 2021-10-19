@@ -417,6 +417,17 @@ class TestKeras:
         keras_model = keras.models.Model(data, z)
         verify_keras_frontend(keras_model)
 
+    def test_forward_lstm(self, keras):
+        data = keras.layers.Input(shape=(10, 32))
+        rnn_funcs = [
+            keras.layers.LSTM(16),
+            keras.layers.LSTM(16, return_sequences=True),
+        ]
+        for rnn_func in rnn_funcs:
+            x = rnn_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, need_transpose=False)
+
     def test_forward_rnn(self, keras):
         data = keras.layers.Input(shape=(1, 32))
         rnn_funcs = [
@@ -613,6 +624,7 @@ if __name__ == "__main__":
         sut.test_forward_multi_inputs(keras=k)
         sut.test_forward_multi_outputs(keras=k)
         sut.test_forward_reuse_layers(keras=k)
+        sut.test_forward_lstm(keras=k)
         sut.test_forward_rnn(keras=k)
         sut.test_forward_vgg16(keras=k)
         sut.test_forward_vgg16(keras=k, layout="NHWC")
