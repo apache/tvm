@@ -142,9 +142,9 @@ Export the module.
     lib.export_library(lib_path, cc=cross_compile)
 
 
-Run Inference. This must be on an Arm device. If compiling on x86 device and running on AArch64,
-consider using the RPC mechanism. Tutorials for using the RPC mechanism:
-https://tvm.apache.org/docs/tutorials/get_started/cross_compilation_and_rpc.html
+Run Inference. This must be on an Arm device. If compiling on x86 device and
+running on AArch64, consider using the RPC mechanism. :ref:`Tutorials for using
+the RPC mechanism <tutorial-cross-compilation-and-rpc>`
 
 .. code:: python
 
