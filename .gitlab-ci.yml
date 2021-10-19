@@ -19,7 +19,7 @@ cache:
 
 before_script:
   - apt-get update
-  - apt-get install -y build-essential cmake ninja-build python3 python3-pip git-all
+  - apt-get install -y build-essential cmake ninja-build python3 python3-pip git-all llvm-dev
 
 #sca:
 #  script:
