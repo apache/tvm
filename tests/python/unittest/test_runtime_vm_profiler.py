@@ -39,4 +39,7 @@ def test_basic(dev, target):
 
 
 if __name__ == "__main__":
-    test_basic(tvm.cpu(), tvm.target.Target("llvm"))
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

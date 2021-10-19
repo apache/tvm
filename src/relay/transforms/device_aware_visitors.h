@@ -35,13 +35,14 @@
 #include <vector>
 
 #include "../op/annotation/annotation.h"
+#include "../op/memory/on_device.h"
 
 namespace tvm {
 namespace relay {
 namespace transform {
 
 /*!
- * \brief Helper class for expression transformers which need to keep track of the device
+ * \brief Helper class for expression transformers which need to keep track of the \p SEScope
  * holding the results of expressions. This is recovered from function attributes and "on_device"
  * CallNodes added by the PlanDevices pass.
  *
@@ -52,11 +53,11 @@ class LexicalOnDeviceMixin {
   explicit LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod);
 
   /*!
-   * \brief Returns the device type on which the result of \p expr should/will be stored, assuming
-   * Push/Pop DeviceType/BoundVar have been correctly called. May return \p kInvalidDeviceType if
-   * the device planning pass has not been run.
+   * \brief Returns the \p SEScope on which the result of \p expr should/will be stored, assuming
+   * {Push,Pop}{SEScope,BoundVar} have been correctly called. May return the unconstrained
+   * \p SEScope if the device planning pass has not been run.
    */
-  DLDeviceType GetInScopeDeviceType(const Expr& expr) const;
+  SEScope GetSEScope(const Expr& expr) const;
 
   /*! \brief Indicate a function body is being entered. */
   void EnterFunctionBody();
@@ -64,19 +65,19 @@ class LexicalOnDeviceMixin {
   /*! \brief Indicate a function body has been processed. */
   void ExitFunctionBody();
 
-  /*! \brief Push a device type onto the lexical device stack. Ignore if \p kInvalidDeviceType. */
-  void PushDeviceType(DLDeviceType device_type);
+  /*! \brief Push an \p SEScope onto the lexical SEScope stack. Ignore if unconstrained. */
+  void PushSEScope(const SEScope& se_scope);
 
-  /*! \brief Pop a device type from the lexical device stack. Ignore if stack is empty. */
-  void PopDeviceType();
+  /*! \brief Pop an \p SEScope from the lexical SEScope stack. Ignore if stack is empty. */
+  void PopSEScope();
 
-  /*! \brief Remember that \p var will be stored on \p device_type. Ignore if \p kInvalidDeviceType.
+  /*! \brief Remember that \p var will be stored at \p se_scope. Ignore if unconstrained.
    *
    * CAUTION: Despite the name we don't support re-entering the same function body.
    */
-  void PushBoundVar(Var var, DLDeviceType device_type);
+  void PushBoundVar(Var var, const SEScope& se_scope);
 
-  /*! \brief Remove the binding for \p var to it's device type. Ignore if var is not bound. */
+  /*! \brief Remove the binding for \p var to its \p SEScope. Ignore if var is not bound. */
   void PopBoundVar(const Var& var);
 
   /*!
@@ -92,36 +93,36 @@ class LexicalOnDeviceMixin {
   int function_nesting_ = 0;
 
   /*!
-   * \brief The stack of lexically enclosing "on_device" devices types, from outermost to innermost.
-   * When visiting an expression other than a variable we can assume the expression's result is to
-   * be stored on device_type_.back().
+   * \brief The stack of lexically enclosing "on_device" \p SEScopes, from outermost to
+   * innermost. When visiting an expression other than a variable we can assume the expression's
+   * result is to be stored on \p expr_se_scopes.back().
    */
-  std::vector<DLDeviceType> expr_device_types_;
+  std::vector<SEScope> expr_se_scopes_;
 
   /*!
-   * \brief A map from in-scope local variables to their device types. We may assume the variable is
-   * only ever bound to a value stored on this device at runtime.
+   * \brief A map from in-scope local variables to their \p SEScopes. We may assume the variable is
+   * only ever bound to a value stored on this \p SEScope at runtime.
    *
    * Note: We're playing it safe and keying by object refs here just in case the Relay expression
    * being rewritten has no module or other global to keep it alive.
    */
-  std::unordered_map<Var, DLDeviceType, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>
-      var_device_types_;
+  std::unordered_map<Var, SEScope, runtime::ObjectPtrHash, runtime::ObjectPtrEqual> var_se_scopes_;
 
   /*!
-   * \brief A map from global variables to their device types, ie the "result_device_type" of the
-   * function they are bound to in the module we are working on. We calculate this explicitly so
-   * that we don't neeed to hold on to any module, which is often in the process of being rewritten.
+   * \brief A map from global variables to their \p SEScopes, ie the "result_se_scope" of the
+   * function they are bound to in the module we are working on. We calculate and store this
+   * explicitly so that we don't need to hold on to any module, which is often in the process of
+   * being rewritten.
    */
-  std::unordered_map<GlobalVar, DLDeviceType, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>
-      global_var_device_types_;
+  std::unordered_map<GlobalVar, SEScope, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>
+      global_var_se_scopes_;
 };
 
 template <typename FType>
 class DeviceAwareExprFunctor;
 
 /*!
- * \brief ExprFunctor which tracks devices. We only support 'visitor' style implementation
+ * \brief ExprFunctor which tracks \p SEScopes. We only support 'visitor' style implementation
  * with no additional arguments, thus this is equivalent to \p DeviceAwareExprVisitor without
  * any memoization.
  */
@@ -142,17 +143,17 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
     } else {
       // Function parameters come into scope.
       for (size_t i = 0; i < function_node->params.size(); ++i) {
-        PushBoundVar(function_node->params[i], GetFunctionParamDeviceType(function_node, i));
+        PushBoundVar(function_node->params[i], GetFunctionParamSEScope(function_node, i));
       }
       // Entering scope of function body.
-      PushDeviceType(GetFunctionResultDeviceType(function_node));
+      PushSEScope(GetFunctionResultSEScope(function_node));
       EnterFunctionBody();
 
       DeviceAwareVisitExpr_(function_node);
 
       // Leaving scope of function body.
       ExitFunctionBody();
-      PopDeviceType();
+      PopSEScope();
       // Function parameters go out of scope.
       for (size_t i = 0; i < function_node->params.size(); ++i) {
         PopBoundVar(function_node->params[i]);
@@ -167,7 +168,7 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
     while (const auto* inner_let_node = expr.as<LetNode>()) {
       // Let-bound var (in pre visited version) goes into scope.
       // (We'll just assume this is a letrec.)
-      PushBoundVar(inner_let_node->var, GetInScopeDeviceType(inner_let_node->value));
+      PushBoundVar(inner_let_node->var, GetSEScope(inner_let_node->value));
       PreVisitLetBinding_(inner_let_node->var, inner_let_node->value);
       bindings.emplace_back(inner_let_node);
       expr = inner_let_node->body;
@@ -185,20 +186,20 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
   }
 
   void VisitExpr_(const CallNode* call_node) {
-    auto props = GetOnDeviceProps(call_node);
+    OnDeviceProps props = GetOnDeviceProps(call_node);
     if (props.body.defined() && props.is_fixed) {
       // Entering lexical scope of fixed "on_device" call.
-      PushDeviceType(props.device_type);
+      PushSEScope(props.se_scope);
       VisitExpr(props.body);
       // Leaving lexical scope of "on_device" call.
-      PopDeviceType();
+      PopSEScope();
     } else {
       DeviceAwareVisitExpr_(call_node);
     }
   }
 
   /*!
-   * \brief These are as for VisitExpr_. Devices for expressions and function parameters will be
+   * \brief These are as for VisitExpr_. \p SEScopes for expressions and function parameters will be
    * tracked automatically. Default implementation defers to ExprMutator::VisitExpr_. For
    * functions the function_nesting count will already include that of \p function_node.
    */
@@ -242,7 +243,7 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
   virtual void PostVisitLetBlock_(const LetNode* let_node) {}
 };
 
-/*! \brief ExprVisitor which tracks devices. */
+/*! \brief ExprVisitor which tracks \p SEScopes. */
 class DeviceAwareExprVisitor : public ExprVisitor, public LexicalOnDeviceMixin {
  public:
   explicit DeviceAwareExprVisitor(const Optional<IRModule>& maybe_mod)
@@ -255,7 +256,7 @@ class DeviceAwareExprVisitor : public ExprVisitor, public LexicalOnDeviceMixin {
   void VisitExpr_(const CallNode* call_node) final;
 
   /*!
-   * \brief These are as for VisitExpr_. Devices for expressions and function parameters will be
+   * \brief These are as for VisitExpr_. \p SEScopes for expressions and function parameters will be
    * tracked automatically. Default implementation defers to ExprMutator::VisitExpr_. For
    * functions the function_nesting count will already include that of \p function_node.
    */
@@ -269,7 +270,7 @@ class DeviceAwareExprVisitor : public ExprVisitor, public LexicalOnDeviceMixin {
   virtual void PreVisitLetBlock_(const LetNode* let_node);
 
   /*!
-   * \brief Visit a let-bound expression before the let body has been visited. Devices for the
+   * \brief Visit a let-bound expression before the let body has been visited. \p SEScopes for the
    * let-bound variable will be tracked automatically. Default implementation just visits var and
    * value.
    */
@@ -288,7 +289,7 @@ class DeviceAwareExprVisitor : public ExprVisitor, public LexicalOnDeviceMixin {
   virtual void PostVisitLetBlock_(const LetNode* let_node);
 };
 
-/*! \brief ExprMutator which tracks devices. */
+/*! \brief ExprMutator which tracks \p SEScopes. */
 class DeviceAwareExprMutator : public ExprMutator, public LexicalOnDeviceMixin {
  public:
   explicit DeviceAwareExprMutator(const Optional<IRModule>& maybe_mod)
@@ -299,7 +300,7 @@ class DeviceAwareExprMutator : public ExprMutator, public LexicalOnDeviceMixin {
   Expr VisitExpr_(const CallNode* call_node) final;
 
   /*!
-   * \brief These are as for VisitExpr_. Devices for expressions and function parameters will be
+   * \brief These are as for VisitExpr_. \p SEScopes for expressions and function parameters will be
    * tracked automatically. Default implementation defers to ExprMutator::VisitExpr_. For
    * functions the function_nesting count will already include that of \p function_node.
    */
@@ -313,7 +314,7 @@ class DeviceAwareExprMutator : public ExprMutator, public LexicalOnDeviceMixin {
   virtual void PreVisitLetBlock_(const LetNode* let_node);
 
   /*!
-   * \brief Visit a let-bound expression before the let body has been visited. Devices for the
+   * \brief Visit a let-bound expression before the let body has been visited. \p SEScopes for the
    * let-bound variable will be tracked automatically. Default implementation just visits var and
    * value.
    */

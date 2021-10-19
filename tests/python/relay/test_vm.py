@@ -853,11 +853,11 @@ def test_vm_rpc():
         # Get a handle to remote Executable.
         rexec = remote.load_module("vm_library.so")
 
-        ctx = remote.cpu()
+        device = remote.cpu()
         # Build a VM out of the executable and context.
-        vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
+        vm_factory = runtime.vm.VirtualMachine(rexec, device)
         np_input = np.random.uniform(size=(10, 1)).astype("float32")
-        input_tensor = tvm.nd.array(np_input, ctx)
+        input_tensor = tvm.nd.array(np_input, device)
         # Invoke its "main" function.
         out = vm_factory.invoke("main", input_tensor)
         # Check the result.
@@ -1003,7 +1003,10 @@ def test_shape_func_nested_function():
 def test_storage_size_and_offset_on_cpu():
     """Tests allocations place sizes and offsets on the CPU host even if the rest
     of the computation is on a different device type."""
+
     # TODO(mbs): Better would be to test ManifestAlloc independently.
+    # And/or move this to C++ and test the VM executable in it's C++ instead of
+    # pretty-printed form.
 
     # CPU = device type 1
     # GPU = device type 2
@@ -1027,15 +1030,19 @@ def test_storage_size_and_offset_on_cpu():
     # - The size of the tensor's storage (first arg) to alloc_storage
     # - The offset of the tensor within the storage (second arg) to alloc_tensor
     # Both should be on the CPU
-    assert not "on device of type 2" in exe.constants
-    assert "on device of type 1" in exe.constants
+    assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
+    assert "Constant[0]: has shape int64[] on device index 0" in exe.constants
+    assert "Constant[1]: has shape int64[] on device index 0" in exe.constants
 
 
 @tvm.testing.requires_cuda
 def test_reshape_shape_on_cpu():
     """Tests the argument to a reshape places the shape on the CPU host even if the rest
     of the computation is on a different device type."""
+
     # TODO(mbs): Better would be to test ManifestAlloc independently.
+    # And/or move this to C++ and test the VM executable in it's C++ instead of
+    # pretty-printed form.
 
     # CPU = device type 1
     # GPU = device type 2
@@ -1056,8 +1063,44 @@ def test_reshape_shape_on_cpu():
     )
 
     # The newshape annotation should have been turned into a constant on the CPU.
-    assert not "on device of type 2" in exe.constants
-    assert "on device of type 1" in exe.constants
+    assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
+    assert "Constant[0]: has shape int64[3] on device index 0" in exe.constants
+
+
+@tvm.testing.requires_cuda
+def test_multi_targets():
+    # Build an IRModule.
+    n = 10
+    x = relay.var("x", shape=(n,))
+    y = relay.var("y", shape=(n,))
+    z = relay.var("z", shape=(n,))
+    f = relay.Function([x, y, z], x + relay.op.annotation.on_device(y + z, tvm.cpu()))
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    with tvm.transform.PassContext(
+        opt_level=3, config={"relay.fallback_device_type": tvm.cuda().device_type}
+    ):
+        exe = relay.vm.compile(
+            mod, target={"cpu": tvm.target.Target("llvm"), "cuda": tvm.target.Target("cuda")}
+        )
+
+    # Run
+    vm = runtime.vm.VirtualMachine(exe, [tvm.cuda(), tvm.cpu()])
+    x_data = np.random.rand(
+        n,
+    ).astype("float32")
+    y_data = np.random.rand(
+        n,
+    ).astype("float32")
+    z_data = np.random.rand(
+        n,
+    ).astype("float32")
+    actual_result = vm.invoke("main", x_data, y_data, z_data)
+
+    # Test
+    expected_result = x_data + y_data + z_data
+    tvm.testing.assert_allclose(actual_result.numpy(), expected_result)
 
 
 if __name__ == "__main__":
