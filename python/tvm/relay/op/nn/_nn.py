@@ -524,8 +524,6 @@ def convert_max_pool2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # stick by convertng layout and out_layout to use NHWC and NHWC,
-    #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
     new_attrs = dict(attrs)
     new_attrs["layout"] = str(desired_layouts[0])
     new_attrs["out_layout"] = str(desired_layouts[0])
@@ -565,8 +563,6 @@ def convert_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # stick by convertng layout and out_layout to use NHWC and NHWC,
-    #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
     new_attrs = dict(attrs)
     new_attrs["layout"] = str(desired_layouts[0])
     new_attrs["out_layout"] = str(desired_layouts[0])
@@ -621,8 +617,6 @@ def convert_global_max_pool2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # stick by convertng layout and out_layout to use NHWC and NHWC,
-    #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
     new_attrs = dict(attrs)
     new_attrs["layout"] = str(desired_layouts[0])
     new_attrs["out_layout"] = str(desired_layouts[0])
@@ -652,8 +646,6 @@ def convert_global_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # stick by convertng layout and out_layout to use NHWC and NHWC,
-    #   respectively, as specified in the transforms.ConvertLayout() function's arguments later
     new_attrs = dict(attrs)
     new_attrs["layout"] = str(desired_layouts[0])
     new_attrs["out_layout"] = str(desired_layouts[0])
