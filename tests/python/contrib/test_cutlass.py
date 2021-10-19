@@ -61,7 +61,7 @@ def get_dense_bias_gelu(M, N, K):
 
 
 def verify(func, M, N, K, atol=1e-5, rtol=1e-5):
-    if not tvm.get_global_func("relay.ext.tensorrt", True):
+    if not tvm.get_global_func("relay.ext.cutlass", True):
         return
     mod = tvm.IRModule.from_expr(func)
     np_data = np.random.uniform(-1, 1, (M, K)).astype("float16")

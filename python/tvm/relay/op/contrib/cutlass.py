@@ -48,7 +48,8 @@ def make_gemm_pattern(with_bias=True, with_act=None):
     return make_gelu_pattern(gemm_out)
 
 
-def get_pattern_table():
+
+def partition_for_cutlass(mod):
     """TODO"""
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
     dense_bias_pat = ("cutlass.dense_bias", make_gemm_pattern(True, None))
@@ -60,12 +61,7 @@ def get_pattern_table():
         dense_bias_pat,
         dense_pat,
     ]
-    return cutlass_patterns
-
-
-def partition_for_cutlass(mod):
-    """TODO"""
-    mod = transform.MergeComposite(get_pattern_table())(mod)
+    mod = transform.MergeComposite(cutlass_patterns)(mod)
     mod = transform.AnnotateTarget(["cutlass"])(mod)
     mod = transform.PartitionGraph()(mod)
     return mod
