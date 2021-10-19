@@ -168,6 +168,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc VisitAttr_(const tir::IntImmNode* op) final;
   Doc VisitAttr_(const tir::FloatImmNode* op) final;
   Doc VisitAttr_(const tir::StringImmNode* op) final;
+  Doc VisitAttr_(const SEScopeNode* op) final;
 
  private:
   /*! \brief Whether to print meta data. */

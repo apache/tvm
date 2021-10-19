@@ -437,7 +437,7 @@ inline bool IsAutoSchedulerEnabled() {
  * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
+Array<Pass> GetPassPrefix(const TargetMap& targets, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {

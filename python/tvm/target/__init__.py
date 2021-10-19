@@ -71,6 +71,7 @@ from .target import (
     riscv_cpu,
     hexagon,
 )
+from .se_scope import make_se_scope
 from .tag import list_tags
 from .generic_func import GenericFunc
 from .generic_func import generic_func, get_native_generic_func, override_native_generic_func

@@ -773,8 +773,6 @@ Doc RelayTextPrinter::PrintAttr(const ObjectRef& value, bool meta) {
       printed_attr << "?";
     } else if (auto str_obj = value.as<tvm::StringObj>()) {
       printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
-    } else if (const auto* on_device_attrs = value.as<OnDeviceAttrs>()) {
-      printed_attr << "device_type=" << on_device_attrs->device_type;
     } else if (meta) {
       printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
     } else {
@@ -787,7 +785,7 @@ Doc RelayTextPrinter::PrintAttr(const ObjectRef& value, bool meta) {
 }
 
 Doc RelayTextPrinter::VisitAttrDefault_(const Object* op) {
-  return PrintAttr(GetRef<ObjectRef>(op), true);
+  return PrintAttr(GetRef<ObjectRef>(op), /*meta=*/true);
 }
 
 Doc RelayTextPrinter::VisitAttr_(const ArrayNode* op) {
@@ -812,6 +810,17 @@ Doc RelayTextPrinter::VisitAttr_(const tir::FloatImmNode* op) {
 
 Doc RelayTextPrinter::VisitAttr_(const tir::StringImmNode* op) {
   return Doc::StrLiteral(op->value);
+}
+
+Doc RelayTextPrinter::VisitAttr_(const SEScopeNode* op) {
+  if (show_meta_data_) {
+    return VisitAttrDefault_(op);
+  } else {
+    // TODO(mbs): Surely there's a better way?
+    std::ostringstream os;
+    os << GetRef<SEScope>(op);
+    return Doc::Text(os.str());
+  }
 }
 
 /*!

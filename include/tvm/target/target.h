@@ -179,6 +179,9 @@ class Target : public ObjectRef {
    */
   TVM_DLL void ExitWithScope();
 };
+
+using TargetMap = Map<Integer, Target>;
+
 /*!
  * \brief Check and update host field of the given legacy target and target host pair.
  *  Note that this function is for legacy target api compatibility issue only, not
@@ -187,22 +190,24 @@ class Target : public ObjectRef {
  * \param host The pointer to a Target typed object for target host to be updated
  */
 void CheckAndUpdateHostConsistency(Target* target, Target* host);
+
 /*!
  * \brief Check and update host field of the given legacy heterogeneous targets and
  *  target host.Note that this function is for legacy target api compatibility issue only,
  *  not recommended for other use.
- * \param target The pointer to a Map objects with values being Target objects
+ * \param target_map The pointer to a Map objects with values being Target objects
  * \param host The Target typed object for target host to be updated
  */
-void CheckAndUpdateHostConsistency(Map<Integer, Target>* target, Target* host);
+void CheckAndUpdateHostConsistency(TargetMap* target_map, Target* host);
+
 /*!
  * \brief Check and update host field of the given legacy heterogeneous targets and
  *  target host.Note that this function is for legacy target api compatibility issue only,
  *  not recommended for other use.
- * \param target The pointer to a Map objects with keys being Target objects
+ * \param ir_modules The pointer to a Map objects with keys being Target objects
  * \param host The Target typed object for target host to be updated
  */
-void CheckAndUpdateHostConsistency(Map<Target, IRModule>* target, Target* host);
+void CheckAndUpdateHostConsistency(Map<Target, IRModule>* ir_modules, Target* host);
 
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_

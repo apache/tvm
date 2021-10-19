@@ -74,7 +74,7 @@ void CheckAndUpdateHostConsistency(Target* target, Target* host) {
   *host = (*target)->GetHost().value_or(Target());
 }
 
-void CheckAndUpdateHostConsistency(Map<Integer, Target>* targets, Target* host) {
+void CheckAndUpdateHostConsistency(TargetMap* targets, Target* host) {
   Map<Integer, Target> new_targets;
   for (auto& it : *targets) {
     auto target = it.second;
