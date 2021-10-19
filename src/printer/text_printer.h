@@ -380,7 +380,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
 String AsTVMScript(const ObjectRef& mod, const String& tir_prefix = "tir", bool show_meta = false);
 
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
-                                 runtime::TypedPackedFunc<String(ObjectRef)> annotate);
+                                 runtime::TypedPackedFunc<std::string(Stmt)> annotate);
 
 }  // namespace tir
 }  // namespace tvm

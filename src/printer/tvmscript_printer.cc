@@ -1351,15 +1351,13 @@ Doc TVMScriptPrinter::PrintLoopStack() {
 class TVMScriptPrinterWithDiagnostic : public TVMScriptPrinter {
  public:
   explicit TVMScriptPrinterWithDiagnostic(const String& tir_prefix, bool show_meta,
-                                          runtime::TypedPackedFunc<String(ObjectRef)> annotate)
-      : TVMScriptPrinter(tir_prefix, show_meta), annotate_(std::move(annotate)) {}
+                                          runtime::TypedPackedFunc<std::string(Stmt)> annotate)
+      : TVMScriptPrinter(tir_prefix, show_meta, annotate) {}
 
  protected:
-  /*! \brief additional comment function */
-  runtime::TypedPackedFunc<String(ObjectRef)> annotate_;
   Doc VisitStmt_(const ForNode* op) override;
   Doc VisitStmt_(const BlockRealizeNode* op) override;
-  Doc PrintAnnotation(const Stmt& stmt, int length);
+  Doc PrintAnnotation(const Stmt stmt, int length);
 };
 
 Doc TVMScriptPrinterWithDiagnostic::VisitStmt_(const ForNode* op) {
@@ -1404,7 +1402,7 @@ Doc TVMScriptPrinterWithDiagnostic::VisitStmt_(const BlockRealizeNode* op) {
   Doc doc = PrintBlockVar(block_op);
 
   // annotation
-  doc << PrintAnnotation(GetRef<Stmt>(op), doc.str().size());
+  doc << PrintAnnotation(GetRef<Stmt>(block_op), doc.str().size());
 
   // print predicate, binding, read/write tensor region, annotations
   Doc block_attr_doc = PrintBlockAttr(op);
@@ -1417,13 +1415,14 @@ Doc TVMScriptPrinterWithDiagnostic::VisitStmt_(const BlockRealizeNode* op) {
   return doc;
 }
 
-Doc TVMScriptPrinterWithDiagnostic::PrintAnnotation(const Stmt& stmt, int length) {
+Doc TVMScriptPrinterWithDiagnostic::PrintAnnotation(const Stmt stmt, int length) {
   Doc doc;
   // annotation
   if (annotate_ != nullptr) {
-    String annotated_stmt = std::string(length, '^');
+    String annotated_stmt = annotate_(stmt);
     if (!annotated_stmt.empty()) {
-      doc << Doc::NewLine() << annotated_stmt;
+      String underline = std::string(length, '^');
+      doc << Doc::NewLine() << underline << Doc::NewLine() << annotated_stmt;
     }
   }
   return doc;
@@ -1437,7 +1436,7 @@ String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_met
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
-                                 runtime::TypedPackedFunc<String(ObjectRef)> annotate) {
+                                 runtime::TypedPackedFunc<std::string(Stmt)> annotate) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
   return TVMScriptPrinterWithDiagnostic(tir_prefix, show_meta, annotate).Print(mod).str() + "\n";
 }
