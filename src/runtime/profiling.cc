@@ -25,6 +25,7 @@
 #include <dmlc/json.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/threading_backend.h>
@@ -158,6 +159,51 @@ void Profiler::Stop() {
   for (size_t i = 0; i < devs_.size(); i++) {
     StopCall();
   }
+}
+
+std::vector<int64_t> ToShape(NDArray shape_tensor) {
+  std::vector<int64_t> shape;
+  auto rank = shape_tensor.Shape().size();
+  auto dtype = shape_tensor.DataType();
+
+  // For 0-rank shapes we need to allocate a single scalar.
+  if (rank == 0) {
+    return shape;
+  }
+
+  // Otherwise we should be rank-1, and we will extract the number of dimensions
+  // for the output vector.
+  ICHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
+  int64_t ndim = shape_tensor.Shape().at(0);
+  shape.resize(ndim);
+
+  const DLTensor* dl_tensor = shape_tensor.operator->();
+  if (dtype.is_int() && dtype.bits() == 32 && dtype.lanes() == 1) {
+    int32_t* dims = reinterpret_cast<int32_t*>(dl_tensor->data);
+    shape.assign(dims, dims + ndim);
+  } else if (dtype.is_int() && dtype.bits() == 64 && dtype.lanes() == 1) {
+    int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
+    shape.assign(dims, dims + ndim);
+  } else {
+    LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
+  }
+
+  return shape;
+}
+
+String ShapeString(NDArray shape, DLDataType dtype) { return ShapeString(ToShape(shape), dtype); }
+
+String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype) {
+  std::stringstream sizes;
+  sizes << dtype << "[";
+  for (size_t i = 0; i < shape.size(); i++) {
+    if (i != 0) {
+      sizes << ", ";
+    }
+    sizes << shape[i];
+  }
+  sizes << "]";
+  return String(sizes.str());
 }
 
 String ShapeString(const std::vector<NDArray>& shapes) {

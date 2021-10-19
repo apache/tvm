@@ -25,6 +25,7 @@
 #include "vm.h"
 
 #include <tvm/runtime/container/adt.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -32,6 +33,7 @@
 #include <iomanip>
 #include <memory>
 #include <numeric>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -93,6 +95,58 @@ void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
   ICHECK(exec_);
   for (auto kv : exec_->primitive_map) {
     packed_index_map_[kv.second] = kv.first;
+  }
+}
+
+void VirtualMachineDebug::OpStartHook(Instruction instr) {
+  if (prof_ && prof_.operator*().IsRunning()) {
+    if (instr.op == Opcode::LoadConst) {
+      Device dev = GetDevice(exec_->const_device_type[instr.const_index]);
+      prof_.operator*().StartCall("VM::LoadConst", dev, {});
+    } else if (instr.op == Opcode::DeviceCopy) {
+      Device dst_dev;
+      dst_dev.device_type = static_cast<DLDeviceType>(instr.dst_device_type);
+      dst_dev.device_id = 0;
+      prof_.operator*().StartCall("VM::DeviceCopy", dst_dev, {});
+    } else if (instr.op == Opcode::ReshapeTensor) {
+      prof_.operator*().StartCall("VM::ReshapeTensor", devices_[1], {});
+    } else if (instr.op == Opcode::AllocTensor) {
+      auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
+
+      for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
+        shape[i] = instr.alloc_tensor.shape[i];
+      }
+      auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
+      auto storage = Downcast<Storage>(storage_obj);
+      prof_.operator*().StartCall(
+          "VM::AllocTensor", storage->buffer.device,
+          {{"Argument Shapes", profiling::ShapeString(shape, instr.alloc_tensor.dtype)}});
+    } else if (instr.op == Opcode::AllocTensorReg) {
+      auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
+      auto storage = Downcast<Storage>(storage_obj);
+      Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
+      auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
+      NDArray shape_tensor = Downcast<NDArray>(shape_obj).CopyTo(cpu_dev);
+      prof_.operator*().StartCall(
+          "VM::AllocTensorReg", storage->buffer.device,
+          {{"Argument Shapes",
+            profiling::ShapeString(shape_tensor, instr.alloc_tensor_reg.dtype)}});
+    } else if (instr.op == Opcode::AllocStorage) {
+      auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
+      std::ostringstream shape;
+      shape << DLDataType2String(instr.alloc_storage.dtype_hint) << "[" << size << "]";
+      prof_.operator*().StartCall("VM::AllocStorage",
+                                  {static_cast<DLDeviceType>(instr.alloc_storage.device_type), 0},
+                                  {{"VM::Argument Shapes", String(shape.str())}});
+    } else {
+      prof_.operator*().StartCall("VM::UnknownOp", devices_[1], {});
+    }
+  }
+}
+
+void VirtualMachineDebug::OpStopHook() {
+  if (prof_ && prof_.operator*().IsRunning()) {
+    prof_.operator*().StopCall();
   }
 }
 
