@@ -27,31 +27,27 @@ String ScheduleError::RenderReport(const String& primitive) const {
 
   // get locations of interest
   Array<ObjectRef> locs = LocationsOfInterest();
-  std::unordered_set<ObjectRef, ObjectPtrHash, ObjectPtrEqual> loc_set;
+  std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual> loc_obj_to_name;
   int n_locs = locs.size();
-  std::vector<String> roi_names;
-  roi_names.reserve(n_locs);
   std::string msg = DetailRenderTemplate();
   if (n_locs > 0) {
     for (int i = 0; i < n_locs; ++i) {
-      std::string name = locs[i]->GetTypeKey() + '#' + std::to_string(roi_names.size());
+      std::string name = locs[i]->GetTypeKey() + '#' + std::to_string(i);
       std::string src = "{" + std::to_string(i) + "}";
       for (size_t pos; (pos = msg.find(src)) != std::string::npos;) {
         msg.replace(pos, src.length(), name);
       }
-      roi_names.emplace_back(std::move(name));
-      loc_set.emplace(locs[i]);
+      loc_obj_to_name.emplace(locs[i], std::move(name));
     }
   }
-  msg = "Error message: " + std::move(msg);
 
   // print IR module
   runtime::TypedPackedFunc<std::string(Stmt)> annotate =
       runtime::TypedPackedFunc<std::string(Stmt)>(
-          [&loc_set, &msg](const Stmt& expr) -> std::string {
-            auto search = loc_set.find(Downcast<ObjectRef>(expr));
-            if (search == loc_set.end()) return "";
-            return msg;
+          [&loc_obj_to_name](const Stmt& expr) -> std::string {
+            auto search = loc_obj_to_name.find(Downcast<ObjectRef>(expr));
+            if (search == loc_obj_to_name.end()) return "";
+            return search->second;
           });
 
   os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
