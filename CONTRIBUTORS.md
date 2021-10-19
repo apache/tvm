@@ -111,6 +111,7 @@ We do encourage everyone to work anything they are interested in.
 - [Andrew Z. Luo](https://github.com/AndrewZhaoLuo): @AndrewZhaoLuo
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
+- [Andrey Malyshev](https://github.com/elvin-n): @elvin-n
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
 - [Thierry Moreau](https://github.com/tmoreau89): @tmoreau89
 - [Kazutaka Morita](https://github.com/kazum): @kazum
