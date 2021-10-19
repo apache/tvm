@@ -37,8 +37,8 @@ test:
     - cmake --build . 
     - export PYTHONPATH=${PWD}/../python/
     - cd ..
-    - python3 python/gen_requirements.py
-    - python3 -m pip install -r python/requirements/all-prod.txt
-    - python3 -m pip install -r python/requirements/dev.txt
-    - python3 -m pip install pytest
-    - python3 -m pytest tests/python/unittest
+    - python python/gen_requirements.py
+    - python -m pip install -r python/requirements/all-prod.txt
+    - python -m pip install -r python/requirements/dev.txt
+    - python -m pip install pytest
+    - python -m pytest tests/python/unittest
