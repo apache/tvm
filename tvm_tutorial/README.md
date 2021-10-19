@@ -1,6 +1,5 @@
 # TVM Tutorial
 
-
 ## TVM Inference End2End
     - Torch/Tflite model execution 
     - relay.testing models
@@ -30,7 +29,7 @@
     - MetaScheduler? (Optional)
 
 
-## Quantization
+## Quantization (Christoph)
     - Quantization in TVM 
     - Framework Pre-Quantized Models
 
@@ -39,7 +38,7 @@
       - Bit-Serial
 
 
-## MicroTVM
+## MicroTVM (Christoph)
     - Micro-TVM Inference Example
       - Host-Driven
       - AOT-Compiler
@@ -52,6 +51,6 @@
 
 ## Backend / BYOC
   - External C-Code generation example
-  - Graph Pattrn Matching
+  - Graph Pattern Matching
   - 
   - BYOC & MicroTVM
