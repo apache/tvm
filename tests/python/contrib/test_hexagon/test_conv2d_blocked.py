@@ -470,7 +470,7 @@ class TestConv2dLogicalFilter(BaseConv2d):
         ref_output = testing.conv2d_nhwc_python(inputs[0], np_filter, stride, pad)
         output = build_and_run(
             inputs,
-            conv2d_nhwc8h8w32c,
+            conv2d_impl,
             target,
             target,
             shape_nhwc=shape_nhwc,
@@ -483,13 +483,25 @@ class TestConv2dLogicalFilter(BaseConv2d):
             h_split_factor=h_split_factor,
         )
 
-        # nhwc8h8w32c -> nhwc
-        output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(
-            output.shape[0],
-            output.shape[1] * output.shape[4],
-            output.shape[2] * output.shape[5],
-            output.shape[3] * output.shape[6],
-        )
+        # nhwc8h8w32c
+        if len(output.shape) == 7:
+            # nhwc8h8w32c -> nhwc
+            output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(
+                output.shape[0],
+                output.shape[1] * output.shape[4],
+                output.shape[2] * output.shape[5],
+                output.shape[3] * output.shape[6],
+            )
+
+        # nhwhwc
+        else:
+            # nhwhwc -> nhwc
+            output = output.transpose(0, 1, 3, 2, 4, 5).reshape(
+                output.shape[0],
+                output.shape[1] * output.shape[3],
+                output.shape[2] * output.shape[4],
+                output.shape[5],
+            )
 
         # slice output to match ref_output shape
         # e.g. 8x8 spatial 3x3 filter = 6x6 ref output
