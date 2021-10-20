@@ -29,11 +29,10 @@
 #include <tvm/target/target.h>
 
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 namespace tvm {
-
-class SEScope;
 
 /*!
  * \brief Describes at compile time where data is to be stored down to the device and memory
@@ -77,7 +76,7 @@ class SEScope;
  *    out of a particular primitive.
  *  - It's ok to use the same \p Target for multiple \p Devices, eg if we have multiple CPUs.
  *
- * Traditionally TVM assumes at most one \p Target per \p DLviceType. We are moving away from that
+ * Traditionally TVM assumes at most one \p Target per \p DLDeviceType. We are moving away from that
  * assumption.
  *
  * Memory scopes and devices
@@ -111,14 +110,6 @@ class SEScope;
  * planning will simply insert "device_copy" operators wherever \p SEScopes are not exactly
  * pointwise equal, and we leave it to downstream compilation to elide unnecessary copies. We
  * may revisit this in the future.
- *
- * Object identity
- * ---------------
- * \p SEScopes can only be constructed by the memoizing helpers. This means code can assume
- * \code
- * se_scope1 != se_scope2 => se_scope1 and se_scope2 differ pointwise
- * \endcode
- * This simplifies the device planner which needs to solve equality constraints between \p SEScopes.
  *
  * Joining and Defaulting
  * ----------------------
@@ -208,15 +199,10 @@ class SEScopeNode : public Object {
 
   void VisitAttrs(AttrVisitor* v);
 
-  bool SEqualReduce(const SEScopeNode* other, SEqualReducer equal) const {
-    // Since we memoize all constructors we can just use pointer equality.
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // Since we memoize all constructors we can just use the pointer hash
-    hash_reduce->SHashReduceHashedValue(std::hash<const SEScopeNode*>()(this));
-  }
+  // We implement structural equality (which reduces Targets to their str representation)
+  // so that unit tests can compare actual and expected SEScopes.
+  bool SEqualReduce(const SEScopeNode* other, SEqualReducer equal) const;
+  void SHashReduce(SHashReducer hash_reduce) const;
 
   static constexpr const char* _type_key = "SEScope";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -225,10 +211,10 @@ class SEScopeNode : public Object {
 
  private:
   // We keep the fields private so the constructor memoization can't be upset by mutation.
-  DLDeviceType device_type_ = kInvalidDeviceType;
-  int virtual_device_id_ = -1;
-  Target target_{nullptr};
-  String memory_scope_;  // = ""
+  DLDeviceType device_type_;
+  int virtual_device_id_;
+  Target target_;
+  String memory_scope_;
 
   friend class SEScope;
 };
@@ -239,7 +225,7 @@ class SEScopeNode : public Object {
  * \sa SEScopeNode.
  */
 class SEScope : public ObjectRef {
- private:
+ public:
   /*!
    * \brief Construct an SEScope.
    * \param device_type The device type for the device, or kInvalidDeviceType if unconstrained.
@@ -248,33 +234,20 @@ class SEScope : public ObjectRef {
    * \param target The target describing how to compile for the device, or null if unconstrained.
    * \param memory_scope The memory scope within the device, or "" if unconstrained.
    * \return The SEScope
-   *
-   * This constructor is private -- use the memoizing smart constructors below.
    */
-  explicit SEScope(DLDeviceType device_type, int virtual_device_id, Target target,
-                   String memory_scope);
-
- public:
-  /*!
-   * \brief Returns the unique \p SEScope object for \p device_type, \p virtual_device_id, \p
-   * target, and \p memory_scope. Any/all of these fields may be unconstrained as per their default
-   * values. However if \p target is defined then \p device_type must be
-   * \p target->kind->device_type.
-   */
-  static SEScope MakeSEScope(DLDeviceType device_type = kInvalidDeviceType,
-                             int virtual_device_id = -1, Target target = {},
-                             String memory_scope = {});
+  explicit SEScope(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
+                   Target target = {}, String memory_scope = {});
 
   /*! \brief Returns the unique fully unconstrained \p SEScope. */
-  static SEScope FullyUnconstrained() { return MakeSEScope(); }
+  static SEScope FullyUnconstrained();
 
   /*!
-   * \brief Returns the unique \p SEScope for \p device_type and (if not -1) \p virtual_device_id.
+   * \brief Returns the \p SEScope for \p device_type and (if not -1) \p virtual_device_id.
    * The target and memory scope will be unconstrained.
    */
   static SEScope ForDeviceType(DLDeviceType device_type, int virtual_device_id = -1) {
     ICHECK_GT(device_type, 0);
-    return MakeSEScope(device_type, virtual_device_id);
+    return SEScope(device_type, virtual_device_id);
   }
   static SEScope ForDeviceType(int device_type, int virtual_device_id = -1) {
     return ForDeviceType(static_cast<DLDeviceType>(device_type), virtual_device_id);
@@ -283,21 +256,21 @@ class SEScope : public ObjectRef {
     return ForDeviceType(static_cast<int>(device_type->value), virtual_device_id);
   }
 
-  /*! \brief Returns the unique \p SEScope for \p device. */
-  TVM_DLL static SEScope ForDevice(const Device& device) {
+  /*! \brief Returns the \p SEScope for \p device. */
+  static SEScope ForDevice(const Device& device) {
     return ForDeviceType(device.device_type, device.device_id);
   }
 
-  /*! \brief Returns the unique \p SEScope for \p device and \p target. */
-  TVM_DLL static SEScope ForDeviceAndTarget(const Device& device, Target target) {
-    return MakeSEScope(device.device_type, device.device_id, std::move(target));
+  /*! \brief Returns the \p SEScope for \p device and \p target. */
+  static SEScope ForDeviceAndTarget(const Device& device, Target target) {
+    return SEScope(device.device_type, device.device_id, std::move(target));
   }
 
-  /*! \brief Returns the unique \p SEScope for \p device, \p target and \p memory_scope. */
+  /*! \brief Returns the \p SEScope for \p device, \p target and \p memory_scope. */
   TVM_DLL static SEScope ForDeviceTargetAndMemoryScope(const Device& device, Target target,
                                                        String memory_scope) {
-    return MakeSEScope(device.device_type, device.device_id, std::move(target),
-                       std::move(memory_scope));
+    return SEScope(device.device_type, device.device_id, std::move(target),
+                   std::move(memory_scope));
   }
 
   /*!
@@ -319,64 +292,24 @@ class SEScope : public ObjectRef {
 };
 
 /*!
- * \brief Gathers the targets and scopes needed to compile a Relay module, and centralizes
- * the target checking and defaulting logic.
- *
- * TODO(mbs): This is a temporary class to help us bridge legacy and new target/device handling
- * and reduce code dup between VM (relay/backend/vm/compile.cc), graph/AOT
- * (relay/backend/build_module.cc) and interpreter (relay/backend/interpreter.cc) 'executors'. It
- * should probably get merged into something more sensible, ideally just THE standard compilation
- * flow once we have one.
+ * \brief A cache of \p SEScopes. This can be used:
+ *  - To avoid ending up with lots of identical instances, since the space of SEScopes for any
+ *    one compilation is very small but the number of points they need to be constructed can
+ *    be very large (eg during device planning).
+ *  - So we can assume \p SEScopes are pointer equal if and only if they are structurally equal.
+ *    This simplifies the unification of 'device domains' which are built on \p SEScopes.
  */
-struct CompilationConfig {
-  /*!
-   * \brief The legacy targets map, mapping device type to \p Targets. Does not include any
-   * entry for the host target. Intended to give a unique \p Target for every \p DLDeviceType,
-   * though we want to get rid of that limitation.
-   *
-   * CAUTION: Since keys are \p Integers they are compared by object equality not integer
-   * value.
-   *
-   * TODO(mbs): Remove once codegen updated for new target conventions.
-   */
-  TargetMap legacy_target_map;
+class SEScopeCache {
+ public:
+  /*! \brief Returns the unique \p SEScope representing given fields. */
+  SEScope Make(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
+               Target target = {}, String memory_scope = {});
 
-  /*! \brief The optional host target. Used for 'scalar' data and code (such as shapes and shape
-   * functions) and residual Relay expressions and data (such as conditionals and ADTs). */
-  Target optional_host_target;
+  /*! \brief Returns the unique \p SEScope structurally equal to the given \p se_scope. */
+  SEScope Unique(const SEScope& scope);
 
-  /*!
-   * \brief Vector of all available targets, including for primitive operators, host, and any
-   * default targets added for required device types.
-   */
-  Array<Target> targets;
-
-  /*!
-   * \brief \p SEScope for primitive operators which are not otherwise constrained to a particular
-   * device.
-   */
-  SEScope default_primitive_se_scope = SEScope::FullyUnconstrained();
-
-  /*! \brief SEScope for the host. */
-  SEScope host_se_scope = SEScope::FullyUnconstrained();
-
-  /*!
-   * \brief If defined then in 'homogenous execution mode' and all primitives will be compiled
-   * for this target. This is to support legacy passes which have not been adapted to hetrogeneous
-   * execution.
-   */
-  Target homogeneous_target;
-
-  CompilationConfig() = default;
-
-  /*!
-   * \brief Constructs the compilation config given the available \p Targets in the
-   * \p legacy_target_map_arg and an optional \p optional_host_target_arg. May use
-   * 'relay.fallback_device_type' and the availability of the LLVM compilation module
-   * to decide on appropriatte default devices.
-   */
-  CompilationConfig(const transform::PassContext& pass_ctx, TargetMap legacy_target_map_arg,
-                    Target optional_host_target_arg);
+ private:
+  std::unordered_map<std::string, SEScope> cache_;
 };
 
 }  // namespace tvm
