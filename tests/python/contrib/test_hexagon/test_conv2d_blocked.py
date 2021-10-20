@@ -29,6 +29,7 @@ from .infrastructure import (
     get_filter_block_shape,
     get_packed_filter_layout,
     get_packed_activation_layout,
+    verify_conv2d,
 )
 
 import numpy as np
@@ -108,7 +109,9 @@ def conv2d_nhwc8h8w32c(
     else:
         filt = te.placeholder(shape_filter, dtype=dtype)
 
+        # get logical filter shape KCRS (OIHW)
         K, C, R, S = shape_filter
+
         # Channel padding to multiples of 32
         pad_c = (filter_Ci - (C % filter_Ci)) % filter_Ci
         pad_k = (filter_Ki - (K % filter_Ki)) % filter_Ki
@@ -172,7 +175,8 @@ def conv2d_nhwc8h8w32c(
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
-    if len(shape_filter) == 4:
+    # if we did filter padding, packing
+    if filt != filt_packed:
         s[filt_pad].compute_inline()
         s[filt_packed].compute_inline()
 
@@ -301,7 +305,9 @@ def conv2d_nhw8h8wc(
     else:
         filt = te.placeholder(shape_filter, dtype=dtype)
 
+        # get logical filter shape KCRS (OIHW)
         K, C, R, S = shape_filter
+
         # Channel padding to multiples of 32
         pad_c = (filter_Ci - (C % filter_Ci)) % filter_Ci
         pad_k = (filter_Ki - (K % filter_Ki)) % filter_Ki
@@ -357,7 +363,8 @@ def conv2d_nhw8h8wc(
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
-    if len(shape_filter) == 4:
+    # if we did filter padding, packing
+    if filt != filt_packed:
         s[filt_pad].compute_inline()
         s[filt_packed].compute_inline()
 
@@ -483,41 +490,7 @@ class TestConv2dLogicalFilter(BaseConv2d):
             h_split_factor=h_split_factor,
         )
 
-        # nhwc8h8w32c
-        if len(output.shape) == 7:
-            # nhwc8h8w32c -> nhwc
-            output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(
-                output.shape[0],
-                output.shape[1] * output.shape[4],
-                output.shape[2] * output.shape[5],
-                output.shape[3] * output.shape[6],
-            )
-
-        # nhwhwc
-        else:
-            # nhwhwc -> nhwc
-            output = output.transpose(0, 1, 3, 2, 4, 5).reshape(
-                output.shape[0],
-                output.shape[1] * output.shape[3],
-                output.shape[2] * output.shape[4],
-                output.shape[5],
-            )
-
-        # slice output to match ref_output shape
-        # e.g. 8x8 spatial 3x3 filter = 6x6 ref output
-        # but still 8x8 output given the blocked layout
-        output = output[
-            0 : ref_output.shape[0] : 1,
-            0 : ref_output.shape[1] : 1,
-            0 : ref_output.shape[2] : 1,
-            0 : ref_output.shape[3] : 1,
-        ]
-
-        if "int" in dtype:
-            tol = {"atol": 0, "rtol": 0}
-        elif dtype == "float32":
-            tol = {"rtol": 1e-4, "atol": 2e-4}
-        tvm.testing.assert_allclose(output, ref_output, **tol)
+        verify_conv2d(output, ref_output, dtype)
 
 
 class TestConv2dPackedFilter(BaseConv2d):
@@ -561,41 +534,7 @@ class TestConv2dPackedFilter(BaseConv2d):
             h_split_factor=h_split_factor,
         )
 
-        # nhwc8h8w32c
-        if len(output.shape) == 7:
-            # nhwc8h8w32c -> nhwc
-            output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(
-                output.shape[0],
-                output.shape[1] * output.shape[4],
-                output.shape[2] * output.shape[5],
-                output.shape[3] * output.shape[6],
-            )
-
-        # nhwhwc
-        else:
-            # nhwhwc -> nhwc
-            output = output.transpose(0, 1, 3, 2, 4, 5).reshape(
-                output.shape[0],
-                output.shape[1] * output.shape[3],
-                output.shape[2] * output.shape[4],
-                output.shape[5],
-            )
-
-        # slice output to match ref_output shape
-        # e.g. 8x8 spatial 3x3 filter = 6x6 ref output
-        # but still 8x8 output given the blocked layout
-        output = output[
-            0 : ref_output.shape[0] : 1,
-            0 : ref_output.shape[1] : 1,
-            0 : ref_output.shape[2] : 1,
-            0 : ref_output.shape[3] : 1,
-        ]
-
-        if "int" in dtype:
-            tol = {"atol": 0, "rtol": 0}
-        elif dtype == "float32":
-            tol = {"rtol": 1e-4, "atol": 2e-4}
-        tvm.testing.assert_allclose(output, ref_output, **tol)
+        verify_conv2d(output, ref_output, dtype)
 
 
 if __name__ == "__main__":
