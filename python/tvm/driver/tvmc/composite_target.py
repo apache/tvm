@@ -53,7 +53,7 @@ REGISTERED_CODEGEN = {
         "pass_pipeline": partition_for_arm_compute_lib,
     },
     "cmsis-nn": {
-        "config_key": None,
+        "config_key": "relay.ext.cmsisnn.options",
         "pass_pipeline": partition_for_cmsisnn,
     },
     "ethos-n77": {
