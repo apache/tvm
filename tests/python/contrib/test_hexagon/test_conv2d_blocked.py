@@ -47,9 +47,9 @@ def conv2d_nhwc8h8w32c(
 ):
     """
     Conv2d TE wherein the input activation is defined by its
-    logical NHWC shape, but the filter is provided in the
-    packed layout oihw8i32o4i. The physical packed layout used
-    for the activation is: nhwc8h8w32c
+    logical NHWC shape.  The filter is provided in either its
+    logical (OIHW) or physical packed (oihw8i32o4i) shape. The
+    physical packed layout for the input / output is nhwc8h8w32c.
     """
 
     # oihw8i32o41
@@ -63,6 +63,7 @@ def conv2d_nhwc8h8w32c(
 
     block_shape = get_block_shape()
     block_H, block_W, block_C = block_shape
+    shape = get_packed_activation_layout(shape_nhwc, block_shape)
     logical_output_shape = get_conv2d_nhwc_shape(
         shape_nhwc,
         kernel_size,
@@ -101,8 +102,7 @@ def conv2d_nhwc8h8w32c(
         assert shape_filter[-3] == filter_Ci // filter_Cii
 
         filt = te.placeholder(shape_filter, dtype=dtype)
-        filt_pad = filt  # TODO no padding needed?
-        filt_packed = filt_pad
+        filt_packed = filt
 
     else:
         filt = te.placeholder(shape_filter, dtype=dtype)
@@ -243,12 +243,19 @@ def conv2d_nhw8h8wc(
 ):
     """
     Conv2d TE wherein the input activation is defined by its
-    logical NHWC shape, but the filter is provided in the
-    packed layout oihw8i32o4i. The physical packed layout used
-    for the activation is: nhw8h8wc
-
+    logical NHWC shape.  The filter is provided in either its
+    logical (OIHW) or physical packed (oihw8i32o4i) shape. The
+    physical packed layout for the input / output is nhw8h8wc.
     """
-    assert kernel_size == tuple(shape_filter[2:4])
+
+    # oihw8i32o41
+    if len(shape_filter) == 7:
+        assert kernel_size == tuple(shape_filter[2:4])
+        out_channels = shape_filter[0] * shape_filter[5]
+    # oihw
+    else:
+        assert kernel_size == tuple(shape_filter[2:])
+        out_channels = shape_filter[0]
 
     block_shape = get_block_shape()
     block_H, block_W, block_C = block_shape
@@ -259,8 +266,9 @@ def conv2d_nhw8h8wc(
         stride,
         padding,
         [1, 1],
-        shape_filter[0] * shape_filter[5],
+        out_channels,
     )
+
     output_shape = get_packed_activation_layout(logical_output_shape, block_shape, packed_C=False)
 
     N, H, W, C = shape_nhwc
@@ -271,19 +279,43 @@ def conv2d_nhw8h8wc(
     pad_h = (block_H - ((H + padding[1]) % block_H)) % block_H
     pad_w = (block_W - ((W + padding[3]) % block_W)) % block_W
     X_pad = topi.nn.pad(X, [0, padding[0], padding[2], 0], [0, pad_h, pad_w, 0], pad_value=0)
+
     # Calculate packed layout
     packed_shape = get_packed_activation_layout(X_pad.shape, block_shape, packed_C=False)
     X_packed = te.compute(
         packed_shape, lambda n, ho, wo, hi, wi, c: X_pad[n, ho * block_H + hi, wo * block_W + wi, c]
     )
 
-    # Filter shape using KCRS (OIHW) notation
+    # TODO move to infrastructure and make it 8 (cio), 32 (ki), 4 (cii)
     filter_Ki, filter_Ci, filter_Cii = 32, 32, 4
-    assert shape_filter[-1] == filter_Cii
-    assert shape_filter[-2] == filter_Ki
-    assert shape_filter[-3] == filter_Ci // filter_Cii
 
-    filt_packed = te.placeholder(shape_filter, dtype=dtype)
+    if len(shape_filter) == 7:
+        assert shape_filter[-1] == filter_Cii
+        assert shape_filter[-2] == filter_Ki
+        assert shape_filter[-3] == filter_Ci // filter_Cii
+
+        filt = te.placeholder(shape_filter, dtype=dtype)
+        filt_packed = filt
+
+    else:
+        filt = te.placeholder(shape_filter, dtype=dtype)
+
+        K, C, R, S = shape_filter
+        # Channel padding to multiples of 32
+        pad_c = (filter_Ci - (C % filter_Ci)) % filter_Ci
+        pad_k = (filter_Ki - (K % filter_Ki)) % filter_Ki
+        filt_pad = topi.nn.pad(
+            filt, [0, 0, 0, 0], [pad_k, pad_c, R, S], pad_value=0, name="padded_filter"
+        )
+
+        shape_packed_filter = get_packed_filter_layout(K, C, R, S)
+        filt_packed = te.compute(
+            shape_packed_filter,
+            lambda ko, co, r, s, cio, ki, cii: filt_pad[
+                ko * filter_Ki + ki, co * filter_Ci + cio * filter_Cii + cii, r, s
+            ],
+            name="packed_filter",
+        )
 
     rh = te.reduce_axis((0, kernel_size[0]), name="rh")
     rw = te.reduce_axis((0, kernel_size[1]), name="rw")
@@ -323,6 +355,10 @@ def conv2d_nhw8h8wc(
     # Ensure the padding and array packing is performed inline
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
+
+    if len(shape_filter) == 4:
+        s[filt_pad].compute_inline()
+        s[filt_packed].compute_inline()
 
     # cache read for the input / activation (X)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
@@ -392,7 +428,7 @@ def conv2d_nhw8h8wc(
             Yb = tvm.tir.decl_buffer(output_shape, name="Yb", dtype=dtype, scope=storage_scope)
             binds = {X: Xb, Y: Yb}
 
-    return (s, [X, filt_packed, Y], binds)
+    return (s, [X, filt, Y], binds)
 
 
 class BaseConv2d:
@@ -409,9 +445,12 @@ class BaseConv2d:
 
 
 class TestConv2dLogicalFilter(BaseConv2d):
+    conv2d_impl = tvm.testing.parameter(conv2d_nhwc8h8w32c, conv2d_nhw8h8wc)
+
     @tvm.testing.parametrize_targets("llvm")
     def test_conv2d(
         self,
+        conv2d_impl,
         shape_nhwc,
         shape_oihw,
         kernel,
