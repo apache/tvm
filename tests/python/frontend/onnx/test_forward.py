@@ -5773,6 +5773,47 @@ def test_convinteger(target, dev):
         repeat(2, D),
     )
 
+@tvm.testing.parametrize_targets
+def test_trilu(target, dev):
+    def verify_trilu(in_shape, k, upper):
+        trilu_node = helper.make_node('Trilu', inputs=["x", "k"], outputs=["out"], upper=upper)
+        graph = helper.make_graph(
+            [trilu_node],
+            "trilu_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(in_shape)),
+                helper.make_tensor_value_info("k", TensorProto.INT64, list((1,))),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(in_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="trilu_test")
+        input_array = np.random.rand(*in_shape).astype("float32")
+        verify_with_ort_with_inputs(model, [input_array, np.asarray(k)], target=target, dev=dev, use_vm=True)
+
+    in_shape = (4, 5)
+    verify_trilu(in_shape, [4], 0)
+    verify_trilu(in_shape, [5], 0)
+    verify_trilu(in_shape, [5], 1)
+    verify_trilu(in_shape, [-1], 0)
+    verify_trilu(in_shape, [-1], 1)
+    verify_trilu(in_shape, [-7], 0)
+    verify_trilu(in_shape, [-7], 1)
+    verify_trilu(in_shape, [6], 0)
+    verify_trilu(in_shape, [6], 1)
+
+    in_shape = (3, 1, 5)
+    verify_trilu(in_shape, [0], 0)
+    verify_trilu(in_shape, [1], 1)
+    verify_trilu(in_shape, [6], 0)
+    verify_trilu(in_shape, [6], 1)
+
+    in_shape = (3, 5, 5)
+    verify_trilu(in_shape, [0], 0)
+    verify_trilu(in_shape, [0], 1)
+    verify_trilu(in_shape, [-1], 0)
+    verify_trilu(in_shape, [-1], 1)
+
 
 if __name__ == "__main__":
     test_flatten()
@@ -5864,3 +5905,4 @@ if __name__ == "__main__":
     test_convinteger()
     test_batch_matmul()
     test_global_lppool()
+    test_trilu()

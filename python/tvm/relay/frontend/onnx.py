@@ -4226,6 +4226,35 @@ class Momentum(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple(result), len(result))
 
 
+class Trilu(OnnxOpConverter):
+    """Operator converter for Trilu"""
+    
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        upper = attr.get("upper")
+        input_shape = shape_of(inputs[0])
+        input_dims = infer_shape(input_shape)[0]
+        data_type = infer_type(inputs[0]).checked_type.dtype
+        k_tensor = relay.const(np.asarray([0], dtype=np.int64))
+        if len(inputs) == 2:
+            k_tensor = inputs[1]
+
+        diag_input = relay.zeros(fold_constant(shape_of(inputs[0])), dtype=data_type)
+
+        if upper == 0:
+            k1 = relay.add(k_tensor, relay.const(1, dtype="int64"))
+            k2 = relay.take(input_shape, relay.const(input_dims - 1, dtype="int32"))
+            k2 = relay.expand_dims(k2, axis=0)
+            return relay.matrix_set_diag(inputs[0], diag_input, k=(k1, k2))
+        else:
+            k1 = relay.take(input_shape, relay.const(input_dims-2, dtype="int32"))
+            k1 = relay.multiply(k1, relay.const(-1, dtype="int64"))
+            k1 = relay.subtract(k1, relay.const(1, dtype="int64"))
+            k1 = relay.expand_dims(k1, axis=0)
+            k2 = relay.subtract(k_tensor, relay.const(1, dtype="int64"))
+            return relay.matrix_set_diag(inputs[0], diag_input, k=(k1, k2))
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -4425,6 +4454,7 @@ def _get_convert_map(opset):
         "Adagrad": Adagrad.get_converter(opset),
         "Adam": Adam.get_converter(opset),
         "Momentum": Momentum.get_converter(opset),
+        "Trilu": Trilu.get_converter(opset),
     }
 
 

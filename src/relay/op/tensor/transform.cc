@@ -3708,7 +3708,7 @@ TVM_REGISTER_NODE_TYPE(MatrixSetDiagAttrs);
 bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
   // `types` contains: [input, diagonal, result]
-  ICHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 5);
 
   const auto* input = types[0].as<TensorTypeNode>();
   ICHECK(input);
@@ -3716,30 +3716,19 @@ bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& att
   const auto* diagonal = types[1].as<TensorTypeNode>();
   ICHECK(diagonal);
 
-  const auto param = attrs.as<MatrixSetDiagAttrs>();
-  ICHECK_GE(param->k2, param->k1);
+  const auto* k1 = types[2].as<TensorTypeNode>();
+  ICHECK(k1);
+
+  const auto* k2 = types[3].as<TensorTypeNode>();
+  ICHECK(k2);
 
   int d_ndims = diagonal->shape.size();
-  int i_ndims = input->shape.size();
-
-  reporter->Assert(input->shape[i_ndims - 2] > -param->k1);
-  reporter->Assert(input->shape[i_ndims - 1] > param->k2);
-
+  
   for (int i = 0; i < d_ndims - 2; i++) {
     reporter->AssertEQ(input->shape[i], diagonal->shape[i]);
   }
-  if (param->k1 != param->k2) {
-    reporter->AssertEQ(diagonal->shape[d_ndims - 2], param->k2 - param->k1 + 1);
-  } else if (d_ndims >= 2) {
-    reporter->AssertEQ(input->shape[d_ndims - 2], diagonal->shape[d_ndims - 2]);
-  }
-  auto max_diag_len = if_then_else(input->shape[i_ndims - 2] + (param->k2 > 0 ? param->k2 : 0) <=
-                                       input->shape[i_ndims - 1] + (param->k1 < 0 ? -param->k1 : 0),
-                                   input->shape[i_ndims - 2] + (param->k2 > 0 ? param->k2 : 0),
-                                   input->shape[i_ndims - 1] + (param->k1 < 0 ? -param->k1 : 0));
-  reporter->AssertEQ(diagonal->shape[d_ndims - 1], max_diag_len);
 
-  reporter->Assign(types[2], TensorType(input->shape, input->dtype));
+  reporter->Assign(types[4], TensorType(input->shape, input->dtype));
   return true;
 }
 
@@ -3747,20 +3736,18 @@ Array<te::Tensor> MatrixSetDiagCompute(const Attrs& attrs, const Array<te::Tenso
                                        const Type& out_type) {
   const auto* param = attrs.as<MatrixSetDiagAttrs>();
   ICHECK(param != nullptr);
-  return Array<te::Tensor>{topi::matrix_set_diag(inputs[0], inputs[1], param->k1, param->k2,
+  return Array<te::Tensor>{topi::matrix_set_diag(inputs[0], inputs[1], inputs[2], inputs[3],
                                                  param->super_diag_right_align,
                                                  param->sub_diag_right_align)};
 }
 
-Expr MakeMatrixSetDiag(Expr input, Expr diagonal, int k1, int k2, bool super_diag_right_align,
+Expr MakeMatrixSetDiag(Expr input, Expr diagonal, Expr k1, Expr k2, bool super_diag_right_align,
                        bool sub_diag_right_align) {
   auto attrs = make_object<MatrixSetDiagAttrs>();
-  attrs->k1 = k1;
-  attrs->k2 = k2;
   attrs->super_diag_right_align = super_diag_right_align;
   attrs->sub_diag_right_align = sub_diag_right_align;
   static const Op& op = Op::Get("matrix_set_diag");
-  return Call(op, {input, diagonal}, Attrs(attrs), {});
+  return Call(op, {input, diagonal, k1, k2}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.matrix_set_diag").set_body_typed(MakeMatrixSetDiag);
@@ -3776,9 +3763,11 @@ RELAY_REGISTER_OP("matrix_set_diag")
         **sub_diag_right_align** Bool, true iff sub-diagonal is right aligned (left-padded).
     )code" TVM_ADD_FILELINE)
     .set_attrs_type<MatrixSetDiagAttrs>()
-    .set_num_inputs(2)
+    .set_num_inputs(4)
     .add_argument("input", "Tensor", "Input Tensor.")
     .add_argument("diagonal", "Tensor", "Values to be filled in the diagonal.")
+    .add_argument("k1", "Tensor", "ILower limit (included) of the range of diagonals.")
+    .add_argument("k2", "Tensor", "Upper limit (included) of the range of diagonals.")
     .set_support_level(10)
     .add_type_rel("MatrixSetDiag", MatrixSetDiagRel)
     .set_attr<FTVMCompute>("FTVMCompute", MatrixSetDiagCompute)

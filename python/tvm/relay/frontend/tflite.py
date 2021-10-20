@@ -3293,6 +3293,11 @@ class OperatorConverter(object):
 
         input_expr = self.get_tensor_expr(input_tensors[0])
         diagonal_expr = self.get_tensor_expr(input_tensors[1])
+        diag_shape = to_int_list(self.get_tensor_shape(input_tensors[1]))
+        input_shape = to_int_list(self.get_tensor_shape(input_tensors[0]))
+        if len(diag_shape) == len(input_shape) - 1:
+            diag_shape = np.insert(diag_shape, len(diag_shape)-1, 1)
+            diagonal_expr = _op.reshape(diagonal_expr, diag_shape)
 
         out = _op.matrix_set_diag(input_expr, diagonal_expr)
         return out
@@ -3313,13 +3318,16 @@ class OperatorConverter(object):
                     scale and zero points to be equal"
 
         shape = to_int_list(self.get_tensor_shape(diagonal))
-        shape = np.append(shape, shape[-1])
+        shape_copy = np.copy(shape)
+        diag_shape = np.insert(shape, len(shape)-1, 1).astype(np.int32)
+        
+        shape = np.append(shape_copy, shape[-1]).astype(np.int32)
         dtype = self.get_tensor_type_str(diagonal.tensor.Type())
-
+              
         input_expr = _op.zeros(tuple(shape), dtype)
         diagonal_expr = self.get_tensor_expr(diagonal)
 
-        out = _op.matrix_set_diag(input_expr, diagonal_expr)
+        out = _op.matrix_set_diag(input_expr, _op.reshape(diagonal_expr, diag_shape))
         return out
 
     def convert_densify(self, op):

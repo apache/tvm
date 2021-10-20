@@ -753,21 +753,36 @@ def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_
 def verify_matrix_set_diag(input_shape, diagonal_shape, dtype, k=0, align="RIGHT_LEFT"):
     input = te.placeholder(shape=input_shape, name="input", dtype=dtype)
     diagonal = te.placeholder(shape=diagonal_shape, name="diagonal", dtype=dtype)
-    matrix_set_diag_result = topi.transform.matrix_set_diag(input, diagonal, k, align)
+    k1 = te.placeholder(shape=(1,), name="k1", dtype="int64")
+    k2 = te.placeholder(shape=(1,), name="k2", dtype="int64")
+    matrix_set_diag_result = topi.transform.matrix_set_diag(input, diagonal, (k1, k2), align)
+
+    k_one, k_two = None, None
+    if isinstance(k, (tuple, list)):
+        k_one = k[0]
+        if len(k) >= 2:
+            k_two = k[1]
+        else:
+            k_two = k[0]
+    else:
+        k_one = k
+        k_two = k
 
     def check_device(target, dev):
         dev = tvm.device(target, 0)
         print("Running on target: %s" % target)
         with tvm.target.Target(target):
             s = tvm.topi.testing.get_injective_schedule(target)(matrix_set_diag_result)
-        fn = tvm.build(s, [input, diagonal, matrix_set_diag_result], target, name="matrix_set_diag")
+        fn = tvm.build(s, [input, diagonal, k1, k2, matrix_set_diag_result], target, name="matrix_set_diag")
         input_npy = np.random.randint(-100, 100, size=input_shape).astype(dtype)
         diagonal_npy = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)
         out_npy = tvm.topi.testing.matrix_set_diag(input_npy, diagonal_npy, k, align)
         input_nd = tvm.nd.array(input_npy, dev)
         diagonal_nd = tvm.nd.array(diagonal_npy, dev)
+        k1_nd = tvm.nd.array(np.asarray([k_one]), dev)
+        k2_nd = tvm.nd.array(np.asarray([k_two]), dev)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(matrix_set_diag_result.dtype), dev)
-        fn(input_nd, diagonal_nd, out_nd)
+        fn(input_nd, diagonal_nd, k1_nd, k2_nd, out_nd)
         out_topi = out_nd.numpy()
         tvm.testing.assert_allclose(out_topi, out_npy)
 
@@ -1235,9 +1250,6 @@ def test_sparse_to_dense():
 @tvm.testing.uses_gpu
 def test_matrix_set_diag():
     for dtype in ["float32", "int32"]:
-        verify_matrix_set_diag((2, 2), (2,), dtype)
-        verify_matrix_set_diag((4, 3, 3), (4, 3), dtype)
-        verify_matrix_set_diag((2, 3, 4), (2, 3), dtype, 1)
         verify_matrix_set_diag((2, 3, 4), (2, 4, 3), dtype, (-1, 2), "LEFT_RIGHT")
         verify_matrix_set_diag((2, 3, 4), (2, 4, 3), dtype, (-1, 2), "LEFT_LEFT")
         verify_matrix_set_diag((2, 3, 4), (2, 4, 3), dtype, (-1, 2), "RIGHT_RIGHT")

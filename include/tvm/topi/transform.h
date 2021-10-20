@@ -1759,13 +1759,12 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<PrimExpr
  * \param tag output tensor tag.
  * \return new tensor with given diagonal values.
  */
-inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k1, int k2,
+inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
+                              const Tensor& k1, const Tensor& k2,
                               bool super_diag_right_align, bool sub_diag_right_align,
                               const std::string name = "T_matrix_set_diag",
                               const std::string tag = kInjective) {
   size_t ndim = input->shape.size() - 1;
-
-  bool only_one_diagonal = k1 == k2;
 
   return compute(
       input->shape,
@@ -1776,12 +1775,10 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
           for (size_t i = 0; i < ndim - 1; i++) {
             diagonal_indices.push_back(iter_vars[i]);
           }
-          if (only_one_diagonal) {
-            k = k1;
-          } else {
+          auto multi_diagonals = [&]() {
             // Determining which diagonal/sub-diagonal/super-diagonal it is
             k = iter_vars[ndim] - iter_vars[ndim - 1];
-            diagonal_indices.push_back(k2 - k);
+            diagonal_indices.push_back(k2(0) - k);
 
             // Calculating the offset in diagonal tensor for this diagonal
             auto get_offset = [&](PrimExpr M, PrimExpr N) {
@@ -1794,13 +1791,16 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
                                        : 0,
                 sub_diag_right_align ? get_offset(input->shape[ndim], input->shape[ndim - 1] + k)
                                      : 0);
-          }
+            return k;
+          };
+          auto get_k = [&]() { return if_then_else(k1(0) == k2(0), k1(0), multi_diagonals()); };
+          k = get_k();
           diagonal_indices.push_back(if_then_else(k >= 0, iter_vars[ndim - 1], iter_vars[ndim]) +
                                      offset);
           return diagonal(diagonal_indices);
         };
-        return if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] >= k1,
-                            if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] <= k2,
+        return if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] >= k1(0),
+                            if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] <= k2(0),
                                          get_diag(), input(iter_vars)),
                             input(iter_vars));
       },

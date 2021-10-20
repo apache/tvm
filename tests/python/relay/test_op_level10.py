@@ -543,7 +543,13 @@ def test_matrix_set_diag():
     def _verify(input_shape, diagonal_shape, dtype, k=0, align="RIGHT_LEFT"):
         input = relay.var("input", relay.TensorType(input_shape, dtype))
         diagonal = relay.var("diagonal", relay.TensorType(diagonal_shape, dtype))
-        out = relay.matrix_set_diag(input, diagonal, k, align)
+        out = None
+        if len(diagonal_shape) == len(input_shape) - 1:
+            new_shape = list(diagonal_shape)
+            new_shape.insert(-1, 1)
+            out = relay.matrix_set_diag(input, relay.reshape(diagonal, new_shape), k, align)
+        else:
+            out = relay.matrix_set_diag(input, diagonal, k, align)
 
         in_type = run_infer_type(input)
         out_type = run_infer_type(out)
