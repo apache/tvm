@@ -138,12 +138,7 @@ RELAY_REGISTER_OP("vm.shape_func")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 // vm.invoke_tvm_op
 bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -188,12 +183,7 @@ RELAY_REGISTER_OP("vm.invoke_tvm_op")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 // vm.reshape
 TVM_REGISTER_NODE_TYPE(ReshapeTensorAttrs);
