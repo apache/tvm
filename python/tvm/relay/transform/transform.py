@@ -1248,3 +1248,10 @@ def SplitArgs(max_function_args):
         The registered pass for constant folding.
     """
     return _ffi_api.SplitArgs(max_function_args)
+
+
+def FoldTypeTransformation():
+    """
+    Automatic function signature transformation
+    """
+    return _ffi_api.FoldTypeTransformation()
