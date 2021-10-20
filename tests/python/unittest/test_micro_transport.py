@@ -26,8 +26,7 @@ import pytest
 import tvm.testing
 
 
-@tvm.testing.requires_micro
-class TransportLoggerTests(unittest.TestCase):
+def test_transport_class():
     import tvm.micro
 
     class TestTransport(tvm.micro.transport.Transport):
@@ -62,12 +61,17 @@ class TransportLoggerTests(unittest.TestCase):
         def write(self, data, timeout_sec):
             return self._raise_or_return()
 
+    return TestTransport
+
+
+@tvm.testing.requires_micro
+class TransportLoggerTests(unittest.TestCase):
     def test_transport_logger(self):
         """Tests the TransportLogger class."""
 
         logger = logging.getLogger("transport_logger_test")
         with self.assertLogs(logger) as test_log:
-            transport = self.TestTransport()
+            transport = test_transport_class()()
             transport_logger = tvm.micro.transport.TransportLogger("foo", transport, logger=logger)
 
             transport_logger.open()

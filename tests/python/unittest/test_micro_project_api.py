@@ -26,45 +26,48 @@ import pytest
 
 import tvm
 
-pytest.importorskip("tvm.micro")
-from tvm.micro import project_api
 
+@tvm.testing.fixture
+def BaseTestHandler():
+    from tvm.micro import project_api
 
-class BaseTestHandler(project_api.server.ProjectAPIHandler):
+    class BaseTestHandler(project_api.server.ProjectAPIHandler):
 
-    DEFAULT_TEST_SERVER_INFO = project_api.server.ServerInfo(
-        platform_name="platform_name",
-        is_template=True,
-        model_library_format_path="./model-library-format-path.sh",
-        project_options=[
-            project_api.server.ProjectOption(name="foo", help="Option foo"),
-            project_api.server.ProjectOption(name="bar", choices=["qux"], help="Option bar"),
-        ],
-    )
+        DEFAULT_TEST_SERVER_INFO = project_api.server.ServerInfo(
+            platform_name="platform_name",
+            is_template=True,
+            model_library_format_path="./model-library-format-path.sh",
+            project_options=[
+                project_api.server.ProjectOption(name="foo", help="Option foo"),
+                project_api.server.ProjectOption(name="bar", choices=["qux"], help="Option bar"),
+            ],
+        )
 
-    def server_info_query(self, tvm_version):
-        return self.DEFAULT_TEST_SERVER_INFO
+        def server_info_query(self, tvm_version):
+            return self.DEFAULT_TEST_SERVER_INFO
 
-    def generate_project(self, model_library_format_path, crt_path, project_path, options):
-        assert False, "generate_project is not implemented for this test"
+        def generate_project(self, model_library_format_path, crt_path, project_path, options):
+            assert False, "generate_project is not implemented for this test"
 
-    def build(self, options):
-        assert False, "build is not implemented for this test"
+        def build(self, options):
+            assert False, "build is not implemented for this test"
 
-    def flash(self, options):
-        assert False, "flash is not implemented for this test"
+        def flash(self, options):
+            assert False, "flash is not implemented for this test"
 
-    def open_transport(self, options):
-        assert False, "open_transport is not implemented for this test"
+        def open_transport(self, options):
+            assert False, "open_transport is not implemented for this test"
 
-    def close_transport(self, options):
-        assert False, "open_transport is not implemented for this test"
+        def close_transport(self, options):
+            assert False, "open_transport is not implemented for this test"
 
-    def read_transport(self, n, timeout_sec):
-        assert False, "read_transport is not implemented for this test"
+        def read_transport(self, n, timeout_sec):
+            assert False, "read_transport is not implemented for this test"
 
-    def write_transport(self, data, timeout_sec):
-        assert False, "write_transport is not implemented for this test"
+        def write_transport(self, data, timeout_sec):
+            assert False, "write_transport is not implemented for this test"
+
+    return BaseTestHandler
 
 
 class Transport:
@@ -100,6 +103,8 @@ class Transport:
 
 class ClientServerFixture:
     def __init__(self, handler):
+        from tvm.micro import project_api
+
         self.handler = handler
         self.client_to_server = Transport()
         self.server_to_client = Transport()
@@ -121,7 +126,8 @@ class ClientServerFixture:
         ), "Server failed to process request"
 
 
-def test_server_info_query():
+@tvm.testing.requires_micro
+def test_server_info_query(BaseTestHandler):
     fixture = ClientServerFixture(BaseTestHandler())
 
     # Examine reply explicitly because these are the defaults for all derivative test cases.
@@ -136,7 +142,10 @@ def test_server_info_query():
     ]
 
 
-def test_server_info_query_wrong_tvm_version():
+@tvm.testing.requires_micro
+def test_server_info_query_wrong_tvm_version(BaseTestHandler):
+    from tvm.micro import project_api
+
     def server_info_query(tvm_version):
         raise project_api.server.UnsupportedTVMVersionError()
 
@@ -148,7 +157,10 @@ def test_server_info_query_wrong_tvm_version():
         assert "UnsupportedTVMVersionError" in str(exc_info.value)
 
 
-def test_server_info_query_wrong_protocol_version():
+@tvm.testing.requires_micro
+def test_server_info_query_wrong_protocol_version(BaseTestHandler):
+    from tvm.micro import project_api
+
     ServerInfoProtocol = collections.namedtuple(
         "ServerInfoProtocol", list(project_api.server.ServerInfo._fields) + ["protocol_version"]
     )
@@ -166,7 +178,8 @@ def test_server_info_query_wrong_protocol_version():
         assert "microTVM API Server supports protocol version 0; want 1" in str(exc_info.value)
 
 
-def test_base_test_handler():
+@tvm.testing.requires_micro
+def test_base_test_handler(BaseTestHandler):
     """All methods should raise AssertionError on BaseTestHandler."""
     fixture = ClientServerFixture(BaseTestHandler())
 
@@ -180,7 +193,8 @@ def test_base_test_handler():
             assert (exc_info.exception) == f"{method} is not implemented for this test"
 
 
-def test_build():
+@tvm.testing.requires_micro
+def test_build(BaseTestHandler):
     with mock.patch.object(BaseTestHandler, "build", return_value=None) as patch:
         fixture = ClientServerFixture(BaseTestHandler())
         fixture.client.build(options={"bar": "baz"})
@@ -188,14 +202,18 @@ def test_build():
         fixture.handler.build.assert_called_once_with(options={"bar": "baz"})
 
 
-def test_flash():
+@tvm.testing.requires_micro
+def test_flash(BaseTestHandler):
     with mock.patch.object(BaseTestHandler, "flash", return_value=None) as patch:
         fixture = ClientServerFixture(BaseTestHandler())
         fixture.client.flash(options={"bar": "baz"})
         fixture.handler.flash.assert_called_once_with(options={"bar": "baz"})
 
 
-def test_open_transport():
+@tvm.testing.requires_micro
+def test_open_transport(BaseTestHandler):
+    from tvm.micro import project_api
+
     timeouts = project_api.server.TransportTimeouts(
         session_start_retry_timeout_sec=1.0,
         session_start_timeout_sec=2.0,
@@ -210,14 +228,18 @@ def test_open_transport():
         fixture.handler.open_transport.assert_called_once_with({"bar": "baz"})
 
 
-def test_close_transport():
+@tvm.testing.requires_micro
+def test_close_transport(BaseTestHandler):
     with mock.patch.object(BaseTestHandler, "close_transport", return_value=None) as patch:
         fixture = ClientServerFixture(BaseTestHandler())
         fixture.client.close_transport()
         fixture.handler.close_transport.assert_called_once_with()
 
 
-def test_read_transport():
+@tvm.testing.requires_micro
+def test_read_transport(BaseTestHandler):
+    from tvm.micro import project_api
+
     with mock.patch.object(BaseTestHandler, "read_transport", return_value=b"foo\x1b") as patch:
         fixture = ClientServerFixture(BaseTestHandler())
         assert fixture.client.read_transport(128, timeout_sec=5.0) == {"data": b"foo\x1b"}
@@ -239,7 +261,10 @@ def test_read_transport():
         assert fixture.handler.read_transport.call_count == 3
 
 
-def test_write_transport():
+@tvm.testing.requires_micro
+def test_write_transport(BaseTestHandler):
+    from tvm.micro import project_api
+
     with mock.patch.object(BaseTestHandler, "write_transport", return_value=None) as patch:
         fixture = ClientServerFixture(BaseTestHandler())
         assert fixture.client.write_transport(b"foo", timeout_sec=5.0) is None
@@ -264,7 +289,10 @@ class ProjectAPITestError(Exception):
     """An error raised in test."""
 
 
-def test_method_raises_error():
+@tvm.testing.requires_micro
+def test_method_raises_error(BaseTestHandler):
+    from tvm.micro import project_api
+
     with mock.patch.object(
         BaseTestHandler, "close_transport", side_effect=ProjectAPITestError
     ) as patch:
@@ -276,7 +304,10 @@ def test_method_raises_error():
         assert "ProjectAPITestError" in str(exc_info.value)
 
 
-def test_method_not_found():
+@tvm.testing.requires_micro
+def test_method_not_found(BaseTestHandler):
+    from tvm.micro import project_api
+
     fixture = ClientServerFixture(BaseTestHandler())
 
     with pytest.raises(project_api.server.JSONRPCError) as exc_info:
@@ -285,7 +316,10 @@ def test_method_not_found():
     assert exc_info.value.code == project_api.server.ErrorCode.METHOD_NOT_FOUND
 
 
-def test_extra_param():
+@tvm.testing.requires_micro
+def test_extra_param(BaseTestHandler):
+    from tvm.micro import project_api
+
     fixture = ClientServerFixture(BaseTestHandler())
 
     # test one with has_preprocssing and one without
@@ -304,7 +338,10 @@ def test_extra_param():
     assert "open_transport: extra parameters: invalid_param_name" in str(exc_info.value)
 
 
-def test_missing_param():
+@tvm.testing.requires_micro
+def test_missing_param(BaseTestHandler):
+    from tvm.micro import project_api
+
     fixture = ClientServerFixture(BaseTestHandler())
 
     # test one with has_preprocssing and one without
@@ -323,7 +360,10 @@ def test_missing_param():
     assert "open_transport: parameter options not given" in str(exc_info.value)
 
 
-def test_incorrect_param_type():
+@tvm.testing.requires_micro
+def test_incorrect_param_type(BaseTestHandler):
+    from tvm.micro import project_api
+
     fixture = ClientServerFixture(BaseTestHandler())
 
     # The error message given at the JSON-RPC server level doesn't make sense when preprocessing is
@@ -338,7 +378,10 @@ def test_incorrect_param_type():
     )
 
 
-def test_invalid_request():
+@tvm.testing.requires_micro
+def test_invalid_request(BaseTestHandler):
+    from tvm.micro import project_api
+
     fixture = ClientServerFixture(BaseTestHandler())
 
     # Invalid JSON does not get a reply.
