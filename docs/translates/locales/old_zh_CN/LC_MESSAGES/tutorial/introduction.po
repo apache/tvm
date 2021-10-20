@@ -1,0 +1,288 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# juzi, 2021
+# 安杰 许, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:40+0000\n"
+"Last-Translator: 安杰 许, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/tutorial/introduction.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_tutorial_introduction.py>` to download "
+"the full example code"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:11
+msgid "Introduction"
+msgstr "介绍"
+
+#: ../../_staging/tutorial/introduction.rst:12
+msgid ""
+"**Authors**: `Jocelyn Shiue <https://github.com/>`_, `Chris Hoge "
+"<https://github.com/hogepodge>`_, `Lianmin Zheng "
+"<https://github.com/merrymercy>`_"
+msgstr ""
+"**作者**: `Jocelyn Shiue <https://github.com/>`_, `Chris Hoge "
+"<https://github.com/hogepodge>`_, `Lianmin Zheng "
+"<https://github.com/merrymercy>`_"
+
+#: ../../_staging/tutorial/introduction.rst:17
+msgid ""
+"Apache TVM is an open source machine learning compiler framework for CPUs, "
+"GPUs, and machine learning accelerators. It aims to enable machine learning "
+"engineers to optimize and run computations efficiently on any hardware "
+"backend. The purpose of this tutorial is to take a guided tour through all "
+"of the major features of TVM by defining and demonstrating key concepts. A "
+"new user should be able to work through the tutorial from start to finish "
+"and be able to operate TVM for automatic model optimization, while having a "
+"basic understanding of the TVM architecture and how it works."
+msgstr ""
+"ApacheTVM是一个面向CPU、GPU和机器学习加速器的开源机器学习编译器框架。它旨在使机器学习工程师能够在任何后端设备高效地优化并运行计算。本教程的目的是通过解释和说明关键概念，引导您了解TVM的所有主要功能。新用户应该能够从头到尾学习本教程并可以操作TVM进行自动模型优化，同时对TVM体系结构及其工作原理有基本了解。"
+
+#: ../../_staging/tutorial/introduction.rst:27
+msgid "Contents"
+msgstr "内容目录"
+
+#: ../../_staging/tutorial/introduction.rst:29
+msgid ":doc:`Introduction <introduction>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:30
+msgid ":doc:`Installing TVM <install>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:31
+msgid ""
+":doc:`Compiling and Optimizing a Model with the Command Line Interface "
+"<tvmc_command_line_driver>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:32
+msgid ""
+":doc:`Compiling and Optimizing a Model with the Python Interface "
+"<autotvm_relay_x86>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:33
+msgid ""
+":doc:`Working with Operators Using Tensor Expression "
+"<tensor_expr_get_started>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:34
+msgid ""
+":doc:`Optimizing Operators with Templates and AutoTVM <autotvm_matmul_x86>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:35
+msgid ""
+":doc:`Optimizing Operators with Template-free AutoScheduler "
+"<auto_scheduler_matmul_x86>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:36
+msgid ""
+":doc:`Cross Compilation and Remote Procedure Calls (RPC) "
+"<cross_compilation_and_rpc>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:37
+msgid ":doc:`Compiling Deep Learning Models for GPUs <relay_quick_start>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:40
+msgid "An Overview of TVM and Model Optimization"
+msgstr "TVM和模型优化的概述"
+
+#: ../../_staging/tutorial/introduction.rst:42
+msgid ""
+"The diagram below illustrates the steps a machine model takes as it is "
+"transformed with the TVM optimizing compiler framework."
+msgstr "下图说明了机器模型在使用TVM优化编译器框架进行转换时所采取的步骤。"
+
+#: ../../_staging/tutorial/introduction.rstNone
+msgid "A High Level View of TVM"
+msgstr "TVM高级视图"
+
+#: ../../_staging/tutorial/introduction.rst:49
+msgid ""
+"Import the model from a framework like *Tensorflow*, *Pytorch*, or *Onnx*. "
+"The importer layer is where TVM can ingest models from other frameworks, "
+"like Tensorflow, PyTorch, or ONNX. The level of support that TVM offers for "
+"each frontend varies as we are constantly improving the open source project."
+" If you're having issues importing your model into TVM, you may want to try "
+"converting it to ONNX."
+msgstr ""
+"从 \"Tensorflow\"、\"Pytorch\"或\"Onnx\"等框架导入模型。导入层是 TVM "
+"可以从其他框架（如Tensorflow、PyTorch 或 "
+"ONNX）中接收模型的地方。随着我们不断改进开源项目，TVM为每个前端提供的支持水平会各不相同。如果您在将模型导入 TVM "
+"时遇到问题，您可能需要尝试将其转换为 ONNX。"
+
+#: ../../_staging/tutorial/introduction.rst:56
+msgid ""
+"Translate to *Relay*, TVM's high-level model language. A model that has been"
+" imported into TVM is represented in Relay. Relay is a functional language "
+"and intermediate representation (IR) for neural networks. It has support "
+"for:"
+msgstr ""
+"转化为*Relay*，TVM "
+"的高级别模型语言。已导入TVM的模型会用Relay表示。Relay是一种用于神经网络的功能性语言和中间表示（IR）。它支持："
+
+#: ../../_staging/tutorial/introduction.rst:61
+msgid "Traditional data flow-style representations"
+msgstr "传统数据流式表示"
+
+#: ../../_staging/tutorial/introduction.rst:62
+msgid ""
+"Functional-style scoping, let-binding which makes it a fully featured "
+"differentiable language"
+msgstr "函数风格作用域，让它成为功能齐全的可区分语言的let绑定。"
+
+#: ../../_staging/tutorial/introduction.rst:64
+msgid "Ability to allow the user to mix the two programming styles"
+msgstr "允许用户混合两种编程风格的能力。"
+
+#: ../../_staging/tutorial/introduction.rst:66
+msgid "Relay applies graph-level optimization passes to optimize the model."
+msgstr "Relay应用图级优化通道来优化模型"
+
+#: ../../_staging/tutorial/introduction.rst:68
+msgid ""
+"Lower to *Tensor Expression* (TE) representation. Lowering is when a higher-"
+"level representation is transformed into a lower-level representation. After"
+" applying the high-level optimizations, Relay runs FuseOps pass to partition"
+" the model into many small subgraphs and lowers the subgraphs to TE "
+"representation. Tensor Expression (TE) is a domain-specific language for "
+"describing tensor computations. TE also provides several *schedule* "
+"primitives to specify low-level loop optimizations, such as tiling, "
+"vectorization, parallelization, unrolling, and fusion. To aid in the process"
+" of converting Relay representation into TE representation, TVM includes a "
+"Tensor Operator Inventory (TOPI) that has pre-defined templates of common "
+"tensor operators (e.g., conv2d, transpose)."
+msgstr ""
+"降低至 *Tensor Expression* （TE） "
+"表示。降低是指将较高级别的表示转换为较低级别的表示。应用高级优化后，Relay运行FuseOps "
+"将模型划分为许多小子图并将子图降低到TE表示。Tensor Expression （TE） "
+"是描述张力计算的特定域语言。TE还提供了几个*schedule*原语来指定低级循环优化，例如平铺、矢量化、并行化、展开和融合。为了促进将Relay表示转换为TE表示的过程，TVM包括一个张量运算符清单（TOPI），该清单具有公共张量运算符的预定义模板（例如conv2d、transpose）。"
+
+#: ../../_staging/tutorial/introduction.rst:81
+msgid ""
+"Search for the best schedule using the auto-tuning module *AutoTVM* or "
+"*AutoScheduler*. A schedule specifies the low-level loop optimizations for "
+"an operator or subgraph defined in TE. Auto-tuning modules search for the "
+"best schedule and compare them with cost models and on-device measurements. "
+"There are two auto-tuning modules in TVM."
+msgstr ""
+"使用自动调整模块*AutoVM*或*AutoScheduler*搜索最佳方案。计划为TE中定义的运算符或子图指定低级循环优化。自动调整模块搜索最佳计划并将其与成本模型和设备测量值进行比较。TVM中有两个自动调谐模块。"
+
+#: ../../_staging/tutorial/introduction.rst:87
+msgid ""
+"**AutoTVM**: A template-based auto-tuning module. It runs search algorithms "
+"to find the best values for the tunable knobs in a user-defined template. "
+"For common operators, their templates are already provided in TOPI."
+msgstr ""
+"**AutoTVM**：基于模板的自动调整模块。它运行搜索算法为用户定义的模板中的可调旋钮找到最佳值。对于普通操作者，其模板已在TOPI中提供。"
+
+#: ../../_staging/tutorial/introduction.rst:90
+msgid ""
+"**AutoScheduler (a.k.a. Ansor)**: A template-free auto-tuning module. It "
+"does not require pre-defined schedule templates. Instead, it generates the "
+"search space automatically by analyzing the computation definition. It then "
+"searches for the best schedule in the generated search space."
+msgstr ""
+"**AutoScheduler "
+"(又称Ansor)**：无模板自动调整模块。它不需要预定义的计划模板。相反，它通过分析计算定义自动生成搜索空间。然后在生成的搜索空间中搜索最佳计划。"
+
+#: ../../_staging/tutorial/introduction.rst:95
+msgid ""
+"Choose the optimal configurations for model compilation. After tuning, the "
+"auto-tuning module generates tuning records in JSON format. This step picks "
+"the best schedule for each subgraph."
+msgstr "为模型编译选择最佳配置。调整之后，自动调整模块以JSON格式生成调整记录。此步骤为每个子图选择最佳计划。"
+
+#: ../../_staging/tutorial/introduction.rst:99
+msgid ""
+"Lower to Tensor Intermediate Representation (TIR), TVM's low-level "
+"intermediate representation. After selecting the optimal configurations "
+"based on the tuning step, each TE subgraph is lowered to TIR and be "
+"optimized by low-level optimization passes. Next, the optimized TIR is "
+"lowered to the target compiler of the hardware platform. This is the final "
+"code generation phase to produce an optimized model that can be deployed "
+"into production. TVM supports several different compiler backends including:"
+msgstr ""
+"降低Tensor Intermediate Representation "
+"(TIR)，TVM的低水平中间表示。在根据调整步骤选择最佳配置后，每个TE子图被降低到TIR并通过低级优化过程进行优化。接下来，将优化的TIR降低到硬件平台的目标编译器。这是生成可部署到生产中的优化模型的最后代码生成阶段。TVM支持几种不同的编译器后端，包括："
+
+#: ../../_staging/tutorial/introduction.rst:108
+msgid ""
+"LLVM, which can target arbitrary microprocessor architecture including "
+"standard x86 and ARM processors, AMDGPU and NVPTX code generation, and any "
+"other platform supported by LLVM."
+msgstr "LLVM，可针对任意微处理器体的系结构，包括标准x86和ARM处理器、AMDGPU和NVPTX代码生成，以及LLVM支持的任何其他平台。"
+
+#: ../../_staging/tutorial/introduction.rst:111
+msgid "Specialized compilers, such as NVCC, NVIDIA's compiler."
+msgstr "专门的编译器，如NVCC，NVIDIA的编译器。"
+
+#: ../../_staging/tutorial/introduction.rst:112
+msgid ""
+"Embedded and specialized targets, which are implemented through TVM's Bring "
+"Your Own Codegen (BYOC) framework."
+msgstr "通过TVM的自带Codegen（BYOC）框架实现的嵌入式和专用目标。"
+
+#: ../../_staging/tutorial/introduction.rst:115
+msgid ""
+"Compile down to machine code. At the end of this process, the compiler-"
+"specific generated code can be lowered to machine code."
+msgstr "编译到机器代码。在此过程结束时，特定于编译器生成的代码可以降低为机器代码。"
+
+#: ../../_staging/tutorial/introduction.rst:118
+msgid ""
+"TVM can compile models down to a linkable object module, which can then be "
+"run with a lightweight TVM runtime that provides C APIs to dynamically load "
+"the model, and entry points for other languages such as Python and Rust. TVM"
+" can also build a bundled deployment in which the runtime is combined with "
+"the model in a single package."
+msgstr ""
+"TVM可以将模型编译为可链接的对象模块，然后在可以使用轻量级TVM运行时运行该模块，该运行时提供了动态加载模型的C "
+"APIs以及Python和Rust等其他语言的接口。TVM还可以构建一个运行时与模型组合在一个包中的捆绑部署。"
+
+#: ../../_staging/tutorial/introduction.rst:124
+msgid ""
+"The remainder of the tutorial will cover these aspects of TVM in more "
+"detail."
+msgstr "本教程的其余部分将更详细地介绍TVM的这些方面。"
+
+#: ../../_staging/tutorial/introduction.rst:139
+msgid ""
+":download:`Download Python source code: introduction.py <introduction.py>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:145
+msgid ""
+":download:`Download Jupyter notebook: introduction.ipynb "
+"<introduction.ipynb>`"
+msgstr ""
+
+#: ../../_staging/tutorial/introduction.rst:152
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

@@ -5,8 +5,6 @@ import os
 import json
 
 site_url = "https://www.transifex.com/signin/"
-user = "lab_otcaix@163.com"
-password = "TVMChinese980728"
 file_url = "https://www.transifex.com/TVMChinese/reports/?downloadcsv=1&from=2021-09-01&to="
 
 base_dir=os.path.dirname(__file__)

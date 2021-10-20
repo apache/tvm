@@ -114,8 +114,7 @@ then
     echo "start to generate sitemap for website."
     # old html fold: $DOCS/_build/last_html_$LANGUAGE
     # new html fold: $DOCS/_build/html_$LANGUAGE
-
-    # run your script here.
+    python3 $DOCS/sitemaps/sitemap_generator/generate_sitemap.py --ndir $DOCS/_build/html_$LANGUAGE --odir $DOCS/_build/last_html_$LANGUAGE --ositemap $DOCS/_build/last_html_$LANGUAGE/google-sitemap.xml --sitemap $DOCS/_build/html_$LANGUAGE/google-sitemap.xml
 
     echo "done"
 fi

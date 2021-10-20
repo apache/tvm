@@ -6,6 +6,7 @@ __pycache__/
 # docs
 docs/*.png
 docs/transifex_identify.json
+docs/sitemaps/sitemap_generator/__pycache__
 # C extensions
 *.so
 *.ll

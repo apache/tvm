@@ -339,6 +339,8 @@ msgid ""
 "root_iter_var is taken from the ``dom`` member of the IterVar (see the "
 "IterVarNode class declaration above)."
 msgstr ""
+"如果该阶段是输出阶段或者占位符，InferRootBound 只需将 root_iter_var 范围设置为其默认值。root_iter_var "
+"的默认范围取自 Itvar 的 ``dom`` 成员（请参阅上面的 IterVarNode 类声明）。"
 
 #: ../../_staging/arch/inferbound.rst:203
 msgid ""
