@@ -26,6 +26,7 @@ from .infrastructure import (
     build_and_run,
     get_block_shape,
     get_conv2d_nhwc_shape,
+    get_filter_block_shape,
     get_packed_filter_layout,
     get_packed_activation_layout,
 )
@@ -93,13 +94,13 @@ def conv2d_nhwc8h8w32c(
         ],
     )
 
-    # TODO move to infrastructure and make it 8 (cio), 32 (ki), 4 (cii)
-    filter_Ki, filter_Ci, filter_Cii = 32, 32, 4
+    filter_Cio, filter_Ki, filter_Cii = get_filter_block_shape()
+    filter_Ci = filter_Cio * filter_Cii
 
     if len(shape_filter) == 7:
         assert shape_filter[-1] == filter_Cii
         assert shape_filter[-2] == filter_Ki
-        assert shape_filter[-3] == filter_Ci // filter_Cii
+        assert shape_filter[-3] == filter_Cio
 
         filt = te.placeholder(shape_filter, dtype=dtype)
         filt_packed = filt
@@ -286,13 +287,13 @@ def conv2d_nhw8h8wc(
         packed_shape, lambda n, ho, wo, hi, wi, c: X_pad[n, ho * block_H + hi, wo * block_W + wi, c]
     )
 
-    # TODO move to infrastructure and make it 8 (cio), 32 (ki), 4 (cii)
-    filter_Ki, filter_Ci, filter_Cii = 32, 32, 4
+    filter_Cio, filter_Ki, filter_Cii = get_filter_block_shape()
+    filter_Ci = filter_Cio * filter_Cii
 
     if len(shape_filter) == 7:
         assert shape_filter[-1] == filter_Cii
         assert shape_filter[-2] == filter_Ki
-        assert shape_filter[-3] == filter_Ci // filter_Cii
+        assert shape_filter[-3] == filter_Cio
 
         filt = te.placeholder(shape_filter, dtype=dtype)
         filt_packed = filt

@@ -39,16 +39,25 @@ def get_packed_activation_layout(shape_nhwc, block_shape, packed_C=True):
     return shape
 
 
+def get_block_shape():
+    return 8, 8, 32
+
+
+def get_filter_block_shape():
+    return 8, 32, 4
+
+
 def get_packed_filter_layout(out_channel, in_channel, kernel_h, kernel_w):
-    out_factor, in_first_factor, in_second_factor = 32, 32, 4
+    filter_Cio, filter_Ki, filter_Cii = get_filter_block_shape()
+    filter_Ci = filter_Cio * filter_Cii
     return (
-        int(ceildiv(out_channel, out_factor)),
-        int(ceildiv(in_channel, in_first_factor)),
+        int(ceildiv(out_channel, filter_Ki)),
+        int(ceildiv(in_channel, filter_Ci)),
         kernel_h,
         kernel_w,
-        in_first_factor // in_second_factor,
-        out_factor,
-        in_second_factor,
+        filter_Cio,
+        filter_Ki,
+        filter_Cii,
     )
 
 
@@ -69,10 +78,6 @@ def build_and_run(inputs, func, target, target_host, *args, **kwargs):
     func(*tensors)
 
     return tensors[-1].asnumpy()
-
-
-def get_block_shape():
-    return 8, 8, 32
 
 
 def get_conv2d_nhwc_shape(shape_nhwc, kernel_size, strides, padding, dilation, out_channels):
