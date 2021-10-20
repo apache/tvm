@@ -1022,6 +1022,18 @@ def topk_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@searchsorted_strategy.register(["cuda", "gpu"])
+def searchsorted_strategy_cuda(attrs, inputs, out_type, target):
+    """searchsorted cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_searchsorted(topi.cuda.searchsorted),
+        wrap_topi_schedule(topi.cuda.schedule_extern),
+        name="searchsorted.cuda",
+    )
+    return strategy
+
+
 @multibox_prior_strategy.register(["cuda", "gpu"])
 def multibox_prior_strategy_cuda(attrs, inputs, out_type, target):
     """multibox_prior cuda strategy"""
