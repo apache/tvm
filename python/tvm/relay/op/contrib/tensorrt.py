@@ -142,6 +142,7 @@ def partition_for_tensorrt(
             transform.RemoveUnusedFunctions(),
             transform.ConvertLayout(
                 {
+                    "nn.conv1d": ["NCW", "default"],
                     "nn.conv2d": ["NCHW", "default"],
                     "nn.conv3d": ["NCDHW", "default"],
                     "nn.conv2d_transpose": ["NCHW", "default"],
@@ -370,6 +371,23 @@ def softmax_annotate_fn(expr):  # pylint: disable=unused-variable
         return False
     if get_tensorrt_use_implicit_batch_mode() and int(attrs.axis) == 0:
         logger.info("nn.softmax: can't modify batch dimension.")
+        return False
+    return True
+
+
+@_register_external_dynamic_check_func("nn.conv1d")
+def conv1d_annotate_fn(expr):  # pylint: disable=unused-variable
+    """Check if nn.conv1d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
+    if any([x.checked_type.dtype != "float32" for x in args]):
+        logger.info("Only float32 inputs are supported for TensorRT.")
+        return False
+    if attrs.data_layout != "NCW":
+        logger.info("nn.conv1d: data_layout is %s but must be NCW.", attrs.data_layout)
+        return False
+    if attrs.kernel_layout != "OIW":
+        logger.info("nn.conv1d: kernel_layout is %s but must be OIW.", attrs.kernel_layout)
         return False
     return True
 
@@ -912,6 +930,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
     def visit_call(self, call):
         compute_intensive_ops = set(
             [
+                "nn.conv1d",
                 "nn.conv2d",
                 "nn.conv2d_transpose",
                 "nn.conv3d",
