@@ -96,7 +96,6 @@ RELAY_REGISTER_OP("on_device")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<TNonComputational>("TNonComputational", true);
 
-
 OnDeviceProps GetOnDeviceProps(const CallNode* call_node) {
   if (call_node->op == OnDeviceOp()) {
     ICHECK_EQ(call_node->args.size(), 1) << "on_device expects one argument";
