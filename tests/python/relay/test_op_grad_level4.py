@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import numpy as np
 from tvm import relay
-from tvm.relay.testing import check_grad
+from tvm.relay.testing import check_grad, _np_randn_from_type
 
 
 def verify_reduction_grad(red_fn, d_shape, axis=None, keepdims=False, exclude=False):
@@ -49,6 +50,73 @@ def test_max_grad():
     verify_max_grad((10, 10), axis=-1)
     verify_max_grad((6, 3, 2), axis=(1, 2), keepdims=True)
     verify_max_grad((5, 4, 3), axis=(0, 2), exclude=True)
+
+
+def test_where_grad():
+    cond_type = relay.TensorType((2, 3, 4), "int32")
+    lhs_type = relay.TensorType((1, 3, 4), "float32")
+    rhs_type = relay.TensorType((2, 1, 4), "float32")
+    inputs = [
+        np.random.randint(2, size=cond_type.concrete_shape, dtype=cond_type.dtype),
+        _np_randn_from_type(lhs_type, scale=1e-5),
+        _np_randn_from_type(rhs_type, scale=1e-5),
+    ]
+
+    cond = relay.var("cond", type_annotation=cond_type)
+    lhs = relay.var("lhs", type_annotation=lhs_type)
+    rhs = relay.var("rhs", type_annotation=rhs_type)
+    fwd_func = relay.Function([cond, lhs, rhs], relay.where(cond, lhs, rhs))
+    check_grad(fwd_func, inputs=inputs, test_inputs=inputs[1:])
+
+
+def test_less_equal_grad():
+    x_type = relay.TensorType((2, 3, 4), "float32")
+    y_type = relay.TensorType((3, 1), "float32")
+    # We need to generate inputs far apart to get correct numerical gradients
+    # (otherwise adding epsilon may change comparison result). The gradient
+    # should always be zero for both inputs.
+    inputs = [
+        np.random.choice([-1, 1], size=x_type.concrete_shape).astype(x_type.dtype),
+        np.random.choice([-2, 2], size=y_type.concrete_shape).astype(y_type.dtype),
+    ]
+
+    x = relay.var("x", type_annotation=x_type)
+    y = relay.var("y", type_annotation=y_type)
+    fwd_func = relay.Function([x, y], relay.less_equal(x, y))
+    check_grad(fwd_func, inputs=inputs, test_inputs=inputs, eps=1e-6)
+
+
+def test_not_equal_grad():
+    x_type = relay.TensorType((2, 3, 4), "float32")
+    y_type = relay.TensorType((3, 1), "float32")
+    # We need to generate inputs far apart to get correct numerical gradients
+    # (otherwise adding epsilon may change comparison result). The gradient
+    # should always be zero for both inputs.
+    inputs = [
+        np.random.choice([-1, 1], size=x_type.concrete_shape).astype(x_type.dtype),
+        np.random.choice([-2, 2], size=y_type.concrete_shape).astype(y_type.dtype),
+    ]
+
+    x = relay.var("x", type_annotation=x_type)
+    y = relay.var("y", type_annotation=y_type)
+    fwd_func = relay.Function([x, y], relay.not_equal(x, y))
+    check_grad(fwd_func, inputs=inputs, test_inputs=inputs, eps=1e-6)
+
+
+def test_strided_slice_grad():
+    def check(sh, dtype, begin, end, strides, slice_mode):
+        x = relay.var("x", shape=sh, dtype=dtype)
+        f = relay.Function(
+            [x],
+            relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode),
+        )
+        check_grad(f)
+
+    check((2, 3, 4), "float32", (0, 1, 0), (-1, -1, 1), (1, 1, 1), "size")
+    check((2, 3, 4), "float32", (0, 1, 0), (2, 3, 1), (1, 1, 1), "end")
+    # check that strides are properly ignored when using "size" mode
+    check((2, 3, 4), "float32", (0, 0, 0), (-1, -1, -1), (1, 1, 2), "size")
+    check((2, 3, 4), "float32", (0, 0, 0), (2, 3, 4), (1, 1, 2), "end")
 
 
 if __name__ == "__main__":

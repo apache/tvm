@@ -22,6 +22,7 @@
  * \brief The dataflow pattern language for Relay.
  */
 #include <tvm/relay/dataflow_pattern.h>
+#include <tvm/runtime/data_type.h>
 
 namespace tvm {
 namespace relay {
@@ -44,29 +45,22 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->Print(node->expr);
     });
 
-VarPattern::VarPattern(String name_hint, Type type_annotation) {
+VarPattern::VarPattern(String name_hint) {
   ObjectPtr<VarPatternNode> n = make_object<VarPatternNode>();
   n->name = std::move(name_hint);
-  n->type_annotation = std::move(type_annotation);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(VarPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.dataflow_pattern.VarPattern")
-    .set_body_typed([](String name_hint, Type type_annotation) {
-      return VarPattern(name_hint, type_annotation);
-    });
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.VarPattern").set_body_typed([](String name_hint) {
+  return VarPattern(name_hint);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<VarPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const VarPatternNode*>(ref.get());
-      p->stream << "VarPattern(" << node->name_hint();
-      if (node->type_annotation.defined()) {
-        p->stream << ", ty=";
-        p->Print(node->type_annotation);
-      }
-      p->stream << ")";
+      p->stream << "VarPattern(" << node->name_hint() << ")";
     });
 
 TVM_REGISTER_NODE_TYPE(ConstantPatternNode);
@@ -81,27 +75,85 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "ConstantPattern()";
     });
 
-CallPattern::CallPattern(DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args) {
+CallPattern::CallPattern(DFPattern op, Array<DFPattern> args) {
   ObjectPtr<CallPatternNode> n = make_object<CallPatternNode>();
   n->op = std::move(op);
   n->args = std::move(args);
-  n->attrs = std::move(attrs);
-  n->type_args = std::move(type_args);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(CallPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.CallPattern")
-    .set_body_typed([](DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args) {
-      return CallPattern(op, args, attrs, type_args);
-    });
+    .set_body_typed([](DFPattern op, Array<DFPattern> args) { return CallPattern(op, args); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<CallPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const CallPatternNode*>(ref.get());
-      p->stream << "CallPatternNode(" << node->op << ", " << node->args << ", " << node->attrs
-                << ", " << node->type_args << ")";
+      p->stream << "CallPatternNode(" << node->op << ", " << node->args << ")";
+    });
+
+FunctionPattern::FunctionPattern(Array<DFPattern> params, DFPattern body) {
+  ObjectPtr<FunctionPatternNode> n = make_object<FunctionPatternNode>();
+  n->params = std::move(params);
+  n->body = std::move(body);
+  data_ = std::move(n);
+}
+TVM_REGISTER_NODE_TYPE(FunctionPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.FunctionPattern")
+    .set_body_typed([](Array<DFPattern> params, DFPattern body) {
+      return FunctionPattern(params, body);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<FunctionPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const FunctionPatternNode*>(ref.get());
+      p->stream << "FunctionPatternNode(" << node->params << ", " << node->body << ")";
+    });
+
+LetPattern::LetPattern(DFPattern var, DFPattern value, DFPattern body) {
+  ObjectPtr<LetPatternNode> n = make_object<LetPatternNode>();
+  n->var = std::move(var);
+  n->value = std::move(value);
+  n->body = std::move(body);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(LetPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.LetPattern")
+    .set_body_typed([](DFPattern var, DFPattern value, DFPattern body) {
+      return LetPattern(var, value, body);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<LetPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const LetPatternNode*>(ref.get());
+      p->stream << "LetPatternNode(" << node->var << ", " << node->value << ", " << node->body
+                << ")";
+    });
+
+IfPattern::IfPattern(DFPattern cond, DFPattern true_branch, DFPattern false_branch) {
+  ObjectPtr<IfPatternNode> n = make_object<IfPatternNode>();
+  n->cond = std::move(cond);
+  n->true_branch = std::move(true_branch);
+  n->false_branch = std::move(false_branch);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(IfPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.IfPattern")
+    .set_body_typed([](DFPattern cond, DFPattern true_branch, DFPattern false_branch) {
+      return IfPattern(cond, true_branch, false_branch);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<IfPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const IfPatternNode*>(ref.get());
+      p->stream << "IfPattern(" << node->cond << ", " << node->true_branch << ", "
+                << node->false_branch << ")";
     });
 
 TuplePattern::TuplePattern(tvm::Array<DFPattern> fields) {
@@ -227,7 +279,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "TypePattern(" << node->pattern << " has dtype " << node->dtype << ")";
     });
 
-AttrPattern::AttrPattern(DFPattern pattern, Attrs attrs) {
+AttrPattern::AttrPattern(DFPattern pattern, DictAttrs attrs) {
   ObjectPtr<AttrPatternNode> n = make_object<AttrPatternNode>();
   n->pattern = std::move(pattern);
   n->attrs = std::move(attrs);
@@ -237,7 +289,7 @@ AttrPattern::AttrPattern(DFPattern pattern, Attrs attrs) {
 TVM_REGISTER_NODE_TYPE(AttrPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.AttrPattern")
-    .set_body_typed([](DFPattern pattern, Attrs attrs) { return AttrPattern(pattern, attrs); });
+    .set_body_typed([](DFPattern pattern, DictAttrs attrs) { return AttrPattern(pattern, attrs); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<AttrPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -249,6 +301,7 @@ DominatorPattern::DominatorPattern(DFPattern parent, DFPattern path, DFPattern c
   ObjectPtr<DominatorPatternNode> n = make_object<DominatorPatternNode>();
   n->parent = std::move(parent);
   n->path = std::move(path);
+
   n->child = std::move(child);
   data_ = std::move(n);
 }
@@ -266,6 +319,51 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "DominatorPattern(" << node->parent << ", " << node->path << ", " << node->child
                 << ")";
     });
+
+// Syntatic Sugar
+DFPattern DFPattern::operator()(const std::vector<DFPattern>& args) {
+  return CallPattern(GetRef<DFPattern>(this->get()), Array<DFPattern>(args));
+}
+DFPattern DFPattern::operator+(const DFPattern& other) {
+  return IsOp("add")({GetRef<DFPattern>(this->get()), other});
+}
+DFPattern DFPattern::operator-(const DFPattern& other) {
+  return IsOp("subtract")({GetRef<DFPattern>(this->get()), other});
+}
+DFPattern DFPattern::operator*(const DFPattern& other) {
+  return IsOp("multiply")({GetRef<DFPattern>(this->get()), other});
+}
+DFPattern DFPattern::operator/(const DFPattern& other) {
+  return IsOp("divide")({GetRef<DFPattern>(this->get()), other});
+}
+DFPattern DFPattern::operator||(const DFPattern& other) {
+  return AltPattern(GetRef<DFPattern>(this->get()), other);
+}
+
+DFPattern DFPattern::HasAttr(const Map<String, ObjectRef>& attrs) {
+  return AttrPattern(GetRef<DFPattern>(this->get()), DictAttrs(attrs));
+}
+DFPattern DFPattern::HasType(const Type& type) {
+  return TypePattern(GetRef<DFPattern>(this->get()), type);
+}
+DFPattern DFPattern::HasDtype(const DataType& dtype) {
+  return DataTypePattern(GetRef<DFPattern>(this->get()), dtype);
+}
+DFPattern DFPattern::HasDtype(const std::string& dtype) {
+  return HasDtype(DataType(runtime::String2DLDataType(dtype)));
+}
+DFPattern DFPattern::HasShape(const Array<PrimExpr> shape) {
+  return ShapePattern(GetRef<DFPattern>(this->get()), shape);
+}
+DFPattern IsVar(const String& name) { return VarPattern(name); }
+DFPattern IsConstant() { return ConstantPattern(make_object<ConstantPatternNode>()); }
+DFPattern IsWildcard() { return WildcardPattern(make_object<WildcardPatternNode>()); }
+DFPattern IsExpr(const Expr& expr) { return ExprPattern(expr); }
+DFPattern IsOp(const String& op_name) { return IsExpr(Op::Get(op_name)); }
+DFPattern IsTuple(const Array<DFPattern>& fields) { return TuplePattern(fields); }
+DFPattern IsTupleGetItem(const DFPattern tuple, int index) {
+  return TupleGetItemPattern(tuple, index);
+}
 
 }  // namespace relay
 }  // namespace tvm

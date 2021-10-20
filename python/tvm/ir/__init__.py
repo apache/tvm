@@ -21,9 +21,10 @@ from .base import structural_equal, assert_structural_equal, structural_hash
 from .type import Type, TypeKind, PrimType, PointerType, TypeVar, GlobalTypeVar, TupleType
 from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
 from .tensor_type import TensorType
+from .affine_type import TensorAffineType, TupleAffineType
 from .type_relation import TypeCall, TypeRelation
 from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, Range
-from .op import Op, register_op_attr
+from .op import Op, register_op_attr, register_intrin_lowering
 from .function import CallingConv, BaseFunc
 from .adt import Constructor, TypeData
 from .module import IRModule
@@ -31,4 +32,5 @@ from .attrs import Attrs, DictAttrs, make_node
 from .container import Array, Map
 
 from . import transform
+from . import instrument
 from . import diagnostics

@@ -69,7 +69,7 @@ def _convert_softmax(builder, name, inputs, outputs, args, attrs):
 
 
 def _convert_conv2d(builder, name, inputs, outputs, args, attrs):
-    weight = args[1].data.asnumpy()
+    weight = args[1].data.numpy()
     if attrs["kernel_layout"] == "OIHW":
         # convert to 'HWIO'
         weight = weight.transpose([2, 3, 1, 0])
@@ -169,7 +169,7 @@ class CodegenCoreML(ExprVisitor):
         self.builder.add_load_constant_nd(
             name=output,
             output_name=output,
-            constant_value=const.data.asnumpy(),
+            constant_value=const.data.numpy(),
             shape=const.data.shape,
         )
         self.buf_idx_ = self.buf_idx_ + 1
@@ -244,5 +244,5 @@ def coreml_compiler(func):
         shutil.rmtree(mlmodelc_path)
     builder.compile(model_dir)
 
-    ctx = tvm.cpu(0)
-    return coreml_runtime.create(name, mlmodelc_path, ctx).module
+    dev = tvm.cpu(0)
+    return coreml_runtime.create(name, mlmodelc_path, dev).module

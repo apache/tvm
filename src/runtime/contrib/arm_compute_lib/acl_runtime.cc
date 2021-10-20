@@ -28,10 +28,11 @@
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 
-#ifdef TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
+#ifdef TVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB
 #include <arm_compute/core/Types.h>
 #include <arm_compute/runtime/NEON/functions/NEArithmeticAddition.h>
 #include <arm_compute/runtime/NEON/functions/NEConvolutionLayer.h>
+#include <arm_compute/runtime/NEON/functions/NEDepthwiseConvolutionLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEElementwiseOperations.h>
 #include <arm_compute/runtime/NEON/functions/NEFullyConnectedLayer.h>
 #include <arm_compute/runtime/NEON/functions/NEPoolingLayer.h>
@@ -81,7 +82,7 @@ class ACLRuntime : public JSONRuntimeBase {
     BuildEngine();
   }
 
-#ifdef TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
+#ifdef TVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB
   /*!
    * \brief Unpack inputs and outputs and run inference on a given layer.
    *
@@ -130,6 +131,9 @@ class ACLRuntime : public JSONRuntimeBase {
         auto op_name = node.GetOpName();
         if ("nn.conv2d" == op_name || "qnn.conv2d" == op_name) {
           CreateConvolution2DLayer(&layer_, node, mm);
+          num_pools++;
+        } else if ("nn.depthwise_conv2d" == op_name || "qnn.depthwise_conv2d" == op_name) {
+          CreateDepthwiseConvolution2DLayer(&layer_, node, mm);
           num_pools++;
         } else if ("nn.dense" == op_name || "qnn.dense" == op_name) {
           CreateFullyConnectedLayer(&layer_, node, mm);
@@ -227,12 +231,7 @@ class ACLRuntime : public JSONRuntimeBase {
     arm_compute::ActivationLayerInfo act_info;
     if (node.HasAttr("activation_type")) {
       std::string activation_type = node.GetAttr<std::vector<std::string>>("activation_type")[0];
-      if (activation_type == "relu") {
-        act_info = arm_compute::ActivationLayerInfo(
-            arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
-      } else {
-        LOG(FATAL) << "Unsupported activation function";
-      }
+      act_info = MakeACLActivationInfo(activation_type);
     }
 
     arm_compute::Size2D dilation_2d(std::stoi(dilation[0]), std::stoi(dilation[1]));
@@ -266,6 +265,64 @@ class ACLRuntime : public JSONRuntimeBase {
     function->configure(&layer->inputs[0], &layer->inputs[1],
                         has_bias ? &layer->inputs[2] : nullptr, &layer->outputs[0], pad_stride_info,
                         arm_compute::WeightsInfo(), dilation_2d, act_info);
+    layer->function = function;
+  }
+
+  /*!
+   * \brief Create a 2D depthwise convolution layer.
+   *
+   * \param layer The ACL layer to build. Containing inputs, outputs and the ACL function.
+   * \param node The JSON representation of the operator.
+   * \param mm The ACL conv2d layer can request auxiliary memory from TVM.
+   */
+  void CreateDepthwiseConvolution2DLayer(
+      CachedLayer* layer, const JSONGraphNode& node,
+      const std::shared_ptr<arm_compute::MemoryManagerOnDemand>& mm) {
+    std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
+    std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
+    std::vector<std::string> dilation = node.GetAttr<std::vector<std::string>>("dilation");
+    arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides);
+
+    arm_compute::ActivationLayerInfo act_info;
+    if (node.HasAttr("activation_type")) {
+      std::string activation_type = node.GetAttr<std::vector<std::string>>("activation_type")[0];
+      act_info = MakeACLActivationInfo(activation_type);
+    }
+
+    arm_compute::Size2D dilation_2d(std::stoi(dilation[0]), std::stoi(dilation[1]));
+
+    // Collect inputs and outputs, handling both nn.conv2d and qnn.conv2d cases.
+    std::vector<JSONGraphNodeEntry> inputs = node.GetInputs();
+    size_t num_inputs = inputs.size();
+    bool has_bias;
+    if (node.GetOpName() == "qnn.depthwise_conv2d") {
+      ICHECK(num_inputs >= 8U && num_inputs <= 9U)
+          << "Quantized convolution requires 9 inputs with a bias, 8 inputs without.";
+      has_bias = num_inputs == 9;
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
+      layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[1], &inputs[5], &inputs[3]));
+      if (has_bias) {
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[6]));
+      }
+      layer->outputs.push_back(
+          MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
+    } else {
+      ICHECK(num_inputs >= 2U && num_inputs <= 3U)
+          << "Convolution requires 3 inputs with a bias, 2 inputs without.";
+      has_bias = num_inputs == 3;
+      for (const auto& i : inputs) {
+        layer->inputs.push_back(MakeACLTensorFromJSONEntry(i));
+      }
+      layer->outputs.push_back(MakeACLTensorFromJSONNode(node));
+    }
+
+    // Depth multiplier is the final dimension in acl weights tensor (IWH*M*)
+    int depth_multiplier = layer->inputs[1].info()->tensor_shape()[3];
+
+    auto function = std::make_shared<arm_compute::NEDepthwiseConvolutionLayer>(mm);
+    function->configure(&layer->inputs[0], &layer->inputs[1],
+                        has_bias ? &layer->inputs[2] : nullptr, &layer->outputs[0], pad_stride_info,
+                        depth_multiplier, act_info, dilation_2d);
     layer->function = function;
   }
 
@@ -324,9 +381,9 @@ class ACLRuntime : public JSONRuntimeBase {
   void CreatePoolingLayer(CachedLayer* layer, const JSONGraphNode& node) {
     std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
     std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
+    std::vector<std::string> dilation = node.GetAttr<std::vector<std::string>>("dilation");
     bool ceil_mode = std::stoi(node.GetAttr<std::vector<std::string>>("ceil_mode")[0]);
     arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides, ceil_mode);
-
     auto attr_pool_size = node.GetAttr<std::vector<std::string>>("pool_size");
     int pool_size_h = std::stoi(attr_pool_size[0]);
     int pool_size_w = std::stoi(attr_pool_size[1]);
@@ -351,6 +408,8 @@ class ACLRuntime : public JSONRuntimeBase {
       LOG(FATAL) << "Pooling type not supported";
     }
 
+    ICHECK(dilation.size() == 2 && dilation[0] == "1" && dilation[1] == "1")
+        << "Dilation other than (1, 1) not supported";
     arm_compute::PoolingLayerInfo pool_info =
         arm_compute::PoolingLayerInfo(pool_type, arm_compute::Size2D(pool_size_h, pool_size_w),
                                       arm_compute::DataLayout::NHWC, pad_stride_info, exclude_pad);
@@ -461,12 +520,12 @@ class ACLRuntime : public JSONRuntimeBase {
 #else
   void Run() override {
     LOG(FATAL) << "Cannot call run on Arm Compute Library module without runtime enabled. "
-               << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME.";
+               << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR.";
   }
 
   void BuildEngine() {
     LOG(WARNING) << "Arm Compute Library engine is not initialized. "
-                 << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME.";
+                 << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR.";
   }
 #endif
 };

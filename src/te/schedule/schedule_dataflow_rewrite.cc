@@ -647,9 +647,12 @@ void LegalizeInvalidAttach(ScheduleNode* sch) {
   std::unordered_map<IterVar, IterVar> replace_map;
 
   for (Stage stage : sch->stages) {
+    std::unordered_set<const Object*> visited;
     for (Stage s = stage; s.defined();) {
       // The following logic is simiar to the `CreateAttachPath` in `src/te/schedule/graph.h`,
       // because we follow the validation check in that function to legalize the attach.
+      ICHECK(!visited.count(s.get())) << "Find loop in compute_at attach group";
+      visited.insert(s.get());
       Stage spec = s.GetAttachSpec();
       if (spec->attach_type != kScope) {
         break;

@@ -21,15 +21,18 @@ Besides the compiler toolchain, it also includes utility functions to
 configure the hardware environment and access remote device through RPC.
 """
 import sys
+import tvm._ffi.base
 
+from .autotvm import module_loader
 from .bitstream import get_bitstream_path, download_bitstream
 from .environment import get_env, Environment
 from .rpc_client import reconfig_runtime, program_fpga
 
 __version__ = "0.1.0"
 
+
 # do not from tvm import topi when running vta.exec.rpc_server
-# to maintain minimum dependency on the board
-if sys.argv[0] not in ("-c", "-m"):
+# in lib tvm runtime only mode
+if not tvm._ffi.base._RUNTIME_ONLY:
     from . import top
     from .build_module import build_config, lower, build

@@ -25,7 +25,6 @@
 #ifndef TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
@@ -55,7 +54,7 @@ class JSONRuntimeBase : public ModuleNode {
     LoadGraph(graph_json_);
   }
 
-  const char* type_key() const { return "json"; }
+  const char* type_key() const override { return "json"; }
 
   /*! \brief Initialize a specific json runtime. */
   virtual void Init(const Array<NDArray>& consts) = 0;
@@ -69,7 +68,7 @@ class JSONRuntimeBase : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "get_symbol") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });
@@ -98,7 +97,7 @@ class JSONRuntimeBase : public ModuleNode {
     }
   }
 
-  virtual void SaveToBinary(dmlc::Stream* stream) {
+  void SaveToBinary(dmlc::Stream* stream) override {
     // Save the symbol
     stream->Write(symbol_name_);
     // Save the graph

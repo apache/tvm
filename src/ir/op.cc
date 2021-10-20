@@ -23,9 +23,9 @@
  */
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/tir/op_attr_types.h>
 
 #include <memory>
 
@@ -36,6 +36,7 @@ namespace tvm {
 using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
+using tir::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
@@ -100,6 +101,73 @@ TVM_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name)
   reg.reset_attr(attr_name);
 });
 
+TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String descr) {
+  const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
+  ICHECK(reg == nullptr) << "AttributeError: Operator " << op_name << " is registered before";
+  auto& op = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+  op.describe(descr);
+});
+
+// This is exposed FFI api for prototyping using in python.
+// Note: it is not full of the C++ type relation,
+// since in python side we don't have access to the type reporter,
+// and cannot propagate constraints to the inputs, only to the output.
+TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
+    .set_body_typed([](Op op, String rel_name, runtime::TVMArgValue value) {
+      auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+      if (value.type_code() == kTVMPackedFuncHandle) {
+        // do an eager copy of the PackedFunc to avoid deleting function from frontend.
+        PackedFunc* fcopy = new PackedFunc(value.operator tvm::runtime::PackedFunc());
+        auto f = [=](const Array<Type>& args, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) -> bool {
+          Array<Type> input_types(args.begin(), args.end() - 1);
+          // call customized relation functions
+          // *fcopy's signature: function (args: List[Type], attrs: Attrs) -> Type
+          Type ret_type = (*fcopy)(input_types, attrs);
+          // when defined ret_type, inference of output type is ok, do type assign
+          // otherwise, inference failure happens
+          if (ret_type.defined()) {
+            // the last argument is output
+            // TODO(xqdan): support multiple outputs
+            reporter->Assign(args.back(), ret_type);
+            return true;
+          }
+          return false;
+        };
+        // adjust function call to call conventions of relay type system with TypeReporter
+        auto type_rel = runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&,
+                                                      const TypeReporter&)>(f);
+        reg.add_type_rel(rel_name, type_rel);
+      } else if (value.type_code() == kTVMNullptr) {
+        // Call relation functions of relay
+        auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
+        auto* f = runtime::Registry::Get(func_name);
+        ICHECK(f != nullptr) << "AddTypeRel error: no type_relation registered.";
+        reg.add_type_rel(rel_name, *f);
+      }
+    });
+
+TVM_REGISTER_GLOBAL("ir.OpAddArgument")
+    .set_body_typed([](Op op, String name, String type, String description) {
+      auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+      reg.add_argument(name, type, description);
+    });
+
+TVM_REGISTER_GLOBAL("ir.OpSetSupportLevel").set_body_typed([](Op op, int level) {
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+  reg.set_support_level(level);
+});
+
+TVM_REGISTER_GLOBAL("ir.OpSetNumInputs").set_body_typed([](Op op, int n) {
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+  reg.set_num_inputs(n);
+});
+
+TVM_REGISTER_GLOBAL("ir.OpSetAttrsTypeKey").set_body_typed([](Op op, String key) {
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+  reg.set_attrs_type_key(key);
+});
+
 TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
     .set_body_typed([](String op_name, String attr_key, runtime::TVMArgValue value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
@@ -120,6 +188,12 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
           reg.set_attr(attr_key, value, plevel);
         }
       }
+    });
+
+TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
+    .set_body_typed([](String name, PackedFunc f, String target, int plevel) {
+      tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(target + ".FLowerIntrinsic", f,
+                                                                     plevel);
     });
 
 // helper to get internal dev function in objectref.

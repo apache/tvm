@@ -36,34 +36,14 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
 
+#include <unordered_set>
+
 namespace tvm {
 namespace relay {
-
-/*!
- *\brief Create a Interpreter function that can
- *  evaluate an expression and produce a value.
- *
- * The resulting value can be passed to Python, making it easy to use
- * for testing and debugging.
- *
- * The interpreter interprets the program fragments not supported by the
- * TVM runtime, although the interpreter is naively implemented it uses
- * TVM operators for evaluating all operators.
- *
- * Our intent is that this will never be the most efficient implementation of
- * Relay's semantics, but a readable and clear one.
- *
- * \param mod The function module.
- * \param context The primary context that the interepreter runs on.
- * \param target Compiler target flag to compile the functions on the context.
- * \return A function that takes in an expression and returns a value.
- */
-runtime::TypedPackedFunc<ObjectRef(Expr)> CreateInterpreter(IRModule mod, DLContext context,
-                                                            Target target);
 
 /*! \brief The container type of Closures used by the interpreter. */
 class InterpreterClosureObj : public runtime::ClosureObj {
@@ -164,6 +144,52 @@ class ConstructorValue : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(ConstructorValue, ObjectRef, ConstructorValueObj);
 };
 
+/*!
+ * \brief Returns a packed function over Relay expressions which will evaluate \p expr
+ * applied to those arguments, where \p expr is w.r.t. the definitions in \p mod.
+ *
+ * This function is intended to support the Python 'debug' executor.
+ *
+ * The given \p expr should have function type. The given \p mod may be empty or
+ * undefined if \p expr is self-contained. Relay arguments passed to the result
+ * packed function must be constants, references, or constructors/tuples over such.
+ * As much work as possible is done while constructing the result packed function, and
+ * that function may be reasonably efficiently applied multiple times without redoing
+ * unnecessary work.
+ *
+ * Primitives are lowered and compiled to packed functions for execution on \p device
+ * with properties given by \p target. All other Relay constructs are interpreted.
+ *
+ * The interpreter is intended to be a 'reference' implementation of the Relay semantics
+ * for testing and interactive use. It is not intended to be particularly efficient.
+ *
+ * \param mod A module containing definitions which can be referenced from
+ * \p expr. May be empty or undefined.
+ * \param expr An expression of function type to evaluate. May reference definitions from \p mod.
+ * \param device The device on which all primitives will be executed.
+ * \param target The compiler target flag for compiling primitives.
+ * \return A packed function that takes an array of Relay expressions and returns the
+ * result of applying \p expr to those arguments.
+ */
+TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, Device device,
+                                                     Target target);
+
+/*!
+ * \brief Evaluates \p expr and returns its result.
+ *
+ * This function is intended to support TVM constant evaluation.
+ *
+ * \param expr An expression to evaluate.
+ * \param type_definitions Global type definitions which \p expr may references.
+ * \param import_set Already imported external modules.
+ * \param device The device on which all primitives will be executed.
+ * \param target The compiler target flag for compiling primitives.
+ * @return The object representing the result.
+ */
+ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
+               std::unordered_set<String> import_set, Device device, Target target);
+
 }  // namespace relay
 }  // namespace tvm
+
 #endif  // TVM_RELAY_INTERPRETER_H_

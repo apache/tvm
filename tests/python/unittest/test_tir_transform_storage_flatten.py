@@ -16,6 +16,9 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.driver.build_module import schedule_to_module
+from tvm.script import tir as T
+from tvm.relay import GlobalVar
 
 
 def test_flatten2():
@@ -28,14 +31,10 @@ def test_flatten2():
     s = te.create_schedule(A2.op)
     xo, xi = s[A2].split(A2.op.axis[0], 8)
     s[A1].compute_at(s[A2], xo)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="A")
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name="A2")
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([Ab, A2b], stmt, {A: Ab, A2: A2b})
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [Ab, A2b], binds={A: Ab, A2: A2b})
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
 
@@ -68,18 +67,14 @@ def test_flatten_storage_align():
 
     s = te.create_schedule(A2.op)
     s[A1].storage_align(A1.op.axis[0], 2, 1)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A, A2])
     mod = tvm.transform.Sequential(
         [tvm.tir.transform.StorageFlatten(64), tvm.tir.transform.Simplify()]
     )(mod)
 
     stmt = mod["main"].body
-    assert stmt.body.extents[0].value == 17 * 8
+    assert stmt.extents[0].value == 17 * 8
 
 
 def test_flatten_double_buffer():
@@ -102,7 +97,9 @@ def test_flatten_double_buffer():
 
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C], stmt))
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A, C], stmt).with_attr("from_legacy_te_schedule", True)
+    )
 
     with tvm.transform.PassContext(config={"tir.InjectDoubleBuffer": {"split_loop": 2}}):
         mod = tvm.transform.Sequential(
@@ -114,8 +111,8 @@ def test_flatten_double_buffer():
         )(mod)
 
     stmt = mod["main"].body
-    assert isinstance(stmt.body.body, tvm.tir.Allocate)
-    assert stmt.body.body.extents[0].value == 2
+    assert isinstance(stmt.body, tvm.tir.Allocate)
+    assert stmt.body.extents[0].value == 2
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C], stmt).with_attr("global_symbol", "db"))
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
@@ -130,8 +127,24 @@ def test_flatten_double_buffer():
     assert count[0] == 4
 
 
+@T.prim_func
+def tir_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [2, 2])
+    B = T.match_buffer(a, [2, 2])
+    A[0, 1] = B[1, 1]
+
+
+def test_flatten_tir():
+    orig_mod = tvm.IRModule({GlobalVar("main"): tir_func})
+    mod = tvm.tir.transform.StorageFlatten(64)(orig_mod)
+    tvm.ir.assert_structural_equal(
+        orig_mod, mod
+    )  # StorageFlatten should do nothing to TIR functions
+
+
 if __name__ == "__main__":
     test_flatten2()
     test_flatten_storage_align()
     test_flatten_double_buffer()
     test_flatten_prefetch()
+    test_flatten_tir()

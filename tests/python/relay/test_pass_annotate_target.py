@@ -29,7 +29,7 @@ from tvm.contrib import utils
 
 
 def check_result(
-    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu(), params=None
+    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu(), params=None
 ):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
@@ -56,27 +56,27 @@ def check_result(
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, ctx)
+        vm = runtime.vm.VirtualMachine(exe, device)
         out = vm.run(**map_inputs)
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), result, rtol=tol, atol=tol)
 
-    def check_graph_runtime_result():
+    def check_graph_executor_result():
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+        rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
         rt_mod.set_input(**param)
         rt_mod.run()
-        out = tvm.nd.empty(out_shape, ctx=ctx)
+        out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
 
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), result, rtol=tol, atol=tol)
 
     check_vm_result()
-    check_graph_runtime_result()
+    check_graph_executor_result()
 
 
 def test_extern_dnnl():
@@ -144,11 +144,12 @@ def test_extern_dnnl():
         i_data = np.random.uniform(0, 1, ishape).astype(dtype)
         w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-        ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
-        ref_res = ref_ex.evaluate()(i_data, w1_data)
+        ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+            i_data, w1_data
+        )
 
         check_result(
-            mod, {"data": i_data, "weight1": w1_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5
+            mod, {"data": i_data, "weight1": w1_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5
         )
 
     test_annotate()
@@ -171,10 +172,11 @@ def test_extern_dnnl_mobilenet():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
     ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype="float32")
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
-    ref_res = ref_ex.evaluate()(i_data, **params)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
+        i_data, **params
+    )
 
-    check_result(mod, {"data": i_data}, (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
+    check_result(mod, {"data": i_data}, (1, 1000), ref_res.numpy(), tol=1e-5, params=params)
 
 
 def test_multiple_ends():
@@ -738,8 +740,8 @@ def test_if_free_vars():
         mod = tvm.IRModule.from_expr(func)
         return mod
 
-    for annotate_non_call_ops in [True, False, True]:
-        result = transform.AnnotateTarget(target)(before())
+    for annotate_non_call_ops in [True, False]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
         expected = transform.InferType()(after())
         assert tvm.ir.structural_equal(expected, result)
 
@@ -764,6 +766,27 @@ def test_free_vars_zeros():
     assert tvm.ir.structural_equal(expected, result)
 
 
+def test_empty_tuple():
+    target = "test_empty_tuple"
+
+    """An empty tuple should behave just like a call with no args (see above test)."""
+
+    def before():
+        func = relay.Function([], relay.Tuple([]))
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    def after():
+        func = relay.Function([], relay.Tuple([]))
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    for annotate_non_call_ops in [True, False]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
+        expected = transform.InferType()(after())
+        assert tvm.ir.structural_equal(expected, result)
+
+
 if __name__ == "__main__":
     test_extern_dnnl()
     test_composite_function()
@@ -780,3 +803,4 @@ if __name__ == "__main__":
     test_double_target()
     test_ends_with_tuple()
     test_ref_create_read_write()
+    test_empty_tuple()

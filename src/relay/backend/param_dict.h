@@ -32,32 +32,7 @@
 #include <string>
 
 namespace tvm {
-namespace relay {
-
-/*! \brief Magic number for NDArray list file  */
-constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
-
-/*!
- * \brief Wrapper node for naming `NDArray`s.
- */
-struct NamedNDArrayNode : public ::tvm::Object {
-  std::string name;
-  tvm::runtime::NDArray array;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("array", &array);
-  }
-
-  static constexpr const char* _type_key = "NamedNDArray";
-  TVM_DECLARE_FINAL_OBJECT_INFO(NamedNDArrayNode, Object);
-};
-
-class NamedNDArray : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(NamedNDArray, ObjectRef, NamedNDArrayNode);
-};
-}  // namespace relay
+namespace relay {}  // namespace relay
 }  // namespace tvm
 
 #endif  // TVM_RELAY_BACKEND_PARAM_DICT_H_

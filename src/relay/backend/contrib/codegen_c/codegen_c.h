@@ -27,7 +27,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
-#include <tvm/runtime/container.h>
 
 #include <sstream>
 #include <string>
@@ -90,6 +89,40 @@ class CodegenCBase {
   }
 
   /*!
+   * \brief Creates a runtime function header
+   */
+  void PrintRuntimeFunctionHeader(std::string func_name) {
+    code_stream_ << "#ifdef __cplusplus\n";
+    code_stream_ << "extern \"C\" {\n";
+    code_stream_ << "#endif\n";
+    code_stream_ << "TVM_DLL int32_t ";
+    code_stream_ << func_name << "(";
+    code_stream_ << "TVMValue* args, ";
+    code_stream_ << "int* type_code, ";
+    code_stream_ << "int num_args, ";
+    code_stream_ << "TVMValue* out_value, ";
+    code_stream_ << "int* out_type_code) {\n";
+  }
+
+  /*!
+   * \brief Adds a line to convert TVMValue args to DLTensors
+   */
+  void PrintArgToData(int idx) {
+    PrintIndents();
+    code_stream_ << "DLTensor* arg" << idx << " = ";
+    code_stream_ << "(DLTensor*)(((TVMValue*)args)[" << idx << "].v_handle);\n";
+  }
+
+  /*!
+   * \brief Adds a line to convert TVMValue rets to DLTensors
+   */
+  void PrintRetToData(int idx) {
+    PrintIndents();
+    code_stream_ << "DLTensor* ret" << idx << " = ";
+    code_stream_ << "(DLTensor*)(((TVMValue*)args)[" << idx << "].v_handle);\n";
+  }
+
+  /*!
    * \brief Gerenate C code for the external function.
    *
    * \param func_name The name of the external function.
@@ -100,12 +133,12 @@ class CodegenCBase {
    * Array<NDArray> foo_consts;
    *
    * // An example code for the generated C function.
-   * extern "C" int foo_wrapper_(DLTensor* arg0,
+   * int foo_wrapper_(DLTensor* arg0,
    *                              DLTensor* arg1,
    *                              DLTensor* out) {
-   *   foo_(static_cast<float*>(arg0->data),
-   *        static_cast<float*>(arg1->data),
-   *        static_cast<float*>(out->data));
+   *   foo_((float*)(arg0->data),
+   *        (float*)(arg1->data),
+   *        (float*)(out->data));
    *   return 0;
    * }
    *
@@ -124,7 +157,8 @@ class CodegenCBase {
                             const std::string& const_arr_name, const std::vector<Output>& outs) {
     // Print signature
     code_stream_ << "\n";
-    code_stream_ << "extern \"C\" int " << func_name << "_wrapper_(";
+
+    code_stream_ << "int " << func_name << "_wrapper_(";
     for (size_t i = 0; i < args.size(); i++) {
       code_stream_ << "DLTensor* arg" << i << ",\n";
       code_stream_ << "\t";
@@ -142,26 +176,54 @@ class CodegenCBase {
     code_stream_ << func_name << "_(";
     for (size_t i = 0; i < args.size(); i++) {
       const auto& dtype_str = GetDtypeString(args[i]);
-      code_stream_ << "static_cast<" << dtype_str << "*>(arg" << i << "->data),\n";
+      code_stream_ << "(" << dtype_str << "*)(arg" << i << "->data),\n";
       PrintIndents();
     }
     for (size_t i = 0; i < outs.size() - 1; i++) {
-      code_stream_ << "static_cast<" << outs[i].dtype << "*>(out" << i << "->data),\n";
+      code_stream_ << "(" << outs[i].dtype << "*)(out" << i << "->data),\n";
       PrintIndents();
     }
-    code_stream_ << "static_cast<" << outs.back().dtype << "*>(out" << outs.size() - 1
-                 << "->data));\n";
+    code_stream_ << "(" << outs.back().dtype << "*)(out" << outs.size() - 1 << "->data));\n";
     PrintIndents();
     code_stream_ << "return 0;\n";
     ExitScope();
     code_stream_ << "}\n\n";
 
-    // Generate the macro
-    code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(" << func_name << ", " << func_name
-                 << "_wrapper_);\n\n";
+    // Create the external function
+    PrintRuntimeFunctionHeader(func_name);
+    EnterScope();
+    for (size_t i = 0; i < args.size(); i++) {
+      PrintArgToData(i);
+    }
+    for (size_t i = 0; i < outs.size(); i++) {
+      PrintRetToData(args.size() + i);
+    }
+    PrintIndents();
+    code_stream_ << func_name << "_wrapper_(";
+    for (size_t i = 0; i < args.size(); i++) {
+      code_stream_ << "arg" << i << ",";
+    }
+    for (size_t i = 0; i < outs.size() - 1; i++) {
+      code_stream_ << "ret" << args.size() + i << ",";
+    }
+    code_stream_ << "ret" << args.size() + outs.size() - 1 << ");\n";
+    PrintIndents();
+    code_stream_ << "return 0;\n";
+    ExitScope();
+    code_stream_ << "}\n";
+    code_stream_ << "#ifdef __cplusplus\n";
+    code_stream_ << "}\n";
+    code_stream_ << "#endif\n";
 
     if (!const_arr_name.empty()) {
-      code_stream_ << "int " << func_name << "_init_wrapper_(Array<NDArray> arr) {\n";
+      // If there are constants, insert the __init_ and the wrapper
+      // This segment would be generated in C++ because of the usage
+      // of tvm::runtime::Array. This is not ideal, but this to demonstrate
+      // constant copying process used packed imports in other external
+      // codegen. Moreover, in microTVM we dont expect this part to be generated.
+      code_stream_ << "#ifdef __cplusplus\n";
+      code_stream_ << "int " << func_name
+                   << "_init_wrapper_(tvm::runtime::Array<tvm::runtime::NDArray> arr) {\n";
       EnterScope();
       PrintIndents();
       code_stream_ << func_name << "_consts = arr;\n";
@@ -170,6 +232,7 @@ class CodegenCBase {
       code_stream_ << "}\n\n";
       code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
                    << "_init_wrapper_);\n\n";
+      code_stream_ << "#endif\n";
     }
   }
 
@@ -202,11 +265,13 @@ class CodegenCBase {
                       const std::vector<Output>& outs) {
     // Create a declaration for global ndarrays that contain constant data.
     if (!const_arr_name.empty()) {
+      code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << const_arr_name << "\n\n";
+      code_stream_ << "#endif\n";
     }
     // Create the signature. For example, it could be:
-    // extern "C" void dnnl_0_(float* in0, float* in1, float* out0, float* out1) {}
-    code_stream_ << "extern \"C\" void " << ext_func_id << "_(";
+    // void dnnl_0_(float* in0, float* in1, float* out0, float* out1) {}
+    code_stream_ << "void " << ext_func_id << "_(";
 
     for (const auto& arg : args) {
       const auto& dtype_str = GetDtypeString(arg);
@@ -235,14 +300,14 @@ class CodegenCBase {
         continue;
       }
       this->PrintIndents();
-      code_stream_ << "std::memcpy(out" << i << ", " << outs[i].name << ", 4 * " << outs[i].size
+      code_stream_ << "memcpy(out" << i << ", " << outs[i].name << ", 4 * " << outs[i].size
                    << ");\n";
     }
 
     // Free buffers
     for (size_t i = 0; i < buf_decl.size(); i++) {
       this->PrintIndents();
-      code_stream_ << "std::free(buf_" << i << ");\n";
+      code_stream_ << "free(buf_" << i << ");\n";
     }
 
     this->ExitScope();
@@ -277,6 +342,8 @@ class CodegenCBase {
     std::string dtype;
     if (runtime::TypeMatch(ttype->dtype, kDLFloat, 32)) {
       dtype = "float";
+    } else if (runtime::TypeMatch(ttype->dtype, kDLFloat, 16)) {
+      dtype = "half";
     } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 32)) {
       dtype = "int";
     } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 64)) {
@@ -310,7 +377,7 @@ class CodegenCBase {
    * \return The created declaration
    */
   std::string CreateNDArrayPool(const std::string& symbol) const {
-    return "Array<NDArray> " + symbol + "_consts;";
+    return "tvm::runtime::Array<tvm::runtime::NDArray> " + symbol + "_consts;";
   }
 
   /*!
@@ -322,7 +389,7 @@ class CodegenCBase {
    * \return The created reference
    */
   std::string CreateDataReference(const std::string& symbol, int const_id) const {
-    return "static_cast<float*>(" + symbol + "_consts[" + std::to_string(const_id) + "]->data)";
+    return "(float*)(" + symbol + "_consts[" + std::to_string(const_id) + "]->data)";
   }
 
   /*!

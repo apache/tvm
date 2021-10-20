@@ -22,7 +22,6 @@
  * \file node/reflection.cc
  */
 #include <tvm/ir/attrs.h>
-#include <tvm/node/container.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/registry.h>

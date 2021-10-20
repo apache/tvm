@@ -40,13 +40,13 @@ public class ModuleTest {
   public void test_load_add_func_cpu() {
     Module fadd = Module.load(loadingDir + File.separator + "add_cpu.so");
 
-    TVMContext ctx = new TVMContext("cpu", 0);
+    Device dev = new Device("cpu", 0);
     long[] shape = new long[]{2};
-    NDArray arr = NDArray.empty(shape, ctx);
+    NDArray arr = NDArray.empty(shape, dev);
 
     arr.copyFrom(new float[]{3f, 4f});
 
-    NDArray res = NDArray.empty(shape, ctx);
+    NDArray res = NDArray.empty(shape, dev);
 
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
     assertArrayEquals(new float[]{6f, 8f}, res.asFloatArray(), 1e-3f);
@@ -61,22 +61,22 @@ public class ModuleTest {
   }
 
   @Test
-  public void test_load_add_func_gpu() {
+  public void test_load_add_func_cuda() {
     final Random RND = new Random(0);
 
-    TVMContext ctx = new TVMContext("gpu", 0);
-    if (!ctx.exist()) {
-      logger.warn("GPU does not exist. Skip the test.");
+    Device dev = new Device("cuda", 0);
+    if (!dev.exist()) {
+      logger.warn("CUDA GPU does not exist. Skip the test.");
       return;
     }
 
-    Module fadd = Module.load(loadingDir + File.separator + "add_gpu.so");
-    Module faddDev = Module.load(loadingDir + File.separator + "add_gpu.ptx");
+    Module fadd = Module.load(loadingDir + File.separator + "add_cuda.so");
+    Module faddDev = Module.load(loadingDir + File.separator + "add_cuda.ptx");
     fadd.importModule(faddDev);
 
     final int dim = 100;
     long[] shape = new long[]{dim};
-    NDArray arr = NDArray.empty(shape, ctx);
+    NDArray arr = NDArray.empty(shape, dev);
 
     float[] data = new float[dim];
     float[] dataX2 = new float[dim];
@@ -86,7 +86,7 @@ public class ModuleTest {
     }
     arr.copyFrom(data);
 
-    NDArray res = NDArray.empty(shape, ctx);
+    NDArray res = NDArray.empty(shape, dev);
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
 
     assertArrayEquals(dataX2, res.asFloatArray(), 1e-3f);

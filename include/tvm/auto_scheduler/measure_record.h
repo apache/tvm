@@ -34,6 +34,8 @@
 namespace tvm {
 namespace auto_scheduler {
 
+const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.6";  // NOLINT(*)
+
 /*! \brief Callback for logging the input and results of measurements to file */
 class RecordToFileNode : public MeasureCallbackNode {
  public:
@@ -116,9 +118,11 @@ class RecordReader : public ObjectRef {
  * \param os A pointer to a output stream.
  * \param inputs The MeasureInputs to be written.
  * \param results The MeasureResults to be written.
+ * \param log_version The log version for the given record.
  */
 void WriteMeasureRecords(std::ostream* os, const Array<MeasureInput>& inputs,
-                         const Array<MeasureResult>& results);
+                         const Array<MeasureResult>& results,
+                         const std::string log_version = AUTO_SCHEDULER_LOG_VERSION);
 
 /*!
  * \brief Read one measure record from a string.

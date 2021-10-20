@@ -146,7 +146,7 @@ class OpNode : public RelayExprNode {
   // Internal function to compute if it is primitive op
   bool IsPrimitiveOp_() const {
     const auto& fn_ty = this->op_type;
-    ICHECK(fn_ty.get() != nullptr);
+    ICHECK(fn_ty.get() != nullptr) << "op_type of " << this->name << " is not registered";
     if (fn_ty->type_constraints.size() != 1) return false;
     const TypeRelationNode* rel = fn_ty->type_constraints[0].as<TypeRelationNode>();
     if (rel == nullptr) return false;
@@ -244,12 +244,18 @@ class OpRegEntry {
       runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>
           type_rel_func);
   /*!
-   * \brief Set the the attrs type key and index to be AttrsType.
+   * \brief Set the attrs type key and index to be AttrsType.
    * \tparam AttrsType the attribute type to b set.
    * \return reference to self.
    */
   template <typename AttrsType>
   inline OpRegEntry& set_attrs_type();
+  /*!
+   * \brief Set the attrs type key and index to be AttrsType.
+   * \param key The attribute type key to be set.
+   * \return reference to self.
+   */
+  inline OpRegEntry& set_attrs_type_key(const String& key);
   /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
@@ -451,6 +457,12 @@ template <typename AttrsType>
 inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
   get()->attrs_type_key = AttrsType::_type_key;
   get()->attrs_type_index = AttrsType::RuntimeTypeIndex();
+  return *this;
+}
+
+inline OpRegEntry& OpRegEntry::set_attrs_type_key(const String& key) {  // NOLINT(*)
+  get()->attrs_type_key = key;
+  get()->attrs_type_index = Object::TypeKey2Index(key);
   return *this;
 }
 

@@ -141,6 +141,18 @@ class TypeVarEVisitor : private MixedModeVisitor {
     ExprVisitor::VisitExpr_(f);
   }
 
+  void VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->var);
+      this->VisitExpr(op->value);
+    };
+    auto post_visit = [this](const LetNode* op) {
+      this->VisitExpr(op->body);
+      this->visit_counter_[op] += 1;
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+  }
+
   void VisitExpr_(const ConstructorNode* cn) final {
     // for constructors, type vars will be bound in the module
     auto data = mod_->LookupTypeDef(cn->belong_to);
@@ -358,7 +370,7 @@ std::unordered_map<const Object*, size_t> GetExprRefCount(const Expr& body) {
 
 template <typename T>
 bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
-  ICHECK_EQ(tensor->ctx.device_type, kDLCPU);
+  ICHECK_EQ(tensor->device.device_type, kDLCPU);
   ICHECK(tensor->strides == nullptr);
   ICHECK_EQ(tensor->byte_offset, 0);
   const T* data = static_cast<const T*>(tensor->data);
@@ -473,24 +485,27 @@ bool IsDynamic(const Type& ty) {
 
 TVM_REGISTER_GLOBAL("relay.ir.IsDynamic").set_body_typed(IsDynamic);
 
-bool IsDataDependant(const CallNode* call) {
-  static auto tshape_data_dependant = Op::GetAttrMap<TShapeDataDependant>("TShapeDataDependant");
+bool IsDataDependent(const CallNode* call) {
+  static auto tshape_data_dependent = Op::GetAttrMap<TShapeDataDependent>("TShapeDataDependent");
   Op op = Downcast<Op>(call->op);
 
-  if (!tshape_data_dependant.count(op)) {
+  if (!tshape_data_dependent.count(op)) {
     return false;
   }
 
   if (op->name == "strided_slice") {
     if (const auto* attrs = call->attrs.as<StridedSliceAttrs>()) {
       if (attrs->begin && attrs->end && attrs->strides) {
-        // not data dependant if begin, end and strides exist
+        // not data dependent if begin, end and strides exist
         return false;
       }
     }
   }
 
-  return tshape_data_dependant[op];
+  for (auto req : tshape_data_dependent[op]) {
+    if (req->value != 0) return true;
+  }
+  return false;
 }
 }  // namespace relay
 }  // namespace tvm

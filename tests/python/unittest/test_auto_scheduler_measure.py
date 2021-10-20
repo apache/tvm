@@ -16,15 +16,18 @@
 # under the License.
 
 """ Test measurement and log serialization. """
+import json
 
 import multiprocessing
+import numpy as np
 import tvm
 from tvm import topi
 from tvm import te, auto_scheduler
 import tempfile
 import tvm.testing
-
-from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
+import pickle
+from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
+from tvm.auto_scheduler import workload_registry
 
 
 def record_common(dag, s):
@@ -34,11 +37,19 @@ def record_common(dag, s):
     inp = auto_scheduler.measure.MeasureInput(task, s)
     res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
 
+    # Test in-memory record processing.
+    record_str = auto_scheduler.measure_record.dump_record_to_string(inp, res)
+    r_inp, r_res = auto_scheduler.measure_record.load_record_from_string(record_str)
+    # Only check the workload_key for simplification.
+    assert inp.task.workload_key == r_inp.task.workload_key
+    assert str(res) == str(r_res)
+
+    # Test file-based record processing.
     with tempfile.NamedTemporaryFile() as fp:
         auto_scheduler.save_records(fp.name, [inp], [res])
 
         log_reader = auto_scheduler.RecordReader(fp.name)
-        inputs, results = log_reader.read_lines()
+        inputs, _ = log_reader.read_lines()
         assert len(inputs) == 1
 
         s1 = dag.infer_bound_from_state(s)
@@ -180,7 +191,7 @@ def test_recover_measure_input():
         auto_scheduler.save_records(fp.name, [inp], [res])
 
         log_reader = auto_scheduler.RecordReader(fp.name)
-        inputs, results = log_reader.read_lines()
+        inputs, _ = log_reader.read_lines()
         assert len(inputs) == 1
 
         raw_inp = inputs[0]
@@ -190,6 +201,39 @@ def test_recover_measure_input():
 
         correct_inp = auto_scheduler.measure.recover_measure_input(raw_inp, rebuild_state=True)
         assert str(correct_inp.state) == str(inp.state)
+
+
+def test_workload_dis_factor():
+    calc = auto_scheduler.utils.calc_workload_dis_factor
+    decode = auto_scheduler.utils.decode_workload_key
+
+    # Identical
+    target_wkl_key = json.dumps(
+        ["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "float32"]
+    )
+    assert calc(decode(target_wkl_key), decode(target_wkl_key)) == 1
+
+    # Compatible with a factor
+    wkl_key = json.dumps(["func1", [1, 3, 112, 112], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == 8 * 2 * 2
+
+    # Incompatible argument with zeros
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [1, 1], [1, 1], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [0, 0], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+
+    # Incompatible non-integter argument
+    wkl_key = json.dumps(["func1", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "int8"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+
+    # Incompatible function
+    wkl_key = json.dumps(["func2", [8, 3, 224, 224], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
+
+    # Incompatible due to non-dividable factor
+    wkl_key = json.dumps(["func1", [8, 3, 223, 223], [32, 3, 3, 3], [0, 0], [1, 1], "float32"])
+    assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
 
 
 def test_measure_local_builder_runner():
@@ -211,6 +255,51 @@ def test_measure_local_builder_runner():
         assert bress[0].error_no == 0
         mress = local_runner.run([minp], bress)
         assert mress[0].error_no == 0
+
+
+def test_dag_measure_local_builder_runner():
+    if not tvm.testing.device_enabled("llvm"):
+        return
+
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
+    D = topi.nn.relu(C)
+    E = topi.nn.relu(D)
+
+    tensors = [A, B, E]
+    dag = auto_scheduler.ComputeDAG(tensors)
+    key = workload_registry.register_workload_tensors(dag.workload_key(), tensors)
+    transfer_data = workload_registry.serialize_workload_registry_entry(key)
+    f_data = pickle.dumps(transfer_data)
+    f_new = pickle.loads(f_data)
+    del workload_registry.WORKLOAD_FUNC_REGISTRY[key]
+    workload_registry.deserialize_workload_registry_entry(f_new)
+
+    target = tvm.target.Target("llvm")
+    task = auto_scheduler.SearchTask(compute_dag=dag, workload_key=key, target=target)
+
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        local_runner = auto_scheduler.LocalRunner(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
+
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = local_runner.run([minp], bress)
+        assert mress[0].error_no == 0
+
+
+def test_workload_serialization():
+    key = tvm.auto_scheduler.utils.get_func_name(matmul_auto_scheduler_test)
+    transfer_data = workload_registry.serialize_workload_registry_entry(key)
+    f_data = pickle.dumps(transfer_data)
+    f_new = pickle.loads(f_data)
+    del workload_registry.WORKLOAD_FUNC_REGISTRY[key]
+    workload_registry.deserialize_workload_registry_entry(f_new)
 
 
 def test_measure_local_builder_rpc_runner():
@@ -255,8 +344,7 @@ def test_measure_target_host():
     task = auto_scheduler.SearchTask(
         func=matmul_auto_scheduler_test,
         args=(512, 512, 512),
-        target="llvm",
-        target_host="llvm -mtriple=aarch64-linux-gnu",
+        target=tvm.target.Target("llvm", "llvm -mtriple=aarch64-linux-gnu"),
     )
 
     inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
@@ -266,13 +354,73 @@ def test_measure_target_host():
         auto_scheduler.save_records(fp.name, [inp], [res])
 
         log_reader = auto_scheduler.RecordReader(fp.name)
-        inputs, results = log_reader.read_lines()
+        inputs, _ = log_reader.read_lines()
         assert len(inputs) == 1
 
         raw_inp = inputs[0]
 
         recovered_inp = auto_scheduler.measure.recover_measure_input(raw_inp)
-        assert str(recovered_inp.task.target_host) == str(inp.task.target_host)
+        assert str(recovered_inp.task.target.host) == str(inp.task.target.host)
+
+
+@tvm.testing.requires_llvm
+def test_measure_special_inputs_map_by_name_local_runner():
+    @auto_scheduler.register_workload
+    def foo():
+        X = te.placeholder(shape=[10], dtype="int32")
+        Index = te.placeholder(shape=[1], dtype="int32", name="Index")
+        Y = te.compute((1,), lambda i: X[Index[i]])
+        return [X, Index, Y]
+
+    # This workload cannot use random input for the `Index` input
+    task = auto_scheduler.SearchTask(
+        func=foo,
+        target="llvm",
+        task_inputs={
+            "Index": tvm.nd.array(np.array([5], dtype="int32")),
+        },
+    )
+
+    minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+    local_builder = auto_scheduler.LocalBuilder()
+    local_runner = auto_scheduler.LocalRunner(timeout=10)
+
+    bress = local_builder.build([minp])
+    assert bress[0].error_no == 0
+    mress = local_runner.run([minp], bress)
+    assert mress[0].error_no == 0
+
+
+@tvm.testing.requires_llvm
+def test_measure_special_inputs_map_by_name_rpc_runner():
+    @auto_scheduler.register_workload
+    def foo():
+        X = te.placeholder(shape=[10], dtype="int32")
+        Index = te.placeholder(shape=[1], dtype="int32", name="Index")
+        Y = te.compute((1,), lambda i: X[Index[i]])
+        return [X, Index, Y]
+
+    # This workload cannot use random input for the `Index` input
+    task = auto_scheduler.SearchTask(
+        func=foo,
+        target="llvm",
+        task_inputs={
+            "Index": tvm.nd.array(np.array([5], dtype="int32")),
+        },
+    )
+
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
+        rpc_runner = measure_ctx.runner
+
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = rpc_runner.run([minp], bress)
+        assert mress[0].error_no == 0
 
 
 if __name__ == "__main__":
@@ -281,6 +429,11 @@ if __name__ == "__main__":
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
     test_recover_measure_input()
+    test_workload_dis_factor()
     test_measure_local_builder_runner()
+    test_dag_measure_local_builder_runner()
+    test_workload_serialization()
     test_measure_local_builder_rpc_runner()
     test_measure_target_host()
+    test_measure_special_inputs_map_by_name_local_runner()
+    test_measure_special_inputs_map_by_name_rpc_runner()

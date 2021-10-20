@@ -32,7 +32,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
         assert isinstance(val, (tvm.tir.IntImm,))
         return val.value
 
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     op = None
 
     if sch is None:
@@ -50,7 +50,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
         if isinstance(i, te.tensor.Tensor):
             shape = [tvm_val_2_py_val(j) for j in i.shape]
             emu_args.append(numpy.random.randn(*shape).astype(i.dtype))
-            nd_args.append(tvm.nd.array(emu_args[-1], ctx))
+            nd_args.append(tvm.nd.array(emu_args[-1], dev))
         elif isinstance(i, tvm.tir.Var):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
@@ -68,7 +68,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
     for i in range(op.num_outputs):
         output = op.output(i)
         shape = [tvm_val_2_py_val(j) for j in output.shape]
-        nd_args.append(tvm.nd.array(numpy.zeros(shape).astype(output.dtype), ctx))
+        nd_args.append(tvm.nd.array(numpy.zeros(shape).astype(output.dtype), dev))
         out_tensors.append(nd_args[-1])
 
     ref_data = func(*emu_args)
@@ -78,7 +78,7 @@ def run_and_check(func, args, var_dict={}, target="llvm", sch=None, outs=None):
     module(*nd_args)
 
     for nd, np in zip(out_tensors, ref_data):
-        tvm.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(nd.numpy(), np, rtol=1e-5, atol=1e-5)
 
     module_args = [i for i in args if isinstance(i, (te.tensor.Tensor, tvm.tir.Var))]
     module_outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
@@ -189,9 +189,7 @@ def test_fanout():
     assert ir.min.value == 0
     assert tvm.ir.structural_equal(ir.extent, n - 3)
     # Check loopbody
-    ibody = ir.body
-    assert isinstance(ibody, tvm.tir.AttrStmt)
-    abody = ibody.body
+    abody = ir.body
     assert isinstance(abody, tvm.tir.ProducerRealize)
     assert abody.bounds[0].min.value == 0
     assert abody.bounds[0].extent.value == 1
@@ -267,9 +265,9 @@ def test_looptype():
     iloop = ir[0]
     jloop = ir[1]
     kloop = ir[2]
-    assert iloop.for_type == tvm.tir.For.Parallel
-    assert jloop.for_type == tvm.tir.For.Vectorized
-    assert kloop.for_type == tvm.tir.For.Unrolled
+    assert iloop.kind == tvm.tir.ForKind.PARALLEL
+    assert jloop.kind == tvm.tir.ForKind.VECTORIZED
+    assert kloop.kind == tvm.tir.ForKind.UNROLLED
 
     func, ins, outs = run_and_check(looptype, [a, b, c])
     run_and_check(func, ins, outs=outs)
@@ -413,7 +411,7 @@ def test_math_intrin():
     tvm_b = tvm.nd.array(numpy.zeros((8,), dtype="float32"))
     b = intrin_real(a)
     func(tvm_a, tvm_b)
-    tvm.testing.assert_allclose(b, tvm_b.asnumpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(b, tvm_b.numpy(), rtol=1e-5)
 
     @script
     def intrin_int(a):
@@ -431,7 +429,7 @@ def test_math_intrin():
     tvm_b = tvm.nd.array(numpy.array([0]).astype("int32"))
     b = intrin_int(a)
     func(tvm_a, tvm_b)
-    assert tvm_b.asnumpy()[0] == b[0]
+    assert tvm_b.numpy()[0] == b[0]
 
 
 # test non caconical loops
@@ -536,7 +534,7 @@ def test_upstream():
     tvm_d = tvm.nd.array(numpy.zeros((20,)).astype("float32"))
 
     func(tvm_a, tvm_b, tvm_d)
-    tvm.testing.assert_allclose(tvm_d.asnumpy(), ref, 1e-5, 1e-5)
+    tvm.testing.assert_allclose(tvm_d.numpy(), ref, 1e-5, 1e-5)
 
 
 def test_downstream():
@@ -563,7 +561,7 @@ def test_downstream():
     tvm_a = tvm.nd.array(a)
     tvm_c = tvm.nd.array(numpy.zeros((20,)).astype("float32"))
     module(tvm_a, tvm_c)
-    tvm.testing.assert_allclose(tvm_c.asnumpy(), ref, 1e-5, 1e-5)
+    tvm.testing.assert_allclose(tvm_c.numpy(), ref, 1e-5, 1e-5)
 
 
 def test_const_param():
@@ -590,7 +588,7 @@ def test_const_param():
     module(nd_a, nd_c)
     ref = add_something(np_a, 11)
 
-    tvm.testing.assert_allclose(nd_c.asnumpy(), ref, 1e-5, 1e-5)
+    tvm.testing.assert_allclose(nd_c.numpy(), ref, 1e-5, 1e-5)
 
 
 def test_value_index():
@@ -624,7 +622,7 @@ def test_value_index():
 
     res = tvm.nd.array(numpy.zeros((4, 4)).astype("int32"))
     module(tvm.nd.array(np_a), res)
-    tvm.testing.assert_allclose(res.asnumpy(), ref)
+    tvm.testing.assert_allclose(res.numpy(), ref)
 
 
 def test_func_call():
@@ -833,7 +831,7 @@ def test_array_inputs():
         out_ref += arr
     out_nd = tvm.nd.array(numpy.zeros((10,), "float32"))
     mod(*input_nd, out_nd)
-    tvm.testing.assert_allclose(out_nd.asnumpy(), out_ref)
+    tvm.testing.assert_allclose(out_nd.numpy(), out_ref)
 
 
 if __name__ == "__main__":

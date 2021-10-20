@@ -44,7 +44,7 @@ def init_box_adt(mod):
 # assert that the candidate is a NDArray with value val
 def assert_tensor_value(candidate, val):
     assert isinstance(candidate, tvm.nd.NDArray)
-    assert np.array_equal(candidate.asnumpy(), np.array(val))
+    assert np.array_equal(candidate.numpy(), np.array(val))
 
 
 # assert that the candidate is an ADT with the indicated number of fields
@@ -605,7 +605,7 @@ def test_batch_norm():
         # there will be a change in accuracy so we need to check
         # approximate equality
         assert isinstance(call_val, tvm.nd.NDArray)
-        tvm.testing.assert_allclose(call_val.asnumpy(), ref_res, atol=eps, rtol=eps)
+        tvm.testing.assert_allclose(call_val.numpy(), ref_res, atol=eps, rtol=eps)
 
     verify_batch_norm([(10, 20), (20,), (20,), (20,), (20,)])
     verify_batch_norm([(20, 10), (10,), (10,), (10,), (10,)])

@@ -35,3 +35,4 @@ dependencies:
   - bzip2
   - make
   - scipy
+  - pillow

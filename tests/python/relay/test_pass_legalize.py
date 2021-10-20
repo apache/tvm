@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay import transform, analysis
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 
@@ -74,7 +74,7 @@ def test_legalize():
 
 
 def test_legalize_none():
-    """Test doing nothing by returning 'None' """
+    """Test doing nothing by returning 'None'"""
 
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))

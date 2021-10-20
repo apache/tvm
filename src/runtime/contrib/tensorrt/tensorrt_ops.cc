@@ -226,6 +226,55 @@ class ElementWiseBinaryOpConverter : public TensorRTOpConverter {
   }
 };
 
+class Conv1DOpConverter : public TensorRTOpConverter {
+ public:
+  Conv1DOpConverter() : TensorRTOpConverter({kTensor, kWeight}) {}
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input_tensor = params->inputs.at(0).tensor;
+    auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
+    auto weight_shape = params->inputs.at(1).weight_shape;
+    ICHECK_EQ(params->node.GetAttr<std::vector<std::string>>("data_layout")[0], "NCW");
+    ICHECK_EQ(params->node.GetAttr<std::vector<std::string>>("kernel_layout")[0], "OIW");
+    auto str_strides = params->node.GetAttr<std::vector<std::string>>("strides");
+    auto str_dilation = params->node.GetAttr<std::vector<std::string>>("dilation");
+    auto str_padding = params->node.GetAttr<std::vector<std::string>>("padding");
+    int groups = std::stoi(params->node.GetAttr<std::vector<std::string>>("groups")[0]);
+    int channels = weight_shape[0];
+    if (params->node.HasAttr("channels") &&
+        !params->node.GetAttr<std::vector<std::string>>("channels")[0].empty()) {
+      channels = std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
+    }
+
+    auto shuffle_layer = params->network->addShuffle(*input_tensor);
+    std::vector<int> new_shape = {input_dims[0], input_dims[1], 1};
+    shuffle_layer->setReshapeDimensions(VectorToTrtDims(new_shape));
+    input_tensor = shuffle_layer->getOutput(0);
+
+    const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], 1);
+    nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
+
+    auto conv_layer = params->network->addConvolution(*input_tensor, channels, kernel_size,
+                                                      params->inputs.at(1).weight, bias);
+    ICHECK(conv_layer != nullptr);
+    conv_layer->setPadding(nvinfer1::DimsHW(std::stoi(str_padding[0]), 0));
+    ICHECK_EQ(str_strides.size(), 1);
+    const auto strides = nvinfer1::DimsHW(std::stoi(str_strides[0]), 1);
+    conv_layer->setStride(strides);
+    ICHECK_EQ(str_dilation.size(), 1);
+    const auto dilation = nvinfer1::DimsHW(std::stoi(str_dilation[0]), 1);
+    conv_layer->setDilation(dilation);
+    conv_layer->setNbGroups(groups);
+    input_tensor = conv_layer->getOutput(0);
+
+    auto conv_output_dims = TrtDimsToVector(input_tensor->getDimensions());
+    std::vector<int> back_shape = {0, 0};
+    auto shuffle_back_layer = params->network->addShuffle(*input_tensor);
+    shuffle_back_layer->setReshapeDimensions(VectorToTrtDims(back_shape));
+    params->outputs.push_back(shuffle_back_layer->getOutput(0));
+  }
+};
+
 class Conv2DOpConverter : public TensorRTOpConverter {
  public:
   Conv2DOpConverter() : TensorRTOpConverter({kTensor, kWeight}) {}
@@ -309,8 +358,8 @@ class Conv3DOpConverter : public TensorRTOpConverter {
     bool use_asymmetric_padding;
     GetPadding3D(str_padding, &use_asymmetric_padding, &prepadding, &postpadding);
 
-    // Could use attrs->channels.as<IntImmNode>()->value
-    const int num_outputs = weight_shape[0];
+    const int num_outputs =
+        std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
     nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
     auto conv_layer = params->network->addConvolutionNd(*input_tensor, num_outputs, kernel_size,
@@ -447,7 +496,7 @@ class BatchNormOpConverter : public TensorRTOpConverter {
     nvinfer1::IScaleLayer* scale_layer = params->network->addScaleNd(
         *input, nvinfer1::ScaleMode::kCHANNEL, weight_shift, weight_scale, power, channel_dim);
 #else
-    ICHECK_EQ(input->getDimensions().nbDims(), 3);
+    ICHECK_EQ(input->getDimensions().nbDims, 3);
     nvinfer1::IScaleLayer* scale_layer = params->network->addScale(
         *input, nvinfer1::ScaleMode::kCHANNEL, weight_shift, weight_scale, power);
 #endif
@@ -458,6 +507,78 @@ class BatchNormOpConverter : public TensorRTOpConverter {
     }
     if (need_reshape) {
       output = Reshape(params, output, input_dims);
+    }
+    params->outputs.push_back(output);
+  }
+};
+
+class LayerNormOpConverter : public TensorRTOpConverter {
+ public:
+  LayerNormOpConverter() : TensorRTOpConverter({kTensor, kWeight, kWeight}) {}
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    auto gamma_input = params->inputs.at(1).weight;
+    auto beta_input = params->inputs.at(2).weight;
+    ICHECK_EQ(gamma_input.count, beta_input.count);
+
+    const float epsilon = std::stof(params->node.GetAttr<std::vector<std::string>>("epsilon")[0]);
+    const bool scale = std::stoi(params->node.GetAttr<std::vector<std::string>>("scale")[0]);
+    const bool center = std::stoi(params->node.GetAttr<std::vector<std::string>>("center")[0]);
+    const int input_rank = input->getDimensions().nbDims;
+    const int original_axis = std::stoi(params->node.GetAttr<std::vector<std::string>>("axis")[0]);
+    const int axis = ConvertAxis(params, original_axis, input_rank);
+
+    std::vector<int> weight_shape(input_rank, 1);
+    weight_shape[axis] = gamma_input.count;
+    auto gamma =
+        params->network->addConstant(VectorToTrtDims(weight_shape), gamma_input)->getOutput(0);
+    auto beta =
+        params->network->addConstant(VectorToTrtDims(weight_shape), beta_input)->getOutput(0);
+
+    // Compute mean
+    auto mean_layer = params->network->addReduce(*input, nvinfer1::ReduceOperation::kAVG, 1 << axis,
+                                                 /*keepdims=*/true);
+    ICHECK(mean_layer != nullptr);
+    auto mean = mean_layer->getOutput(0);
+    // Compute variance
+    auto diff_layer =
+        params->network->addElementWise(*input, *mean, nvinfer1::ElementWiseOperation::kSUB);
+    ICHECK(diff_layer != nullptr);
+    auto square_layer =
+        params->network->addElementWise(*diff_layer->getOutput(0), *diff_layer->getOutput(0),
+                                        nvinfer1::ElementWiseOperation::kPROD);
+    ICHECK(square_layer != nullptr);
+    auto var_layer = params->network->addReduce(
+        *square_layer->getOutput(0), nvinfer1::ReduceOperation::kAVG, 1 << axis, /*keepdims=*/true);
+    ICHECK(var_layer != nullptr);
+    auto var = var_layer->getOutput(0);
+    // sqrt(var + epsilon)
+    auto epsilon_tensor = CreateScalar(params, epsilon, var->getDimensions());
+    auto denom_add_layer = params->network->addElementWise(*var, *epsilon_tensor,
+                                                           nvinfer1::ElementWiseOperation::kSUM);
+    ICHECK(denom_add_layer != nullptr);
+    auto denom_layer =
+        params->network->addUnary(*denom_add_layer->getOutput(0), nvinfer1::UnaryOperation::kSQRT);
+    ICHECK(denom_layer != nullptr);
+    // (input - mean) / sqrt(var + epsilon)
+    auto output_layer =
+        params->network->addElementWise(*diff_layer->getOutput(0), *denom_layer->getOutput(0),
+                                        nvinfer1::ElementWiseOperation::kDIV);
+    ICHECK(output_layer != nullptr);
+    auto output = output_layer->getOutput(0);
+
+    if (scale) {
+      auto scale_layer =
+          params->network->addElementWise(*output, *gamma, nvinfer1::ElementWiseOperation::kPROD);
+      ICHECK(scale_layer != nullptr);
+      output = scale_layer->getOutput(0);
+    }
+    if (center) {
+      auto center_layer =
+          params->network->addElementWise(*output, *beta, nvinfer1::ElementWiseOperation::kSUM);
+      ICHECK(center_layer != nullptr);
+      output = center_layer->getOutput(0);
     }
     params->outputs.push_back(output);
   }
@@ -687,6 +808,9 @@ class UnaryOpConverter : public TensorRTOpConverter {
       {"ceil", nvinfer1::UnaryOperation::kCEIL},
       {"floor", nvinfer1::UnaryOperation::kFLOOR},
 #endif
+#if TRT_VERSION_GE(7, 0, 0)
+      {"erf", nvinfer1::UnaryOperation::kERF},
+#endif
     };
     auto it = op_map.find(params->op_name);
     ICHECK(it != op_map.end()) << "Unsupported unary type " << params->op_name;
@@ -720,6 +844,53 @@ class ConcatOpConverter : public TensorRTOpConverter {
     ICHECK(concat_layer != nullptr);
     concat_layer->setAxis(axis);
     params->outputs.push_back(concat_layer->getOutput(0));
+  }
+};
+
+class SplitOpConverter : public TensorRTOpConverter {
+ public:
+  SplitOpConverter() : TensorRTOpConverter({kTensor}) {}
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    auto input_dims = TrtDimsToVector(input->getDimensions());
+    const int original_axis = std::stoi(params->node.GetAttr<std::vector<std::string>>("axis")[0]);
+    const int axis = ConvertAxis(params, original_axis, input_dims.size());
+    auto indices_or_sections =
+        params->node.GetAttr<std::vector<std::string>>("indices_or_sections");
+    auto mode = params->node.GetAttr<std::vector<std::string>>("mode")[0];
+
+    std::vector<int> split_starts;
+    std::vector<int> split_sizes;
+    if (mode == "sections") {
+      int sections = std::stoi(indices_or_sections[0]);
+      int size = input_dims[axis] / sections;
+      for (int i = 0; i < sections; i++) {
+        split_starts.push_back(i * size);
+        split_sizes.push_back(size);
+      }
+    } else {
+      int last_index = 0;
+      for (size_t i = 0; i < indices_or_sections.size(); ++i) {
+        int index = std::stoi(indices_or_sections[i]);
+        split_starts.push_back(last_index);
+        split_sizes.push_back(index - last_index);
+        last_index = index;
+      }
+      split_starts.push_back(last_index);
+      split_sizes.push_back(input_dims[axis] - last_index);
+    }
+
+    std::vector<int> start(input_dims.size(), 0);
+    std::vector<int> size(input_dims.begin(), input_dims.end());
+    std::vector<int> strides(input_dims.size(), 1);
+    for (size_t i = 0; i < split_sizes.size(); ++i) {
+      start[axis] = split_starts[i];
+      size[axis] = split_sizes[i];
+      auto slice_layer = params->network->addSlice(*input, VectorToTrtDims(start),
+                                                   VectorToTrtDims(size), VectorToTrtDims(strides));
+      params->outputs.push_back(slice_layer->getOutput(0));
+    }
   }
 };
 
@@ -788,8 +959,8 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
     }
 #endif
 
-    // Could use conv2d_attr->channels.as<IntImmNode>()->value
-    const int num_outputs = weight_shape[1];
+    const int num_outputs =
+        std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
     nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
     auto deconv_layer = params->network->addDeconvolution(*input_tensor, num_outputs, kernel_size,
@@ -846,8 +1017,8 @@ class Conv3DTransposeOpConverter : public TensorRTOpConverter {
     bool use_asymmetric_padding;
     GetPadding3D(str_padding, &use_asymmetric_padding, &prepadding, &postpadding);
 
-    // Could use attrs->channels.as<IntImmNode>()->value
-    const int num_outputs = weight_shape[1];
+    const int num_outputs =
+        std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
     const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
     nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
     auto deconv_layer = params->network->addDeconvolutionNd(*input_tensor, num_outputs, kernel_size,
@@ -921,7 +1092,6 @@ class ReshapeOpConverter : public TensorRTOpConverter {
 
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
-    ICHECK_EQ(std::stoi(params->node.GetAttr<std::vector<std::string>>("reverse")[0]), false);
     auto str_newshape = params->node.GetAttr<std::vector<std::string>>("newshape");
     std::vector<int> new_shape;
     const int start_index = TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0;
@@ -971,9 +1141,17 @@ class ReduceOpConverter : public TensorRTOpConverter {
     // TODO(trevmorr): Support reduce to scalar.
     ICHECK_GT(str_axis.size(), 0);
     uint32_t reduce_axes = 0;
-    for (size_t i = 0; i < str_axis.size(); ++i) {
-      const int axis = ConvertAxis(params, std::stoi(str_axis[i]), input->getDimensions().nbDims);
-      reduce_axes |= 1 << axis;
+
+    if (str_axis.size() == 1 && str_axis[0].length() == 0) {
+      // Reduce to scalar
+      for (int i = 0; i < input->getDimensions().nbDims; ++i) {
+        reduce_axes |= 1 << i;
+      }
+    } else {
+      for (size_t i = 0; i < str_axis.size(); ++i) {
+        const int axis = ConvertAxis(params, std::stoi(str_axis[i]), input->getDimensions().nbDims);
+        reduce_axes |= 1 << axis;
+      }
     }
     auto reduce_layer = params->network->addReduce(*input, it->second, reduce_axes, keepdims);
     params->outputs.push_back(reduce_layer->getOutput(0));
@@ -1040,6 +1218,24 @@ class AdaptivePoolingOpConverter : public TensorRTOpConverter {
   }
 };
 
+class BatchMatmulOpConverter : public TensorRTOpConverter {
+ public:
+  BatchMatmulOpConverter() : TensorRTOpConverter({kTensor, kTensor}) {}
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto transa = std::stoi(params->node.GetAttr<std::vector<std::string>>("transpose_a")[0]);
+    auto transb = std::stoi(params->node.GetAttr<std::vector<std::string>>("transpose_b")[0]);
+    nvinfer1::MatrixOperation trt_transa =
+        transa ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
+    nvinfer1::MatrixOperation trt_transb =
+        transb ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
+    nvinfer1::IMatrixMultiplyLayer* matmul_layer = params->network->addMatrixMultiply(
+        *params->inputs.at(0).tensor, trt_transa, *params->inputs.at(1).tensor, trt_transb);
+    ICHECK(matmul_layer != nullptr);
+    params->outputs.push_back(matmul_layer->getOutput(0));
+  }
+};
+
 const std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<TensorRTOpConverter>>>
 GetOpConverters() {
   static auto map =
@@ -1049,7 +1245,9 @@ GetOpConverters() {
   map->emplace("sigmoid", std::make_shared<ActivationOpConverter>());
   map->emplace("tanh", std::make_shared<ActivationOpConverter>());
   map->emplace("nn.batch_norm", std::make_shared<BatchNormOpConverter>());
+  map->emplace("nn.layer_norm", std::make_shared<LayerNormOpConverter>());
   map->emplace("nn.softmax", std::make_shared<SoftmaxOpConverter>());
+  map->emplace("nn.conv1d", std::make_shared<Conv1DOpConverter>());
   map->emplace("nn.conv2d", std::make_shared<Conv2DOpConverter>());
   map->emplace("nn.dense", std::make_shared<DenseOpConverter>());
   map->emplace("nn.bias_add", std::make_shared<BiasAddOpConverter>());
@@ -1073,6 +1271,7 @@ GetOpConverters() {
   map->emplace("expand_dims", std::make_shared<ExpandDimsOpConverter>());
   map->emplace("squeeze", std::make_shared<SqueezeOpConverter>());
   map->emplace("concatenate", std::make_shared<ConcatOpConverter>());
+  map->emplace("split", std::make_shared<SplitOpConverter>());
   map->emplace("nn.conv2d_transpose", std::make_shared<Conv2DTransposeOpConverter>());
   map->emplace("transpose", std::make_shared<TransposeOpConverter>());
   map->emplace("layout_transform", std::make_shared<LayoutTransformOpConverter>());
@@ -1085,6 +1284,7 @@ GetOpConverters() {
   map->emplace("mean", std::make_shared<ReduceOpConverter>());
   map->emplace("nn.adaptive_max_pool2d", std::make_shared<AdaptivePoolingOpConverter>());
   map->emplace("nn.adaptive_avg_pool2d", std::make_shared<AdaptivePoolingOpConverter>());
+  map->emplace("nn.batch_matmul", std::make_shared<BatchMatmulOpConverter>());
 #if TRT_VERSION_GE(5, 1, 5)
   map->emplace("clip", std::make_shared<ActivationOpConverter>());
   map->emplace("nn.leaky_relu", std::make_shared<ActivationOpConverter>());
@@ -1101,6 +1301,9 @@ GetOpConverters() {
   map->emplace("nn.avg_pool3d", std::make_shared<Pooling3DOpConverter>());
   map->emplace("nn.conv3d_transpose", std::make_shared<Conv3DTransposeOpConverter>());
 #endif  // TRT_VERSION_GE(6, 0, 1)
+#if TRT_VERSION_GE(7, 0, 0)
+  map->emplace("erf", std::make_shared<UnaryOpConverter>());
+#endif  // TRT_VERSION_GE(7, 0, 0)
   return map;
 }
 

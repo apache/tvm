@@ -43,14 +43,14 @@ def get_arch_version(target_mattr):
 
 
 def is_dotprod_available():
-    """ Checks whether the hardware has support for udot/sdot instructions. """
+    """Checks whether the hardware has support for udot/sdot instructions."""
     target = tvm.target.Target.current(allow_none=False)
     arch_version = get_arch_version(target.mattr)
     return arch_version >= 8.4 or ((arch_version in (8.2, 8.3)) and "+dotprod" in target.mattr)
 
 
 def is_mmla_available():
-    """ Checks whether the hardware has support for ummla/smmla instructions. """
+    """Checks whether the hardware has support for ummla/smmla instructions."""
     target = tvm.target.Target.current(allow_none=False)
     arch_version = get_arch_version(target.mattr)
     return arch_version >= 8.6 or (
@@ -59,7 +59,7 @@ def is_mmla_available():
 
 
 def is_aarch64_arm():
-    """ Checks whether we are compiling for an AArch64 target. """
+    """Checks whether we are compiling for an AArch64 target."""
     target = tvm.target.Target.current(allow_none=False)
     return "aarch64" in target.attrs.get("mtriple", "")
 

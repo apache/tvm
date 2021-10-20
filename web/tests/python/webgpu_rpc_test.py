@@ -26,7 +26,7 @@ from tvm import rpc
 from tvm.contrib import utils, emcc
 import numpy as np
 
-proxy_host = "localhost"
+proxy_host = "127.0.0.1"
 proxy_port = 9090
 
 
@@ -65,16 +65,16 @@ def test_rpc():
 
     def check(remote):
         # basic function checks.
-        ctx = remote.webgpu(0)
+        dev = remote.webgpu(0)
         adata = np.random.uniform(size=n).astype(A.dtype)
-        a = tvm.nd.array(adata, ctx)
-        b = tvm.nd.array(np.zeros(n, dtype=A.dtype), ctx)
+        a = tvm.nd.array(adata, dev)
+        b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
 
-        np.testing.assert_equal(a.asnumpy(), adata)
+        np.testing.assert_equal(a.numpy(), adata)
         f1 = remote.system_lib()
         addone = f1.get_function("addone")
         addone(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         print("Test pass..")
 
     check(remote)

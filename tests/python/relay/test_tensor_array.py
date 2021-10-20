@@ -29,7 +29,7 @@ import numpy as np
 def vmobj_to_list(mod, o, dtype="float32"):
     _, tensor_nil, _, _, _, _, _, _, _ = mod.get_type(f"tensor_{dtype}_t")
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy().tolist()]
+        return [o.numpy().tolist()]
     elif isinstance(o, tvm.runtime.container.ADT):
         if len(o) == 0:
             if tensor_nil.tag == o.tag:
@@ -51,7 +51,7 @@ def vmobj_to_list(mod, o, dtype="float32"):
         elif "tensor_nil" in o.constructor.name_hint:
             return [0]
         elif "tensor" in o.constructor.name_hint:
-            return [o.fields[0].asnumpy()]
+            return [o.fields[0].numpy()]
         else:
             raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
     else:
@@ -60,12 +60,12 @@ def vmobj_to_list(mod, o, dtype="float32"):
 
 def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
     for kind in ["debug", "vm"]:
-        for target, ctx in [("llvm", tvm.cpu(0))]:  # testing.enabled_targets():
-            # for target, ctx in testing.enabled_targets():
-            if kind == "debug" and ctx.device_type != tvm.cpu().device_type:
+        for target, dev in [("llvm", tvm.cpu(0))]:  # testing.enabled_targets():
+            if kind == "debug" and dev.device_type != tvm.cpu().device_type:
                 continue
-            ex = relay.create_executor(kind, mod=ta_mod, ctx=ctx, target=target)
-            result = ex.evaluate()(*args)
+            result = relay.create_executor(kind, mod=ta_mod, device=dev, target=target).evaluate()(
+                *args
+            )
             got = vmobj_to_list(ta_mod, result, dtype)
             tvm.testing.assert_allclose(ref_res, got, rtol=rtol, atol=rtol)
 

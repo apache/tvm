@@ -30,8 +30,8 @@ from ._ffi import register_object, register_func, register_extension, get_global
 # top-level alias
 # tvm.runtime
 from .runtime.object import Object
-from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .runtime.ndarray import vpi, rocm, ext_dev, micro_dev, hexagon
+from .runtime.ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
+from .runtime.ndarray import vpi, rocm, ext_dev, hexagon
 from .runtime import ndarray as nd
 
 # tvm.error
@@ -40,6 +40,7 @@ from . import error
 # tvm.ir
 from .ir import IRModule
 from .ir import transform
+from .ir import instrument
 from .ir import container
 from . import ir
 
@@ -67,6 +68,13 @@ from . import support
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
 
+if support.libinfo().get("USE_MICRO", "OFF") == "ON":
+    from . import micro
+
+# NOTE: This file should be python2 compatible so we can
+# raise proper error message when user run the package using
+# an older version of the python
+
 
 def _should_print_backtrace():
     in_pytest = "PYTEST_CURRENT_TEST" in os.environ
@@ -76,7 +84,7 @@ def _should_print_backtrace():
         tvm_backtrace = bool(int(tvm_backtrace))
     except ValueError:
         raise ValueError(
-            f"invalid value for TVM_BACKTRACE `{tvm_backtrace}`, please set to 0 or 1."
+            "invalid value for TVM_BACKTRACE {}, please set to 0 or 1.".format(tvm_backtrace)
         )
 
     return in_pytest or tvm_backtrace

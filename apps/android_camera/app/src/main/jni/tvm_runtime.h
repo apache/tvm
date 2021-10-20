@@ -25,24 +25,21 @@
 
 #include <fstream>
 
-/* Enable custom logging - this will cause TVM to pass every log message
- * through CustomLogMessage instead of LogMessage. By enabling this, we must
- * implement dmlc::CustomLogMessage::Log. We use this to pass TVM log
- * messages to Android logcat.
+#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
+#define TVM_USE_LIBBACKTRACE 0
+/* Enable custom logging - this will cause TVM to use a custom implementation
+ * of tvm::runtime::detail::LogMessage. We use this to pass TVM log messages to
+ * Android logcat.
  */
-#define DMLC_LOG_CUSTOMIZE 1
-
-/* Ensure that fatal errors are passed to the logger before throwing
- * in LogMessageFatal
- */
-#define DMLC_LOG_BEFORE_THROW 1
+#define TVM_LOG_CUSTOMIZE 1
 
 #include "../src/runtime/c_runtime_api.cc"
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/dso_library.cc"
 #include "../src/runtime/file_utils.cc"
-#include "../src/runtime/graph/graph_runtime.cc"
+#include "../src/runtime/graph_executor/graph_executor.cc"
 #include "../src/runtime/library_module.cc"
+#include "../src/runtime/logging.cc"
 #include "../src/runtime/module.cc"
 #include "../src/runtime/ndarray.cc"
 #include "../src/runtime/object.cc"
@@ -60,6 +57,7 @@
 #ifdef TVM_OPENCL_RUNTIME
 #include "../src/runtime/opencl/opencl_device_api.cc"
 #include "../src/runtime/opencl/opencl_module.cc"
+#include "../src/runtime/source_utils.cc"
 #endif
 
 #ifdef TVM_VULKAN_RUNTIME
@@ -72,8 +70,20 @@
 
 #include <android/log.h>
 
-void dmlc::CustomLogMessage::Log(const std::string& msg) {
-  // This is called for every message logged by TVM.
-  // We pass the message to logcat.
-  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", msg.c_str());
+namespace tvm {
+namespace runtime {
+namespace detail {
+// Override logging mechanism
+void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+  std::string m = file + ":" + std::to_string(lineno) + ": " + message;
+  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", m.c_str());
+  throw InternalError(file, lineno, message);
 }
+void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+  std::string m = file + ":" + std::to_string(lineno) + ": " + message;
+  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", m.c_str());
+}
+
+}  // namespace detail
+}  // namespace runtime
+}  // namespace tvm

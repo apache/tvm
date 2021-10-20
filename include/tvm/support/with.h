@@ -25,7 +25,7 @@
 #ifndef TVM_SUPPORT_WITH_H_
 #define TVM_SUPPORT_WITH_H_
 
-#include <dmlc/logging.h>
+#include <dmlc/common.h>
 
 #include <utility>
 

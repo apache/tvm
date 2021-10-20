@@ -58,10 +58,9 @@ def test_recursion():
     mod["main"] = to_cps(mod["main"], mod=mod)
     mod = relay.transform.InferType()(mod)
     mod["main"] = un_cps(mod["main"])
-    ex = create_executor(mod=mod)
     i_nd = rand(dtype, *shape)
-    forward = ex.evaluate()(i_nd)
-    tvm.testing.assert_allclose(forward.asnumpy(), 8 * i_nd.asnumpy())
+    forward = create_executor(mod=mod).evaluate()(i_nd)
+    tvm.testing.assert_allclose(forward.numpy(), 8 * i_nd.numpy())
 
 
 # This serve as an integration test.

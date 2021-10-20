@@ -47,7 +47,7 @@ def alloc_tensor(storage, offset, shape, dtype="float32", assert_shape=None):
     return _make.alloc_tensor(storage, offset, shape, dtype, assert_shape)
 
 
-def alloc_storage(size, alignment, ctx, dtype_hint="float32"):
+def alloc_storage(size, alignment, device, dtype_hint="float32"):
     """Allocate a piece of tensor storage.
 
     Parameters
@@ -56,15 +56,17 @@ def alloc_storage(size, alignment, ctx, dtype_hint="float32"):
         The size of the allocation.
     alignment : tvm.relay.Expr
         The alignment of the allocation.
-    dtype : str
-        The dtype_hint of the allocation.
+    device : tvm.runtime.Device
+        The device of the allocation.
+    dtype_hint : str
+        The dtype hint of the allocation.
 
     Returns
     -------
     result : tvm.relay.Expr
         The alloc_storage expression.
     """
-    return _make.alloc_storage(size, alignment, ctx, dtype_hint)
+    return _make.alloc_storage(size, alignment, device, dtype_hint)
 
 
 def flatten_tuple_type(ty):

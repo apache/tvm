@@ -29,9 +29,8 @@
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
-#include <tvm/support/logging.h>
 
 #include <fstream>
 #include <string>

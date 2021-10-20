@@ -190,7 +190,8 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
       for (int argc = 0; argc < args.size(); argc++) {
         const DLTensor* tensor = args[argc];
         auto shape = std::vector<int64_t>(tensor->shape, tensor->shape + tensor->ndim);
-        test_outputs.emplace_back(tvm::runtime::NDArray::Empty(shape, tensor->dtype, tensor->ctx));
+        test_outputs.emplace_back(
+            tvm::runtime::NDArray::Empty(shape, tensor->dtype, tensor->device));
         test_outputs[test_outputs.size() - 1].CopyFrom(tensor);
       }
     });

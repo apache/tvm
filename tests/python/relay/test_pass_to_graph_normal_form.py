@@ -33,11 +33,9 @@ def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
     if mod is None:
         mod = tvm.IRModule()
 
-    ctx = tvm.context("llvm", 0)
-    intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
-
-    result = intrp.evaluate(expr)(*args)
-    np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
+    dev = tvm.device("llvm", 0)
+    result = create_executor(mod=mod, device=dev, target="llvm").evaluate(expr)(*args)
+    np.testing.assert_allclose(result.numpy(), expected_result, rtol=rtol)
 
 
 def test_implicit_share():

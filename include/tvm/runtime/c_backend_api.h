@@ -61,6 +61,7 @@ typedef int (*TVMBackendPackedCFunc)(TVMValue* args, int* type_codes, int num_ar
  * \return 0 when no error is thrown, -1 when failure happens
  */
 TVM_DLL int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionHandle* out);
+
 /*!
  * \brief Backend function to register system-wide library symbol.
  *
@@ -98,6 +99,19 @@ TVM_DLL void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t 
  * \sa TVMBackendAllocWorkspace
  */
 TVM_DLL int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr);
+
+/*!
+ * \brief Backend function to register execution environment(e.g. python)
+ *        specific C APIs.
+ *
+ * \note  We only register the C API function when absolutely necessary (e.g. when signal handler
+ *  cannot trap back into python). In most cases we should use the PackedFunc FFI.
+ *
+ * \param name The name of the symbol
+ * \param ptr The symbol address.
+ * \return 0 when no error is thrown, -1 when failure happens
+ */
+TVM_DLL int TVMBackendRegisterEnvCAPI(const char* name, void* ptr);
 
 /*!
  * \brief Environment for TVM parallel task.

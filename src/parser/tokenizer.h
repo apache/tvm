@@ -25,10 +25,10 @@
 #define TVM_PARSER_TOKENIZER_H_
 
 #include <tvm/node/serialization.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
 #include <fstream>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -62,7 +62,9 @@ bool IsNumeric(char c) {
          !IsWhitespace(c);
 }
 
-bool IsIdentLetter(char c) { return '_' == c || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'); }
+bool IsIdentLetter(char c) {
+  return '_' == c || c == '/' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+}
 
 bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 
@@ -172,44 +174,72 @@ struct Tokenizer {
   Token ParseNumber(bool is_pos, bool is_float, std::string number) {
     ICHECK(number.size() > 0) << "an empty string is an invalid number";
 
-    try {
-      if (is_float) {
-        throw std::invalid_argument("is_float");
-      }
+    if (!is_float) {
       auto token = NewToken(TokenType::kInteger);
       size_t index = 0;
-      int value = std::stoi(number, &index);
-      if (number.size() > index) {
-        throw std::invalid_argument("floating point");
+      int64_t value = 0;
+      try {
+        value = std::stoll(number, &index);
+      } catch (const std::invalid_argument& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span) << "invalid number `" << number << "`");
+      } catch (const std::out_of_range& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span) << "invalid number `" << number << "`");
       }
-      value = is_pos ? value : -value;
-      token->data = tvm::Integer(value);
-      return token;
-    } catch (const std::invalid_argument& ia) {
-      auto token = NewToken(TokenType::kFloat);
-
-      auto suffix_pos = number.rfind("f");
-
-      auto literal_text = number.substr(0, suffix_pos);
-
-      auto suffix = number.substr(suffix_pos + 1, number.size() - suffix_pos);
-
-      int width = 32;
-
-      if (suffix.size()) {
-        try {
-          width = std::stoi(suffix);
-        } catch (const std::invalid_argument& err) {
-          this->diag_ctx.Emit(Diagnostic::Error(token->span)
-                              << "invalid numeric suffix `" << suffix << "`");
+      if (number.size() <= index) {
+        value = is_pos ? value : -value;
+        if (value > std::numeric_limits<int32_t>::max()) {
+          token->data = tvm::IntImm(DataType::Int(64), value);
+        } else {
+          token->data = tvm::IntImm(DataType::Int(32), value);
         }
+        return token;
       }
-
-      double value = stod(literal_text);
-      value = is_pos ? value : -value;
-      token->data = tvm::FloatImm(DataType::Float(width), value);
-      return token;
     }
+    auto token = NewToken(TokenType::kFloat);
+
+    auto suffix_pos = number.rfind("f");
+
+    auto literal_text = number.substr(0, suffix_pos);
+
+    auto suffix = number.substr(suffix_pos + 1, number.size() - suffix_pos);
+
+    int width = 32;
+
+    if (suffix.size()) {
+      try {
+        width = std::stoi(suffix);
+      } catch (const std::invalid_argument& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid numeric suffix `" << suffix << "`");
+      } catch (const std::out_of_range& err) {
+        this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                            << "invalid numeric suffix `" << suffix << "`");
+      }
+    }
+
+    double value = stod(literal_text);
+    value = is_pos ? value : -value;
+    token->data = tvm::FloatImm(DataType::Float(width), value);
+    return token;
+  }
+
+  Token ParseNumber(bool is_pos) {
+    std::stringstream ss;
+    while (More() && IsNumeric(Peek())) {
+      ss << Next();
+    }
+
+    bool is_float = false;
+
+    // Remove trailing floating point prefix.
+    if (More() && Peek() == 'f') {
+      ss << Next();
+      while (More() && IsNumeric(Peek())) {
+        ss << Next();
+      }
+      is_float = true;
+    }
+    return ParseNumber(is_pos, is_float, ss.str());
   }
 
   bool MatchString(const std::string& string) {
@@ -309,7 +339,7 @@ struct Tokenizer {
     int line = this->line;
     int col = this->col;
     auto next = Peek();
-    DLOG(INFO) << "tvm::parser::TokenizeOnce: next=" << next;
+    VLOG(9) << "tvm::parser::TokenizeOnce: next=" << next;
     if (next == '\n') {
       auto token = NewToken(TokenType::kNewline);
       Next();
@@ -340,38 +370,28 @@ struct Tokenizer {
       auto token = NewToken(TokenType::kWhitespace);
       Next();
       return token;
-    } else if (IsDigit(next) || next == '-') {
+    } else if (next == '-') {
       int negs = 0;
       while (More() && Peek() == '-') {
         Next();
         negs++;
       }
-      // If there isn't a number right after either,
-      // this is really slow for lexing, should replace
-      // with multi-token return or something.
-      if (negs && !IsDigit(Peek())) {
+      bool is_neg = negs % 2 == 1;
+      if (More() && IsDigit(Peek())) {
+        return ParseNumber(!is_neg);
+      } else if (More() && MatchString("inff")) {
+        return ParseNumber(!is_neg, true, "inff");
+      } else {
+        // If there isn't a number right after either,
+        // this is really slow for lexing, should replace
+        // with multi-token return or something.
         pos = pos - (negs - 1);
         return NewToken(TokenType::kMinus);
       }
-
-      bool is_neg = negs % 2 == 1;
-      std::stringstream ss;
-      while (More() && IsNumeric(Peek())) {
-        ss << Next();
-      }
-
-      bool is_float = false;
-
-      // Remove trailing floating point prefix.
-      if (More() && Peek() == 'f') {
-        ss << Next();
-        while (More() && IsNumeric(Peek())) {
-          ss << Next();
-        }
-        is_float = true;
-      }
-
-      return ParseNumber(!is_neg, is_float, ss.str());
+    } else if (IsDigit(next)) {
+      return ParseNumber(true);
+    } else if (MatchString("inff")) {
+      return ParseNumber(true, true, "inff");
     } else if (next == '.') {
       auto token = NewToken(TokenType::kPeriod);
       Next();
@@ -402,10 +422,6 @@ struct Tokenizer {
       return token;
     } else if (next == '+') {
       auto token = NewToken(TokenType::kPlus);
-      Next();
-      return token;
-    } else if (next == '-') {
-      auto token = NewToken(TokenType::kMinus);
       Next();
       return token;
     } else if (next == '*') {
@@ -534,7 +550,7 @@ struct Tokenizer {
   }
 
   void Tokenize() {
-    DLOG(INFO) << "tvm::parser::Tokenize";
+    VLOG(9) << "tvm::parser::Tokenize";
     while (this->More()) {
       auto token = TokenizeOnce();
       ICHECK(token.defined());

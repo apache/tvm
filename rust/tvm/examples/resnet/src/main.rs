@@ -27,11 +27,11 @@ use ::ndarray::{Array, ArrayD, Axis};
 use image::{FilterType, GenericImageView};
 
 use anyhow::Context as _;
-use tvm::runtime::graph_rt::GraphRt;
-use tvm::*;
+use tvm_rt::graph_rt::GraphRt;
+use tvm_rt::*;
 
 fn main() -> anyhow::Result<()> {
-    let ctx = Context::cpu(0);
+    let dev = Device::cpu(0);
     println!("{}", concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"));
 
     let img = image::open(concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"))
@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
     // make arr shape as [1, 3, 224, 224] acceptable to resnet
     let arr = arr.insert_axis(Axis(0));
     // create input tensor from rust's ndarray
-    let input = NDArray::from_rust_ndarray(&arr, Context::cpu(0), DataType::float(32, 1))?;
+    let input = NDArray::from_rust_ndarray(&arr, Device::cpu(0), DataType::float(32, 1))?;
     println!(
         "input shape is {:?}, len: {}, size: {}",
         input.shape(),
@@ -78,24 +78,40 @@ fn main() -> anyhow::Result<()> {
         "/deploy_lib.so"
     )))?;
 
-    let mut graph_rt = GraphRt::create_from_parts(&graph, lib, ctx)?;
-
     // parse parameters and convert to TVMByteArray
     let params: Vec<u8> = fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params"))?;
-
     println!("param bytes: {}", params.len());
 
-    graph_rt.load_params(&params)?;
+    // If you want an easy way to test a memory leak simply replace the program below with:
+    // let mut output: Vec<f32>;
+
+    // loop {
+    //     let mut graph_rt = GraphRt::create_from_parts(&graph, lib.clone(), dev)?;
+    //     graph_rt.load_params(params.clone())?;
+    //     graph_rt.set_input("data", input.clone())?;
+    //     graph_rt.run()?;
+
+    //     // prepare to get the output
+    //     let output_shape = &[1, 1000];
+    //     let output_nd = NDArray::empty(output_shape, Device::cpu(0), DataType::float(32, 1));
+    //     graph_rt.get_output_into(0, output_nd.clone())?;
+
+    //     // flatten the output as Vec<f32>
+    //     output = output_nd.to_vec::<f32>()?;
+    // }
+
+    let mut graph_rt = GraphRt::create_from_parts(&graph, lib, dev)?;
+    graph_rt.load_params(params)?;
     graph_rt.set_input("data", input)?;
     graph_rt.run()?;
 
     // prepare to get the output
     let output_shape = &[1, 1000];
-    let output = NDArray::empty(output_shape, Context::cpu(0), DataType::float(32, 1));
-    graph_rt.get_output_into(0, output.clone())?;
+    let output_nd = NDArray::empty(output_shape, Device::cpu(0), DataType::float(32, 1));
+    graph_rt.get_output_into(0, output_nd.clone())?;
 
     // flatten the output as Vec<f32>
-    let output = output.to_vec::<f32>()?;
+    let output: Vec<f32> = output_nd.to_vec::<f32>()?;
 
     // find the maximum entry in the output and its index
     let (argmax, max_prob) = output
@@ -107,7 +123,7 @@ fn main() -> anyhow::Result<()> {
 
     // create a hash map of (class id, class name)
     let file = File::open("synset.txt").context("failed to open synset")?;
-    let synset: Vec<String> = BufReader::new(file)
+    let synset: Vec<std::string::String> = BufReader::new(file)
         .lines()
         .into_iter()
         .map(|x| x.expect("readline failed"))

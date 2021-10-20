@@ -22,10 +22,9 @@ import numpy as np
 
 import tvm._ffi
 from tvm.runtime import container, Object
-from tvm.ir import IRModule
 
 from . import _backend
-from .. import _make, analysis, transform
+from .. import _make, analysis
 from ... import nd
 from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, const
 from ..function import Function
@@ -178,6 +177,7 @@ class Executor(object):
             return self._make_executor(expr)
 
         # normal expression evaluated by running a function.
+        # TODO(mbs): This should really be type rather than syntax driven.
         func = Function([], expr)
         return self._make_executor(func)()
 
@@ -191,69 +191,59 @@ class Interpreter(Executor):
     mod : tvm.IRModule
         The module to support the execution.
 
-    ctx : tvmContext
-        The runtime context to run the code on.
+    device : Device
+        The runtime device to run the code on.
 
     target : tvm.Target
         The target option to build the function.
+
+    CAUTION: Despite the API the module is prepared upon each call to evaluate
+    rather than once in create_executor.
+    That is:
+    .. code-block:: python
+
+        executor = relay.create_executor(kind="debug", mod=module)
+        a = executor.evaluate(expr)(args1)
+        b = executor.evaluate(expr)(args2)
+
+    will prepare all the bindings in module twice. For efficiency, try to hoist
+    calls to evaluate as high as possible, preferably immediately after create_executor:
+    .. code-block:: python
+
+        func = relay.create_executor(kind="debug", mod=module).evaluate(expr)
+        a = func(args1)
+        b = func(args2)
     """
 
-    def __init__(self, mod, ctx, target):
+    def __init__(self, mod, device, target):
         self.mod = mod
-        self.ctx = ctx
+        self.device = device
         self.target = target
-
-    def optimize(self):
-        """Optimize functions in a module.
-
-        Returns
-        -------
-        opt_mod : tvm.IRModule
-            The optimized module.
-        """
-        seq = tvm.transform.Sequential(
-            [
-                # tvm.parser.AnnotateSpans(),
-                transform.SimplifyInference(),
-                transform.FuseOps(0),
-                transform.ToANormalForm(),
-                transform.InferType(),
-            ]
-        )
-        mod = seq(self.mod)
-        return mod
 
     def _make_executor(self, expr=None):
         if expr is None or isinstance(expr, GlobalVar):
             assert self.mod is not None
 
-        def _interp_wrapper(*args, **kwargs):
-            if expr is None:
-                args = self._convert_args(self.mod["main"], args, kwargs)
+        if expr is None:
+            # A missing expr denotes 'main' in the given module.
+            expr = self.mod.get_global_var("main")
+
+        # Evaluate expr to a packed function we can efficiently re-apply
+        # to Relay arguments.
+        func = _backend.EvalFunction(self.mod, expr, self.device, self.target)
+
+        def _apply_args(*args, **kwargs):
+            if isinstance(expr, GlobalVar):
+                # When expanding args, look inside the actual global definition so kwargs
+                # can be matched.
+                args = self._convert_args(self.mod[expr.name_hint], args, kwargs)
             else:
                 args = self._convert_args(expr, args, kwargs)
-
+            # Reflect python arguments up into Relay.
             relay_args = []
             for arg in args:
                 relay_args.append(_arg_to_ast(self.mod, arg))
+            # Apply func to Relay args
+            return func(relay_args)
 
-            # Set the entry function for the module.
-            if expr is None:
-                pass
-            elif isinstance(expr, GlobalVar):
-                self.mod["main"] = self.mod[expr]
-            else:
-                assert isinstance(expr, Function)
-                func = Function([], Call(expr, relay_args))
-                relay_args = []
-                if self.mod:
-                    self.mod["main"] = func
-                else:
-                    self.mod = IRModule.from_expr(func)
-
-            mod = self.optimize()
-            opt_expr = Call(mod["main"], relay_args)
-            _intrp = _backend.CreateInterpreter(mod, self.ctx, self.target)
-            return _intrp(opt_expr)
-
-        return _interp_wrapper
+        return _apply_args

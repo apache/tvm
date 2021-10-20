@@ -17,9 +17,9 @@
 
 package org.apache.tvm.rpc;
 
+import org.apache.tvm.Device;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
-import org.apache.tvm.TVMContext;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -52,111 +52,111 @@ public class RPCSession {
   }
 
   /**
-   * Construct a remote context.
+   * Construct a remote device.
    * @param devType device type.
    * @param devId device id.
-   * @return The corresponding encoded remote context.
+   * @return The corresponding encoded remote device.
    */
-  public TVMContext context(String devType, int devId) {
-    TVMContext ctx = new TVMContext(devType, devId);
+  public Device device(String devType, int devId) {
+    Device dev = new Device(devType, devId);
     int encode = (tblIndex + 1) * RPC.RPC_SESS_MASK;
-    return new TVMRemoteContext(ctx.deviceType + encode, devId, this);
+    return new TVMRemoteDevice(dev.deviceType + encode, devId, this);
   }
 
   /**
-   * Construct a remote context.
+   * Construct a remote device.
    * @param devType device type.
-   * @return The corresponding encoded remote context.
+   * @return The corresponding encoded remote device.
    */
-  public TVMContext context(String devType) {
-    return context(devType, 0);
+  public Device device(String devType) {
+    return device(devType, 0);
   }
 
   /**
-   * Construct a remote context.
+   * Construct a remote device.
    * @param devType device type.
    * @param devId device id.
-   * @return The corresponding encoded remote context.
+   * @return The corresponding encoded remote device.
    */
-  public TVMContext context(int devType, int devId) {
+  public Device device(int devType, int devId) {
     int encode = (tblIndex + 1) * RPC.RPC_SESS_MASK;
-    return new TVMRemoteContext(devType + encode, devId, this);
+    return new TVMRemoteDevice(devType + encode, devId, this);
   }
 
   /**
-   * Construct a remote context.
+   * Construct a remote device.
    * @param devType device type.
-   * @return The corresponding encoded remote context.
+   * @return The corresponding encoded remote device.
    */
-  public TVMContext context(int devType) {
-    return context(devType, 0);
+  public Device device(int devType) {
+    return device(devType, 0);
   }
 
   /**
    * Construct remote CPU device.
    * @param devId device id.
-   * @return Remote CPU context.
+   * @return Remote CPU device.
    */
-  public TVMContext cpu(int devId) {
-    return context(1, devId);
+  public Device cpu(int devId) {
+    return device(1, devId);
   }
 
   /**
    * Construct remote CPU device.
-   * @return Remote CPU context.
+   * @return Remote CPU device.
    */
-  public TVMContext cpu() {
+  public Device cpu() {
     return cpu(0);
   }
 
   /**
-   * Construct remote GPU device.
+   * Construct remote CUDA GPU device.
    * @param devId device id.
-   * @return Remote GPU context.
+   * @return Remote CUDA GPU device.
    */
-  public TVMContext gpu(int devId) {
-    return context(2, devId);
+  public Device cuda(int devId) {
+    return device(2, devId);
   }
 
   /**
-   * Construct remote GPU device.
-   * @return Remote GPU context.
+   * Construct remote CUDA GPU device.
+   * @return Remote CUDA GPU device.
    */
-  public TVMContext gpu() {
-    return gpu(0);
+  public Device cuda() {
+    return cuda(0);
   }
 
   /**
    * Construct remote OpenCL device.
    * @param devId device id.
-   * @return Remote OpenCL context.
+   * @return Remote OpenCL device.
    */
-  public TVMContext cl(int devId) {
-    return context(4, devId);
+  public Device cl(int devId) {
+    return device(4, devId);
   }
 
   /**
    * Construct remote OpenCL device.
-   * @return Remote OpenCL context.
+   * @return Remote OpenCL device.
    */
-  public TVMContext cl() {
+  public Device cl() {
     return cl(0);
   }
 
   /**
    * Construct remote OpenCL device.
    * @param devId device id.
-   * @return Remote OpenCL context.
+   * @return Remote OpenCL device.
    */
-  public TVMContext vulkan(int devId) {
-    return context(7, devId);
+  public Device vulkan(int devId) {
+    return device(7, devId);
   }
 
   /**
    * Construct remote OpenCL device.
-   * @return Remote OpenCL context.
+   * @return Remote OpenCL device.
    */
-  public TVMContext vulkan() {
+  public Device vulkan() {
     return vulkan(0);
   }
 
@@ -164,17 +164,17 @@ public class RPCSession {
   /**
    * Construct remote Metal device.
    * @param devId device id.
-   * @return Remote metal context.
+   * @return Remote metal device.
    */
-  public TVMContext metal(int devId) {
-    return context(8, devId);
+  public Device metal(int devId) {
+    return device(8, devId);
   }
 
   /**
    * Construct remote Metal device.
-   * @return Remote metal context.
+   * @return Remote metal device.
    */
-  public TVMContext metal() {
+  public Device metal() {
     return metal(0);
   }
 

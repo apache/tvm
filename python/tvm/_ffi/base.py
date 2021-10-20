@@ -60,6 +60,7 @@ def _load_lib():
 
 
 try:
+    # The following import is needed for TVM to work with pdb
     import readline  # pylint: disable=unused-import
 except ImportError:
     pass
@@ -74,6 +75,7 @@ _RUNTIME_ONLY = "runtime" in _LIB_NAME
 
 # The FFI mode of TVM
 _FFI_MODE = os.environ.get("TVM_FFI", "auto")
+
 
 # ----------------------------
 # helper function in ctypes.
@@ -253,7 +255,9 @@ def c2pyerror(err_msg):
     message = []
     for line in arr:
         if trace_mode:
-            if line.startswith("  "):
+            if line.startswith("        "):
+                stack_trace[-1] += "\n" + line
+            elif line.startswith("  "):
                 stack_trace.append(line)
             else:
                 trace_mode = False

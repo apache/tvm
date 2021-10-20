@@ -19,7 +19,6 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
@@ -64,7 +63,7 @@ TEST(PackedFunc, Node) {
 TEST(PackedFunc, NDArray) {
   using namespace tvm;
   using namespace tvm::runtime;
-  auto x = NDArray::Empty({}, String2DLDataType("float32"), TVMContext{kDLCPU, 0});
+  auto x = NDArray::Empty({}, String2DLDataType("float32"), Device{kDLCPU, 0});
   reinterpret_cast<float*>(x->data)[0] = 10.0f;
   ICHECK(x.use_count() == 1);
 
@@ -186,9 +185,10 @@ TEST(TypedPackedFunc, Deduce) {
   auto f = [](int x) -> int { return x + 1; };
   std::function<void(float)> y;
 
-  static_assert(std::is_same<function_signature<decltype(x)>::FType, int(float)>::value,
-                "invariant1");
-  static_assert(std::is_same<function_signature<decltype(f)>::FType, int(int)>::value,
+  static_assert(
+      std::is_same<function_signature<decltype(x)>::FType, int(float)>::value,  // NOLINT(*)
+      "invariant1");
+  static_assert(std::is_same<function_signature<decltype(f)>::FType, int(int)>::value,  // NOLINT(*)
                 "invariant2");
   static_assert(std::is_same<function_signature<decltype(y)>::FType, void(float)>::value,
                 "invariant3");
@@ -199,7 +199,7 @@ TEST(PackedFunc, ObjectConversion) {
   using namespace tvm::tir;
   using namespace tvm::runtime;
   TVMRetValue rv;
-  auto x = NDArray::Empty({}, String2DLDataType("float32"), TVMContext{kDLCPU, 0});
+  auto x = NDArray::Empty({}, String2DLDataType("float32"), Device{kDLCPU, 0});
   // assign null
   rv = ObjectRef();
   ICHECK_EQ(rv.type_code(), kTVMNullptr);
@@ -306,10 +306,4 @@ TEST(TypedPackedFunc, RValue) {
     // auto conversion.
     tf(1, true);
   }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

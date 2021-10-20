@@ -23,8 +23,9 @@ TVM will download these parameters for you when you call relay.build.
 # pylint: disable=invalid-name
 
 import logging
-import os
+from os import getenv
 import sys
+from pathlib import Path
 
 from .task import ApplyHistoryBest
 from ..target import Target
@@ -42,7 +43,7 @@ AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/tlc-pack/tophub/
 AUTOTVM_TOPHUB_NONE_LOC = "NONE"
 
 # root path to store TopHub files
-AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser("~"), ".tvm", "tophub")
+AUTOTVM_TOPHUB_ROOT_PATH = Path(Path("~").expanduser(), ".tvm", "tophub")
 
 # the version of each package
 PACKAGE_VERSION = {
@@ -64,7 +65,6 @@ def _alias(name):
     """convert alias for some packages"""
     table = {
         "vtacpu": "vta",
-        "metal": "opencl",
         "webgpu": "opencl",
         "vulkan": "opencl",
         "nvptx": "cuda",
@@ -74,7 +74,7 @@ def _alias(name):
 
 
 def _get_tophub_location():
-    location = os.getenv(AUTOTVM_TOPHUB_LOC_VAR, None)
+    location = getenv(AUTOTVM_TOPHUB_LOC_VAR, None)
     return AUTOTVM_TOPHUB_DEFAULT_LOC if location is None else location
 
 
@@ -117,7 +117,7 @@ def context(target, extra_files=None):
                     continue
 
                 filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
-                best_context.load(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, filename))
+                best_context.load(Path(AUTOTVM_TOPHUB_ROOT_PATH, filename))
                 break  # only load one file to avoid some fallback template mismatch problem
 
     if extra_files:
@@ -146,7 +146,7 @@ def check_backend(tophub_location, backend):
 
     version = PACKAGE_VERSION[backend]
     package_name = "%s_%s.log" % (backend, version)
-    if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)):
+    if Path(AUTOTVM_TOPHUB_ROOT_PATH, package_name).is_file():
         return True
 
     # pylint: disable=import-outside-toplevel
@@ -173,19 +173,12 @@ def download_package(tophub_location, package_name):
     package_name: str
         The name of package
     """
-    rootpath = AUTOTVM_TOPHUB_ROOT_PATH
-
-    if not os.path.isdir(rootpath):
-        # make directory
-        splits = os.path.split(rootpath)
-        for j in range(1, len(splits) + 1):
-            path = os.path.join(*splits[:j])
-            if not os.path.isdir(path):
-                os.mkdir(path)
+    rootpath = Path(AUTOTVM_TOPHUB_ROOT_PATH)
+    rootpath.mkdir(parents=True, exist_ok=True)
 
     download_url = "{0}/{1}".format(tophub_location, package_name)
     logger.info("Download pre-tuned parameters package from %s", download_url)
-    download(download_url, os.path.join(rootpath, package_name), True, verbose=0)
+    download(download_url, Path(rootpath, package_name), overwrite=True)
 
 
 # global cache for load_reference_log
@@ -207,9 +200,11 @@ def load_reference_log(backend, model, workload_name):
     """
 
     backend = _alias(backend)
+    if backend not in PACKAGE_VERSION:
+        return []
     version = PACKAGE_VERSION[backend]
     package_name = "%s_%s.log" % (backend, version)
-    filename = os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)
+    filename = Path(AUTOTVM_TOPHUB_ROOT_PATH, package_name)
 
     global REFERENCE_LOG_CACHE
     key = (backend, model, workload_name)
@@ -218,11 +213,11 @@ def load_reference_log(backend, model, workload_name):
         tmp = []
         # If TOPHUB_LOCATION is not AUTOTVM_TOPHUB_NONE_LOC,
         # Download the config file from tophub if not exists.
-        if not os.path.exists(filename):
+        if not Path(filename).exists():
             tophub_location = _get_tophub_location()
             if tophub_location != AUTOTVM_TOPHUB_NONE_LOC:
                 download_package(tophub_location, package_name)
-        if os.path.isfile(filename):  # in case download failed
+        if Path(filename).is_file():  # in case download failed
             find = False
             inp = None
             counts = {}

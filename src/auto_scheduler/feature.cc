@@ -26,6 +26,7 @@
 #include <tvm/auto_scheduler/feature.h>
 #include <tvm/auto_scheduler/measure.h>
 #include <tvm/auto_scheduler/measure_record.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/te/operation.h>
@@ -43,13 +44,6 @@
 
 #include "search_policy/utils.h"
 #include "utils.h"
-
-namespace tvm {
-// import the function from driver_api.cc
-void GetBinds(const Array<te::Tensor>& args, bool compact,
-              const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-              Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list);
-}  // namespace tvm
 
 namespace tvm {
 namespace auto_scheduler {
@@ -618,7 +612,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       is_gpu_ = true;
 
       // make a fake for node for blockIdx.x or threadIdx.x
-      Stmt fake_for_node = For(var, 0, extent, ForType::Parallel, DeviceAPI::None, node->body);
+      Stmt fake_for_node = For(var, 0, extent, ForKind::kParallel, node->body);
 
       outer_loop_prod_ *= extent;
       for_loop_stack_.push_back(fake_for_node.as<ForNode>());
@@ -642,11 +636,11 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   void VisitStmt_(const ForNode* node) final {
     int64_t loop_extent = GetLoopExtent(node);
 
-    if (node->for_type == ForType::Vectorized) {
+    if (node->kind == ForKind::kVectorized) {
       vec_for_stack_.push_back(node);
-    } else if (node->for_type == ForType::Unrolled) {
+    } else if (node->kind == ForKind::kUnrolled) {
       unroll_for_stack_.push_back(node);
-    } else if (node->for_type == ForType::Parallel) {
+    } else if (node->kind == ForKind::kParallel) {
       parallel_for_stack_.push_back(node);
     }
 
@@ -656,11 +650,11 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     for_loop_stack_.pop_back();
     outer_loop_prod_ /= loop_extent;
 
-    if (node->for_type == ForType::Vectorized) {
+    if (node->kind == ForKind::kVectorized) {
       vec_for_stack_.pop_back();
-    } else if (node->for_type == ForType::Unrolled) {
+    } else if (node->kind == ForKind::kUnrolled) {
       unroll_for_stack_.pop_back();
-    } else if (node->for_type == ForType::Parallel) {
+    } else if (node->kind == ForKind::kParallel) {
       parallel_for_stack_.pop_back();
     }
   }
@@ -1268,34 +1262,24 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
   Array<te::Tensor> tensors;
 
   std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
+
+  // When inlining, replace const matrices with const values.
+  // Produces wrong IR, but good enough for feature extraction, and
+  // can improve the speed of feature extraction/search.  Must be
+  // called before ScheduleToModule to have an effect.
   sch = sch.normalize_for_feature_extraction();
-  auto bounds = te::InferBound(sch);
 
   try {
-    auto stmt = te::ScheduleOps(sch, bounds, false);
-    Map<te::Tensor, te::Buffer> out_binds;
-    Array<ObjectRef> out_arg_list;
-    bool compact = te::VerifyCompactBuffer(stmt);
     const std::string& name = "main";
-    GlobalVar global_var(name);
-
-    // Copied from driver_api.cc::lower
     auto pass_ctx = tvm::transform::PassContext::Current();
-    GetBinds(tensors, compact, std::unordered_map<te::Tensor, te::Buffer>(), &out_binds,
-             &out_arg_list);
-    tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
-    f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
-    bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+    auto mod = ScheduleToModule(sch, Array<ObjectRef>{tensors.begin(), tensors.end()}, name,
+                                std::unordered_map<te::Tensor, te::Buffer>());
+
     bool disable_vectorize =
         pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
     bool instrument_bound_checkers =
         pass_ctx->GetConfig<Bool>("tir.instrument_bound_checkers", Bool(false)).value();
-
-    if (noalias) {
-      f = WithAttr(std::move(f), "tir.noalias", Bool(true));
-    }
-    auto mod = IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 
     if (IsGPUTask(task)) {
       auto pass_list = Array<tvm::transform::Pass>();
@@ -1323,12 +1307,10 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     const auto& optimize =
         tir::transform::Sequential(Array<tvm::transform::Pass>{tir::transform::Simplify()});
     mod = optimize(std::move(mod));
-    const auto& it = mod->functions.find(global_var);
-    ICHECK(it != mod->functions.end());
-    const auto& prim_func = (*it).second.as<PrimFuncNode>();
+    PrimFunc prim_func = Downcast<PrimFunc>(mod->Lookup(name));
     GetPerStoreFeature(prim_func->body, task->hardware_params->cache_line_bytes, max_n_bufs,
                        feature);
-  } catch (dmlc::Error& e) {
+  } catch (Error& e) {
     (*error_ct)++;
   }
 }
@@ -1397,8 +1379,12 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
     if (find_res == task_cache.end()) {
       // rebuild task
       Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
-      task = SearchTask(ComputeDAG(tensors), workload_key, cur_inp->task->target,
-                        cur_inp->task->target_host, cur_inp->task->hardware_params);
+      Target target = cur_inp->task->target;
+      Target target_host = cur_inp->task->target_host;
+      CheckAndUpdateHostConsistency(&target, &target_host);
+      task = SearchTask(ComputeDAG(tensors), workload_key, target, target_host,
+                        cur_inp->task->hardware_params, cur_inp->task->layout_rewrite_option,
+                        cur_inp->task->task_input_names);
       task_id = task_cache.size();
 
       // compute min cost for each task
@@ -1461,11 +1447,22 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
     if (find_res == task_cache.end()) {
       if (inputs[i]->task->compute_dag.defined()) {  // the measure input is complete
         task = inputs[i]->task;
-      } else {  // the measure input is incomplete
-        // rebuild task for incomplete measure pairs read from file
-        Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
-        task = SearchTask(ComputeDAG(tensors), workload_key, inputs[i]->task->target,
-                          inputs[i]->task->target_host, inputs[i]->task->hardware_params);
+      } else {
+        // The measure input is incomplete, rebuild task for incomplete measure pairs read from file
+        try {
+          Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
+          Target target = inputs[i]->task->target;
+          Target target_host = inputs[i]->task->target_host;
+          CheckAndUpdateHostConsistency(&target, &target_host);
+          task =
+              SearchTask(ComputeDAG(tensors), workload_key, target, target_host,
+                         inputs[i]->task->hardware_params, inputs[i]->task->layout_rewrite_option,
+                         inputs[i]->task->task_input_names);
+        } catch (std::exception& e) {
+          // Cannot build ComputeDAG from workload key, the task may have not been registered in
+          // this search round
+          continue;
+        }
       }
       task_id = task_cache.size();
 
@@ -1510,7 +1507,7 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
  *   ... // until i == n - 1
  *
  *   float throughputs[sizes[n]];  // The normalized throughputs for n records
- *   int   task_ids[size[n+1];   // The task ids for n records
+ *   int   task_ids[size[n+1]];   // The task ids for n records
  *
  * }
  * To implement this format, we also store int as float, so we can store all numbers

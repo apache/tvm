@@ -16,16 +16,23 @@
 # under the License.
 import json
 import os
+import re
+import sys
+import time
+
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import te
 import numpy as np
 from tvm import rpc
 from tvm.contrib import utils
-from tvm.contrib.debugger import debug_runtime as graph_runtime
+from tvm.contrib.debugger import debug_executor
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.requires_rpc
 def test_graph_simple():
     n = 4
     A = te.placeholder((n,), name="A")
@@ -60,8 +67,16 @@ def test_graph_simple():
 
     def check_verify():
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
+
+        def myadd(*args):
+            to_return = mlib["myadd"](*args)
+            time.sleep(0.25)
+            return to_return
+
+        mlib_proxy = tvm.support.FrontendTestModule()
+        mlib_proxy["myadd"] = myadd
         try:
-            mod = graph_runtime.create(graph, mlib, tvm.cpu(0))
+            mod = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
         except ValueError:
             return
 
@@ -92,6 +107,36 @@ def test_graph_simple():
         # Verify the tensors are dumped
         assert len(os.listdir(directory)) > 1
 
+        debug_lines = mod.debug_datum.get_debug_result().split("\n")
+
+        def split_debug_line(i):
+            to_return = re.split(r"  [ ]*", debug_lines[i])
+            assert to_return[-1] == ""
+            to_return = to_return[:-1]  # strip empty trailing part
+            return to_return
+
+        assert split_debug_line(0) == [
+            "Node Name",
+            "Ops",
+            "Time(us)",
+            "Time(%)",
+            "Shape",
+            "Inputs",
+            "Outputs",
+        ]
+        myadd_lines = split_debug_line(2)
+        assert myadd_lines[0] == "add"
+        assert myadd_lines[1] == "myadd"
+        runtime_sec = float(myadd_lines[2]) / 1e6  # printed in us
+
+        # Ensure runtime is at least the sleep time and less than a unit prefix order of magnitude.
+        # Here we just care that the prefix is correct.
+        assert runtime_sec > 0.25 and runtime_sec < 0.25 * 1000
+
+        total_lines = split_debug_line(3)
+        assert total_lines[0] == "Total_time"
+        assert total_lines[2] == myadd_lines[2]
+
         CHROME_TRACE_FILE_NAME = "_tvmdbg_execution_trace.json"
         assert os.path.exists(os.path.join(directory, CHROME_TRACE_FILE_NAME))
 
@@ -110,36 +155,35 @@ def test_graph_simple():
 
         # verify the output is correct
         out = mod.get_output(0, tvm.nd.empty((n,)))
-        np.testing.assert_equal(out.asnumpy(), a + 1)
+        np.testing.assert_equal(out.numpy(), a + 1)
 
         mod.exit()
         # verify dump root delete after cleanup
         assert not os.path.exists(directory)
 
-    def check_remote():
+    def check_remote(server):
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
-        server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
         temp = utils.tempdir()
-        ctx = remote.cpu(0)
+        dev = remote.cpu(0)
         path_dso = temp.relpath("dev_lib.so")
         mlib.export_library(path_dso)
         remote.upload(path_dso)
         mlib = remote.load_module("dev_lib.so")
         try:
-            mod = graph_runtime.create(graph, mlib, remote.cpu(0))
+            mod = debug_executor.create(graph, mlib, remote.cpu(0))
         except ValueError:
-            print("Skip because debug graph_runtime not enabled")
+            print("Skip because debug runtime not enabled")
             return
         a = np.random.uniform(size=(n,)).astype(A.dtype)
-        mod.run(x=tvm.nd.array(a, ctx))
-        out = tvm.nd.empty((n,), ctx=ctx)
+        mod.run(x=tvm.nd.array(a, dev))
+        out = tvm.nd.empty((n,), device=dev)
         out = mod.get_output(0, out)
-        np.testing.assert_equal(out.asnumpy(), a + 1)
+        np.testing.assert_equal(out.numpy(), a + 1)
 
     check_verify()
-    check_remote()
+    check_remote(rpc.Server("127.0.0.1"))
 
 
 if __name__ == "__main__":
-    test_graph_simple()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

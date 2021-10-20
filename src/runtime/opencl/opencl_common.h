@@ -26,8 +26,9 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/support/logging.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order
@@ -38,6 +39,17 @@
  * define.
  */
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
+/* Newer releases of OpenCL header files (after May 2018) work with
+ * any OpenCL version, with an application's target version
+ * specified. Setting the target version disables APIs from after that
+ * version, and sets appropriate USE_DEPRECATED macros.  The above
+ * macro for CL_USE_DEPRECATED_OPENCL_1_2_APIS is still needed in case
+ * we are compiling against the earlier version-specific OpenCL header
+ * files.  This also allows us to expose the OpenCL version through
+ * tvm.runtime.Device.
+ */
+#define CL_TARGET_OPENCL_VERSION 120
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -54,6 +66,7 @@
 #include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
+#include "../texture.h"
 #include "../thread_storage_scope.h"
 #include "../workspace_pool.h"
 
@@ -162,6 +175,29 @@ inline const char* CLGetErrorString(cl_int error) {
   }
 }
 
+inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
+  DataType dtype(data_type);
+  if (dtype == DataType::Float(32)) {
+    return CL_FLOAT;
+  } else if (dtype == DataType::Float(16)) {
+    return CL_HALF_FLOAT;
+  } else if (dtype == DataType::Int(8)) {
+    return CL_SIGNED_INT8;
+  } else if (dtype == DataType::Int(16)) {
+    return CL_SIGNED_INT16;
+  } else if (dtype == DataType::Int(32)) {
+    return CL_SIGNED_INT32;
+  } else if (dtype == DataType::UInt(8)) {
+    return CL_UNSIGNED_INT8;
+  } else if (dtype == DataType::UInt(16)) {
+    return CL_UNSIGNED_INT16;
+  } else if (dtype == DataType::UInt(32)) {
+    return CL_UNSIGNED_INT32;
+  }
+  LOG(FATAL) << "data type is not supported in OpenCL runtime yet: " << dtype;
+  return CL_FLOAT;
+}
+
 /*!
  * \brief Protected OpenCL call
  * \param func Expression to call.
@@ -218,26 +254,30 @@ class OpenCLWorkspace : public DeviceAPI {
             const std::string& platform_name = "");
   virtual void Init() { Init("opencl", "gpu"); }
   // Check whether the context is OpenCL or not.
-  virtual bool IsOpenCLDevice(TVMContext ctx) { return ctx.device_type == kDLOpenCL; }
-  // get the queue of the context
-  cl_command_queue GetQueue(TVMContext ctx) {
-    ICHECK(IsOpenCLDevice(ctx));
+  virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
+  // get the queue of the device
+  cl_command_queue GetQueue(Device dev) {
+    ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
-        << "Invalid OpenCL device_id=" << ctx.device_id;
-    return queues[ctx.device_id];
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+        << "Invalid OpenCL device_id=" << dev.device_id;
+    return queues[dev.device_id];
   }
   // override device API
-  void SetDevice(TVMContext ctx) final;
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
-                      TVMStreamHandle stream) final;
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(TVMContext ctx, void* data) final;
+  void SetDevice(Device dev) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
+  void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
+                       Optional<String> mem_scope = NullOpt) final;
+  void FreeDataSpace(Device dev, void* ptr) final;
+  void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
+
+  // Texture (image2d_t) alloca APIs
+  cl_mem AllocTexture(Device dev, size_t width, size_t height, DLDataType type_hint);
+  void* AllocTextureWorkspace(Device dev, size_t width, size_t height, DLDataType type_hint);
+  void FreeTextureWorkspace(Device dev, void* data);
 
   /*!
    * \brief Get the thread local ThreadEntry
@@ -246,6 +286,8 @@ class OpenCLWorkspace : public DeviceAPI {
 
   // get the global workspace
   static OpenCLWorkspace* Global();
+
+  void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 };
 
 /*! \brief Thread local workspace */
@@ -258,21 +300,47 @@ class OpenCLThreadEntry {
     // timestamp used to recognize stale kernel
     size_t version{0};
   };
-  /*! \brief The current context */
-  TVMContext context;
+  /*! \brief The current device */
+  Device device;
   /*! \brief The thread-local kernel table */
   std::vector<KTEntry> kernel_table;
   /*! \brief workspace pool */
   WorkspacePool pool;
+  /*! \brief texture pool */
+  TexturePool texture_pool;
   // constructor
-  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device) : pool(device_type, device) {
-    context.device_id = 0;
-    context.device_type = device_type;
+  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api)
+      : pool(device_type, device_api), texture_pool(device_type, device_api) {
+    device.device_id = 0;
+    device.device_type = device_type;
   }
   OpenCLThreadEntry() : OpenCLThreadEntry(kDLOpenCL, OpenCLWorkspace::Global()) {}
 
   // get the global workspace
   static OpenCLThreadEntry* ThreadLocal();
+};
+
+/*! \brief OpenCL runtime buffer structure with tracked memory layout */
+struct BufferDescriptor {
+  enum class MemoryLayout {
+    /*! \brief One dimensional buffer in row-major layout*/
+    kBuffer1D,
+    /*! \brief Two dimensional texture w/ width = axis[-1]
+     *          e.g. image2d[height=NCH, width=W]
+     */
+    kImage2DActivation,
+    /*! \brief Two dimensional texture w/ height = axis[0]
+     *         e.g. image2d[height=O, width=IHW]
+     */
+    kImage2DWeight,
+  };
+  BufferDescriptor() = default;
+  explicit BufferDescriptor(Optional<String> scope) : layout(MemoryLayoutFromScope(scope)) {}
+  static MemoryLayout MemoryLayoutFromScope(Optional<String> mem_scope);
+  static String ScopeFromMemoryLayout(MemoryLayout mem_scope);
+
+  cl_mem buffer{nullptr};
+  MemoryLayout layout{MemoryLayout::kBuffer1D};
 };
 }  // namespace cl
 
@@ -325,16 +393,15 @@ class OpenCLModuleNode : public ModuleNode {
   std::mutex build_lock_;
   // The OpenCL source.
   std::string source_;
-  // the binary data
-  cl_program program_{nullptr};
-  // build info
-  std::vector<bool> device_built_flag_;
+  // Mapping from primitive name to cl program for each device.
+  std::unordered_map<std::string, std::vector<cl_program>> programs_;
   // kernel id cache
   std::unordered_map<std::string, KTRefEntry> kid_map_;
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
+  // parsed kernel data
+  std::unordered_map<std::string, std::string> parsed_kernels_;
 };
-
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_

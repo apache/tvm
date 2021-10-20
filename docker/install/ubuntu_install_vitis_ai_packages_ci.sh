@@ -23,7 +23,7 @@ set -o pipefail
 export PYXIR_HOME=/opt/pyxir
 mkdir "$PYXIR_HOME"
 
-pip3 install progressbar
+pip3 install progressbar h5py==2.10.0
 
-git clone --recursive --branch v0.1.3 https://github.com/Xilinx/pyxir.git "${PYXIR_HOME}"
+git clone --recursive --branch v0.3.1 --depth 1 https://github.com/Xilinx/pyxir.git "${PYXIR_HOME}"
 cd "${PYXIR_HOME}" && python3 setup.py install

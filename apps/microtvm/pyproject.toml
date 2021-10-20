@@ -1,0 +1,147 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# This `pyproject.toml` file is used to allow MicroTVM
+# to run within a Poetry-managed environment.
+
+[tool.black]
+line-length = 100
+target-version = ['py36']
+include = '(\.pyi?$)'
+exclude = '''
+
+(
+  /(
+      \.github
+    | \.tvm
+    | \.tvm_test_data
+    | \.vscode
+    | \.venv
+    | 3rdparty
+    | build\/
+    | cmake\/
+    | conda\/
+    | docker\/
+    | docs\/
+    | golang\/
+    | include\/
+    | jvm\/
+    | licenses\/
+    | nnvm\/
+    | rust\/
+    | src\/
+    | vta\/
+    | web\/
+  )/
+)
+'''
+[tool.poetry]
+name = "microtvm"
+version = "0.1.0"
+description = ""
+authors = []
+packages = [
+    { include = "tvm", from = "../../python" },
+]
+
+[tool.poetry.dependencies]
+attrs = "^19"
+decorator = "^4.4"
+numpy = "~1.19"
+psutil = "^5"
+scipy = "^1.4"
+python = "^3.6"
+tornado = "^6"
+typed_ast = "^1.4"
+pyyaml = "^5.4.1"
+pyserial = "^3.5"
+
+# AutoTVM
+xgboost = {version = "^1.1", optional = true}
+
+#############
+# Importers #
+#############
+
+# NOTE: Caffe frontend dependency is from torch package.
+
+# CoreML
+coremltools = {version = "^3.3", optional = true}
+
+# Darknet
+opencv-python = {version = "^4.2", optional = true}
+cffi = {version = "^1.14", optional = true}
+
+# NOTE: Keras provided by tensorflow package.
+# If TF version conflict, maybe try: keras = "2.3.1"
+
+# MXNet frontend
+mxnet = {version = "^1.6.0", optional = true}
+
+# ONNX frontend
+onnx = {version = "1.6.0", optional = true}
+onnxruntime = {version = "1.0.0", optional = true}
+
+# Pytorch (also used by ONNX)
+# NOTE: cannot download this right now due to https://github.com/python-poetry/poetry/issues/2247
+# torch = {url = "https://download.pytorch.org/whl/cu101/torch-1.4.0-cp36-cp36m-manylinux1_x86_64.whl", optional = true}
+# torchvision = {version = "0.5.0", optional = true}
+# NOTE: torch depends on a number of other packages, but unhelpfully, does not expose that in the
+# wheel!!!
+future = {version = "*", optional = true}
+
+# Tensorflow frontend
+tensorflow = {version = "^2.1", optional = true}
+tensorflow-estimator = {version = "^2.1", optional = true}
+
+# TFLite frontend
+tflite = {version = "2.1.0", optional = true}
+wheel = "*"
+cloudpickle = "^1.6.0"
+
+
+[tool.poetry.extras]
+xgboost = ["xgboost"]
+importer-caffe2 = ["torch"]
+importer-coreml = ["coremltools"]
+importer-darknet = ["opencv-python"]
+importer-keras = ["tensorflow", "tensorflow-estimator"]
+importer-onnx = ["onnx", "onnxruntime", "torch", "torchvision", "future"]
+importer-pytorch = ["torch", "torchvision", "future"]
+importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
+importer-tflite = ["tflite", "tensorflow", "tensorflow-estimator"]
+
+[tool.poetry.dev-dependencies]
+autodocsumm = "^0.1"
+black = "^19.10b0"
+sphinx = "^3.0"
+sphinx-gallery = "^0.8"
+sphinx-rtd-theme = "^0.4"
+matplotlib = "^3.2"
+Image = "^1.5"
+recommonmark = "^0.6"
+pillow = "< 7"
+pyformat = "^0.7"
+pylint = "^2.4"
+pytest = "^5.4"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+
+[tool.autopep8]
+max_line_length = 100

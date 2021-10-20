@@ -17,17 +17,18 @@
 """ Operation class for computation declaration."""
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
+from typing import List
 
 import tvm._ffi
 import tvm.tir
 import tvm.tir._ffi_api
-
 from tvm._ffi.base import string_types
+from tvm.ir import Array
 from tvm.runtime import convert
 
+from . import _ffi_api
 from . import tag as _tag
 from . import tensor as _tensor
-from . import _ffi_api
 
 
 def placeholder(shape, dtype=None, name="placeholder"):
@@ -225,12 +226,12 @@ def extern(
         .. note::
              **Parameters**
 
-             - **ins** (list of :any:`Buffer`) - Placeholder for each inputs
-             - **outs** (list of :any:`Buffer`) - Placeholder for each outputs
+             - **ins** (list of :any:`tvm.tir.Buffer`) - Placeholder for each inputs
+             - **outs** (list of :any:`tvm.tir.Buffer`) - Placeholder for each outputs
 
              **Returns**
 
-             - **stmt** (:any:`Stmt`) - The statement that carries out array computation.
+             - **stmt** (:any:`tvm.tir.Stmt`) - The statement that carries out array computation.
 
     name: str, optional
         The name hint of the tensor
@@ -239,10 +240,10 @@ def extern(
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_buffers: Buffer or list of Buffer, optional
+    in_buffers: tvm.tir.Buffer or list of tvm.tir.Buffer, optional
         Input buffers.
 
-    out_buffers: Buffer or list of Buffers, optional
+    out_buffers: tvm.tir.Buffer or list of tvm.tir.Buffer, optional
         Output buffers.
 
 
@@ -426,3 +427,58 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
         An iteration variable representing the value.
     """
     return tvm.tir.IterVar(dom, name, 2, thread_tag, span)
+
+
+def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
+    """Create a TensorIR PrimFunc from tensor expression
+
+    Parameters
+    ----------
+    ops : List[Tensor]
+        The source expression.
+
+    Example
+    -------
+    We define a matmul kernel using following code:
+
+    .. code-block:: python
+
+        import tvm
+        from tvm import te
+        from tvm.te import create_prim_func
+        import tvm.script
+
+        A = te.placeholder((128, 128), name="A")
+        B = te.placeholder((128, 128), name="B")
+        k = te.reduce_axis((0, 128), "k")
+        C = te.compute((128, 128), lambda x, y: te.sum(A[x, k] * B[y, k], axis=k), name="C")
+        func = create_prim_func([A, B, C])
+        print(func.script())
+
+    If we want to use TensorIR schedule to do transformations on such kernel,
+    we need to use `create_prim_func([A, B, C])` to create a schedulable PrimFunc.
+    The generated function looks like:
+
+    .. code-block:: python
+
+        @T.prim_func
+        def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(a, (128, 128))
+            B = T.match_buffer(b, (128, 128))
+            C = T.match_buffer(c, (128, 128))
+
+            for i, j, k in T.grip(128, 128, 128):
+                with T.block():
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] += A[vi, vk] * B[vj, vk]
+
+    Returns
+    -------
+    func : tir.PrimFunc
+        The created function.
+    """
+    if not isinstance(ops, (list, tuple, Array)):
+        ops = [ops]
+    return _ffi_api.CreatePrimFunc(ops)

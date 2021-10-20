@@ -20,9 +20,9 @@
  * \file src/runtime/object.cc
  * \brief Object type management system.
  */
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <iostream>
 #include <mutex>
@@ -88,7 +88,7 @@ class TypeContext {
     }
     // try to allocate from parent's type table.
     ICHECK_LT(parent_tindex, type_table_.size())
-        << " skey= " << skey << "static_index=" << static_tindex;
+        << " skey=" << skey << ", static_index=" << static_tindex;
     TypeInfo& pinfo = type_table_[parent_tindex];
     ICHECK_EQ(pinfo.index, parent_tindex);
 
@@ -138,8 +138,12 @@ class TypeContext {
 
   std::string TypeIndex2Key(uint32_t tindex) {
     std::lock_guard<std::mutex> lock(mutex_);
-    ICHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
-        << "Unknown type index " << tindex;
+    if (tindex != 0) {
+      // always return the right type key for root
+      // for non-root type nodes, allocated slots should not equal 0
+      ICHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
+          << "Unknown type index " << tindex;
+    }
     return type_table_[tindex].name;
   }
 
@@ -256,5 +260,13 @@ int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, 
 int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex) {
   API_BEGIN();
   out_tindex[0] = tvm::runtime::ObjectInternal::ObjectTypeKey2Index(type_key);
+  API_END();
+}
+
+int TVMObjectTypeIndex2Key(unsigned tindex, char** out_type_key) {
+  API_BEGIN();
+  auto key = tvm::runtime::Object::TypeIndex2Key(tindex);
+  *out_type_key = static_cast<char*>(malloc(key.size() + 1));
+  strncpy(*out_type_key, key.c_str(), key.size());
   API_END();
 }

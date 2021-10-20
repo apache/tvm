@@ -15,14 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# CI docker VAI env
-FROM xilinx/vitis-ai:latest
+# Main Vitis AI docker env
+FROM xilinx/vitis-ai:1.4.916
 
 RUN apt-get update --fix-missing
 
-
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
+
+# Install Vitis-AI ubuntu dependencies
+COPY install/ubuntu_install_vitis_ai_core.sh /install/ubuntu_install_vitis_ai_core.sh
+RUN bash /install/ubuntu_install_vitis_ai_core.sh
 
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh
@@ -42,10 +45,6 @@ ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
 # ANTLR deps
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
-
-# Install Vitis-AI ubuntu dependencies
-COPY install/ubuntu_install_vitis_ai_core.sh /install/ubuntu_install_vitis_ai_core.sh
-RUN bash /install/ubuntu_install_vitis_ai_core.sh
 
 # Install dependencies inside vitis-ai-tensorflow conda
 RUN . $VAI_ROOT/conda/etc/profile.d/conda.sh && \

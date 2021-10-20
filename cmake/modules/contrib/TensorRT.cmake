@@ -28,7 +28,9 @@ if(USE_TENSORRT_CODEGEN)
     file(GLOB RUNTIME_TENSORRT_SRCS src/runtime/contrib/tensorrt/tensorrt_runtime.cc)
     set_source_files_properties(${RUNTIME_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
     list(APPEND COMPILER_SRCS ${COMPILER_TENSORRT_SRCS})
-    list(APPEND COMPILER_SRCS ${RUNTIME_TENSORRT_SRCS})
+    if(NOT USE_TENSORRT_RUNTIME)
+        list(APPEND COMPILER_SRCS ${RUNTIME_TENSORRT_SRCS})
+    endif()
 endif()
 
 # TensorRT Runtime
@@ -53,5 +55,5 @@ if(USE_TENSORRT_RUNTIME)
     list(APPEND RUNTIME_SRCS ${RUNTIME_TENSORRT_SRCS})
 
     # Set defines
-    add_definitions(-DTVM_GRAPH_RUNTIME_TENSORRT)
+    add_definitions(-DTVM_GRAPH_EXECUTOR_TENSORRT)
 endif()

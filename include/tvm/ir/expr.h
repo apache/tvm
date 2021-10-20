@@ -26,8 +26,8 @@
 
 #include <tvm/ir/span.h>
 #include <tvm/ir/type.h>
-#include <tvm/node/container.h>
 #include <tvm/node/node.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
 #include <algorithm>

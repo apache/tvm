@@ -80,14 +80,18 @@ void ConvEntry::UpdateWorkspace(const size_t wsize) {
       CleanWorkspace();
     }
     workspace_size = wsize;
-    workspace = rocm_api->AllocWorkspace(ctx, workspace_size);
+    workspace = rocm_api->AllocWorkspace(device, workspace_size);
   }
 }
 
 void ConvEntry::CleanWorkspace() {
-  if (workspace) rocm_api->FreeWorkspace(ctx, workspace);
+  if (workspace) rocm_api->FreeWorkspace(device, workspace);
   workspace_size = 0;
 }
+
+SoftmaxEntry::SoftmaxEntry() { MIOPEN_CALL(miopenCreateTensorDescriptor(&shape_desc)); }
+
+SoftmaxEntry::~SoftmaxEntry() { MIOPEN_CALL(miopenDestroyTensorDescriptor(shape_desc)); }
 
 }  // namespace miopen
 }  // namespace contrib

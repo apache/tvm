@@ -21,8 +21,8 @@
  * \file Use external mkl library call.
  */
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 extern "C" {
 #include <mkl_cblas.h>

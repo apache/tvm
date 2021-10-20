@@ -145,7 +145,8 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
     Array<PrimExpr> lhs;
     for (size_t i = 0; i < size; ++i) {
       DataType t = reduces[i]->dtype;
-      normal_res_handles.emplace_back("normal_reduce_temp" + std::to_string(i), DataType::Handle());
+      normal_res_handles.emplace_back("normal_reduce_temp" + std::to_string(i),
+                                      PointerType(PrimType(t), "local"));
       lhs.push_back(Load(t, normal_res_handles[i], 0, const_true(t.lanes())));
     }
     Array<PrimExpr> init_value = combiner->identity_element;
@@ -175,7 +176,9 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   freduce_args.push_back(const_true(1));
   std::vector<Var> res_handles(size);
   for (size_t idx = 0; idx < size; ++idx) {
-    res_handles[idx] = Var("reduce_temp" + std::to_string(idx), DataType::Handle());
+    DataType dtype = reduces[idx]->dtype;
+    res_handles[idx] =
+        Var("reduce_temp" + std::to_string(idx), PointerType(PrimType(dtype), "local"));
     freduce_args.push_back(res_handles[idx]);
   }
 
@@ -222,12 +225,9 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
     body = Allocate(res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-    body = AttrStmt(res_handles[idx - 1], tir::attr::storage_scope, StringImm("local"), body);
     if (!normal_red.empty()) {
       body =
           Allocate(normal_res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-      body =
-          AttrStmt(normal_res_handles[idx - 1], tir::attr::storage_scope, StringImm("local"), body);
     }
   }
   body = Substitute(body, value_map);

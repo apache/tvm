@@ -413,15 +413,17 @@ class FactorOutAtomicFormulasFunctor
     auto res_b = VisitExpr(op->b);
 
     // For the And case we return the union of the sets of atomic formulas
-    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_set;
-    res_set.reserve(res_a.atomic_formulas.size() + res_b.atomic_formulas.size());
+    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_a_set;
+    res_a_set.reserve(res_a.atomic_formulas.size());
     std::copy(res_a.atomic_formulas.begin(), res_a.atomic_formulas.end(),
-              std::inserter(res_set, res_set.end()));
-    std::copy(res_b.atomic_formulas.begin(), res_b.atomic_formulas.end(),
-              std::inserter(res_set, res_set.end()));
+              std::inserter(res_a_set, res_a_set.end()));
 
-    std::vector<PrimExpr> res{res_set.begin(), res_set.end()};
-
+    std::vector<PrimExpr> res = res_a.atomic_formulas;
+    for (const auto& e : res_b.atomic_formulas) {
+      if (res_a_set.find(e) == res_a_set.end()) {
+        res.emplace_back(e);
+      }
+    }
     // And the residuals are combined with &&
     return {res, res_a.rest && res_b.rest};
   }
@@ -443,10 +445,13 @@ class FactorOutAtomicFormulasFunctor
 
     // For the Or case we intersect the sets of atomic formulas
     std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> res_set;
+    std::vector<PrimExpr> res;
     res_set.reserve(std::min(res_a.atomic_formulas.size(), res_b.atomic_formulas.size()));
-    for (const auto& res_b_formula : res_b_set) {
+    res.reserve(std::min(res_a.atomic_formulas.size(), res_b.atomic_formulas.size()));
+    for (const auto& res_b_formula : res_b.atomic_formulas) {
       if (res_a_set.count(res_b_formula)) {
         res_set.insert(res_b_formula);
+        res.push_back(res_b_formula);
       }
     }
 
@@ -454,13 +459,13 @@ class FactorOutAtomicFormulasFunctor
     // which are left behind, and then combine them with the residuals into the new residual.
     std::vector<PrimExpr> new_cond_a;
     new_cond_a.reserve(res_a.atomic_formulas.size() - res_set.size());
-    for (const auto& formula : res_a_set) {
+    for (const auto& formula : res_a.atomic_formulas) {
       if (!res_set.count(formula)) new_cond_a.emplace_back(formula);
     }
 
     std::vector<PrimExpr> new_cond_b;
     new_cond_b.reserve(res_b.atomic_formulas.size() - res_set.size());
-    for (const auto& formula : res_b_set) {
+    for (const auto& formula : res_b.atomic_formulas) {
       if (!res_set.count(formula)) new_cond_b.emplace_back(formula);
     }
 
@@ -468,7 +473,6 @@ class FactorOutAtomicFormulasFunctor
     res_b.atomic_formulas = std::move(new_cond_b);
 
     PrimExpr new_rest = res_a.to_expr() || res_b.to_expr();
-    std::vector<PrimExpr> res{res_set.begin(), res_set.end()};
 
     return {res, new_rest};
   }
@@ -541,7 +545,7 @@ class EliminateDivModMutator : public ExprMutator {
       }
     }
 
-    return truncdiv(VisitExpr(op->a), VisitExpr(op->b));
+    return div(VisitExpr(op->a), VisitExpr(op->b));
   }
 
   virtual PrimExpr VisitExpr_(const ModNode* op) {
@@ -830,7 +834,7 @@ std::pair<PrimExpr, PrimExpr> ImplicationNotContainingVars(
     return {pair_a.first || pair_b.first, (pair_a.first || pair_b.second) &&
                                               (pair_b.first || pair_a.second) &&
                                               (pair_a.second || pair_b.second)};
-  } else if (!tir::ExprUseVar(cond, [&vars](const VarNode* var) { return vars.count(var); })) {
+  } else if (!tir::UsesVar(cond, [&vars](const VarNode* var) { return vars.count(var); })) {
     return {cond, const_true()};
   } else {
     return {const_true(), cond};
@@ -1010,7 +1014,7 @@ PrimExpr TrySimplifyCompute(const PrimExpr& expr, const PrimExpr& cond,
   // Keep only those variables of the new vars which are used in the new_expr
   Array<Var> used_res_variables;
   for (const Var& var : res->dst->variables) {
-    if (ExprUseVar(new_expr, var)) {
+    if (tir::UsesVar(new_expr, [&var](const VarNode* var_) { return var_ == var.get(); })) {
       ICHECK(res->dst->ranges.count(var)) << "Range of " << var << " cannot be inferred.";
       used_res_variables.push_back(var);
     }

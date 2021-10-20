@@ -42,6 +42,10 @@ namespace tir {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
+ * \brief Return value.
+ */
+TVM_DLL const Op& ret();
+/*!
  * \brief Reinterpret the value using the target type.
  */
 TVM_DLL const Op& reinterpret();
@@ -275,6 +279,14 @@ TVM_DLL const Op& tvm_struct_get();
 TVM_DLL const Op& tvm_struct_set();
 
 /*!
+ * \brief See pseudo code
+ * Type lookup_param(String param_name) {
+ *     return __tvm_param__param_name;
+ * }
+ */
+TVM_DLL const Op& lookup_param();
+
+/*!
  * \brief See pesudo code
  *
  *  void tvm_throw_last_error() {
@@ -330,11 +342,14 @@ TVM_DLL const Op& tvm_stack_make_array();
 /*!
  * \brief See pesudo code
  *
- *  int tvm_call_packed(name, TVMValue* args) {
+ *  return_type tvm_call_packed(name, TVMValue* args) {
+ *     TVMValue ret_value;
+ *     int ret_code;
  *     ModuleNode* env = GetCurrentEnv();
  *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     (*f)(args, type_code_of(args), len(args));
- *     return 0;
+ *     (*f)(args, type_code_of(args), len(args), &ret_value, &ret_code);
+ *     // return type can be int, float, handle.
+ *     return cast(return_type, ret_value.v_return_type);
  *  }
  */
 TVM_DLL const Op& tvm_call_packed();
@@ -342,11 +357,24 @@ TVM_DLL const Op& tvm_call_packed();
 /*!
  * \brief See pesudo code
  *
- *  int tvm_call_trace_packed(name, TVMValue* args) {
+ * return_type tvm_call_packed(fname, TVMValue* args) {
+ * 	   int ret_code;
+ *     TVMValue ret_value;
+ *     (*fname)(args, type_code_of(args), len(args), &ret_value, &ret_code);
+ *     return cast(return_type, ret_value.v_return_type);
+ *  }
+ */
+TVM_DLL const Op& tvm_call_cpacked();
+
+/*!
+ * \brief See pesudo code
+ *
+ *  return_type tvm_call_trace_packed(name, TVMValue* args) {
  *     ModuleNode* env = GetCurrentEnv();
  *     const PackedFunc* f = env->GetFuncFromEnv(name);
  *     (*f)(args, type_code_of(args), len(args));
- *     return 0;
+ *     // return type can be int, float, handle.
+ *     return cast(return_type, ret_value.v_return_type);
  *  }
  */
 TVM_DLL const Op& tvm_call_trace_packed();
@@ -368,35 +396,54 @@ TVM_DLL const Op& tvm_thread_context();
  * \brief Lowered version of call packed, the space of value and
  *  type codes are explicitly allocated.
  *
- *  int tvm_call_packed_lowered(name,
- *                              TVMValue* value_stack,
- *                              int* tcode_stack,
- *                              int begin,
- *                              int end) {
+ *  return_type tvm_call_packed_lowered(name,
+ *                                      TVMValue* value_stack,
+ *                                      int* tcode_stack,
+ *                                      int begin,
+ *                                      int end) {
  *     ModuleNode* env = GetCurrentEnv();
  *     const PackedFunc* f = env->GetFuncFromEnv(name);
  *     f->CallPacked(TVMArgs(value_stack[begin:end],
  *                           tcode_stack[begin:end]),
  *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *     // return type can be int, float, handle.
+ *     return cast(return_type, load_return_from(tcode_stack + end))
  *  }
  */
 TVM_DLL const Op& tvm_call_packed_lowered();
+
+/*!
+ * \brief Lowered version of call c-packed, the space of value and
+ *  type codes are explicitly allocated.
+ *
+ *  int tvm_call_packed_lowered(fname,
+ *                              TVMValue* value_stack,
+ *                              int* tcode_stack,
+ *                              int begin,
+ *                              int end) {
+ *     fname(TVMArgs(value_stack[begin:end], tcode_stack[begin:end]),
+ *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *  }
+ */
+TVM_DLL const Op& tvm_call_cpacked_lowered();
 
 /*!
  * \brief Lowered version of trace intrinsic, the space of value and
  *  type codes are explicitly allocated. The return value is the
  *  (end - 1) value on the stack.
  *
- *  int tvm_call_trace_packed_lowered(name,
- *                                    TVMValue* value_stack,
- *                                    int* tcode_stack,
- *                                    int begin,
- *                                    int end) {
+ *  return_type tvm_call_trace_packed_lowered(name,
+ *                                            TVMValue* value_stack,
+ *                                            int* tcode_stack,
+ *                                            int begin,
+ *                                            int end) {
  *     ModuleNode* env = GetCurrentEnv();
  *     const PackedFunc* f = env->GetFuncFromEnv(name);
  *     f->CallPacked(TVMArgs(value_stack[begin:end],
  *                           tcode_stack[begin:end]),
  *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *     // return type can be int, float, handle.
+ *     return cast(return_type, load_return_from(tcode_stack + end))
  *  }
  */
 TVM_DLL const Op& tvm_call_trace_packed_lowered();
@@ -553,6 +600,20 @@ TVM_DLL const Op& vectorcombine();
  * \brief atomic add instruction, corresponding e.g. to atomicAdd in CUDA
  */
 TVM_DLL const Op& atomic_add();
+/*!
+ * \brief Create a texture 2d memory allocation
+ */
+TVM_DLL const Op& texture2d_alloca();
+
+/*!
+ * \brief Store to texture 2d memory
+ */
+TVM_DLL const Op& texture2d_store();
+
+/*!
+ * \brief Load from texture 2d memory
+ */
+TVM_DLL const Op& texture2d_load();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

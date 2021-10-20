@@ -226,7 +226,8 @@ NetworkWithIDs ConstructNetwork(const IRModule& mod, const GlobalVar& var, const
 
 /*! \brief Attributes to store the compiler options for Ethos-N */
 struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode> {
-  int variant;
+  String variant;
+  int sram_size_bytes;
   bool strategy0;
   bool strategy1;
   bool strategy3;
@@ -241,17 +242,13 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   bool block_config_8x8;
   bool enable_intermediate_compression;
   bool disable_winograd;
-  bool dump_debug_files;
   String debug_dir;
-#if _ETHOSN_API_VERSION_ == 2008
   String compiler_algorithm;
-#else
-  bool enable_cascading;
-#endif
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
-    TVM_ATTR_FIELD(variant)
-        .describe("0 for Ethos-N77, 1 for Ethos-N57, 2 for Ethos-N37. See Ethos-N documentation.")
+    TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("Ethos-N77");
+    TVM_ATTR_FIELD(sram_size_bytes)
+        .describe("Optionally override the default sram size. See Ethos-N documentation.")
         .set_default(0);
     TVM_ATTR_FIELD(strategy0).set_default(true);
     TVM_ATTR_FIELD(strategy1).set_default(true);
@@ -267,13 +264,8 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
     TVM_ATTR_FIELD(block_config_8x8).set_default(true);
     TVM_ATTR_FIELD(enable_intermediate_compression).set_default(true);
     TVM_ATTR_FIELD(disable_winograd).set_default(false);
-    TVM_ATTR_FIELD(dump_debug_files).set_default(false);
     TVM_ATTR_FIELD(debug_dir).set_default(".");
-#if _ETHOSN_API_VERSION_ == 2008
     TVM_ATTR_FIELD(compiler_algorithm).set_default("NonCascadingOnly");
-#else
-    TVM_ATTR_FIELD(enable_cascading).set_default(false);
-#endif
   }
 };
 

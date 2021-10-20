@@ -120,7 +120,7 @@ macro(find_llvm use_llvm)
     string(STRIP ${TVM_LLVM_VERSION} TVM_LLVM_VERSION)
     # definitions
     string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_]*" __llvm_defs ${__llvm_cxxflags})
-    set(LLVM_DEFINTIIONS "")
+    set(LLVM_DEFINITIONS "")
     foreach(__flag IN ITEMS ${__llvm_defs})
       string(STRIP "${__flag}" __llvm_def)
       list(APPEND LLVM_DEFINITIONS "${__llvm_def}")

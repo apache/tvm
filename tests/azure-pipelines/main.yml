@@ -35,7 +35,7 @@ jobs:
         cmakeArgs: >
           -DUSE_SORT=ON
           -DUSE_RPC=ON
-          -DUSE_GRAPH_RUNTIME=ON
+          -DUSE_GRAPH_EXECUTOR=ON
           ..
     - task: MSBuild@1
       inputs:
@@ -56,7 +56,7 @@ jobs:
         cmakeArgs: >
           -DUSE_SORT=ON
           -DUSE_RPC=ON
-          -DUSE_GRAPH_RUNTIME=ON
+          -DUSE_GRAPH_EXECUTOR=ON
           ..
     - task: MSBuild@1
       inputs:
@@ -75,7 +75,7 @@ jobs:
         cmakeArgs: >
           -DUSE_SORT=ON
           -DUSE_RPC=ON
-          -DUSE_GRAPH_RUNTIME=ON
+          -DUSE_GRAPH_EXECUTOR=ON
           ..
     - script: cd build.common && make -j`sysctl -n hw.ncpu`
       displayName: Build the project

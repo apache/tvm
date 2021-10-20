@@ -27,6 +27,11 @@ export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
 
+# NOTE: also set by task_python_integration_gpuonly.sh.
+if [ -z "${TVM_INTEGRATION_TESTSUITE_NAME:-}" ]; then
+    TVM_INTEGRATION_TESTSUITE_NAME=python-integration
+fi
+
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
@@ -39,29 +44,33 @@ rm -rf lib
 make
 cd ../..
 
-TVM_FFI=cython python3 -m pytest apps/extension/tests
-TVM_FFI=ctypes python3 -m pytest apps/extension/tests
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions apps/extension/tests
+run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions apps/extension/tests
 
 # Test dso plugin
 cd apps/dso_plugin_module
 rm -rf lib
 make
 cd ../..
-TVM_FFI=cython python3 -m pytest apps/dso_plugin_module
-TVM_FFI=ctypes python3 -m pytest apps/dso_plugin_module
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_plugin_module
+run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_plugin_module
 
 # Do not enable TensorFlow op
 # TVM_FFI=cython sh prepare_and_test_tfop_module.sh
 # TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 
-TVM_FFI=ctypes python3 -m pytest tests/python/integration
-TVM_FFI=ctypes python3 -m pytest tests/python/contrib
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
+if python -c "import tvm; from tvm.relay.op.contrib.ethosn import ethosn_available; print(ethosn_available().name)" -eq "SW_ONLY"; then
+  ETHOSN_VARIANT_CONFIG=ETHOSN78_1TOPS_4PLE_448KSRAM run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosn tests/python/contrib/test_ethosn
+fi
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib
 
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" TVM_FFI=ctypes python3 -m pytest tests/python/relay
+# forked is needed because the global registry gets contaminated
+TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
+    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay
 
 # Command line driver test
-TVM_FFI=ctypes python3 -m pytest tests/python/driver
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 
 # Do not enable OpenGL
-# TVM_FFI=cython python -m pytest tests/webgl
-# TVM_FFI=ctypes python3 -m pytest tests/webgl
+# run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl

@@ -84,7 +84,10 @@ Module Module::LoadFromFile(const std::string& file_name, const std::string& for
   }
   std::string load_f_name = "runtime.module.loadfile_" + fmt;
   const PackedFunc* f = Registry::Get(load_f_name);
-  ICHECK(f != nullptr) << "Loader of " << format << "(" << load_f_name << ") is not presented.";
+  ICHECK(f != nullptr) << "Loader for `." << format << "` files is not registered,"
+                       << " resolved to (" << load_f_name << ") in the global registry."
+                       << "Ensure that you have loaded the correct runtime code, and"
+                       << "that you are on the correct hardware architecture.";
   Module m = (*f)(file_name, format);
   return m;
 }
@@ -113,7 +116,10 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   if (pf == nullptr) {
     const PackedFunc* f = Registry::Get(name);
     ICHECK(f != nullptr) << "Cannot find function " << name
-                         << " in the imported modules or global registry";
+                         << " in the imported modules or global registry."
+                         << " If this involves ops from a contrib library like"
+                         << " cuDNN, ensure TVM was built with the relevant"
+                         << " library.";
     return f;
   } else {
     import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
@@ -126,7 +132,7 @@ bool RuntimeEnabled(const std::string& target) {
   if (target == "cpu") {
     return true;
   } else if (target == "cuda" || target == "gpu") {
-    f_name = "device_api.gpu";
+    f_name = "device_api.cuda";
   } else if (target == "cl" || target == "opencl" || target == "sdaccel") {
     f_name = "device_api.opencl";
   } else if (target == "mtl" || target == "metal") {
@@ -139,8 +145,6 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "target.build.stackvm";
   } else if (target == "rpc") {
     f_name = "device_api.rpc";
-  } else if (target == "micro_dev") {
-    f_name = "device_api.micro_dev";
   } else if (target == "hexagon") {
     f_name = "device_api.hexagon";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {
@@ -178,7 +182,7 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetTypeKey").set_body_typed([](Module mod) {
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
-    .set_body_typed([](Module mod, std::string name, std::string fmt) {
+    .set_body_typed([](Module mod, tvm::String name, tvm::String fmt) {
       mod->SaveToFile(name, fmt);
     });
 

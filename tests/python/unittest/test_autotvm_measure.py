@@ -17,15 +17,18 @@
 """Test builder and runner"""
 import logging
 import multiprocessing
-import time
+import concurrent
 
 import numpy as np
 
 import tvm
 from tvm import te
-from test_autotvm_common import DummyRunner, bad_matmul, get_sample_task
+from tvm.autotvm.measure import executor
+from tvm.testing.autotvm import DummyRunner, bad_matmul, get_sample_task
 from tvm import autotvm
 from tvm.autotvm.measure.measure import MeasureErrorNo, MeasureResult
+from tvm.autotvm import measure
+from inspect import Signature
 
 
 def test_task_tuner_without_measurement():
@@ -60,31 +63,27 @@ def test_task_tuner_without_measurement_spawn():
     p.join()
 
 
-def test_check_correctness():
-    task, target = get_sample_task()
+def test_task_runner_with_ref_input():
+    """test runner ref_input without measurement"""
+    refinp = [np.random.rand(128, 128) for i in range(3)]
+    runner = measure.LocalRunner()
+    runner.ref_input = refinp
 
-    measure_option = autotvm.measure_option(
-        builder=autotvm.LocalBuilder(), runner=autotvm.LocalRunner(check_correctness=True)
-    )
+    class DummyExecutor(measure.executor.Executor):
+        def __init__(self):
+            self.ran_dummy_executor = False
 
-    def _callback_correct(tuner, measure_inputs, measure_results):
-        for _, res in zip(measure_inputs, measure_results):
-            assert res.error_no == 0
+        def submit(self, func, *args, **kwargs):
+            self.ran_dummy_executor = True
+            sig = Signature.from_callable(func)
+            assert sig.bind(*args, **kwargs).arguments["ref_input"] == refinp
+            dummy_future = concurrent.futures.Future()
+            dummy_future.set_result(None)
+            return dummy_future
 
-    tuner = autotvm.tuner.RandomTuner(task)
-    tuner.tune(n_trial=2, measure_option=measure_option, callbacks=[_callback_correct])
-
-    # a bad template
-    n = 128
-    target = tvm.target.Target("llvm -device=bad_device")
-    task = autotvm.task.create("testing/bad_matmul", args=(n, n, n, "float32"), target=target)
-
-    def _callback_wrong(tuner, measure_inputs, measure_results):
-        for _, res in zip(measure_inputs, measure_results):
-            assert res.error_no == MeasureErrorNo.WRONG_ANSWER
-
-    tuner = autotvm.tuner.RandomTuner(task)
-    tuner.tune(n_trial=2, measure_option=measure_option, callbacks=[_callback_wrong])
+    runner.executor = DummyExecutor()
+    runner.run([None], [None])
+    assert runner.executor.ran_dummy_executor
 
 
 if __name__ == "__main__":
@@ -92,4 +91,4 @@ if __name__ == "__main__":
 
     test_task_tuner_without_measurement()
     test_task_tuner_without_measurement_spawn()
-    test_check_correctness()
+    test_task_runner_with_ref_input()

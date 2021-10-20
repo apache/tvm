@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 import tvm
 import tvm.testing
-import numpy as np
 from tvm import te
-from tvm.topi.nn.pooling import pool
+from tvm.topi.nn.pooling import pool2d
 
 
 def test_tensor():
@@ -108,6 +108,24 @@ def test_tensor_reduce():
     C_loaded = tvm.ir.load_json(C_json)
     assert isinstance(C_loaded, te.tensor.Tensor)
     assert str(C_loaded) == str(C)
+
+
+def test_tensor_reduce_multiout_with_cond():
+    def fcombine(x, y):
+        return x[0] + y[0], x[1] + y[1]
+
+    def fidentity(t0, t1):
+        return tvm.tir.const(0, t0), tvm.tir.const(1, t1)
+
+    mysum = te.comm_reducer(fcombine, fidentity, name="mysum")
+
+    m = te.var("m")
+    n = te.var("n")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    val = te.placeholder((m, n), name="val", dtype="int32")
+    k = te.reduce_axis((0, n), "k")
+    cond = te.floormod(k, 2) == 0
+    T0, T1 = te.compute((m,), lambda i: mysum((idx[i, k], val[i, k]), axis=k, where=cond), name="T")
 
 
 def test_tensor_compute1():
@@ -291,7 +309,7 @@ def test_tuple_with_different_deps():
     ret = []
     tvm.tir.stmt_functor.post_order_visit(stmt, get_B1_realize)
 
-    assert stmt.node == C.op and len(ret) == 1
+    assert stmt.producer == C and len(ret) == 1
 
 
 def test_tensor_inputs():
@@ -319,7 +337,9 @@ def test_tensor_pool():
         return te.decl_tensor_intrin(P.op, intrin_func, default_buffer_params={"offset_factor": 1})
 
     A = te.placeholder((1, 64, 16, 16), name="A")
-    P = pool(data=A, kernel=(3, 3), stride=(1, 1), padding=(0, 0, 0, 0), pool_type="max")
+    P = pool2d(
+        data=A, kernel=(3, 3), stride=(1, 1), dilation=(1, 1), padding=(0, 0, 0, 0), pool_type="max"
+    )
     s = te.create_schedule(P.op)
     _, oh, _, _ = P.op.axis
     intrin = intrin_pool()
@@ -335,7 +355,7 @@ def test_tensor_scalar_mixed():
 
     @tvm.register_func("tvm.test_tensor_scalar_scale")
     def my_scale(tensor, scalar, out):
-        out_np = tensor.asnumpy() * scalar.asnumpy()
+        out_np = tensor.numpy() * scalar.numpy()
         tvm.nd.array(out_np).copyto(out)
 
     A = te.placeholder(a.shape, name="A")
@@ -355,7 +375,7 @@ def test_tensor_scalar_mixed():
     tb = tvm.nd.array(b)
     tc = tvm.nd.array(c)
     f(ta, tb, tc)
-    tvm.testing.assert_allclose(a * b, tc.asnumpy())
+    tvm.testing.assert_allclose(a * b, tc.numpy())
 
 
 def test_tensor_scalar():
@@ -380,25 +400,28 @@ def test_tensor_scalar():
     ta = tvm.nd.array(a)
     tb = tvm.nd.array(b)
     f(ta, tb)
-    tvm.testing.assert_allclose(ta.asnumpy(), tb.asnumpy())
+    tvm.testing.assert_allclose(ta.numpy(), tb.numpy())
 
 
 if __name__ == "__main__":
+    test_tensor()
     test_rank_zero()
-    test_tensor_inputs()
-    test_tensor_reduce_multi_axis()
     test_conv1d()
     test_tensor_slice()
-    test_tensor()
+    test_tensor_reduce_multi_axis()
+    test_tensor_comm_reducer()
+    test_tensor_comm_reducer_overload()
+    test_tensor_reduce()
+    test_tensor_reduce_multiout_with_cond()
     test_tensor_compute1()
     test_tensor_compute2()
-    test_tensor_reduce()
     test_tensor_scan()
     test_scan_multi_out()
     test_extern()
     test_extern_multi_out()
     test_tuple_inputs()
     test_tuple_with_different_deps()
+    test_tensor_inputs()
     test_tensor_pool()
-    test_tensor_scalar()
     test_tensor_scalar_mixed()
+    test_tensor_scalar()

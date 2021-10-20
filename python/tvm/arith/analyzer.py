@@ -22,7 +22,7 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("arith.ModularSet")
 class ModularSet(Object):
-    """Represent range of (coeff * x + base) for x in Z """
+    """Represent range of (coeff * x + base) for x in Z"""
 
     def __init__(self, coeff, base):
         self.__init_handle_by_constructor__(_ffi_api.ModularSet, coeff, base)

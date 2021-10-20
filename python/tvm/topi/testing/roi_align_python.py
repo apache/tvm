@@ -20,36 +20,51 @@ import math
 import numpy as np
 
 
-def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio):
-    """Roi align in python"""
-    _, channel, height, width = a_np.shape
+def _bilinear(a_np, n, c, y, x, height, width, layout):
+    if y < -1 or y > height or x < -1 or x > width:
+        return 0
+
+    y = min(max(y, 0), height - 1)
+    x = min(max(x, 0), width - 1)
+
+    y_low = int(math.floor(y))
+    x_low = int(math.floor(x))
+    y_high = y_low + 1
+    x_high = x_low + 1
+
+    wy_h = y - y_low
+    wx_h = x - x_low
+    wy_l = 1 - wy_h
+    wx_l = 1 - wx_h
+
+    val = 0
+    for wx, xp in zip((wx_l, wx_h), (x_low, x_high)):
+        for wy, yp in zip((wy_l, wy_h), (y_low, y_high)):
+            if 0 <= yp < height and 0 <= xp < width:
+                if layout == "NCHW":
+                    val += wx * wy * a_np[n, c, yp, xp]
+                else:
+                    val += wx * wy * a_np[n, yp, xp, c]
+    return val
+
+
+def roi_align_common(
+    a_np,
+    b_np,
+    rois_np,
+    channel,
+    pooled_size_h,
+    pooled_size_w,
+    spatial_scale,
+    sample_ratio,
+    avg_mode,
+    max_mode,
+    height,
+    width,
+    layout,
+):
+    """Common code used by roi align NCHW and NHWC"""
     num_roi = rois_np.shape[0]
-    b_np = np.zeros((num_roi, channel, pooled_size, pooled_size), dtype=a_np.dtype)
-
-    if isinstance(pooled_size, int):
-        pooled_size_h = pooled_size_w = pooled_size
-    else:
-        pooled_size_h, pooled_size_w = pooled_size
-
-    def _bilinear(b, c, y, x):
-        if y < -1 or y > height or x < -1 or x > width:
-            return 0
-        y = max(y, 0.0)
-        x = max(x, 0.0)
-        y_low = int(y)
-        x_low = int(x)
-
-        y_high = min(y_low + 1, height - 1)
-        x_high = min(x_low + 1, width - 1)
-
-        ly = y - y_low
-        lx = x - x_low
-        return (
-            (1 - ly) * (1 - lx) * a_np[b, c, y_low, x_low]
-            + (1 - ly) * lx * a_np[b, c, y_low, x_high]
-            + ly * (1 - lx) * a_np[b, c, y_high, x_low]
-            + ly * lx * a_np[b, c, y_high, x_high]
-        )
 
     for i in range(num_roi):
         roi = rois_np[i]
@@ -64,19 +79,97 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
         if sample_ratio > 0:
             roi_bin_grid_h = roi_bin_grid_w = int(sample_ratio)
         else:
-            roi_bin_grid_h = int(math.ceil(roi_h / pooled_size))
-            roi_bin_grid_w = int(math.ceil(roi_w / pooled_size))
+            roi_bin_grid_h = int(math.ceil(roi_h / pooled_size_h))
+            roi_bin_grid_w = int(math.ceil(roi_w / pooled_size_w))
 
         count = roi_bin_grid_h * roi_bin_grid_w
 
         for c in range(channel):
             for ph in range(pooled_size_h):
                 for pw in range(pooled_size_w):
-                    total = 0.0
+                    if avg_mode:
+                        total = 0.0
+                    if max_mode:
+                        total = float("-inf")
                     for iy in range(roi_bin_grid_h):
                         for ix in range(roi_bin_grid_w):
                             y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h
                             x = roi_start_w + pw * bin_w + (ix + 0.5) * bin_w / roi_bin_grid_w
-                            total += _bilinear(batch_index, c, y, x)
-                    b_np[i, c, ph, pw] = total / count
+                            if avg_mode:
+                                total += (
+                                    _bilinear(a_np, batch_index, c, y, x, height, width, layout)
+                                    / count
+                                )
+                            if max_mode:
+                                total = max(
+                                    total,
+                                    _bilinear(a_np, batch_index, c, y, x, height, width, layout),
+                                )
+
+                    if layout == "NCHW":
+                        b_np[i, c, ph, pw] = total
+                    else:
+                        b_np[i, ph, pw, c] = total
     return b_np
+
+
+def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg"):
+    """Roi align NCHW in python"""
+    avg_mode = mode in (b"avg", "avg", 0)
+    max_mode = mode in (b"max", "max", 1)
+    assert avg_mode or max_mode, "Mode must be average or max. Please pass a valid mode."
+    _, channel, height, width = a_np.shape
+    if isinstance(pooled_size, int):
+        pooled_size_h = pooled_size_w = pooled_size
+    else:
+        pooled_size_h, pooled_size_w = pooled_size
+
+    b_np = np.zeros((rois_np.shape[0], channel, pooled_size_h, pooled_size_w), dtype=a_np.dtype)
+
+    return roi_align_common(
+        a_np,
+        b_np,
+        rois_np,
+        channel,
+        pooled_size_h,
+        pooled_size_w,
+        spatial_scale,
+        sample_ratio,
+        avg_mode,
+        max_mode,
+        height,
+        width,
+        "NCHW",
+    )
+
+
+def roi_align_nhwc_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio, mode=b"avg"):
+    """Roi align NHWC in python"""
+    avg_mode = mode in (b"avg", "avg", 0)
+    max_mode = mode in (b"max", "max", 1)
+    assert avg_mode or max_mode, "Mode must be average or max. Please pass a valid mode."
+    _, height, width, channel = a_np.shape
+    num_roi = rois_np.shape[0]
+
+    if isinstance(pooled_size, int):
+        pooled_size_h = pooled_size_w = pooled_size
+    else:
+        pooled_size_h, pooled_size_w = pooled_size
+
+    b_np = np.zeros((num_roi, pooled_size_h, pooled_size_w, channel), dtype=a_np.dtype)
+
+    return roi_align_common(
+        a_np,
+        b_np,
+        rois_np,
+        channel,
+        pooled_size_h,
+        pooled_size_w,
+        spatial_scale,
+        sample_ratio,
+        avg_mode,
+        max_mode,
+        height,
+        width,
+        "NHWC",
+    )

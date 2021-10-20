@@ -35,6 +35,7 @@ import pickle
 import json
 
 import tvm._ffi
+from tvm.runtime._ffi_node_api import LoadJSON, SaveJSON
 from .utils import serialize_args, deserialize_args, get_func_name
 
 logger = logging.getLogger("auto_scheduler")
@@ -98,14 +99,14 @@ def register_workload(func_name, f=None, override=False):
     return register
 
 
-def register_workload_tensors(func_name, tensors, override=True):
+def register_workload_tensors(workload_key, tensors, override=True):
     """Register a workload by provding input/output tensors. Since this function is used
     when extracting/deserializing tasks, it expects duplicated registrations by default.
 
     Parameters
     ----------
-    func_name: str
-        The function name or the hash key of the compute DAG.
+    workload_key: str
+        The wokrload key of the compute DAG in JSON string.
     tensors: List[Tensor]
         The input/output tensors of a compute DAG
     override : boolean = True
@@ -113,11 +114,11 @@ def register_workload_tensors(func_name, tensors, override=True):
 
     Returns
     -------
-    key: str
-        The serialized JSON string as the workload key.
+    workload_key: str
+        The wokrload key of the compute DAG in JSON string.
     """
-    register_workload(func_name, override=override)(tensors)
-    return json.dumps((func_name,))
+    register_workload(workload_key, override=override)(tensors)
+    return workload_key
 
 
 def make_workload_key(func, args):
@@ -169,7 +170,8 @@ def workload_key_to_tensors(workload_key):
     Parameters
     ----------
     workload_key : str
-        The input workload key.
+        The input workload key in JSON string. The format is either (func_name, arguments...)
+        for compute functions, or (hash, shapes...) for ComputeDAG.
 
     Returns
     -------
@@ -178,16 +180,21 @@ def workload_key_to_tensors(workload_key):
     """
     global WORKLOAD_FUNC_REGISTRY
 
+    # We register ComputeDAG with both hash and argumetns, which are fixed in ComputeDAG,
+    # so we use an entire workload key to query the ComputeDAG.
+    if workload_key in WORKLOAD_FUNC_REGISTRY:
+        return WORKLOAD_FUNC_REGISTRY[workload_key]
+
+    # We register compute function with only the function name since
+    # it does not bind to specific arguments, so we use the function name to query
+    # the function and call the function with arguments to get the tensors.
     workload = json.loads(workload_key)
     name = workload[0]
     value = WORKLOAD_FUNC_REGISTRY[name]
+    assert callable(value)
 
-    # "value" can be either a function or a list of tensors
-    if callable(value):  # if it is a func
-        args = deserialize_args(workload[1:])
-        return value(*args)
-    # otherwise, it is a list of tensors
-    return value
+    args = deserialize_args(workload[1:])
+    return value(*args)
 
 
 def serialize_workload_registry_entry(workload_key):
@@ -209,11 +216,18 @@ def serialize_workload_registry_entry(workload_key):
     """
     global WORKLOAD_FUNC_REGISTRY
 
-    workload = json.loads(workload_key)
-    name = workload[0]
-    value = WORKLOAD_FUNC_REGISTRY[name]
+    if workload_key in WORKLOAD_FUNC_REGISTRY:
+        sname = workload_key
+    else:
+        workload = json.loads(workload_key)
+        sname = workload[0]
 
-    return name, value
+    svalue = WORKLOAD_FUNC_REGISTRY[sname]
+    if not callable(svalue):
+        # pylint: disable=assignment-from-no-return
+        svalue = SaveJSON(svalue)
+
+    return sname, svalue
 
 
 def deserialize_workload_registry_entry(data):
@@ -230,6 +244,9 @@ def deserialize_workload_registry_entry(data):
 
     name, value = data
     if name not in WORKLOAD_FUNC_REGISTRY:
+        # pylint: disable=assignment-from-no-return
+        if not callable(value):
+            value = LoadJSON(value)
         WORKLOAD_FUNC_REGISTRY[name] = value
 
 

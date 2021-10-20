@@ -35,7 +35,7 @@ use tvm_macros::{external, Object};
 pub mod codespan;
 
 external! {
-    #[name("node.ArrayGetItem")]
+    #[name("runtime.ArrayGetItem")]
     fn get_renderer() -> DiagnosticRenderer;
 
     #[name("diagnostics.DiagnosticRenderer")]
@@ -51,7 +51,7 @@ external! {
     fn diagnostic_context_render(ctx: DiagnosticContext) -> ();
 
     #[name("diagnostics.DiagnosticRendererRender")]
-    fn diagnositc_renderer_render(renderer: DiagnosticRenderer,ctx: DiagnosticContext) -> ();
+    fn diagnositc_renderer_render(renderer: DiagnosticRenderer, ctx: DiagnosticContext) -> ();
 
     #[name("diagnostics.ClearRenderer")]
     fn clear_renderer() -> ();

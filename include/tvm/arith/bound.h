@@ -25,7 +25,6 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/expr.h>
-#include <tvm/node/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 

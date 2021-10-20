@@ -18,7 +18,6 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import relay
-from tvm.relay import memory_alloc
 
 
 def check_memory_plan(func, check_fn):
@@ -33,22 +32,24 @@ def check_memory_plan(func, check_fn):
         data = np.random.rand(*sh).astype(param.dtype)
         args.append(tvm.nd.array(data))
 
-    # Compute without memory planning.
+    # TODO(mbs): Why does the executor need to be shared? Seems wrong.
     ex = relay.create_executor("vm", mod)
-    no_plan_result = ex.evaluate(mod["main"])(*args)
+
+    # Compute without memory planning.
+    no_plan_result = ex.evaluate()(*args)
 
     # Compute with memory planning.
     with tvm.transform.PassContext(opt_level=1, disabled_pass=["MemoryPlan"]):
-        plan_result = ex.evaluate(mod["main"])(*args)
+        plan_result = ex.evaluate()(*args)
 
     # Compute Python result.
-    py_res = check_fn(*[arg.asnumpy() for arg in args])
+    py_res = check_fn(*[arg.numpy() for arg in args])
 
     # First check that the two VM results agree.
-    np.testing.assert_allclose(no_plan_result.asnumpy(), plan_result.asnumpy())
+    np.testing.assert_allclose(no_plan_result.numpy(), plan_result.numpy())
 
     # Finally check that the results match the Python result.
-    np.testing.assert_allclose(plan_result.asnumpy(), py_res)
+    np.testing.assert_allclose(plan_result.numpy(), py_res)
 
 
 def storage_type(mod):

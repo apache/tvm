@@ -33,11 +33,11 @@ namespace {
 // simply logic to place device according to device_group hint
 // insert copy node when there is
 Graph PlaceDevice(Graph src) {
-  ICHECK(src.attrs.count("device_group_attr_key"))
+  CHECK(src.attrs.count("device_group_attr_key"))
       << "Need graph attribute \"device_group_attr_key\" in PlaceDevice";
-  ICHECK(src.attrs.count("device_assign_map"))
+  CHECK(src.attrs.count("device_assign_map"))
       << "Need graph attribute \"device_assign_map\" in PlaceDevice";
-  ICHECK(src.attrs.count("device_copy_op"))
+  CHECK(src.attrs.count("device_copy_op"))
       << "Need graph attribute \"device_copy_op\" in PlaceDevice";
   std::string device_group_attr_key = src.GetAttr<std::string>("device_group_attr_key");
   const Op* copy_op = Op::Get(src.GetAttr<std::string>("device_copy_op"));
@@ -48,7 +48,7 @@ Graph PlaceDevice(Graph src) {
   // copy on write semanatics
   if (src.attrs.count("device") != 0) {
     device = src.MoveCopyAttr<DeviceVector>("device");
-    ICHECK_EQ(device.size(), idx.num_nodes());
+    CHECK_EQ(device.size(), idx.num_nodes());
   } else {
     device.resize(idx.num_nodes(), -1);
   }
@@ -60,7 +60,7 @@ Graph PlaceDevice(Graph src) {
     if (it != inode.source->attrs.dict.end()) {
       const std::string& device_group = it->second;
       auto dit = device_assign_map.find(device_group);
-      ICHECK(dit != device_assign_map.end())
+      CHECK(dit != device_assign_map.end())
           << "The device assignment not found for group " << device_group;
       device[nid] = dit->second;
     } else {
@@ -139,7 +139,7 @@ Graph PlaceDevice(Graph src) {
       }
     }
     if (inode.source->is_variable()) {
-      ICHECK(!need_mutate) << "consistency check";
+      CHECK(!need_mutate) << "consistency check";
     }
     if (need_mutate) {
       ObjectPtr new_node = Node::Create();

@@ -40,10 +40,10 @@ def bitserial_conv2d_nchw(
 
     Parameters
     ----------
-    input : tvm.te.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    filter : tvm.te.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
@@ -74,10 +74,10 @@ def bitserial_conv2d_nchw(
     """
     assert isinstance(stride, int) or len(stride) == 2
     Input_q = bitpack(data, activation_bits, pack_axis=1, bit_axis=2, pack_type=pack_dtype)
-    if len(filter.shape) == 4:
-        Filter_q = bitpack(filter, weight_bits, pack_axis=1, bit_axis=4, pack_type=pack_dtype)
+    if len(kernel.shape) == 4:
+        Filter_q = bitpack(kernel, weight_bits, pack_axis=1, bit_axis=4, pack_type=pack_dtype)
     else:
-        Filter_q = filter
+        Filter_q = kernel
     batch, in_channel, activation_bits, in_height, in_width = Input_q.shape
     num_filter, _, kernel_h, kernel_w, weight_bits = Filter_q.shape
 
@@ -163,10 +163,10 @@ def bitserial_conv2d_nhwc(
 
     Parameters
     ----------
-    input : tvm.te.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
 
-    filter : tvm.te.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of two ints

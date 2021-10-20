@@ -18,8 +18,10 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
+from tvm import relay
 from tvm.relay.expr import Tuple, TupleWrapper
 from tvm.relay.op.nn.utils import get_pad_tuple2d
+from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
 from . import _make
 from ... import op as reg
 from ...op import OpPattern
@@ -118,6 +120,40 @@ def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     return _make.quantize(data, output_scale, output_zero_point, axis, out_dtype)
 
 
+def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
+    r"""Simulated Quantize op
+    Mimics the quantize op but has more flexibility in valid inputs and always
+    outputs the same type as the input. This can be useful for
+    calibrating or training a quantized network.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor to be quantized. Can be of type float32.
+    output_zero_point : tvm.relay.Expr
+        The output zero_point.
+    output_scale : tvm.relay.Expr
+        The output scale.
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+    out_dtype : string or tvm.relay.Expr
+        A string or tensor indicating which datatype to quantize to.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # Convert string dtype to a constant if needed.
+    if isinstance(out_dtype, str):
+        type_code = SQNN_DTYPE_TO_CODE[out_dtype]
+        out_dtype = relay.const(type_code, dtype="int32")
+    # Wrap reshapes around qnn parameter tensors to guarantee shape compatibility.
+    output_scale = relay.op.reshape(output_scale, [-1])
+    output_zero_point = relay.op.reshape(output_zero_point, [-1])
+    return _make.simulated_quantize(data, out_dtype, output_scale, output_zero_point, axis)
+
+
 def dequantize(data, input_scale, input_zero_point, axis=-1):
     r"""Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
@@ -127,7 +163,7 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
     Parameters
     ----------
     data : tvm.relay.Expr
-        The input tensor to be dequantized. Can be of type [int8, uint8].
+        The input tensor to be dequantized. Can be of type [int8, uint8, int32].
     input_zero_point : tvm.relay.Expr
         The input zero_point.
     input_scale : tvm.relay.Expr
@@ -141,6 +177,40 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
     """
 
     return _make.dequantize(data, input_scale, input_zero_point, axis)
+
+
+def simulated_dequantize(data, input_scale, input_zero_point, axis=-1, in_dtype="int8"):
+    r"""Simulated Dequantize op
+    Mimics the dequantize op but has more flexibility in valid inputs and always
+    outputs the same type as the input. This can be useful for calibrating or
+    training a quantized network.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor to be dequantized.
+    input_zero_point : tvm.relay.Expr
+        The input zero_point.
+    input_scale : tvm.relay.Expr
+        The input scale.
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+    in_dtype : string or tvm.relay.Expr
+        A string or tensor indicating which datatype to dequantize from.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # Convert string dtype to a constant if needed.
+    if isinstance(in_dtype, str):
+        type_code = SQNN_DTYPE_TO_CODE[in_dtype]
+        in_dtype = relay.const(type_code, dtype="int32")
+    # Wrap reshapes around qnn parameter tensors to guarantee shape compatibility.
+    input_scale = relay.op.reshape(input_scale, [-1])
+    input_zero_point = relay.op.reshape(input_zero_point, [-1])
+    return _make.simulated_dequantize(data, in_dtype, input_scale, input_zero_point, axis)
 
 
 def concatenate(data, input_scales, input_zero_points, output_scale, output_zero_point, axis):
@@ -206,8 +276,10 @@ def conv2d(
 ):
     r"""Quantized 2D convolution.
 
-    This operator convolves quantized data with quantized kernel. The scale of
-    the output quantized tensor is the product of the kernel_scale and
+    This operator convolves quantized data with quantized kernel.
+    If doing Per-channel quantization, qnn expects the kernel_zero_scale
+    and optionally the kernel_zero_point will be 1-D vectors instead of scalars.
+    The scale of the output quantized tensor is the product of the kernel_scale and
     input_scale of the input quantized tensors. The zero point of the output
     quantized tensor is 0. By default, the dtype of output is int32. Please also
     refer to Requantize operator to understand how to scale back the int32
@@ -474,6 +546,9 @@ def dense(
 
      `Y = X * W`
 
+    If doing Per-channel quantization, qnn expects the kernel_zero_scale
+    and optionally the kernel_zero_point will be 1-D vectors instead of scalars.
+
     Parameters
     ----------
     data : tvm.relay.Expr
@@ -610,6 +685,44 @@ def subtract(
         output_scale,
         output_zero_point,
     )
+
+
+def batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype="int32"):
+    r"""
+    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
+    in batch.
+
+    .. math::
+
+        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
+
+    Parameters
+    ----------
+    x : tvm.relay.Expr
+        The first quantized input.
+        A quantized tensor is represented in following manner
+        `A = scale_a x (QA - zp_A)`
+        where QA is quantized tensor, scale_a and zp_A are quantization
+        params.
+    y : tvm.relay.Expr
+        The second quantized input.
+    x_zero_point: tvm.relay.Expr
+        The first input zero point.
+    y_zero_point: tvm.relay.Expr
+        The second input zero point.
+    x_scale: tvm.relay.Expr
+        The scale for the first input tensor.
+    y_scale: tvm.relay.Expr
+        The scale for the second input tensor.
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense can be int32 or int16.
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        The computed result.
+    """
+    return _make.batch_matmul(x, y, x_zero_point, y_zero_point, x_scale, y_scale, out_dtype)
 
 
 # register fuse pattern for qnn ops

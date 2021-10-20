@@ -36,13 +36,18 @@ import time
 import shutil
 import tempfile
 import multiprocessing
+import logging
 
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
 from tvm.contrib import tar, ndk
+from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor, StatusKind
+from tvm.target import Target
+
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -50,24 +55,63 @@ from .utils import (
     call_func_with_timeout,
     check_remote,
     get_const_tuple,
+    get_func_name,
     make_traceback_info,
     request_remote,
 )
-from .compute_dag import LayoutRewriteOption
 from .workload_registry import (
     serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
 )
 
+# pylint: disable=invalid-name
+logger = logging.getLogger("auto_scheduler")
 
 # The time cost for measurements with errors
 # We use 1e10 instead of sys.float_info.max for better readability in log
 MAX_FLOAT = 1e10
 
 
+class BuildFunc:
+    """store build_func name and callable to class variable.
+    name: str = "default"
+        The name of registered build function.
+    build_func: callable = tar.tar
+        The callable of registered build function.
+    """
+
+    name = "default"
+    build_func = tar.tar
+
+
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
-    """ The base class of measurement callback functions. """
+    """The base class of measurement callback functions."""
+
+
+@tvm._ffi.register_object("auto_scheduler.PythonBasedMeasureCallback")
+class PythonBasedMeasureCallback(MeasureCallback):
+    """Base class for measure callbacks implemented in python"""
+
+    def __init__(self):
+        def callback_func(policy, inputs, results):
+            self.callback(policy, inputs, results)
+
+        self.__init_handle_by_constructor__(_ffi_api.PythonBasedMeasureCallback, callback_func)
+
+    def callback(self, policy, inputs, results):
+        """The callback function.
+
+        Parameters
+        ----------
+        policy: auto_scheduler.search_policy.SearchPolicy
+            The search policy.
+        inputs : List[auto_scheduler.measure.MeasureInput]
+            The measurement inputs
+        results : List[auto_scheduler.measure.MeasureResult]
+            The measurement results
+        """
+        raise NotImplementedError
 
 
 @tvm._ffi.register_object("auto_scheduler.MeasureInput")
@@ -181,11 +225,15 @@ def recover_measure_input(inp, rebuild_state=False):
     from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
+    task.target, task.target_host = Target.check_and_update_host_consist(
+        task.target, task.target_host
+    )
     new_task = SearchTask(
         workload_key=task.workload_key,
         target=task.target,
-        target_host=task.target_host,
         hardware_params=task.hardware_params,
+        layout_rewrite_option=task.layout_rewrite_option,
+        task_inputs=list(task.task_input_names),
     )
 
     if rebuild_state:
@@ -198,7 +246,7 @@ def recover_measure_input(inp, rebuild_state=False):
 
 @tvm._ffi.register_object("auto_scheduler.ProgramBuilder")
 class ProgramBuilder(Object):
-    """ The base class of ProgramBuilders. """
+    """The base class of ProgramBuilders."""
 
     def build(self, measure_inputs, verbose=1):
         """Build programs and return results.
@@ -219,7 +267,7 @@ class ProgramBuilder(Object):
 
 @tvm._ffi.register_object("auto_scheduler.ProgramRunner")
 class ProgramRunner(Object):
-    """ The base class of ProgramRunners. """
+    """The base class of ProgramRunners."""
 
     def run(self, measure_inputs, build_results, verbose=1):
         """Run measurement and return results.
@@ -278,12 +326,28 @@ class LocalBuilder(ProgramBuilder):
         This is used in a wrapper of the multiprocessing.Process.join().
     n_parallel : int = multiprocessing.cpu_count()
         Number of threads used to build in parallel.
-    build_func : str = 'default'
-        The name of registered build function.
+    build_func: callable or str = "default"
+        If is 'default', use default build function
+        If is 'ndk', use function for android ndk
+        If is callable, use it as custom build function, expect lib_format field.
     """
 
     def __init__(self, timeout=15, n_parallel=multiprocessing.cpu_count(), build_func="default"):
-        self.__init_handle_by_constructor__(_ffi_api.LocalBuilder, timeout, n_parallel, build_func)
+        if build_func == "default":
+            BuildFunc.name = "default"
+            BuildFunc.build_func = tar.tar
+        elif build_func == "ndk":
+            BuildFunc.name = "ndk"
+            BuildFunc.build_func = ndk.create_shared
+        elif callable(build_func):
+            BuildFunc.name = "custom"
+            BuildFunc.build_func = build_func
+        else:
+            raise ValueError("Invalid build_func" + build_func)
+
+        self.__init_handle_by_constructor__(
+            _ffi_api.LocalBuilder, timeout, n_parallel, BuildFunc.name
+        )
 
 
 @tvm._ffi.register_object("auto_scheduler.LocalRunner")
@@ -312,7 +376,7 @@ class LocalRunner(ProgramRunner):
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -383,7 +447,7 @@ class RPCRunner(ProgramRunner):
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -462,7 +526,7 @@ class LocalRPCMeasureContext:
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -486,25 +550,22 @@ class LocalRPCMeasureContext:
         from tvm.rpc.tracker import Tracker
         from tvm.rpc.server import Server
 
-        ctx = tvm.context("cuda", 0)
-        if ctx.exist:
-            cuda_arch = "sm_" + "".join(ctx.compute_version.split("."))
+        dev = tvm.device("cuda", 0)
+        if dev.exist:
+            cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
             set_cuda_target_arch(cuda_arch)
-        host = "0.0.0.0"
-        self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
+        self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
         self.server = Server(
-            host,
             port=self.tracker.port,
             port_end=10000,
             key=device_key,
-            use_popen=True,
             silent=True,
-            tracker_addr=(self.tracker.host, self.tracker.port),
+            tracker_addr=("127.0.0.1", self.tracker.port),
         )
         self.runner = RPCRunner(
             device_key,
-            host,
+            "127.0.0.1",
             self.tracker.port,
             priority,
             n_parallel,
@@ -526,7 +587,7 @@ class LocalRPCMeasureContext:
 
 
 class MeasureErrorNo(object):
-    """ Error type for MeasureResult. """
+    """Error type for MeasureResult."""
 
     NO_ERROR = 0  # No error
     INSTANTIATION_ERROR = 1  # Errors happen when apply transform steps from init state
@@ -540,10 +601,13 @@ class MeasureErrorNo(object):
     UNKNOWN_ERROR = 8  # Unknown error
 
 
-def _timed_func(inp_serialized, build_func, verbose):
+def _local_build_worker(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
     task = inp.task
+    task.target, task.target_host = Target.check_and_update_host_consist(
+        task.target, task.target_host
+    )
 
     error_no = MeasureErrorNo.NO_ERROR
     error_msg = None
@@ -551,7 +615,7 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     try:
         sch, args = task.compute_dag.apply_steps_from_state(
-            inp.state, layout_rewrite=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+            inp.state, layout_rewrite=task.layout_rewrite_option
         )
     # pylint: disable=broad-except
     except Exception:
@@ -564,9 +628,7 @@ def _timed_func(inp_serialized, build_func, verbose):
 
         try:
             with transform.PassContext():
-                func = build_module.build(
-                    sch, args, target=task.target, target_host=task.target_host
-                )
+                func = build_module.build(sch, args, target=task.target)
             func.export_library(filename, build_func)
         # pylint: disable=broad-except
         except Exception:
@@ -577,9 +639,9 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     if verbose >= 1:
         if error_no == MeasureErrorNo.NO_ERROR:
-            print(".", end="")
+            print(".", end="", flush=True)
         else:
-            print(".E", end="")  # Build error
+            print(".E", end="", flush=True)  # Build error
 
     return filename, args, error_no, error_msg, time.time() - tic
 
@@ -590,33 +652,17 @@ def local_build_worker(args):
 
     Parameters
     ----------
-    args: Tuple[MeasureInput, str, int, int]
-        inputs, build-func, time, verbose args passed to local_builder_build
+    args: Tuple[MeasureInput, callable, int]
+        inputs, build-func, verbose args passed to local_builder_build
 
     Returns
     -------
     res : BuildResult
         The build result of this Builder thread.
     """
-    inp, build_func, timeout, verbose = args
-    if build_func == "default":
-        build_func = tar.tar
-    elif build_func == "ndk":
-        build_func = ndk.create_shared
-    else:
-        raise ValueError("Invalid build_func" + build_func)
+    inp, build_func, verbose = args
 
-    res = call_func_with_timeout(timeout, _timed_func, args=(inp, build_func, verbose))
-    if isinstance(res, TimeoutError):
-        if verbose >= 1:
-            print(".T", end="")  # Build timeout
-        res = None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout
-    elif isinstance(res, Exception):
-        if verbose >= 1:
-            print(".E", end="")  # Build error
-        res = None, [], MeasureErrorNo.COMPILE_HOST, str(res), timeout
-
-    return res
+    return _local_build_worker(inp, build_func, verbose)
 
 
 @tvm._ffi.register_func("auto_scheduler.local_builder.build")
@@ -643,34 +689,187 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
-    # This pool is not doing computationally intensive work, so we can use threads
-    pool = multiprocessing.pool.ThreadPool(n_parallel)
-    tuple_res = pool.map(
+    assert build_func == BuildFunc.name, (
+        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
+    )
+    executor = PopenPoolExecutor(
+        n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
+    )
+    tuple_res = executor.map_with_error_catching(
         local_build_worker,
         [
             (
                 i.serialize(),
-                build_func,
-                timeout,
+                BuildFunc.build_func,
                 verbose,
             )
             for i in inputs
         ],
     )
-    pool.terminate()
-    pool.join()
-    del pool
 
     results = []
     for res in tuple_res:
-        results.append(BuildResult(*res))
+        if res.status == StatusKind.COMPLETE:
+            results.append(BuildResult(*res.value))
+        elif res.status == StatusKind.TIMEOUT:
+            if verbose >= 1:
+                print(".T", end="", flush=True)  # Build timeout
+            results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
+        elif res.status == StatusKind.EXCEPTION:
+            if verbose >= 1:
+                print(".E", end="", flush=True)  # Build error
+            results.append(
+                BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, repr(res.value), timeout)
+            )
+        else:
+            raise ValueError("Result status is not expected. Unreachable branch")
 
     return results
+
+
+TASK_INPUT_CHECK_FUNC_REGISTRY = {}
+
+
+def register_task_input_check_func(func_name, f=None, override=False):
+    """Register a function that checks the input buffer map.
+
+    The input function should take a list of Tensor wich indicate the Input/output Tensor of a TVM
+    subgraph and return a Map from the input Tensor to its buffer name.
+
+    Parameters
+    ----------
+    func_name : Union[Function, str]
+        The check function that returns the compute declaration Tensors or its function name.
+    f : Optional[Function]
+        The check function to be registered.
+    override : boolean = False
+        Whether to override existing entry.
+
+    Examples
+    --------
+    .. code-block:: python
+
+      @auto_scheduler.register_task_input_check_func
+      def check_task_input_by_placeholder_name(args : List[Tensor]):
+          tensor_input_map = {}
+          for arg in args:
+              if isinstance(arg.op, tvm.te.PlaceholderOp):
+                  if arg.op.name != "placeholder":
+                      tensor_input_map[arg] = arg.op.name
+          return tensor_input_map
+    """
+    global TASK_INPUT_CHECK_FUNC_REGISTRY
+
+    if callable(func_name):
+        f = func_name
+        func_name = get_func_name(f)
+    if not isinstance(func_name, str):
+        raise ValueError("expect string function name")
+
+    def register(myf):
+        """internal register function"""
+        if func_name in TASK_INPUT_CHECK_FUNC_REGISTRY and not override:
+            raise RuntimeError("%s has been registered already" % func_name)
+        TASK_INPUT_CHECK_FUNC_REGISTRY[func_name] = myf
+        return myf
+
+    if f:
+        return register(f)
+    return register
+
+
+def prepare_input_map(args):
+    """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
+    to a specific buffer name in the global buffer map.
+
+    Parameters
+    ----------
+    args : List[Tensor]
+        Input/output Tensor of a TVM subgraph.
+
+    Returns
+    -------
+    Dict[Tensor, str] :
+        Map from the input Tensor to its buffer name.
+
+    Notes
+    -----
+    The buffer name is specially designed, and these buffer should be provided in
+    `SearchTask(..., task_inputs={...})`.
+    """
+    # pylint: disable=import-outside-toplevel
+
+    global TASK_INPUT_CHECK_FUNC_REGISTRY
+
+    # A dict that maps the input tensor arg to a buffer name
+    tensor_input_map = {}
+
+    # Case 0: Check placeholder name
+    for arg in args:
+        if isinstance(arg.op, tvm.te.PlaceholderOp):
+            if arg.op.name != "placeholder":
+                tensor_input_map[arg] = arg.op.name
+
+    # Case 1: Check specific tensor inputs
+    for func_name in TASK_INPUT_CHECK_FUNC_REGISTRY:
+        func = TASK_INPUT_CHECK_FUNC_REGISTRY[func_name]
+        tensor_input_map.update(func(args))
+
+    return tensor_input_map
+
+
+def prepare_runner_args(inp, build_res):
+    """This function prepares the pre-defined arguments in `TASK_INPUT_BUFFER_TABLE` for local/rpc
+    runner in main process
+
+    Parameters
+    ----------
+    inp : MeasureInput
+        Measure input to be measured.
+
+    build_res : BuildResult
+        Build result to be measured.
+
+    Returns
+    -------
+    List[Optional[numpy.ndarray]] :
+        List of arguments for running the program. If the argument does not have a pre-defined input
+        buffer, None is added to the list as a placeholder.
+
+    """
+    # pylint: disable=import-outside-toplevel
+    from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
+
+    task_input_names = inp.task.task_input_names
+    tensor_input_map = prepare_input_map(build_res.args)
+    if not task_input_names:
+        tensor_input_map = {}
+    args = []
+    task_inputs_count = 0
+    for arg in build_res.args:
+        if arg in tensor_input_map:
+            tensor_name = tensor_input_map[arg]
+            if tensor_name in task_input_names:
+                task_input_buffer = get_task_input_buffer(inp.task.workload_key, tensor_name)
+                # convert tvm.NDArray to picklable numpy.ndarray
+                args.append(task_input_buffer.numpy())
+                task_inputs_count += 1
+            else:
+                raise ValueError(
+                    "%s not found in task_inputs, " % (tensor_name)
+                    + "should provide with `SearchTask(..., task_inputs={...})`"
+                )
+        else:
+            args.append(None)
+    if task_inputs_count != len(task_input_names):
+        raise RuntimeError("task_inputs not fully matched, check if there's any unexpected error")
+    return args
 
 
 def _timed_eval_func(
     inp_serialized,
     build_res,
+    args,
     number,
     repeat,
     min_repeat_ms,
@@ -684,7 +883,7 @@ def _timed_eval_func(
     error_msg = None
     try:
         func = module.load_module(build_res.filename)
-        ctx = ndarray.context(str(inp.task.target), 0)
+        dev = ndarray.device(str(inp.task.target), 0)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -693,7 +892,7 @@ def _timed_eval_func(
         f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
         time_f = func.time_evaluator(
             func.entry_name,
-            ctx,
+            dev,
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
@@ -707,13 +906,23 @@ def _timed_eval_func(
 
     if error_no == 0:
         try:
-            args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
-            for arg in args:
-                random_fill(arg)
-            ctx.sync()
-            costs = time_f(*args).results
+            assert len(args) == len(build_res.args)
+            loc_args = []
+            # pylint: disable=consider-using-enumerate
+            for idx in range(len(args)):
+                if args[idx] is None:
+                    build_res_arg = build_res.args[idx]
+                    empty_array = ndarray.empty(
+                        get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
+                    )
+                    random_fill(empty_array)
+                    loc_args.append(empty_array)
+                else:
+                    loc_args.append(ndarray.array(args[idx], dev))
+            dev.sync()
+            costs = time_f(*loc_args).results
         # pylint: disable=broad-except
         except Exception:
             costs = (MAX_FLOAT,)
@@ -726,9 +935,9 @@ def _timed_eval_func(
 
     if verbose >= 1:
         if error_no == MeasureErrorNo.NO_ERROR:
-            print("*", end="")
+            print("*", end="", flush=True)
         else:
-            print("*E", end="")  # Run error
+            print("*E", end="", flush=True)  # Run error
     return costs, error_no, error_msg, toc - tic + build_res.time_cost, toc
 
 
@@ -773,7 +982,7 @@ def local_run(
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -791,6 +1000,7 @@ def local_run(
 
     measure_results = []
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
+    worker = PopenWorker()
     for inp, build_res in zip(inputs, build_results):
         if build_res.error_no != 0:
             res = (
@@ -801,12 +1011,15 @@ def local_run(
                 time.time(),
             )
         else:
+            args = prepare_runner_args(inp, build_res)
             res = call_func_with_timeout(
+                worker,
                 timeout,
                 _timed_eval_func,
                 args=(
                     inp.serialize(),
                     build_res,
+                    args,
                     number,
                     repeat,
                     min_repeat_ms,
@@ -817,7 +1030,7 @@ def local_run(
             )
             if isinstance(res, TimeoutError):
                 if verbose >= 1:
-                    print("*T", end="")  # Run timeout
+                    print("*T", end="", flush=True)  # Run timeout
                 res = (
                     (MAX_FLOAT,),
                     MeasureErrorNo.RUN_TIMEOUT,
@@ -827,7 +1040,7 @@ def local_run(
                 )
             elif isinstance(res, Exception):
                 if verbose >= 1:
-                    print("*E", end="")  # Run error
+                    print("*E", end="", flush=True)  # Run error
                 res = (
                     (MAX_FLOAT,),
                     MeasureErrorNo.RUNTIME_DEVICE,
@@ -839,14 +1052,15 @@ def local_run(
         measure_results.append(MeasureResult(*res))
 
     if verbose >= 1:
-        print("")
+        print("", flush=True)
 
     return measure_results
 
 
-def _timed_rpc_run(
+def _rpc_run(
     inp_serialized,
     build_res,
+    args,
     key,
     host,
     port,
@@ -868,7 +1082,7 @@ def _timed_rpc_run(
         remote = request_remote(key, host, port, priority, timeout)
         remote.upload(build_res.filename)
         func = remote.load_module(os.path.split(build_res.filename)[1])
-        ctx = remote.context(str(inp.task.target), 0)
+        dev = remote.device(str(inp.task.target), 0)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -877,7 +1091,7 @@ def _timed_rpc_run(
         f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
         time_f = func.time_evaluator(
             func.entry_name,
-            ctx,
+            dev,
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
@@ -891,24 +1105,42 @@ def _timed_rpc_run(
 
     if error_no == 0:
         try:
-            args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
-            try:
-                random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            except AttributeError:
-                raise AttributeError(
-                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
-                )
-            for arg in args:
-                random_fill(arg)
-            ctx.sync()
+            stream = dev.create_raw_stream()
+            dev.set_raw_stream(stream)
+            random_fill = remote.get_function("tvm.contrib.random.random_fill")
+            assert (
+                random_fill
+            ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
-            costs = time_f(*args).results
+            assert len(args) == len(build_res.args)
+            loc_args = []
+            # pylint: disable=consider-using-enumerate
+            for idx in range(len(args)):
+                if args[idx] is None:
+                    build_res_arg = build_res.args[idx]
+                    empty_array = ndarray.empty(
+                        get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
+                    )
+                    random_fill(empty_array)
+                    loc_args.append(empty_array)
+                else:
+                    loc_args.append(ndarray.array(args[idx], dev))
+            dev.sync()
+
+            # First run for check that the kernel is correct
+            func.entry_func(*loc_args)
+            dev.sync()
+
+            costs = time_f(*loc_args).results
+
             # clean up remote files
             remote.remove(build_res.filename)
             remote.remove(os.path.splitext(build_res.filename)[0] + ".so")
             remote.remove("")
+            dev.free_raw_stream(stream)
         # pylint: disable=broad-except
         except Exception:
+            dev.free_raw_stream(stream)
             costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
             error_msg = make_traceback_info()
@@ -939,7 +1171,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, timeout, _, _, _, _, _, verbose = args
+    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),
@@ -949,24 +1181,16 @@ def _rpc_run_worker(args):
             time.time(),
         )
 
-    res = call_func_with_timeout(timeout, _timed_rpc_run, args=args)
-    if isinstance(res, TimeoutError):
-        if verbose >= 1:
-            print("*T", end="")  # Run timeout
-        res = (
-            (MAX_FLOAT,),
-            MeasureErrorNo.RUN_TIMEOUT,
-            None,
-            build_res.time_cost + timeout,
-            time.time(),
-        )
-    elif isinstance(res, Exception):
+    try:
+        res = _rpc_run(*args)
+    # pylint: disable=broad-except
+    except Exception:
         if verbose >= 1:
             print("*E", end="")  # Run error
         res = (
             (MAX_FLOAT,),
             MeasureErrorNo.RUNTIME_DEVICE,
-            str(res),
+            make_traceback_info(),
             build_res.time_cost + timeout,
             time.time(),
         )
@@ -1029,7 +1253,7 @@ def rpc_runner_run(
         i.e., When the run time of one `repeat` falls below this time, the `number` parameter
         will be automatically increased.
     cooldown_interval : float = 0.0
-        The cool down interval between two measurements.
+        The cool down interval between two measurements in seconds.
     enable_cpu_cache_flush: bool = False
         Whether to flush cache on CPU between repeated measurements.
         Flushing cache can make the measured latency of one operator closer to
@@ -1046,13 +1270,14 @@ def rpc_runner_run(
     """
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
     # This pool is not doing computationally intensive work, so we can use threads
-    pool = multiprocessing.pool.ThreadPool(n_parallel)
-    tuple_res = pool.map(
+    executor = PopenPoolExecutor(n_parallel)
+    tuple_res = executor.map_with_error_catching(
         _rpc_run_worker,
         [
             (
                 inp.serialize(),
                 build_res,
+                prepare_runner_args(inp, build_res),
                 key,
                 host,
                 port,
@@ -1068,13 +1293,25 @@ def rpc_runner_run(
             for inp, build_res in zip(inputs, build_results)
         ],
     )
-    pool.terminate()
-    pool.join()
-    del pool
 
     results = []
-    for res in tuple_res:
-        results.append(MeasureResult(*res))
+    for i, res in enumerate(tuple_res):
+        if res.status == StatusKind.COMPLETE:
+            results.append(MeasureResult(*res.value))
+        else:
+            assert res.status == StatusKind.TIMEOUT
+            if verbose >= 1:
+                print("*T", end="")  # Run timeout
+            build_res = build_results[i]
+            results.append(
+                MeasureResult(
+                    (MAX_FLOAT,),
+                    MeasureErrorNo.RUN_TIMEOUT,
+                    None,
+                    build_res.time_cost + timeout,
+                    time.time(),
+                )
+            )
 
     if verbose >= 1:
         print("")

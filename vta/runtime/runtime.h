@@ -42,6 +42,8 @@ extern "C" {
 #define VTA_DEBUG_SKIP_WRITE_BARRIER (1 << 4)
 #define VTA_DEBUG_FORCE_SERIAL (1 << 5)
 
+#define ALLOC_ALIGNMENT 64
+
 /*!
  * \brief Allocate data buffer.
  * \param size Buffer size.

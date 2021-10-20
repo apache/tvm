@@ -61,8 +61,8 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
   }
   ICHECK(IsScalarType(types[2], DataType::Int(32)));                  // input_zero_point
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));                  // weight_zero_point
   ICHECK(IsScalarType(types[4], DataType::Float(32)));                // input_scale
+  // weight_zero_point can be a scalar or a vector of the same shape as the weight_scale
   AssignType(types[5], DataType::Float(32), param->units, reporter);  // weight_scale
 
   ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
@@ -70,7 +70,7 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Dense infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
-  return DenseRel<DenseAttrs>(tensor_types, 3, attrs, reporter);
+  return MatmulRel<DenseAttrs>(tensor_types, 3, attrs, reporter);
 }
 
 // Positional relay function to create quantized dense operator used by frontend FFI.
@@ -89,10 +89,17 @@ Expr DenseFirstTerm(const Expr& quantized_data, const Expr& quantized_kernel,
   return Dense(quantized_data, quantized_kernel, attrs->units, attrs->out_dtype);
 }
 
-Expr DenseSecondTerm(const Expr& quantized_data, const Expr& kernel_zero_point) {
+Expr DenseSecondTerm(const Expr& quantized_data, const Expr& kernel_zero_point,
+                     const int out_dim_size) {
   Array<Integer> axes = {1};
-  return Multiply(kernel_zero_point,
-                  Sum(Cast(quantized_data, DataType::Int(32)), axes, true, false));
+  Expr reduced_t2 = Sum(Cast(quantized_data, DataType::Int(32)), axes, true, false);
+  Expr multiplied_t2;
+  if (!IsConstScalar(kernel_zero_point)) {
+    multiplied_t2 = Multiply(kernel_zero_point, MakeRepeat(reduced_t2, out_dim_size, 1));
+  } else {
+    multiplied_t2 = Multiply(kernel_zero_point, reduced_t2);
+  }
+  return multiplied_t2;
 }
 
 Expr DenseThirdTerm(const Expr& quantized_kernel, const Expr& input_zero_point) {
@@ -159,25 +166,24 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   Expr kernel_zero_point = new_args[3];
 
   const auto in_shape = get_shape(arg_types[0]);
+  const auto w_shape = get_shape(arg_types[1]);
   const int reduction_dim_size = get_const_int(in_shape[1]);
+  const int out_dim_size = get_const_int(w_shape[0]);
 
   const auto* qnn_dense_attrs = attrs.as<DenseAttrs>();
 
   auto term1 = DenseFirstTerm(quantized_data, quantized_kernel, qnn_dense_attrs);
-  auto term2 = DenseSecondTerm(quantized_data, kernel_zero_point);
+  auto term2 = DenseSecondTerm(quantized_data, kernel_zero_point, out_dim_size);
   auto term3 = DenseThirdTerm(quantized_kernel, input_zero_point);
 
   // Extract the integer zero points.
-  auto kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
 
-  if (!IsConstScalar(input_zero_point)) {
-    if (kernel_zero_point_int == 0) {
-      return Subtract(term1, term3);
-    }
+  if (!IsConstScalar(input_zero_point) || !IsConstScalar(kernel_zero_point)) {
     auto term4 = DenseFourthTerm(input_zero_point, kernel_zero_point, reduction_dim_size);
     return DenseCombineTerms(term1, term2, term3, term4);
   }
 
+  auto kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
   auto input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
 
   // Get all the terms as described in the comments.

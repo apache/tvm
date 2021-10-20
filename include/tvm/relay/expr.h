@@ -30,7 +30,9 @@
 #include <tvm/ir/op.h>
 
 #include <functional>
+#include <stack>
 #include <string>
+#include <utility>
 
 #include "./base.h"
 #include "./type.h"
@@ -225,6 +227,11 @@ class Var : public Expr {
 class Call;
 /*! \brief Call container. */
 class CallNode : public ExprNode {
+ protected:
+  // CallNode uses own deleter to indirectly call non-recursive destructor
+  Object::FDeleter saved_deleter_;
+  static void Deleter_(Object* ptr);
+
  public:
   /*!
    * \brief The operator(function) being invoked
@@ -288,10 +295,16 @@ class CallNode : public ExprNode {
 
   static constexpr const char* _type_key = "relay.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
+  friend class Call;
 };
 
 class Call : public Expr {
  public:
+  /*!
+   * \brief The destructor
+   */
+  ~Call();
+
   /*!
    * \brief The constructor
    * \param op The operator will be invoked.

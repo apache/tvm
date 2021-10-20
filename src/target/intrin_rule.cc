@@ -24,102 +24,137 @@
 #include "intrin_rule.h"
 
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 
 namespace tvm {
 namespace codegen {
 namespace intrin {
+using tir::FLowerIntrinsic;
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.exp").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                                                     DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.erf").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                                                     DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                                                     DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log2").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.log2")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log10").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.log10")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log1p").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.log1p")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tanh").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.tanh")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tan").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                                                     DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.atan")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atanh").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.atanh")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan2").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.atan2")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.cos").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                                                     DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.acos").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.acos")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.cosh").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.cosh")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.acosh").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.acosh")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sin").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                                                     DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.asin").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.asin")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sinh").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.sinh")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.asinh").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.asinh")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.hypot").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.hypot")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.nextafter").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.nextafter")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.copysign").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.copysign")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.ldexp").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.ldexp")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sqrt").set_body(DispatchPureExtern<FloatSuffix>);
+TVM_REGISTER_OP("tir.sqrt")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.rsqrt")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      PrimExpr e = args[0];
+TVM_REGISTER_OP("tir.floor")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tir.ceil")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tir.round")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
+                                                     DispatchPureExtern<FloatSuffix>);
+
+}  // namespace intrin
+
+namespace legalize {
+
+using namespace tir;
+
+TVM_REGISTER_OP("tir.rsqrt")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       ICHECK(call != nullptr);
-
       auto one = make_const(call->args[0].dtype(), 1);
-      *rv = one / sqrt(call->args[0]);
+      return one / sqrt(call->args[0]);
     });
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.pow").set_body(DispatchPureExtern<FloatSuffix>);
-
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sigmoid")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      PrimExpr e = args[0];
+TVM_REGISTER_OP("tir.sigmoid")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       ICHECK(call != nullptr);
-
       auto one = make_const(call->args[0].dtype(), 1);
-      *rv = one / (one + exp(-call->args[0]));
+      return one / (one + exp(-call->args[0]));
     });
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isfinite")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      PrimExpr e = args[0];
+TVM_REGISTER_OP("tir.isfinite")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       ICHECK(call != nullptr);
-      *rv = isfinite(call->args[0]);
+      return isfinite(call->args[0]);
     });
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isinf")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      PrimExpr e = args[0];
+TVM_REGISTER_OP("tir.isinf")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       ICHECK(call != nullptr);
-      *rv = isinf(call->args[0]);
+      return isinf(call->args[0]);
     });
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
-    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+TVM_REGISTER_OP("tir.q_multiply_shift")
+    .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tir::make_const;
 
-      PrimExpr e = args[0];
       const tir::CallNode* call = e.as<tir::CallNode>();
       ICHECK(call != nullptr);
 
@@ -139,15 +174,15 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
         CHECK(int_node != nullptr);
         return int_node->value;
       };
-      // Power of 2 is determined by the fixed_point_multiplier == 1 << 30. In case of power of 2,
-      // fixed point multiplier will represent a float value of 0.5. In fixed point, this is
+      // Power of 2 is determined by the fixed_point_multiplier == 1 << 30. In case of power of
+      // 2, fixed point multiplier will represent a float value of 0.5. In fixed point, this is
       // represented by 1 << 30.
       if (get_int_value(y) == (1 << 30)) {
         PrimExpr exp = s - 1;
         int exp_val = get_int_value(s) - 1;
         if (exp_val > 0) {
           // power of 2 is greater than 0, apply left shift.
-          *rv = x << exp;
+          return x << exp;
         } else {
           // power of 2 is less than 0, round and then apply right shift.
           DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
@@ -155,7 +190,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
           exp = -exp;
           PrimExpr rounding_factor = one << (exp - 1);
           PrimExpr rounded_t = x + rounding_factor;
-          *rv = rounded_t >> exp;
+          return rounded_t >> exp;
         }
       } else {
         // Only int32 types are supported (any number of lanes is allowed)
@@ -187,11 +222,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
         // 5) Simply right shift the result to get the final output.
         x = x >> total_right_shift;
 
-        // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
-        *rv = cast(lp_dtype, x);
+        // 6) The fixed point multiplication keeps the value in int32 range. Casting back to
+        // int32.
+        return cast(lp_dtype, x);
       }
     });
 
-}  // namespace intrin
+}  // namespace legalize
 }  // namespace codegen
 }  // namespace tvm

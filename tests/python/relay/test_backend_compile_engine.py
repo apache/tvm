@@ -184,16 +184,18 @@ def test_compile_engine():
 
     # Test JIT target
     for target in ["llvm"]:
-        ctx = tvm.context(target)
+        dev = tvm.device(target)
         if tvm.testing.device_enabled(target):
             f = engine.jit(get_func((10,)), target)
-            x = tvm.nd.array(np.ones(10).astype("float32"), ctx=ctx)
-            y = tvm.nd.empty((10,), ctx=ctx)
+            x = tvm.nd.array(np.ones(10).astype("float32"), device=dev)
+            y = tvm.nd.empty((10,), device=dev)
             f(x, y)
-            tvm.testing.assert_allclose(y.asnumpy(), x.asnumpy() * 3)
+            tvm.testing.assert_allclose(y.numpy(), x.numpy() * 3)
     engine.dump()
 
 
+# Note: Once compile engine is removed, we should keep this test so that
+# we make sure that opt_level=0 passes are being called correctly.
 def test_compile_placeholder_bypass():
     engine = relay.backend.compile_engine.get()
     x = relay.var("x", shape=(2, 3))

@@ -45,6 +45,7 @@ from .op import annotation
 from .op import vision
 from .op import contrib
 from .op import dyn
+from .op import random
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
@@ -60,7 +61,6 @@ from . import qnn
 from .scope_builder import ScopeBuilder
 
 # Load Memory Passes
-from .transform import memory_alloc
 from .transform import memory_plan
 
 # Required to traverse large programs

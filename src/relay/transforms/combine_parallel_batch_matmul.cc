@@ -57,29 +57,47 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
 
   bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     StructuralEqual eq;
+    const auto* attrs_a = a->attrs.as<BatchMatmulAttrs>();
+    const auto* attrs_b = b->attrs.as<BatchMatmulAttrs>();
+    ICHECK(attrs_a);
+    ICHECK(attrs_b);
     const auto* rhs_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* rhs_b = b->args[1]->type_as<TensorTypeNode>();
     const auto* restype_a = a->type_as<TensorTypeNode>();
     const auto* restype_b = b->type_as<TensorTypeNode>();
     // shape[2] is the contraction axis and automatically consistent
     // if it were valid batch_matmul ops
+
+    // TODO(jcf94): Add full support of layout format
+    if (!(attrs_a->transpose_a == false && attrs_a->transpose_b == true &&
+          attrs_b->transpose_a == false && attrs_b->transpose_b == true)) {
+      LOG(WARNING) << "For legacy reason, this pass only supports"
+                   << " (transpose_a=false, transpose_b=true) now, skip combining these two with:"
+                   << " batch_matmul_a: " << attrs_a->transpose_a << ", " << attrs_a->transpose_b
+                   << " batch_matmul_b: " << attrs_b->transpose_a << ", " << attrs_b->transpose_b;
+      return false;
+    }
+
     auto res = eq(rhs_a->dtype, rhs_b->dtype) && eq(restype_a->dtype, restype_b->dtype) &&
                (rhs_a->shape.size() == 3) && (rhs_b->shape.size() == 3) &&
-               eq(rhs_a->shape[0], rhs_b->shape[0]);
+               eq(rhs_a->shape[0], rhs_b->shape[0]) && eq(attrs_a->out_dtype, attrs_b->out_dtype);
     return res;
   }
 
   Call MakeCombinedOp(const Group& branches) {
-    const Op& batch_matmul = Op::Get("nn.batch_matmul");
     Expr data = branches[0][0]->args[0];
 
     Array<Expr> weights;
     for (const auto& branch : branches) {
-      auto batch_matmul = branch[0];
-      weights.push_back(batch_matmul->args[1]);
+      auto call = branch[0];
+      weights.push_back(call->args[1]);
     }
     Expr new_weight = MakeConcatenate(Tuple(weights), 1);
-    return Call(batch_matmul, {data, new_weight}, {}, {});
+
+    const auto* origin_attrs = branches[0][0]->attrs.as<BatchMatmulAttrs>();
+    ICHECK(origin_attrs);
+    return Downcast<Call>(MakeBatchMatmul(data, new_weight, origin_attrs->out_dtype,
+                                          origin_attrs->transpose_a, origin_attrs->transpose_b));
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) { return true; }

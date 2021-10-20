@@ -22,7 +22,7 @@
 
 #include <dlfcn.h>
 #include <stdint.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include "hexagon_target_log.h"
 

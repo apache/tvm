@@ -98,7 +98,7 @@ class CostModel(object):
         """
         raise NotImplementedError()
 
-    def fit_log(self, records, plan_size):
+    def fit_log(self, records, plan_size, min_seed_records=500):
         """Fit training data from log.
 
         Parameters
@@ -107,6 +107,11 @@ class CostModel(object):
             The tuning records
         plan_size: int
             The plan size of tuner
+        min_seed_records: int
+            Defaults to 500. Indicates the minimum number of records to
+            train the tuner with. If there are less than `min_seed_records`
+            number of records in `data_set`, no training of the tuner
+            will be done.
         """
         raise NotImplementedError()
 
@@ -264,6 +269,12 @@ class ModelBasedTuner(Tuner):
             else:
                 self.xs.append(index)
                 self.ys.append(0.0)
+            # Usually the update function is called during the tune loop
+            # after the index is already added to the visited set.
+            # However, adding the index to visited again here enables us
+            # to also use this update function to resume tuning progress in
+            # case of interruption.
+            self.visited.add(index)
 
         # if we have enough new training samples
         if len(self.xs) >= self.plan_size * (self.train_ct + 1) and self.flops_max > 1e-6:
@@ -285,13 +296,13 @@ class ModelBasedTuner(Tuner):
             self.trial_pt = 0
             self.train_ct += 1
 
-    def load_history(self, data_set):
+    def load_history(self, data_set, min_seed_records=500):
         # set in_tuning as True to make the feature extraction consistent
         GLOBAL_SCOPE.in_tuning = True
 
         # fit base model
         base_model = self.cost_model.spawn_base_model()
-        success = base_model.fit_log(data_set, self.plan_size)
+        success = base_model.fit_log(data_set, self.plan_size, min_seed_records)
 
         if not success:
             GLOBAL_SCOPE.in_tuning = False

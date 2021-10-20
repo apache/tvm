@@ -28,9 +28,9 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       (CLANG_VERSION VERSION_GREATER ${CLANG_MINIMUM_VERSION}))
     message(STATUS "Setting enhanced clang warning flags")
 
-    # These warnings are only enabled when clang's -Weverything flag is enabled
-    # but there is no harm in turning them off for all cases.
-    add_compile_options(
+    set(warning_opts
+      # These warnings are only enabled when clang's -Weverything flag is enabled
+      # but there is no harm in turning them off for all cases.
       -Wno-c++98-compat
       -Wno-c++98-compat-extra-semi
       -Wno-c++98-compat-pedantic
@@ -52,7 +52,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       -Wno-shorten-64-to-32
       -Wno-covered-switch-default
       -Wno-unused-exception-parameter
-      -Wno-return-std-move-in-c++11
+      -Wno-return-std-move
       -Wno-over-aligned
       -Wno-undef
       -Wno-inconsistent-missing-destructor-override
@@ -61,17 +61,13 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       -Wno-implicit-fallthrough
       -Wno-unreachable-code-return
       -Wno-non-virtual-dtor
-    )
-
-    # Here we have non-standard warnings that clang has available and are useful
-    # so enable them if we are using clang.
-    add_compile_options(
+      # Here we have non-standard warnings that clang has available and are useful
+      # so enable them if we are using clang.
       -Wreserved-id-macro
       -Wused-but-marked-unused
       -Wdocumentation-unknown-command
       -Wcast-qual
       -Wzero-as-null-pointer-constant
-
       # These warnings should be enabled one at a time and fixed.
       # To enable one of these warnings remove the `no-` after -W so
       # -Wno-documentation -> -Wdocumentation
@@ -85,7 +81,10 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
       -Wno-old-style-cast
       -Wno-gnu-anonymous-struct
       -Wno-nested-anon-types
-      )
+    )
+  target_compile_options(tvm_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>: ${warning_opts}>)
+  target_compile_options(tvm_runtime_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>: ${warning_opts}>)
+
 
   endif ()
 endif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

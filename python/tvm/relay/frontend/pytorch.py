@@ -20,31 +20,31 @@
 # pylint: disable=missing-function-docstring
 """PT: PyTorch frontend."""
 import itertools
+import functools
 import logging
-import sys
 import math
+import sys
 
 import numpy as np
-
 import tvm
-from tvm.topi.utils import get_const_tuple
 from tvm.ir import IRModule
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from ..ty import TupleType, TensorType, Any
-from ..loops import while_loop
-from .. import transform
-from .common import AttrCvt, get_relay_op
-from .common import infer_value as _infer_value
-from .common import try_infer_value
-from .common import infer_value_simulated as _infer_value_simulated
-from ..prelude import Prelude, StaticTensorArrayOps
+from .. import qnn, transform
 from ..expr_functor import ExprMutator
-
+from ..loops import while_loop
+from ..prelude import Prelude, StaticTensorArrayOps
+from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
+from .common import AttrCvt, get_relay_op, unbind, lstm_cell, gru_cell
+from .common import infer_value as _infer_value
+from .common import infer_shape as _infer_shape
+from .common import infer_value_simulated as _infer_value_simulated
+from .common import try_infer_value
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -385,26 +385,34 @@ class PyTorchOpConverter:
 
     def slice(self, inputs, input_types):
         axis_dtype = "int64"
-        index_size_limit = 2 ** 63 - 1
+        index_size_limit = sys.maxsize
         data = inputs[0]
         dshape = self.infer_shape(data)
         ndim = len(dshape)
-        end = []
-        for dim in dshape:
-            if isinstance(dim, tvm.tir.Any):
-                end = _op.shape_of(data)
-                break
-            end.append(int(dim))
-
-        begin = [0] * ndim
         dim = int(inputs[1])
-        stride = int(inputs[4])
-        if isinstance(inputs[2], _expr.Call):
-            begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
-        else:
-            begin[dim] = int(inputs[2])
+        stride = inputs[4]
+
+        target_begin, is_begin_const = try_infer_value(
+            inputs[2], lambda ret: ret.astype(np.int).item(0)
+        )
+        target_end, is_end_const = try_infer_value(
+            inputs[3], lambda ret: ret.astype(np.int).item(0)
+        )
+
+        # A fast path when slicing is nop.
+        if (
+            isinstance(target_begin, int)
+            and isinstance(target_end, int)
+            and target_begin == 0
+            and target_end >= index_size_limit
+            and stride == 1
+        ):
+            return data
 
         # Process begin
+        begin = [0] * ndim
+        begin[dim] = target_begin
+
         if not isinstance(begin[dim], int):
             tmp = []
             for b in begin:
@@ -417,27 +425,15 @@ class PyTorchOpConverter:
             if str(btype) != axis_dtype:
                 begin = _op.cast(begin, axis_dtype)
 
-        if isinstance(inputs[3], str) and inputs[3].isdigit():
-            target_end = int(inputs[3])
-        else:
-            if isinstance(inputs[3], _expr.Expr):
-                target_end, _ = try_infer_value(
-                    inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
-                )
-            else:
-                target_end = inputs[3]
-
-            if isinstance(target_end, int) and target_end >= index_size_limit:
-                # Quick path for original data.
-                if (
-                    isinstance(begin, _expr.Constant)
-                    and begin.data.asnumpy().tolist()[dim] == 0
-                    and stride == 1
-                ):
-                    return data
-                target_end = dshape[dim]
-
         # Process end
+        if isinstance(target_end, int) and target_end >= index_size_limit:
+            target_end = dshape[dim]
+
+        if any([isinstance(d, tvm.tir.Any) for d in dshape]):
+            end = _op.shape_of(data)
+        else:
+            end = dshape
+
         if isinstance(target_end, int):
             if isinstance(end, list):
                 end[dim] = target_end
@@ -477,11 +473,24 @@ class PyTorchOpConverter:
                 end = _op.cast(end, axis_dtype)
 
         strides = [1] * ndim
-        strides[dim] = int(inputs[4])
+        strides[dim] = stride
 
         return _op.transform.strided_slice(
             data, begin=begin, end=end, strides=strides, slice_mode="end"
         )
+
+    def narrow(self, inputs, input_types):
+        # Inputs are:
+        # 0 - the tensor to narrow
+        # 1 - the dimension along which to narrow
+        # 2 - the starting dimension
+        # 3 - the distance to the ending dimension
+        # Lets find the ending dimension
+        end = self.add(inputs[2:4], input_types[2:4])
+        stride = 1
+        slice_input = inputs[:3] + [end, stride]
+        slice_types = input_types + ["int32"]
+        return self.slice(slice_input, slice_types)
 
     def split(self, inputs, input_types):
         data = inputs[0]
@@ -518,13 +527,13 @@ class PyTorchOpConverter:
         data = inputs[0]
         dim = int(inputs[1])
         index = _wrap_const(inputs[2])
-        return _op.transform.take(data, index, axis=dim)
+        return _op.transform.take(data, index, axis=dim, mode="wrap")
 
     def take(self, inputs, input_types):
         data = inputs[0]
         indices = _op.cast(inputs[1], "int32")
 
-        return _op.transform.take(data, indices=indices)
+        return _op.transform.take(data, indices=indices, mode="wrap")
 
     def topk(self, inputs, input_types):
         data = inputs[0]
@@ -551,13 +560,25 @@ class PyTorchOpConverter:
 
     def repeat(self, inputs, input_types):
         data = inputs[0]
-        reps = inputs[1]
+        reps = []
+        for r in inputs[1]:
+            if isinstance(r, int):
+                reps.append(r)
+            else:
+                reps.append(int(_infer_value(r, {}).numpy()))
+
         return _op.transform.tile(data, reps=reps)
 
     def repeat_interleave(self, inputs, input_types):
         data = inputs[0]
         if isinstance(inputs[1], int):
             repeats = inputs[1]
+            axis = inputs[2]
+        elif isinstance(inputs[1], _expr.Expr):
+            if isinstance(inputs[1], _expr.Constant):
+                repeats = int(inputs[1].data.numpy())
+            else:
+                repeats, _ = try_infer_value(inputs[1], lambda ret: ret.tolist())
             axis = inputs[2]
         else:
             msg = "Only repeat with one value as repeat is currently supported."
@@ -590,7 +611,7 @@ class PyTorchOpConverter:
         for dim in data:
             if isinstance(dim, _expr.Expr):
                 if isinstance(dim, _expr.Constant):
-                    dim = int(dim.data.asnumpy())
+                    dim = int(dim.data.numpy())
                     if isinstance(size, list):
                         size.append(dim)
                     new_shape.append(dim)
@@ -741,9 +762,13 @@ class PyTorchOpConverter:
         return _op.nn.relu(data)
 
     def prelu(self, inputs, input_types):
+        # Reference: https://pytorch.org/docs/stable/generated/torch.nn.PReLU.html#torch.nn.PReLU
         data = inputs[0]
-        alpha = inputs[1]
-        return _op.nn.prelu(data, alpha)
+        dim = self.get_dims(data)
+        ndims = len(dim)
+        axis = 0 if ndims == 1 else 1
+        alpha = _op.broadcast_to(inputs[1], (dim[axis]))
+        return _op.nn.prelu(data, alpha, axis)
 
     def leaky_relu(self, inputs, input_types):
         data = inputs[0]
@@ -753,7 +778,7 @@ class PyTorchOpConverter:
     def elu(self, inputs, input_types):
         data = inputs[0]
         dtype = input_types[0]
-        alpha = _expr.const(float(inputs[1]), dtype=dtype)
+        alpha = _expr.const(-float(inputs[1]), dtype=dtype)
         return alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
 
     def celu(self, inputs, input_types):
@@ -786,9 +811,43 @@ class PyTorchOpConverter:
             alpha * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
         )
 
+    def silu(self, inputs, input_types):
+        data = inputs[0]
+        return data * _op.tensor.sigmoid(data)
+
     def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
+
+    def hard_sigmoid(self, inputs, input_types):
+        def _relu6(x):
+            return _op.tensor.clip(x, 0.0, 6.0)
+
+        def func(x):
+            return _relu6(x + _expr.const(3.0)) / _expr.const(6.0)
+
+        if self.is_quantized_tensor(inputs[0]):
+            input_scale = _expr.const(inputs[1])
+            input_zero_point = _expr.const(inputs[2])
+            # PyTorch seems to use the following output qparams, but accuracy
+            # is broken if we use this.
+            # TODO(masahi): Revisit this parameter choice
+            #
+            # Taken from src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
+            # output_scale = _expr.const(0.00390625)  # 1.0 / 2^8
+            # output_zero_point = _expr.const(-128)
+            output_scale = input_scale
+            output_zero_point = input_zero_point
+
+            data = qnn.op.dequantize(inputs[0], input_scale, input_zero_point, axis=1)
+            out = func(data)
+            return qnn.op.quantize(out, output_scale, output_zero_point, out_dtype="uint8")
+
+        return func(inputs[0])
+
+    def hard_swish(self, inputs, input_types):
+        data = inputs[0]
+        return data * self.hard_sigmoid(inputs, input_types)
 
     def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
@@ -820,20 +879,32 @@ class PyTorchOpConverter:
         output_size = inputs[1]
         return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
 
+    @staticmethod
+    def convert_const_list(data):
+        if isinstance(data, list):
+            for i, _ in enumerate(data):
+                if isinstance(data[i], _expr.Expr):
+                    data[i] = int(_infer_value_simulated(data[i], {}).numpy())
+        return data
+
     def maxpool_2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
+        pool_size = self.convert_const_list(inputs[1])
+        strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != [1, 1]:
-            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
-
-        return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
+        return _op.nn.max_pool2d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            layout="NCHW",
+            ceil_mode=ceil_mode,
+        )
 
     def maxpool_2d_with_indices(self, inputs, input_types):
         # returns dummy indices too
@@ -848,11 +919,15 @@ class PyTorchOpConverter:
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != [1]:
-            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
-
-        return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
+        return _op.nn.max_pool1d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            layout="NCW",
+            ceil_mode=ceil_mode,
+        )
 
     def maxpool_3d(self, inputs, input_types):
         data = inputs[0]
@@ -862,12 +937,14 @@ class PyTorchOpConverter:
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
-        if dilation != [1, 1, 1]:
-            msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation))
-            raise NotImplementedError(msg)
 
         return _op.nn.max_pool3d(
-            data, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            dilation=dilation,
+            padding=padding,
+            ceil_mode=ceil_mode,
         )
 
     def hardtanh(self, inputs, input_types):
@@ -916,32 +993,52 @@ class PyTorchOpConverter:
         kernel_size = weight_shape[2:]
         use_bias = isinstance(bias, _expr.Expr)
 
-        if len(kernel_size) == 1:
-            strides = (1,) + strides
-            padding = (0,) + padding
-            dilation = (1,) + dilation
+        # We are trying to invoke various relay operations through a single conv_op variable.
+        # However the function signatures for some operations have additional attributes so we
+        # pass these in along with the standard ones.
+        additional_arguments = dict()
 
         if use_transpose:
             if len(kernel_size) == 3:
                 conv_op = _op.nn.conv3d_transpose
-            else:
+            elif len(kernel_size) == 2:
                 conv_op = _op.nn.conv2d_transpose
+            else:
+                conv_op = _op.nn.conv1d_transpose
+            output_padding = tuple(inputs[7])
+            additional_arguments["output_padding"] = output_padding
+
         else:
             if len(kernel_size) == 3:
                 conv_op = _op.nn.conv3d
-            else:
+            elif len(kernel_size) == 2:
                 conv_op = _op.nn.conv2d
+            else:
+                conv_op = _op.nn.conv1d
 
         if len(kernel_size) == 3:
             data_layout = "NCDHW"
             kernel_layout = "OIDHW"
-        else:
+        elif len(kernel_size) == 2:
             data_layout = "NCHW"
             kernel_layout = "OIHW"
+        else:
+            data_layout = "NCW"
+            kernel_layout = "OIW"
 
-        if len(kernel_size) == 1:
+        # Conv1d does not currently support grouped convolution so we convert it to conv2d
+        is_grouped_conv1d = False
+        if groups > 1 and len(kernel_size) == 1 and not use_transpose:
+            is_grouped_conv1d = True
+            conv_op = _op.nn.conv2d
+            kernel_size = [1] + kernel_size
+            strides = (1,) + strides
+            padding = (0,) + padding
+            dilation = (1,) + dilation
             data = _op.expand_dims(data, axis=2)
             weight = _op.expand_dims(weight, axis=2)
+            data_layout = "NCHW"
+            kernel_layout = "OIHW"
 
         conv_out = conv_op(
             data,
@@ -951,17 +1048,20 @@ class PyTorchOpConverter:
             dilation=dilation,
             groups=groups,
             channels=channels,
-            kernel_size=[1] + kernel_size if len(kernel_size) == 1 else kernel_size,
+            kernel_size=kernel_size,
             data_layout=data_layout,
             kernel_layout=kernel_layout,
             out_layout="",
             out_dtype="",
+            **additional_arguments,
         )
         if use_bias:
             res = _op.nn.bias_add(conv_out, bias)
         else:
             res = conv_out
-        if len(kernel_size) == 1:
+        if is_grouped_conv1d:
+            # Because we conducted grouped conv1d convolution through conv2d we must
+            # squeeze the output to get the correct result.
             res = _op.squeeze(res, axis=[2])
         return res
 
@@ -978,8 +1078,7 @@ class PyTorchOpConverter:
         return _op.nn.relu(data)
 
     def contiguous(self, inputs, input_types):
-        data = inputs[0]
-        return _op.tensor.copy(data)
+        return inputs[0]
 
     def batch_norm(self, inputs, input_types):
         data = inputs[0]
@@ -1041,8 +1140,7 @@ class PyTorchOpConverter:
             data, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale
         )
 
-    @staticmethod
-    def get_dims(data):
+    def get_dims(self, data):
         import torch
 
         if isinstance(data, _expr.Expr):
@@ -1220,7 +1318,7 @@ class PyTorchOpConverter:
         for i, shape in enumerate(shape_inp):
             if isinstance(shape, _expr.Expr):
                 val = _infer_value_simulated(shape, {})
-                new_shape[i] = np.asscalar(val.asnumpy())
+                new_shape[i] = val.numpy().item(0)
 
         return _op.transform.reshape(data, new_shape)
 
@@ -1232,7 +1330,7 @@ class PyTorchOpConverter:
         is_dyn = False
         for s in new_shape:
             if isinstance(s, _expr.Constant):
-                tmp_shape.append(int(s.data.asnumpy()))
+                tmp_shape.append(int(s.data.numpy()))
             elif isinstance(s, _expr.Expr):
                 dim, success = try_infer_value(s, lambda ret: int(ret))
                 tmp_shape.append(dim)
@@ -1301,47 +1399,80 @@ class PyTorchOpConverter:
         beta = _expr.const(float(inputs[1]), dtype=dtype)
         return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
 
-    def avg_pool2d(self, inputs, input_types):
-        data = inputs[0]
+    def make_avg_pool(self, dim):
+        def avg_pool(inputs, input_types):
+            data = inputs[0]
 
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
-        padding = inputs[3]
-        ceil_mode = int(inputs[4])
-        count_include_pad = int(inputs[5])
+            pool_size = self.convert_const_list(inputs[1])
+            strides = self.convert_const_list(inputs[2] if inputs[2] else pool_size)
+            padding = inputs[3]
+            ceil_mode = int(inputs[4])
+            count_include_pad = int(inputs[5])
 
-        def func(x):
-            return _op.nn.avg_pool2d(
-                x,
-                pool_size=pool_size,
-                strides=strides,
-                padding=padding,
-                ceil_mode=ceil_mode,
-                count_include_pad=count_include_pad,
+            def func(x):
+                if dim == 1:
+                    return _op.nn.avg_pool1d(
+                        x,
+                        pool_size=pool_size,
+                        strides=strides,
+                        padding=padding,
+                        dilation=(1,),
+                        ceil_mode=ceil_mode,
+                        count_include_pad=count_include_pad,
+                    )
+                elif dim == 2:
+                    return _op.nn.avg_pool2d(
+                        x,
+                        pool_size=pool_size,
+                        strides=strides,
+                        padding=padding,
+                        dilation=(1, 1),
+                        ceil_mode=ceil_mode,
+                        count_include_pad=count_include_pad,
+                    )
+                elif dim == 3:
+                    return _op.nn.avg_pool3d(
+                        x,
+                        pool_size=pool_size,
+                        strides=strides,
+                        padding=padding,
+                        dilation=(1, 1, 1),
+                        ceil_mode=ceil_mode,
+                        count_include_pad=count_include_pad,
+                    )
+                else:
+                    msg = "Average Pooling dimension should be between 1 and 3"
+                    raise RuntimeError(msg)
+
+            if self.is_quantized_tensor(data):
+                return qnn_torch.apply_with_upcast(data, func)
+
+            return func(data)
+
+        return avg_pool
+
+    def linear(self, inputs, input_types):
+        # https://pytorch.org/docs/stable/nn.functional.html#linear
+        # 0 - input
+        # 1 - weight
+        bias = inputs[2]
+        a_shape = self.infer_shape_with_prelude(inputs[0])
+        b_shape = self.infer_shape_with_prelude(inputs[1])
+        if len(a_shape) == 2 and len(b_shape) == 2:
+            mm_out = _op.nn.dense(inputs[0], inputs[1])
+        elif len(b_shape) == 1:
+            mm_out = self.matmul([inputs[0], inputs[1]], input_types[:2])
+        else:
+            mm_out = self.matmul(
+                [inputs[0], _op.transpose(inputs[1], axes=(1, 0))], input_types[:2]
             )
-
-        if self.is_quantized_tensor(data):
-            return qnn_torch.apply_with_upcast(data, func)
-
-        return func(data)
-
-    def avg_pool3d(self, inputs, input_types):
-        data = inputs[0]
-
-        pool_size = inputs[1]
-        strides = inputs[2] if inputs[2] else pool_size
-        padding = inputs[3]
-        ceil_mode = int(inputs[4])
-        count_include_pad = int(inputs[5])
-
-        return _op.nn.avg_pool3d(
-            data,
-            pool_size=pool_size,
-            strides=strides,
-            padding=padding,
-            ceil_mode=ceil_mode,
-            count_include_pad=count_include_pad,
-        )
+        if isinstance(bias, _expr.Expr):
+            bias_ndims = len(self.infer_shape_with_prelude(bias))
+            if bias_ndims == 1:
+                return _op.nn.bias_add(mm_out, bias, axis=-1)
+            mm_dtype = self.infer_type_with_prelude(mm_out).dtype
+            return self.add([mm_out, bias], [mm_dtype, input_types[2]])
+        return mm_out
 
     def dropout(self, inputs, input_types):
         data = inputs[0]
@@ -1474,28 +1605,11 @@ class PyTorchOpConverter:
         else:
             unif_size = int(dim / num_chunks)
 
-        chunks = []
-        for i in range(0, dim, unif_size):
-            begin = [0] * len(shape)
-            end = shape[:]
-            begin[axis] = i
-            end[axis] = i + unif_size
-            stride = [1] * len(shape)
+        indeces = []
+        for i in range(unif_size, dim, unif_size):
+            indeces.append(i)
 
-            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
-            chunks.append(chunk_out)
-
-        if dim % num_chunks:
-            begin = [0] * len(shape)
-            end = shape[:]
-            begin[axis] = unif_size * (num_chunks - 1)
-            end[axis] = dim
-            stride = [1] * len(shape)
-
-            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
-            chunks.append(chunk_out)
-
-        return chunks
+        return _op.split(data, indeces, axis)
 
     def matmul(self, inputs, input_types):
 
@@ -1507,33 +1621,57 @@ class PyTorchOpConverter:
         b_shape = self.infer_shape_with_prelude(inputs_1)
 
         # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if len(a_shape) > 2 or len(b_shape) > 2:
-            # Convert a and b into 3 dimensional tensors.
-            a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
-            b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
-            # Broadcast b to match batch size of a
-            new_b_shape = list(self.infer_shape_with_prelude(b))
-            new_a_shape = self.infer_shape_with_prelude(a)
-            if new_a_shape[0] > new_b_shape[0]:
-                new_b_shape[0] = new_a_shape[0]
-                b = _op.broadcast_to(b, new_b_shape)
+        if len(a_shape) > 2 and len(b_shape) > 2:
+            # Convert a into a 3 dimensional tensors.
+            need_reshape_output = False
+            if len(a_shape) != 3:
+                a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
+                need_reshape_output = True
+            else:
+                a = inputs_0
+
             # Transpose matrix dimensions of b.
-            b = _op.transpose(b, [0, 2, 1])
+            trans_axes = list(range(len(b_shape)))
+            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
+            b = _op.transpose(inputs_1, trans_axes)
+
+            # Convert b into a 3 dimensional tensor. Note that the last two dimensions
+            # are transposed.
+            if len(b_shape) != 3:
+                b = _op.reshape(b, [-1, b_shape[-1], b_shape[-2]])
+
             # Perform a batch matmul.
             output = _op.nn.batch_matmul(a, b)
-            # Reshape output to original dimensions.
-            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
 
-        # Otherwise a simple dense op will get the job done.
-        if len(b_shape) == 1:
-            input_1 = _op.expand_dims(inputs_1, 0, 1)
-        else:
+            # Reshape output to original dimensions.
+            if need_reshape_output:
+                return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+            return output
+        elif len(a_shape) > 2:
+            inputs_0 = _op.reshape(inputs_0, [-1, a_shape[-1]])
+
+        if len(b_shape) > 2:
+            trans_axes = list(range(len(b_shape)))
+            trans_axes[-2], trans_axes[-1] = trans_axes[-1], trans_axes[-2]
+            input_1 = _op.reshape(_op.transpose(inputs_1, trans_axes), [-1, b_shape[-2]])
+        elif len(b_shape) == 2:
             input_1 = _op.transpose(inputs_1, axes=(1, 0))
+        elif len(b_shape) == 1:
+            input_1 = _op.expand_dims(inputs_1, 0, 1)
 
         out = _op.nn.dense(inputs_0, input_1)
 
         if len(b_shape) == 1:
             out = _op.squeeze(out, axis=[-1])
+
+        # Reshape output into a N dimensional tensor when a or b dim > 2
+        if len(a_shape) > 2:
+            out = _op.reshape(out, [*a_shape[:-1], b_shape[-1]])
+        elif len(b_shape) > 2:
+            out = _op.reshape(out, [a_shape[-2], -1, b_shape[-1]])
+            out = _op.reshape(
+                _op.transpose(out, [1, 0, 2]), [*b_shape[:-2], a_shape[-2], b_shape[-1]]
+            )
 
         return out
 
@@ -1554,7 +1692,7 @@ class PyTorchOpConverter:
         for i in range(out_dims):
             if sizes[i] != -1 and shape[i] == 1:
                 if not isinstance(sizes[i], int):
-                    sizes[i] = int(_infer_value(sizes[i], {}).asnumpy())
+                    sizes[i] = int(_infer_value(sizes[i], {}).numpy())
                 out = _op.repeat(out, sizes[i], axis=i)
 
         return out
@@ -1600,7 +1738,7 @@ class PyTorchOpConverter:
                 const_paddings.append([])
                 for p in pad:
                     if not isinstance(p, int):
-                        p = int(_infer_value(p, {}).asnumpy())
+                        p = int(_infer_value(p, {}).numpy())
                     const_paddings[-1].append(p)
 
             if mode == "constant":
@@ -1612,8 +1750,20 @@ class PyTorchOpConverter:
 
     def clamp(self, inputs, input_types):
         data = inputs[0]
-        amin = inputs[1] if inputs[1] else np.finfo(np.float32).min
-        amax = inputs[2] if inputs[2] else np.finfo(np.float32).max
+
+        def get_v(v, default_v):
+            if isinstance(v, _expr.Constant):
+                return float(v.data.numpy())
+            if isinstance(v, _expr.Expr):
+                infer_v, success = try_infer_value(v, lambda ret: float(ret))
+                if success:
+                    return infer_v
+            if v is not None:
+                return v
+            return default_v
+
+        amin = get_v(inputs[1], np.finfo(np.float32).min)
+        amax = get_v(inputs[2], np.finfo(np.float32).max)
         return _op.clip(data, amin, amax)
 
     def to(self, inputs, input_types):
@@ -1648,11 +1798,11 @@ class PyTorchOpConverter:
         if inputs[1] is not None:
             for size in inputs[1]:
                 if not isinstance(size, int):
-                    out_size.append(int(_infer_value(size, {}).asnumpy()))
+                    out_size.append(int(_infer_value(size, {}).numpy()))
                 else:
                     out_size.append(size)
         else:
-            scale_index = 3 if method in ["bilinear", "trilinear"] else 2
+            scale_index = 3 if method != "nearest_neighbor" else 2
             scales = inputs[scale_index]
             assert scales is not None, "neither out size nor scale provided"
             assert isinstance(scales, list)
@@ -1667,7 +1817,7 @@ class PyTorchOpConverter:
             data = inputs[0]
             out_size = self.get_upsample_out_size(inputs, method)
 
-            if len(inputs) > 2 and method == "bilinear":
+            if len(inputs) > 2 and method != "nearest_neighbor":
                 align_corners = inputs[2]
             else:
                 align_corners = False
@@ -1680,7 +1830,9 @@ class PyTorchOpConverter:
                 coord_trans = "half_pixel"
 
             def func(x):
-                return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
+                return _op.image.resize2d(
+                    x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75
+                )
 
             if self.is_quantized_tensor(data):
                 # input qparams are manually appended by us
@@ -1699,7 +1851,7 @@ class PyTorchOpConverter:
             data = inputs[0]
             out_size = self.get_upsample_out_size(inputs, method)
 
-            if len(inputs) > 2 and method == "trilinear":
+            if len(inputs) > 2 and method == "linear":
                 align_corners = inputs[2]
             else:
                 align_corners = False
@@ -1730,9 +1882,6 @@ class PyTorchOpConverter:
     def Float(self, inputs, input_types):
         assert len(inputs) == 1
         return _op.cast(inputs[0], "float32")
-
-    def mm(self, inputs, input_types):
-        return _op.nn.dense(inputs[0], inputs[1])
 
     def bitwise_not(self, inputs, input_types):
         data = inputs[0]
@@ -1857,16 +2006,18 @@ class PyTorchOpConverter:
         scores = inputs[1]
         iou_threshold = inputs[2]
 
+        # TVM NMS assumes score > 0
+        scores = scores - _op.min(scores) + _op.const(1.0)
+
+        num_boxes = _op.shape_of(scores)
+        # PyTorch NMS doesn't have score_threshold, so no need to run get_valid_count
+        indices = _op.transform.arange(_op.squeeze(num_boxes), dtype="int32")
+        indices = _op.expand_dims(indices, 0, 1)
+
         # Generate data with shape (1, num_anchors, 5)
         scores = AttrCvt(op_name="expand_dims", extras={"axis": -1, "num_newaxis": 1})([scores], {})
-
-        # Prepare input data for get_valid_counts
         data = _op.concatenate([scores, boxes], -1)
         data = _op.expand_dims(data, 0, 1)
-        # Leverage get_valid_counts to sort the data and clear invalid boxes
-        ct, data, indices = get_relay_op("get_valid_counts")(
-            data, score_threshold=-1.0, id_index=-1, score_index=0
-        )
 
         # Perform Non-Maximum Suppression,
         # PyTorch NMS doesn't have parameter top_k and max_output_size
@@ -1874,7 +2025,7 @@ class PyTorchOpConverter:
         top_k = max_out_size = -1
         nms_ret = get_relay_op("non_max_suppression")(
             data=data,
-            valid_count=ct,
+            valid_count=num_boxes,
             indices=indices,
             max_output_size=max_out_size,
             iou_threshold=iou_threshold,
@@ -1920,23 +2071,36 @@ class PyTorchOpConverter:
 
         return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
 
+    def deform_conv2d(self, inputs, input_types):
+        data = inputs[0]
+        weight = inputs[1]
+        offset = inputs[2]
+        strides = (inputs[4], inputs[5])
+        padding = (inputs[6], inputs[7])
+        dilation = (inputs[8], inputs[9])
+        groups = inputs[10]
+        deformable_groups = inputs[11]
+        weight_shape = self.infer_shape(weight)
+        output_channels = weight_shape[0]
+        kernel_size = (weight_shape[2], weight_shape[3])
+
+        return _op.nn.deformable_conv2d(
+            data,
+            offset,
+            weight,
+            strides,
+            padding,
+            dilation,
+            deformable_groups,
+            groups,
+            output_channels,
+            kernel_size,
+        )
+
     def unbind(self, inputs, input_types):
         data = inputs[0]
-        dim = int(inputs[1])
-        ishapes = self.infer_shape(data)
-        if dim >= len(ishapes):
-            msg = "Please check input dim, it shouldn't be greater than or equal to rank."
-            raise AttributeError(msg)
-
-        selections = ishapes[dim]
-        res_split = _op.split(data, selections, dim)
-        # squeeze each split piece to get same shape as aten::unbind
-        # TODO (yongwww): add new op to avoid the squeeze overhead
-        ret = []
-        for i in range(selections):
-            ret.append(_op.transform.squeeze(res_split[i], axis=[dim]))
-        ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
-        return ret
+        axis = int(inputs[1])
+        return unbind(data, axis)
 
     def shape_as_tensor(self, inputs, input_types):
         is_symbolic_shape = False
@@ -1963,7 +2127,7 @@ class PyTorchOpConverter:
         data = inputs[0]
         ret = _op.transform.argwhere(data)
         if is_numpy_style or (len(inputs) > 1 and inputs[1]):
-            return self.unbind([ret, 1], None)
+            return unbind(ret, 1)
         return ret
 
     def nonzero_numpy(self, inputs, input_types):
@@ -1976,6 +2140,19 @@ class PyTorchOpConverter:
         src = inputs[3]
         return _op.transform.scatter(data, index, src, axis)
 
+    def index_put(self, inputs, input_types):
+        in_tensor = inputs[0]
+        indices = inputs[1]
+        values = inputs[2]
+        accumulate = inputs[3]
+        if not accumulate:
+            mode = "update"
+        else:
+            mode = "add"
+        # Combine array of index tensors into one index tensor with shape (N,_)
+        index_tensor = _op.stack(indices, axis=0)
+        return _op.transform.scatter_nd(in_tensor, index_tensor, values, mode)
+
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
         cast_map = {
@@ -1986,7 +2163,7 @@ class PyTorchOpConverter:
         }
         type_key = inputs[1]
         if isinstance(data, _expr.Constant):
-            data = data.data.asnumpy().tolist()
+            data = data.data.numpy().tolist()
         return _expr.const(data, cast_map[type_key])
 
     def interpolate(self, inputs, input_types):
@@ -2008,6 +2185,8 @@ class PyTorchOpConverter:
         method = inputs[3]
         if method.startswith("nearest"):
             method = "nearest_neighbor"
+        elif method[0:2] == "bi":
+            method = method[2:]
 
         if method == "nearest_neighbor":
             coord_trans = "asymmetric"
@@ -2016,7 +2195,7 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize(data, out_size, "NCHW", method, coord_trans)
+        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])
@@ -2059,6 +2238,40 @@ class PyTorchOpConverter:
         src = inputs[3]
         return _op.scatter_add(data, index, src, axis=axis)
 
+    def cumsum(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        dtype = inputs[2]
+
+        if inputs[2] is not None:
+            dtype = _convert_dtype_value(inputs[2])
+
+        return _op.cumsum(data, axis=dim, dtype=dtype)
+
+    def masked_fill(self, inputs, input_types):
+        mask = inputs[1]
+        value = _op.cast(_wrap_const(inputs[2]), input_types[0])
+        return _op.where(mask, value, inputs[0])
+
+    def masked_select(self, inputs, input_types):
+        mask = inputs[1]
+        indices = self.nonzero([mask], input_types, is_numpy_style=True)
+        return _op.adv_index([inputs[0]] + [indices[i] for i in range(indices.size)])
+
+    def sort(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        is_descending = inputs[2]
+        # pytorch sort returns both sorted indices and values
+        indices = _op.argsort(data, dim, not is_descending)
+        return _op.gather(data, dim, indices), indices
+
+    def argsort(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        is_descending = inputs[2]
+        return _op.argsort(data, dim, not is_descending)
+
     def is_floating_point(self, inputs, input_types):
         assert len(inputs) == 1
 
@@ -2067,8 +2280,499 @@ class PyTorchOpConverter:
         else:
             input_type = input_types[0]
 
-        is_float = input_type in ["float32", "float64", "float16"]
+        is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
         return _expr.const(is_float)
+
+    def unique(self, inputs, input_types):
+        assert len(inputs) == 4
+        [data, is_sorted, return_inverse, return_counts] = inputs
+        if not is_sorted:
+            logging.warning("TVM always assumes sorted=True for torch.unique")
+            is_sorted = True
+        if return_counts:
+            [unique, indices, inverse_indices, num_uniq, counts] = _op.unique(
+                data, is_sorted=is_sorted, return_counts=True
+            )
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
+            return (unique_sliced, inverse_indices, counts_sliced)
+        else:
+            [unique, indices, inverse_indices, num_uniq] = _op.unique(
+                data, is_sorted=is_sorted, return_counts=False
+            )
+            unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
+            return (unique_sliced, inverse_indices)
+
+    def nll_loss(self, inputs, input_types):
+        assert len(inputs) == 5
+        [predictions, targets, weights, reduction, ignore_index] = inputs
+        num_class = self.infer_shape(predictions)[1]
+        if reduction == 0:
+            reduction = "none"
+        elif reduction == 1:
+            reduction = "mean"
+        else:
+            reduction = "sum"
+        if weights is None:
+            weights = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
+        return _op.nn.nll_loss(predictions, targets, weights, reduction, ignore_index)
+
+    def flip(self, inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        return _op.transform.reverse(data, axis=axis[0])
+
+    def bidir_gru_cell(
+        self,
+        input_seqs,
+        weights_dicts,
+    ):
+        """
+        Bidirectional GRU cell
+        """
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t = gru_cell(
+            input_seqs,
+            **weights_dicts[0],
+        )
+
+        reverse_outputs, rev_H_t = gru_cell(
+            input_seqs,
+            **weights_dicts[1],
+            backwards=True,
+        )
+
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.concatenate([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=-1)
+            )
+
+        return final_outputs, _op.stack([fw_H_t, rev_H_t], axis=0)
+
+    def gru_layers(self, input_data, layer_weights_dicts, bidirectional, dropout_p=0.0):
+        """
+        Methods iterates layers for Stacked GRU
+        """
+        layers_num = len(layer_weights_dicts)
+        # split input sequence to samples set
+        input_seqs = unbind(input_data, 0)  # [seq_num, (batch, feature_size)]
+        output_hiddens = []
+        for i in range(layers_num):
+            weights_dicts = layer_weights_dicts[i]
+            # input_seqs shape = [seq_num, (batch, feature_size)] or
+            # [seq_num, (batch, 2*feature_size)] for bidirectional
+            if bidirectional:
+                input_seqs, H_t = self.bidir_gru_cell(input_seqs, weights_dicts)
+            else:
+                input_seqs, H_t = gru_cell(input_seqs, **weights_dicts[0])
+
+            output_hiddens.append(H_t)
+
+            # TODO (vvchernov): in pytorch implementation train is also checked
+            # see https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339
+            # /aten/src/ATen/native/RNN.cpp#L1054
+            if dropout_p != 0 and i < layers_num - 1:
+                # for input in input_seqs:
+                #     input = _op.dropout(input, dropout_p)
+                raise NotImplementedError("Dropout for GRU has not been supported yet!")
+
+        return _op.stack(input_seqs, 0), _op.stack(output_hiddens, 0)
+
+    def gru(self, inputs, input_types):
+        """
+        Description of GRU in pytorch:
+        https://pytorch.org/docs/stable/generated/torch.nn.GRU.html?highlight=gru#torch.nn.GRU
+        """
+        # TODO (vvchernov): support dropout
+        assert len(inputs) == 9, "Input of size 9 is expected"
+        # Unpack inputs, note that if optional and not provided then value will be None.
+        _X = inputs[0]
+        # _X shape (seq_num, batch, feature_size) or (batch, seq_num, feature_size)
+
+        hidden_state = inputs[1]
+        # Hidden state shape (hidden_layers_num, batch, hidden_size)
+
+        _weights = inputs[2]
+        # Wi layer[0] shape (3 * hidden_size, feature_size)
+        # Wh layer[0] shape (3 * hidden_size, hidden_size)
+        # Bi layer[0] shape (3 * hidden_size)
+        # Bh layer[0] shape (3 * hidden_size)
+
+        # Wi layer[>0] shape (3 * hidden_size, hidden_size * num_directions)
+        # Wh layer[>0] shape (3 * hidden_size, hidden_size)
+        # Bi layer[>0] shape (3 * hidden_size)
+        # Bh layer[>0] shape (3 * hidden_size)
+
+        # Scalar inputs
+        has_biases = inputs[3]
+        num_layers = inputs[4]
+        dropout_p = inputs[5]  # dropout probability, if 0.0 it means there is no dropout
+        # train = inputs[6]
+        bidirectional = inputs[7]
+        batch_first = inputs[8]
+
+        num_directions = 1
+        if bidirectional:
+            num_directions = 2
+
+        rsd = len(_weights) % num_layers
+        assert rsd == 0, "The number of weights must be a multiple of the number of layers!"
+        rsd = (len(_weights) / num_layers) % num_directions
+        assert (
+            rsd == 0
+        ), "The number of weights in layer must be a multiple of the number of directions!"
+
+        weights_num = int(len(_weights) / num_layers / num_directions)
+        if has_biases:
+            assert weights_num == 4, "The weights number in layer is expected equal to 4"
+        else:
+            assert weights_num == 2, "The weights number in layer is expected equal to 2"
+
+        X = _op.transpose(_X, (1, 0, 2)) if batch_first else _X
+        # TODO (vvchernov): Which data type should be used? from input or weights?
+        # Instead of it _infer_type(X).checked_type.dtype can be used
+        X_dtype = input_types[0]
+        X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
+
+        hidden_size = int(_infer_shape(_weights[0])[0] / 3)
+        batch_size = X_shape[1]
+
+        # Initialize hidden states if not provided.
+        layers_h = []
+        hidden_layers_num = num_directions * num_layers
+        if hidden_state is None:
+            h_0 = _op.zeros((batch_size, hidden_size), X_dtype)
+            for i in range(hidden_layers_num):
+                layers_h.append(h_0)
+        else:
+            layers_h = unbind(hidden_state, 0)
+
+        layer_weights_dicts = []
+        k = 0  # layer counter
+        if has_biases:
+            names = ["hidden_state", "w_inp", "w_hid", "b_inp", "b_hid"]
+            if bidirectional:
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of GRU weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_tensors = [layers_h[2 * k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    j = i + weights_num
+                    rev_tensors = [layers_h[2 * k + 1], *_weights[j : j + 4]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
+                    layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
+                    k += 1
+            else:
+                assert len(_weights) % weights_num == 0, "got an incorrect number of GRU weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_tensors = [layers_h[k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    layer_weights_dicts.append([fw_weights_dict])
+                    k += 1
+        else:
+            names = ["hidden_state", "w_inp", "w_hid"]
+            if bidirectional:
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of GRU weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_tensors = [layers_h[2 * k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    j = i + weights_num
+                    rev_tensors = [layers_h[2 * k + 1], *_weights[j : j + 2]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
+                    layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
+                    k += 1
+            else:
+                assert len(_weights) % weights_num == 0, "got an incorrect number of GRU weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_tensors = [layers_h[k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    layer_weights_dicts.append([fw_weights_dict])
+                    k += 1
+        assert (
+            len(layer_weights_dicts) == num_layers and k == num_layers
+        ), "For stacked GRU number of weights sets should be the same as number of layers!"
+
+        output, out_hidden_state = self.gru_layers(
+            X,
+            layer_weights_dicts,
+            bidirectional,
+            dropout_p=dropout_p,
+        )
+
+        # output shape = (seq_num, batch, hidden_size) or
+        # (seq_num, batch, 2*feature_size) for bidirectional
+        if batch_first:
+            output = _op.transpose(output, (1, 0, 2))
+
+        return (output, out_hidden_state)
+
+    def bidir_lstm_cell(
+        self,
+        input_seqs,
+        weights_dicts,
+    ):
+        """
+        Bidirectional LSTM cell
+        """
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t, fw_C_t = lstm_cell(
+            input_seqs,
+            **weights_dicts[0],
+        )
+
+        reverse_outputs, rev_H_t, rev_C_t = lstm_cell(
+            input_seqs,
+            **weights_dicts[1],
+            backwards=True,
+        )
+
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.concatenate([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=-1)
+            )
+
+        return final_outputs, (fw_H_t, fw_C_t), (rev_H_t, rev_C_t)
+
+    def lstm_layers(self, input_data, layer_weights_dicts, bidirectional, dtype, dropout_p=0.0):
+        """
+        Methods iterates layers for Stacked LSTM
+        """
+        layers_num = len(layer_weights_dicts)
+        # split input sequence to samples set
+        input_seqs = unbind(input_data, 0)  # [seq_num, (batch, feature_size)]
+        output_hiddens = []
+        for i in range(layers_num):
+            weights_dicts = layer_weights_dicts[i]
+            # input_seqs shape = [seq_num, (batch, feature_size)] or
+            # [seq_num, (batch, 2*feature_size)] for bidirectional
+            if bidirectional:
+                input_seqs, H_t, C_t = self.bidir_lstm_cell(input_seqs, weights_dicts)
+            else:
+                input_seqs, H_t, C_t = lstm_cell(input_seqs, **weights_dicts[0])
+
+            output_hiddens.append((H_t, C_t))
+
+            # TODO (vvchernov): in pytorch implementation train is also checked
+            # see https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339
+            # /aten/src/ATen/native/RNN.cpp#L1054
+            if dropout_p != 0 and i < layers_num - 1:
+                # for input in input_seqs:
+                #     input = _op.dropout(input, dropout_p)
+                raise NotImplementedError("Dropout for LSTM has not been supported yet!")
+        final_hiddens = []
+        if bidirectional:
+            for output_hidden in output_hiddens:
+                final_hiddens.append(output_hidden[0])
+                final_hiddens.append(output_hidden[1])
+        else:
+            final_hiddens = output_hiddens
+
+        return _op.stack(input_seqs, 0), final_hiddens
+
+    def lstm(self, inputs, input_types):
+        """
+        Description of LSTM in pytorch:https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
+        Native implementation for torch version less than 1.8.0 (projection is unsupported):
+        https://github.com/pytorch/pytorch/blob/70c8daf43946b53af6493d058899ef952d27d339/aten/ \
+        src/ATen/native/RNN.cpp#L1396
+        Native implementation for torch version from 1.8.0 and higher (projection is supported):
+        https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/RNN.cpp#L1483
+        """
+        # TODO (vvchernov): support dropout
+        assert len(inputs) == 9, "Input of size 9 is expected"
+        # Unpack inputs, note that if optional and not provided then value will be None.
+        _X = inputs[0]
+        # _X shape (seq_num, batch, feature_size) or (batch, seq_num, feature_size)
+
+        hidden_states = inputs[1]
+        assert len(hidden_states) == 2, "lstm expects two hidden states"
+        h_0 = hidden_states[0]
+        c_0 = hidden_states[1]
+        # H0 shape (hidden_layers_num, batch, proj_size) if projection
+        # else (hidden_layers_num, batch, hidden_size)
+        # C0 shape (hidden_layers_num, batch, hidden_size)
+
+        _weights = inputs[2]
+        # If no projection
+        # Wi layer[0] shape (4 * hidden_size, feature_size)
+        # Wh layer[0] shape (4 * hidden_size, hidden_size)
+        # Bi layer[0] shape (4 * hidden_size)
+        # Bh layer[0] shape (4 * hidden_size)
+
+        # Wi layer[>0] shape (4 * hidden_size, hidden_size * num_directions)
+        # Wh layer[>0] shape (4 * hidden_size, hidden_size)
+        # Bi layer[>0] shape (4 * hidden_size)
+        # Bh layer[>0] shape (4 * hidden_size)
+
+        # If projection
+        # Wi layer[0] shape (4 * hidden_size, feature_size)
+        # Wh layer[0] shape (4 * hidden_size, proj_size)
+        # Bi layer[0] shape (4 * hidden_size)
+        # Bh layer[0] shape (4 * hidden_size)
+        # P  layer[0] shape (proj_size, hidden_size)
+
+        # Wi layer[>0] shape (4 * hidden_size, proj_size * num_directions)
+        # Wh layer[>0] shape (4 * hidden_size, proj_size)
+        # Bi layer[>0] shape (4 * hidden_size)
+        # Bh layer[>0] shape (4 * hidden_size)
+        # P  layer[>0] shape (proj_size, hidden_size)
+
+        # Scalar inputs
+        has_biases = inputs[3]
+        num_layers = inputs[4]
+        dropout_p = inputs[5]  # dropout probability, if 0.0 it means there is no dropout
+        # train = inputs[6]
+        bidirectional = inputs[7]
+        batch_first = inputs[8]
+
+        num_directions = 1
+        if bidirectional:
+            num_directions = 2
+
+        rsd = len(_weights) % num_layers
+        assert rsd == 0, "The number of weights must be a multiple of the number of layers!"
+        rsd = (len(_weights) / num_layers) % num_directions
+        assert (
+            rsd == 0
+        ), "The number of weights in layer must be a multiple of the number of directions!"
+        has_proj = False
+        proj_size = 0
+        weights_num = int(len(_weights) / num_layers / num_directions)
+        if has_biases:
+            if weights_num == 5:
+                has_proj = True
+                proj_size = _infer_shape(_weights[4])[0]
+            else:
+                assert weights_num == 4, "The weights number in layer is expected equal to 4"
+        else:
+            if weights_num == 3:
+                has_proj = True
+                proj_size = _infer_shape(_weights[2])[0]
+            else:
+                assert weights_num == 2, "The weights number in layer is expected equal to 2"
+
+        X = _op.transpose(_X, (1, 0, 2)) if batch_first else _X
+        # TODO (vvchernov): Which data type should be used? from input or weights?
+        # Instead of it _infer_type(X).checked_type.dtype can be used
+        X_dtype = input_types[0]
+        X_shape = _infer_shape(X)  # (seq_num, batch, feature_size)
+
+        hidden_size = _infer_shape(_weights[0])[0] / 4
+        batch_size = X_shape[1]
+
+        # Initialize hidden states if not provided.
+        layers_h = []
+        layers_c = []
+        hidden_layers_num = num_directions * num_layers
+        if h_0 is None:
+            if has_proj:
+                h_0 = _op.zeros((batch_size, proj_size), X_dtype)
+            else:
+                h_0 = _op.zeros((batch_size, hidden_size), X_dtype)
+            for i in range(hidden_layers_num):
+                layers_h.append(h_0)
+        else:
+            layers_h = unbind(h_0, 0)
+        if c_0 is None:
+            c_0 = _op.zeros((batch_size, hidden_size), X_dtype)
+            for i in range(hidden_layers_num):
+                layers_c.append(c_0)
+        else:
+            layers_c = unbind(c_0, 0)
+
+        layer_weights_dicts = []
+        k = 0  # layer counter
+        if has_biases:
+            names = ["hidden_state", "cell_state", "w_inp", "w_hid", "b_inp", "b_hid"]
+            if bidirectional:
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_tensors = [layers_h[2 * k], layers_c[2 * k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    if has_proj:
+                        fw_weights_dict["proj"] = _weights[i + 4]
+                    j = i + weights_num
+                    rev_tensors = [layers_h[2 * k + 1], layers_c[2 * k + 1], *_weights[j : j + 4]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
+                    if has_proj:
+                        rev_weights_dict["proj"] = _weights[j + 4]
+                    layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
+                    k += 1
+            else:
+                assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_tensors = [layers_h[k], layers_c[k], *_weights[i : i + 4]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    if has_proj:
+                        fw_weights_dict["proj"] = _weights[i + 4]
+                    layer_weights_dicts.append([fw_weights_dict])
+                    k += 1
+        else:
+            names = ["hidden_state", "cell_state", "w_inp", "w_hid"]
+            if bidirectional:
+                rsd = len(_weights) % (2 * weights_num)
+                assert rsd == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), 2 * weights_num):
+                    fw_tensors = [layers_h[2 * k], layers_c[2 * k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    if has_proj:
+                        fw_weights_dict["proj"] = _weights[i + 2]
+                    j = i + weights_num
+                    rev_tensors = [layers_h[2 * k + 1], layers_c[2 * k + 1], *_weights[j : j + 2]]
+                    rev_weights_dict = dict(zip(names, rev_tensors))
+                    if has_proj:
+                        rev_weights_dict["proj"] = _weights[j + 2]
+                    layer_weights_dicts.append([fw_weights_dict, rev_weights_dict])
+                    k += 1
+            else:
+                assert len(_weights) % weights_num == 0, "got an incorrect number of LSTM weights"
+                for i in range(0, len(_weights), weights_num):
+                    fw_tensors = [layers_h[k], layers_c[k], *_weights[i : i + 2]]
+                    fw_weights_dict = dict(zip(names, fw_tensors))
+                    if has_proj:
+                        fw_weights_dict["proj"] = _weights[i + 2]
+                    layer_weights_dicts.append([fw_weights_dict])
+                    k += 1
+        assert (
+            len(layer_weights_dicts) == num_layers and k == num_layers
+        ), "For stacked LSTM number of weights sets should be the same as number of layers!"
+
+        outputs = self.lstm_layers(
+            X,
+            layer_weights_dicts,
+            bidirectional,
+            dtype=X_dtype,
+            dropout_p=dropout_p,
+        )
+
+        # output shape = (seq_num, batch, hidden_size) or
+        # (seq_num, batch, 2*feature_size) for bidirectional
+        output = outputs[0]
+
+        hy = []
+        cy = []
+        for hidden in outputs[1]:
+            hy.append(hidden[0])
+            cy.append(hidden[1])
+
+        if batch_first:
+            output = _op.transpose(output, (1, 0, 2))
+
+        return (output, _op.stack(hy, 0), _op.stack(cy, 0))
+
+    def all_any_common(self, op, inputs, input_types):
+        dim = inputs[1]
+        keepdim = inputs[2]
+        if self.infer_type(inputs[0]).dtype != "bool":
+            # The input dtype can be uint8.
+            inp = _op.cast(inputs[0], "bool")
+        else:
+            inp = inputs[0]
+        return op(inp, axis=dim, keepdims=keepdim)
 
     # Operator mappings
     def create_convert_map(self):
@@ -2106,8 +2810,10 @@ class PyTorchOpConverter:
             "aten::to": self.to,
             "aten::squeeze": self.squeeze,
             "aten::unsqueeze": self.unsqueeze,
+            "aten::unsqueeze_": self.unsqueeze,
             "aten::cat": self.concatenate,
             "aten::slice": self.slice,
+            "aten::narrow": self.narrow,
             "aten::split": self.split,
             "aten::split_with_sizes": self.split_with_sizes,
             "aten::select": self.select,
@@ -2124,6 +2830,7 @@ class PyTorchOpConverter:
             "aten::celu": self.celu,
             "aten::gelu": self.gelu,
             "aten::selu": self.selu,
+            "aten::silu": self.silu,
             "aten::log_sigmoid": self.log_sigmoid,
             "aten::adaptive_avg_pool2d": self.adaptive_avg_pool_2d,
             "aten::adaptive_max_pool2d": self.adaptive_max_pool_2d,
@@ -2153,15 +2860,19 @@ class PyTorchOpConverter:
             "aten::clone": self.clone,
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
+            "aten::sigmoid_": self.sigmoid,
             "aten::softplus": self.softplus,
-            "aten::avg_pool2d": self.avg_pool2d,
-            "aten::avg_pool3d": self.avg_pool3d,
+            "aten::avg_pool1d": self.make_avg_pool(1),
+            "aten::avg_pool2d": self.make_avg_pool(2),
+            "aten::avg_pool3d": self.make_avg_pool(3),
+            "aten::linear": self.linear,
             "aten::dropout": self.dropout,
             "aten::dropout_": self.dropout,
             "aten::feature_dropout": self.dropout,
             "aten::alpha_dropout": self.dropout,
             "aten::mean": self.mean,
             "aten::chunk": self.chunk,
+            "aten::unsafe_chunk": self.chunk,
             "aten::matmul": self.matmul,
             "aten::bmm": self.matmul,
             "aten::expand": self.expand,
@@ -2192,6 +2903,7 @@ class PyTorchOpConverter:
             "aten::sinh": self.make_unary("sinh"),
             "aten::tan": self.make_unary("tan"),
             "aten::tanh": self.make_unary("tanh"),
+            "aten::tanh_": self.make_unary("tanh"),
             "aten::acos": self.make_unary("acos"),
             "aten::asin": self.make_unary("asin"),
             "aten::atan": self.make_unary("atan"),
@@ -2214,9 +2926,10 @@ class PyTorchOpConverter:
             "aten::clamp": self.clamp,
             "aten::clamp_": self.clamp,
             "aten::detach": self.identity,
-            "aten::upsample_bilinear2d": self.make_upsample("bilinear"),
+            "aten::upsample_bilinear2d": self.make_upsample("linear"),
+            "aten::upsample_bicubic2d": self.make_upsample("cubic"),
             "aten::upsample_nearest2d": self.make_upsample("nearest_neighbor"),
-            "aten::upsample_trilinear3d": self.make_upsample3d("trilinear"),
+            "aten::upsample_trilinear3d": self.make_upsample3d("linear"),
             "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
             "aten::expand_as": self.expand_as,
             "aten::lt": self.make_elemwise("less"),
@@ -2249,12 +2962,16 @@ class PyTorchOpConverter:
             "torchvision::nms": self.nms,
             "aten::logsumexp": self.logsumexp,
             "torchvision::roi_align": self.roi_align,
+            "torchvision::deform_conv2d": self.deform_conv2d,
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
+            "aten::logical_and": self.logical_and,
             "aten::_shape_as_tensor": self.shape_as_tensor,
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
+            "aten::index_put": self.index_put,
+            "aten::index_put_": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
             "aten::IntImplicit": self.identity,
@@ -2264,13 +2981,31 @@ class PyTorchOpConverter:
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
+            "aten::hardswish_": self.hard_swish,
+            "aten::hardswish": self.hard_swish,
+            "aten::hardsigmoid_": self.hard_sigmoid,
+            "aten::hardsigmoid": self.hard_sigmoid,
+            "aten::cumsum": self.cumsum,
+            "aten::masked_fill": self.masked_fill,
+            "aten::masked_fill_": self.masked_fill,
+            "aten::masked_select": self.masked_select,
+            "aten::argsort": self.argsort,
+            "aten::sort": self.sort,
+            "aten::_unique2": self.unique,
+            "aten::nll_loss": self.nll_loss,
+            "aten::nll_loss2d": self.nll_loss,
+            "aten::flip": self.flip,
+            "aten::gru": self.gru,
+            "aten::lstm": self.lstm,
+            "aten::all": functools.partial(self.all_any_common, _op.all),
+            "aten::any": functools.partial(self.all_any_common, _op.any),
         }
 
     def update_convert_map(self, custom_map):
         self.convert_map.update(custom_map)
 
     def report_missing_conversion(self, op_names):
-        """ Check if all ops in an input graph are supported by TVM """
+        """Check if all ops in an input graph are supported by TVM"""
         known_ops = [
             "prim::Constant",
             "prim::GetAttr",
@@ -2292,13 +3027,13 @@ class PyTorchOpConverter:
             raise NotImplementedError(msg)
 
     def convert_block(self, block, outputs):
-        """ Translate Torch "Block", used for prim::If and prim::Loop """
+        """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(block.nodes())
         ret_names = _get_input_names(block.returnNode())
         return self.convert_operators(ops, outputs, ret_names)
 
     def convert_if(self, if_node, outputs):
-        """ Translate Torch prim::If to Relay If """
+        """Translate Torch prim::If to Relay If"""
         cond = outputs[if_node.inputsAt(0).debugName()]
         blocks = list(if_node.blocks())
         true_branch = self.convert_block(blocks[0], outputs)
@@ -2307,7 +3042,7 @@ class PyTorchOpConverter:
         return _expr.If(cond, true_branch[0], false_branch[0])
 
     def convert_loop(self, loop_node, outputs):
-        """ Translate Torch prim::Loop to Relay while_loop """
+        """Translate Torch prim::Loop to Relay while_loop"""
 
         def get_input(index):
             ivalue = loop_node.inputsAt(index)
@@ -2437,7 +3172,7 @@ class PyTorchOpConverter:
         return [_expr.TupleGetItem(loop_val, i + 1) for i in range(num_loop_var)]
 
     def convert_operators(self, operators, outputs, ret_names):
-        """ Convert each Torch IR operators to Relay equivalent """
+        """Convert each Torch IR operators to Relay equivalent"""
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
@@ -2619,7 +3354,7 @@ def _wrap_const(c):
 
 
 def _run_jit_passes(graph):
-    """ The inline pass is necessary to unwrap prim::CallMethod """
+    """The inline pass is necessary to unwrap prim::CallMethod"""
     # pylint: disable=c-extension-no-member
     import torch
 
@@ -2678,8 +3413,8 @@ def _getattr_attr_name(node):
     return attr_name
 
 
-def _getattr_full_name(getattrs):
-    return ".".join([_getattr_attr_name(node) for node in getattrs])
+def _getattr_full_name(getattrs, sep="."):
+    return sep.join([_getattr_attr_name(node) for node in getattrs])
 
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
@@ -2725,7 +3460,7 @@ def _get_input_types(op_node, outputs, default_dtype="float32"):
 
 
 def _get_constant(node):
-    """ Retrieve a constant associated with this prim::Constant node """
+    """Retrieve a constant associated with this prim::Constant node"""
     attribute_names = node.attributeNames()
     num_attributes = len(attribute_names)
 
@@ -2759,7 +3494,7 @@ def _get_constant(node):
 
 
 def _get_operator_nodes(nodes):
-    """ Returns torch IR nodes that need conversion to Relay """
+    """Returns torch IR nodes that need conversion to Relay"""
     ops = []
     # Traverse nodes and add to graph
     for node in nodes:
@@ -2935,7 +3670,7 @@ def get_attr_chains(root_getattr_node):
     return get_use_chains(root_getattr_node, terminate)
 
 
-def convert_params(graph, state_dict):
+def convert_params(graph, state_dict, use_parser_friendly_name=False):
     """
     Return Relay vars and TVM NDArrays for input parameters
     A chain of prim::GetAttr nodes is processed one at a time
@@ -2946,6 +3681,7 @@ def convert_params(graph, state_dict):
     packed_param_map = {}
     vars_by_name = {}
     seen = set()
+    attr_name_sep = "_" if use_parser_friendly_name else "."
 
     for node in getattr_nodes:
         if _get_output_name(node) in seen:
@@ -2954,7 +3690,7 @@ def convert_params(graph, state_dict):
         for getattrs in get_attr_chains(node):
             seen.update(map(_get_output_name, getattrs))
 
-            full_attr = _getattr_full_name(getattrs)
+            full_attr = _getattr_full_name(getattrs, attr_name_sep)
             full_attr_node_name = _get_output_name(getattrs[-1])
 
             if full_attr.endswith("_packed_params"):  # for quantized models
@@ -2973,7 +3709,7 @@ def convert_params(graph, state_dict):
 
 
 def get_all_op_names(graph):
-    """ Return all operator names in the input graph """
+    """Return all operator names in the input graph"""
     nodes = list(graph.nodes())
     prim_with_blocks = ["prim::If", "prim::Loop"]
     for prim in prim_with_blocks:
@@ -2984,7 +3720,14 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dtype="float32"):
+def from_pytorch(
+    script_module,
+    input_infos,
+    custom_convert_map=None,
+    default_dtype="float32",
+    use_parser_friendly_name=False,
+    keep_quantized_weight=False,
+):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -3007,9 +3750,28 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     custom_convert_map : Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
 
+    default_type : str
+        The default dtype to use when type information is not provided by PyTorch.
+
+    use_parser_friendly_name : bool
+        When True, replace '.' with `_' in a original parameter name.
+        The Relay text parser treats a variable name followed by a period as a tuple element access,
+        so a variable name like "dense.weight" cannot be parsed correctly.
+        Use this option when you want to run the AnnotateSpans pass on the imported module.
+
+    keep_quantized_weight : bool
+        Return quantized weights and bias, rather than float ones. PyTorch stores quantized weights
+        in a custom format, so we cannot directly access 8 bit weights as Numpy arrays. We use
+        a PyTorch function to unpack quantized weights into float32 arrays and quantization
+        parameters. By default, we return float32 weights and rely on the QNN lowering and the
+        Relay constant folding pass to quantize weights at compile time. In BYOC use cases, however,
+        we cannot apply the constant folding pass on a QNN graph. If keep_quantized_weight is True,
+        we quantize weights in the frontend using a function that is equivalent to
+        qnn.op.quantize(...) operating on Numpy arrays.
+
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module that optimizations will be performed on.
 
     params : dict of str to tvm.runtime.NDArray
@@ -3036,7 +3798,13 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     outputs = _get_relay_input_vars(
         graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
     )
-    param_vars, tensors, packed_param_map = convert_params(graph, params)
+
+    if use_parser_friendly_name:
+        new_names = [key.replace(".", "_") for key in params.keys()]
+        params = dict(zip(new_names, params.values()))
+
+    param_vars, tensors, packed_param_map = convert_params(graph, params, use_parser_friendly_name)
+
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
     outputs.update(param_vars)
@@ -3045,9 +3813,17 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     # For quantized models
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
     if len(quantized_ops.intersection(set(op_names))) > 0:
-        weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
-        qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)
+        weight_quant_params = qnn_torch.get_weight_quant_params(
+            script_module, packed_param_map.values()
+        )
+        input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
+        qnn_torch.add_quant_params_to_outputs(
+            outputs,
+            packed_param_map,
+            weight_quant_params,
+            input_scales_for_bias,
+            keep_quantized_weight,
+        )
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
@@ -3056,5 +3832,16 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         # ListConstruct kept original python list. Convert to tuple.
         ret = _expr.Tuple(ret)
 
-    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret), ret)
+    # Separate data inputs and parameters to make sure data inputs come first.
+    func_args = []
+    data_inputs = []
+    for arg in _analysis.free_vars(ret):
+        if arg.name_hint not in tvm_params.keys():
+            data_inputs.append(arg)
+        else:
+            func_args.append(arg)
+    func_args = data_inputs + func_args
+
+    mod["main"] = tvm.relay.Function(func_args, ret)
+
     return transform.RemoveUnusedFunctions()(mod), tvm_params

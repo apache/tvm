@@ -56,11 +56,22 @@ def _pack_batch_channel(data, dshape, bfactor, cfactor):
     return data
 
 
-def _unpack_batch_channel(data, old_shape):
+def _unpack_batch_channel(data, old_shape, unpack_transpose=False):
     """Unpack the data channel dimension."""
-    data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
+    if unpack_transpose:
+        data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
     data = op.reshape(data, newshape=old_shape)
     return data
+
+
+def _channel_const_match(channel_length, cfactor_out):
+    """Round the chanel const variant if the value not divisible by cfactor_out"""
+    diff = int(channel_length) % cfactor_out
+    if diff != 0:
+        diff = cfactor_out - diff
+        channel_length = channel_length + diff
+
+    return diff, channel_length
 
 
 def _const_shape_match(data, dshape, cfactor_out):
@@ -201,8 +212,8 @@ class ExprDeviceAnnot(ExprMutator):
     """
 
     def __init__(self, start=-1, end=-1):
-        self.ext_ctx = tvm.context("ext_dev")
-        self.cpu_ctx = tvm.context("cpu")
+        self.ext_dev = tvm.device("ext_dev")
+        self.cpu_dev = tvm.device("cpu")
         self.cast = op.op.get("cast")
         self.counter = -1
         self.start = start
@@ -210,19 +221,19 @@ class ExprDeviceAnnot(ExprMutator):
         super().__init__()
 
     def visit_call(self, call):
-        """ Visit the children. """
+        """Visit the children."""
         # First visit the children.
         args = [self.visit(arg) for arg in call.args]
 
         self.counter += 1
         if self.counter == self.start:
             ret = relay.Call(call.op, args, call.attrs)
-            ret = relay.annotation.on_device(ret, self.ext_ctx)
+            ret = relay.annotation.on_device(ret, self.ext_dev)
             return ret
 
         if self.counter == self.end:
             ret = relay.Call(call.op, args, call.attrs)
-            ret = relay.annotation.on_device(ret, self.cpu_ctx)
+            ret = relay.annotation.on_device(ret, self.cpu_dev)
             return ret
 
         if self.counter > self.start and self.counter < self.end:
@@ -232,7 +243,7 @@ class ExprDeviceAnnot(ExprMutator):
             if self.is_float_op(call):
                 return ret
 
-            return relay.annotation.on_device(ret, self.ext_ctx)
+            return relay.annotation.on_device(ret, self.ext_dev)
 
         return relay.Call(self.visit(call.op), args, call.attrs)
 
@@ -265,7 +276,7 @@ class ExprLocator(ExprMutator):
         super().__init__()
 
     def visit_call(self, call):
-        """ Visit the children. """
+        """Visit the children."""
         # First visit the children.
         args = [self.visit(arg) for arg in call.args]
 
@@ -299,10 +310,11 @@ class ExprPack(ExprMutator):
         self.upsampling = op.op.get("nn.upsampling")
         self.reshape = op.op.get("reshape")
         self.number_of_conv2d = 0
+        self.unpack_transpose = True
         super().__init__()
 
     def visit_call(self, call):
-        """ Visit the children. """
+        """Visit the children."""
         # First visit the children.
         oshape = _get_tensor_shape(call)
         odtype = _get_tensor_type(call)
@@ -319,7 +331,7 @@ class ExprPack(ExprMutator):
                 self.start_pack = False
                 data = args[0]
                 data_shape = _get_tensor_shape(call.args[0])
-                return _unpack_batch_channel(data, data_shape)
+                return _unpack_batch_channel(data, data_shape, self.unpack_transpose)
         if self.start_pack:
             # Operator cases
             if call.op == self.conv2d and odtype == "int32":
@@ -423,18 +435,18 @@ class ExprPack(ExprMutator):
                 self.start_pack and call.op == op.op.get("cast") and input_types[0].dtype == "int32"
             ):
                 cast = relay.Call(op.op.get("cast"), [args[0]], call.attrs)
-                return relay.Call(op.op.get("copy"), [cast])
+                return cast
             elif call.op == self.pad:
                 pad_width = call.attrs.pad_width
                 if len(pad_width) == 6:
                     pass
                 elif len(pad_width) == 4:
-                    (data,) = args
+                    (data, pad_value) = args
                     new_pad_width = []
                     new_pad_width.extend(pad_width)
                     for _ in range(2):
                         new_pad_width.append([0, 0])
-                    return op.nn.pad(data, pad_value=call.attrs.pad_value, pad_width=new_pad_width)
+                    return op.nn.pad(data, pad_value=pad_value, pad_width=new_pad_width)
             elif call.op == self.upsampling:
                 (data,) = args
                 scale_h = call.attrs.scale_h
@@ -445,8 +457,17 @@ class ExprPack(ExprMutator):
                 return op.nn.upsampling(data, scale_h, scale_w, data_layout, method, align_corners)
             elif call.op == self.reshape and len(input_types[0].shape) == 4:
                 (data,) = args
+                self.unpack_transpose = False
                 data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
-                return op.reshape(data, [int(x) for x in input_types[0].shape])
+                new_shape = [int(x) for x in input_types[0].shape]
+                # Check if the reshape match with such shape after pad
+                pad, new_shape[1] = _channel_const_match(new_shape[1], self.cfactor)
+                data = op.reshape(data, new_shape)
+                # remove pad data
+                if pad != 0:
+                    new_pad_width = [[0, 0], [0, -pad], [0, 0], [0, 0]]
+                    data = op.nn.pad(data, pad_width=new_pad_width)
+                return data
 
         return relay.Call(self.visit(call.op), args, call.attrs)
 

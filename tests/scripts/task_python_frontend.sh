@@ -32,22 +32,25 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 echo "Running relay MXNet frontend test..."
-python3 -m pytest tests/python/frontend/mxnet
+run_pytest cython python-frontend-mxnet tests/python/frontend/mxnet
 
 echo "Running relay ONNX frontend test..."
-python3 -m pytest tests/python/frontend/onnx
+run_pytest cython python-frontend-onnx tests/python/frontend/onnx
 
 echo "Running relay CoreML frontend test..."
-python3 -m pytest tests/python/frontend/coreml
+run_pytest cython python-frontend-coreml tests/python/frontend/coreml
 
 echo "Running relay Tensorflow frontend test..."
-python3 -m pytest tests/python/frontend/tensorflow
+run_pytest cython python-frontend-tensorflow tests/python/frontend/tensorflow
 
 echo "Running relay caffe2 frontend test..."
-python3 -m pytest tests/python/frontend/caffe2
+run_pytest cython python-frontend-caffe2 tests/python/frontend/caffe2
 
 echo "Running relay DarkNet frontend test..."
-python3 -m pytest tests/python/frontend/darknet
+run_pytest cython python-frontend-darknet tests/python/frontend/darknet
 
 echo "Running relay PyTorch frontend test..."
-python3 -m pytest tests/python/frontend/pytorch
+run_pytest cython python-frontend-pytorch tests/python/frontend/pytorch
+
+echo "Running relay PaddlePaddle frontend test..."
+run_pytest cython python-frontend-paddlepaddle tests/python/frontend/paddlepaddle

@@ -26,6 +26,7 @@
 #include <tvm/relay/op_strategy.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
+#include <tvm/runtime/executor_info.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -85,9 +86,9 @@ TEST(Relay, BuildModule) {
   auto B = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto C = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pA = (float*)A->data;
-  auto pB = (float*)B->data;
-  auto pC = (float*)C->data;
+  auto pA = static_cast<float*>(A->data);
+  auto pB = static_cast<float*>(B->data);
+  auto pC = static_cast<float*>(C->data);
 
   for (int i = 0; i < 6; ++i) {
     pA[i] = i;
@@ -99,13 +100,21 @@ TEST(Relay, BuildModule) {
   if (!reg) {
     LOG(FATAL) << "no _Register";
   }
+  auto reset = tvm::runtime::Registry::Get("ir.OpResetAttr");
+  if (!reset) {
+    LOG(FATAL) << "Reset is not defined.";
+  }
   auto fs = tvm::runtime::Registry::Get("test.strategy");
   if (!fs) {
     LOG(FATAL) << "No test_strategy registered.";
   }
-  auto fgeneric = GenericFunc::Get("test.strategy_generic").set_default(*fs);
+  auto fgeneric = GenericFunc::Get("test.strategy_generic").set_default(*fs, true);
+  (*reset)(add_op, "FTVMStrategy");
   (*reg)("add", "FTVMStrategy", fgeneric, 10);
-  (*reg)("add", "TShapeDataDependant", false, 10);
+  Array<Integer> dep;
+  dep.push_back(0);
+  (*reset)(add_op, "TShapeDataDependent");
+  (*reg)("add", "TShapeDataDependent", dep, 10);
   // build
   auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
   tvm::runtime::Module build_mod = (*pfb)();
@@ -117,23 +126,24 @@ TEST(Relay, BuildModule) {
   targets.Set(0, llvm_tgt);
   auto relay_mod = tvm::IRModule::FromExpr(func);
   ICHECK(relay_mod.defined()) << "Module must be defined";
-  build_f(relay_mod, targets, llvm_tgt);
+  build_f(relay_mod, targets, llvm_tgt, runtime::kTvmExecutorGraph, "");
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   // run
-  auto ctx = A->ctx;
-  auto pfr = tvm::runtime::Registry::Get("tvm.graph_runtime.create");
+  auto dev = A->device;
+  auto pfr = tvm::runtime::Registry::Get("tvm.graph_executor.create");
   ICHECK(mod.defined()) << "Module must be defined";
-  tvm::runtime::Module run_mod = (*pfr)(json, mod, (int)ctx.device_type, (int)ctx.device_id);
+  tvm::runtime::Module run_mod =
+      (*pfr)(json, mod, static_cast<int>(dev.device_type), dev.device_id);
   auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
   auto run_f = run_mod.GetFunction("run", false);
   auto get_output_f = run_mod.GetFunction("get_output", false);
-  set_input_f("a", &A.ToDLPack()->dl_tensor);
-  set_input_f("b", &B.ToDLPack()->dl_tensor);
-  set_input_f("c", &C.ToDLPack()->dl_tensor);
+  set_input_f("a", const_cast<DLTensor*>(A.operator->()));
+  set_input_f("b", const_cast<DLTensor*>(B.operator->()));
+  set_input_f("c", const_cast<DLTensor*>(C.operator->()));
   run_f();
   tvm::runtime::NDArray Y = get_output_f(0);
-  auto pY = (float*)Y->data;
+  auto pY = static_cast<float*>(Y->data);
   for (int i = 0; i < 6; ++i) {
     ICHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
   }
@@ -143,20 +153,20 @@ TEST(Relay, BuildModule) {
   }
   run_f();
   tvm::runtime::NDArray Y2 = get_output_f(0);
-  auto pY2 = (float*)Y2->data;
+  auto pY2 = static_cast<float*>(Y2->data);
   for (int i = 0; i < 6; ++i) {
     ICHECK_LT(fabs(pY2[i] - (i + (i + 3) + (i + 2))), 1e-4);
   }
   // attach a different input and run it again
   auto C2 = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto pC2 = (float*)C2->data;
+  auto pC2 = static_cast<float*>(C2->data);
   for (int i = 0; i < 6; ++i) {
     pC2[i] = i + 4;
   }
-  set_input_f("c", &C2.ToDLPack()->dl_tensor);
+  set_input_f("c", const_cast<DLTensor*>(C2.operator->()));
   run_f();
   tvm::runtime::NDArray Y3 = get_output_f(0);
-  auto pY3 = (float*)Y3->data;
+  auto pY3 = static_cast<float*>(Y3->data);
   for (int i = 0; i < 6; ++i) {
     ICHECK_LT(fabs(pY3[i] - (i + (i + 3) + (i + 4))), 1e-4);
   }
@@ -177,10 +187,4 @@ TEST(Relay, GetExprRefCount) {
   ICHECK(ref_count[x.get()] == 2);
   ICHECK(ref_count[y.get()] == 1);
   ICHECK(ref_count[z.get()] == 1);
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

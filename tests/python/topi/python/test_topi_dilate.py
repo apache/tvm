@@ -24,7 +24,7 @@ import numpy as np
 
 def test_dilate():
     target = "llvm"
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
     def _test_dilate(input_size, strides, dilation_value=None):
         Input = te.placeholder((input_size))
@@ -38,12 +38,12 @@ def test_dilate():
             output_np = tvm.topi.testing.dilate_python(input_np, strides)
         else:
             output_np = tvm.topi.testing.dilate_python(input_np, strides, dilation_value)
-        input_tvm = tvm.nd.array(input_np, ctx=ctx)
+        input_tvm = tvm.nd.array(input_np, device=dev)
         output_size = topi.utils.get_const_tuple(Output.shape)
-        output_tvm = tvm.nd.array(np.zeros(shape=output_size).astype(Output.dtype), ctx=ctx)
+        output_tvm = tvm.nd.array(np.zeros(shape=output_size).astype(Output.dtype), device=dev)
         f = tvm.build(schedule, [Input, Output], target)
         f(input_tvm, output_tvm)
-        tvm.testing.assert_allclose(output_tvm.asnumpy(), output_np, rtol=1e-5)
+        tvm.testing.assert_allclose(output_tvm.numpy(), output_np, rtol=1e-5)
 
     _test_dilate((32,), (2,))
     _test_dilate((32, 32), (2, 2))

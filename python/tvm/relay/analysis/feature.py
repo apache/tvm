@@ -20,7 +20,7 @@ from enum import IntEnum
 
 
 class Feature(IntEnum):
-    """ The features a program might contain. """
+    """The features a program might contain."""
 
     fVar = 0
     fGlobalVar = 1

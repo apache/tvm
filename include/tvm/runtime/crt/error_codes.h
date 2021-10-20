@@ -42,8 +42,9 @@ typedef enum {
   kTvmErrorCategorySession = 4,
   kTvmErrorCategoryPlatform = 5,
   kTvmErrorCategoryGenerated = 6,
-  kTvmErrorCategoryGraphRuntime = 7,
+  kTvmErrorCategoryGraphExecutor = 7,
   kTvmErrorCategoryFunctionCall = 8,
+  kTvmErrorCategoryTimeEvaluator = 9,
 } tvm_crt_error_category_t;
 
 typedef enum {
@@ -77,19 +78,25 @@ typedef enum {
   kTvmErrorPlatformMemoryManagerInitialized = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 1),
   kTvmErrorPlatformShutdown = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 2),
   kTvmErrorPlatformNoMemory = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 3),
+  kTvmErrorPlatformTimerBadState = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 4),
+  kTvmErrorPlatformStackAllocBadFree = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryPlatform, 5),
 
   // Common error codes returned from generated functions.
   kTvmErrorGeneratedInvalidStorageId = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGenerated, 0),
 
-  // Graph runtime
-  kTvmErrorGraphModuleAlreadyCreated = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphRuntime, 0),
-  kTvmErrorGraphModuleBadContext = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphRuntime, 1),
-  kTvmErrorGraphModuleNoSuchInput = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphRuntime, 2),
+  // Graph executor
+  kTvmErrorGraphModuleAlreadyCreated = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphExecutor, 0),
+  kTvmErrorGraphModuleBadContext = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphExecutor, 1),
+  kTvmErrorGraphModuleNoSuchInput = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryGraphExecutor, 2),
 
   // Function Calls - common problems encountered calling functions.
   kTvmErrorFunctionCallNumArguments = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryFunctionCall, 0),
   kTvmErrorFunctionCallWrongArgType = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryFunctionCall, 1),
   kTvmErrorFunctionCallNotImplemented = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryFunctionCall, 2),
+  kTvmErrorFunctionCallInvalidArg = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryFunctionCall, 3),
+
+  // Time Evaluator - times functions for use with debug runtime.
+  kTvmErrorTimeEvaluatorBadHandle = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryTimeEvaluator, 0),
 
   // System errors are always negative integers; this mask indicates presence of a system error.
   // Cast tvm_crt_error_t to a signed integer to interpret the negative error code.

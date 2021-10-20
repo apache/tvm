@@ -298,6 +298,7 @@ class IterVar : public ObjectRef {
   inline operator PrimExpr() const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(IterVar, ObjectRef, IterVarNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IterVarNode);
 };
 
 // inline implementations

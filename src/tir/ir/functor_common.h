@@ -34,19 +34,10 @@ inline void VisitArray(const Array<T>& arr, F fvisit) {
   }
 }
 
-// Implementation of mutators
 template <typename T, typename F>
-inline Array<T> MutateArray(const Array<T>& arr, F fmutate, bool allow_copy_on_write = false) {
-  if (allow_copy_on_write) {
-    // if we allow copy on write, we can directly
-    // call the inplace mutate function.
-    const_cast<Array<T>&>(arr).MutateByApply(fmutate);
-    return arr;
-  } else {
-    Array<T> copy = arr;
-    copy.MutateByApply(fmutate);
-    return copy;
-  }
+inline Array<T> MutateArray(Array<T> arr, F fmutate) {
+  arr.MutateByApply(fmutate);
+  return arr;
 }
 
 }  // namespace tir

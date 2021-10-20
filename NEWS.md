@@ -36,7 +36,7 @@ v0.7 brings many major features. The community works together to refactor the in
 * Intial Hexagon support
 * Bring your own codegen (BYOC) support
 
-The community also continues to bring high quality improvements to the existing modules including, but not limited to: better frontend coverage, performance, quantization, uTVM and dynamic shape support.
+The community also continues to bring high quality improvements to the existing modules including, but not limited to: better frontend coverage, performance, quantization, microTVM and dynamic shape support.
 
 ## New Features
 ### Automatic Scheduling (Experimental)
@@ -1635,7 +1635,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * [topi] enable fp16 sort for arm (#4084)
 * Add OpenOCD Low-Level Device (RISC-V Support) (#3756)
 * Add wave 32 bc for AMD ROCm backend (#3984)
-* [RUTNIME] Support C++ RPC (#4281)
+* [RUNTIME] Support C++ RPC (#4281)
 * [TOPI][OP] Support Faster-RCNN Proposal OP on CPU (#4297)
 * [TVM][RUNTIME] A minimum example to generate external library wrappers for DSOModule (#4280)
 

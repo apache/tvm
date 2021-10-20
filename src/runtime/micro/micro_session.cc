@@ -25,8 +25,8 @@
 
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <chrono>
@@ -37,10 +37,10 @@
 #include <utility>
 
 #include "../../support/str_escape.h"
-#include "../crt/host/crt_config.h"
 #include "../rpc/rpc_channel.h"
 #include "../rpc/rpc_endpoint.h"
 #include "../rpc/rpc_session.h"
+#include "crt_config.h"
 
 namespace tvm {
 namespace runtime {
@@ -56,10 +56,12 @@ class CallbackWriteStream : public WriteStream {
     bytes.data = (const char*)data;
     bytes.size = data_size_bytes;
     if (write_timeout_ == ::std::chrono::microseconds::zero()) {
-      return static_cast<int64_t>(fsend_(bytes, nullptr));
+      fsend_(bytes, nullptr);
     } else {
-      return static_cast<int64_t>(fsend_(bytes, write_timeout_.count()));
+      fsend_(bytes, write_timeout_.count());
     }
+
+    return static_cast<ssize_t>(data_size_bytes);
   }
 
   void PacketDone(bool is_valid) override {}
@@ -105,7 +107,7 @@ class MicroTransportChannel : public RPCChannel {
         write_stream_{fsend, session_start_timeout},
         framer_{&write_stream_},
         receive_buffer_{new uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES], TVM_CRT_MAX_PACKET_SIZE_BYTES},
-        session_{0x5c, &framer_, &receive_buffer_, &HandleMessageReceivedCb, this},
+        session_{&framer_, &receive_buffer_, &HandleMessageReceivedCb, this},
         unframer_{session_.Receiver()},
         did_receive_message_{false},
         frecv_{frecv},
@@ -143,15 +145,16 @@ class MicroTransportChannel : public RPCChannel {
       }
 
       ::std::string chunk;
+      size_t bytes_needed = unframer_.BytesNeeded();
+      CHECK_GT(bytes_needed, 0) << "unframer unexpectedly needs no data";
       if (timeout != nullptr) {
         ::std::chrono::microseconds iter_timeout{
             ::std::max(::std::chrono::microseconds{0},
                        ::std::chrono::duration_cast<::std::chrono::microseconds>(
                            end_time - ::std::chrono::steady_clock::now()))};
-        chunk =
-            frecv_(size_t(kReceiveBufferSizeBytes), iter_timeout.count()).operator std::string();
+        chunk = frecv_(bytes_needed, iter_timeout.count()).operator std::string();
       } else {
-        chunk = frecv_(size_t(kReceiveBufferSizeBytes), nullptr).operator std::string();
+        chunk = frecv_(bytes_needed, nullptr).operator std::string();
       }
       pending_chunk_ = chunk;
       if (pending_chunk_.size() == 0) {
@@ -161,13 +164,35 @@ class MicroTransportChannel : public RPCChannel {
     }
   }
 
+  static constexpr const int kNumRandRetries = 10;
+  static std::atomic<unsigned int> random_seed;
+
+  inline uint8_t GenerateRandomNonce() {
+    // NOTE: this is bad concurrent programming but in practice we don't really expect race
+    // conditions here, and even if they occur we don't particularly care whether a competing
+    // process computes a different random seed. This value is just chosen pseudo-randomly to
+    // form an initial distinct session id. Here we just want to protect against bad loads causing
+    // confusion.
+    unsigned int seed = random_seed.load();
+    if (seed == 0) {
+      seed = (unsigned int)time(nullptr);
+    }
+    uint8_t initial_nonce = 0;
+    for (int i = 0; i < kNumRandRetries && initial_nonce == 0; ++i) {
+      initial_nonce = rand_r(&seed);
+    }
+    random_seed.store(seed);
+    ICHECK_NE(initial_nonce, 0) << "rand() does not seem to be producing random values";
+    return initial_nonce;
+  }
+
   bool StartSessionInternal() {
     using ::std::chrono::duration_cast;
     using ::std::chrono::microseconds;
     using ::std::chrono::steady_clock;
 
     steady_clock::time_point start_time = steady_clock::now();
-    ICHECK_EQ(kTvmErrorNoError, session_.Initialize());
+    ICHECK_EQ(kTvmErrorNoError, session_.Initialize(GenerateRandomNonce()));
     ICHECK_EQ(kTvmErrorNoError, session_.StartSession());
 
     if (session_start_timeout_ == microseconds::zero() &&
@@ -198,7 +223,7 @@ class MicroTransportChannel : public RPCChannel {
       }
       end_time += session_start_retry_timeout_;
 
-      ICHECK_EQ(kTvmErrorNoError, session_.Initialize());
+      ICHECK_EQ(kTvmErrorNoError, session_.Initialize(GenerateRandomNonce()));
       ICHECK_EQ(kTvmErrorNoError, session_.StartSession());
     }
 
@@ -365,6 +390,8 @@ class MicroTransportChannel : public RPCChannel {
   std::string pending_chunk_;
 };
 
+std::atomic<unsigned int> MicroTransportChannel::random_seed{0};
+
 TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue* rv) {
   MicroTransportChannel* micro_channel =
       new MicroTransportChannel(args[1], args[2], ::std::chrono::microseconds(uint64_t(args[3])),
@@ -377,7 +404,7 @@ TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue*
     throw std::runtime_error(ss.str());
   }
   std::unique_ptr<RPCChannel> channel(micro_channel);
-  auto ep = RPCEndpoint::Create(std::move(channel), args[0], "");
+  auto ep = RPCEndpoint::Create(std::move(channel), args[0], "", args[6]);
   auto sess = CreateClientSession(ep);
   *rv = CreateRPCSessionModule(sess);
 });

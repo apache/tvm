@@ -49,9 +49,9 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   if (auto* ptr = ref.as<runtime::StringObj>()) {
     return tir::StringImm(GetRef<runtime::String>(ptr));
   }
-  ICHECK(ObjectTypeChecker<PrimExpr>::Check(ref.get()))
-      << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName() << " but get "
-      << ref->GetTypeKey();
+  Optional<String> actual_type = ObjectTypeChecker<PrimExpr>::CheckAndGetMismatch(ref.get());
+  ICHECK(!actual_type.defined()) << "Expected type " << ObjectTypeChecker<PrimExpr>::TypeName()
+                                 << " but got " << actual_type.value();
   return Downcast<PrimExpr>(ref);
 }
 
@@ -155,39 +155,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<GlobalVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const GlobalVarNode*>(ref.get());
       p->stream << "GlobalVar(" << node->name_hint << ")";
-    });
-
-// Container printer
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ArrayNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ArrayNode*>(node.get());
-      p->stream << '[';
-      for (size_t i = 0; i < op->size(); ++i) {
-        if (i != 0) {
-          p->stream << ", ";
-        }
-        p->Print(op->at(i));
-      }
-      p->stream << ']';
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<MapNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const MapNode*>(node.get());
-      p->stream << '{';
-      for (auto it = op->begin(); it != op->end(); ++it) {
-        if (it != op->begin()) {
-          p->stream << ", ";
-        }
-        if (it->first->IsInstance<StringObj>()) {
-          p->stream << '\"' << Downcast<String>(it->first) << "\": ";
-        } else {
-          p->Print(it->first);
-          p->stream << ": ";
-        }
-        p->Print(it->second);
-      }
-      p->stream << '}';
     });
 
 TVM_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {

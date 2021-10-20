@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
   std::vector<int64_t> input_shape = {10, 5};
   DLTensor input;
   input.data = input_storage;
-  input.ctx = DLContext{kDLCPU, 0};
+  input.device = DLDevice{kDLCPU, 0};
   input.ndim = 2;
   input.dtype = DLDataType{kDLFloat, 32, 1};
   input.shape = input_shape.data();
@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
   std::vector<int64_t> output_shape = {10, 5};
   DLTensor output;
   output.data = output_storage;
-  output.ctx = DLContext{kDLCPU, 0};
+  output.device = DLDevice{kDLCPU, 0};
   output.ndim = 2;
   output.dtype = DLDataType{kDLFloat, 32, 1};
   output.shape = output_shape.data();

@@ -21,7 +21,9 @@
  * \file tvm/contrib/gemm.h
  * \brief Shared implementation of gemm
  */
-#pragma once
+
+#ifndef TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
+#define TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
 
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
@@ -179,28 +181,48 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
   DLTensor* C = args[2];
   bool transa = args[3];
   bool transb = args[4];
+
   int bit_depth = sizeof(DType) * 8;
+
   ICHECK_EQ(A->ndim, 3);
   ICHECK_EQ(B->ndim, 3);
   ICHECK_EQ(C->ndim, 3);
-  int batch_size = BatchCount3D(A);
-  ICHECK_EQ(BatchCount3D(B), batch_size);
-  ICHECK_EQ(BatchCount3D(C), batch_size);
+
+  int batch_size = BatchCount3D(C);
   ICHECK_EQ(ElementStride(A), 1);
   ICHECK_EQ(ElementStride(B), 1);
   ICHECK_EQ(ElementStride(C), 1);
+
   // C can never be transposed.
   ICHECK(!IsInPlaceTransposed3D(C));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed3D(A) ? !transa : transa;
   transb = IsInPlaceTransposed3D(B) ? !transb : transb;
+
   ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
   ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
-  const int A_size = A->shape[1] * A->shape[2];
-  const int B_size = B->shape[1] * B->shape[2];
-  const int C_size = C->shape[1] * C->shape[2];
+
+  int A_stride = A->shape[1] * A->shape[2];
+  int B_stride = B->shape[1] * B->shape[2];
+  int C_stride = C->shape[1] * C->shape[2];
+
+  // Broadcast A or B by changing its stride.
+  int batch_size_a = BatchCount3D(A);
+  int batch_size_b = BatchCount3D(B);
+  if (batch_size_a != batch_size_b) {
+    if (batch_size_a == 1) {
+      A_stride = 0;
+    } else if (batch_size_b == 1) {
+      B_stride = 0;
+    }
+  } else {
+    ICHECK_EQ(batch_size_a, batch_size);
+    ICHECK_EQ(batch_size_b, batch_size);
+  }
+
   DType* A_data = reinterpret_cast<typename TBatchGemmOp::TDatatype*>(static_cast<char*>(A->data) +
                                                                       A->byte_offset);
   DType* B_data = reinterpret_cast<typename TBatchGemmOp::TDatatype*>(static_cast<char*>(B->data) +
@@ -208,10 +230,11 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
   DType* C_data = reinterpret_cast<typename TBatchGemmOp::TDatatype*>(static_cast<char*>(C->data) +
                                                                       C->byte_offset);
   op(batch_size, transb, transa, ColumnCount3D(B, transb), RowCount3D(A, transa),
-     ColumnCount3D(A, transa), static_cast<typename TBatchGemmOp::TDatatype>(alpha), B_data, B_size,
-     ColumnStride3D(B), A_data, A_size, ColumnStride3D(A),
-     static_cast<typename TBatchGemmOp::TDatatype>(beta), C_data, C_size, ColumnStride3D(C));
+     ColumnCount3D(A, transa), static_cast<typename TBatchGemmOp::TDatatype>(alpha), B_data,
+     B_stride, ColumnStride3D(B), A_data, A_stride, ColumnStride3D(A),
+     static_cast<typename TBatchGemmOp::TDatatype>(beta), C_data, C_stride, ColumnStride3D(C));
 }
 
 }  // namespace contrib
 }  // namespace tvm
+#endif  // TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_

@@ -21,6 +21,8 @@ set -u
 
 source tests/scripts/setup-pytest-env.sh
 
+export TVM_TEST_TARGETS="llvm; llvm -device=arm_cpu; cuda; cuda -model=unknown -libs=cudnn"
+
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
@@ -31,4 +33,4 @@ make cython3
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-python3 -m pytest tests/python/topi/
+run_pytest cython python-topi tests/python/topi/

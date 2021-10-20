@@ -32,8 +32,8 @@
 #import <Metal/MTLLibrary.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/support/logging.h>
 
 #include <memory>
 #include <mutex>
@@ -42,9 +42,91 @@
 
 #include "../workspace_pool.h"
 
+/* Macro for convenience in using AutoReleasePoolWrapper.
+ * With this macro we can add AutoReleasePoolWrapper to our ObjC code in more
+ * native way.
+ *
+ * For example, this is ObjC code with autoreleasepool:
+ *     @autoreleasepool {
+ *         // Some code
+ *     }
+ *
+ * To avoid possible memory leaks when an exception will be generated, we
+ * should update this code:
+ *     AUTORELEASEPOOL { // Replace @autoreleasepool -> AUTORELEASEPOOL
+ *         // Some code
+ *     }; // Add semicolon after close bracket
+ *
+ * In macro AUTORELEASEPOOL we get the instance of AutoReleasePoolWrapper and
+ * put a lambda function with code from autoreleasepool to the insertion
+ * operator of AutoReleasePoolWrapper class.
+ *
+ * Note: If you want to return a value from the autoreleasepool, you should
+ * declare the variable with result before AUTORELEASEPOOL macro. This variable
+ * will be captured by reference and you can use it in the code in autorelease
+ * pool. But you should write return statement after AUTORELEASEPOOL macro.
+ */
+#define AUTORELEASEPOOL tvm::runtime::metal::AutoReleasePoolWrapper::GetInstance() << [&]()
+
 namespace tvm {
 namespace runtime {
 namespace metal {
+/*!
+ * \brief Wrapper on autoreleasepool with exception handling
+ *
+ * \note In case when the exception was thrown from the autoreleasepool, the
+ * allocated resources won't be released in proper way. So, we handle exception
+ * in autoreleasepool and after the autoreleasepool we rethrow this exception.
+ */
+class AutoReleasePoolWrapper {
+ public:
+  static AutoReleasePoolWrapper& GetInstance();
+  template <typename T>
+  void operator<<(const T& f) {
+    std::exception_ptr eptr;
+    @autoreleasepool {
+      try {
+        f();
+      } catch (...) {
+        eptr = std::current_exception();
+      }
+    }
+    if (eptr) std::rethrow_exception(eptr);
+  }
+
+ private:
+  AutoReleasePoolWrapper() = default;
+  ~AutoReleasePoolWrapper() = default;
+  AutoReleasePoolWrapper(const AutoReleasePoolWrapper&) = delete;
+  AutoReleasePoolWrapper& operator=(const AutoReleasePoolWrapper&) = delete;
+};
+
+/*!
+ * \brief Structure for error handling in queues
+ */
+class Stream {
+ public:
+  explicit Stream(id<MTLDevice> device) : error_happened_(false) {
+    queue_ = [device newCommandQueue];
+  }
+  ~Stream() { [queue_ release]; }
+  id<MTLCommandBuffer> GetCommandBuffer() {
+    id<MTLCommandBuffer> cb = [queue_ commandBuffer];
+    [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
+      if (buffer.status == MTLCommandBufferStatusError) SetErrorStatus();
+    }];
+    return cb;
+  }
+  bool HasErrorHappened() { return error_happened_; }
+
+ private:
+  void SetErrorStatus() { error_happened_ = true; }
+  // Queue
+  id<MTLCommandQueue> queue_;
+  // Check if error happened in one previous run
+  bool error_happened_;
+};
+
 /*!
  * \brief Process global Metal workspace.
  */
@@ -52,8 +134,6 @@ class MetalWorkspace final : public DeviceAPI {
  public:
   // the devices
   std::vector<id<MTLDevice> > devices;
-  // the queues
-  std::vector<id<MTLCommandQueue> > queues;
   // Warp size constant
   std::vector<int> warp_size;
   // Whether it is initialized.
@@ -62,55 +142,61 @@ class MetalWorkspace final : public DeviceAPI {
   std::mutex mutex;
   // Destructor
   ~MetalWorkspace();
-  // Get command queue for given context.
-  id<MTLCommandQueue> GetCommandQueue(TVMContext ctx) {
-    ICHECK_EQ(ctx.device_type, kDLMetal);
-    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
-        << "Invalid Metal device_id=" << ctx.device_id;
-    return queues[ctx.device_id];
-  }
-  // Get device for given context
-  id<MTLDevice> GetDevice(TVMContext ctx) {
-    ICHECK_EQ(ctx.device_type, kDLMetal);
-    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < devices.size())
-        << "Invalid Metal device_id=" << ctx.device_id;
-    return devices[ctx.device_id];
+  // Get device for given device
+  id<MTLDevice> GetDevice(Device dev) {
+    ICHECK_EQ(dev.device_type, kDLMetal);
+    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < devices.size())
+        << "Invalid Metal device_id=" << dev.device_id;
+    return devices[dev.device_id];
   }
   // Initialize workspace
   // Return false if already initialized, otherwise return true.
   void Init();
   // override device API
-  void SetDevice(TVMContext ctx) final;
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) final;
-  void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void CopyDataFromTo(const void* from, size_t from_size, void* to, size_t to_size, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
-                      TVMStreamHandle stream) final;
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
-  void FreeWorkspace(TVMContext ctx, void* data) final;
+  void SetDevice(Device dev) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
+  void FreeDataSpace(Device dev, void* ptr) final;
+  TVMStreamHandle CreateStream(Device dev) final;
+  void FreeStream(Device dev, TVMStreamHandle stream) final;
+  void StreamSync(Device dev, TVMStreamHandle stream) final;
+  void SetStream(Device dev, TVMStreamHandle stream) final;
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
+  void FreeWorkspace(Device dev, void* data) final;
+  void ReinitializeStreams();
+
   // get the global workspace
   static MetalWorkspace* Global();
+
+ protected:
+  void CopyDataFromTo(const void* from, size_t from_size, void* to, size_t to_size, size_t size,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
+                      TVMStreamHandle stream) final;
+
+ private:
+  // Pointers to default allocated streams
+  std::vector<Stream*> default_streams_;
 };
 
 /*! \brief Thread local workspace */
 class MetalThreadEntry {
  public:
-  /*! \brief The current context */
-  TVMContext context;
+  /*! \brief The current device */
+  Device device;
+  /*! \brief The current stream */
+  std::vector<Stream*> stream;
   /*! \brief The shared buffer used for copy. */
   std::vector<id<MTLBuffer> > temp_buffer_;
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
   MetalThreadEntry() : pool(static_cast<DLDeviceType>(kDLMetal), MetalWorkspace::Global()) {
-    context.device_id = 0;
-    context.device_type = static_cast<DLDeviceType>(kDLMetal);
+    device.device_id = 0;
+    device.device_type = static_cast<DLDeviceType>(kDLMetal);
   }
   ~MetalThreadEntry();
-  // Get temp buffer with at least size under ctx.
-  id<MTLBuffer> GetTempBuffer(TVMContext ctx, size_t size);
+  // Get temp buffer with at least size under dev.
+  id<MTLBuffer> GetTempBuffer(Device dev, size_t size);
   // get the global workspace
   static MetalThreadEntry* ThreadLocal();
 };

@@ -29,7 +29,7 @@
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 

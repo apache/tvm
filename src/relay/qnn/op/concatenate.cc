@@ -51,9 +51,10 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
     if (types[1].as<IncompleteTypeNode>()) {
       return false;
     } else {
-      throw Error(ErrorBuilder()
-                  << "qnn concatenate requires a tuple of scales as the second argument, found "
-                  << PrettyPrint(types[1]));
+      throw CompileError(
+          ErrorBuilder()
+          << "qnn concatenate requires a tuple of scales as the second argument, found "
+          << PrettyPrint(types[1]));
     }
   }
   for (const auto& input_scale : input_scales_tuple->fields) {
@@ -68,9 +69,10 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
     if (types[2].as<IncompleteTypeNode>()) {
       return false;
     } else {
-      throw Error(ErrorBuilder()
-                  << "qnn concatenate requires a tuple of zero_points as the third argument, found "
-                  << PrettyPrint(types[2]));
+      throw CompileError(
+          ErrorBuilder()
+          << "qnn concatenate requires a tuple of zero_points as the third argument, found "
+          << PrettyPrint(types[2]));
     }
   }
   for (const auto& input_zero_point : input_zero_points_tuple->fields) {
@@ -94,9 +96,10 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
   return ConcatenateRel<ConcatenateAttrs>(tensor_types, 2, attrs, reporter);
 }
 
-Array<Array<Layout>> QnnConcatenateLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
-                                          const Array<Layout>& old_in_layouts,
-                                          const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput QnnConcatenateLayout(const Attrs& attrs,
+                                              const Array<Layout>& new_in_layouts,
+                                              const Array<Layout>& old_in_layouts,
+                                              const Array<tvm::relay::Type>& old_in_types) {
   // Collect the layouts and types to reuse Relay Concatenate Infer Correct Layout.
   ICHECK_EQ(old_in_types.size(), 5);
   auto input_tuple_type = old_in_types[0].as<TupleTypeNode>();
@@ -115,20 +118,20 @@ Array<Array<Layout>> QnnConcatenateLayout(const Attrs& attrs, const Array<Layout
   }
 
   // Use Relay Concatenate Infer Correct layout to infer the layouts for data tensors.
-  auto layouts =
+  auto concat_new_layout =
       ConcatenateLayout(attrs, relay_new_in_layouts, relay_old_in_layouts, {old_in_types[0]});
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
   // tensors can be treated as channel layout. Total number of these tensors are 2 * num of data
   // tensors (scale and zero point for each input data tensor) + 2 for the output data tensor.
   Layout channel_layout = Layout("C");
-  Array<Layout> input_layouts = layouts[0];
+  Array<Layout> input_layouts = concat_new_layout->input_layouts;
 
   for (size_t i = 0; i < 2 * num_input_tensors + 2; i++) {
     input_layouts.push_back(channel_layout);
   }
-  Array<Layout> output_layouts = layouts[1];
-  return {input_layouts, output_layouts};
+  Array<Layout> output_layouts = concat_new_layout->output_layouts;
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, concat_new_layout->new_attrs);
 }
 
 Expr MakeQnnConcatenate(Expr data, Expr input_scales, Expr input_zero_points, Expr output_scale,

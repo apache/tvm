@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay import transform, analysis
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 

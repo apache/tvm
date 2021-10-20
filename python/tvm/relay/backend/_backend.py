@@ -17,45 +17,7 @@
 """The interface of expr function exposed from C++."""
 import tvm._ffi
 import tvm.driver
-
-
-@tvm._ffi.register_func("relay.backend.lower")
-def lower(sch, inputs, func_name, source_func):
-    """Backend function for lowering.
-
-    Parameters
-    ----------
-    sch : tvm.te.Schedule
-        The schedule.
-
-    inputs : List[tvm.te.Tensor]
-        The inputs to the function.
-
-    func_name : str
-        The name of the function.
-
-    source-func : tvm.relay.Function
-        The source function to be lowered.
-
-    Returns
-    -------
-    mod : tvm.IRModule
-        The result of lowering.
-    """
-    # pylint: disable=broad-except, import-outside-toplevel
-    import traceback
-
-    try:
-        f = tvm.driver.lower(sch, inputs, name=func_name)
-        # logging.debug("lower function %s", func_name)
-        # logging.debug("%s", _build.lower(sch, inputs, simple_mode=True))
-    except Exception:
-        msg = traceback.format_exc()
-        msg += "Error during compile function\n"
-        msg += "-----------------------------\n"
-        msg += source_func.astext()
-        raise RuntimeError(msg)
-    return f
+from tvm.target import Target
 
 
 @tvm._ffi.register_func("relay.backend.build")
@@ -78,14 +40,14 @@ def build(mod, target, target_host=None):
     module : tvm.Module
         The runtime module.
     """
-    if target_host == "":
-        target_host = None
-    return tvm.driver.build(mod, target=target, target_host=target_host)
+    target_host = None if target_host == "" else target_host
+    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    return tvm.driver.build(mod, target=target)
 
 
 @tvm._ffi.register_func("relay._tensor_value_repr")
 def _tensor_value_repr(tvalue):
-    return str(tvalue.data.asnumpy())
+    return str(tvalue.data.numpy())
 
 
 @tvm._ffi.register_func("relay._constant_repr")
@@ -93,7 +55,7 @@ def _tensor_constant_repr(tvalue):
     dtype = tvm.runtime.DataType(tvalue.data.dtype)
     if tvm.target.datatype.get_type_registered(dtype.type_code):
         return "custom tensor of type " + dtype.type_code
-    return str(tvalue.data.asnumpy())
+    return str(tvalue.data.numpy())
 
 
 tvm._ffi._init_api("relay.backend", __name__)

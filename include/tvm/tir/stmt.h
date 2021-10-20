@@ -324,6 +324,7 @@ class BufferStore : public Stmt {
                                Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
 /*!
@@ -463,18 +464,22 @@ class ProducerRealizeNode : public StmtNode {
   PrimExpr condition;
   /*! \brief The body of realization. */
   Stmt body;
+  /*! \brief The storage scope associated with this realization. */
+  String storage_scope;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("producer", &producer);
     v->Visit("bounds", &bounds);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("storage_scope", &storage_scope);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
     return equal(producer, other->producer) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body);
+           equal(condition, other->condition) && equal(body, other->body) &&
+           equal(storage_scope, other->storage_scope);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -482,6 +487,7 @@ class ProducerRealizeNode : public StmtNode {
     hash_reduce(bounds);
     hash_reduce(condition);
     hash_reduce(body);
+    hash_reduce(storage_scope);
   }
 
   static constexpr const char* _type_key = "tir.ProducerRealize";
@@ -495,7 +501,7 @@ class ProducerRealizeNode : public StmtNode {
 class ProducerRealize : public Stmt {
  public:
   TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
-                          Span span = Span());
+                          String storage_scope = "", Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(ProducerRealize, Stmt, ProducerRealizeNode);
 };
@@ -515,6 +521,13 @@ class AllocateNode : public StmtNode {
   PrimExpr condition;
   /*! \brief The body to be executed. */
   Stmt body;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  Map<String, ObjectRef> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
@@ -522,13 +535,14 @@ class AllocateNode : public StmtNode {
     v->Visit("extents", &extents);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("annotations", &annotations);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
            equal(extents, other->extents) && equal(condition, other->condition) &&
-           equal(body, other->body);
+           equal(body, other->body) && equal(annotations, other->annotations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -537,6 +551,7 @@ class AllocateNode : public StmtNode {
     hash_reduce(extents);
     hash_reduce(condition);
     hash_reduce(body);
+    hash_reduce(annotations);
   }
 
   /*!
@@ -564,7 +579,8 @@ class AllocateNode : public StmtNode {
 class Allocate : public Stmt {
  public:
   TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Span span = Span());
+                   Stmt body, Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                   Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
 };
@@ -752,22 +768,33 @@ class Evaluate : public Stmt {
   TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
 };
 
-/*! \brief Additional annotation of for loop. */
-enum class ForType : int {
-  /*! \brief serial execution. */
-  Serial = 0,
-  /*! \brief parallel execution on CPU. */
-  Parallel = 1,
-  /*! \brief Vector SIMD loop annotaion. */
-  Vectorized = 2,
-  /*! \brief Unroll annotation. */
-  Unrolled = 3
+/*!
+ * \brief The kind of the loop.
+ *
+ *  ForKind can change the control flow semantics
+ *  of the loop. So the kind field needs to be considered
+ *  in all TIR passes.
+ */
+enum class ForKind : int {
+  /*! \brief default semantics -- serial execution. */
+  kSerial = 0,
+  /*! \brief Parallel execution on CPU. */
+  kParallel = 1,
+  /*!
+   * \brief Vector SIMD loop.
+   *  The loop body will be vectorized.
+   */
+  kVectorized = 2,
+  /*! \brief The loop body must be unrolled. */
+  kUnrolled = 3,
+  /*!
+   * \brief The loop variable is bound to a thread in
+   * an environment. In the final stage of lowering,
+   * the loop is simply removed and the loop variable is
+   * mapped to the corresponding context thread.
+   */
+  kThreadBinding = 4
 };
-
-// Kevice api of for loop
-// kept for backward compatibility
-// consider refactor and remove later.
-enum class DeviceAPI : int { None = 0 };
 
 /*!
  * \brief A for loop, with poissible type annotations.
@@ -787,39 +814,50 @@ class ForNode : public StmtNode {
   PrimExpr min;
   /*! \brief The extent of the iteration. */
   PrimExpr extent;
-  /*! \brief The type of the for loop. */
-  ForType for_type;
-  /*!
-   * \brief Deprecated, reserved for backward compatibility.
-   *  Consider refactor and remove later.
-   */
-  DeviceAPI device_api;
+  /*! \brief The kind of the for loop. */
+  ForKind kind;
   /*! \brief The body of the for loop. */
   Stmt body;
+  /*!
+   * \brief Only valid when kind == ForKind::kThreadBinding
+   * The context thread that this loop variable bounds to.
+   */
+  Optional<IterVar> thread_binding;
+  /*!
+   * \brief Additional annotations about the loop.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations. An annotation should
+   *  not change the control flow semantics of the loop
+   *  and can be ignored in most passes.
+   */
+  Map<String, ObjectRef> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
     v->Visit("min", &min);
     v->Visit("extent", &extent);
-    v->Visit("for_type", &for_type);
-    v->Visit("device_api", &device_api);
+    v->Visit("kind", &kind);
     v->Visit("body", &body);
+    v->Visit("thread_binding", &thread_binding);
+    v->Visit("annotations", &annotations);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
     return equal.DefEqual(loop_var, other->loop_var) && equal(min, other->min) &&
-           equal(extent, other->extent) && equal(for_type, other->for_type) &&
-           equal(device_api, other->device_api) && equal(body, other->body);
+           equal(extent, other->extent) && equal(kind, other->kind) && equal(body, other->body) &&
+           equal(thread_binding, other->thread_binding) && equal(annotations, other->annotations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce.DefHash(loop_var);
     hash_reduce(min);
     hash_reduce(extent);
-    hash_reduce(for_type);
-    hash_reduce(device_api);
+    hash_reduce(kind);
     hash_reduce(body);
+    hash_reduce(thread_binding);
+    hash_reduce(annotations);
   }
 
   static constexpr const char* _type_key = "tir.For";
@@ -832,14 +870,63 @@ class ForNode : public StmtNode {
  */
 class For : public Stmt {
  public:
-  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAPI device_api,
-              Stmt body, Span span = Span());
+  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+              Optional<IterVar> thread_binding = NullOpt,
+              Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
 };
 
 /*!
- * \brief A prefetch hint for abuffer
+ * \brief A While loop
+ *
+ * \code
+ *
+ *  while (condition)
+ *    body
+ *
+ * \endcode
+ */
+class WhileNode : public StmtNode {
+ public:
+  /*! \brief The termination condition. */
+  PrimExpr condition;
+  /*! \brief The body of the while loop. */
+  Stmt body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("condition", &condition);
+    v->Visit("body", &body);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(condition, other->condition) && equal.DefEqual(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(condition);
+    hash_reduce.DefHash(body);
+  }
+
+  static constexpr const char* _type_key = "tir.While";
+  TVM_DECLARE_FINAL_OBJECT_INFO(WhileNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to WhileNode.
+ * \sa WhileNode
+ */
+class While : public Stmt {
+ public:
+  TVM_DLL While(PrimExpr condition, Stmt body, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(While, Stmt, WhileNode);
+};
+
+/*!
+ * \brief A prefetch hint for a buffer
  */
 class PrefetchNode : public StmtNode {
  public:
@@ -882,6 +969,261 @@ class Prefetch : public Stmt {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
 };
 
+/*!
+ * \brief Representing the region of multi-dimensional buffer access.
+ */
+class BufferRegionNode : public Object {
+ public:
+  /*! \brief The buffer of the buffer region. */
+  Buffer buffer;
+  /*! \brief The region array of the buffer region. */
+  Array<Range> region;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer", &buffer);
+    v->Visit("region", &region);
+  }
+
+  bool SEqualReduce(const BufferRegionNode* other, SEqualReducer equal) const {
+    return equal(buffer, other->buffer) && equal(region, other->region);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer);
+    hash_reduce(region);
+  }
+
+  static constexpr const char* _type_key = "tir.BufferRegion";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(BufferRegionNode, Object);
+};
+
+/*!
+ * \brief Managed reference to BufferRegionNode.
+ * \sa BufferRegionNode
+ */
+class BufferRegion : public ObjectRef {
+ public:
+  TVM_DLL explicit BufferRegion(Buffer buffer, Array<Range> region);
+
+  /*!
+   * \brief Create a BufferRegion which is full region of the given buffer.
+   * \param buffer The buffer to generate full BufferRegion.
+   * \return The BufferRegion which covers all region of the given buffer
+   */
+  TVM_DLL static BufferRegion FullRegion(Buffer buffer);
+
+  /*!
+   * \brief Create a BufferRegion which is a single point of the given buffer.
+   * \param buffer The buffer to generate single point BufferRegion.
+   * \param indices The access point indices of the buffer
+   * \return The BufferRegion which is the single point of the given buffer.
+   */
+  TVM_DLL static BufferRegion FromPoint(Buffer buffer, Array<PrimExpr> indices);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(BufferRegion, ObjectRef, BufferRegionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
+};
+
+/*!
+ * \brief Match introduces a constraint that the source buffer region can be remapped to the data
+ * layout specified by the buffer field. The constraint can be checked in later part of lowering (or
+ * optionally during runtime).
+ *
+ * MatchBufferRegion provides a mechanism to represent data layout and compactness constraints in
+ * low-level hardware primitives in the IR and defer the check after the sequence of
+ * transformations.
+ */
+class MatchBufferRegionNode : public Object {
+ public:
+  /*! \brief The target buffer. */
+  Buffer buffer;
+  /*! \brief The source buffer region. */
+  BufferRegion source;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer", &buffer);
+    v->Visit("source", &source);
+  }
+
+  bool SEqualReduce(const MatchBufferRegionNode* other, SEqualReducer equal) const {
+    return equal(buffer, other->buffer) && equal(source, other->source);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer);
+    hash_reduce(source);
+  }
+
+  static constexpr const char* _type_key = "tir.MatchBufferRegion";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(MatchBufferRegionNode, Object);
+};
+
+/*!
+ * \brief Managed reference to MatchBufferRegionNode.
+ * \sa MatchBufferRegionNode
+ */
+class MatchBufferRegion : public ObjectRef {
+ public:
+  TVM_DLL explicit MatchBufferRegion(Buffer buffer, BufferRegion source);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(MatchBufferRegion, ObjectRef, MatchBufferRegionNode);
+};
+
+/*!
+ * \brief A block is a basic schedule unit in TIR.
+ * \note Block's body is parameterized by iter vars.
+ * \code
+ *
+ *  with T.block(name):
+ *      v0 = T.axis.S(domain, value0)
+ *      v1 = T.axis.R(domain, value1)
+ *      ...
+ *      T.reads([buffer0[start:end, ...], ...])
+ *      T.writes([buffer1[start:end, ...], ...])
+ *      T.where(predicate)
+ *      buffer2 = T.alloc_buffer(shape, dtype)
+ *      buffer3 = T.match_buffer(source_buffer[start:end, ...])
+ *      T.attr({attr_key: attr_value, ...})
+ *      with T.init():
+ *          // init body
+ *      // body
+ *
+ * \endcode
+ */
+class BlockNode : public StmtNode {
+ public:
+  /*! \brief The variables of the block. */
+  Array<IterVar> iter_vars;
+  /*! \brief The read buffer regions of the block. */
+  Array<BufferRegion> reads;
+  /*! \brief The write buffer regions of the block. */
+  Array<BufferRegion> writes;
+  /*! \brief The name_hint of the block. */
+  String name_hint;
+  /*! \brief The body of the block. */
+  Stmt body;
+  /*!
+   * \brief The init statement is executed during the first iteration of reduction loops in a
+   *  reduction block. The optional init field allows us to represent initialization and
+   *  reduction update in a single block and transform them collectively.
+   *  We also provide primitives to decompose the init into a separate block during scheduling.
+   *  Init field is `NullOpt` if there is no reduction iter_vars
+   */
+  Optional<Stmt> init;
+  /*! \brief The buffer allocated in the block. */
+  Array<Buffer> alloc_buffers;
+  /*! \brief The match buffer regions. */
+  Array<MatchBufferRegion> match_buffers;
+  /*! \brief The annotation of the block. */
+  Map<String, ObjectRef> annotations;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("iter_vars", &iter_vars);
+    v->Visit("reads", &reads);
+    v->Visit("writes", &writes);
+    v->Visit("name_hint", &name_hint);
+    v->Visit("body", &body);
+    v->Visit("init", &init);
+    v->Visit("alloc_buffers", &alloc_buffers);
+    v->Visit("match_buffers", &match_buffers);
+    v->Visit("annotations", &annotations);
+  }
+
+  bool SEqualReduce(const BlockNode* other, SEqualReducer equal) const {
+    // Need first reduce iter_vars, alloc_buffers and match_buffers to define new vars
+    return equal.DefEqual(iter_vars, other->iter_vars) &&
+           equal(alloc_buffers, other->alloc_buffers) &&
+           equal(match_buffers, other->match_buffers) && equal(reads, other->reads) &&
+           equal(writes, other->writes) && equal(body, other->body) && equal(init, other->init) &&
+           equal(annotations, other->annotations);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(iter_vars);
+    hash_reduce(alloc_buffers);
+    hash_reduce(match_buffers);
+    hash_reduce(reads);
+    hash_reduce(writes);
+    hash_reduce(body);
+    hash_reduce(init);
+    hash_reduce(annotations);
+  }
+
+  static constexpr const char* _type_key = "tir.Block";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BlockNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to BlockNode.
+ * \sa BlockNode
+ */
+class Block : public Stmt {
+ public:
+  TVM_DLL explicit Block(Array<IterVar> iter_vars, Array<BufferRegion> reads,
+                         Array<BufferRegion> writes, String name_hint, Stmt body,
+                         Optional<Stmt> init = NullOpt,
+                         Array<Buffer> alloc_buffers = Array<Buffer>(),
+                         Array<MatchBufferRegion> match_buffers = Array<MatchBufferRegion>(),
+                         Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                         Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Block, Stmt, BlockNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockNode);
+};
+
+/*!
+ * \brief A block realization node represents execution of the block at the binding values.
+ */
+class BlockRealizeNode : public StmtNode {
+ public:
+  /*! \brief The corresponding values of the iter vars. */
+  Array<PrimExpr> iter_values;
+  /*!
+   * \brief The predicate of the block realization, the block will only be executed when the
+   * predicate is true.
+   */
+  PrimExpr predicate;
+  /*! \brief The block to be realized. */
+  Block block;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("iter_values", &iter_values);
+    v->Visit("predicate", &predicate);
+    v->Visit("block", &block);
+  }
+
+  bool SEqualReduce(const BlockRealizeNode* other, SEqualReducer equal) const {
+    return equal(iter_values, other->iter_values) && equal(predicate, other->predicate) &&
+           equal(block, other->block);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(iter_values);
+    hash_reduce(predicate);
+    hash_reduce(block);
+  }
+
+  static constexpr const char* _type_key = "tir.BlockRealize";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BlockRealizeNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to BlockRealizeNode
+ * \sa BlockRealizeNode
+ */
+class BlockRealize : public Stmt {
+ public:
+  TVM_DLL explicit BlockRealize(Array<PrimExpr> iter_values, PrimExpr predicate, Block block,
+                                Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(BlockRealize, Stmt, BlockRealizeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockRealizeNode);
+};
+
 /*! \brief namespace of possible attribute sin AttrStmt.attr_key */
 namespace attr {
 // The above attr does not pass to ir stage.
@@ -909,16 +1251,14 @@ constexpr const char* extern_scope = "extern_scope";
  *  This can hint some code generator to create a new function for compute.
  */
 constexpr const char* compute_scope = "compute_scope";
-/*! \brief Mark storage scope of buffers */
-constexpr const char* storage_scope = "storage_scope";
 /*! \brief Mark storage alignement requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
-/*! \brief The allocation context for global malloc in host. */
-constexpr const char* device_context_id = "device_context_id";
+/*! \brief The allocation device for global malloc in host. */
+constexpr const char* device_id = "device_id";
 /*! \brief The device type. */
-constexpr const char* device_context_type = "device_context_type";
+constexpr const char* device_type = "device_type";
 /*! \brief Mark of loop scope */
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
@@ -997,6 +1337,25 @@ constexpr const char* fragment_shape = "fragment_shape";
 constexpr const char* fragment_layout = "fragment_layout";
 
 /*!
+ * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted
+ */
+constexpr const char* hand_threaded = "hand_threaded";
+
+/*!
+ * \brief Mark whether the script-completer need to fill in missing access region
+ *        during script parsing.
+ * \note The result should be a integer mask with range [0, 4).
+ *       if (mask & 1) the read region should be detected,
+ *       if (mask & 2) the write region should be detected.
+ */
+constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_access";
+
+/*!
+ * \brief Mark that the loop should be partitioned.
+ */
+constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
+
+/*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared
  * \return true if it is a pragma key
@@ -1015,7 +1374,25 @@ inline bool IsPragmaKey(const std::string& attr_key) {
 TVM_DLL PrimExpr TypeAnnotation(DataType dtype, Span span = Span());
 
 // overload printing of for type.
-TVM_DLL std::ostream& operator<<(std::ostream& os, ForType for_type);
+TVM_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
+
+// inline implementations
+inline const char* ForKind2String(ForKind t) {
+  switch (t) {
+    case ForKind::kSerial:
+      return "serial";
+    case ForKind::kParallel:
+      return "parallel";
+    case ForKind::kVectorized:
+      return "vectorized";
+    case ForKind::kUnrolled:
+      return "unroll";
+    case ForKind::kThreadBinding:
+      return "thread_binding";
+  }
+  LOG(FATAL) << "Unknown ForKind" << t;
+  return "Unknown";
+}
 
 }  // namespace tir
 }  // namespace tvm

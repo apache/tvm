@@ -81,10 +81,10 @@ def verify_conv3d_ncdhw(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ncdhw_implement)
-        with tvm.target.Target(device):
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        fcompute, fschedule = tvm.topi.testing.dispatch(target, _conv3d_ncdhw_implement)
+        with tvm.target.Target(target):
             C = fcompute(
                 A, W, (stride, stride, stride), padding, (dilation, dilation, dilation), dtype
             )
@@ -94,15 +94,15 @@ def verify_conv3d_ncdhw(
                 C = topi.nn.relu(C)
             s = fschedule([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
@@ -111,16 +111,16 @@ def verify_conv3d_ncdhw(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-4)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4, atol=1e-6)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
-            check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        with autotvm.tophub.context(target):  # load tophub pre-tuned parameters
+            check_target(target, dev)
 
 
 @tvm.testing.uses_gpu

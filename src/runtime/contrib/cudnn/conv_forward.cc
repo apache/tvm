@@ -41,8 +41,8 @@ void ConvolutionForward(int mode, int format, int algo, int dims, int groups, co
   entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
   // Set Algo
   entry_ptr->conv_entry.fwd_algo = static_cast<cudnnConvolutionFwdAlgo_t>(algo);
-  // Set Ctx
-  entry_ptr->conv_entry.ctx = x->ctx;
+  // Set Device
+  entry_ptr->conv_entry.device = x->device;
   // Set Data Type
   entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(conv_dtype));
   cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
@@ -156,7 +156,9 @@ void OutputShape(int format, int dims, int groups, const int pad[], const int st
                                              dilation, CUDNN_CROSS_CORRELATION,
                                              entry_ptr->conv_entry.data_type));
 
-  if (dims == 2 && entry_ptr->conv_entry.tensor_format == CUDNN_TENSOR_NHWC) {
+  if (entry_ptr->conv_entry.tensor_format == CUDNN_TENSOR_NHWC) {
+    ICHECK_EQ(full_dims, 4) << "Use of layout CUDNN_TENSOR_NHWC is only defined for 4d tensors";
+
     // Set Input
     CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
                                           entry_ptr->conv_entry.tensor_format, data_type, x_dim[0],
@@ -295,7 +297,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
                          conv_dtype);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.output_shape")
+TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.output_shape_from_cudnn")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       int format = args[0];
       int dims = args[1];

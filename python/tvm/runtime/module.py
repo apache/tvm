@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, unused-import, import-outside-toplevel
+# pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
 import os
 import ctypes
 import struct
-from collections import namedtuple
+from typing import Sequence
+import numpy as np
 
 import tvm._ffi
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
@@ -30,8 +31,69 @@ from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
 from . import _ffi_api
 
 
-# profile result of time evaluator
-ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
+class BenchmarkResult:
+    """Runtimes from benchmarking"""
+
+    def __init__(self, results: Sequence[float]):
+        """Construct a new BenchmarkResult from a sequence of runtimes.
+
+        Parameters
+        ----------
+        results : Sequence[float]
+            Raw times from benchmarking
+
+        Attributes
+        ----------
+        min : float
+            Minimum runtime in seconds of all results.
+        mean : float
+            Mean runtime in seconds of all results. If py:meth:`Module.time_evaluator` or
+            `benchmark` is called with `number` > 0, then each result is already the mean of a
+            `number` of runtimes, so this becomes the mean of means.
+        median : float
+            Median runtime in seconds of all results. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the median of means.
+        max : float
+            Maximum runtime in seconds of all results. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the maximum of those means.
+        std : float
+            Standard deviation in seconds of runtimes. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the standard deviation of means.
+        results : Sequence[float]
+            The collected runtimes (in seconds). This may be a series of mean runtimes if
+            py:meth:`Module.time_evaluator` or `benchmark` was run with `number` > 1.
+        """
+        self.results = results
+        self.mean = np.mean(self.results)
+        self.std = np.std(self.results)
+        self.median = np.median(self.results)
+        self.min = np.min(self.results)
+        self.max = np.max(self.results)
+
+    def __repr__(self):
+        return "BenchmarkResult(min={}, mean={}, median={}, max={}, std={}, results={})".format(
+            self.min, self.mean, self.median, self.max, self.std, self.results
+        )
+
+    def __str__(self):
+        return """Execution time summary:
+{:^12} {:^12} {:^12} {:^12} {:^12}
+{:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f}
+               """.format(
+            "mean (ms)",
+            "median (ms)",
+            "max (ms)",
+            "min (ms)",
+            "std (ms)",
+            self.mean * 1000,
+            self.median * 1000,
+            self.max * 1000,
+            self.min * 1000,
+            self.std * 1000,
+        )
 
 
 class Module(object):
@@ -45,7 +107,8 @@ class Module(object):
         self.entry_name = "__tvm_main__"
 
     def __del__(self):
-        check_call(_LIB.TVMModFree(self.handle))
+        if _LIB:
+            check_call(_LIB.TVMModFree(self.handle))
 
     def __hash__(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
@@ -104,6 +167,9 @@ class Module(object):
         if not isinstance(name, string_types):
             raise ValueError("Can only take string as function name")
         return self.get_function(name)
+
+    def __eq__(self, other):
+        return self.handle.value == other.handle.value
 
     def __call__(self, *args):
         if self._entry:
@@ -165,7 +231,7 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
+    def time_evaluator(self, func_name, dev, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -173,8 +239,8 @@ class Module(object):
         func_name: str
             The name of the function in the module.
 
-        ctx: TVMContext
-            The context we should run this function on.
+        dev: Device
+            The device we should run this function on.
 
         number: int
             The number of times to run this function for taking average.
@@ -205,15 +271,15 @@ class Module(object):
         Returns
         -------
         ftimer : function
-            The function that takes same argument as func and returns a ProfileResult.
+            The function that takes same argument as func and returns a BenchmarkResult.
             The ProfileResult reports `repeat` time costs in seconds.
         """
         try:
             feval = _ffi_api.RPCTimeEvaluator(
                 self,
                 func_name,
-                ctx.device_type,
-                ctx.device_id,
+                dev.device_type,
+                dev.device_id,
                 number,
                 repeat,
                 min_repeat_ms,
@@ -226,22 +292,33 @@ class Module(object):
                 blob = feval(*args)
                 fmt = "@" + ("d" * repeat)
                 results = struct.unpack(fmt, blob)
-                mean = sum(results) / float(repeat)
-                return ProfileResult(mean=mean, results=results)
+                return BenchmarkResult(results)
 
             return evaluator
         except NameError:
-            raise NameError("time_evaluate is only supported when RPC is enabled")
+            raise NameError("time_evaluator is only supported when RPC is enabled")
 
-    def _collect_dso_modules(self):
-        """Helper function to collect dso modules, then return it."""
+    def _collect_from_import_tree(self, filter_func):
+        """Helper function to collect modules from the tree matching a filter_func, then return it.
+
+        Parameters
+        ----------
+        filter_func : Callable[[Module], bool]
+            A function which is invoked for each Module discovered in the import tree (including
+            self).
+
+        Returns
+        -------
+        list[Module] :
+            A list of matching Module.
+        """
         visited, stack, dso_modules = set(), [], []
         # append root module
         visited.add(self)
         stack.append(self)
         while stack:
             module = stack.pop()
-            if module._dso_exportable():
+            if filter_func(module):
                 dso_modules.append(module)
             for m in module.imported_modules:
                 if m not in visited:
@@ -249,14 +326,19 @@ class Module(object):
                     stack.append(m)
         return dso_modules
 
-    def _dso_exportable(self):
-        return self.type_key == "llvm" or self.type_key == "c"
+    def _collect_dso_modules(self):
+        is_dso_exportable = lambda m: (m.type_key == "llvm" or m.type_key == "c")
+        return self._collect_from_import_tree(is_dso_exportable)
 
-    def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
-        """Export the module and its imported device code one library.
+    def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
+        """
+        Export the module and all imported modules into a single device library.
 
-        This function only works on host llvm modules.
-        It will pack all the imported modules
+        This function only works on host LLVM modules, other runtime::Module
+        subclasses will work with this API but they must support implement
+        the save and load mechanisms of modules completely including saving
+        from streams and files. This will pack your non-shared library module
+        into a single shared library which can later be loaded by TVM.
 
         Parameters
         ----------
@@ -264,12 +346,30 @@ class Module(object):
             The name of the shared library.
 
         fcompile : function(target, file_list, kwargs), optional
-            Compilation function to use create dynamic library.
+            The compilation function to use create the final library object during
+            export.
+
+            For example, when fcompile=_cc.create_shared, or when it is not supplied but
+            module is "llvm," this is used to link all produced artifacts
+            into a final dynamic library.
+
+            This behavior is controlled by the type of object exported.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
 
+        workspace_dir : str, optional
+            The path of the directory used to create the intermediate
+            artifacts when exporting the module.
+            If this is not provided a temporary dir will be created.
+
         kwargs : dict, optional
             Additional arguments passed to fcompile
+
+        Returns
+        -------
+        result of fcompile()  : unknown, optional
+            If the compilation function returns an artifact it would be returned via
+            export_library, if any.
         """
         # NOTE: this function depends on contrib library features
         # which are only available in when TVM function is available.
@@ -292,22 +392,31 @@ class Module(object):
             return
 
         modules = self._collect_dso_modules()
-        temp = _utils.tempdir()
+        if workspace_dir is None:
+            temp = _utils.tempdir()
+            workspace_dir = temp.temp_dir
         files = addons if addons else []
         is_system_lib = False
         has_c_module = False
         llvm_target_triple = None
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
-                object_format = fcompile.object_format
+                if module.type_key == "c":
+                    object_format = "c"
+                    has_c_module = True
+                else:
+                    object_format = fcompile.object_format
             else:
                 if module.type_key == "llvm":
                     object_format = "o"
                 else:
                     assert module.type_key == "c"
-                    object_format = "cc"
+                    object_format = "c"
+                    if "cc" in kwargs:
+                        if kwargs["cc"] == "nvcc":
+                            object_format = "cu"
                     has_c_module = True
-            path_obj = temp.relpath("lib" + str(index) + "." + object_format)
+            path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
             files.append(path_obj)
             is_system_lib = (
@@ -330,17 +439,20 @@ class Module(object):
 
         if self.imported_modules:
             if enabled("llvm") and llvm_target_triple:
-                path_obj = temp.relpath("devc." + object_format)
+                path_obj = os.path.join(workspace_dir, f"devc.{object_format}")
                 m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_triple)
                 m.save(path_obj)
                 files.append(path_obj)
             else:
-                path_cc = temp.relpath("devc.cc")
+                path_cc = os.path.join(workspace_dir, "devc.c")
                 with open(path_cc, "w") as f:
                     f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib))
                 files.append(path_cc)
 
-        if has_c_module:
+        # The imports could contain a c module but the object format could be tar
+        # Thus, it would not recognize the following include paths as options
+        # which are there assuming a c compiler is the fcompile.
+        if has_c_module and not file_name.endswith(".tar"):
             options = []
             if "options" in kwargs:
                 opts = kwargs["options"]
@@ -348,7 +460,7 @@ class Module(object):
             opts = options + ["-I" + path for path in find_include_path()]
             kwargs.update({"options": opts})
 
-        fcompile(file_name, files, **kwargs)
+        return fcompile(file_name, files, **kwargs)
 
 
 def system_lib():
@@ -394,6 +506,10 @@ def load_module(path, fmt=""):
     This function will automatically call
     cc.create_shared if the path is in format .o or .tar
     """
+    if os.path.isfile(path):
+        path = os.path.realpath(path)
+    else:
+        raise ValueError("cannot find file %s" % path)
 
     # c++ compiler/linker
     cc = os.environ.get("CXX", "g++")
@@ -415,9 +531,6 @@ def load_module(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
-    # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
-    elif path.endswith(".obj"):
-        fmt = "micro_dev"
     # Redirect to the load API
     return _ffi_api.ModuleLoadFromFile(path, fmt)
 

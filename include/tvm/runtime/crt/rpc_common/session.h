@@ -78,9 +78,9 @@ class Session {
   /*! \brief An invalid nonce value that typically indicates an unknown nonce. */
   static constexpr const uint8_t kInvalidNonce = 0;
 
-  Session(uint8_t initial_session_nonce, Framer* framer, FrameBuffer* receive_buffer,
-          MessageReceivedFunc message_received_func, void* message_received_func_context)
-      : local_nonce_{initial_session_nonce},
+  Session(Framer* framer, FrameBuffer* receive_buffer, MessageReceivedFunc message_received_func,
+          void* message_received_func_context)
+      : local_nonce_{kInvalidNonce},
         session_id_{0},
         state_{State::kReset},
         receiver_{this},
@@ -99,9 +99,11 @@ class Session {
 
   /*!
    * \brief Send a session terminate message, usually done at startup to interrupt a hanging remote.
+   * \param initial_session_nonce Initial nonce that should be used on the first session start
+   *      message. Callers should ensure this is different across device resets.
    * \return kTvmErrorNoError on success, or an error code otherwise.
    */
-  tvm_crt_error_t Initialize();
+  tvm_crt_error_t Initialize(uint8_t initial_session_nonce);
 
   /*!
    * \brief Terminate any previously-established session.

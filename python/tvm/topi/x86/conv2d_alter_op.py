@@ -40,21 +40,6 @@ _OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")
 def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
-    if isinstance(dispatch_ctx, autotvm.task.ApplyGraphBest):
-        cfg = dispatch_ctx.query(target, None)
-        workload = cfg.workload
-    else:
-        _, outs = relay.backend.compile_engine.select_implementation(
-            relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
-        )
-        workload = autotvm.task.get_workload(outs)
-        if workload is None:
-            # The best implementation is not an AutoTVM template,
-            # we then assume it's not necessary to alter this op.
-            return None
-        cfg = dispatch_ctx.query(target, workload)
-
-    topi_tmpl = workload[0]
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
     # Parse the attributes.
@@ -68,12 +53,59 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     kernel_dtype = kernel_tensor.dtype
     out_dtype = out_type.dtype
 
+    if isinstance(dispatch_ctx, autotvm.task.ApplyGraphBest):
+        cfg = dispatch_ctx.query(target, None)
+        workload = cfg.workload
+    else:
+        impl, outs = relay.backend.compile_engine.select_implementation(
+            relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
+        )
+        workload = autotvm.task.get_workload(outs)
+        if workload is None:
+            # The best implementation is not an AutoTVM template.
+            # It may be from the auto-scheduler
+            if impl.name.find("winograd") != -1:
+                if dilation != (1, 1):
+                    logger.warning("Does not support weight pre-transform for dilated convolution.")
+                    return None
+
+                assert data_layout == "NHWC" and kernel_layout == "HWIO"
+                N, H, W, CI = get_const_tuple(data_tensor.shape)
+                KH, KW, _, CO = get_const_tuple(kernel_tensor.shape)
+
+                # Pre-compute weight transformation in winograd
+                tile_size = 4
+                # HWIO -> OIHW
+                kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
+                # alpha, alpha, CO, CI
+                weight = relay.nn.contrib_conv2d_winograd_weight_transform(
+                    kernel_transform, tile_size=tile_size
+                )
+                new_attrs["tile_size"] = tile_size
+                new_attrs["channels"] = CO
+                return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                    inputs[0], weight, **new_attrs
+                )
+            return None
+
+        cfg = dispatch_ctx.query(target, workload)
+
+    topi_tmpl = workload[0]
+
     if topi_tmpl == "conv2d_NCHWc.x86":
         # we only convert conv2d_NCHW to conv2d_NCHWc for x86
         if data_layout == "NCHW" and kernel_layout == "OIHW":
             if cfg.is_fallback:
                 _get_default_config(
-                    cfg, data_tensor, kernel_tensor, strides, padding, out_dtype, False, data_layout
+                    cfg,
+                    data_tensor,
+                    kernel_tensor,
+                    strides,
+                    padding,
+                    dilation,
+                    out_dtype,
+                    False,
+                    data_layout,
                 )
             batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
             out_channel, _, kh, kw = get_const_tuple(kernel_tensor.shape)
@@ -118,7 +150,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         if cfg.is_fallback:
             _get_default_config_int8(
-                cfg, data_tensor, kernel_tensor, strides, padding, out_dtype, False, data_layout
+                cfg,
+                data_tensor,
+                kernel_tensor,
+                strides,
+                padding,
+                dilation,
+                out_dtype,
+                False,
+                data_layout,
             )
 
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
@@ -174,7 +214,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         if data_layout == "NCHW" and kernel_layout == "OIHW":
             if cfg.is_fallback:
                 _get_default_config(
-                    cfg, data_tensor, kernel_tensor, strides, padding, out_dtype, True, data_layout
+                    cfg,
+                    data_tensor,
+                    kernel_tensor,
+                    strides,
+                    padding,
+                    dilation,
+                    out_dtype,
+                    True,
+                    data_layout,
                 )
 
             batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
@@ -290,7 +338,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
         data = relay.cast(data, "uint8")
 
         # Do external padding as pad value has to be 128.
-        if not (padding[0] == 0 and padding[1] == 0):
+        if any(padding):
             data = relay.nn.pad(data, pad_width=pad_width, pad_value=128)
         new_attrs["padding"] = (0, 0)
 

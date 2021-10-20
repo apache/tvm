@@ -17,14 +17,13 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Test code for pooling"""
 import math
+
 import numpy as np
 import tvm
-from tvm import te
-from tvm import topi
 import tvm.testing
 import tvm.topi.testing
+from tvm import te, topi
 from tvm.topi.utils import get_const_tuple
-import tvm.testing
 
 _pool_schedule = {
     "generic": topi.generic.schedule_pool,
@@ -46,82 +45,6 @@ _pool_grad_schedule = {
 }
 
 
-def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
-    """verify function of pool"""
-    iw = ih
-    kw = kh
-    sw = sh
-    pt, pl, pb, pr = padding
-    layout = "NCHW"
-    A = te.placeholder((n, ic, ih, iw), name="A")
-    B = topi.nn.pool(
-        A,
-        kernel=[kh, kw],
-        stride=[sh, sw],
-        padding=padding,
-        pool_type=pool_type,
-        ceil_mode=ceil_mode,
-        layout="NCHW",
-        count_include_pad=count_include_pad,
-    )
-    B = topi.nn.relu(B)
-    dtype = A.dtype
-
-    bshape = get_const_tuple(B.shape)
-    ashape = get_const_tuple(A.shape)
-    if ceil_mode:
-        assert bshape[2] == int(math.ceil(float(ashape[2] - kh + pt + pb) / sh) + 1)
-        assert bshape[3] == int(math.ceil(float(ashape[3] - kw + pl + pr) / sw) + 1)
-    else:
-        assert bshape[2] == int(math.floor(float(ashape[2] - kh + pt + pb) / sh) + 1)
-        assert bshape[3] == int(math.floor(float(ashape[3] - kw + pl + pr) / sw) + 1)
-
-    a_np = np.random.uniform(low=0.001, size=(n, ic, ih, iw)).astype(dtype)
-    pad_np = np.zeros(shape=(n, ic, ih + pt + pb, iw + pl + pr)).astype(dtype)
-    no_zero = (range(n), range(ic), (range(pt, ih + pt)), (range(pl, iw + pl)))
-    pad_np[np.ix_(*no_zero)] = a_np
-    _, oc, oh, ow = get_const_tuple(B.shape)
-    b_np = np.zeros(shape=(n, oc, oh, ow)).astype(dtype)
-
-    if pool_type == "avg":
-        for i in range(oh):
-            for j in range(ow):
-                if count_include_pad:
-                    b_np[:, :, i, j] = np.mean(
-                        pad_np[:, :, i * sh : i * sh + kh, j * sw : j * sw + kw], axis=(2, 3)
-                    )
-                else:
-                    pad_count = np.sum(
-                        pad_np[:, :, i * sh : i * sh + kh, j * sw : j * sw + kw] > 0, axis=(2, 3)
-                    )
-                    b_np[:, :, i, j] = np.sum(
-                        pad_np[:, :, i * sh : i * sh + kh, j * sw : j * sw + kw], axis=(2, 3)
-                    ) / np.maximum(pad_count, 1)
-
-    elif pool_type == "max":
-        for i in range(oh):
-            for j in range(ow):
-                b_np[:, :, i, j] = np.max(
-                    pad_np[:, :, i * sh : i * sh + kh, j * sw : j * sw + kw], axis=(2, 3)
-                )
-    b_np = np.maximum(b_np, 0.0)
-
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
-            s = s_func(B, layout)
-
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
-        f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=2e-5, atol=1e-5)
-
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
-
-
 def verify_pool_grad(
     n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True, add_relu=False
 ):
@@ -131,10 +54,11 @@ def verify_pool_grad(
     sw = sh
     pt, pl, pb, pr = padding
     A = te.placeholder((n, ic, ih, iw), name="A")
-    B = topi.nn.pool(
+    B = topi.nn.pool2d(
         A,
         kernel=[kh, kw],
         stride=[sh, sw],
+        dilation=[1, 1],
         padding=padding,
         pool_type=pool_type,
         ceil_mode=ceil_mode,
@@ -181,39 +105,21 @@ def verify_pool_grad(
     if add_relu:
         pool_grad_np = np.maximum(pool_grad_np, 0.0)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _pool_grad_schedule)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _pool_grad_schedule)
             s = s_func(PoolGrad)
 
-        a = tvm.nd.array(a_np, ctx)
-        out_grad = tvm.nd.array(out_grad_np, ctx)
-        pool_grad = tvm.nd.array(np.zeros(get_const_tuple(PoolGrad.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, OutGrad, PoolGrad], device)
+        a = tvm.nd.array(a_np, dev)
+        out_grad = tvm.nd.array(out_grad_np, dev)
+        pool_grad = tvm.nd.array(np.zeros(get_const_tuple(PoolGrad.shape), dtype=dtype), dev)
+        f = tvm.build(s, [A, OutGrad, PoolGrad], target)
         f(a, out_grad, pool_grad)
-        tvm.testing.assert_allclose(pool_grad.asnumpy(), pool_grad_np, rtol=1e-5)
+        tvm.testing.assert_allclose(pool_grad.numpy(), pool_grad_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
-
-
-@tvm.testing.uses_gpu
-def test_pool():
-    """test cases of pool"""
-    verify_pool(1, 256, 32, 2, 2, [0, 0, 0, 0], "avg", False, True)
-    verify_pool(1, 256, 31, 3, 3, [1, 2, 1, 2], "avg", False, True)
-    verify_pool(1, 256, 32, 2, 2, [1, 2, 1, 2], "avg", False, False)
-    verify_pool(1, 256, 31, 4, 4, [3, 3, 3, 3], "avg", False, False)
-    verify_pool(1, 256, 31, 4, 4, [0, 0, 0, 0], "avg", False, False)
-    verify_pool(1, 256, 32, 2, 2, [0, 0, 0, 0], "max", False)
-    verify_pool(1, 256, 31, 3, 3, [2, 1, 2, 1], "max", False)
-    verify_pool(1, 256, 31, 3, 3, [2, 1, 2, 1], "max", True)
-
-    verify_pool(1, 256, 31, 3, 3, [2, 1, 0, 3], "avg", False, True)
-    verify_pool(1, 256, 32, 2, 2, [0, 3, 2, 1], "avg", False, False)
-    verify_pool(1, 256, 31, 3, 3, [1, 0, 3, 2], "max", False)
-    verify_pool(1, 256, 31, 3, 3, [3, 2, 1, 0], "max", True)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -256,22 +162,22 @@ def verify_global_pool(dshape, pool_type, layout="NCHW"):
         b_np = np.max(a_np, axis=axis, keepdims=True)
     b_np = np.maximum(b_np, 0.0)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _adaptive_pool_schedule)
-            if device == "cuda":
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _adaptive_pool_schedule)
+            if target == "cuda":
                 s = s_func(B, layout)
             else:
                 s = s_func(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -300,22 +206,22 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
         assert len(out_size) == 3
         out = topi.nn.adaptive_pool3d(data, out_size, pool_type, layout)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _adaptive_pool_schedule)
-            if device == "cuda":
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _adaptive_pool_schedule)
+            if target == "cuda":
                 s = s_func(out, layout)
             else:
                 s = s_func(out)
-        a = tvm.nd.array(np_data, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), ctx)
-        f = tvm.build(s, [data, out], device)
+        a = tvm.nd.array(np_data, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), dev)
+        f = tvm.build(s, [data, out], target)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np_out, rtol=4e-5, atol=1e-6)
+        tvm.testing.assert_allclose(b.numpy(), np_out, rtol=4e-5, atol=1e-6)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -337,134 +243,528 @@ def test_adaptive_pool():
     verify_adaptive_pool((1, 16, 32, 32, 32), (2, 4, 4), "max", layout="NDHWC")
 
 
-def verify_pool3d(
-    n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True, layout="NCDHW"
+def verify_poolnd(
+    n,
+    input_shape,
+    kernel,
+    stride,
+    dilation,
+    padding,
+    pool_type,
+    ceil_mode,
+    layout,
+    count_include_pad=True,
 ):
-    """verify function of pool3d"""
-    id = iw = ih
-    kd = kw = kh
-    sd = sw = sh
-    input_shape = (n, ic, id, ih, iw)
-    kernel = [kd, kh, kw]
-    stride = [sd, sh, sw]
+    """verify function of pool1d"""
     A = te.placeholder(input_shape, name="A")
-    B = topi.nn.pool3d(
-        A,
-        kernel=kernel,
-        stride=stride,
-        padding=padding,
-        pool_type=pool_type,
-        ceil_mode=ceil_mode,
-        layout=layout,
-        count_include_pad=count_include_pad,
-    )
+
+    if n == 1:
+        B = topi.nn.pool1d(
+            A,
+            kernel=kernel,
+            stride=stride,
+            dilation=dilation,
+            padding=padding,
+            pool_type=pool_type,
+            ceil_mode=ceil_mode,
+            layout=layout,
+            count_include_pad=count_include_pad,
+        )
+    elif n == 2:
+        B = topi.nn.pool2d(
+            A,
+            kernel=kernel,
+            stride=stride,
+            dilation=dilation,
+            padding=padding,
+            pool_type=pool_type,
+            ceil_mode=ceil_mode,
+            layout=layout,
+            count_include_pad=count_include_pad,
+        )
+    elif n == 3:
+        B = topi.nn.pool3d(
+            A,
+            kernel=kernel,
+            stride=stride,
+            dilation=dilation,
+            padding=padding,
+            pool_type=pool_type,
+            ceil_mode=ceil_mode,
+            layout=layout,
+            count_include_pad=count_include_pad,
+        )
+    else:
+        raise ValueError(f"PoolND only supports n=1, 2, 3 got n={n}")
+
     B = topi.nn.relu(B)
     dtype = A.dtype
     output_shape = [int(i) for i in B.shape]
 
     input_np = np.random.uniform(low=0.001, size=input_shape).astype(dtype)
-    ref_np = tvm.topi.testing.pool3d_ncdhw_python(
-        input_np, kernel, stride, padding, output_shape, pool_type, count_include_pad, ceil_mode
+
+    padding_before = padding[:n]
+    padding_after = padding[n:]
+    ref_np = tvm.topi.testing.poolnd_python(
+        input_np,
+        kernel,
+        stride,
+        dilation,
+        padding_before,
+        padding_after,
+        pool_type,
+        count_include_pad,
+        ceil_mode,
+        layout=layout,
     )
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
+    np.testing.assert_equal(tuple(output_shape), tuple(ref_np.shape))
+
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s_func = tvm.topi.testing.dispatch(target, _pool_schedule)
             s = s_func(B, layout)
 
-        a = tvm.nd.array(input_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+        a = tvm.nd.array(input_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), ref_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), ref_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
+
+
+def verify_pool3d(
+    input_shape,
+    kernel,
+    stride,
+    dilation,
+    padding,
+    pool_type,
+    ceil_mode,
+    count_include_pad=True,
+    layout="NCDHW",
+):
+    verify_poolnd(
+        3,
+        input_shape,
+        kernel,
+        stride,
+        dilation,
+        padding,
+        pool_type,
+        ceil_mode,
+        layout=layout,
+        count_include_pad=count_include_pad,
+    )
 
 
 @tvm.testing.uses_gpu
 def test_pool3d():
     """test cases of pool3d"""
-    verify_pool3d(1, 256, 32, 2, 2, [0, 0, 0, 0, 0, 0], "avg", False, True)
-    verify_pool3d(1, 256, 31, 3, 3, [1, 1, 2, 2, 2, 1], "avg", False, True)
-    verify_pool3d(1, 256, 32, 2, 2, [1, 1, 2, 2, 2, 1], "avg", False, False)
-    verify_pool3d(1, 256, 31, 4, 4, [3, 3, 3, 3, 3, 3], "avg", False, False)
-    verify_pool3d(1, 256, 31, 4, 4, [0, 0, 0, 0, 0, 0], "avg", False, False)
-    verify_pool3d(1, 256, 32, 2, 2, [0, 0, 0, 0, 0, 0], "max", False)
-    verify_pool3d(1, 256, 31, 3, 3, [2, 2, 1, 1, 1, 2], "max", False)
-    verify_pool3d(1, 256, 31, 3, 3, [2, 2, 1, 1, 1, 2], "max", True)
+    verify_pool3d(
+        [1, 16, 32, 32, 32], [2, 2, 2], [2, 2, 2], [1, 1, 1], [0, 0, 0, 0, 0, 0], "avg", False, True
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [1, 1, 1], [1, 1, 2, 2, 2, 1], "avg", False, True
+    )
+    verify_pool3d(
+        [1, 16, 32, 32, 32],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [1, 1, 2, 2, 2, 1],
+        "avg",
+        False,
+        False,
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31],
+        [4, 4, 4],
+        [4, 4, 4],
+        [1, 1, 1],
+        [3, 3, 3, 3, 3, 3],
+        "avg",
+        False,
+        False,
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31],
+        [4, 4, 4],
+        [4, 4, 4],
+        [1, 1, 1],
+        [0, 0, 0, 0, 0, 0],
+        "avg",
+        False,
+        False,
+    )
+    verify_pool3d(
+        [1, 16, 32, 32, 32], [2, 2, 2], [2, 2, 2], [1, 1, 1], [0, 0, 0, 0, 0, 0], "max", False
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [1, 1, 1], [2, 2, 1, 1, 1, 2], "max", False
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [1, 1, 1], [2, 2, 1, 1, 1, 2], "max", True
+    )
 
-    verify_pool3d(1, 256, 31, 3, 3, [2, 1, 0, 5, 4, 3], "avg", False, True)
-    verify_pool3d(1, 256, 32, 2, 2, [0, 5, 4, 3, 2, 1], "avg", False, False)
-    verify_pool3d(1, 256, 31, 3, 3, [1, 0, 5, 4, 3, 2], "max", False)
-    verify_pool3d(1, 256, 31, 3, 3, [3, 2, 1, 0, 5, 4], "max", True)
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [1, 1, 1], [2, 1, 0, 5, 4, 3], "avg", False, True
+    )
+    verify_pool3d(
+        [1, 16, 32, 32, 32],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [0, 5, 4, 3, 2, 1],
+        "avg",
+        False,
+        False,
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [1, 1, 1], [1, 0, 5, 4, 3, 2], "max", False
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [1, 1, 1], [3, 2, 1, 0, 5, 4], "max", True
+    )
+
+    # Test non-1 dilation
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [3, 3, 3], [2, 1, 0, 5, 4, 3], "avg", False, True
+    )
+    verify_pool3d(
+        [1, 16, 32, 32, 32],
+        [2, 2, 2],
+        [2, 2, 2],
+        [2, 2, 2],
+        [0, 5, 4, 3, 2, 1],
+        "avg",
+        False,
+        False,
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [2, 1, 3], [1, 0, 5, 4, 3, 2], "max", False
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [2, 2, 3], [3, 2, 1, 0, 5, 4], "max", True
+    )
+    # Test channel last layouts
+    verify_pool3d(
+        [1, 32, 32, 32, 16],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [0, 0, 0, 0, 0, 0],
+        "avg",
+        False,
+        True,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [1, 1, 2, 2, 2, 1],
+        "avg",
+        False,
+        True,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 32, 32, 32, 16],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [1, 1, 2, 2, 2, 1],
+        "avg",
+        False,
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [4, 4, 4],
+        [4, 4, 4],
+        [1, 1, 1],
+        [3, 3, 3, 3, 3, 3],
+        "avg",
+        False,
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [4, 4, 4],
+        [4, 4, 4],
+        [1, 1, 1],
+        [0, 0, 0, 0, 0, 0],
+        "avg",
+        False,
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 32, 32, 32, 16],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [0, 0, 0, 0, 0, 0],
+        "max",
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [2, 2, 1, 1, 1, 2],
+        "max",
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [2, 2, 1, 1, 1, 2],
+        "max",
+        True,
+        layout="NDHWC",
+    )
+
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [2, 1, 0, 5, 4, 3],
+        "avg",
+        False,
+        True,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 32, 32, 32, 16],
+        [2, 2, 2],
+        [2, 2, 2],
+        [1, 1, 1],
+        [0, 5, 4, 3, 2, 1],
+        "avg",
+        False,
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [1, 0, 5, 4, 3, 2],
+        "max",
+        False,
+        layout="NDHWC",
+    )
+    verify_pool3d(
+        [1, 31, 31, 31, 16],
+        [3, 3, 3],
+        [3, 3, 3],
+        [1, 1, 1],
+        [3, 2, 1, 0, 5, 4],
+        "max",
+        True,
+        layout="NDHWC",
+    )
+
+    # Test non-1 dilation
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [3, 3, 3], [2, 1, 0, 5, 4, 3], "avg", False, True
+    )
+    verify_pool3d(
+        [1, 16, 32, 32, 32],
+        [2, 2, 2],
+        [2, 2, 2],
+        [2, 2, 2],
+        [0, 5, 4, 3, 2, 1],
+        "avg",
+        False,
+        False,
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [2, 1, 3], [1, 0, 5, 4, 3, 2], "max", False
+    )
+    verify_pool3d(
+        [1, 16, 31, 31, 31], [3, 3, 3], [3, 3, 3], [2, 2, 3], [3, 2, 1, 0, 5, 4], "max", True
+    )
 
 
-def verify_pool1d(
-    n, ic, iw, kw, sw, padding, pool_type, ceil_mode, count_include_pad=True, layout="NCW"
+def verify_pool2d(
+    input_shape,
+    kernel,
+    stride,
+    dilation,
+    padding,
+    pool_type,
+    ceil_mode,
+    count_include_pad=True,
+    layout="NCHW",
 ):
-    """verify function of pool1d"""
-    input_shape = (n, ic, iw)
-    kernel = [kw]
-    stride = [sw]
-    A = te.placeholder(input_shape, name="A")
-    B = topi.nn.pool1d(
-        A,
-        kernel=kernel,
-        stride=stride,
-        padding=padding,
-        pool_type=pool_type,
-        ceil_mode=ceil_mode,
+    verify_poolnd(
+        2,
+        input_shape,
+        kernel,
+        stride,
+        dilation,
+        padding,
+        pool_type,
+        ceil_mode,
         layout=layout,
         count_include_pad=count_include_pad,
     )
-    B = topi.nn.relu(B)
-    dtype = A.dtype
-    output_shape = [int(i) for i in B.shape]
 
-    input_np = np.random.uniform(low=0.001, size=input_shape).astype(dtype)
-    ref_np = tvm.topi.testing.pool1d_ncw_python(
-        input_np, kernel, stride, padding, output_shape, pool_type, count_include_pad, ceil_mode
+
+@tvm.testing.uses_gpu
+def test_pool2d():
+    """test cases of pool"""
+    verify_pool2d([1, 16, 32, 32], [2, 2], [2, 2], [1, 1], [0, 0, 0, 0], "avg", False, True)
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [1, 1], [1, 2, 1, 2], "avg", False, True)
+    verify_pool2d([1, 16, 32, 32], [2, 2], [2, 2], [1, 1], [1, 2, 1, 2], "avg", False, False)
+    verify_pool2d([1, 16, 31, 31], [4, 4], [4, 4], [1, 1], [3, 3, 3, 3], "avg", False, False)
+    verify_pool2d([1, 16, 31, 31], [4, 4], [4, 4], [1, 1], [0, 0, 0, 0], "avg", False, False)
+    verify_pool2d([1, 16, 32, 32], [2, 3], [2, 2], [1, 1], [0, 0, 0, 0], "max", False)
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [1, 1], [2, 1, 2, 1], "max", False)
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [1, 1], [2, 1, 2, 1], "max", True)
+
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [1, 1], [2, 1, 0, 3], "avg", False, True)
+    verify_pool2d([1, 16, 32, 32], [2, 3], [2, 2], [1, 1], [0, 3, 2, 1], "avg", False, False)
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [1, 1], [1, 0, 3, 2], "max", False)
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [1, 1], [3, 2, 1, 0], "max", True)
+
+    # Test non-1 dilations
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [2, 1], [2, 1, 0, 3], "avg", False, True)
+    verify_pool2d([1, 16, 32, 32], [2, 3], [2, 2], [2, 3], [0, 3, 2, 1], "avg", False, False)
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [3, 3], [1, 0, 3, 2], "max", False)
+    verify_pool2d([1, 16, 31, 31], [3, 3], [3, 3], [2, 2], [3, 2, 1, 0], "max", True)
+    # Test channel last
+    verify_pool2d(
+        [1, 32, 32, 16], [2, 2], [2, 2], [1, 1], [0, 0, 0, 0], "avg", False, True, layout="NHWC"
     )
+    verify_pool2d(
+        [1, 31, 31, 16], [3, 3], [3, 3], [1, 1], [1, 2, 1, 2], "avg", False, True, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 32, 32, 16], [2, 2], [2, 2], [1, 1], [1, 2, 1, 2], "avg", False, False, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 31, 31, 16], [4, 4], [4, 4], [1, 1], [3, 3, 3, 3], "avg", False, False, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 31, 31, 16], [4, 4], [4, 4], [1, 1], [0, 0, 0, 0], "avg", False, False, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 32, 32, 16], [2, 3], [2, 2], [1, 1], [0, 0, 0, 0], "max", False, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 31, 31, 16], [3, 3], [3, 3], [1, 1], [2, 1, 2, 1], "max", False, layout="NHWC"
+    )
+    verify_pool2d([1, 31, 31, 16], [3, 3], [3, 3], [1, 1], [2, 1, 2, 1], "max", True, layout="NHWC")
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s_func = tvm.topi.testing.dispatch(device, _pool_schedule)
-            s = s_func(B, layout)
+    verify_pool2d(
+        [1, 31, 31, 16], [3, 3], [3, 3], [1, 1], [2, 1, 0, 3], "avg", False, True, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 32, 32, 16], [2, 3], [2, 2], [1, 1], [0, 3, 2, 1], "avg", False, False, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 31, 31, 16], [3, 3], [3, 3], [1, 1], [1, 0, 3, 2], "max", False, layout="NHWC"
+    )
+    verify_pool2d([1, 31, 31, 16], [3, 3], [3, 3], [1, 1], [3, 2, 1, 0], "max", True, layout="NHWC")
+    verify_pool2d(
+        [1, 31, 31, 16], [3, 3], [3, 3], [2, 1], [2, 1, 0, 3], "avg", False, True, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 32, 32, 16], [2, 3], [2, 2], [2, 3], [0, 3, 2, 1], "avg", False, False, layout="NHWC"
+    )
+    verify_pool2d(
+        [1, 31, 31, 16], [3, 3], [3, 3], [3, 3], [1, 0, 3, 2], "max", False, layout="NHWC"
+    )
+    verify_pool2d([1, 31, 31, 16], [3, 3], [3, 3], [2, 2], [3, 2, 1, 0], "max", True, layout="NHWC")
 
-        a = tvm.nd.array(input_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
-        f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), ref_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+def verify_pool1d(
+    input_shape,
+    kernel,
+    stride,
+    dilation,
+    padding,
+    pool_type,
+    ceil_mode,
+    count_include_pad=True,
+    layout="NCW",
+):
+    verify_poolnd(
+        1,
+        input_shape,
+        kernel,
+        stride,
+        dilation,
+        padding,
+        pool_type,
+        ceil_mode,
+        layout=layout,
+        count_include_pad=count_include_pad,
+    )
 
 
 @tvm.testing.uses_gpu
 def test_pool1d():
     """test cases of pool1d"""
-    verify_pool1d(1, 256, 32, 2, 2, [0, 0], "avg", False, True)
-    verify_pool1d(1, 256, 31, 3, 3, [1, 2], "avg", False, True)
-    verify_pool1d(1, 256, 32, 2, 2, [1, 2], "avg", False, False)
-    verify_pool1d(1, 256, 31, 4, 4, [3, 3], "avg", False, False)
-    verify_pool1d(1, 256, 31, 4, 4, [0, 0], "avg", False, False)
-    verify_pool1d(1, 256, 32, 2, 2, [0, 0], "max", False)
-    verify_pool1d(1, 256, 31, 3, 3, [2, 1], "max", False)
-    verify_pool1d(1, 256, 31, 3, 3, [2, 1], "max", True)
+    verify_pool1d([1, 16, 32], [2], [2], [1], [0, 0], "avg", False, True)
+    verify_pool1d([1, 16, 31], [3], [3], [1], [1, 2], "avg", False, True)
+    verify_pool1d([1, 16, 32], [2], [2], [1], [1, 2], "avg", False, False)
+    verify_pool1d([1, 16, 31], [4], [4], [1], [3, 3], "avg", False, False)
+    verify_pool1d([1, 16, 31], [4], [4], [1], [0, 0], "avg", False, False)
+    verify_pool1d([1, 16, 32], [2], [2], [1], [0, 0], "max", False)
+    verify_pool1d([1, 16, 31], [3], [3], [1], [2, 1], "max", False)
+    verify_pool1d([1, 16, 31], [3], [3], [1], [2, 1], "max", True)
 
-    verify_pool1d(1, 256, 31, 3, 3, [2, 5], "avg", False, True)
-    verify_pool1d(1, 256, 32, 2, 2, [0, 3], "avg", False, False)
-    verify_pool1d(1, 256, 31, 3, 3, [1, 4], "max", False)
-    verify_pool1d(1, 256, 31, 3, 3, [3, 0], "max", True)
+    verify_pool1d([1, 16, 31], [3], [3], [1], [2, 5], "avg", False, True)
+    verify_pool1d([1, 16, 32], [2], [2], [1], [0, 3], "avg", False, False)
+    verify_pool1d([1, 16, 31], [3], [3], [1], [1, 4], "max", False)
+    verify_pool1d([1, 16, 31], [3], [3], [1], [3, 0], "max", True)
+
+    # Test non-1 dilations
+    verify_pool1d([1, 16, 31], [3], [3], [2], [2, 5], "avg", False, True)
+    verify_pool1d([1, 16, 32], [2], [2], [3], [0, 3], "avg", False, False)
+    verify_pool1d([1, 16, 31], [3], [3], [2], [1, 4], "max", False)
+    verify_pool1d([1, 16, 31], [3], [3], [3], [3, 0], "max", True)
+    # Test Channel last
+    verify_pool1d([1, 32, 16], [2], [2], [1], [0, 0], "avg", False, True, layout="NWC")
+    verify_pool1d([1, 31, 16], [3], [3], [1], [1, 2], "avg", False, True, layout="NWC")
+    verify_pool1d([1, 32, 16], [2], [2], [1], [1, 2], "avg", False, False, layout="NWC")
+    verify_pool1d([1, 31, 16], [4], [4], [1], [3, 3], "avg", False, False, layout="NWC")
+    verify_pool1d([1, 31, 16], [4], [4], [1], [0, 0], "avg", False, False, layout="NWC")
+    verify_pool1d([1, 32, 16], [2], [2], [1], [0, 0], "max", False, layout="NWC")
+    verify_pool1d([1, 31, 16], [3], [3], [1], [2, 1], "max", False, layout="NWC")
+    verify_pool1d([1, 31, 16], [3], [3], [1], [2, 1], "max", True, layout="NWC")
+
+    verify_pool1d([1, 31, 16], [3], [3], [1], [2, 5], "avg", False, True, layout="NWC")
+    verify_pool1d([1, 31, 16], [2], [2], [1], [0, 3], "avg", False, False, layout="NWC")
+    verify_pool1d([1, 31, 16], [3], [3], [1], [1, 4], "max", False, layout="NWC")
+    verify_pool1d([1, 31, 16], [3], [3], [1], [3, 0], "max", True, layout="NWC")
+    verify_pool1d([1, 31, 16], [3], [3], [2], [2, 5], "avg", False, True, layout="NWC")
+    verify_pool1d([1, 32, 16], [2], [2], [3], [0, 3], "avg", False, False, layout="NWC")
+    verify_pool1d([1, 31, 16], [3], [3], [2], [1, 4], "max", False, layout="NWC")
+    verify_pool1d([1, 31, 16], [3], [3], [3], [3, 0], "max", True, layout="NWC")
 
 
 if __name__ == "__main__":
-    test_pool()
     test_pool1d()
+    test_pool2d()
     test_pool3d()
     test_pool_grad()
     test_global_pool()

@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm import topi
+from tvm.te import hybrid
 from . import cpp
 from . import tag
 from .utils import within_index, make_idx, const_vector
@@ -170,7 +171,7 @@ def reverse_sequence(a, seq_lengths, seq_axis=1, batch_axis=0):
     return cpp.reverse_sequence(a, seq_lengths, seq_axis, batch_axis)
 
 
-def strided_slice(a, begin, end, strides=None, slice_mode="end"):
+def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
     """Slice of an array.
 
     Parameters
@@ -189,6 +190,10 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
         in that case, the input tensor will be reversed
         in that particular axis.
 
+    axes : list of int, optional
+        Axes along which slicing is applied. When it is specified, begin, end
+        strides, and axes need to a list of integers of the same length.
+
     slice_mode : str, optional
         The slice mode [end, size].
         end - The ending indices for the slice [default].
@@ -205,6 +210,7 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
         or isinstance(end, tvm.te.Tensor)
         or isinstance(strides, tvm.te.Tensor)
     ):
+        assert axes is None, "axes argument is not supported by dynamic strided slice yet."
         if not isinstance(begin, tvm.te.Tensor):
             begin = const_vector(begin)
         if not isinstance(end, tvm.te.Tensor):
@@ -216,7 +222,9 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
         return cpp.dynamic_strided_slice(a, begin, end, strides)
     if strides is None:
         strides = []
-    return cpp.strided_slice(a, begin, end, strides, slice_mode)
+    if axes is None:
+        axes = []
+    return cpp.strided_slice(a, begin, end, strides, axes, slice_mode)
 
 
 @tvm.te.tag_scope(tag=tag.INJECTIVE + ",strided_set")
@@ -396,7 +404,7 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
-def take(a, indices, axis=None, mode="clip"):
+def take(a, indices, axis=None, batch_dims=0, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -411,6 +419,9 @@ def take(a, indices, axis=None, mode="clip"):
         The axis over which to select values. By default,
         the flattened input array is used.
 
+    batch_dims : int
+        The number of batch dimensions. By default is 0.
+
     mode : str, optional
         Specifies how out-of-bound indices will behave.
         clip - clip to the range (default)
@@ -422,8 +433,8 @@ def take(a, indices, axis=None, mode="clip"):
     ret : tvm.te.Tensor
     """
     if axis is None:
-        return cpp.take(a, indices, mode)
-    return cpp.take(a, indices, int(axis), mode)
+        return cpp.take(a, indices, int(batch_dims), mode)
+    return cpp.take(a, indices, int(batch_dims), int(axis), mode)
 
 
 @tvm.target.generic_func
@@ -931,3 +942,32 @@ def adv_index(data, indices):
         Output tensor
     """
     return cpp.adv_index(data, indices)
+
+
+@hybrid.script
+def invert_permutation(data):
+    """Computes the inverse permutation of data.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input data
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        Output tensor
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [3, 4, 0, 2, 1]
+        topi.invert_permutation(data) = [2, 4, 3, 0, 1]
+    """
+    result = output_tensor(data.shape, data.dtype)
+    nums = data.shape[0]
+    for ind in range(nums):
+        r_ind = data[ind]
+        result[r_ind] = ind
+    return result

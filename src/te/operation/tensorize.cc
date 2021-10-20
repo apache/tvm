@@ -140,13 +140,13 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self, const Stage& stage,
   auto fbanned = [&](const VarNode* node) { return banned.count(node); };
 
   for (const PrimExpr& pred : n.main_predicates) {
-    if (tir::ExprUseVar(pred, fbanned)) {
+    if (tir::UsesVar(pred, fbanned)) {
       LOG(FATAL) << "Tensorize failed, split condition " << pred
                  << " relies on var defined inside tensorize scope";
     }
   }
   for (const PrimExpr& pred : n.init_predicates) {
-    if (tir::ExprUseVar(pred, fbanned)) {
+    if (tir::UsesVar(pred, fbanned)) {
       LOG(FATAL) << "Tensorize failed, split condition " << pred
                  << " relies on var defined inside tensorize scope";
     }
@@ -311,6 +311,7 @@ Array<PrimExpr> MatchTensorizeBody(const ComputeOpNode* self, const Stage& stage
 }
 
 void VerifyTensorizeBody(const ComputeOpNode* self, const Stage& stage,
+                         const std::unordered_map<IterVar, PrimExpr>& value_map,
                          const std::unordered_map<IterVar, Range>& dom_map,
                          const std::unordered_map<IterVar, Range>& out_dom,
                          const std::unordered_map<Tensor, Array<Range> >& in_region,
@@ -326,8 +327,9 @@ void VerifyTensorizeBody(const ComputeOpNode* self, const Stage& stage,
   ana.Bind(compute_intrin_iter_space);
 
   for (size_t i = 0; i < body.size(); ++i) {
-    PrimExpr lhs = ana.Simplify(body[i]);
-    PrimExpr rhs = ana.Simplify(intrin_compute->body[i]);
+    PrimExpr lhs = ana.Simplify(Substitute(body[i], value_map));
+    // run substitution because the intrin body could depend on outer loop vars.
+    PrimExpr rhs = ana.Simplify(Substitute(intrin_compute->body[i], value_map));
     if (lhs.dtype() != rhs.dtype()) {
       LOG(FATAL) << "Failed to match the data type with TensorIntrin " << intrin->name
                  << "'s declaration "
@@ -335,7 +337,8 @@ void VerifyTensorizeBody(const ComputeOpNode* self, const Stage& stage,
     }
     ICHECK(expr_equal(lhs, rhs)) << "Failed to match the compute with TensorIntrin " << intrin->name
                                  << "'s declaration "
-                                 << " provided= " << lhs << ", intrin=  " << rhs;
+                                 << " provided= " << lhs << ", intrin=  " << rhs
+                                 << ", running this stage: " << stage;
   }
 }
 
@@ -349,7 +352,7 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
   ICHECK(intrin.defined());
   ComputeLoopNest n = ComputeLoopNest::Create(self, stage, dom_map, debug_keep_trivial_loop);
   VerifyTensorizeLoopNest(self, stage, n, tloc);
-  VerifyTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin);
+  VerifyTensorizeBody(self, stage, n.main_vmap, dom_map, out_dom, in_region, intrin);
   // Start bind data.
   Stmt nop = Evaluate(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;

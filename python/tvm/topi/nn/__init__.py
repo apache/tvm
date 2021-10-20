@@ -36,6 +36,7 @@ from .conv3d_transpose import *
 from .conv2d_transpose import *
 from .conv1d_transpose import *
 from .bnn import *
+from .qnn import *
 from .upsampling import *
 from .local_response_norm import *
 from .bitserial_conv2d import *
@@ -48,3 +49,4 @@ from .depth_to_space import *
 from .space_to_depth import *
 from .space_to_batch_nd import *
 from .batch_to_space_nd import *
+from .loss import *

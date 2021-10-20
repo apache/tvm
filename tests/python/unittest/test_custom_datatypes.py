@@ -17,23 +17,23 @@
 """Unit tests for the Bring Your Own Datatype framework.
 
 TODO(@gussmith23 @hypercubestart) link to documentation"""
-import tvm
-import tvm.topi.testing
 import numpy as np
 import pytest
-from numpy.random import MT19937, RandomState, SeedSequence
+import tvm
+import tvm.topi.testing
 from tvm import relay
 from tvm.relay.testing.layers import batch_norm_infer
 from tvm.target.datatype import (
+    create_lower_func,
+    create_min_lower_func,
+    lower_call_pure_extern,
+    lower_ite,
     register,
     register_min_func,
     register_op,
-    create_lower_func,
-    lower_ite,
-    lower_call_pure_extern,
-    create_min_lower_func,
 )
 from tvm.tir.op import call_pure_extern
+
 
 # note: we can't use relay.testing models because params are randomly initialized,
 # which lead the output to have the same values
@@ -51,8 +51,8 @@ def get_mobilenet():
 # use real image instead of random data for end-to-end model training
 # or else output would all be around the same value
 def get_cat_image(dimensions):
-    from tvm.contrib.download import download_testdata
     from PIL import Image
+    from tvm.contrib.download import download_testdata
 
     url = "https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png"
     dst = "cat.png"
@@ -66,7 +66,7 @@ def get_cat_image(dimensions):
 
 # we use a random seed to generate input_data
 # to guarantee stable tests
-rs = RandomState(MT19937(SeedSequence(123456789)))
+np.random.seed(0)
 
 
 def convert_ndarray(dst_dtype, array):
@@ -90,21 +90,21 @@ def change_dtype(src, dst, module, params):
 def compare(module, input, src_dtype, dst_dtype, rtol, atol, params={}, target="llvm"):
     module = relay.transform.InferType()(module)
     module = relay.transform.SimplifyInference()(module)
-    ex = relay.create_executor("graph", mod=module)
 
-    correct = ex.evaluate()(*input, **params)
+    correct = relay.create_executor("graph", mod=module).evaluate()(*input, **params)
     module, converted_params = change_dtype(src_dtype, dst_dtype, module, params)
-    ex = relay.create_executor("graph", mod=module, target=target)
     # converts all inputs to dst_dtype
     x_converted = [convert_ndarray(dst_dtype, arr) for arr in input]
 
     # Vectorization is not implemented with custom datatypes
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        maybe_correct = ex.evaluate()(*x_converted, **converted_params)
+        maybe_correct = relay.create_executor("graph", mod=module, target=target).evaluate()(
+            *x_converted, **converted_params
+        )
         # currently this only works for comparing single output
         maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct)
     np.testing.assert_allclose(
-        maybe_correct_converted.asnumpy(), correct.asnumpy(), rtol=rtol, atol=atol
+        maybe_correct_converted.numpy(), correct.numpy(), rtol=rtol, atol=atol
     )
 
 
@@ -341,7 +341,7 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         t1 = relay.TensorType(shape, src_dtype)
         x = relay.var("x", t1)
         z = op(x)
-        x_data = rs.rand(*shape).astype(t1.dtype)
+        x_data = np.random.rand(*shape).astype(t1.dtype)
 
         module = tvm.IRModule.from_expr(relay.Function([x], z))
 
@@ -372,8 +372,8 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         x = relay.var("x", t1)
         y = relay.var("y", t2)
         z = opfunc(x, y)
-        x_data = rs.rand(*shape1).astype(t1.dtype)
-        y_data = rs.rand(*shape2).astype(t2.dtype)
+        x_data = np.random.rand(*shape1).astype(t1.dtype)
+        y_data = np.random.rand(*shape2).astype(t2.dtype)
         module = tvm.IRModule.from_expr(relay.Function([x, y], z))
 
         compare(module, (x_data, y_data), src_dtype, dst_dtype, rtol, atol)
@@ -416,8 +416,8 @@ def run_conv2d(src_dtype, dst_dtype, rtol=1e-7, atol=1e-4):
         w = relay.var("w", shape=kshape, dtype=src_dtype)
         y = relay.nn.conv2d(x, w, padding=padding, dilation=dilation, groups=groups, **attrs)
         module = tvm.IRModule.from_expr(relay.Function([x, w], y))
-        data = rs.uniform(-scale, scale, size=dshape).astype(src_dtype)
-        kernel = rs.uniform(-scale, scale, size=kshape).astype(src_dtype)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(src_dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(src_dtype)
 
         compare(module, (data, kernel), src_dtype, dst_dtype, rtol, atol)
 
@@ -497,7 +497,7 @@ def run_batchnorm(src_dtype, dst_dtype, rtol=1e-6, atol=1e-6):
     bn = batch_norm_infer(data=x, epsilon=2e-5, scale=False, name="bn_x")
     f = relay.Function(relay.analysis.free_vars(bn), bn)
 
-    x_data = rs.rand(*shape).astype(t.dtype)
+    x_data = np.random.rand(*shape).astype(t.dtype)
     module = tvm.IRModule.from_expr(f)
 
     zero_data = np.zeros((32), "float32")

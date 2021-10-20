@@ -434,7 +434,7 @@ res_ref = res_ref.reshape(
         fout_width,
     )
 ).transpose((0, 2, 4, 5, 1, 3))
-tvm.testing.assert_allclose(res_ref, res_nd.asnumpy())
+tvm.testing.assert_allclose(res_ref, res_nd.numpy())
 
 # Print stats
 if env.TARGET in ["sim", "tsim"]:

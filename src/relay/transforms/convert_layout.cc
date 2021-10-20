@@ -58,47 +58,39 @@ class ConvertTransformMemorizerNode : public TransformMemorizerNode {
   explicit ConvertTransformMemorizerNode(Map<String, Array<String>> desired_layouts)
       : desired_layouts_(std::move(desired_layouts)) {}
 
-  /*! \brief A mapping of op_name to array of desired layouts for each input. */
-  Map<String, Array<String>> desired_layouts_;
-};
-
-/*!
- * \brief Container that provides the transformation function for convert layout.
- */
-class ConvertTransformMemorizer : public TransformMemorizer {
- public:
-  ConvertTransformMemorizer() {}
-  explicit ConvertTransformMemorizer(ObjectPtr<Object> n) : TransformMemorizer(n) {}
-
-  ConvertTransformMemorizerNode* operator->() {
-    return static_cast<ConvertTransformMemorizerNode*>(get_mutable());
-  }
-
   /*!
    * \brief Defines the call transformation for ConvertLayout pass. The new layouts should be the
    * desired layout as specified by the user.
    * \param ref_call The original call.
+   * \param new_attrs Updated attributes consistent with new layouts.
    * \param new_args The traversed/recursed args to the call.
    * \return The new Call after calling the packed func.
    */
-  Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
+  Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs,
+                          const std::vector<Expr>& new_args) override {
     static auto fconvert_layout = Op::GetAttrMap<FTVMConvertOpLayout>("FTVMConvertOpLayout");
     Op op = Downcast<Op>(ref_call->op);
-
     Expr new_e;
     bool modified = false;
     if (fconvert_layout.count(op)) {
-      auto desired_layouts = operator->()->desired_layouts_;
+      auto desired_layouts = desired_layouts_;
       if (desired_layouts.find(op->name) != desired_layouts.end()) {
         tvm::Array<tvm::te::Tensor> tinfos;
-        for (auto expr : ref_call->args) {
-          auto ttype = expr->type_as<TensorTypeNode>();
-          tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
+        for (auto& expr : ref_call->args) {
+          if (expr->checked_type()->IsInstance<TupleTypeNode>()) {
+            auto tuple_ttype_node = expr->type_as<TupleTypeNode>();
+            for (auto& ttype : tuple_ttype_node->fields) {
+              auto ttype_node = ttype.as<TensorTypeNode>();
+              tinfos.push_back(tvm::te::placeholder(ttype_node->shape, ttype_node->dtype));
+            }
+          } else {
+            auto ttype = expr->type_as<TensorTypeNode>();
+            tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
+          }
         }
 
         Array<String> op_desired_layouts = desired_layouts.at(op->name);
-        Expr altered_value =
-            fconvert_layout[op](ref_call->attrs, new_args, tinfos, op_desired_layouts);
+        Expr altered_value = fconvert_layout[op](new_attrs, new_args, tinfos, op_desired_layouts);
         if (altered_value.defined()) {
           new_e = altered_value;
           modified = true;
@@ -108,12 +100,32 @@ class ConvertTransformMemorizer : public TransformMemorizer {
       }
     }
     if (!modified) {
-      new_e = Call(ref_call->op, new_args, ref_call->attrs);
+      new_e = Call(ref_call->op, new_args, new_attrs);
     }
 
     const CallNode* new_call = new_e.as<CallNode>();
     ICHECK(new_call) << "Can only replace the original operator with another call node";
-    return GetRef<Call>(new_call);
+    return Call(new_call->op, new_call->args, new_call->attrs, new_call->type_args, ref_call->span);
+  }
+
+  Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
+    return CallWithNewLayouts(ref_call, ref_call->attrs, new_args);
+  }
+
+  /*! \brief A mapping of op_name to array of desired layouts for each input. */
+  Map<String, Array<String>> desired_layouts_;
+};
+
+/*!
+ * \brief Container that provides the transformation function for convert layout.
+ */
+class ConvertTransformMemorizer : public TransformMemorizer {
+ public:
+  ConvertTransformMemorizer() = default;
+  explicit ConvertTransformMemorizer(ObjectPtr<Object> n) : TransformMemorizer(n) {}
+
+  ConvertTransformMemorizerNode* operator->() {
+    return static_cast<ConvertTransformMemorizerNode*>(get_mutable());
   }
 
   using ContainerType = ConvertTransformMemorizerNode;
@@ -145,6 +157,13 @@ Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts) {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);
+
+TVM_REGISTER_GLOBAL("relay._transform.InferCorrectLayoutOutput")
+    .set_body_typed([](Array<Layout> input_layouts, Array<Layout> output_layouts, Attrs new_attrs) {
+      return InferCorrectLayoutOutput(input_layouts, output_layouts, new_attrs);
+    });
+
+TVM_REGISTER_NODE_TYPE(InferCorrectLayoutOutputNode);
 
 }  // namespace transform
 

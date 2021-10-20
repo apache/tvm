@@ -35,7 +35,7 @@ use tvm::{
 };
 
 fn main() {
-    fn sum(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
+    fn sum<'a>(args: Vec<ArgValue<'a>>) -> Result<RetValue, Error> {
         let mut ret = 0.0;
         for arg in args {
             let arg: NDArray = arg.try_into()?;
@@ -47,7 +47,7 @@ fn main() {
 
     let shape = &[2];
     let data = vec![3.0, 4.0];
-    let mut arr = NDArray::empty(shape, Context::cpu(0), DataType::float(32, 1));
+    let mut arr = NDArray::empty(shape, Device::cpu(0), DataType::float(32, 1));
     arr.copy_from_buffer(data.as_slice());
 
     register_untyped(sum, "sum", true).unwrap();

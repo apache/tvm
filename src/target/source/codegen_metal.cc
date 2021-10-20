@@ -43,11 +43,11 @@ void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   }
 }
 
-CodeGenMetal::CodeGenMetal() {
+CodeGenMetal::CodeGenMetal(Target target) : target_(target) {
   decl_stream << "#include <metal_stdlib>\n";
   decl_stream << "using namespace metal;\n\n";
   decl_stream << "union __TVMArgUnion {\n"
-              << " int v_int;\n"
+              << " int v_int[2];\n"
               << "};\n\n";
 }
 
@@ -67,6 +67,11 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 
   // Buffer arguments
   size_t num_buffer = 0;
+  int limit = target_->GetAttr<Integer>("max_function_args").value();
+  if (static_cast<int>(f->params.size()) > limit) {
+    LOG(WARNING) << "Probably you won't be able to execute your kernel due to high number of "
+                    "buffers in the kernel";
+  }
   for (size_t i = 0; i < f->params.size(); ++i, ++num_buffer) {
     Var v = f->params[i];
     if (!v.dtype().is_handle()) break;
@@ -102,6 +107,11 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
       if (v.dtype().bits() == 32) {
+        decl_stream << "  ";
+        PrintType(v.dtype(), decl_stream);
+        decl_stream << " " << vid << "[2];\n";
+        vref << varg << "." << vid << "[0]";
+      } else if (v.dtype().bits() == 64) {
         decl_stream << "  ";
         PrintType(v.dtype(), decl_stream);
         decl_stream << " " << vid << ";\n";
@@ -173,6 +183,17 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   }
   bool fail = false;
   if (t.is_float()) {
+    // Need to care about sizes and alignment of half3/float3 because tir representation might not
+    // be aware of Metal half3/float3 details and can treat them as just three elements,
+    // while sizes and alignmnents of half3/float3 are one element more (half3-8 bytes/
+    // float13 - 16bytes).
+    // Example of problematic pattern: filling of threadgroup packed array using float3 elements
+    // by threads concurrently can lead to datarace and wrong data in threadgroup shared array.
+    // packed_(half3/float3) are exactly datatypes dealing with 3 elements and per-element
+    // alignment
+    if (lanes == 3) {
+      os << "packed_";
+    }
     switch (t.bits()) {
       case 16:
         os << "half";
@@ -286,30 +307,53 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   }
 }
 
+void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+  std::ostringstream temp;
+  if (std::isinf(op->value)) {
+    if (op->value < 0) {
+      temp << "-";
+    }
+    temp << "INFINITY";
+  } else if (std::isnan(op->value)) {
+    temp << "NAN";
+  } else {
+    temp << std::scientific << op->value;
+    if (op->dtype.bits() == 32)
+      temp << 'f';
+    else if (op->dtype.bits() == 16)
+      temp << 'h';
+  }
+  MarkConst(temp.str());
+  os << temp.str();
+}
+
 runtime::Module BuildMetal(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
-  CodeGenMetal cg;
-  cg.Init(output_ssa);
 
+  std::stringstream code;
+  std::stringstream source;
+  std::string fmt = "metal";
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
+    code << "// Function: " << kv.first->name_hint << std::endl;
+    CodeGenMetal cg(target);
+    cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
+    std::string fsource = cg.Finish();
+    if (const auto* f = Registry::Get("tvm_callback_metal_compile")) {
+      source << fsource;
+      fsource = (*f)(fsource).operator std::string();
+      fmt = "metallib";
+    }
+    code << fsource;
   }
 
-  std::string code = cg.Finish();
-  std::string fmt = "metal";
-  std::string source = "";
-  if (const auto* f = Registry::Get("tvm_callback_metal_compile")) {
-    source = code;
-    code = (*f)(code).operator std::string();
-    fmt = "metallib";
-  }
-  return MetalModuleCreate(code, fmt, ExtractFuncInfo(mod), source);
+  return MetalModuleCreate(code.str(), fmt, ExtractFuncInfo(mod), source.str());
 }
 
 TVM_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);

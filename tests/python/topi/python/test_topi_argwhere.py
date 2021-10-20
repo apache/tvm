@@ -40,35 +40,30 @@ def verify_argwhere(data_shape):
     out_shape = te.placeholder(shape=(out_shape, len(data_shape)), name="out_shape", dtype=dtype)
     condition = te.placeholder(shape=data_shape, name="condition", dtype=dtype)
 
-    def check_device(device, ctx):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist or device not in _argwhere_compute:
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not dev.exist or target not in _argwhere_compute:
             return
 
-        with tvm.target.Target(device):
-            out = _argwhere_compute[device](out_shape, condition)
-            s_func = tvm.topi.testing.dispatch(device, _argwhere_schedule)
+        with tvm.target.Target(target):
+            out = _argwhere_compute[target](out_shape, condition)
+            s_func = tvm.topi.testing.dispatch(target, _argwhere_schedule)
             sch = s_func(out)
 
-        func = tvm.build(sch, [out_shape, condition, out], device, name="argwhere")
+        func = tvm.build(sch, [out_shape, condition, out], target, name="argwhere")
 
-        args = [tvm.nd.array(np_shape, ctx)]
-        args.append(tvm.nd.array(np_data, ctx))
-        args.append(tvm.nd.empty(out.shape, ctx=ctx, dtype=condition.dtype))
+        args = [tvm.nd.array(np_shape, dev)]
+        args.append(tvm.nd.array(np_data, dev))
+        args.append(tvm.nd.empty(out.shape, device=dev, dtype=condition.dtype))
         func(*args)
         np.set_printoptions(threshold=np.inf)
-        tvm.testing.assert_allclose(args[-1].asnumpy(), np.array(np_out))
+        tvm.testing.assert_allclose(args[-1].numpy(), np.array(np_out))
 
-    for target, ctx in tvm.testing.enabled_targets():
-        # TODO(zhiics) Enable argwhere gpu test after sort is fixed.
-        if ctx.device_type != 1:
-            continue
-        check_device(target, ctx)
+    for target, _ in tvm.testing.enabled_targets():
+        check_device(target)
 
 
-# TODO(zhiics) Enable argwhere gpu test after sort is fixed. Otherwise, we have
-# to use thrust to guarantee the correct results which has been tested locally.
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_argwhere():
     verify_argwhere((1,))
     verify_argwhere((100,))

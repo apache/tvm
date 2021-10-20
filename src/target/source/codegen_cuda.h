@@ -42,10 +42,11 @@ class CodeGenCUDA final : public CodeGenC {
   void Init(bool output_ssa);
   std::string Finish();
   bool need_include_path() {
-    return (enable_fp16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
+    return (enable_fp16_ || enable_bf16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
   void PrintFuncPrefix() final;
+  void PrintExtraAttrs(const PrimFunc& f) final;
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
@@ -88,6 +89,8 @@ class CodeGenCUDA final : public CodeGenC {
   std::string vid_global_barrier_expect_;
   // whether enable fp16
   bool enable_fp16_{false};
+  // whether enable bf16
+  bool enable_bf16_{false};
   // whether enable int8
   bool enable_int8_{false};
   // whether enable warp shuffle intrinsics

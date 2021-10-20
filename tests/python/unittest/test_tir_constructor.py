@@ -142,7 +142,7 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AssertStmt)
     assert x.body == nop
 
-    x = tvm.tir.For(te.var("x"), 0, 10, 0, 0, nop)
+    x = tvm.tir.For(te.var("x"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
     assert isinstance(x, tvm.tir.For)
     assert x.min.value == 0
     assert x.extent.value == 10
@@ -154,10 +154,20 @@ def test_stmt_constructor():
     assert x.index.value == 10
     assert x.value.value == 1
 
+    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
     x = tvm.tir.Allocate(buffer_var, "float32", [10], tvm.tir.const(1, "uint1"), nop)
     assert isinstance(x, tvm.tir.Allocate)
     assert x.dtype == "float32"
     assert x.buffer_var == buffer_var
+    assert x.body == nop
+
+    storage_scope = "global.texture"
+    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32"), storage_scope))
+    x = tvm.tir.Allocate(buffer_var, "float32", [10], tvm.tir.const(1, "uint1"), nop)
+    assert isinstance(x, tvm.tir.Allocate)
+    assert x.dtype == "float32"
+    assert x.buffer_var == buffer_var
+    assert x.buffer_var.type_annotation.storage_scope == storage_scope
     assert x.body == nop
 
     x = tvm.tir.AttrStmt(buffer_var, "xyz", 1, nop)

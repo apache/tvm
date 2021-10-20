@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 
 roundings = ["UPWARD", "TONEAREST"]
 
@@ -28,11 +28,11 @@ def verify(mod, goldens):
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, "llvm", params=None)
         golden_data, golden_output = goldens
-        rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+        rt_mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
         rt_mod.set_input("quantized_data", golden_data)
         rt_mod.set_input(**params)
         rt_mod.run()
-        res = rt_mod.get_output(0).asnumpy()
+        res = rt_mod.get_output(0).numpy()
         np.testing.assert_equal(res, golden_output)
 
 
@@ -82,6 +82,24 @@ def test_same_scale():
     for rounding in roundings:
         mod = get_mod(
             data_shape=(200,),
+            data_dtype="int32",
+            out_dtype="int8",
+            input_scale=0.5,
+            output_scale=0.5,
+            rounding=rounding,
+        )
+        assert "right_shift" not in mod.astext()
+        verify(mod, (golden_data, golden_output))
+
+
+def test_scalar_same_scale():
+    # Have same scales, everything within range
+    golden_data = np.array(-10).astype("int32")
+    golden_output = golden_data
+
+    for rounding in roundings:
+        mod = get_mod(
+            data_shape=(),
             data_dtype="int32",
             out_dtype="int8",
             input_scale=0.5,
@@ -437,6 +455,7 @@ def test_per_channel_different_scale():
 
 if __name__ == "__main__":
     test_same_scale()
+    test_scalar_same_scale()
     test_downscale()
     test_upscale()
     test_non_power_of_two()

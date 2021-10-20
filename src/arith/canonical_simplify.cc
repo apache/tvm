@@ -78,6 +78,27 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
 }
 
 /*!
+ * \brief check if value fits in dtype
+ * \param value The value to be analyzed
+ * \param dtype The target dtype
+ * \param analyzer The analyzer
+ * \return whether value fits in dtype
+ */
+bool CastIsSafe(DataType dtype, PrimExpr value, Analyzer* analyzer) {
+  if (!IsIndexType(dtype)) {
+    return false;
+  }
+  ConstIntBound bound = analyzer->const_int_bound(value);
+  int64_t ubound = Downcast<IntImm>(max_value(dtype))->value;
+  int64_t lbound = Downcast<IntImm>(min_value(dtype))->value;
+  if (value.dtype().bits() <= dtype.bits() ||  // upcast is safe
+      (bound->max_value <= ubound && bound->min_value >= lbound)) {
+    return true;
+  }
+  return false;
+}
+
+/*!
  * \brief Internal "Split normal form" of expression.
  *
  * This is a special expression that represents
@@ -127,6 +148,58 @@ class SplitExprNode : public CanonicalExprNode {
   PrimExpr Normalize() const final { return NormalizeWithScale(1); }
 
   void MulToSelf(int64_t scale) { this->scale *= scale; }
+
+  /*!
+   * \brief check if cast can be pushed to sub-expressions
+   * \param dtype The target datatype
+   * \param analyzer The analyzer
+   * \return whether the cast can be safely pushed to children
+   */
+  bool CanPushCastToChildren(DataType dtype, Analyzer* analyzer) const {
+    // cast(dtype, index % upper_factor / lower_factor * scale) ==
+    // cast(dtype, index) % upper_factor / lower_factor * scale
+    // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
+    // its intermediate results fit in the range of dtype
+    if (dtype.bits() >= this->dtype.bits()) {
+      return true;  // upcast is safe
+    }
+    PrimExpr res = this->index;
+    if (this->scale == 0) {
+      return true;
+    }
+    if (!CastIsSafe(dtype, res, analyzer)) {
+      return false;
+    }
+    if (this->upper_factor != SplitExprNode::kPosInf) {
+      res = ModImpl(res, make_const(this->dtype, this->upper_factor), div_mode);
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
+    }
+    if (this->lower_factor != 1) {
+      res = DivImpl(res, make_const(this->dtype, this->lower_factor), div_mode);
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
+    }
+    if (this->scale != 1) {
+      ICHECK(!this->dtype.is_uint() || this->scale > 0);
+      res = res * make_const(this->dtype, this->scale);
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /*!
+   * \brief self = cast(dtype, self)
+   * \param dtype The target datatype
+   */
+  void PushCastToChildren(DataType dtype) {
+    this->index = cast(dtype, this->index);
+    this->dtype = dtype;
+  }
 
   inline bool IndexEqual(const SplitExpr& other) const;
   inline bool DivModeCompatibleTo(DivMode mode) const;
@@ -254,6 +327,69 @@ class SumExprNode : public CanonicalExprNode {
   }
 
   void AddToSelf(const SumExpr& other, int64_t scale);
+
+  /*!
+   * \brief check if cast can be pushed to sub-expressions
+   * \param dtype The target datatype
+   * \param analyzer The analyzer
+   * \return whether the cast can be safely pushed to children
+   */
+  bool CanPushCastToChildren(DataType dtype, Analyzer* analyzer) const {
+    // cast(dtype, arg_1 + arg_2 + ... arg_n) ==
+    // cast(dtype, arg_1) + ... + cast(dtype, arg_n)
+    // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
+    // its intermediate results fit in the range of dtype
+    if (dtype.bits() >= this->dtype.bits()) {
+      return true;  // upcast is safe
+    }
+    PrimExpr res = make_const(dtype, 0);
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (args[i]->scale > 0) {
+        res = res + args[i]->Normalize();
+        if (!CastIsSafe(dtype, res, analyzer)) {
+          return false;
+        }
+      }
+    }
+    if (base > 0) {
+      res = res + make_const(dtype, base);
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
+    }
+    // negative scales follows using sub.
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (args[i]->scale < 0) {
+        res = res - args[i]->NormalizeWithScale(-1);
+        if (!CastIsSafe(dtype, res, analyzer)) {
+          return false;
+        }
+      }
+    }
+    if (base < 0) {
+      res = res - make_const(dtype, -base);
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
+    }
+    for (const auto& arg : args) {
+      if (!arg->CanPushCastToChildren(dtype, analyzer)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /*!
+   * \brief self = cast(dtype, self)
+   * \param dtype The target datatype
+   */
+  void PushCastToChildren(DataType dtype) {
+    for (auto& arg : args) {
+      arg.CopyOnWrite()->PushCastToChildren(dtype);
+    }
+    this->dtype = dtype;
+  }
 
   static constexpr const char* _type_key = "arith.SumExpr";
   TVM_DECLARE_FINAL_OBJECT_INFO(SumExprNode, CanonicalExprNode);
@@ -399,6 +535,40 @@ void SumExprNode::AddToSelf(const SumExpr& other, int64_t scale) {
   this->AddToSelf(other->base * scale);
 }
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SplitExprNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SplitExprNode*>(node.get());
+      auto factor_str = [](int64_t f) {
+        return f == SplitExprNode::kPosInf ? std::string("+inf") : std::to_string(f);
+      };
+      p->stream << "split(";
+      p->Print(op->index);
+      p->stream << ", lower=" << factor_str(op->lower_factor)
+                << ", upper=" << factor_str(op->upper_factor) << ", scale=" << op->scale
+                << ", div_mode=";
+      switch (op->div_mode) {
+        // No "default", so that the compiler will emit a warning if more div modes are
+        // added that are not covered by the switch.
+        case kTruncDiv:
+          p->stream << "truncdiv";
+          break;
+        case kFloorDiv:
+          p->stream << "floordiv";
+          break;
+      }
+      p->stream << ')';
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SumExprNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SumExprNode*>(node.get());
+      p->stream << "sum(base=" << op->base;
+      for (const SplitExpr& s : op->args) {
+        p->stream << ", ";
+        p->Print(s);
+      }
+    });
+
 // Sub-class RewriteSimplifier::Impl to take benefit of
 // rewriter for condition simplification etc.
 class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
@@ -430,6 +600,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   PrimExpr VisitExpr_(const FloorDivNode* op) final;
   PrimExpr VisitExpr_(const FloorModNode* op) final;
   PrimExpr VisitExpr_(const ReduceNode* op) final;
+  PrimExpr VisitExpr_(const CastNode* op) final;
 
  private:
   /*!
@@ -1000,8 +1171,10 @@ PrimExpr CanonicalSimplifier::Impl::SimplifyReduceCombiner(const ReduceNode* op)
     // and recursively mark the corresponding components
     for (size_t i = 0; i < simplified_result.size(); ++i)
       if (!used[i]) {
-        if (ExprUseVar(simplified_result[idx], op->combiner->lhs[i]) ||
-            ExprUseVar(simplified_result[idx], op->combiner->rhs[i]))
+        if (UsesVar(simplified_result[idx],
+                    [v = op->combiner->lhs[i].get()](const VarNode* var) { return var == v; }) ||
+            UsesVar(simplified_result[idx],
+                    [v = op->combiner->rhs[i].get()](const VarNode* var) { return var == v; }))
           mark_used(i);
       }
   };
@@ -1069,6 +1242,30 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ReduceNode* op) {
   // combiner simplification.
   ret = SimplifyReduceCombiner(op);
   return ret;
+}
+
+PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
+  }
+  // normalize
+  PrimExpr value = this->CanonicalMutate(op->value);
+  // PushCastToChildren
+  if (value.as<SumExprNode>()) {
+    SumExpr se = Downcast<SumExpr>(value);
+    if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
+      se.CopyOnWrite()->PushCastToChildren(op->dtype);
+      return std::move(se);
+    }
+  }
+  if (value.as<SplitExprNode>()) {
+    SplitExpr se = Downcast<SplitExpr>(value);
+    if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
+      se.CopyOnWrite()->PushCastToChildren(op->dtype);
+      return std::move(se);
+    }
+  }
+  return Rewriter::VisitExpr_(op);
 }
 
 PrimExpr CanonicalSimplifier::operator()(const PrimExpr& expr) {

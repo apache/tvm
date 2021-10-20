@@ -45,8 +45,8 @@ QUIET ?= @
 CRT_PREFIX = $(wildcard src/crt)
 
 INCLUDES ?= -isystem include -iquote $(dir ${CRT_CONFIG})
-CFLAGS += ${INCLUDES} -Werror -g $(EXTRA_CFLAGS)
-CXXFLAGS += ${INCLUDES} -std=c++11 -Werror -g $(EXTRA_CXXFLAGS)
+CFLAGS += ${INCLUDES} -Werror -g $(EXTRA_CFLAGS) -DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
+CXXFLAGS += ${INCLUDES} -std=c++11 -Werror -g $(EXTRA_CXXFLAGS) -DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 LDFLAGS += -Werror -g $(EXTRA_LDFLAGS)
 
 ${BUILD_DIR}/%.o: src/%.c $(CRT_CONFIG)
@@ -67,11 +67,11 @@ endef
 
 LIBS = \
 	src/runtime/crt/common \
-	src/runtime/crt/graph_runtime \
-	src/runtime/crt/graph_runtime_module \
+	src/runtime/crt/graph_executor \
+	src/runtime/crt/graph_executor_module \
 	src/runtime/crt/memory \
-	src/runtime/crt/utvm_rpc_common \
-	src/runtime/crt/utvm_rpc_server
+	src/runtime/crt/microtvm_rpc_common \
+	src/runtime/crt/microtvm_rpc_server
 
 $(foreach lib,$(LIBS),$(eval $(call LIB_template,$(lib))))
 

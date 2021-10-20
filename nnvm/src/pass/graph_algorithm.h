@@ -45,7 +45,7 @@ namespace pass {
 inline uint32_t FindBestPath(const IndexedGraph& graph, const std::vector<uint32_t>& node_reward,
                              std::vector<uint32_t>* path) {
   const uint32_t num_nodes = static_cast<uint32_t>(graph.num_nodes());
-  ICHECK_EQ(num_nodes, node_reward.size());
+  CHECK_EQ(num_nodes, node_reward.size());
 
   std::vector<uint32_t> best_reward(node_reward.size(), 0);
   std::vector<uint32_t> next_node(node_reward.size(), num_nodes);
@@ -73,7 +73,7 @@ inline uint32_t FindBestPath(const IndexedGraph& graph, const std::vector<uint32
     path->push_back(nid);
     reward += node_reward[nid];
   }
-  ICHECK_EQ(reward, best_solution);
+  CHECK_EQ(reward, best_solution);
   return best_solution;
 }
 
@@ -90,8 +90,8 @@ inline uint32_t FindBestPath(const IndexedGraph& graph, const std::vector<uint32
  */
 inline uint32_t ColorNodeGroup(const IndexedGraph& graph, std::vector<uint32_t> node_importance,
                                uint32_t max_ncolor, std::vector<uint32_t>* color) {
-  ICHECK_NE(max_ncolor, 0U);
-  ICHECK_EQ(graph.num_nodes(), node_importance.size());
+  CHECK_NE(max_ncolor, 0U);
+  CHECK_EQ(graph.num_nodes(), node_importance.size());
 
   color->clear();
   color->resize(graph.num_nodes(), max_ncolor);
@@ -105,7 +105,7 @@ inline uint32_t ColorNodeGroup(const IndexedGraph& graph, std::vector<uint32_t> 
     if (reward == 0) break;
     for (uint32_t nid : path) {
       if (node_importance[nid] != 0) {
-        ICHECK_EQ(color->at(nid), max_ncolor);
+        CHECK_EQ(color->at(nid), max_ncolor);
         color->at(nid) = cindex;
         // make the importance 0 after color is decided.
         node_importance[nid] = 0;

@@ -62,10 +62,13 @@ def git_describe_version():
     local_ver: str
         Local version (with additional label appended to pub_ver).
 
-    Note
-    ----
-    We follow PEP 440's convention of public version
-    and local versions.
+    Notes
+    -----
+    - We follow PEP 440's convention of public version
+      and local versions.
+    - Only tags conforming to vMAJOR.MINOR.REV (e.g. "v0.7.0")
+      are considered in order to generate the version string.
+      See the use of `--match` in the `git` command below.
 
     Here are some examples:
 
@@ -77,7 +80,7 @@ def git_describe_version():
       after the most recent tag(v0.7.0),
       the git short hash tag of the current commit is 0d07a329e.
     """
-    cmd = ["git", "describe", "--tags"]
+    cmd = ["git", "describe", "--tags", "--match", "v[0-9]*.[0-9]*.[0-9]*"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=PROJ_ROOT)
     (out, _) = proc.communicate()
 

@@ -24,7 +24,7 @@ import numpy as np
 import tvm
 from tvm import auto_scheduler
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
 
 
 def get_sample_records(number):
@@ -68,14 +68,15 @@ def test_xgb_model():
     assert rmse <= 0.3
 
     # test loading a record file
-    with tempfile.NamedTemporaryFile() as fp:
-        auto_scheduler.save_records(fp.name, inputs, results)
-        model.update_from_file(fp.name)
+    tmpdir = tvm.contrib.utils.tempdir()
+    tmpfile = tmpdir.relpath("test1")
+    auto_scheduler.save_records(tmpfile, inputs, results)
+    model.update_from_file(tmpfile)
 
     # test model serialization
-    with tempfile.NamedTemporaryFile() as fp:
-        model.save(fp.name)
-        model.load(fp.name)
+    tmpfile = tmpdir.relpath("test2")
+    model.save(tmpfile)
+    model.load(tmpfile)
 
 
 if __name__ == "__main__":

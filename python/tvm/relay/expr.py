@@ -23,7 +23,7 @@ import numpy as _np
 import tvm._ffi
 from tvm._ffi import base as _base
 from tvm.runtime import NDArray, ndarray as _nd
-from tvm.ir import RelayExpr, GlobalVar
+from tvm.ir import RelayExpr, GlobalVar, Node
 
 from .base import RelayNode
 from . import _ffi_api
@@ -488,7 +488,7 @@ def const(value, dtype=None):
         The constant value.
 
     dtype: str, optional
-        The data type of the value.
+        The data type of the resulting constant.
 
     Note
     ----
@@ -504,13 +504,13 @@ def const(value, dtype=None):
 
     if not dtype:
         # when dtype is None: int maps to "int32", float maps to "float32"
-        map_dtype = {_np.dtype("int64"): _np.int32, _np.dtype("float64"): _np.float32}.get(
+        dtype = {_np.dtype("int64"): _np.int32, _np.dtype("float64"): _np.float32}.get(
             value.dtype, None
         )
-        if map_dtype:
-            value = value.astype(map_dtype)
 
     if isinstance(value, (_np.ndarray, _np.generic)):
+        if dtype is not None:
+            value = value.astype(dtype)
         value = _nd.array(value)
 
     if not isinstance(value, _nd.NDArray):
@@ -538,3 +538,38 @@ def bind(expr, binds):
         The expression or function after binding.
     """
     return _ffi_api.Bind(expr, binds)
+
+
+@tvm._ffi.register_object("relay.StorageInfo")
+class StorageInfo(Node):
+    """StorageInfo
+
+    The static storage information produced by memory planning.
+    Contains the storage ids where expressions are stored, the
+    type of the "virtual devices" the expressions are stored on,
+    and the sizes of each storage element."""
+
+    def __init__(self, sids, dev_types, sizes):
+        self.__init_handle_by_constructor__(_ffi_api.StorageInfo, sids, dev_types, sizes)
+
+    @property
+    def storage_ids(self):
+        return _ffi_api.StorageInfoStorageIds(self)
+
+    @property
+    def device_types(self):
+        return _ffi_api.StorageInfoDeviceTypes(self)
+
+    @property
+    def storage_sizes(self):
+        return _ffi_api.StorageInfoStorageSizes(self)
+
+
+@tvm._ffi.register_object("relay.StaticMemoryPlan")
+class StaticMemoryPlan(Node):
+    """StaticMemoryPlan
+
+    The result of static memory planning."""
+
+    def __init__(self, expr_to_storage_info):
+        self.__init_handle_by_constructor__(_ffi_api.StaticMemoryPlan, expr_to_storage_info)

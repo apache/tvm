@@ -26,6 +26,8 @@ we will serialize it to a hashable tuple.
 
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
+import functools
+
 import tvm.te._ffi_api
 from tvm.target import Target
 from tvm.te import tensor
@@ -149,6 +151,7 @@ def register_topi_compute(task_name, func=None):
     """
 
     def _decorate(topi_compute):
+        @functools.wraps(topi_compute)
         @_register_task_compute(task_name)
         def wrapper(*args, **kwargs):
             """wrapper function for topi compute"""
@@ -224,10 +227,11 @@ def register_topi_schedule(task_name, func=None):
     """
 
     def _decorate(topi_schedule):
+        @functools.wraps(topi_schedule)
         @_register_task_schedule(task_name)
         def wrapper(outs, *args, **kwargs):
             """wrapper function for topi schedule"""
-            workload = get_workload(outs)
+            workload = get_workload(outs, task_name)
             if workload is None:
                 raise RuntimeError("Cannot find workload in attribute of this schedule")
             tgt = Target.current()
@@ -241,18 +245,21 @@ def register_topi_schedule(task_name, func=None):
     return _decorate
 
 
-def get_workload(outs):
+def get_workload(outs, task_name=None):
     """Retrieve the workload from outputs"""
 
     def traverse(tensors):
         """traverse all ops to find attached workload"""
         for t in tensors:
             op = t.op
-            if "workload" in op.attrs:
-                return args_to_workload(op.attrs["workload"])
             wkl = traverse(op.input_tensors)
             if wkl:
                 return wkl
+
+            if "workload" in op.attrs:
+                ret = args_to_workload(op.attrs["workload"])
+                if task_name is None or ret[0] == task_name:
+                    return ret
         return None
 
     outs = [outs] if isinstance(outs, tensor.Tensor) else outs

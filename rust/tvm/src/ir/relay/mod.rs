@@ -23,7 +23,7 @@ use super::attrs::Attrs;
 use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
 use super::span::Span;
-use super::ty::{Type, TypeNode};
+use super::ty::Type;
 
 use tvm_macros::Object;
 use tvm_rt::NDArray;
@@ -39,19 +39,14 @@ pub mod attrs;
 #[type_key = "RelayExpr"]
 pub struct ExprNode {
     pub base: BaseExprNode,
-    pub span: ObjectRef,
     pub checked_type: Type,
 }
 
 impl ExprNode {
-    pub fn base<T: IsObject>() -> ExprNode {
+    pub fn base<T: IsObject>(span: Span) -> ExprNode {
         ExprNode {
-            base: BaseExprNode::base::<T>(),
-            span: ObjectRef::null(),
-            checked_type: Type::from(TypeNode {
-                base: Object::base::<TypeNode>(),
-                span: Span::null(),
-            }),
+            base: BaseExprNode::base::<T>(span.clone()),
+            checked_type: Type::null(),
         }
     }
 }
@@ -85,9 +80,9 @@ pub struct ConstantNode {
 }
 
 impl Constant {
-    pub fn new(data: NDArray, _span: ObjectRef) -> Constant {
+    pub fn new(data: NDArray, span: Span) -> Constant {
         let node = ConstantNode {
-            base: ExprNode::base::<ConstantNode>(),
+            base: ExprNode::base::<ConstantNode>(span),
             data: data,
         };
         Constant(Some(ObjectPtr::new(node)))
@@ -104,9 +99,9 @@ pub struct TupleNode {
 }
 
 impl Tuple {
-    pub fn new(fields: Array<Expr>, _span: ObjectRef) -> Tuple {
+    pub fn new(fields: Array<Expr>, span: Span) -> Tuple {
         let node = TupleNode {
-            base: ExprNode::base::<TupleNode>(),
+            base: ExprNode::base::<TupleNode>(span),
             fields,
         };
         Tuple(Some(ObjectPtr::new(node)))
@@ -124,9 +119,9 @@ pub struct VarNode {
 }
 
 impl Var {
-    pub fn new(name_hint: String, type_annotation: Type, _span: Span) -> Var {
+    pub fn new(name_hint: String, type_annotation: Type, span: Span) -> Var {
         let node = VarNode {
-            base: ExprNode::base::<VarNode>(),
+            base: ExprNode::base::<VarNode>(span),
             vid: Id::new(name_hint.into()),
             type_annotation: type_annotation,
         };
@@ -165,10 +160,10 @@ impl Call {
         args: Array<Expr>,
         attrs: Attrs,
         type_args: Array<Type>,
-        _span: ObjectRef,
+        span: Span,
     ) -> Call {
         let node = CallNode {
-            base: ExprNode::base::<VarNode>(),
+            base: ExprNode::base::<VarNode>(span),
             op: op,
             args: args,
             attrs: attrs,
@@ -190,9 +185,9 @@ pub struct LetNode {
 }
 
 impl Let {
-    pub fn new(var: Var, value: Expr, body: Expr, _span: ObjectRef) -> Let {
+    pub fn new(var: Var, value: Expr, body: Expr, span: Span) -> Let {
         let node = LetNode {
-            base: ExprNode::base::<LetNode>(),
+            base: ExprNode::base::<LetNode>(span),
             var,
             value,
             body,
@@ -213,9 +208,9 @@ pub struct IfNode {
 }
 
 impl If {
-    pub fn new(cond: Expr, true_branch: Expr, false_branch: Expr, _span: ObjectRef) -> If {
+    pub fn new(cond: Expr, true_branch: Expr, false_branch: Expr, span: Span) -> If {
         let node = IfNode {
-            base: ExprNode::base::<IfNode>(),
+            base: ExprNode::base::<IfNode>(span),
             cond,
             true_branch,
             false_branch,
@@ -235,9 +230,9 @@ pub struct TupleGetItemNode {
 }
 
 impl TupleGetItem {
-    pub fn new(tuple: Expr, index: i32, _span: ObjectRef) -> TupleGetItem {
+    pub fn new(tuple: Expr, index: i32, span: Span) -> TupleGetItem {
         let node = TupleGetItemNode {
-            base: ExprNode::base::<TupleGetItemNode>(),
+            base: ExprNode::base::<TupleGetItemNode>(span),
             tuple,
             index,
         };
@@ -255,9 +250,9 @@ pub struct RefCreateNode {
 }
 
 impl RefCreate {
-    pub fn new(value: Expr, _span: ObjectRef) -> RefCreate {
+    pub fn new(value: Expr, span: Span) -> RefCreate {
         let node = RefCreateNode {
-            base: ExprNode::base::<RefCreateNode>(),
+            base: ExprNode::base::<RefCreateNode>(span),
             value,
         };
         RefCreate(Some(ObjectPtr::new(node)))
@@ -274,9 +269,9 @@ pub struct RefReadNode {
 }
 
 impl RefRead {
-    pub fn new(ref_value: Expr, _span: ObjectRef) -> RefRead {
+    pub fn new(ref_value: Expr, span: Span) -> RefRead {
         let node = RefReadNode {
-            base: ExprNode::base::<RefReadNode>(),
+            base: ExprNode::base::<RefReadNode>(span),
             ref_value,
         };
         RefRead(Some(ObjectPtr::new(node)))
@@ -294,9 +289,9 @@ pub struct RefWriteNode {
 }
 
 impl RefWrite {
-    pub fn new(ref_value: Expr, value: Expr, _span: ObjectRef) -> RefWrite {
+    pub fn new(ref_value: Expr, value: Expr, span: Span) -> RefWrite {
         let node = RefWriteNode {
-            base: ExprNode::base::<RefWriteNode>(),
+            base: ExprNode::base::<RefWriteNode>(span),
             ref_value,
             value,
         };
@@ -316,9 +311,9 @@ pub struct ConstructorNode {
 }
 
 impl Constructor {
-    pub fn new(name_hint: String, inputs: Array<Type>, tag: i32, _span: ObjectRef) -> Constructor {
+    pub fn new(name_hint: String, inputs: Array<Type>, tag: i32, span: Span) -> Constructor {
         let node = ConstructorNode {
-            base: ExprNode::base::<ConstructorNode>(),
+            base: ExprNode::base::<ConstructorNode>(span),
             name_hint,
             inputs,
             tag,
@@ -335,14 +330,14 @@ impl Constructor {
 #[type_key = "relay.Pattern"]
 pub struct PatternNode {
     pub base: Object,
-    pub span: ObjectRef,
+    pub span: Span,
 }
 
 impl PatternNode {
-    pub fn base<T: IsObject>() -> PatternNode {
+    pub fn base<T: IsObject>(span: Span) -> PatternNode {
         PatternNode {
             base: Object::base::<T>(),
-            span: ObjectRef::null(),
+            span: span,
         }
     }
 }
@@ -356,9 +351,9 @@ pub struct PatternWildcardNode {
 }
 
 impl PatternWildcard {
-    pub fn new(_span: ObjectRef) -> PatternWildcard {
+    pub fn new(span: Span) -> PatternWildcard {
         let node = PatternWildcardNode {
-            base: PatternNode::base::<PatternWildcardNode>(),
+            base: PatternNode::base::<PatternWildcardNode>(span),
         };
         PatternWildcard(Some(ObjectPtr::new(node)))
     }
@@ -374,9 +369,9 @@ pub struct PatternVarNode {
 }
 
 impl PatternVar {
-    pub fn new(var: Var, _span: ObjectRef) -> PatternVar {
+    pub fn new(var: Var, span: Span) -> PatternVar {
         let node = PatternVarNode {
-            base: PatternNode::base::<PatternVarNode>(),
+            base: PatternNode::base::<PatternVarNode>(span),
             var: var,
         };
         PatternVar(Some(ObjectPtr::new(node)))
@@ -397,10 +392,10 @@ impl PatternConstructor {
     pub fn new(
         constructor: Constructor,
         patterns: Array<Pattern>,
-        _span: ObjectRef,
+        span: Span,
     ) -> PatternConstructor {
         let node = PatternConstructorNode {
-            base: PatternNode::base::<PatternConstructorNode>(),
+            base: PatternNode::base::<PatternConstructorNode>(span),
             constructor,
             patterns,
         };
@@ -418,9 +413,9 @@ pub struct PatternTupleNode {
 }
 
 impl PatternTuple {
-    pub fn new(patterns: Array<Pattern>, _span: ObjectRef) -> PatternTuple {
+    pub fn new(patterns: Array<Pattern>, span: Span) -> PatternTuple {
         let node = PatternTupleNode {
-            base: PatternNode::base::<PatternTupleNode>(),
+            base: PatternNode::base::<PatternTupleNode>(span),
             patterns,
         };
         PatternTuple(Some(ObjectPtr::new(node)))
@@ -438,7 +433,7 @@ pub struct ClauseNode {
 }
 
 impl Clause {
-    pub fn new(lhs: Pattern, rhs: Expr, _span: ObjectRef) -> Clause {
+    pub fn new(lhs: Pattern, rhs: Expr, _span: Span) -> Clause {
         let node = ClauseNode {
             base: Object::base::<ClauseNode>(),
             lhs,
@@ -460,9 +455,9 @@ pub struct MatchNode {
 }
 
 impl Match {
-    pub fn new(data: Expr, clauses: Array<Clause>, complete: bool, _span: ObjectRef) -> Match {
+    pub fn new(data: Expr, clauses: Array<Clause>, complete: bool, span: Span) -> Match {
         let node = MatchNode {
-            base: ExprNode::base::<MatchNode>(),
+            base: ExprNode::base::<MatchNode>(span),
             data,
             clauses,
             complete,

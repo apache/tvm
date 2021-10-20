@@ -17,6 +17,8 @@
 """VTA RPC client function"""
 import os
 
+from tvm import rpc
+from vta import program_bitstream
 from .environment import get_env
 from .bitstream import download_bitstream, get_bitstream_path
 
@@ -45,16 +47,20 @@ def program_fpga(remote, bitstream=None):
     bitstream : str, optional
         Path to a local bistream file. If unset, tries to download from cache server.
     """
+    env = get_env()
+
     if bitstream:
         assert os.path.isfile(bitstream)
     else:
         bitstream = get_bitstream_path()
         if not os.path.isfile(bitstream):
-            env = get_env()
             if env.TARGET == "de10nano":
                 return
             download_bitstream()
 
-    fprogram = remote.get_function("tvm.contrib.vta.init")
-    remote.upload(bitstream)
-    fprogram(os.path.basename(bitstream))
+    if isinstance(remote, rpc.LocalSession):
+        program_bitstream.bitstream_program(env.TARGET, bitstream)
+    else:
+        fprogram = remote.get_function("tvm.contrib.vta.init")
+        remote.upload(bitstream)
+        fprogram(os.path.basename(bitstream))

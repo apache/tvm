@@ -182,7 +182,7 @@ def resnet(
     filter_list : list
         Channel size of each stage
     num_classes : int
-        Ouput size of symbol
+        Output size of symbol
     dataset : str
         Dataset type, only cifar10 and imagenet supports
     workspace : int

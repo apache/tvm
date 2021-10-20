@@ -45,7 +45,7 @@ Graph ApplyPasses(Graph g, const std::vector<std::string>& pass) {
   std::vector<const PassFunctionReg*> fpass;
   for (auto& name : pass) {
     auto* reg = dmlc::Registry<PassFunctionReg>::Find(name);
-    ICHECK(reg != nullptr) << "Cannot find pass " << name << " in the registry";
+    CHECK(reg != nullptr) << "Cannot find pass " << name << " in the registry";
     fpass.push_back(reg);
   }
 

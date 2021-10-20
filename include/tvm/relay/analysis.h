@@ -29,7 +29,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/type.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <string>
 #include <unordered_map>
@@ -212,24 +212,6 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const IRModule& mod);
 TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const IRModule& mod);
 
 /*!
- * \brief Collect the device mapping information of each expression.
- *
- * \param expr The expression.
- *
- * \return The device mapping.
- */
-TVM_DLL Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
-
-/*!
- * \brief Collect the device anntation operators.
- *
- * \param expr The expression.
- *
- * \return The annotated expression to device type mapping for annotation ops.
- */
-TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
-
-/*!
  * \brief Finds cases that the given match expression does not catch, if any.
  *
  * \param match the match expression to test
@@ -267,17 +249,6 @@ TVM_DLL IRModule GetCalibrateModule(IRModule mod);
  * \return The mapping between a subgraph name and its postition in the output tuple.
  */
 TVM_DLL Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& mod);
-
-/*!
- * \brief Analyze the device context of each IR node in a given relay module.
- *
- * \param mod The module for analysis.
- * \param default_context The default context used by unassigned IR nodes.
- *
- * \return The mapping between an IR node and its associated context.
- */
-TVM_DLL std::unordered_map<Expr, TVMContext, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>
-ContextAnalysis(const IRModule& mod, const TVMContext& default_context);
 
 }  // namespace relay
 }  // namespace tvm

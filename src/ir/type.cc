@@ -43,21 +43,26 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << node->dtype;
     });
 
-PointerType::PointerType(Type element_type) {
+PointerType::PointerType(Type element_type, String storage_scope) {
   ObjectPtr<PointerTypeNode> n = make_object<PointerTypeNode>();
   n->element_type = std::move(element_type);
+  n->storage_scope = std::move(storage_scope);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(PointerTypeNode);
 
-TVM_REGISTER_GLOBAL("ir.PointerType").set_body_typed([](Type element_type) {
-  return PointerType(element_type);
-});
+TVM_REGISTER_GLOBAL("ir.PointerType")
+    .set_body_typed([](Type element_type, String storage_scope = "") {
+      return PointerType(element_type, storage_scope);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PointerTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const PointerTypeNode*>(ref.get());
+      if (!node->storage_scope.empty()) {
+        p->stream << node->storage_scope << " ";
+      }
       p->Print(node->element_type);
       p->stream << '*';
     });

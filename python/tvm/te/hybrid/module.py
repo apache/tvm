@@ -85,7 +85,7 @@ class HybridModule(object):
         src = self.src_
 
         class FindFunc(ast.NodeVisitor):
-            """ Find the function in module to be loaded module. """
+            """Find the function in module to be loaded module."""
 
             # pylint: disable=invalid-name
             def __init__(self):

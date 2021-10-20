@@ -46,22 +46,22 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype="float32"):
     # Get the test data
     buffer_np, data_np, out_np = get_ref_data()
 
-    def check_device(device, ctx):
-        print("  Running on target: {}".format(device))
+    def check_device(target, dev):
+        print("  Running on target: {}".format(target))
 
-        with tvm.target.Target(device):
+        with tvm.target.Target(target):
             out = topi.nn.fifo_buffer(data, buffer, axis=axis)
-            s = tvm.topi.testing.get_injective_schedule(device)([out])
+            s = tvm.topi.testing.get_injective_schedule(target)([out])
 
-        buffer_tvm = tvm.nd.array(buffer_np, ctx=ctx)
-        data_tvm = tvm.nd.array(data_np, ctx=ctx)
-        out_tvm = tvm.nd.empty(shape=buffer_shape, ctx=ctx, dtype=dtype)
-        f = tvm.build(s, [data, buffer, out], device, name="fifo")
+        buffer_tvm = tvm.nd.array(buffer_np, device=dev)
+        data_tvm = tvm.nd.array(data_np, device=dev)
+        out_tvm = tvm.nd.empty(shape=buffer_shape, device=dev, dtype=dtype)
+        f = tvm.build(s, [data, buffer, out], target, name="fifo")
         f(data_tvm, buffer_tvm, out_tvm)
-        tvm.testing.assert_allclose(out_tvm.asnumpy(), out_np)
+        tvm.testing.assert_allclose(out_tvm.numpy(), out_np)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 def verify_conv1d_integration():
@@ -120,49 +120,49 @@ def verify_conv1d_integration():
     # Get the test data
     inc_input_np, input_window_np, kernel_np, context_np, output_window_np = get_data()
 
-    def check_device(device, ctx):
-        print("  Running on target: {}".format(device))
+    def check_device(target, dev):
+        print("  Running on target: {}".format(target))
 
-        conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(device)
+        conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(target)
 
-        with tvm.target.Target(device):
+        with tvm.target.Target(target):
             out = topi.nn.fifo_buffer(inc_input, context, axis=buffer_axis)
-            s = tvm.topi.testing.get_injective_schedule(device)([out])
-            update_context = tvm.build(s, [inc_input, context, out], device, name="update_context")
+            s = tvm.topi.testing.get_injective_schedule(target)([out])
+            update_context = tvm.build(s, [inc_input, context, out], target, name="update_context")
 
             out = conv2d_nchw(context, kernel, stride, padding, dilate, dtype)
             s = schedule_conv2d_nchw([out])
-            conv2d_inc = tvm.build(s, [context, kernel, out], device, name="conv2d_inc")
+            conv2d_inc = tvm.build(s, [context, kernel, out], target, name="conv2d_inc")
 
             out = topi.nn.fifo_buffer(inc_output, output_window, axis=buffer_axis)
-            s = tvm.topi.testing.get_injective_schedule(device)([out])
+            s = tvm.topi.testing.get_injective_schedule(target)([out])
             update_output_window = tvm.build(
-                s, [inc_output, output_window, out], device, name="update_output_window"
+                s, [inc_output, output_window, out], target, name="update_output_window"
             )
 
             out = topi.nn.fifo_buffer(inc_input, input_window, axis=buffer_axis)
-            s = tvm.topi.testing.get_injective_schedule(device)([out])
+            s = tvm.topi.testing.get_injective_schedule(target)([out])
             update_input_window = tvm.build(
-                s, [inc_input, input_window, out], device, name="update_input_window"
+                s, [inc_input, input_window, out], target, name="update_input_window"
             )
 
             out = conv2d_nchw(input_window, kernel, stride, padding, dilate, dtype)
             s = schedule_conv2d_nchw([out])
-            conv2d = tvm.build(s, [input_window, kernel, out], device, name="conv2d")
+            conv2d = tvm.build(s, [input_window, kernel, out], target, name="conv2d")
 
-        input_window_tvm = tvm.nd.array(input_window_np, ctx=ctx)
-        new_input_window_tvm = tvm.nd.empty(shape=input_window_shape, ctx=ctx, dtype=dtype)
-        kernel_tvm = tvm.nd.array(kernel_np, ctx=ctx)
-        context_tvm = tvm.nd.array(context_np, ctx=ctx)
-        new_context_tvm = tvm.nd.empty(shape=context_shape, ctx=ctx, dtype=dtype)
-        inc_output_tvm = tvm.nd.empty(shape=inc_output_shape, ctx=ctx, dtype=dtype)
-        output_window_tvm = tvm.nd.array(output_window_np, ctx=ctx)
-        new_output_window_tvm = tvm.nd.empty(shape=output_window_shape, ctx=ctx, dtype=dtype)
-        output_window_ref_tvm = tvm.nd.empty(shape=output_window_shape, ctx=ctx, dtype=dtype)
+        input_window_tvm = tvm.nd.array(input_window_np, device=dev)
+        new_input_window_tvm = tvm.nd.empty(shape=input_window_shape, device=dev, dtype=dtype)
+        kernel_tvm = tvm.nd.array(kernel_np, device=dev)
+        context_tvm = tvm.nd.array(context_np, device=dev)
+        new_context_tvm = tvm.nd.empty(shape=context_shape, device=dev, dtype=dtype)
+        inc_output_tvm = tvm.nd.empty(shape=inc_output_shape, device=dev, dtype=dtype)
+        output_window_tvm = tvm.nd.array(output_window_np, device=dev)
+        new_output_window_tvm = tvm.nd.empty(shape=output_window_shape, device=dev, dtype=dtype)
+        output_window_ref_tvm = tvm.nd.empty(shape=output_window_shape, device=dev, dtype=dtype)
 
         for i in range(num_iteration):
             # Take i-th slice of inc_input_np
-            inc_input_tvm = tvm.nd.array(inc_input_np[i], ctx=ctx)
+            inc_input_tvm = tvm.nd.array(inc_input_np[i], device=dev)
 
             # Compute new output window incrementally, using the FIFO buffer op
             update_context(inc_input_tvm, context_tvm, new_context_tvm)
@@ -177,12 +177,10 @@ def verify_conv1d_integration():
             conv2d(input_window_tvm, kernel_tvm, output_window_ref_tvm)
             # Incrementally updating the output window should be equivalent to computing it from
             # scratch using the input window
-            tvm.testing.assert_allclose(
-                output_window_tvm.asnumpy(), output_window_ref_tvm.asnumpy()
-            )
+            tvm.testing.assert_allclose(output_window_tvm.numpy(), output_window_ref_tvm.numpy())
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
 
 
 @tvm.testing.uses_gpu

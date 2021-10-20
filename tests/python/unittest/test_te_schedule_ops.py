@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
 from tvm import te
-import numpy as np
+from tvm.driver.build_module import schedule_to_module
 
 
 def test_schedule0():
@@ -26,11 +28,8 @@ def test_schedule0():
     A1 = te.compute((m, l), lambda i, j: A[i, j], name="A1")
     s = te.create_schedule(A1.op)
 
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A1], stmt, None)
-    assert isinstance(func, tvm.tir.PrimFunc)
+    mod = schedule_to_module(s, [A, A1])
+    assert isinstance(mod["main"], tvm.tir.PrimFunc)
 
 
 def test_schedule1():
@@ -42,12 +41,9 @@ def test_schedule1():
     s = te.create_schedule(A1.op)
     xo, xi = s[A1].split(A1.op.axis[0], 8)
     s[A1].pragma(xo, "auto_unroll_max_step", 10)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A1], stmt, None)
-    assert isinstance(func, tvm.tir.PrimFunc)
+    mod = schedule_to_module(s, [A, A1])
+    assert isinstance(mod["main"], tvm.tir.PrimFunc)
 
 
 def test_schedule2():
@@ -60,11 +56,9 @@ def test_schedule2():
     s = te.create_schedule(A2.op)
     xo, xi = s[A2].split(A2.op.axis[0], 8)
     s[A1].compute_at(s[A2], xo)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
-    assert isinstance(func, tvm.tir.PrimFunc)
+
+    mod = schedule_to_module(s, [A, A2])
+    assert isinstance(mod["main"], tvm.tir.PrimFunc)
 
 
 def test_schedule_scan():
@@ -110,19 +104,53 @@ def test_inline_multi_reduce():
 
 
 def test_auto_inline():
-    m = te.var("m")
-    n = te.var("n")
-    A = te.placeholder((m, n), name="A")
-    B = te.placeholder((m, n), name="B")
-    C = te.placeholder((m, n), name="C")
-    T1 = te.compute((m, n), lambda i, j: A(i, j) * B(i, j), name="T1")
-    T2 = te.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name="T2")
+    def elemwise():
+        m = te.var("m")
+        n = te.var("n")
+        A = te.placeholder((m, n), name="A")
+        B = te.placeholder((m, n), name="B")
+        C = te.placeholder((m, n), name="C")
+        T1 = te.compute((m, n), lambda i, j: A(i, j) * B(i, j), name="T1")
+        T2 = te.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name="T2")
 
-    s = te.create_schedule(T2.op)
-    tvm.te.schedule.AutoInlineElemWise(s)
-    s = s.normalize()
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+        return te.create_schedule(T2.op), T1
+
+    def broadcast():
+        m = te.var("m")
+        n = te.var("n")
+        A = te.placeholder((1,), name="A")
+        B = te.placeholder((m, n), name="B")
+        C = te.placeholder((m, n), name="C")
+        T1 = te.compute((m, n), lambda i, j: A(0) * B(i, j), name="T1", tag="broadcast")
+        T2 = te.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name="T2")
+
+        return te.create_schedule(T2.op), T1
+
+    def injective():
+        m = te.var("m")
+        n = te.var("n")
+        A = te.placeholder((m,), name="A")
+        B = te.placeholder((m, n), name="B")
+        C = te.placeholder((m, n), name="C")
+        T1 = te.compute((m, n), lambda i, j: A(i) * B(i, j), name="T1")
+        T2 = te.compute((m, n), lambda i, j: T1(i, j) + C(i, j), name="T2")
+
+        return te.create_schedule(T2.op), T1
+
+    def check_auto_inline(schedule_func, auto_inline_func):
+        s, T1 = schedule_func()
+        # before auto inline the attach type is AttachType.kGroupRoot
+        assert s[T1].attach_type == 1
+        auto_inline_func(s)
+        # after auto inline the attach type is AttachType.kInline
+        assert s[T1].attach_type == 2
+        s = s.normalize()
+        bounds = tvm.te.schedule.InferBound(s)
+        stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+
+    check_auto_inline(elemwise, tvm.te.schedule.AutoInlineElemWise)
+    check_auto_inline(broadcast, tvm.te.schedule.AutoInlineBroadcast)
+    check_auto_inline(injective, tvm.te.schedule.AutoInlineInjective)
 
 
 def test_schedule_const_bound():
@@ -462,7 +490,7 @@ def test_reduction_and_dummy_fuse_split():
 
     args = [tvm.nd.empty((), "int32")] + [tvm.nd.array(np.ones((n,), dtype="int32"))]
     f(*args)
-    assert args[0].asnumpy() == n
+    assert args[0].numpy() == n
 
     n = 10
     X = te.placeholder(shape=(n,), dtype="int32", name="X")
@@ -476,7 +504,7 @@ def test_reduction_and_dummy_fuse_split():
         tvm.nd.array(np.ones((n,), dtype="int32"))
     ]
     f(*args)
-    assert np.all(args[0].asnumpy() == n)
+    assert np.all(args[0].numpy() == n)
 
 
 def test_schedule_compute_inline():

@@ -27,6 +27,8 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 
+#include <stack>
+
 namespace tvm {
 namespace relay {
 
@@ -61,8 +63,20 @@ Expr DeDup(const Expr& e) {
     }
 
     Expr VisitExpr_(const LetNode* op) final {
-      Var v = Fresh(op->var);
-      return Let(v, VisitExpr(op->value), VisitExpr(op->body));
+      std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> new_vars;
+      auto pre_visit = [this, &new_vars](const LetNode* op) {
+        Expr expr = GetRef<Expr>(op);
+        new_vars[expr] = this->Fresh(op->var);
+        // Rely on the Memoizer to cache pre-visit values
+        this->VisitExpr(op->value);
+      };
+      auto post_visit = [this, &new_vars](const LetNode* op) {
+        Expr expr = GetRef<Expr>(op);
+        this->memo_[expr] =
+            Let(new_vars[expr], this->VisitExpr(op->value), this->VisitExpr(op->body));
+      };
+      ExpandANormalForm(op, pre_visit, post_visit);
+      return memo_[GetRef<Expr>(op)];
     }
 
     Type VisitType(const Type& t) final { return t.defined() ? TypeMutator::VisitType(t) : t; }
@@ -99,7 +113,7 @@ Expr DeDup(const Expr& e) {
   ICHECK(WellFormed(ret));
   ICHECK_EQ(FreeVars(e).size(), FreeVars(ret).size());
   return ret;
-}
+}  // namespace relay
 
 TVM_REGISTER_GLOBAL("relay._transform.dedup").set_body_typed(DeDup);
 

@@ -70,7 +70,7 @@ Op& Op::add_alias(const std::string& alias) {  // NOLINT(*)
 // find operator by name
 const Op* Op::Get(const std::string& name) {
   const Op* op = dmlc::Registry<Op>::Find(name);
-  ICHECK(op != nullptr) << "Operator " << name << " is not registered";
+  CHECK(op != nullptr) << "Operator " << name << " is not registered";
   return op;
 }
 

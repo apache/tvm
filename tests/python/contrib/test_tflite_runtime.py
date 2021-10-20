@@ -92,7 +92,7 @@ def test_local():
         runtime.set_input(0, tvm.nd.array(tflite_input))
         runtime.invoke()
         out = runtime.get_output(0)
-        np.testing.assert_equal(out.asnumpy(), tflite_output)
+        np.testing.assert_equal(out.numpy(), tflite_output)
 
 
 def test_remote():
@@ -128,19 +128,18 @@ def test_remote():
     tflite_output = interpreter.get_tensor(output_details[0]["index"])
 
     # inference via remote tvm tflite runtime
-    server = rpc.Server("localhost")
-    remote = rpc.connect(server.host, server.port)
-    ctx = remote.cpu(0)
-    a = remote.upload(tflite_model_path)
+    def check_remote(server):
+        remote = rpc.connect(server.host, server.port)
+        a = remote.upload(tflite_model_path)
 
-    with open(tflite_model_path, "rb") as model_fin:
-        runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))
-        runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
-        runtime.invoke()
-        out = runtime.get_output(0)
-        np.testing.assert_equal(out.asnumpy(), tflite_output)
+        with open(tflite_model_path, "rb") as model_fin:
+            runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))
+            runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
+            runtime.invoke()
+            out = runtime.get_output(0)
+            np.testing.assert_equal(out.numpy(), tflite_output)
 
-    server.terminate()
+    check_remote(rpc.Server("127.0.0.1"))
 
 
 if __name__ == "__main__":

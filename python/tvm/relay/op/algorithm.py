@@ -17,9 +17,9 @@
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
 
+from ..expr import Constant, Expr, TupleWrapper
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import TupleWrapper, Expr, Constant
 
 
 def sort(data, axis=-1, is_ascend=1):
@@ -107,7 +107,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
         The computed result.
     """
     if isinstance(k, Constant):
-        k = k.data.asnumpy().item()
+        k = k.data.numpy().item()
     if isinstance(k, Expr):
         out = _dyn_make.topk(data, k, axis, ret_type, is_ascend, dtype)
     else:

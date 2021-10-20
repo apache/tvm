@@ -24,6 +24,8 @@
 
 #include "vm.h"
 
+#include <tvm/runtime/container/adt.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -31,6 +33,7 @@
 #include <iomanip>
 #include <memory>
 #include <numeric>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -41,52 +44,46 @@ namespace vm {
 
 PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
-  if (name == "get_stat") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.size(), 1U);
-      std::vector<std::pair<Index, double>> op_acc_time;
-      for (auto kv : op_durations_) {
-        auto val =
-            std::make_pair(kv.first, std::accumulate(kv.second.begin(), kv.second.end(), 0.0));
-        op_acc_time.push_back(val);
-      }
-      bool sort_by_time = args[0];
-      if (sort_by_time) {
-        auto comp = [](const std::pair<Index, double>& lhs, const std::pair<Index, double>& rhs) {
-          return lhs.second > rhs.second;
-        };
-        std::sort(op_acc_time.begin(), op_acc_time.end(), comp);
-      }
-      double total_duration = 0.0;
-      int64_t total_packed_funcs = 0;
-      std::ostringstream os;
-      os << std::setw(30) << std::left << "#OpName"
-         << "\t" << std::setw(10) << std::left << "#InvokeCount"
-         << "\t"
-         << "#Duration(us): Sum/Mean/Min/Max" << std::endl;
+  if (name == "profile") {
+    return TypedPackedFunc<profiling::Report(String, Array<profiling::MetricCollector>)>(
+        [sptr_to_self, this](String arg_name, Array<profiling::MetricCollector> collectors) {
+          std::vector<Device> devices;
+          for (auto dev : devices_) {
+            if (dev.device_type > 0) {
+              devices.push_back(dev);
+            }
+          }
 
-      for (auto kv : op_acc_time) {
-        auto vals = op_durations_[kv.first];
-        auto sum = kv.second;
-        auto mean = sum / static_cast<double>(vals.size());
-        auto min_value = *std::min_element(vals.begin(), vals.end());
-        auto max_value = *std::max_element(vals.begin(), vals.end());
+          // We cannot send Arrays over rpc, so in order to support profiling
+          // on remotes, we accept a nullptr for collectors.
+          if (collectors.defined()) {
+            std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
+            prof_ = profiling::Profiler(devices, cs);
+          } else {
+            prof_ = profiling::Profiler(devices, {});
+          }
 
-        os << std::setw(30) << std::left << packed_index_map_[kv.first] << "\t" << std::setw(10)
-           << std::left << op_invokes_[kv.first] << "\t" << sum << "/" << mean << "/" << min_value
-           << "/" << max_value << std::endl;
+          auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
+          // warmup
+          for (int i = 0; i < 3; i++) {
+            invoke(arg_name);
+          }
 
-        total_duration += sum;
-        total_packed_funcs += op_invokes_[kv.first];
-      }
-      os << "\nTotal Duration: " << total_duration << " us.\t"
-         << "Total Packed Functions: " << total_packed_funcs << std::endl;
-      *rv = os.str();
-    });
-  } else if (name == "reset") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      op_durations_.clear();
-      op_invokes_.clear();
+          prof_.operator*().Start();
+          invoke(arg_name);
+          prof_.operator*().Stop();
+          auto report = prof_.operator*().Report();
+          prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
+          return report;
+        });
+  } else if (name == "profile_rpc") {
+    // We cannot return a Report over RPC because TMV RPC mechanism only
+    // supports a subset of Object classes. Instead we serialize it on the
+    // remote (here) and deserialize it on the other end.
+    return TypedPackedFunc<std::string(std::string)>([sptr_to_self, this](std::string arg_name) {
+      PackedFunc profile = GetFunction("profile", sptr_to_self);
+      profiling::Report report = profile(arg_name, Array<profiling::MetricCollector>());
+      return report->AsJSON();
     });
   } else {
     return VirtualMachine::GetFunction(name, sptr_to_self);
@@ -98,37 +95,113 @@ void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
   ICHECK(exec_);
   for (auto kv : exec_->primitive_map) {
     packed_index_map_[kv.second] = kv.first;
-    op_invokes_[kv.second] = 0;
+  }
+}
+
+void VirtualMachineDebug::OpStartHook(Instruction instr) {
+  if (prof_ && prof_.operator*().IsRunning()) {
+    if (instr.op == Opcode::LoadConst) {
+      Device dev = GetDevice(exec_->const_device_type[instr.const_index]);
+      prof_.operator*().StartCall("VM::LoadConst", dev, {});
+    } else if (instr.op == Opcode::DeviceCopy) {
+      Device dst_dev;
+      dst_dev.device_type = static_cast<DLDeviceType>(instr.dst_device_type);
+      dst_dev.device_id = 0;
+      prof_.operator*().StartCall("VM::DeviceCopy", dst_dev, {});
+    } else if (instr.op == Opcode::ReshapeTensor) {
+      prof_.operator*().StartCall("VM::ReshapeTensor", devices_[1], {});
+    } else if (instr.op == Opcode::AllocTensor) {
+      auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
+
+      for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
+        shape[i] = instr.alloc_tensor.shape[i];
+      }
+      auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
+      auto storage = Downcast<Storage>(storage_obj);
+      prof_.operator*().StartCall(
+          "VM::AllocTensor", storage->buffer.device,
+          {{"Argument Shapes", profiling::ShapeString(shape, instr.alloc_tensor.dtype)}});
+    } else if (instr.op == Opcode::AllocTensorReg) {
+      auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
+      auto storage = Downcast<Storage>(storage_obj);
+      Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
+      auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
+      NDArray shape_tensor = Downcast<NDArray>(shape_obj).CopyTo(cpu_dev);
+      prof_.operator*().StartCall(
+          "VM::AllocTensorReg", storage->buffer.device,
+          {{"Argument Shapes",
+            profiling::ShapeString(shape_tensor, instr.alloc_tensor_reg.dtype)}});
+    } else if (instr.op == Opcode::AllocStorage) {
+      auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
+      std::ostringstream shape;
+      shape << DLDataType2String(instr.alloc_storage.dtype_hint) << "[" << size << "]";
+      prof_.operator*().StartCall("VM::AllocStorage",
+                                  {static_cast<DLDeviceType>(instr.alloc_storage.device_type), 0},
+                                  {{"VM::Argument Shapes", String(shape.str())}});
+    } else {
+      prof_.operator*().StartCall("VM::UnknownOp", devices_[1], {});
+    }
+  }
+}
+
+void VirtualMachineDebug::OpStopHook() {
+  if (prof_ && prof_.operator*().IsRunning()) {
+    prof_.operator*().StopCall();
   }
 }
 
 void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
                                        Index output_size, const std::vector<ObjectRef>& args) {
   ICHECK(exec_);
-  ICHECK(!ctxs_.empty()) << "Context has not been initialized yet.";
-  // The device context of any input of the operator is used for
-  // synchronization.
-  ICHECK_GT(arg_count, 0U);
-  ObjectRef arg = args[0];
-  while (arg->IsInstance<ADTObj>()) {
-    ADT adt = Downcast<ADT>(arg);
-    arg = adt[0];
+  ICHECK(!devices_.empty()) << "Device has not been initialized yet.";
+  if (prof_ && prof_.operator*().IsRunning()) {
+    // The device of any input of the operator is used for synchronization.
+    ICHECK_GT(arg_count, 0U);
+    ObjectRef arg = args[0];
+    while (arg->IsInstance<ADTObj>()) {
+      ADT adt = Downcast<ADT>(arg);
+      arg = adt[0];
+    }
+    ICHECK(arg->IsInstance<NDArray::ContainerType>());
+    auto nd_array = Downcast<NDArray>(arg);
+    auto dev = nd_array->device;
+
+    // get argument sizes
+    std::vector<NDArray> shapes;
+    for (Index i = 0; i < arg_count; i++) {
+      if (const auto* obj = args[i].as<ADTObj>()) {
+        for (size_t fi = 0; fi < obj->size; ++fi) {
+          auto o = (*obj)[fi];
+          shapes.push_back(Downcast<NDArray>(o));
+        }
+      } else {
+        shapes.push_back(Downcast<NDArray>(args[i]));
+      }
+    }
+
+    std::unordered_map<std::string, ObjectRef> metrics;
+
+    ICHECK(exec_->op_attrs.find(packed_index) != exec_->op_attrs.end())
+        << packed_index_map_[packed_index] << " not found in op attrs";
+
+    auto& op_attrs = exec_->op_attrs.at(packed_index);
+    for (auto p : op_attrs) {
+      if (std::string(p.first).find("layout") != std::string::npos) {
+        metrics[p.first] = p.second;
+      }
+    }
+    auto it = op_attrs.find("hash");
+    if (it != op_attrs.end()) {
+      metrics["Hash"] = Downcast<String>((*it).second);
+    }
+    metrics["Argument Shapes"] = profiling::ShapeString(shapes);
+
+    prof_.operator*().StartCall(packed_index_map_[packed_index], dev, metrics);
   }
-  ICHECK(arg->IsInstance<NDArray::ContainerType>());
-  auto nd_array = Downcast<NDArray>(arg);
-  auto ctx = nd_array->ctx;
-
-  TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-
-  auto op_begin = std::chrono::high_resolution_clock::now();
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
-  TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-  auto op_end = std::chrono::high_resolution_clock::now();
-  double op_duration =
-      std::chrono::duration_cast<std::chrono::duration<double>>(op_end - op_begin).count();
-
-  op_durations_[packed_index].push_back(op_duration * 1e6);
-  op_invokes_[packed_index] += 1;
+  if (prof_ && prof_.operator*().IsRunning()) {
+    prof_.operator*().StopCall();
+  }
 }
 
 runtime::Module CreateVirtualMachineDebug(const Executable* exec) {

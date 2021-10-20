@@ -28,6 +28,7 @@ from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
+from tvm.target import Target
 
 from ...target import Target
 from .utils import (
@@ -165,7 +166,7 @@ class BaseGraphTuner(object):
         if isinstance(graph, relay.function.Function):
             node_dict = {}
             graph = bind_inputs(graph, input_shapes, dtype)
-            expr2graph(graph, self._target_ops, node_dict, self._node_list)
+            expr2graph(graph, self._target_ops, node_dict, self._node_list, target)
         else:
             raise RuntimeError("Unsupported graph type: %s" % str(type(graph)))
 
@@ -367,13 +368,14 @@ class BaseGraphTuner(object):
         timeout=10,
         use_rpc=False,
         device_key=None,
-        host="localhost",
+        host="127.0.0.1",
         port=9190,
         n_parallel=1,
         build_func="default",
         layout_records=None,
         target_host=None,
         infer_layout=False,
+        runner=None,
     ):
         """Benchmark all possible layout transformation in the graph,
         given a set of schedule candidates for each workload of target operator.
@@ -437,8 +439,12 @@ class BaseGraphTuner(object):
             of benchmarking on target device.
 
             This might bring performance loss comparing to benchmarking layout transformation.
+        runner : Runner, optional
+            Accept a user-supplied runner
         """
         self._logger.info("Start to benchmark layout transformation...")
+        self._target, target_host = Target.check_and_update_host_consist(self._target, target_host)
+
         if layout_records is None and infer_layout:
             raise RuntimeError("Requires some records to infer layout transformation time.")
 
@@ -480,7 +486,6 @@ class BaseGraphTuner(object):
             return _callback
 
         builder = autotvm.LocalBuilder(n_parallel=n_parallel, build_func=build_func)
-        runner = autotvm.LocalRunner(number=min_exec_num, repeat=1, timeout=timeout)
         if use_rpc:
             if device_key is None:
                 raise RuntimeError("device_key need to be set to use rpc tracker mode.")
@@ -493,6 +498,8 @@ class BaseGraphTuner(object):
                 repeat=1,
                 timeout=timeout,
             )
+        elif not runner:
+            runner = autotvm.LocalRunner(number=min_exec_num, repeat=1, timeout=timeout)
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args in args_list:
             data, in_layout, out_layout = args
@@ -525,9 +532,7 @@ class BaseGraphTuner(object):
                 continue
 
             records = []
-            task = autotvm.task.create(
-                "layout_transform", args=args, target=self._target, target_host=target_host
-            )
+            task = autotvm.task.create("layout_transform", args=args, target=self._target)
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option, callbacks=[_log_to_list(records)])
             if not isinstance(records[0][1].costs[0], float):

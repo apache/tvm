@@ -24,7 +24,7 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 
 
-def verify_resize(
+def verify_resize2d(
     batch,
     in_channel,
     in_height,
@@ -33,7 +33,7 @@ def verify_resize(
     out_width,
     layout="NCHW",
     coord_trans="align_corners",
-    method="bilinear",
+    method="linear",
 ):
     if layout == "NCHW":
         A = te.placeholder((batch, in_channel, in_height, in_width), name="A", dtype="float32")
@@ -47,56 +47,48 @@ def verify_resize(
         a_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(dtype)
     else:
         raise NotImplementedError("Layout not supported {} ".format(layout))
-    B = topi.image.resize(
+    B = topi.image.resize2d(
         A,
         (out_height, out_width),
         layout=layout,
         coordinate_transformation_mode=coord_trans,
         method=method,
     )
-    if method == "bilinear":
-        b_np = tvm.topi.testing.bilinear_resize_python(
-            a_np, (out_height, out_width), layout, coord_trans
-        )
-    else:
-        scale_h = out_height / in_height
-        scale_w = out_width / in_width
-        b_np = tvm.topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
+    scale_h = out_height / in_height
+    scale_w = out_width / in_width
+    b_np = tvm.topi.testing.resize2d_python(a_np, (scale_h, scale_w), layout, method, coord_trans)
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
 
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
-def test_resize():
+def test_resize2d():
     # Scale NCHW
-    verify_resize(4, 16, 32, 32, 50, 50, "NCHW")
+    verify_resize2d(4, 16, 32, 32, 50, 50, "NCHW")
     # Scale NCHW + Align Corners
-    verify_resize(6, 32, 64, 64, 20, 20, "NCHW")
+    verify_resize2d(6, 32, 64, 64, 20, 20, "NCHW")
     # Scale NHWC
-    verify_resize(4, 16, 32, 32, 50, 50, "NHWC")
+    verify_resize2d(4, 16, 32, 32, 50, 50, "NHWC")
     # Scale NHWC + Align Corners
-    verify_resize(6, 32, 64, 64, 20, 20, "NHWC")
-    # Nearest + Fractional
-    verify_resize(4, 16, 32, 32, 50, 50, "NCHW", "asymmetric", method="nearest_neighbor")
-    verify_resize(4, 16, 32, 32, 50, 50, "NHWC", "asymmetric", method="nearest_neighbor")
-    # half_pixel
-    verify_resize(4, 16, 16, 16, 32, 32, "NCHW", "half_pixel", method="bilinear")
-    verify_resize(4, 16, 16, 16, 32, 32, "NHWC", "half_pixel", method="bilinear")
-    # Bilinear + Fractional
-    verify_resize(4, 16, 32, 32, 50, 50, "NCHW", "asymmetric", method="bilinear")
-    verify_resize(4, 16, 32, 32, 50, 50, "NHWC", "asymmetric", method="bilinear")
+    verify_resize2d(6, 32, 64, 64, 20, 20, "NHWC")
+    for layout in ["NCHW", "NHWC"]:
+        verify_resize2d(4, 16, 32, 32, 50, 50, layout, "asymmetric", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 50, 50, layout, "align_corners", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 50, 50, layout, "half_pixel", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 50, 50, layout, "asymmetric", method="linear")
+        verify_resize2d(4, 16, 32, 32, 50, 50, layout, "half_pixel", method="linear")
 
 
 def verify_resize3d(
@@ -109,8 +101,8 @@ def verify_resize3d(
     out_height,
     out_width,
     layout="NCDHW",
-    coordinate_transformation_mode="half_pixel",
-    method="trilinear",
+    coordinate_transformation_mode="asymmetric",
+    method="linear",
 ):
     if layout == "NCDHW":
         A = te.placeholder(
@@ -141,44 +133,34 @@ def verify_resize3d(
         method=method,
     )
 
-    if method == "trilinear":
-        b_np = tvm.topi.testing.trilinear_resize3d_python(
-            a_np, (out_depth, out_height, out_width), layout, coordinate_transformation_mode
-        )
-    else:
-        scale_d = out_depth / in_depth
-        scale_h = out_height / in_height
-        scale_w = out_width / in_width
-        b_np = tvm.topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)
+    scale_d = out_depth / in_depth
+    scale_h = out_height / in_height
+    scale_w = out_width / in_width
+    b_np = tvm.topi.testing.resize3d_python(
+        a_np, (scale_d, scale_h, scale_w), layout, method, coordinate_transformation_mode
+    )
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
 
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
 def test_resize3d():
     # Trilinear
-    verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, "NCDHW")
-    verify_resize3d(1, 8, 16, 16, 16, 25, 25, 25, "NDHWC")
-    verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NCDHW", "align_corners")
-    verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NDHWC", "align_corners")
-    verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NCDHW", "asymmetric")
-    verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, "NDHWC", "asymmetric")
-
-    # Nearest neighbor
-    verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, "NCDHW", method="nearest_neighbor")
-    verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, "NDHWC", method="nearest_neighbor")
+    for method in ["nearest_neighbor", "linear"]:
+        for coord_trans in ["asymmetric", "align_corners", "half_pixel"]:
+            for layout in ["NCDHW", "NDHWC"]:
+                verify_resize3d(3, 16, 32, 32, 32, 10, 10, 10, layout, coord_trans, method)
 
 
 @tvm.testing.uses_gpu
@@ -223,21 +205,21 @@ def test_crop_and_resize():
             np_images, np_boxes, np_box_indices, np_crop_size, layout, method, extrapolation_value
         )
 
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(out)
-            tvm_images = tvm.nd.array(np_images, ctx)
-            tvm_boxes = tvm.nd.array(np_boxes, ctx)
-            tvm_indices = tvm.nd.array(np_box_indices, ctx)
-            tvm_out = tvm.nd.array(np.zeros(out_shape, dtype="float32"), ctx)
-            f = tvm.build(s, [images, boxes, box_ind, out], device, name="crop_and_resize")
+        def check_target(target, dev):
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(out)
+            tvm_images = tvm.nd.array(np_images, dev)
+            tvm_boxes = tvm.nd.array(np_boxes, dev)
+            tvm_indices = tvm.nd.array(np_box_indices, dev)
+            tvm_out = tvm.nd.array(np.zeros(out_shape, dtype="float32"), dev)
+            f = tvm.build(s, [images, boxes, box_ind, out], target, name="crop_and_resize")
             f(tvm_images, tvm_boxes, tvm_indices, tvm_out)
 
-            tvm.testing.assert_allclose(tvm_out.asnumpy(), baseline_np, rtol=1e-3, atol=1e-3)
+            tvm.testing.assert_allclose(tvm_out.numpy(), baseline_np, rtol=1e-3, atol=1e-3)
 
-        for device, ctx in tvm.testing.enabled_targets():
-            check_device(device, ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            check_target(target, dev)
 
     boxes_1 = np.array([[0.2, 0.3, 0.7, 0.9]], dtype="float32")
     boxes_2 = np.array([[0.2, 0.3, 0.7, 0.9], [0, 0.1, 0.8, 1]], dtype="float32")
@@ -270,19 +252,19 @@ def test_affine_grid():
 
         data_np, out_np = get_ref_data()
 
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(out)
-            tvm_data = tvm.nd.array(data_np, ctx)
-            tvm_out = tvm.nd.empty(out_np.shape, dtype, ctx)
-            f = tvm.build(s, [data, out], device)
+        def check_target(target, dev):
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(out)
+            tvm_data = tvm.nd.array(data_np, dev)
+            tvm_out = tvm.nd.empty(out_np.shape, dtype, dev)
+            f = tvm.build(s, [data, out], target)
             f(tvm_data, tvm_out)
 
-            tvm.testing.assert_allclose(tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(tvm_out.numpy(), out_np, rtol=1e-5, atol=1e-5)
 
-        for device, ctx in tvm.testing.enabled_targets():
-            check_device(device, ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            check_target(target, dev)
 
     verify_affine_grid(1, (16, 32))
     verify_affine_grid(4, (16, 32))
@@ -306,20 +288,20 @@ def test_grid_sample():
 
         data_np, grid_np, out_np = get_ref_data()
 
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(out)
-            tvm_data = tvm.nd.array(data_np, ctx)
-            tvm_grid = tvm.nd.array(grid_np, ctx)
-            tvm_out = tvm.nd.empty(out_np.shape, dtype, ctx)
-            f = tvm.build(s, [data, grid, out], device)
+        def check_target(target, dev):
+            print("Running on target: %s" % target)
+            with tvm.target.Target(target):
+                s = tvm.topi.testing.get_injective_schedule(target)(out)
+            tvm_data = tvm.nd.array(data_np, dev)
+            tvm_grid = tvm.nd.array(grid_np, dev)
+            tvm_out = tvm.nd.empty(out_np.shape, dtype, dev)
+            f = tvm.build(s, [data, grid, out], target)
             f(tvm_data, tvm_grid, tvm_out)
 
-            tvm.testing.assert_allclose(tvm_out.asnumpy(), out_np, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(tvm_out.numpy(), out_np, rtol=1e-5, atol=1e-5)
 
-        for device, ctx in tvm.testing.enabled_targets():
-            check_device(device, ctx)
+        for target, dev in tvm.testing.enabled_targets():
+            check_target(target, dev)
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))

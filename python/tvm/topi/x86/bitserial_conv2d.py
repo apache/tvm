@@ -39,7 +39,7 @@ def bitserial_conv2d_nchw(
     out_dtype="int16",
     unipolar=True,
 ):
-    """ Compute convolution with pack on spatial axes. """
+    """Compute convolution with pack on spatial axes."""
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     data_q = bitpack(data, in_bits, pack_axis=1, bit_axis=0, pack_type=pack_dtype)
     # Check if kernel is already bitpacked
@@ -181,7 +181,7 @@ def bitserial_conv2d_nhwc(
     out_dtype="int16",
     unipolar=True,
 ):
-    """ Compute convolution with pack on spatial axes. """
+    """Compute convolution with pack on spatial axes."""
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     data_q = bitpack(data, in_bits, pack_axis=3, bit_axis=4, pack_type=pack_dtype)
     pack_kernel = len(kernel.shape) == 4

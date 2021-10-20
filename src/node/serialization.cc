@@ -24,7 +24,6 @@
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/node/container.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/ndarray.h>
@@ -214,8 +213,8 @@ class JSONAttrGetter : public AttrVisitor {
 
   void Visit(const char* key, double* value) final {
     std::ostringstream s;
-    // Type <double> have approximately 16 decimal digits
-    s.precision(16);
+    // Save 17 decimal digits for type <double> to avoid precision loss during loading JSON
+    s.precision(17);
     s << (*value);
     node_->attrs[key] = s.str();
   }

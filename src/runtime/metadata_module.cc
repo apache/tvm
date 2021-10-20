@@ -21,13 +21,14 @@
  * \file src/runtime/metadata_module.cc
  * \brief A wrapper for initializing imported modules using metadata. This
  * module is intended to be used by various runtime in the TVM stack, i.e.
- * graph runtime, relay VM, AOT runtime, and various user defined runtimes. It
+ * graph executor, relay VM, AOT runtime, and various user defined runtimes. It
  * paves the way to separate the code and metedata, which makes compilation
  * and/or interpretation more convenient. In addition, the clear separation of
  * code and metadata significantly reduces the efforts for handling external
  * codegen and runtimes.
  */
-#include <tvm/node/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

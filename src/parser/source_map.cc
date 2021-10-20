@@ -40,7 +40,6 @@ Source::Source(SourceName src_name, std::string source) {
   // NB(@jroesch):
   std::string source_str = n->source;
   for (auto c : source_str) {
-    DLOG(INFO) << "char=" << c;
     if (c == '\n') {
       // Record the length of the line.
       n->line_map.back().second = length;
@@ -61,7 +60,7 @@ Source::Source(SourceName src_name, std::string source) {
 }
 
 tvm::String Source::GetLine(int line) {
-  DLOG(INFO) << "Source::GetLine: line=" << line;
+  VLOG(1) << "Source::GetLine: line=" << line;
   ICHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
       << "requested line: " << line << "at index: " << (line - 1)
       << "line_map size: " << (*this)->line_map.size() << "source: " << (*this)->source;
@@ -70,10 +69,10 @@ tvm::String Source::GetLine(int line) {
   auto range = (*this)->line_map.at(line - 1);
   int line_start = range.first;
   int line_length = range.second;
-  DLOG(INFO) << "Source::GetLine: line_start=" << line_start << " line_length=" << line_length;
+  VLOG(1) << "Source::GetLine: line_start=" << line_start << " line_length=" << line_length;
   // TODO(@jroesch): expose substring on tvm::String.
   auto line_text = std::string((*this)->source).substr(line_start, line_length);
-  DLOG(INFO) << "Source::GetLine: line_text=" << line_text;
+  VLOG(1) << "Source::GetLine: line_text=" << line_text;
   return line_text;
 }
 

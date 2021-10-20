@@ -78,25 +78,27 @@ def verify_upsampling(
 
     B = topi.nn.upsampling(A, scale_h, scale_w, layout=layout, method=method, align_corners=False)
 
-    if method == "bilinear":
-        out_size = (int(round(in_height * scale_h)), int(round(in_width * scale_w)))
-        b_np = tvm.topi.testing.bilinear_resize_python(a_np, out_size, layout, "asymmetric")
-    else:
-        b_np = tvm.topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
+    b_np = tvm.topi.testing.resize2d_python(
+        a_np,
+        (scale_h, scale_w),
+        layout,
+        method[2:] if method[0:2] == "bi" else method,
+        "asymmetric",
+    )
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
 
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu
@@ -213,34 +215,30 @@ def verify_upsampling3d(
         scale_w,
         layout=layout,
         method=method,
-        coordinate_transformation_mode="half_pixel",
+        coordinate_transformation_mode="asymmetric",
     )
 
-    if method == "trilinear":
-        out_size = (
-            int(round(in_depth * scale_d)),
-            int(round(in_height * scale_h)),
-            int(round(in_width * scale_w)),
-        )
-        b_np = tvm.topi.testing.trilinear_resize3d_python(
-            a_np, out_size, layout, coordinate_transformation_mode="half_pixel"
-        )
-    else:
-        b_np = tvm.topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)
+    b_np = tvm.topi.testing.resize3d_python(
+        a_np,
+        (scale_d, scale_h, scale_w),
+        layout,
+        method[3:] if method[0:3] == "tri" else method,
+        "asymmetric",
+    )
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target)
         f(a, b)
 
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu

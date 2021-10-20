@@ -74,9 +74,9 @@ class ACLAllocator : public arm_compute::IAllocator {
 
  private:
   /*! \brief Always allocate data in the context of the current CPU. */
-  const TVMContext ctx_{kDLCPU, 0};
+  const Device device_{kDLCPU, 0};
   /*! \brief Device API which allows requests for memory from TVM. */
-  runtime::DeviceAPI* device_api_ = runtime::DeviceAPI::Get(ctx_);
+  runtime::DeviceAPI* device_api_ = runtime::DeviceAPI::Get(device_);
 };
 
 /*!
@@ -125,9 +125,9 @@ class ACLMemoryRegion : public arm_compute::IMemoryRegion {
   /*! \brief A subregion doesn't manage TVM memory so we don't need to free it. */
   bool is_subregion_ = false;
   /*! \brief Always allocate data in the context of the current CPU. */
-  const TVMContext ctx_{kDLCPU, 0};
+  const Device device_{kDLCPU, 0};
   /*! \brief Device API which allows requests for memory from TVM. */
-  runtime::DeviceAPI* device_api_ = runtime::DeviceAPI::Get(ctx_);
+  runtime::DeviceAPI* device_api_ = runtime::DeviceAPI::Get(device_);
 };
 
 }  // namespace contrib

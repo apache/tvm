@@ -26,7 +26,7 @@
 #ifndef TVM_SUPPORT_BASE64_H_
 #define TVM_SUPPORT_BASE64_H_
 
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <cctype>
 #include <cstdio>

@@ -46,4 +46,4 @@ echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial main\
      >> /etc/apt/sources.list.d/llvm.list
 
 wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-apt-get update && apt-get install -y llvm-4.0 llvm-9 llvm-8 llvm-7 clang-9 clang-8 clang-7
+apt-get update && apt-get install -y llvm-4.0 llvm-9 llvm-8 llvm-7 clang-9 libclang-9-dev clang-8 libclang-8-dev clang-7 libclang-7-dev

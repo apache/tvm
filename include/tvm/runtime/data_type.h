@@ -25,7 +25,7 @@
 #define TVM_RUNTIME_DATA_TYPE_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <string>
 #include <type_traits>
@@ -160,12 +160,19 @@ class DataType {
    */
   static DataType UInt(int bits, int lanes = 1) { return DataType(kDLUInt, bits, lanes); }
   /*!
-   * \brief Construct an uint type.
+   * \brief Construct an float type.
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
   static DataType Float(int bits, int lanes = 1) { return DataType(kDLFloat, bits, lanes); }
+  /*!
+   * \brief Construct an bfloat type.
+   * \param bits The number of bits in the type.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType BFloat(int bits, int lanes = 1) { return DataType(kDLBfloat, bits, lanes); }
   /*!
    * \brief Construct a bool type.
    * \param lanes The number of lanes
@@ -382,4 +389,19 @@ inline DLDataType String2DLDataType(std::string s) {
 using DataType = runtime::DataType;
 
 }  // namespace tvm
+
+namespace std {
+template <>
+struct hash<tvm::DataType> {
+  inline int cantor_pairing_function(int a, int b) const { return (a + b) * (a + b + 1) / 2 + b; }
+  std::size_t operator()(tvm::DataType const& dtype) const {
+    int a = dtype.code();
+    int b = dtype.bits();
+    int c = dtype.lanes();
+    int d = cantor_pairing_function(a, b);
+    return cantor_pairing_function(c, d);
+  }
+};
+}  // namespace std
+
 #endif  //  TVM_RUNTIME_DATA_TYPE_H_

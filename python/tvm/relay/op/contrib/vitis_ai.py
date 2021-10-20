@@ -17,25 +17,52 @@
 # pylint: disable=invalid-name, unused-argument, no-else-return, E1102
 """Vitis-AI codegen annotation of supported operators"""
 
+import warnings
 import numpy as np
-
-import pyxir
-import pyxir.frontend.tvm
 
 from tvm import relay
 import tvm._ffi
-from tvm.relay.expr import Tuple, TupleGetItem
 from tvm.relay import transform
+from tvm.relay.expr import Tuple, TupleGetItem
+from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
+
+# Placeholder for PyXIR module
+pyxir = None
 
 
 @transform.function_pass(opt_level=0)
 class VitisAIAnnotationPass:
-    """Responsible for annotating Relay expressions for Vitis-AI DPU accelerators"""
+    """Responsible for annotating Relay expressions for Vitis-AI DPU accelerators
 
-    def __init__(self, compiler, relay_ids):
+    Parameters
+    ----------
+    compiler : str
+        The compiler name used for annotations (`vitis_ai`).
+    dpu_target : str
+        The Vitis AI DPU target identifier.
+    params : dict
+        A dictionary containing the module's parameters.
+    """
+
+    def __init__(self, compiler, dpu_target, params):
+        global pyxir
+        try:
+            if pyxir is None:
+                pyxir = __import__("pyxir")
+                __import__("pyxir.frontend.tvm")
+        except ImportError:
+            # add "from None" to silence
+            # "During handling of the above exception, another exception occurred"
+            raise ImportError(
+                "The pyxir package is required for the Vitis AI backend. "
+                "Please install it first. "
+                "Help: (https://tvm.apache.org/docs/deploy/vitis_ai.html) "
+            ) from None
+
         self.compiler = compiler
-        self.relay_ids = relay_ids
+        self.dpu_target = dpu_target
+        self.params = params
 
     def transform_function(self, func, mod, ctx):
         """Transform function for annotating Relay module"""
@@ -80,21 +107,85 @@ class VitisAIAnnotationPass:
                 else:
                     return super().visit_call(call)
 
+        xgraph = pyxir.frontend.tvm.from_relay(mod, self.params, postprocessing=None)
+        xgraph = pyxir.partition(xgraph, targets=[self.dpu_target])
+
+        layers = xgraph.get_layers()
+        relay_ids = [
+            list(np.array(layer.attrs["relay_id"]).flatten())
+            for layer in layers
+            if layer.target == self.dpu_target
+        ]
+        self.relay_ids = [item for sublist in relay_ids for item in sublist]
+
         return Annotator().visit(func)
 
 
 def annotation(mod, params, target):
-    """Annotate Relay expression for Vitis-AI DPU accelerators"""
-    xgraph = pyxir.frontend.tvm.from_relay(mod, params, postprocessing=None)
-    xgraph = pyxir.partition(xgraph, targets=[target])
+    """DEPRECATED
 
-    layers = xgraph.get_layers()
-    relay_ids = [
-        list(np.array(layer.attrs["relay_id"]).flatten())
-        for layer in layers
-        if layer.target == target
-    ]
-    relay_ids_flatten = [item for sublist in relay_ids for item in sublist]
-    mod = VitisAIAnnotationPass("vitis_ai", relay_ids_flatten)(mod)
-
+    Annotate Relay expression for offloading operators to Vitis AI DPU accelerators
+    NOTE: This function does the same as the next one (`partition_for_vitis_ai`) but is
+    still here for backward compatibility"""
+    # We need type information for supporting models that contain operations that don't
+    #   have a Relay to XLayer translation
+    warnings.warn(
+        "tvm.relay.op.contrib.vitis_ai.annotation() is being deprecated."
+        " Please use tvm.relay.op.contrib.vitis_ai.partition_for_vitis_ai() instead. "
+        " Check out https://tvm.apache.org/docs/deploy/vitis_ai.html for documentation. "
+    )
+    mod = relay.transform.InferType()(mod)
+    mod = VitisAIAnnotationPass("vitis_ai", target, params)(mod)
     return mod
+
+
+def partition_for_vitis_ai(mod, params=None, dpu=None, **opts):
+    """Partition the Relay expression for offloading operators to Vitis AI DPU
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+    params : Optional[Dict[str, NDArray]]
+        Constant input parameters.
+    dpu : str
+        The DPU identifier (e.g. DPUCZDX8G-zcu104, DPUCADF8H)
+
+    Returns
+    -------
+    ret : Module
+    """
+
+    if dpu is None:
+        raise ValueError("Please pass Vitis AI DPU identifier to the partitioning function")
+
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    desired_layouts_in_partition = {
+        "nn.conv2d": ["NHWC", "default"],
+        "nn.upsampling": ["NHWC"],
+        "image.resize2d": ["NHWC"],
+    }
+    desired_layouts_in_main = {
+        "nn.conv2d": ["NCHW", "default"],
+        "nn.upsampling": ["NCHW"],
+        "image.resize2d": ["NCHW"],
+    }
+    seq = tvm.transform.Sequential(
+        [
+            transform.RemoveUnusedFunctions(),
+            transform.ConvertLayout(desired_layouts_in_partition),
+            transform.FoldConstant(),
+            transform.InferType(),
+            VitisAIAnnotationPass("vitis_ai", dpu, params),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+            transform.RemoveUnusedFunctions(),
+            transform.ConvertLayout(desired_layouts_in_main),
+            transform.FoldConstant(),
+        ]
+    )
+
+    with tvm.transform.PassContext(opt_level=3):
+        return seq(mod)

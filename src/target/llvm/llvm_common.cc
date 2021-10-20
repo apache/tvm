@@ -24,7 +24,7 @@
 
 #include "llvm_common.h"
 
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 
 #include <atomic>
@@ -106,6 +106,8 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
 #if TVM_LLVM_VERSION < 50
   opt.LessPreciseFPMADOption = true;
 #endif
+  // In clang, these are fed from LangOpts which describe language specific features
+  // TODO(AndrewZhaoLuo): figure out how these relate to fast math flags
   opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
   opt.UnsafeFPMath = false;
   opt.NoInfsFPMath = false;
@@ -114,6 +116,9 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
     opt.FloatABIType = llvm::FloatABI::Soft;
   } else {
     opt.FloatABIType = llvm::FloatABI::Hard;
+  }
+  if (const Optional<String>& v = target->GetAttr<String>("mabi")) {
+    opt.MCOptions.ABIName = v.value();
   }
 }
 
@@ -136,8 +141,22 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
     ICHECK(allow_null) << err << " target_triple=" << target_triple;
     return nullptr;
   }
-  llvm::TargetMachine* tm =
-      llvm_target->createTargetMachine(target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
+
+  Integer llvm_opt_level = target->GetAttr<Integer>("opt-level").value_or(Integer(3));
+  llvm::CodeGenOpt::Level llvm_opt;
+  if (llvm_opt_level <= 0) {
+    llvm_opt = llvm::CodeGenOpt::None;
+  } else if (llvm_opt_level == 1) {
+    llvm_opt = llvm::CodeGenOpt::Less;
+  } else if (llvm_opt_level == 2) {
+    llvm_opt = llvm::CodeGenOpt::Default;
+  } else {
+    // llvm_opt_level >= 3
+    llvm_opt = llvm::CodeGenOpt::Aggressive;
+  }
+
+  llvm::TargetMachine* tm = llvm_target->createTargetMachine(
+      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_, llvm::CodeModel::Small, llvm_opt);
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 
@@ -163,6 +182,9 @@ std::string LLVMTargetToString(const Target& target) {
   }
   if (Optional<String> mfloat_abo = target->GetAttr<String>("mfloat-abi")) {
     os << " -mfloat-abi=" << mfloat_abo.value();
+  }
+  if (Optional<String> mabi = target->GetAttr<String>("mabi")) {
+    os << " -mabi=" << mabi.value();
   }
   return os.str();
 }

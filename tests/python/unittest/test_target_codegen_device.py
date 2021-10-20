@@ -37,15 +37,15 @@ def test_large_uint_imm():
     def check_target(device):
         if not tvm.testing.device_enabled(device):
             return
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         f = tvm.build(s, [A], device)
         # launch the kernel.
-        a = tvm.nd.empty((n,), dtype=A.dtype, ctx=ctx)
+        a = tvm.nd.empty((n,), dtype=A.dtype, device=dev)
         f(a)
-        assert a.asnumpy()[0] == value + 3
+        assert a.numpy()[0] == value + 3
 
     check_target("cuda")
-    check_target("vulkan")
+    check_target("vulkan -from_device=0")
 
 
 @tvm.testing.requires_gpu
@@ -70,16 +70,16 @@ def test_add_pipeline():
     def check_target(device, host="stackvm"):
         if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
             return
-        ctx = tvm.context(device, 0)
-        mhost = tvm.driver.build(s, [A, B, D], target=device, target_host=host)
+        dev = tvm.device(device, 0)
+        mhost = tvm.driver.build(s, [A, B, D], target=tvm.target.Target(device, host))
         f = mhost.entry_func
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=()).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=()).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), dev)
         f(a, b, d)
-        tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
+        tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
 
     check_target("cuda", host="llvm")
     check_target("nvptx", host="llvm")

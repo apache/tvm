@@ -140,36 +140,36 @@ def rnn_matexp():
             }
         ):
             f = tvm.build(s, [s_scan, Whh], target)
-        ctx = tvm.gpu(0) if target == "cuda" else tvm.cl(0)
+        dev = tvm.cuda(0) if target == "cuda" else tvm.cl(0)
         # launch the kernel.
         res_np = np.zeros((n_num_step, n_batch_size, n_num_hidden)).astype("float32")
         Whh_np = np.zeros((n_num_hidden, n_num_hidden)).astype("float32")
         Whh_np[:] = 2.0 / n_num_hidden
         Whh_np[:, n_num_hidden // 2 :] = 0
 
-        res_a = tvm.nd.array(res_np, ctx)
-        Whh_a = tvm.nd.array(Whh_np, ctx)
+        res_a = tvm.nd.array(res_np, dev)
+        Whh_a = tvm.nd.array(Whh_np, dev)
         # Skip first pass as it is compilation
         f(res_a, Whh_a)
-        ctx.sync()
+        dev.sync()
         # measure time cost of second step.
         tstart = time.time()
         f(res_a, Whh_a)
-        ctx.sync()
+        dev.sync()
         tgap = time.time() - tstart
         print("Time cost=%g" % tgap)
         # correctness
         if not SKIP_CHECK:
-            res_gpu = res_a.asnumpy()
+            res_cuda = res_a.numpy()
             res_cmp = np.ones_like(res_np).astype("float64")
             Whh_np = Whh_np.astype("float64")
             for t in range(1, n_num_step):
                 res_cmp[t][:] = np.dot(res_cmp[t - 1], Whh_np)
             for i in range(n_num_step):
                 for j in range(n_num_hidden):
-                    if abs(res_cmp[i, 0, j] - res_gpu[i, 0, j]) > 1e-5:
-                        print("%d, %d: %g vs %g" % (i, j, res_cmp[i, 0, j], res_gpu[i, 0, j]))
-            tvm.testing.assert_allclose(res_gpu, res_cmp, rtol=1e-3)
+                    if abs(res_cmp[i, 0, j] - res_cuda[i, 0, j]) > 1e-5:
+                        print("%d, %d: %g vs %g" % (i, j, res_cmp[i, 0, j], res_cuda[i, 0, j]))
+            tvm.testing.assert_allclose(res_cuda, res_cmp, rtol=1e-3)
 
     check_device("cuda")
 

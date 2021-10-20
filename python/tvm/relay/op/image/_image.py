@@ -26,24 +26,164 @@ from tvm.topi.utils import get_const_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
+from .image import resize2d
 
 
 # resize
-@reg.register_compute("image.resize")
-def compute_resize(attrs, inputs, out_type):
+@reg.register_compute("image.resize1d")
+def compute_resize1d(attrs, inputs, out_type):
+    """compute definition for resize1d op"""
     size = attrs.size
     layout = attrs.layout
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
+    rounding_method = attrs.rounding_method
+    cubic_alpha = attrs.cubic_alpha
+    cubic_exclude = attrs.cubic_exclude
     out_dtype = attrs.out_dtype
-    return [topi.image.resize(inputs[0], size, layout, method, coord_trans, out_dtype)]
+    return [
+        topi.image.resize1d(
+            inputs[0],
+            size,
+            layout,
+            method,
+            coord_trans,
+            rounding_method,
+            cubic_alpha,
+            cubic_exclude,
+            out_dtype,
+        )
+    ]
 
 
-reg.register_injective_schedule("image.resize")
+reg.register_injective_schedule("image.resize1d")
+
+
+@reg.register_convert_op_layout("image.resize1d")
+def convert_image_resize1d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for image resize1d op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current resize op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 1, "Only one desired layout is expected"
+    desired_layout = str(desired_layouts[0])
+    assert desired_layout != "default", "Layout cannot be default"
+    new_attrs["layout"] = desired_layout
+    return resize1d(*inputs, **new_attrs)
 
 
 @script
-def _resize_shape_func(image_shape, size, batch_axis, height_axis, width_axis, channel_axis):
+def _resize1d_shape_func(image_shape, size, batch_axis, width_axis, channel_axis):
+    out = output_tensor((3,), "int64")
+    out[batch_axis] = int64(image_shape[0])
+    out[width_axis] = int64(size[1])
+    out[channel_axis] = image_shape[channel_axis]
+    return out
+
+
+@reg.register_shape_func("image.resize1d", False)
+def resize1d_shape_func(attrs, inputs, _):
+    """
+    Shape function for resize2d op.
+    """
+    layout = attrs.layout
+    width_axis = channel_axis = 1
+    for i, letter in enumerate(layout):
+        if letter == "N":
+            batch_axis = i
+        if letter == "W":
+            width_axis = i
+        if letter == "C":
+            channel_axis = i
+    size = get_const_tuple(attrs.size)
+    return [
+        _resize1d_shape_func(
+            inputs[0],
+            convert(size),
+            convert(batch_axis),
+            convert(width_axis),
+            convert(channel_axis),
+        )
+    ]
+
+
+@reg.register_compute("image.resize2d")
+def compute_resize2d(attrs, inputs, out_type):
+    """compute definition for resize2d op"""
+    size = attrs.size
+    layout = attrs.layout
+    method = attrs.method
+    coord_trans = attrs.coordinate_transformation_mode
+    rounding_method = attrs.rounding_method
+    cubic_alpha = attrs.cubic_alpha
+    cubic_exclude = attrs.cubic_exclude
+    out_dtype = attrs.out_dtype
+    return [
+        topi.image.resize2d(
+            inputs[0],
+            size,
+            layout,
+            method,
+            coord_trans,
+            rounding_method,
+            cubic_alpha,
+            cubic_exclude,
+            out_dtype,
+        )
+    ]
+
+
+reg.register_injective_schedule("image.resize2d")
+
+
+@reg.register_convert_op_layout("image.resize2d")
+def convert_image_resize2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for image resize2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current resize op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data input.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 1, "Only one desired layout is expected"
+    desired_layout = str(desired_layouts[0])
+    assert desired_layout != "default", "Layout cannot be default"
+    new_attrs["layout"] = desired_layout
+    return resize2d(*inputs, **new_attrs)
+
+
+@script
+def _resize2d_shape_func(image_shape, size, batch_axis, height_axis, width_axis, channel_axis):
     out = output_tensor((4,), "int64")
     out[batch_axis] = int64(image_shape[0])
     out[height_axis] = int64(size[0])
@@ -52,10 +192,10 @@ def _resize_shape_func(image_shape, size, batch_axis, height_axis, width_axis, c
     return out
 
 
-@reg.register_shape_func("image.resize", False)
-def resize_shape_func(attrs, inputs, _):
+@reg.register_shape_func("image.resize2d", False)
+def resize2d_shape_func(attrs, inputs, _):
     """
-    Shape function for resize op.
+    Shape function for resize2d op.
     """
     layout = attrs.layout
     height_axis = width_axis = channel_axis = 1
@@ -70,7 +210,7 @@ def resize_shape_func(attrs, inputs, _):
             channel_axis = i
     size = get_const_tuple(attrs.size)
     return [
-        _resize_shape_func(
+        _resize2d_shape_func(
             inputs[0],
             convert(size),
             convert(batch_axis),
@@ -83,12 +223,28 @@ def resize_shape_func(attrs, inputs, _):
 
 @reg.register_compute("image.resize3d")
 def compute_resize3d(attrs, inputs, out_type):
+    """compute definition for resize3d op"""
     size = attrs.size
     layout = attrs.layout
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
+    rounding_method = attrs.rounding_method
+    cubic_alpha = attrs.cubic_alpha
+    cubic_exclude = attrs.cubic_exclude
     out_dtype = attrs.out_dtype
-    return [topi.image.resize3d(inputs[0], size, layout, method, coord_trans, out_dtype)]
+    return [
+        topi.image.resize3d(
+            inputs[0],
+            size,
+            layout,
+            method,
+            coord_trans,
+            rounding_method,
+            cubic_alpha,
+            cubic_exclude,
+            out_dtype,
+        )
+    ]
 
 
 reg.register_injective_schedule("image.resize3d")

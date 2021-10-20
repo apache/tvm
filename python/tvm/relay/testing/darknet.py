@@ -31,7 +31,7 @@ from cffi import FFI
 def convert_image(image):
     """Convert the image with numpy."""
     imagex = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    imagex = np.array(image)
+    imagex = np.array(imagex)
     imagex = imagex.transpose((2, 0, 1))
     imagex = np.divide(imagex, 255.0)
     imagex = np.flip(imagex, 0)

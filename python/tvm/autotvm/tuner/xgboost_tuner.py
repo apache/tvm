@@ -55,7 +55,9 @@ class XGBTuner(ModelBasedTuner):
         The cost model predicts relative rank score.
 
     num_threads: int, optional
-        The number of threads.  optimizer: str or ModelOptimizer, optional
+        The number of threads.
+
+    optimizer: str or ModelOptimizer, optional
         If is 'sa', use a default simulated annealing optimizer.
         Otherwise it should be a ModelOptimizer object.
 
@@ -64,7 +66,7 @@ class XGBTuner(ModelBasedTuner):
         top-(plan_size * diversity_filter_ratio) candidates according to the cost model
         and then pick batch_size of them according to the diversity metric.
 
-    log_interval: int, optional
+    log_interval: int = 50
         The verbose level.
         If is 0, output nothing.
         Otherwise, output debug information every `verbose` iterations.

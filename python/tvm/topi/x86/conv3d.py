@@ -26,7 +26,7 @@ from ..utils import traverse_inline
 from ..nn.utils import get_pad_tuple3d, infer_pad3d
 from ..nn.pad import pad
 from ..utils import get_const_tuple, simplify, get_const_int
-from .utils import get_fp32_len
+from .utils import get_simd_32bit_lanes
 
 Workload3D = namedtuple(
     "Workload",
@@ -471,7 +471,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, layout):
 
 
 def _get_conv3d_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
-    """ Get the workload structure. """
+    """Get the workload structure."""
     if data_layout == "NCDHW":
         _, CI, ID, IH, IW = get_const_tuple(data.shape)
         CO, CIG, KD, KH, KW = get_const_tuple(kernel.shape)
@@ -520,7 +520,7 @@ def _get_conv3d_workload(data, kernel, stride, padding, out_dtype, data_layout="
 
 
 def _fallback_schedule(cfg, wkl):
-    simd_width = get_fp32_len()
+    simd_width = get_simd_32bit_lanes()
     DPAD, HPAD, WPAD = wkl.dpad, wkl.hpad, wkl.wpad
     DSTR, HSTR, WSTR = wkl.dstride, wkl.hstride, wkl.wstride
     out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1

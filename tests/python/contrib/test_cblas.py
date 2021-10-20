@@ -42,6 +42,13 @@ def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32")
             b = b.transpose()
         return np.dot(a, b) + bb
 
+    def compile(f, name="test_matmul_add", ext=".so"):
+        path = name + ext
+        f.export_library(path)
+        mod = tvm.runtime.load_module(path)
+        f = mod[name]
+        return f
+
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
@@ -49,18 +56,22 @@ def verify_matmul_add(m, l, n, lib, transa=False, transb=False, dtype="float32")
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
-        f = tvm.build(s, [A, B, D, bias], target)
-        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
+        dev = tvm.cpu(0)
+        name = "test_matmul_add"
+        f = tvm.build(s, [A, B, D, bias], target, name=name)
+        if target == "c":
+            f = compile(f, name)
+        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), dev)
         bb = 10.0
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
-            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), bb, transa, transb), rtol=1e-5
+            d.numpy(), get_numpy(a.numpy(), b.numpy(), bb, transa, transb), rtol=1e-5
         )
 
-    verify()
+    verify("llvm")
+    verify("c")
 
 
 def test_matmul_add():
@@ -119,16 +130,16 @@ def verify_quantized_matmul_add(m, l, n, transa=False, transb=False):
         if not tvm.get_global_func("tvm.contrib.mkl.matmul_u8s8s32", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
-        a = tvm.nd.array(np.random.randint(low=0, high=50, size=ashape).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.randint(low=0, high=50, size=bshape).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
+        a = tvm.nd.array(np.random.randint(low=0, high=50, size=ashape).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.randint(low=0, high=50, size=bshape).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), dev)
         bb = 10
         f(a, b, d, bb)
         tvm.testing.assert_allclose(
-            d.asnumpy(),
-            get_numpy(a.asnumpy().astype("int32"), b.asnumpy().astype("int32"), bb, transa, transb),
+            d.numpy(),
+            get_numpy(a.numpy().astype("int32"), b.numpy().astype("int32"), bb, transa, transb),
             rtol=1e-5,
         )
 
@@ -147,13 +158,14 @@ def test_quantized_matmul_add():
 
 
 def verify_batch_matmul(
-    batch, m, l, n, lib, transa=False, transb=False, iterative=False, dtype="float32"
+    batch_a, batch_b, m, l, n, lib, transa=False, transb=False, iterative=False, dtype="float32"
 ):
-    ashape = (batch, l, n) if transa else (batch, n, l)
-    bshape = (batch, m, l) if transb else (batch, l, m)
+    batch = max(batch_a, batch_b)
+    ashape = (batch_a, l, n) if transa else (batch_a, n, l)
+    bshape = (batch_b, m, l) if transb else (batch_b, l, m)
     A = te.placeholder(ashape, name="A", dtype=dtype)
     B = te.placeholder(bshape, name="B", dtype=dtype)
-    C = cblas.batch_matmul(A, B, transa, transb)
+    C = lib.batch_matmul(A, B, transa, transb)
     D = te.compute(C.shape, lambda k, i, j: C[k, i, j], name="D")
     s = te.create_schedule(D.op)
 
@@ -164,6 +176,13 @@ def verify_batch_matmul(
             b = b.transpose(0, 2, 1)
         return tvm.topi.testing.batch_matmul(a, b)
 
+    def compile(f, name="test_batch_matmul", ext=".so"):
+        path = name + ext
+        f.export_library(path)
+        mod = tvm.runtime.load_module(path)
+        f = mod[name]
+        return f
+
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
@@ -171,38 +190,50 @@ def verify_batch_matmul(
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.cpu(0)
-        f = tvm.build(s, [A, B, D], target)
-        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((batch, n, m), dtype=D.dtype), ctx)
+        dev = tvm.cpu(0)
+        name = "test_batch_matmul"
+        f = tvm.build(s, [A, B, D], target, name=name)
+        if target == "c":
+            f = compile(f, name)
+        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros((batch, n, m), dtype=D.dtype), dev)
         f(a, b, d)
         tvm.testing.assert_allclose(
-            d.asnumpy(), get_numpy(a.asnumpy(), b.asnumpy(), transa, transb), rtol=1e-5
+            d.numpy(), get_numpy(a.numpy(), b.numpy(), transa, transb), rtol=1e-5
         )
 
-    verify()
+    verify("llvm")
+    verify("c")
 
 
 def test_batch_matmul():
-    verify_batch_matmul(16, 235, 128, 1024, cblas)
-    verify_batch_matmul(16, 235, 128, 1024, cblas, True, False)
-    verify_batch_matmul(16, 235, 128, 1024, cblas, False, True)
-    verify_batch_matmul(16, 235, 128, 1024, cblas, True, True)
-    verify_batch_matmul(16, 235, 128, 1024, mkl)
-    verify_batch_matmul(16, 235, 128, 1024, mkl, True, False)
-    verify_batch_matmul(16, 235, 128, 1024, mkl, False, True)
-    verify_batch_matmul(16, 235, 128, 1024, mkl, True, True)
-    verify_batch_matmul(1, 1, 16, 3, cblas)
-    verify_batch_matmul(1, 1, 16, 3, cblas, True, False)
-    verify_batch_matmul(1, 1, 16, 3, cblas, False, False)
-    verify_batch_matmul(1, 1, 16, 3, cblas, True, True)
-    verify_batch_matmul(1, 1, 16, 3, cblas, iterative=True)
-    verify_batch_matmul(1, 1, 16, 3, mkl)
-    verify_batch_matmul(1, 1, 16, 3, mkl, True, False)
-    verify_batch_matmul(1, 1, 16, 3, mkl, False, False)
-    verify_batch_matmul(1, 1, 16, 3, mkl, True, True)
-    verify_batch_matmul(1, 1, 16, 3, mkl, iterative=True)
+    verify_batch_matmul(16, 16, 235, 128, 1024, cblas)
+    verify_batch_matmul(16, 16, 235, 128, 1024, cblas, True, False)
+    verify_batch_matmul(16, 16, 235, 128, 1024, cblas, False, True)
+    verify_batch_matmul(16, 16, 235, 128, 1024, cblas, True, True)
+    verify_batch_matmul(16, 16, 235, 128, 1024, mkl)
+    verify_batch_matmul(16, 16, 235, 128, 1024, mkl, True, False)
+    verify_batch_matmul(16, 16, 235, 128, 1024, mkl, False, True)
+    verify_batch_matmul(16, 16, 235, 128, 1024, mkl, True, True)
+    verify_batch_matmul(16, 1, 235, 128, 1024, cblas)
+    verify_batch_matmul(1, 16, 235, 128, 1024, cblas)
+    verify_batch_matmul(16, 1, 235, 128, 1024, cblas, iterative=True)
+    verify_batch_matmul(1, 16, 235, 128, 1024, cblas, iterative=True)
+    verify_batch_matmul(16, 1, 235, 128, 1024, mkl)
+    verify_batch_matmul(1, 16, 235, 128, 1024, mkl)
+    verify_batch_matmul(16, 1, 235, 128, 1024, mkl, iterative=True)
+    verify_batch_matmul(1, 16, 235, 128, 1024, mkl, iterative=True)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas, True, False)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas, False, False)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas, True, True)
+    verify_batch_matmul(1, 1, 1, 16, 3, cblas, iterative=True)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl, True, False)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl, False, False)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl, True, True)
+    verify_batch_matmul(1, 1, 1, 16, 3, mkl, iterative=True)
 
 
 if __name__ == "__main__":

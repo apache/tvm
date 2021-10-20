@@ -36,12 +36,14 @@ namespace relay {
 namespace dyn {
 
 template <typename T>
-Array<Array<Layout> > UpsamplingInferCorrectLayout(const Attrs& attrs,
-                                                   const Array<Layout>& new_in_layouts,
-                                                   const Array<Layout>& old_in_layouts,
-                                                   const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  T* params = const_cast<T*>(attrs.as<T>());
+InferCorrectLayoutOutput UpsamplingInferCorrectLayout(const Attrs& attrs,
+                                                      const Array<Layout>& new_in_layouts,
+                                                      const Array<Layout>& old_in_layouts,
+                                                      const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<T>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
+
   if (new_in_layouts.defined()) {
     ICHECK_GT(new_in_layouts.size(), 0);
 
@@ -59,7 +61,8 @@ Array<Array<Layout> > UpsamplingInferCorrectLayout(const Attrs& attrs,
 
   Layout inferred_layout(params->layout);
   Layout param_layout("NCHW");
-  return Array<Array<Layout> >{{inferred_layout, param_layout, param_layout}, {inferred_layout}};
+  return InferCorrectLayoutOutput({inferred_layout, param_layout, param_layout}, {inferred_layout},
+                                  Attrs(params));
 }
 
 }  // namespace dyn

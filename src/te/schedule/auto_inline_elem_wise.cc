@@ -39,15 +39,15 @@ class ElemWiseDetector : public tir::ExprVisitor {
     ExprVisitor::VisitExpr(e);
   }
 
-  void VisitExpr_(const CallNode* op) final {
-    Array<PrimExpr> axis = op->args;
-    if (axis_.size() != axis.size()) {
+  void VisitExpr_(const ProducerLoadNode* op) final {
+    Array<PrimExpr> indices = op->indices;
+    if (axis_.size() != indices.size()) {
       is_elem_wise_ = false;
       return;
     }
 
     for (size_t i = 0; i < axis_.size(); ++i) {
-      if (!axis[i].same_as(axis_[i]->var)) {
+      if (!indices[i].same_as(axis_[i]->var)) {
         is_elem_wise_ = false;
         return;
       }
@@ -83,7 +83,11 @@ bool IsBroadcast(const Operation& op) {
     if (compute->reduce_axis.size()) {
       return false;
     }
-    // TODO(nicolasvasilache): Implement Me
+    constexpr auto kBroadcast = "broadcast";
+    // broadcast op in topi has tag `broadcast`
+    if (op->tag == kBroadcast) {
+      return true;
+    }
   }
   return false;
 }
@@ -112,6 +116,8 @@ void AutoInlineInjective(Schedule sch) {
 }
 
 TVM_REGISTER_GLOBAL("schedule.AutoInlineElemWise").set_body_typed(AutoInlineElemWise);
+
+TVM_REGISTER_GLOBAL("schedule.AutoInlineBroadcast").set_body_typed(AutoInlineBroadcast);
 
 TVM_REGISTER_GLOBAL("schedule.AutoInlineInjective").set_body_typed(AutoInlineInjective);
 

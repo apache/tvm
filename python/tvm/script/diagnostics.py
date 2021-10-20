@@ -17,8 +17,9 @@
 """Bridge from synr's (the library used for parsing the python AST)
    DiagnosticContext to TVM's diagnostics
 """
-import tvm
 from synr import DiagnosticContext, ast
+
+import tvm
 from tvm.ir.diagnostics import DiagnosticContext as TVMCtx
 from tvm.ir.diagnostics import get_renderer, DiagnosticLevel, Diagnostic
 

@@ -524,7 +524,7 @@ def coreml_op_to_relay(op, inname, outnames, etab):
             outname = outnames if isinstance(outnames, _base.string_types) else outnames[0]
             etab.set_expr(outname, outs, force_override=True)
         else:
-            # the number of ouputs from model op and tvm relay must be same
+            # the number of outputs from model op and tvm relay must be same
             assert len(outnames) == len(outs)
             for outname, out in zip(outnames, outs):
                 etab.set_expr(outname, out, force_override=True)
@@ -562,7 +562,7 @@ def from_coreml(model, shape=None):
 
     etab = ExprTable()
     for i in spec.description.input:
-        input_shape = shape[i.name] if shape is not None and i.name in shape else None
+        input_shape = list(shape[i.name]) if shape is not None and i.name in shape else None
         etab.set_expr(i.name, _expr.var(i.name, shape=input_shape))
 
     for pp in cc.preprocessing:

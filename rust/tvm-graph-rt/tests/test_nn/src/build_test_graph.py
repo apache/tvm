@@ -23,7 +23,7 @@ import sys
 
 import numpy as np
 import tvm
-from tvm import te
+from tvm import te, runtime
 from tvm import relay
 from tvm.relay import testing
 
@@ -49,7 +49,7 @@ def main():
         f_resnet.write(graph)
 
     with open(osp.join(out_dir, "graph.params"), "wb") as f_params:
-        f_params.write(relay.save_param_dict(params))
+        f_params.write(runtime.save_param_dict(params))
 
 
 if __name__ == "__main__":

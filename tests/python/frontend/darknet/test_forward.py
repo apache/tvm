@@ -24,7 +24,7 @@ by the script.
 import numpy as np
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib.download import download_testdata
 
 download_testdata.__test__ = False
@@ -79,8 +79,8 @@ def _get_tvm_output(net, data, build_dtype="float32", states=None):
     lib = relay.build(mod, target, params=params)
 
     # Execute on TVM
-    ctx = tvm.cpu(0)
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    dev = tvm.cpu(0)
+    m = graph_executor.GraphModule(lib["default"](dev))
     # set inputs
     m.set_input("data", tvm.nd.array(data.astype(dtype)))
     if states:
@@ -90,7 +90,7 @@ def _get_tvm_output(net, data, build_dtype="float32", states=None):
     # get outputs
     tvm_out = []
     for i in range(m.get_num_outputs()):
-        tvm_out.append(m.get_output(i).asnumpy())
+        tvm_out.append(m.get_output(i).numpy())
     return tvm_out
 
 

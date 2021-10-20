@@ -22,9 +22,9 @@ import numpy as np
 
 import tvm
 from tvm import te
-import tvm.relay as relay
-import tvm.relay.op as op
-from tvm.relay import Prelude
+from tvm import relay
+from tvm.relay import op
+from tvm.relay.prelude import Prelude
 from tvm.testing import enabled_targets
 
 from . import mlp
@@ -81,6 +81,7 @@ def check_grad(
     scale=None,
     mean=0,
     mode="higher_order",
+    target_devices=None,
 ):
     """Perform numerical gradient checking given a relay function.
 
@@ -117,6 +118,11 @@ def check_grad(
 
     mean: float
         The mean of the inputs.
+
+    target_devices: Optional[List[Tuple[tvm.target.Target, tvm.runtime.Device]]]
+        A list of targets/devices on which the gradient should be
+        tested.  If not specified, will default to `tvm.testing.enabled_targets()`.
+
     """
 
     fwd_func = run_infer_type(func)
@@ -133,12 +139,18 @@ def check_grad(
     if test_inputs is None:
         test_inputs = inputs
 
-    for target, ctx in enabled_targets():
-        intrp = relay.create_executor(ctx=ctx, target=target)
+    if target_devices is None:
+        target_devices = enabled_targets()
+
+    for target, dev in target_devices:
+        # Eval the backward and forward functions
+        # TODO(mbs): Evaluate a pair of functions so can share preparation between them.
+        bwd_func_compiled = relay.create_executor(device=dev, target=target).evaluate(bwd_func)
+        fwd_func_compiled = relay.create_executor(device=dev, target=target).evaluate(fwd_func)
 
         # Get analytic gradients.
-        _, grads = intrp.evaluate(bwd_func)(*inputs)
-        grads = [grad.asnumpy().astype("float64") for grad in grads]
+        _, grads = bwd_func_compiled(*inputs)
+        grads = [grad.numpy().astype("float64") for grad in grads]
 
         # Throw out gradients we aren't testing
         if inputs != test_inputs:
@@ -160,9 +172,9 @@ def check_grad(
             for i in np.ndindex(*x.shape):
                 x_i = x[i]
                 x[i] = x_i + eps
-                fwd_plus = intrp.evaluate(fwd_func)(*inputs).asnumpy().astype("float64")
+                fwd_plus = fwd_func_compiled(*inputs).numpy().astype("float64")
                 x[i] = x_i - eps
-                fwd_minus = intrp.evaluate(fwd_func)(*inputs).asnumpy().astype("float64")
+                fwd_minus = fwd_func_compiled(*inputs).numpy().astype("float64")
                 x[i] = x_i
                 approx_grad[i] = np.sum((fwd_plus - fwd_minus) / (2 * eps))
             approx_grads.append(approx_grad)

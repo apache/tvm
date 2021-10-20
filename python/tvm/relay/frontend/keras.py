@@ -250,7 +250,7 @@ def _convert_dense(inexpr, keras_layer, etab):
             raise tvm.error.OpAttributeInvalid(
                 "Input shape {} is not valid for operator Dense.".format(input_shape)
             )
-        inexpr = _op.squeeze(inexpr, axis=0)
+        inexpr = _op.squeeze(inexpr, axis=[0])
     out = _op.nn.dense(data=inexpr, **params)
     if keras_layer.use_bias:
         bias = etab.new_const(weightList[1])
@@ -725,6 +725,7 @@ def _convert_upsample3d(inexpr, keras_layer, etab):
     params["scale_h"] = h
     params["scale_w"] = w
     params["layout"] = etab.data_layout
+    params["coordinate_transformation_mode"] = "asymmetric"
     out = _op.nn.upsampling3d(inexpr, **params)
     return out
 
@@ -864,29 +865,14 @@ def _convert_reshape(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     inshape = keras_layer.input_shape  # includes batch
     tshape = keras_layer.target_shape  # no batch
-    if len(inshape) == 3 and len(tshape) == 1:
-        # (?, a, b) -> (-1, ab)
-        shape = (-1, tshape[0])
-    elif len(inshape) in [2, 3] and len(tshape) == 2:
-        # (?, cc) -> (-1, c, c)
-        # (?, a, b) -> (-1, c, c)
-        assert tshape[0] == tshape[1], "Only supports square target shapes, but got {}".format(
-            tshape
-        )
-        shape = (-1,) + tshape
-    else:
-        # (?, h, w, c) -> (-1, c, H, W)
-        # (?, h, w, c) -> (-1, c, hw)
-        # (?, hw, c) -> (-1, c, h, w)
-        ch = inshape[-1]
-        assert ch == tshape[-1], (
-            "Only supports last dimension in target shape being equal to "
-            "the channel number of input tensor."
-        )
-        if etab.data_layout == "NCHW":
-            shape = (-1, ch) + tshape[:-1]
-        else:
-            shape = (-1,) + tshape[:-1] + (ch,)
+    shape = (-1,) + tshape
+
+    if etab.data_layout == "NCHW" and (len(inshape) > 3 or len(tshape) > 2):
+        # Perform reshape in original NHWC format.
+        inexpr = _op.transpose(inexpr, [0] + list(range(2, len(inshape))) + [1])
+        inexpr = _op.reshape(inexpr, newshape=shape)
+        return _op.transpose(inexpr, axes=[0, -1] + list(range(1, len(shape) - 1)))
+
     return _op.reshape(inexpr, newshape=shape)
 
 
@@ -910,6 +896,7 @@ def _convert_lstm(inexpr, keras_layer, etab):
     in_data = _op.squeeze(in_data, axis=[0])
     in_data = _op.split(in_data, indices_or_sections=time_steps, axis=0)
     # loop for the number of time_steps
+    out_list = []  # store h outputs in case return_sequences is True
     for data in in_data:
         ixh1 = _op.nn.dense(data, kernel_weight, units=units)
         ixh2 = _op.nn.bias_add(_op.nn.dense(next_h, recurrent_weight, units=units), bias=in_bias)
@@ -920,8 +907,11 @@ def _convert_lstm(inexpr, keras_layer, etab):
         next_c = in_transform * next_c + in_gate * _convert_activation(gates[2], keras_layer, None)
         out_gate = _convert_recurrent_activation(gates[3], keras_layer)
         next_h = out_gate * _convert_activation(next_c, keras_layer, None)
+        if keras_layer.return_sequences:
+            out_list.append(_op.expand_dims(next_h, axis=1))
+    out = _op.concatenate(out_list, axis=1) if keras_layer.return_sequences else next_h
     out_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.output_shape)[0])
-    out = _op.reshape(next_h, newshape=out_shape)
+    out = _op.reshape(out, newshape=out_shape)
     return [out, next_h, next_c]
 
 
@@ -1116,6 +1106,7 @@ def keras_op_to_relay(inexpr, keras_layer, outname, etab):
     for t_idx, out in enumerate(outs):
         name = outname + ":" + str(t_idx)
         etab.set_expr(name, out)
+    return outs
 
 
 def from_keras(model, shape=None, layout="NCHW"):
@@ -1150,6 +1141,85 @@ def from_keras(model, shape=None, layout="NCHW"):
         input_name = keras_layer.name
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
         etab.set_expr(input_name, new_var(input_name, shape=input_shape))
+
+    def _convert_layer(keras_layer, etab, scope=""):
+        inbound_nodes = (
+            keras_layer.inbound_nodes
+            if hasattr(keras_layer, "inbound_nodes")
+            else keras_layer._inbound_nodes
+            if hasattr(keras_layer, "_inbound_nodes")
+            else None
+        )
+        if inbound_nodes is None:
+            raise TypeError(
+                "Unknown layer type or unsupported Keras version : {}".format(keras_layer)
+            )
+        outs = []
+        for node_idx, node in enumerate(inbound_nodes):
+            # If some nodes in imported model are not relevant to the current model,
+            # skip such layers.
+            # - In Keras, model._network_nodes contains keys of all nodes relevant to the
+            #   current model;
+            # - In tf.Keras, this is already done as part of tensorflow.keras.network.get_config
+            if (
+                not is_tf_keras
+                and not model._node_key(keras_layer, node_idx) in model._network_nodes
+            ):
+                continue
+            inexpr = []
+            # Since Keras allows creating multiple layers from the same name instance,
+            # we append node index to the expr name to make it unique.
+            # The one exception is InputLayer. Changing input variable names after conversion
+            # would confuse users, so we should keep them as far as possible. Fortunately,
+            # they are named uniquely to input_1, input_2, input_3... by default.
+            # node_indices attribute removed in tensorflow 2.3, however iterate_inbound() can
+            # be used
+            if hasattr(node, "node_indices"):
+                zip_node = zip(
+                    _as_list(node.inbound_layers),
+                    _as_list(node.node_indices),
+                    _as_list(node.tensor_indices),
+                    _as_list(node.input_tensors),
+                )
+                node_attributes = zip_node
+            else:
+                node_attributes = node.iterate_inbound()
+            for inbound_layer, n_idx, t_idx, _ in node_attributes:
+                if isinstance(inbound_layer, input_layer_class):
+                    expr_name = inbound_layer.name
+                    _convert_input_layer(inbound_layer)
+                else:
+                    expr_name = scope + inbound_layer.name + ":" + str(n_idx) + ":" + str(t_idx)
+                expr = etab.get_expr(expr_name)
+                inexpr.append(expr)
+
+            # Handle nested layers
+            if hasattr(keras_layer, "layers"):
+                input_index = 0
+                for layer in keras_layer.layers:
+                    if isinstance(layer, input_layer_class):
+                        # Replace input layer with inbound node
+                        etab.set_expr(layer.name, inexpr[input_index])
+                        input_index += 1
+                    else:
+                        # Convert child layer. Prepend scope with parent layer name.
+                        layer_outs = _convert_layer(layer, etab, keras_layer.name + "_" + scope)
+
+                # Get output of last child layer and mark as output of parent.
+                outname = keras_layer.name + ":" + str(node_idx)
+                for t_idx, out in enumerate(layer_outs):
+                    name = outname + ":" + str(t_idx)
+                    etab.set_expr(name, out)
+                outs.extend(layer_outs)
+            else:
+                if len(inexpr) == 1:
+                    inexpr = inexpr[0]
+                outs.extend(
+                    keras_op_to_relay(
+                        inexpr, keras_layer, scope + keras_layer.name + ":" + str(node_idx), etab
+                    )
+                )
+        return outs
 
     is_tf_keras = _check_model_is_tf_keras()
 
@@ -1189,57 +1259,8 @@ def from_keras(model, shape=None, layout="NCHW"):
         if isinstance(keras_layer, input_layer_class):
             _convert_input_layer(keras_layer)
         else:
-            inbound_nodes = (
-                keras_layer.inbound_nodes
-                if hasattr(keras_layer, "inbound_nodes")
-                else keras_layer._inbound_nodes
-                if hasattr(keras_layer, "_inbound_nodes")
-                else None
-            )
-            if inbound_nodes is None:
-                raise TypeError(
-                    "Unknown layer type or unsupported Keras version : {}".format(keras_layer)
-                )
-            for node_idx, node in enumerate(inbound_nodes):
-                # If some nodes in imported model are not relevant to the current model,
-                # skip such layers.
-                # - In Keras, model._network_nodes contains keys of all nodes relevant to the
-                #   current model;
-                # - In tf.Keras, this is already done as part of tensorflow.keras.network.get_config
-                if (
-                    not is_tf_keras
-                    and not model._node_key(keras_layer, node_idx) in model._network_nodes
-                ):
-                    continue
-                inexpr = []
-                # Since Keras allows creating multiple layers from the same name instance,
-                # we append node index to the expr name to make it unique.
-                # The one exception is InputLayer. Changing input variable names after conversion
-                # would confuse users, so we should keep them as far as possible. Fortunately,
-                # they are named uniquely to input_1, input_2, input_3... by default.
-                # node_indices attribute removed in tensorflow 2.3, however iterate_inbound() can
-                # be used
-                if hasattr(node, "node_indices"):
-                    zip_node = zip(
-                        _as_list(node.inbound_layers),
-                        _as_list(node.node_indices),
-                        _as_list(node.tensor_indices),
-                        _as_list(node.input_tensors),
-                    )
-                    node_attributes = zip_node
-                else:
-                    node_attributes = node.iterate_inbound()
-                for inbound_layer, n_idx, t_idx, _ in node_attributes:
-                    if isinstance(inbound_layer, input_layer_class):
-                        expr_name = inbound_layer.name
-                        _convert_input_layer(inbound_layer)
-                    else:
-                        expr_name = inbound_layer.name + ":" + str(n_idx) + ":" + str(t_idx)
-                    expr = etab.get_expr(expr_name)
-                    inexpr.append(expr)
-                if len(inexpr) == 1:
-                    inexpr = inexpr[0]
-                keras_op_to_relay(inexpr, keras_layer, keras_layer.name + ":" + str(node_idx), etab)
+            _convert_layer(keras_layer, etab)
+
     # model._output_coordinates contains out_node(oc[0]), node_index(oc[1]) and tensor_index(oc[2])
     # Get all output nodes in etab using the name made from above values.
     # The out exprs were added to etab in keras_op_to_relay using this name.

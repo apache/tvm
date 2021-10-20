@@ -144,7 +144,7 @@ void HybridOpNode::GatherBound(const Operation& self,
 
 Stmt HybridOpNode::BuildRealize(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& realize_map,
-                                const Stmt& body) const {
+                                const Stmt& body, String storage_scope) const {
   // TODO(@were): Add attribute inject here and remove it from hybrid parser.
   ICHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
@@ -154,7 +154,7 @@ Stmt HybridOpNode::BuildRealize(const Stage& stage,
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
+    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body, storage_scope);
   }
   return realize_body;
 }
@@ -234,9 +234,9 @@ Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range
         PrimExpr cond = likely(outer * factor < (op->extent - inner));
         ret = IfThenElse(cond, ret);
         ret = For(inner->var, PrimExpr(0), inner->dom->extent,
-                  IterVarTypeToForType(inner->iter_type), op->device_api, ret);
+                  IterVarTypeToForKind(inner->iter_type), ret);
         ret = For(outer->var, PrimExpr(0), outer->dom->extent,
-                  IterVarTypeToForType(outer->iter_type), op->device_api, ret);
+                  IterVarTypeToForKind(outer->iter_type), ret);
         splitted = true;
         return ret;
       }
@@ -277,8 +277,8 @@ Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = tir::Substitute(body, rmap);
         under_outer = false;
-        return For(parent->var, PrimExpr(0), extent * op->extent, op->for_type, op->device_api,
-                   body);
+        return For(parent->var, PrimExpr(0), extent * op->extent, op->kind, body,
+                   op->thread_binding, op->annotations);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
         std::unordered_map<const VarNode*, PrimExpr> rmap;
@@ -331,8 +331,8 @@ Stmt ApplyLoopAnnotations(const Stage& stage, const std::unordered_map<IterVar, 
           Stmt body = tir::Substitute(op->body, rmap);
           return AttrStmt(iter_var, "thread_extent", op->extent, body);
         } else {
-          return For(op->loop_var, op->min, op->extent, IterVarTypeToForType(attr->iter_type),
-                     op->device_api, op->body);
+          return For(op->loop_var, op->min, op->extent, IterVarTypeToForKind(attr->iter_type),
+                     op->body, op->thread_binding, op->annotations);
         }
       }
       return StmtMutator::VisitStmt_(op);
@@ -345,18 +345,18 @@ Stmt ApplyLoopAnnotations(const Stage& stage, const std::unordered_map<IterVar, 
 
     const IterVar& actual = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
     const VarNode* var = actual->var.get();
-    ForType expected = IterVarTypeToForType(iter_var->iter_type);
+    ForKind expected = IterVarTypeToForKind(iter_var->iter_type);
     IterVarAttr attr;
     if (stage->iter_var_attrs.count(iter_var)) {
       attr = stage->iter_var_attrs[iter_var];
-      expected = IterVarTypeToForType(attr->iter_type);
+      expected = IterVarTypeToForKind(attr->iter_type);
     }
 
     PostOrderVisit(stmt, [&found, &var, &attr, &expected, &need_change](const ObjectRef& node) {
       if (const ForNode* op = node.as<ForNode>()) {
         if (op->loop_var.get() == var) {
           ++found;
-          need_change = expected != op->for_type || (attr.defined() && attr->bind_thread.defined());
+          need_change = expected != op->kind || (attr.defined() && attr->bind_thread.defined());
         }
       }
     });
@@ -409,12 +409,13 @@ Stmt ApplyLoopOrder(const Stage& stage, const std::unordered_map<IterVar, Range>
       if (body_.same_as(op->body) && op->loop_var.get() == target->var.get())
         return GetRef<Stmt>(op);
       const Stmt& body = op->body.same_as(body_) ? op->body : body_;
-      ForType for_type = IterVarTypeToForType(target->iter_type);
+      ForKind kind = IterVarTypeToForKind(target->iter_type);
       if (stage->iter_var_attrs.count(target)) {
-        for_type = IterVarTypeToForType(stage->iter_var_attrs[target]->iter_type);
+        kind = IterVarTypeToForKind(stage->iter_var_attrs[target]->iter_type);
       }
       const Range& range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
-      return For(target->var, range->min, range->extent, for_type, DeviceAPI::None, body);
+      return For(target->var, range->min, range->extent, kind, body, op->thread_binding,
+                 op->annotations);
     }
   };
 
@@ -448,7 +449,7 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
     if (const ForNode* op = node.as<ForNode>()) {
       Var loop_var(op->loop_var);
       Range dom = Range::FromMinExtent(op->min, op->extent);
-      res_.push_back(IterVar(dom, loop_var, ForTypeToIterVarType(op->for_type)));
+      res_.push_back(IterVar(dom, loop_var, ForKindToIterVarType(op->kind)));
     }
   });
   std::reverse(res_.begin(), res_.end());

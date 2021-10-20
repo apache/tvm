@@ -53,7 +53,7 @@ class IndexBaseTuner(Tuner):
     def has_next(self):
         return self.counter < self.range_length
 
-    def load_history(self, data_set):
+    def load_history(self, data_set, min_seed_records=500):
         pass
 
 

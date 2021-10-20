@@ -54,6 +54,15 @@ inline size_t GetShape1DSize(const Type& type) {
   return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
 }
 
+inline std::string GetShapeString(std::vector<int> shape) {
+  std::string v = "std::vector<long int>{";
+  for (auto s : shape) {
+    v += std::to_string(s) + ",";
+  }
+  v += "}";
+  return v;
+}
+
 std::vector<std::string> Conv2d(const CallNode* call) {
   std::vector<std::string> args;
   const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
@@ -67,11 +76,13 @@ std::vector<std::string> Conv2d(const CallNode* call) {
     args.push_back(std::to_string(s));
   }
 
-  // Args: O, G, Ph, Pw, Kh, Kw, Sh, Sw
+  // Args: O, G, Ph0, Pw0, Ph1, Pw1, Kh, Kw, Sh, Sw
   args.push_back(std::to_string(wshape[0]));
   args.push_back(std::to_string(conv2d_attr->groups));
   args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImmNode>()->value));
   args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImmNode>()->value));
+  args.push_back(std::to_string(conv2d_attr->padding[2].as<IntImmNode>()->value));
+  args.push_back(std::to_string(conv2d_attr->padding[3].as<IntImmNode>()->value));
   args.push_back(std::to_string(wshape[2]));
   args.push_back(std::to_string(wshape[3]));
   args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImmNode>()->value));
@@ -96,12 +107,8 @@ std::vector<std::string> Dense(const CallNode* call) {
 std::vector<std::string> Relu(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
-
   // Args: N, C, H, W
-  for (auto s : ishape) {
-    args.push_back(std::to_string(s));
-  }
-
+  args.push_back(GetShapeString(ishape));
   return args;
 }
 
@@ -121,15 +128,25 @@ std::vector<std::string> BatchNorm(const CallNode* call) {
   return args;
 }
 
+// should comply with src/runtime/contrib/dnnl/dnnl.cc
+#define DNNL_BINARY_ADD 0
+#define DNNL_BINARY_MUL 1
+
 std::vector<std::string> Add(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
-
+  args.push_back(std::to_string(DNNL_BINARY_ADD));
   // Args: H, W
-  for (auto s : ishape) {
-    args.push_back(std::to_string(s));
-  }
+  args.push_back(GetShapeString(ishape));
+  return args;
+}
 
+std::vector<std::string> Multiply(const CallNode* call) {
+  std::vector<std::string> args;
+  auto ishape = GetShape(call->args[0]->checked_type());
+  args.push_back(std::to_string(DNNL_BINARY_MUL));
+  // Args: H, W
+  args.push_back(GetShapeString(ishape));
   return args;
 }
 
@@ -237,11 +254,9 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
     using ArgFunType = std::function<std::vector<std::string>(const CallNode*)>;
     static const std::map<std::string, std::pair<std::string, ArgFunType>> op_map = {
-        {"nn.conv2d", {"dnnl_conv2d", Conv2d}},
-        {"nn.dense", {"dnnl_dense", Dense}},
-        {"nn.relu", {"dnnl_relu", Relu}},
-        {"nn.batch_norm", {"dnnl_bn", BatchNorm}},
-        {"add", {"dnnl_add", Add}},
+        {"nn.conv2d", {"dnnl_conv2d", Conv2d}}, {"nn.dense", {"dnnl_dense", Dense}},
+        {"nn.relu", {"dnnl_relu", Relu}},       {"nn.batch_norm", {"dnnl_bn", BatchNorm}},
+        {"add", {"dnnl_binary_op", Add}},       {"multiply", {"dnnl_binary_op", Multiply}},
     };
 
     const auto op_name = GetRef<Op>(op_node)->name;
@@ -393,7 +408,6 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cstring>\n";
     code_stream_ << "#include <vector>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
-    code_stream_ << "#include <tvm/runtime/container.h>\n";
     code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
     // dnnl_kernel file is saved under src/runtime/contrib/dnnl so that we don't
@@ -413,7 +427,8 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     // Create a CSource module
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     ICHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(code, "c", sym, variables);
+    // TODO(@manupa-arm): pass the function names to enable system-lib creation
+    return (*pf)(code, "c", Array<String>{sym}, variables);
   }
 
  private:

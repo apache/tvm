@@ -176,10 +176,9 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       if (tcode == kTVMObjectHandle || tcode == kTVMObjectRValueRefArg) {
         LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type "
                    << args[i].AsObjectRef<ObjectRef>()->GetTypeKey() << " is not supported by RPC";
-      } else if (tcode == kTVMContext) {
-        DLContext ctx = args[i];
-        ICHECK(!IsRPCSessionContext(ctx))
-            << "InternalError: cannot pass RPC context in the channel";
+      } else if (tcode == kDLDevice) {
+        DLDevice dev = args[i];
+        ICHECK(!IsRPCSessionDevice(dev)) << "InternalError: cannot pass RPC device in the channel";
       }
     }
   }
@@ -205,7 +204,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   using Stream::WriteArray;
 
   void MessageStart(uint64_t packet_nbytes) {
-    // Unused here, implemented for uTVM framing layer.
+    // Unused here, implemented for microTVM framing layer.
   }
 
   bool Read(RPCCode* code) {
@@ -220,7 +219,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   }
 
   void MessageDone() {
-    // Unused here, implemented for uTVM framing layer.
+    // Unused here, implemented for microTVM framing layer.
   }
 
   template <typename T>
@@ -331,7 +330,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   }
 
   /*!
-   * \brief Recive incoming packed seq from the stream.
+   * \brief Receive incoming packed seq from the stream.
    * \return The received argments.
    * \note The TVMArgs is available until we switchstate.
    */
@@ -370,7 +369,6 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
    */
   void HandleReturn(RPCCode code, RPCSession::FEncodeReturn setreturn) {
     TVMArgs args = RecvPackedSeq();
-
     if (code == RPCCode::kException) {
       // switch to the state before sending exception.
       this->SwitchToState(kRecvPacketNumBytes);
@@ -387,88 +385,72 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   void HandleSyscall(RPCCode code);
 
   void HandleCopyFromRemote() {
-    uint64_t handle, offset, num_bytes;
-    TVMContext ctx;
-    DLDataType type_hint;
-    this->Read(&handle);
-    this->Read(&offset);
-    this->Read(&num_bytes);
-    this->Read(&ctx);
-    this->Read(&type_hint);
-    size_t elem_bytes = (type_hint.bits * type_hint.lanes + 7) / 8;
-
+    DLTensor* arr = RPCReference::ReceiveDLTensor(this);
+    uint64_t data_bytes;
+    this->Read(&data_bytes);
+    size_t elem_bytes = (arr->dtype.bits * arr->dtype.lanes + 7) / 8;
     auto* sess = GetServingSession();
-
     // Return Copy Ack with the given data
-    auto fcopyack = [this](char* data_ptr, size_t num_bytes) {
+    auto fcopyack = [this](char* dptr, size_t num_bytes) {
       RPCCode code = RPCCode::kCopyAck;
       uint64_t packet_nbytes = sizeof(code) + num_bytes;
 
       this->Write(packet_nbytes);
       this->Write(code);
-      this->WriteArray(data_ptr, num_bytes);
+      this->WriteArray(dptr, num_bytes);
       this->SwitchToState(kRecvPacketNumBytes);
     };
 
     // When session is local, we can directly treat handle
     // as the cpu pointer without allocating a temp space.
-    if (ctx.device_type == kDLCPU && sess->IsLocalSession() && DMLC_IO_NO_ENDIAN_SWAP) {
-      char* data_ptr = reinterpret_cast<char*>(handle) + offset;
-      fcopyack(data_ptr, num_bytes);
+    if (arr->device.device_type == kDLCPU && sess->IsLocalSession() && DMLC_IO_NO_ENDIAN_SWAP) {
+      char* data_ptr = reinterpret_cast<char*>(arr->data) + arr->byte_offset;
+      fcopyack(data_ptr, data_bytes);
     } else {
-      char* data_ptr = this->ArenaAlloc<char>(num_bytes);
-
-      auto on_copy_complete = [this, elem_bytes, num_bytes, data_ptr, fcopyack](RPCCode status,
-                                                                                TVMArgs args) {
+      char* temp_data = this->ArenaAlloc<char>(data_bytes);
+      auto on_copy_complete = [this, elem_bytes, data_bytes, temp_data, fcopyack](RPCCode status,
+                                                                                  TVMArgs args) {
         if (status == RPCCode::kException) {
           this->ReturnException(args.values[0].v_str);
           this->SwitchToState(kRecvPacketNumBytes);
         } else {
           // endian aware handling
           if (!DMLC_IO_NO_ENDIAN_SWAP) {
-            dmlc::ByteSwap(data_ptr, elem_bytes, num_bytes / elem_bytes);
+            dmlc::ByteSwap(temp_data, elem_bytes, data_bytes / elem_bytes);
           }
-          fcopyack(data_ptr, num_bytes);
+          fcopyack(temp_data, data_bytes);
         }
       };
 
       this->SwitchToState(kWaitForAsyncCallback);
-      sess->AsyncCopyFromRemote(reinterpret_cast<void*>(handle), offset, data_ptr, 0, num_bytes,
-                                ctx, type_hint, on_copy_complete);
+      sess->AsyncCopyFromRemote(arr, static_cast<void*>(temp_data), data_bytes, on_copy_complete);
     }
   }
 
   void HandleCopyToRemote() {
-    uint64_t handle, offset, num_bytes;
-    TVMContext ctx;
-    DLDataType type_hint;
-
-    this->Read(&handle);
-    this->Read(&offset);
-    this->Read(&num_bytes);
-    this->Read(&ctx);
-    this->Read(&type_hint);
-
-    size_t elem_bytes = (type_hint.bits * type_hint.lanes + 7) / 8;
+    DLTensor* arr = RPCReference::ReceiveDLTensor(this);
+    uint64_t data_bytes;
+    this->Read(&data_bytes);
+    size_t elem_bytes = (arr->dtype.bits * arr->dtype.lanes + 7) / 8;
     auto* sess = GetServingSession();
 
     // When session is local, we can directly treat handle
     // as the cpu pointer without allocating a temp space.
-    if (ctx.device_type == kDLCPU && sess->IsLocalSession()) {
-      char* dptr = reinterpret_cast<char*>(handle) + offset;
-      this->ReadArray(dptr, num_bytes);
+    if (arr->device.device_type == kDLCPU && sess->IsLocalSession()) {
+      char* dptr = reinterpret_cast<char*>(arr->data) + arr->byte_offset;
+      this->ReadArray(dptr, data_bytes);
 
       if (!DMLC_IO_NO_ENDIAN_SWAP) {
-        dmlc::ByteSwap(dptr, elem_bytes, num_bytes / elem_bytes);
+        dmlc::ByteSwap(dptr, elem_bytes, data_bytes / elem_bytes);
       }
       this->ReturnVoid();
       this->SwitchToState(kRecvPacketNumBytes);
     } else {
-      char* temp_data = this->ArenaAlloc<char>(num_bytes);
-      this->ReadArray(temp_data, num_bytes);
+      char* temp_data = this->ArenaAlloc<char>(data_bytes);
+      this->ReadArray(temp_data, data_bytes);
 
       if (!DMLC_IO_NO_ENDIAN_SWAP) {
-        dmlc::ByteSwap(temp_data, elem_bytes, num_bytes / elem_bytes);
+        dmlc::ByteSwap(temp_data, elem_bytes, data_bytes / elem_bytes);
       }
 
       auto on_copy_complete = [this](RPCCode status, TVMArgs args) {
@@ -482,8 +464,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       };
 
       this->SwitchToState(kWaitForAsyncCallback);
-      sess->AsyncCopyToRemote(temp_data, 0, reinterpret_cast<void*>(handle), offset, num_bytes, ctx,
-                              type_hint, on_copy_complete);
+      sess->AsyncCopyToRemote(static_cast<void*>(temp_data), arr, data_bytes, on_copy_complete);
     }
   }
 
@@ -495,16 +476,17 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     TVMArgs args = RecvPackedSeq();
 
     this->SwitchToState(kWaitForAsyncCallback);
-    GetServingSession()->AsyncCallFunc(reinterpret_cast<void*>(call_handle), args.values,
-                                       args.type_codes, args.size(),
-                                       [this](RPCCode status, TVMArgs args) {
-                                         if (status == RPCCode::kException) {
-                                           this->ReturnException(args.values[0].v_str);
-                                         } else {
-                                           this->ReturnPackedSeq(args);
-                                         }
-                                         this->SwitchToState(kRecvPacketNumBytes);
-                                       });
+    GetServingSession()->AsyncCallFunc(
+        reinterpret_cast<void*>(call_handle), args.values, args.type_codes, args.size(),
+        [this](RPCCode status, TVMArgs args) {
+          if (status == RPCCode::kException) {
+            this->ReturnException(args.values[0].v_str);
+          } else {
+            ValidateArguments(args.values, args.type_codes, args.size());
+            this->ReturnPackedSeq(args);
+          }
+          this->SwitchToState(kRecvPacketNumBytes);
+        });
   }
 
   void HandleInitServer() {
@@ -543,7 +525,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
       try {
         fconstructor->CallPacked(constructor_args, &con_ret);
-      } catch (const dmlc::Error& e) {
+      } catch (const Error& e) {
         LOG(FATAL) << "Server[" << name_ << "]:"
                    << " Error caught from session constructor " << constructor_name << ":\n"
                    << e.what();
@@ -557,7 +539,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       ICHECK_EQ(tkey, "rpc") << "Constructor " << constructor_name << " to return an RPCModule";
       serving_session_ = RPCModuleGetSession(mod);
       this->ReturnVoid();
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
       this->ReturnException(e.what());
     }
 
@@ -567,11 +549,11 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   void HandleSyscallStreamSync() {
     TVMArgs args = RecvPackedSeq();
     try {
-      TVMContext ctx = args[0];
+      Device dev = args[0];
       TVMStreamHandle handle = args[1];
 
       this->SwitchToState(kWaitForAsyncCallback);
-      GetServingSession()->AsyncStreamWait(ctx, handle, [this](RPCCode status, TVMArgs args) {
+      GetServingSession()->AsyncStreamWait(dev, handle, [this](RPCCode status, TVMArgs args) {
         if (status == RPCCode::kException) {
           this->ReturnException(args.values[0].v_str);
         } else {
@@ -579,7 +561,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
         }
         this->SwitchToState(kRecvPacketNumBytes);
       });
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
       this->ReturnException(e.what());
       this->SwitchToState(kRecvPacketNumBytes);
     }
@@ -598,7 +580,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       setter(0, rv);
 
       this->ReturnPackedSeq(TVMArgs(&ret_value, &ret_tcode, 1));
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
       this->ReturnException(e.what());
     }
     this->SwitchToState(kRecvPacketNumBytes);
@@ -655,7 +637,7 @@ RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncod
         if (handler_->CanCleanShutdown()) {
           return RPCCode::kShutdown;
         } else {
-          LOG(FATAL) << "Channel closes before we get neded bytes";
+          LOG(FATAL) << "Channel closes before we get needed bytes";
         }
       }
     }
@@ -702,18 +684,21 @@ void RPCEndpoint::Init() {
 
 /*!
  * \brief Create a new RPCEndpoint instance.
- * \param channel RPCChannel used to communicate
+ * \param channel RPCChannel used to communicate.
  * \param name Name of this session, used to identify log messages from this RPCEndpoint instance.
- * \param The remote key reported during protocol initialization, or "%toinit" if the RPCEndpoint
- *     should handle this phase of the protocol for you. Some servers may prefer to access parts of
- *     the key to modify their behavior.
+ * \param remote_key The remote key reported during protocol initialization, or "%toinit" if the
+ * RPCEndpoint should handle this phase of the protocol for you. Some servers may prefer to access
+ * parts of the key to modify their behavior.
+ * \param fcleanup The cleanup Packed function.
  */
 std::shared_ptr<RPCEndpoint> RPCEndpoint::Create(std::unique_ptr<RPCChannel> channel,
-                                                 std::string name, std::string remote_key) {
+                                                 std::string name, std::string remote_key,
+                                                 TypedPackedFunc<void()> fcleanup) {
   std::shared_ptr<RPCEndpoint> endpt = std::make_shared<RPCEndpoint>();
   endpt->channel_ = std::move(channel);
   endpt->name_ = std::move(name);
   endpt->remote_key_ = std::move(remote_key);
+  endpt->fcleanup_ = fcleanup;
   endpt->Init();
   return endpt;
 }
@@ -736,7 +721,7 @@ void RPCEndpoint::Shutdown() {
             writer_.bytes_available());
         if (n == 0) break;
       }
-    } catch (const dmlc::Error& e) {
+    } catch (const Error& e) {
     }
     channel_.reset(nullptr);
   }
@@ -752,6 +737,7 @@ void RPCEndpoint::ServerLoop() {
     (*f)();
   }
   channel_.reset(nullptr);
+  if (fcleanup_ != nullptr) fcleanup_();
 }
 
 int RPCEndpoint::ServerAsyncIOEventHandler(const std::string& in_bytes, int event_flag) {
@@ -812,54 +798,48 @@ void RPCEndpoint::CallFunc(RPCSession::PackedFuncHandle h, const TVMValue* arg_v
   handler_->SendPackedSeq(arg_values, arg_type_codes, num_args, true);
 
   code = HandleUntilReturnEvent(true, encode_return);
-  ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
+  ICHECK(code == RPCCode::kReturn) << "code=" << RPCCodeToString(code);
 }
 
-void RPCEndpoint::CopyToRemote(void* from, size_t from_offset, void* to, size_t to_offset,
-                               size_t data_size, TVMContext ctx_to, DLDataType type_hint) {
+void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) {
   std::lock_guard<std::mutex> lock(mutex_);
   RPCCode code = RPCCode::kCopyToRemote;
-  uint64_t handle = reinterpret_cast<uint64_t>(to);
-  uint64_t offset = static_cast<uint64_t>(to_offset);
-  uint64_t size = static_cast<uint64_t>(data_size);
 
-  uint64_t packet_nbytes = sizeof(code) + sizeof(handle) + sizeof(offset) + sizeof(size) +
-                           sizeof(ctx_to) + sizeof(type_hint) + data_size;
+  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(GetDataSize(*to));
+  ICHECK_LE(to->byte_offset + nbytes, tensor_total_size_bytes)
+      << "CopyToRemote: overflow in tensor size: (byte_offset=" << to->byte_offset
+      << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
+
+  uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(to, code, nbytes);
+  uint64_t packet_nbytes = overhead + nbytes;
 
   handler_->Write(packet_nbytes);
   handler_->Write(code);
-  handler_->Write(handle);
-  handler_->Write(offset);
-  handler_->Write(size);
-  handler_->Write(ctx_to);
-  handler_->Write(type_hint);
-  handler_->WriteArray(reinterpret_cast<char*>(from) + from_offset, data_size);
-
+  RPCReference::SendDLTensor(handler_, to);
+  handler_->Write(nbytes);
+  handler_->WriteArray(reinterpret_cast<char*>(from_bytes), nbytes);
   ICHECK(HandleUntilReturnEvent(true, [](TVMArgs) {}) == RPCCode::kReturn);
 }
 
-void RPCEndpoint::CopyFromRemote(void* from, size_t from_offset, void* to, size_t to_offset,
-                                 size_t data_size, TVMContext ctx_from, DLDataType type_hint) {
+void RPCEndpoint::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) {
   std::lock_guard<std::mutex> lock(mutex_);
   RPCCode code = RPCCode::kCopyFromRemote;
-  uint64_t handle = reinterpret_cast<uint64_t>(from);
-  uint64_t offset = static_cast<uint64_t>(from_offset);
-  uint64_t size = static_cast<uint64_t>(data_size);
 
-  uint64_t packet_nbytes = sizeof(code) + sizeof(handle) + sizeof(offset) + sizeof(size) +
-                           sizeof(ctx_from) + sizeof(type_hint);
+  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(GetDataSize(*from));
+  ICHECK_LE(from->byte_offset + nbytes, tensor_total_size_bytes)
+      << "CopyFromRemote: overflow in tensor size: (byte_offset=" << from->byte_offset
+      << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
+
+  uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(from, code, nbytes);
+  uint64_t packet_nbytes = overhead;
 
   handler_->Write(packet_nbytes);
   handler_->Write(code);
-  handler_->Write(handle);
-  handler_->Write(offset);
-  handler_->Write(size);
-  handler_->Write(ctx_from);
-  handler_->Write(type_hint);
-
-  TVMRetValue rv;
+  RPCReference::SendDLTensor(handler_, from);
+  handler_->Write(nbytes);
   ICHECK(HandleUntilReturnEvent(true, [](TVMArgs) {}) == RPCCode::kCopyAck);
-  handler_->ReadArray(reinterpret_cast<char*>(to) + to_offset, data_size);
+
+  handler_->ReadArray(reinterpret_cast<char*>(to_bytes), nbytes);
   handler_->FinishCopyAck();
 }
 
@@ -876,60 +856,88 @@ void RPCFreeHandle(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
 }
 
 void RPCDevSetDevice(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  TVMContext ctx = args[0];
-  handler->GetDeviceAPI(ctx)->SetDevice(ctx);
+  Device dev = args[0];
+  handler->GetDeviceAPI(dev)->SetDevice(dev);
 }
 
 void RPCDevGetAttr(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  TVMContext ctx = args[0];
+  Device dev = args[0];
   DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[1].operator int());
   if (kind == kExist) {
-    DeviceAPI* api = handler->GetDeviceAPI(ctx, true);
+    DeviceAPI* api = handler->GetDeviceAPI(dev, true);
     if (api != nullptr) {
-      api->GetAttr(ctx, kind, rv);
+      api->GetAttr(dev, kind, rv);
     } else {
       *rv = 0;
     }
   } else {
-    handler->GetDeviceAPI(ctx)->GetAttr(ctx, static_cast<DeviceAttrKind>(kind), rv);
+    handler->GetDeviceAPI(dev)->GetAttr(dev, static_cast<DeviceAttrKind>(kind), rv);
   }
 }
 
 void RPCDevAllocData(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  TVMContext ctx = args[0];
+  Device dev = args[0];
   uint64_t nbytes = args[1];
   uint64_t alignment = args[2];
   DLDataType type_hint = args[3];
-  void* data = handler->GetDeviceAPI(ctx)->AllocDataSpace(ctx, nbytes, alignment, type_hint);
+  void* data = handler->GetDeviceAPI(dev)->AllocDataSpace(dev, nbytes, alignment, type_hint);
+  *rv = data;
+}
+
+void RPCDevAllocDataWithScope(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  DLTensor* arr = args[0];
+  Device dev = arr->device;
+  int ndim = arr->ndim;
+  int64_t* shape = arr->shape;
+  DLDataType dtype = arr->dtype;
+  int tcode = args[1].type_code();
+  Optional<String> mem_scope = NullOpt;
+  if (tcode == kTVMStr) {
+    mem_scope = args[1].operator String();
+  } else {
+    ICHECK_EQ(tcode, kTVMNullptr);
+  }
+  void* data = handler->GetDeviceAPI(dev)->AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   *rv = data;
 }
 
 void RPCDevFreeData(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  TVMContext ctx = args[0];
+  Device dev = args[0];
   void* ptr = args[1];
-  handler->GetDeviceAPI(ctx)->FreeDataSpace(ctx, ptr);
+  handler->GetDeviceAPI(dev)->FreeDataSpace(dev, ptr);
 }
 
 void RPCCopyAmongRemote(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  void* from = args[0];
-  uint64_t from_offset = args[1];
-  void* to = args[2];
-  uint64_t to_offset = args[3];
-  uint64_t size = args[4];
-  TVMContext ctx_from = args[5];
-  TVMContext ctx_to = args[6];
-  DLDataType type_hint = args[7];
-  TVMStreamHandle stream = args[8];
-  TVMContext ctx = ctx_from;
+  DLTensor* from = args[0];
+  DLTensor* to = args[1];
+  TVMStreamHandle stream = args[2];
 
-  if (ctx.device_type == kDLCPU) {
-    ctx = ctx_to;
+  Device dev = from->device;
+  if (dev.device_type == kDLCPU) {
+    dev = to->device;
   } else {
-    ICHECK(ctx_to.device_type == kDLCPU || ctx_to.device_type == ctx_from.device_type)
-        << "Can not copy across different ctx types directly";
+    ICHECK(to->device.device_type == kDLCPU || to->device.device_type == from->device.device_type)
+        << "Can not copy across different dev types directly";
   }
-  handler->GetDeviceAPI(ctx)->CopyDataFromTo(from, from_offset, to, to_offset, size, ctx_from,
-                                             ctx_to, type_hint, stream);
+  handler->GetDeviceAPI(dev)->CopyDataFromTo(from, to, stream);
+}
+
+void RPCDevCreateStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  Device dev = args[0];
+  void* data = handler->GetDeviceAPI(dev)->CreateStream(dev);
+  *rv = data;
+}
+
+void RPCDevFreeStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  Device dev = args[0];
+  TVMStreamHandle stream = args[1];
+  handler->GetDeviceAPI(dev)->FreeStream(dev, stream);
+}
+
+void RPCDevSetStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  Device dev = args[0];
+  TVMStreamHandle stream = args[1];
+  handler->GetDeviceAPI(dev)->SetStream(dev, stream);
 }
 
 void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
@@ -951,11 +959,23 @@ void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
     case RPCCode::kDevAllocData:
       SysCallHandler(RPCDevAllocData);
       break;
+    case RPCCode::kDevAllocDataWithScope:
+      SysCallHandler(RPCDevAllocDataWithScope);
+      break;
     case RPCCode::kDevFreeData:
       SysCallHandler(RPCDevFreeData);
       break;
+    case RPCCode::kDevCreateStream:
+      SysCallHandler(RPCDevCreateStream);
+      break;
+    case RPCCode::kDevFreeStream:
+      SysCallHandler(RPCDevFreeStream);
+      break;
     case RPCCode::kDevStreamSync:
       this->HandleSyscallStreamSync();
+      break;
+    case RPCCode::kDevSetStream:
+      SysCallHandler(RPCDevSetStream);
       break;
     case RPCCode::kCopyAmongRemote:
       SysCallHandler(RPCCopyAmongRemote);
@@ -989,61 +1009,160 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     endpoint_->CallFunc(func, arg_values, arg_type_codes, num_args, fencode_return);
   }
 
-  void CopyToRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
-                    TVMContext ctx_to, DLDataType type_hint) final {
-    endpoint_->CopyToRemote(from, from_offset, to, to_offset, nbytes, ctx_to, type_hint);
+  void CopyToRemote(void* local_from_bytes, DLTensor* remote_to, uint64_t nbytes) final {
+    RPCCode code = RPCCode::kCopyToRemote;
+    uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_to, code, nbytes);
+    uint64_t rpc_max_size = GetRPCMaxTransferSize();
+    ICHECK_GT(rpc_max_size, overhead) << "CopyToRemote: Invalid block size!";
+    const uint64_t block_size = rpc_max_size - overhead;
+    uint64_t block_count = 0;
+    const uint64_t num_blocks = nbytes / block_size;
+    void* from_bytes;
+
+    for (block_count = 0; block_count < num_blocks; block_count++) {
+      remote_to->byte_offset = block_count * block_size;
+      from_bytes = reinterpret_cast<void*>(
+          (reinterpret_cast<uint8_t*>(local_from_bytes) + block_count * block_size));
+      endpoint_->CopyToRemote(from_bytes, remote_to, block_size);
+    }
+
+    const uint64_t remainder_bytes = nbytes % block_size;
+    if (remainder_bytes != 0) {
+      remote_to->byte_offset = block_count * block_size;
+      from_bytes = reinterpret_cast<void*>(
+          (reinterpret_cast<uint8_t*>(local_from_bytes) + block_count * block_size));
+      endpoint_->CopyToRemote(from_bytes, remote_to, remainder_bytes);
+    }
   }
 
-  void CopyFromRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
-                      TVMContext ctx_from, DLDataType type_hint) final {
-    endpoint_->CopyFromRemote(from, from_offset, to, to_offset, nbytes, ctx_from, type_hint);
+  void CopyFromRemote(DLTensor* remote_from, void* local_to_bytes, uint64_t nbytes) final {
+    RPCCode code = RPCCode::kCopyFromRemote;
+    uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_from, code, nbytes);
+    uint64_t rpc_max_size = GetRPCMaxTransferSize();
+    ICHECK_GT(rpc_max_size, overhead) << "CopyFromRemote: Invalid block size!";
+    const uint64_t block_size = rpc_max_size - overhead;
+    uint64_t block_count = 0;
+    const uint64_t num_blocks = nbytes / block_size;
+    void* to_bytes;
+
+    for (block_count = 0; block_count < num_blocks; block_count++) {
+      remote_from->byte_offset = block_count * block_size;
+      to_bytes = reinterpret_cast<void*>(
+          (reinterpret_cast<uint8_t*>(local_to_bytes) + block_count * block_size));
+      endpoint_->CopyFromRemote(remote_from, to_bytes, block_size);
+    }
+
+    const uint64_t remainder_bytes = nbytes % block_size;
+    if (remainder_bytes != 0) {
+      remote_from->byte_offset = block_count * block_size;
+      to_bytes = reinterpret_cast<void*>(
+          (reinterpret_cast<uint8_t*>(local_to_bytes) + block_count * block_size));
+      endpoint_->CopyFromRemote(remote_from, to_bytes, remainder_bytes);
+    }
   }
 
   void FreeHandle(void* handle, int type_code) final {
     endpoint_->SysCallRemote(RPCCode::kFreeHandle, handle, type_code);
   }
 
-  void SetDevice(TVMContext ctx) final { endpoint_->SysCallRemote(RPCCode::kDevSetDevice, ctx); }
+  void SetDevice(Device dev) final { endpoint_->SysCallRemote(RPCCode::kDevSetDevice, dev); }
 
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
-    if (ctx.device_type == kDLCPU && kind == kExist) {
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
+    if (dev.device_type == kDLCPU && kind == kExist) {
       // cpu always exists.
       *rv = 1;
     } else {
-      *rv = endpoint_->SysCallRemote(RPCCode::kDevGetAttr, ctx, static_cast<int>(kind));
+      *rv = endpoint_->SysCallRemote(RPCCode::kDevGetAttr, dev, static_cast<int>(kind));
     }
   }
 
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
-    return endpoint_->SysCallRemote(RPCCode::kDevAllocData, ctx, nbytes, alignment, type_hint);
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
+    return endpoint_->SysCallRemote(RPCCode::kDevAllocData, dev, nbytes, alignment, type_hint);
   }
 
-  void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    endpoint_->SysCallRemote(RPCCode::kDevFreeData, ctx, ptr);
+  void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
+                       Optional<String> mem_scope) final {
+    DLTensor temp;
+    temp.data = nullptr;
+    temp.device = dev;
+    temp.ndim = ndim;
+    temp.dtype = dtype;
+    temp.shape = const_cast<int64_t*>(shape);
+    temp.strides = nullptr;
+    temp.byte_offset = 0;
+    if (mem_scope.defined()) {
+      return endpoint_->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp,
+                                      static_cast<std::string>(mem_scope.value()));
+    } else {
+      return endpoint_->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp, nullptr);
+    }
   }
 
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
-                      TVMStreamHandle stream) final {
-    endpoint_->SysCallRemote(RPCCode::kCopyAmongRemote, const_cast<void*>(from), from_offset, to,
-                             to_offset, size, ctx_from, ctx_to, type_hint, stream);
+  void FreeDataSpace(Device dev, void* ptr) final {
+    endpoint_->SysCallRemote(RPCCode::kDevFreeData, dev, ptr);
   }
 
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
-    endpoint_->SysCallRemote(RPCCode::kDevStreamSync, ctx, stream);
+  void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final {
+    endpoint_->SysCallRemote(RPCCode::kCopyAmongRemote, from, to, stream);
   }
 
-  DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing) final { return this; }
+  TVMStreamHandle CreateStream(Device dev) final {
+    return endpoint_->SysCallRemote(RPCCode::kDevCreateStream, dev);
+  }
+
+  void FreeStream(Device dev, TVMStreamHandle stream) final {
+    endpoint_->SysCallRemote(RPCCode::kDevFreeStream, dev, stream);
+  }
+
+  void StreamSync(Device dev, TVMStreamHandle stream) final {
+    endpoint_->SysCallRemote(RPCCode::kDevStreamSync, dev, stream);
+  }
+
+  void SetStream(Device dev, TVMStreamHandle stream) final {
+    endpoint_->SysCallRemote(RPCCode::kDevSetStream, dev, stream);
+  }
+
+  DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing) final { return this; }
 
   bool IsLocalSession() const final { return false; }
 
  private:
+  uint64_t GetRPCMaxTransferSize() {
+    if (rpc_chunk_max_size_bytes_ > 0) {
+      return (uint64_t)rpc_chunk_max_size_bytes_;
+    }
+
+    PackedFuncHandle rpc_func = GetFunction("tvm.rpc.server.GetCRTMaxPacketSize");
+    if (rpc_func == nullptr) {
+      rpc_chunk_max_size_bytes_ = (int64_t)kRPCMaxTransferSizeBytesDefault;
+    } else {
+      CallFunc(rpc_func, nullptr, nullptr, 0, [this](TVMArgs args) {
+        // Use args[1] as return value, args[0] is tcode
+        // Look at RPCWrappedFunc in src/runtime/rpc/rpc_module.cc
+        rpc_chunk_max_size_bytes_ = (int64_t)args[1];
+        ICHECK_GT(rpc_chunk_max_size_bytes_, 0)
+            << "RPC max transfer size is <= 0! (remote value = " << rpc_chunk_max_size_bytes_
+            << ")";
+      });
+    }
+    return (uint64_t)rpc_chunk_max_size_bytes_;
+  }
+
   std::shared_ptr<RPCEndpoint> endpoint_;
+  int64_t rpc_chunk_max_size_bytes_ = -1;
 };
 
 std::shared_ptr<RPCSession> CreateClientSession(std::shared_ptr<RPCEndpoint> endpoint) {
   return std::make_shared<RPCClientSession>(endpoint);
+}
+
+uint64_t RemoteCopyCalculatePacketOverheadSize(DLTensor* tensor, RPCCode code, uint64_t nbytes) {
+  uint64_t shape_bytes = tensor->ndim * sizeof(int64_t);
+  uint64_t to_data = reinterpret_cast<uint64_t>(static_cast<uint8_t*>(tensor->data));
+  uint64_t overhead = sizeof(code) + sizeof(to_data) + sizeof(tensor->device) +
+                      sizeof(tensor->ndim) + sizeof(tensor->dtype) + sizeof(tensor->byte_offset) +
+                      shape_bytes + sizeof(nbytes);
+  return overhead;
 }
 
 }  // namespace runtime

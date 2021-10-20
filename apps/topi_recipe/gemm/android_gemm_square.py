@@ -40,18 +40,18 @@ def ngflops(N):
 dtype = "float32"
 
 
-def evaluate(func, ctx, N, times):
+def evaluate(func, dev, N, times):
     a_np = np.random.uniform(size=(N, N)).astype(dtype)
     b_np = np.random.uniform(size=(N, N)).astype(dtype)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
-    c = tvm.nd.array(np.zeros((N, N), dtype=dtype), ctx)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    c = tvm.nd.array(np.zeros((N, N), dtype=dtype), dev)
 
-    time_f = func.time_evaluator(func.entry_name, ctx, number=times)
+    time_f = func.time_evaluator(func.entry_name, dev, number=times)
     cost = time_f(a, b, c).mean
     gf = ngflops(N) / cost
     print("%g secs/op, %g GFLOPS" % (cost, gf))
-    np.testing.assert_almost_equal(c.asnumpy(), a_np.dot(b_np), decimal=2)
+    np.testing.assert_almost_equal(c.numpy(), a_np.dot(b_np), decimal=2)
 
 
 def test_gemm_gpu(N, times, bn, num_block, num_thread):
@@ -127,11 +127,11 @@ def test_gemm_gpu(N, times, bn, num_block, num_thread):
 
     # connect to the proxy
     remote = rpc.connect(proxy_host, proxy_port, key=key)
-    ctx = remote.cl(0)
+    dev = remote.cl(0)
     remote.upload(path_dso)
     f = remote.load_module("gemm_gpu.so")
 
-    evaluate(f, ctx, N, times)
+    evaluate(f, dev, N, times)
 
 
 if __name__ == "__main__":

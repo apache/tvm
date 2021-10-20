@@ -25,7 +25,7 @@
 #define TVM_RUNTIME_VM_BYTECODE_H_
 
 #include <tvm/runtime/data_type.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <iostream>
 #include <vector>

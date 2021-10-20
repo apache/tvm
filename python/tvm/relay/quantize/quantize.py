@@ -51,7 +51,7 @@ def kind2str(kind):
 
 def _forward_op(ref_call, args):
     """forward the operator of ref_call with provided arguments"""
-    return _expr.Call(ref_call.op, args, ref_call.attrs, ref_call.type_args)
+    return _expr.Call(ref_call.op, args, ref_call.attrs, ref_call.type_args, ref_call.span)
 
 
 @tvm._ffi.register_object("relay.quantize.QConfig")
@@ -220,9 +220,8 @@ class QuantizeContext(object):
         if current_qconfig().skip_conv_layers is not None:
             # check skip conv layers
             skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-            if self._conv2d_counter in skipped_indices:
-                if ref_call.op.name == "nn.conv2d":
-                    self._conv2d_counter += 1
+            if self._conv2d_counter in skipped_indices and ref_call.op.name == "nn.conv2d":
+                self._conv2d_counter += 1
                 return True
             if ref_call.op.name == "nn.conv2d":
                 self._conv2d_counter += 1

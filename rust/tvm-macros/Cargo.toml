@@ -17,7 +17,7 @@
 
 [package]
 name = "tvm-macros"
-version = "0.1.1"
+version = "0.1.1-alpha"
 license = "Apache-2.0"
 description = "Procedural macros of the TVM crate."
 repository = "https://github.com/apache/tvm"

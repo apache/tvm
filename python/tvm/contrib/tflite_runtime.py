@@ -19,15 +19,15 @@ import tvm._ffi
 from ..rpc import base as rpc_base
 
 
-def create(tflite_model_bytes, ctx, runtime_target="cpu"):
-    """Create a runtime executor module given a tflite model and context.
+def create(tflite_model_bytes, device, runtime_target="cpu"):
+    """Create a runtime executor module given a tflite model and device.
     Parameters
     ----------
     tflite_model_byte : bytes
         The tflite model to be deployed in bytes string format.
-    ctx : TVMContext
-        The context to deploy the module. It can be local or remote when there
-        is only one TVMContext.
+    device : Device
+        The device to deploy the module. It can be local or remote when there
+        is only one Device.
     runtime_target: str
         Execution target of TFLite runtime: either `cpu` or `edge_tpu`.
     Returns
@@ -35,7 +35,7 @@ def create(tflite_model_bytes, ctx, runtime_target="cpu"):
     tflite_runtime : TFLiteModule
         Runtime tflite module that can be used to execute the tflite model.
     """
-    device_type = ctx.device_type
+    device_type = device.device_type
 
     if runtime_target == "edge_tpu":
         runtime_func = "tvm.edgetpu_runtime.create"
@@ -43,11 +43,11 @@ def create(tflite_model_bytes, ctx, runtime_target="cpu"):
         runtime_func = "tvm.tflite_runtime.create"
 
     if device_type >= rpc_base.RPC_SESS_MASK:
-        fcreate = ctx._rpc_sess.get_function(runtime_func)
+        fcreate = device._rpc_sess.get_function(runtime_func)
     else:
         fcreate = tvm._ffi.get_global_func(runtime_func)
 
-    return TFLiteModule(fcreate(bytearray(tflite_model_bytes), ctx))
+    return TFLiteModule(fcreate(bytearray(tflite_model_bytes), device))
 
 
 class TFLiteModule(object):

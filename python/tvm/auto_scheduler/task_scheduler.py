@@ -47,6 +47,7 @@ def make_search_policies(
     verbose,
     load_model_file=None,
     load_log_file=None,
+    adapative_training=False,
 ):
     """Make a list of search policies for a list of search tasks.
     It creates one policy per task.
@@ -70,6 +71,9 @@ def make_search_policies(
     load_log_file: Optional[str]
         Load measurement records from this file. If it is not None, the status of the
         task scheduler, search policies and cost models will be restored according to this file.
+    adapative_training: bool = False
+        Option used by XGBModel to reduce the model training frequency when there're too
+        many logs.
 
     Returns
     -------
@@ -82,11 +86,16 @@ def make_search_policies(
     if isinstance(search_policy, str):
         policy_type, model_type = search_policy.split(".")
         if model_type == "xgb":
-            cost_model = XGBModel(num_warmup_sample=len(tasks) * num_measures_per_round)
-            if load_model_file:
+            cost_model = XGBModel(
+                num_warmup_sample=len(tasks) * num_measures_per_round,
+                model_file=load_model_file,
+                adapative_training=adapative_training,
+            )
+            if load_model_file and os.path.isfile(load_model_file):
                 logger.info("TaskScheduler: Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
+                logger.info("TaskScheduler: Reload measured states and train the model...")
                 cost_model.update_from_file(load_log_file)
         elif model_type == "random":
             cost_model = RandomModel()
@@ -237,6 +246,9 @@ class TaskScheduler:
         # task_cts[i] saves how many times task i is tuned
         self.task_cts = [0 for _ in range(len(self.tasks))]
 
+        # task_best_cts[i] saves the round task i found the best latency
+        self.task_best_cts = [0 for _ in range(len(self.tasks))]
+
         # task_costs_history[i] saves the latency history of task i
         self.task_costs_history = [[] for _ in range(len(self.tasks))]
 
@@ -266,13 +278,20 @@ class TaskScheduler:
                 self.group_task_ids.append([])
             self.group_task_ids[self.tag_to_group_id[tag]].append(i)
 
-    def tune(self, tune_option, search_policy="default", search_policy_params=None):
+    def tune(
+        self,
+        tune_option,
+        search_policy="default",
+        search_policy_params=None,
+        adapative_training=False,
+        per_task_early_stopping=None,
+    ):
         """Tune a batch of tasks together.
 
         Parameters
         ----------
         tune_option: TuningOptions
-            The options of tuning
+            The tuning options applied to all tasks.
         search_policy: : Union[str, List[SearchPolicy]] = "default"
             The list of search policies.
             If it is str,
@@ -281,10 +300,20 @@ class TaskScheduler:
             "sketch.random" for SketchPolicy + RandomModel.
         search_policy_params : Optional[Dict[str, Any]]
             The parameters of the search policy
+        adapative_training : bool = False
+            Option used by XGBModel to reduce the model training frequency when there're
+            too many logs.
+        per_task_early_stopping : Optional[int]
+            Stop tuning a task early if getting no improvement after n measurements.
         """
         # init members
         self.tune_option = tune_option
-        early_stopping = 1e20 if tune_option.early_stopping < 0 else tune_option.early_stopping
+        self.early_stopping_all = (
+            1e20 if tune_option.early_stopping < 0 else tune_option.early_stopping
+        )
+        self.early_stopping_task = (
+            1e20 if per_task_early_stopping is None else per_task_early_stopping
+        )
 
         self.measurer = ProgramMeasurer(
             tune_option.builder,
@@ -300,7 +329,10 @@ class TaskScheduler:
             tune_option.num_measures_per_round, tune_option.num_measure_trials // len(self.tasks)
         )
         if self.num_measures_per_round <= 0:
-            raise ValueError("num_measure_trials is too small. Please set it to a higher value.")
+            raise ValueError(
+                "num_measure_trials is too small. Please set it to a higher value."
+                f"It should be at least {len(self.tasks)} for this model."
+            )
 
         # restore the status of the task scheduler from a log file
         if self.load_log_file:
@@ -315,6 +347,7 @@ class TaskScheduler:
             tune_option.verbose,
             self.load_model_file,
             self.load_log_file,
+            adapative_training,
         )
 
         # do a round robin first to warm up
@@ -398,13 +431,13 @@ class TaskScheduler:
             if self.cur_score < self.best_score:
                 self.best_score = self.cur_score
                 self.best_ct = self.ct
-            elif self.ct - self.best_ct >= early_stopping and all(
+            elif self.ct - self.best_ct >= self.early_stopping_all and all(
                 cost < 1e9 for cost in self.best_costs
             ):
                 if self.tune_option.verbose >= 1:
                     print(
                         "Stop early since no performance improvement in the last "
-                        + str(early_stopping)
+                        + str(self.early_stopping_all)
                         + " measurement trials."
                     )
                 break
@@ -420,15 +453,22 @@ class TaskScheduler:
             self.num_measures_per_round, self.measurer
         )
 
+        self.task_cts[task_idx] += 1
+
         for res in measure_results:
             cost = array_mean(res.costs)
             if cost < self.best_costs[task_idx]:
+                self.task_best_cts[task_idx] = self.task_cts[task_idx]
                 self.best_costs[task_idx] = cost
 
-        if len(measure_inputs) == 0:
+        # Stop tuning this task in the rest of the process if its search space has been
+        # fully explored or it has no improvement for a long while.
+        no_change_trials = (
+            self.task_cts[task_idx] - self.task_best_cts[task_idx]
+        ) * self.num_measures_per_round
+        if len(measure_inputs) == 0 or no_change_trials > self.early_stopping_task:
             self.dead_tasks.add(task_idx)
 
-        self.task_cts[task_idx] += 1
         self.task_costs_history[task_idx].append(self.best_costs[task_idx])
 
         self.ct += len(measure_inputs)
@@ -440,7 +480,9 @@ class TaskScheduler:
 
     def _compute_score(self, costs):
         """compute the objective function"""
-        return self.objective_func(costs)
+        # Make sure to return float.
+        score = self.objective_func(costs)
+        return score.value if hasattr(score, "value") else score
 
     def _adjust_similarity_group(self, task_idx):
         """adjust the similarity group for the selected task"""
@@ -475,17 +517,24 @@ class TaskScheduler:
             if task_idx is None:
                 continue
 
-            if res.error_no == 0:
-                self.best_costs[task_idx] = min(self.best_costs[task_idx], array_mean(res.costs))
-
             self.task_cts[task_idx] += 1
 
-        for i in range(len(self.tasks)):
+            if res.error_no == 0:
+                cost = array_mean(res.costs)
+                if cost < self.best_costs[task_idx]:
+                    self.best_costs[task_idx] = cost
+                    self.task_best_cts[task_idx] = self.task_cts[task_idx]
+
+        for idx in range(len(self.tasks)):
+            if self.task_cts[idx] - self.task_best_cts[idx] > self.early_stopping_task:
+                self.dead_tasks.add(idx)
+
             # The computation of taks_cts is just an estimation.
             # The estimation may not be accurate if the log file is changed externally or
             # `num_measures_per_round` is different from the last tuning.
-            self.task_cts[i] = int(self.task_cts[i] / num_measures_per_round + 0.5)
-            self.task_costs_history[i].append(self.best_costs[i])
+            self.task_cts[idx] = int(self.task_cts[idx] / num_measures_per_round + 0.5)
+            self.task_best_cts[idx] = int(self.task_best_cts[idx] / num_measures_per_round + 0.5)
+            self.task_costs_history[idx].append(self.best_costs[idx])
 
         self.cur_score = self._compute_score(self.best_costs)
 
@@ -493,7 +542,7 @@ class TaskScheduler:
 
 
 class TaskSchedulerCallback:
-    """The base class of task scheduler callback functions. """
+    """The base class of task scheduler callback functions."""
 
     def pre_tune(self, task_scheduler, task_id):
         """The callback before tuning each task.

@@ -20,6 +20,8 @@
 # helps avoid topi arithmetic operator overloading issue:
 # https://github.com/apache/tvm/issues/3240
 # TODO: restore the file name after this issue is resolved.
+import pytest
+
 import tvm
 from tvm import te
 
@@ -34,6 +36,7 @@ from tvm.autotvm.graph_tuner.utils import (
     bind_inputs,
 )
 from tvm.autotvm.graph_tuner._base import OPT_OUT_OP
+from tvm.autotvm.graph_tuner.utils.traverse_graph import _replace_device_with_tracing
 from tvm.relay.expr import Call, TupleGetItem, Tuple, Var
 
 
@@ -57,7 +60,7 @@ def test_has_multiple_inputs():
     target_ops = [relay.op.get("nn.conv2d")]
     node_list = []
     node_dict = {}
-    expr2graph(net, target_ops, node_dict, node_list)
+    expr2graph(net, target_ops, node_dict, node_list, tvm.target.Target("llvm"))
     input_names = ["data"]
     verify_has_multiple_inputs(node_list, 2, input_names, False)
     verify_has_multiple_inputs(node_list, 4, input_names, False)
@@ -79,7 +82,7 @@ def test_expr2graph():
 
     relay.analysis.post_order_visit(mod["main"], _count_node)
 
-    expr2graph(mod["main"], target_ops, node_dict, node_list)
+    expr2graph(mod["main"], target_ops, node_dict, node_list, tvm.target.Target("llvm"))
     assert len(node_list) == len(op_name_list)
     for i, item in enumerate(zip(op_name_list, node_list)):
         op_name, node = item
@@ -103,10 +106,20 @@ def test_get_direct_ancestor():
     target_ops = [relay.op.get("nn.conv2d")]
     node_list = []
     node_dict = {}
-    expr2graph(net, target_ops, node_dict, node_list)
+    expr2graph(net, target_ops, node_dict, node_list, tvm.target.Target("llvm"))
     visited_dict = {}
     input_names = ["data"]
     out = get_direct_ancestor(node_list, visited_dict, target_ops, 5, input_names)
+    assert out == [0], "Output mismatch: expecting [0] but got %s." % str(out)
+
+    # non-regression test
+    out = relay.add(relay.log(data), relay.sqrt(data))
+    net = relay.Function(relay.analysis.free_vars(out), out)
+    net = bind_inputs(net, {"data": (1, 16, 224, 224)})
+    node_list = []
+    node_dict = {}
+    expr2graph(net, target_ops, node_dict, node_list, tvm.target.Target("llvm"))
+    out = get_direct_ancestor(node_list, visited_dict, target_ops, 3, input_names)
     assert out == [0], "Output mismatch: expecting [0] but got %s." % str(out)
 
 
@@ -124,7 +137,7 @@ def test_get_in_nodes():
     input_names = ["data"]
     node_list = []
     node_dict = {}
-    expr2graph(net, target_ops, node_dict, node_list)
+    expr2graph(net, target_ops, node_dict, node_list, tvm.target.Target("llvm"))
     out = get_in_nodes(node_list, target_ops, input_names)
     expected_out = {3: [0], 4: [3, 0], 7: [4]}
     diff_set = set(out) ^ set(expected_out)
@@ -143,6 +156,20 @@ def test_get_out_nodes():
         raise RuntimeError(
             "Output mismatch: expecting %s but got %s." % (str(expected_out), str(out))
         )
+
+
+def test_target_device_replacement():
+    assert _replace_device_with_tracing("cuda") == "cuda -device=tracing"
+    assert (
+        _replace_device_with_tracing("cuda -device=some_device -libs=cudnn")
+        == "cuda -device=tracing -libs=cudnn"
+    )
+    assert (
+        _replace_device_with_tracing("llvm -device=arm_cpu -arg=xxx")
+        == "llvm -device=tracing -arg=xxx"
+    )
+    assert _replace_device_with_tracing("llvm -device=arm_cpu") == "llvm -device=tracing"
+    assert _replace_device_with_tracing("llvm -device=abc, def") == "llvm -device=tracing"
 
 
 if __name__ == "__main__":

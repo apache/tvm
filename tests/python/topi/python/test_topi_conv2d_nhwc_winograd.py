@@ -91,7 +91,7 @@ def verify_conv2d_nhwc(
     a_np, w_np, b_np, c_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             if bgemm == "direct":
@@ -109,10 +109,10 @@ def verify_conv2d_nhwc(
                 C = topi.nn.relu(C)
             s = fschedule([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             func = tvm.build(
                 s,
@@ -132,7 +132,7 @@ def verify_conv2d_nhwc(
             )
             func(a, w, c)
 
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=2e-3)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=2e-3)
 
     check_device(devices)
 

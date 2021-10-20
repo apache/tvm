@@ -176,5 +176,5 @@ def create_workload(net, initializer=None, seed=0):
             continue
         init_value = np.zeros(v.concrete_shape).astype(v.dtype)
         initializer(k, init_value)
-        params[k] = tvm.nd.array(init_value, ctx=tvm.cpu(0))
+        params[k] = tvm.nd.array(init_value, device=tvm.cpu(0))
     return mod, params

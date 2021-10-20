@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay.testing import run_infer_type
 
 
@@ -35,11 +35,11 @@ def dequantize_test_driver(in_dtype, quant_args, in_data, verify_output_data, ax
     mod = tvm.IRModule.from_expr(mod)
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, "llvm", params=None)
-        rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+        rt_mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
         rt_mod.set_input(input_data=in_data)
         rt_mod.set_input(**params)
         rt_mod.run()
-        res = rt_mod.get_output(0).asnumpy()
+        res = rt_mod.get_output(0).numpy()
         np.testing.assert_equal(res, verify_output_data)
         assert res.dtype == np.float32
 
@@ -74,6 +74,15 @@ def test_int8_to_float32():
     )
 
 
+def test_scalar_int8_to_float32():
+    data = np.array(-128).astype("int8")
+    output = np.array(-63.5).astype("float32")
+    quant_args = {"in_zero_point": -1, "in_scale": 0.5}
+    dequantize_test_driver(
+        in_dtype="int8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=-1
+    )
+
+
 def test_int32_to_float32():
     data = np.array([113, 29, -1052]).astype("int32")
     output = np.array([0.6550452, 0.16810896, -6.098297]).astype("float32")
@@ -98,7 +107,7 @@ def test_channelwise_axis_1():
     }
 
     dequantize_test_driver(
-        in_dtype="uint8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=1
+        in_dtype="uint8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=-1
     )
 
 
@@ -135,12 +144,12 @@ def test_dynamic_dequantize():
 
     mod = tvm.ir.IRModule.from_expr(func)
 
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         # TODO: (electriclilies) enable AlterOpLayout when it is fixed
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             lib = relay.build(mod, target=target)
 
-    module = graph_runtime.GraphModule(lib["default"](ctx))
+    module = graph_executor.GraphModule(lib["default"](dev))
     module.set_input(**{"x": data, "scale": scale, "zp": zp})
     module.run()
 
@@ -148,6 +157,7 @@ def test_dynamic_dequantize():
 if __name__ == "__main__":
     test_uint8_to_float32()
     test_int8_to_float32()
+    test_scalar_int8_to_float32()
     test_int32_to_float32()
     test_channelwise_axis_1()
     test_channelwise_axis_0()

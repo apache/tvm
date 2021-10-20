@@ -42,10 +42,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetVa
   ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
   // Get Metal device API
   MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
-  // ICHECK_EQ(A->ctx, B->ctx);
-  // ICHECK_EQ(A->ctx, C->ctx);
-  id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(A->ctx);
-  id<MTLCommandQueue> queue = entry_ptr->metal_api->GetCommandQueue(A->ctx);
+  // ICHECK_EQ(A->device, B->device);
+  // ICHECK_EQ(A->device, C->device);
+  id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(A->device);
+  id<MTLCommandQueue> queue = entry_ptr->metal_api->GetCommandQueue(A->device);
   id<MTLCommandBuffer> cb = [queue commandBuffer];
   NSUInteger M = A->shape[0 + (transa ? 1 : 0)];
   NSUInteger N = B->shape[1 - (transb ? 1 : 0)];

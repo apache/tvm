@@ -16,12 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#pragma once
+
+#ifndef TVM_RUNTIME_VULKAN_VULKAN_SHADER_H_
+#define TVM_RUNTIME_VULKAN_VULKAN_SHADER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/support/logging.h>
 
 #include <vector>
 
@@ -55,3 +57,4 @@ using vulkan::VulkanShader;
 namespace dmlc {
 DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vulkan::VulkanShader, true);
 }  // namespace dmlc
+#endif  // TVM_RUNTIME_VULKAN_VULKAN_SHADER_H_

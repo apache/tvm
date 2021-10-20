@@ -68,6 +68,7 @@ ALLOW_EXTENSION = {
     "plist",
     "xcworkspacedata",
     "storyboard",
+    "xcscheme",
     # hw/chisel
     "sbt",
     "properties",
@@ -80,6 +81,12 @@ ALLOW_EXTENSION = {
     "idl",
     # opencl file
     "cl",
+    # zephyr config file
+    "conf",
+    # arduino sketch file
+    "ino",
+    # linker scripts
+    "ld",
 }
 
 # List of file names allowed
@@ -108,6 +115,7 @@ ALLOW_SPECIFIC_FILE = {
     "KEYS",
     "DISCLAIMER",
     "Jenkinsfile",
+    "mypy.ini",
     # cargo config
     "rust/runtime/tests/test_wasm32/.cargo/config",
     "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
@@ -125,10 +133,21 @@ ALLOW_SPECIFIC_FILE = {
     "docs/_static/img/tvm-logo-square.png",
     # pytest config
     "pytest.ini",
-    # Zephyr tests
-    "tests/micro/qemu/zephyr-runtime/prj.conf",
-    "tests/micro/qemu/zephyr-runtime/qemu-hack/qemu-system-i386",
+    # microTVM tests
+    "tests/micro/testdata/mnist/digit-2.jpg",
+    "tests/micro/testdata/mnist/digit-9.jpg",
+    "tests/micro/testdata/mnist/mnist-8.onnx",
+    "tests/micro/testdata/kws/yes_no.tflite",
+    # microTVM Zephyr runtime
+    "apps/microtvm/zephyr/template_project/CMakeLists.txt.template",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-arm",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-xilinx-aarch64",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-i386",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv32",
+    "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv64",
     # microTVM Virtual Machines
+    "apps/microtvm/reference-vm/arduino/Vagrantfile",
+    "apps/microtvm/reference-vm/arduino/base-box/Vagrantfile.packer-template",
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
     "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",
 }

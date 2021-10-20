@@ -16,12 +16,15 @@
 # under the License.
 """MicroTVM module for bare-metal backends"""
 
-from .artifact import Artifact
-from .build import build_static_runtime, default_options, TVM_ROOT_DIR
-from .build import CRT_ROOT_DIR, Workspace
-from .compiler import Compiler, DefaultCompiler, Flasher
-from .debugger import GdbRemoteDebugger
-from .micro_library import MicroLibrary
-from .micro_binary import MicroBinary
-from .session import create_local_graph_runtime, Session, SessionTerminatedError
-from .transport import TransportLogger, DebugWrapperTransport, SubprocessTransport
+from .build import autotvm_build_func
+from .build import AutoTvmModuleLoader
+from .build import get_standalone_crt_dir
+from .model_library_format import export_model_library_format, UnsupportedInModelLibraryFormatError
+from .project import generate_project, GeneratedProject, TemplateProject
+from .session import (
+    create_local_graph_executor,
+    create_local_debug_executor,
+    Session,
+    SessionTerminatedError,
+)
+from .transport import TransportLogger

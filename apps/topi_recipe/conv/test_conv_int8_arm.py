@@ -61,7 +61,7 @@ WORKLOADS = [
 
 TARGET_NAME = "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod"
 NUM_VEC_LANES = 16
-CTX = tvm.context(TARGET_NAME, 0)
+DEV = tvm.device(TARGET_NAME, 0)
 
 
 def get_shape(
@@ -136,16 +136,16 @@ def run_inference(
 
     # Create the numpy arrays to be used for executing conv models
     if data_dtype == "float32":
-        data_array = tvm.nd.array(np.random.rand(*data_shape).astype(dtype=data_dtype), CTX)
-        kernel_array = tvm.nd.array(np.random.rand(*kernel_shape).astype(dtype=kernel_dtype), CTX)
+        data_array = tvm.nd.array(np.random.rand(*data_shape).astype(dtype=data_dtype), DEV)
+        kernel_array = tvm.nd.array(np.random.rand(*kernel_shape).astype(dtype=kernel_dtype), DEV)
     else:
         data_array = tvm.nd.array(np.random.randint(100, size=data_shape).astype(data_dtype))
         kernel_array = tvm.nd.array(np.random.randint(100, size=kernel_shape).astype(kernel_dtype))
 
     # c_orig will be used for declaration ouptut
     # c_sch will be used for scheduled computation output
-    c_orig = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), CTX)
-    c_sch = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), CTX)
+    c_orig = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), DEV)
+    c_sch = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), DEV)
 
     with tvm.target.Target(TARGET_NAME):
         if out_dtype == "float32":
@@ -186,11 +186,11 @@ def run_inference(
 
         # Functional check
         if data_dtype == "uint8":
-            np.testing.assert_equal(c_orig.asnumpy(), c_sch.asnumpy())
+            np.testing.assert_equal(c_orig.numpy(), c_sch.numpy())
         else:
-            assert np.allclose(c_orig.asnumpy(), c_sch.asnumpy())
+            assert np.allclose(c_orig.numpy(), c_sch.numpy())
 
-        evaluator = func.time_evaluator(func.entry_name, CTX, number=1000)
+        evaluator = func.time_evaluator(func.entry_name, DEV, number=1000)
         LOGGER.debug(tvm.lower(sconv, [data, kernel], simple_mode=True))
         return evaluator(data_array, kernel_array, c_sch).mean
 

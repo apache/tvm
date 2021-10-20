@@ -90,7 +90,9 @@ class Buffer(Object):
                     raise ValueError("Unknown access_mask %s" % access_mask)
             access_mask = mask
         offset = convert(offset)
-        return _ffi_api.BufferAccessPtr(self, access_mask, ptr_type, content_lanes, offset)
+        return _ffi_api.BufferAccessPtr(
+            self, access_mask, ptr_type, content_lanes, offset  # type: ignore
+        )
 
     def vload(self, begin, dtype=None):
         """Generate an Expr that loads dtype from begin index.
@@ -111,7 +113,7 @@ class Buffer(Object):
         """
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
         dtype = dtype if dtype else self.dtype
-        return _ffi_api.BufferVLoad(self, begin, dtype)
+        return _ffi_api.BufferVLoad(self, begin, dtype)  # type: ignore
 
     def vstore(self, begin, value):
         """Generate a Stmt that store value into begin index.
@@ -130,7 +132,16 @@ class Buffer(Object):
             The corresponding store stmt.
         """
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
-        return _ffi_api.BufferVStore(self, begin, value)
+        return _ffi_api.BufferVStore(self, begin, value)  # type: ignore
+
+    def scope(self):
+        """Return the storage scope associated with this buffer.
+        Returns
+        -------
+        scope : str
+            The storage scope associated with this buffer.
+        """
+        return _ffi_api.BufferStorageScope(self)  # type: ignore
 
 
 def decl_buffer(
@@ -198,7 +209,7 @@ def decl_buffer(
 
     Returns
     -------
-    buffer : Buffer
+    buffer : tvm.tir.Buffer
         The created buffer
 
     Example
@@ -217,12 +228,12 @@ def decl_buffer(
         Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
         s = te.create_schedule(C.op)
         fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
-        ctx = tvm.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=(2, 1, 3)).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), ctx)
+        dev = tvm.cpu(0)
+        a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=(2, 1, 3)).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), dev)
         fadd(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     Note
     ----
@@ -244,18 +255,20 @@ def decl_buffer(
     dtype = "float32" if dtype is None else dtype
     strides = () if strides is None else strides
     if offset_factor != 0 and elem_offset is None:
-        shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
+        shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
         elem_offset = Var("%s_elem_offset" % name, shape_dtype)
     if data is None:
-        data = Var(name, PointerType(PrimType(dtype)), span)
-    return _ffi_api.Buffer(
+        # Bool is represented as uint1 in the IR, but stored as int8
+        storage_type = PrimType(dtype)
+        storage_type = PrimType("int8") if storage_type.dtype == "bool" else storage_type
+        data = Var(name, PointerType(storage_type, scope), span)
+    return _ffi_api.Buffer(  # type: ignore
         data,
         dtype,
         shape,
         strides,
         elem_offset,
         name,
-        scope,
         data_alignment,
         offset_factor,
         buffer_type,

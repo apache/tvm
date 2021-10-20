@@ -17,8 +17,8 @@
 
 # TVM Runtime Support
 
-This crate provides an idiomatic Rust API for [TVM](https://github.com/apache/tvm) runtime.
-Currently this is tested on `1.42.0` and above.
+This crate provides an idiomatic Rust API for [TVM](https://github.com/apache/tvm) runtime,
+see [here](https://github.com/apache/tvm/blob/main/rust/tvm/README.md) for more details.
 
 ## What Does This Crate Offer?
 

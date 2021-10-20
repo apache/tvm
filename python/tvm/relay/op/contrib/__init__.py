@@ -20,6 +20,7 @@ from .register import get_pattern_table, register_pattern_table
 
 from .arm_compute_lib import *
 from .dnnl import *
+from .bnns import *
 from .coreml import *
 from .ethosn import *
 from .tensorrt import *

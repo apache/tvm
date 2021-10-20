@@ -102,11 +102,12 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
   explicit Unifier(TypeSolver* solver, const Span& span) : solver_(solver), span(span) {}
 
-  Type Unify(const Type& src, const Type& dst) {
+  Type Unify(const Type& lhs_type, const Type& rhs_type, bool assign_lhs = true,
+             bool assign_rhs = true) {
     // Known limitation
     // - handle shape pattern matching
-    TypeNode* lhs = solver_->GetTypeNode(dst);
-    TypeNode* rhs = solver_->GetTypeNode(src);
+    TypeNode* lhs = solver_->GetTypeNode(lhs_type);
+    TypeNode* rhs = solver_->GetTypeNode(rhs_type);
 
     // do occur check so we don't create self-referencing structure
     if (lhs->FindRoot() == rhs->FindRoot()) {
@@ -127,7 +128,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       solver_->MergeFromTo(rhs, lhs);
       return lhs->resolved_type;
     } else {
-      Type resolved = this->VisitType(lhs->resolved_type, rhs->resolved_type);
+      Type resolved = this->VisitType(rhs->resolved_type, lhs->resolved_type);
 
       if (!resolved.defined()) {
         solver_->diag_ctx_.Emit(
@@ -139,8 +140,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
         return lhs->resolved_type;
       } else {
         TypeNode* top = solver_->GetTypeNode(resolved);
-        solver_->MergeFromTo(lhs, top);
-        solver_->MergeFromTo(rhs, top);
+        if (assign_lhs) solver_->MergeFromTo(lhs, top);
+        if (assign_rhs) solver_->MergeFromTo(rhs, top);
         return resolved;
       }
     }
@@ -549,9 +550,10 @@ void TypeSolver::MergeFromTo(TypeNode* src, TypeNode* dst) {
 }
 
 // Add equality constraint
-Type TypeSolver::Unify(const Type& dst, const Type& src, const Span& span) {
+Type TypeSolver::Unify(const Type& dst, const Type& src, const Span& span, bool assign_lhs,
+                       bool assign_rhs) {
   Unifier unifier(this, span);
-  return unifier.Unify(dst, src);
+  return unifier.Unify(dst, src, assign_lhs, assign_rhs);
 }
 
 // Add type constraint to the solver.
@@ -615,10 +617,10 @@ bool TypeSolver::Solve() {
       }
 
       rnode->resolved = resolved;
-    } catch (const Error& err) {
+    } catch (const CompileError& err) {
       this->diag_ctx_.Emit(Diagnostic::Error(rnode->span) << err.what());
       rnode->resolved = false;
-    } catch (const dmlc::Error& e) {
+    } catch (const Error& e) {
       ICHECK(false) << e.what();
     }
 

@@ -29,36 +29,61 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-import sys
+import gc
+import importlib.util
 import inspect
-import os, subprocess
+import os
+from pathlib import Path
 import shlex
+import subprocess
+import sys
+
 import sphinx_gallery
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-sys.path.insert(0, os.path.join(curr_path, "../python/"))
-sys.path.insert(0, os.path.join(curr_path, "../vta/python"))
+curr_path = Path(__file__).expanduser().absolute().parent
+if curr_path.name == "_staging":
+    # Can't use curr_path.parent, because sphinx_gallery requires a relative path.
+    tvm_path = Path(os.pardir, os.pardir)
+else:
+    tvm_path = Path(os.pardir)
+
+sys.path.insert(0, str(tvm_path.resolve() / "python"))
+sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
 
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
 project = "tvm"
 author = "Apache Software Foundation"
-copyright = "2020, %s" % author
+copyright = "2020 - 2021, %s" % author
 github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
+
+
+def git_describe_version(original_version):
+    """Get git describe version."""
+    ver_py = tvm_path.joinpath("version.py")
+    libver = {"__file__": ver_py}
+    exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
+    _, gd_version = libver["git_describe_version"]()
+    if gd_version != original_version:
+        print("Use git describe based version %s" % gd_version)
+    return gd_version
+
+
 # Version information.
 import tvm
 from tvm import topi
 from tvm import te
 from tvm import testing
 
-version = tvm.__version__
-release = tvm.__version__
+version = git_describe_version(tvm.__version__)
+release = version
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones
@@ -104,7 +129,7 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build"]
+exclude_patterns = ["_build", "_staging"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -177,30 +202,46 @@ latex_documents = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
     "numpy": ("https://numpy.org/doc/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/reference", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "matplotlib": ("https://matplotlib.org/", None),
 }
 
 from sphinx_gallery.sorting import ExplicitOrder
 
-examples_dirs = ["../tutorials/", "../vta/tutorials/"]
-gallery_dirs = ["tutorials", "vta/tutorials"]
+examples_dirs = [
+    tvm_path.joinpath("gallery", "tutorial"),
+    tvm_path.joinpath("gallery", "how_to", "compile_models"),
+    tvm_path.joinpath("gallery", "how_to", "deploy_models"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_relay"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_schedules"),
+    tvm_path.joinpath("gallery", "how_to", "optimize_operators"),
+    tvm_path.joinpath("gallery", "how_to", "tune_with_autotvm"),
+    tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
+    tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
+    tvm_path.joinpath("vta", "tutorials"),
+]
+
+gallery_dirs = [
+    "tutorial",
+    "how_to/compile_models",
+    "how_to/deploy_models",
+    "how_to/work_with_relay",
+    "how_to/work_with_schedules",
+    "how_to/optimize_operators",
+    "how_to/tune_with_autotvm",
+    "how_to/tune_with_autoscheduler",
+    "how_to/work_with_microtvm",
+    "how_to/extend_tvm",
+    "topic/vta/tutorials",
+]
 
 subsection_order = ExplicitOrder(
-    [
-        "../tutorials/get_started",
-        "../tutorials/frontend",
-        "../tutorials/language",
-        "../tutorials/optimize",
-        "../tutorials/autotvm",
-        "../tutorials/auto_scheduler",
-        "../tutorials/dev",
-        "../tutorials/topi",
-        "../tutorials/deployment",
-        "../tutorials/micro",
-        "../vta/tutorials/frontend",
-        "../vta/tutorials/optimize",
-        "../vta/tutorials/autotvm",
+    str(p)
+    for p in [
+        tvm_path / "vta" / "tutorials" / "frontend",
+        tvm_path / "vta" / "tutorials" / "optimize",
+        tvm_path / "vta" / "tutorials" / "autotvm",
     ]
 )
 
@@ -209,13 +250,19 @@ subsection_order = ExplicitOrder(
 # The unlisted files are sorted by filenames.
 # The unlisted files always appear after listed files.
 within_subsection_order = {
-    "get_started": [
-        "relay_quick_start.py",
-        "tensor_expr_get_started.py",
+    "tutorial": [
+        "introduction.py",
+        "install.py",
         "tvmc_command_line_driver.py",
+        "autotvm_relay_x86.py",
+        "tensor_expr_get_started.py",
+        "autotvm_matmul_x86.py",
+        "auto_scheduler_matmul_x86.py",
+        "topi.pi",
         "cross_compilation_and_rpc.py",
+        "relay_quick_start.py",
     ],
-    "frontend": [
+    "compile_models": [
         "from_pytorch.py",
         "from_tensorflow.py",
         "from_mxnet.py",
@@ -225,10 +272,11 @@ within_subsection_order = {
         "from_coreml.py",
         "from_darknet.py",
         "from_caffe2.py",
+        "from_paddle.py",
     ],
-    "language": [
+    "work_with_schedules": [
         "schedule_primitives.py",
-        "reduciton.py",
+        "reduction.py",
         "intrin_math.py",
         "scan.py",
         "extern_op.py",
@@ -236,22 +284,30 @@ within_subsection_order = {
         "tuple_inputs.py",
         "tedd.py",
     ],
-    "optimize": [
+    "optimize_operators": [
         "opt_gemm.py",
         "opt_conv_cuda.py",
         "opt_conv_tensorcore.py",
-        "opt_matmul_auto_tensorcore.py",
     ],
-    "autotvm": [
-        "tune_simple_template.py",
+    "tune_with_autotvm": [
         "tune_conv2d_cuda.py",
         "tune_relay_cuda.py",
         "tune_relay_x86.py",
         "tune_relay_arm.py",
         "tune_relay_mobile_gpu.py",
     ],
-    "auto_scheduler": ["tune_matmul_x86.py", "tune_conv2d_layer_cuda.py"],
-    "dev": ["low_level_custom_pass.py", "use_pass_infra.py", "bring_your_own_datatypes.py"],
+    "tune_with_autoscheduler": [
+        "tune_matmul_x86.py",
+        "tune_conv2d_layer_cuda.py",
+        "tune_network_x86.py",
+        "tune_network_cuda.py",
+    ],
+    "extend_tvm": [
+        "low_level_custom_pass.py",
+        "use_pass_infra.py",
+        "use_pass_instrument.py",
+        "bring_your_own_datatypes.py",
+    ],
 }
 
 
@@ -273,6 +329,14 @@ class WithinSubsectionOrder:
         return filename
 
 
+# When running the tutorials on GPUs we are dependent on the Python garbage collector
+# collecting TVM packed function closures for any device memory to also be released. This
+# is not a good setup for machines with lots of CPU ram but constrained GPU ram, so force
+# a gc after each example.
+def force_gc(gallery_conf, fname):
+    gc.collect()
+
+
 sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
     "doc_module": ("tvm", "numpy"),
@@ -290,6 +354,7 @@ sphinx_gallery_conf = {
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],
+    "reset_modules": ("matplotlib", "seaborn", force_gc),
 }
 
 autodoc_default_options = {

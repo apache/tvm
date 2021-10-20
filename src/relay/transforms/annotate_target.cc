@@ -27,7 +27,6 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 
 #include "pass_utils.h"
 
@@ -144,11 +143,12 @@ class AnnotateTargetRewriter : public ExprRewriter {
      */
     Expr new_expr = expr;
     const CallNode* call = expr.as<CallNode>();
+    const TupleNode* tup = expr.as<TupleNode>();
     if (op_expr_to_target_.find(expr) != op_expr_to_target_.end()) {
       // Check whether expr has args, if not - do not insert compiler_end.
       if (expr->IsInstance<RefWriteNode>() || expr->IsInstance<RefCreateNode>() ||
-          expr->IsInstance<RefReadNode>() || expr->IsInstance<TupleNode>() ||
-          expr->IsInstance<TupleGetItemNode>() || (call && !call->args.empty())) {
+          expr->IsInstance<RefReadNode>() || expr->IsInstance<TupleGetItemNode>() ||
+          (call && !call->args.empty()) || (tup && !tup->fields.empty())) {
         std::string target = op_expr_to_target_[new_expr];
         new_expr = InsertAnnotation(new_expr, target, make_end_op);
         op_expr_to_target_[new_expr] = target;

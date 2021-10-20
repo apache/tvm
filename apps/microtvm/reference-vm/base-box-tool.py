@@ -18,6 +18,7 @@
 
 
 import argparse
+import copy
 import json
 import logging
 import os
@@ -27,18 +28,56 @@ import shutil
 import subprocess
 import sys
 
-
 _LOG = logging.getLogger(__name__)
 
 
 THIS_DIR = os.path.realpath(os.path.dirname(__file__) or ".")
 
-
 # List of vagrant providers supported by this tool
 ALL_PROVIDERS = (
     "parallels",
     "virtualbox",
+    "vmware_desktop",
 )
+
+# List of supported electronics platforms. Each must correspond
+# to a sub-directory of this directory.
+ALL_PLATFORMS = (
+    "arduino",
+    "zephyr",
+)
+
+# Extra scripts required to execute on provisioning
+# in [platform]/base-box/base_box_provision.sh
+EXTRA_SCRIPTS = {
+    "arduino": (),
+    "zephyr": ("docker/install/ubuntu_init_zephyr_project.sh",),
+}
+
+PACKER_FILE_NAME = "packer.json"
+
+
+# List of identifying strings for microTVM boards for testing.
+# TODO add a way to declare supported boards to ProjectAPI
+ALL_MICROTVM_BOARDS = {
+    "arduino": (
+        "due",
+        "feathers2",
+        "metrom4",
+        "nano33ble",
+        "pybadge",
+        "spresense",
+        "teensy40",
+        "teensy41",
+        "wioterminal",
+    ),
+    "zephyr": (
+        "nucleo_f746zg",
+        "stm32f746g_disco",
+        "nrf5340dk_nrf5340_cpuapp",
+        "mps2_an521",
+    ),
+}
 
 
 def parse_virtualbox_devices():
@@ -107,6 +146,7 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
             if serial is not None:
                 rule_args.extend(["--serialnumber", serial])
             subprocess.check_call(rule_args)
+            # TODO(mehrdadh): skip usb attach if it's already attached
             subprocess.check_call(["VBoxManage", "controlvm", uuid, "usbattach", dev["UUID"]])
             return
 
@@ -141,18 +181,39 @@ def attach_parallels(uuid, vid_hex=None, pid_hex=None, serial=None):
     )
 
 
+def attach_vmware(uuid, vid_hex=None, pid_hex=None, serial=None):
+    print("NOTE: vmware doesn't seem to support automatic attaching of devices :(")
+    print("The VMWare VM UUID is {uuid}")
+    print("Please attach the following usb device using the VMWare GUI:")
+    if vid_hex is not None:
+        print(f" - VID: {vid_hex}")
+    if pid_hex is not None:
+        print(f" - PID: {pid_hex}")
+    if serial is not None:
+        print(f" - Serial: {serial}")
+    if vid_hex is None and pid_hex is None and serial is None:
+        print(" - (no specifications given for USB device)")
+    print()
+    print("Press [Enter] when the USB device is attached")
+    input()
+
+
 ATTACH_USB_DEVICE = {
     "parallels": attach_parallels,
     "virtualbox": attach_virtualbox,
+    "vmware_desktop": attach_vmware,
 }
 
 
-def generate_packer_config(file_path, providers):
+def generate_packer_config(platform, file_path, providers):
     builders = []
+    provisioners = []
     for provider_name in providers:
         builders.append(
             {
+                "name": f"{provider_name}",
                 "type": "vagrant",
+                "box_name": f"microtvm-base-{provider_name}",
                 "output_dir": f"output-packer-{provider_name}",
                 "communicator": "ssh",
                 "source_path": "generic/ubuntu1804",
@@ -161,10 +222,26 @@ def generate_packer_config(file_path, providers):
             }
         )
 
+    repo_root = subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
+    ).strip()
+    for script in EXTRA_SCRIPTS[platform]:
+        script_path = os.path.join(repo_root, script)
+        filename = os.path.basename(script_path)
+        provisioners.append({"type": "file", "source": script_path, "destination": f"~/{filename}"})
+
+    provisioners.append(
+        {
+            "type": "shell",
+            "script": "base_box_provision.sh",
+        }
+    )
+
     with open(file_path, "w") as f:
         json.dump(
             {
                 "builders": builders,
+                "provisioners": provisioners,
             },
             f,
             sort_keys=True,
@@ -174,18 +251,26 @@ def generate_packer_config(file_path, providers):
 
 def build_command(args):
     generate_packer_config(
-        os.path.join(THIS_DIR, args.platform, "base-box", "packer.json"),
-        args.provider.split(",") or ALL_PROVIDERS,
+        args.platform,
+        os.path.join(THIS_DIR, args.platform, "base-box", PACKER_FILE_NAME),
+        args.provider or ALL_PROVIDERS,
     )
+    env = copy.copy(os.environ)
+    packer_args = ["packer", "build"]
+    env["PACKER_LOG"] = "1"
+    env["PACKER_LOG_PATH"] = "packer.log"
+    if args.debug_packer:
+        packer_args += ["-debug"]
+
+    packer_args += [PACKER_FILE_NAME]
     subprocess.check_call(
-        ["packer", "build", "packer.json"], cwd=os.path.join(THIS_DIR, args.platform, "base-box")
+        packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
     )
 
 
 REQUIRED_TEST_CONFIG_KEYS = {
     "vid_hex": str,
     "pid_hex": str,
-    "test_cmd": list,
 }
 
 
@@ -248,27 +333,38 @@ def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provi
     return_code = subprocess.call(remove_args, cwd=release_test_dir)
     assert return_code in (0, 1), f'{" ".join(remove_args)} returned exit code {return_code}'
     subprocess.check_call(["vagrant", "up", f"--provider={provider_name}"], cwd=release_test_dir)
-
     return True
 
 
-def do_run_release_test(release_test_dir, provider_name, test_config, test_device_serial):
+def do_run_release_test(release_test_dir, platform, provider_name, test_config, test_device_serial):
     with open(
         os.path.join(release_test_dir, ".vagrant", "machines", "default", provider_name, "id")
     ) as f:
         machine_uuid = f.read()
-    ATTACH_USB_DEVICE[provider_name](
-        machine_uuid,
-        vid_hex=test_config["vid_hex"],
-        pid_hex=test_config["pid_hex"],
-        serial=test_device_serial,
-    )
+
+    # Check if target is not QEMU
+    if test_config["vid_hex"] and test_config["pid_hex"]:
+        ATTACH_USB_DEVICE[provider_name](
+            machine_uuid,
+            vid_hex=test_config["vid_hex"],
+            pid_hex=test_config["pid_hex"],
+            serial=test_device_serial,
+        )
     tvm_home = os.path.realpath(os.path.join(THIS_DIR, "..", "..", ".."))
 
     def _quote_cmd(cmd):
         return " ".join(shlex.quote(a) for a in cmd)
 
-    test_cmd = _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd"])
+    test_cmd = (
+        _quote_cmd(["cd", tvm_home])
+        + " && "
+        + _quote_cmd(
+            [
+                f"apps/microtvm/reference-vm/{platform}/base-box/base_box_test.sh",
+                test_config["microtvm_board"],
+            ]
+        )
+    )
     subprocess.check_call(["vagrant", "ssh", "-c", f"bash -ec '{test_cmd}'"], cwd=release_test_dir)
 
 
@@ -278,22 +374,29 @@ def test_command(args):
     test_config_file = os.path.join(base_box_dir, "test-config.json")
     with open(test_config_file) as f:
         test_config = json.load(f)
+
+        # select microTVM test config
+        microtvm_test_config = test_config[args.microtvm_board]
+
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
-            assert key in test_config and isinstance(
-                test_config[key], expected_type
+            assert key in microtvm_test_config and isinstance(
+                microtvm_test_config[key], expected_type
             ), f"Expected key {key} of type {expected_type} in {test_config_file}: {test_config!r}"
 
-        test_config["vid_hex"] = test_config["vid_hex"].lower()
-        test_config["pid_hex"] = test_config["pid_hex"].lower()
+        microtvm_test_config["vid_hex"] = microtvm_test_config["vid_hex"].lower()
+        microtvm_test_config["pid_hex"] = microtvm_test_config["pid_hex"].lower()
+        microtvm_test_config["microtvm_board"] = args.microtvm_board
 
     providers = args.provider
-    provider_passed = {p: False for p in providers}
 
-    release_test_dir = os.path.join(THIS_DIR, "release-test")
+    release_test_dir = os.path.join(THIS_DIR, f"release-test-{args.platform}")
 
-    if args.skip_build:
-        assert len(providers) == 1, "--skip-build was given, but >1 provider specified"
+    if args.skip_build or args.skip_destroy:
+        assert (
+            len(providers) == 1
+        ), "--skip-build and/or --skip-destroy was given, but >1 provider specified"
 
+    test_failed = False
     for provider_name in providers:
         try:
             if not args.skip_build:
@@ -301,33 +404,49 @@ def test_command(args):
                     release_test_dir, user_box_dir, base_box_dir, provider_name
                 )
             do_run_release_test(
-                release_test_dir, provider_name, test_config, args.test_device_serial
+                release_test_dir,
+                args.platform,
+                provider_name,
+                microtvm_test_config,
+                args.test_device_serial,
             )
-            provider_passed[provider_name] = True
+
+        except subprocess.CalledProcessError:
+            test_failed = True
+            sys.exit(
+                f"\n\nERROR: Provider '{provider_name}' failed the release test. "
+                "You can re-run it to reproduce the issue without building everything "
+                "again by passing the --skip-build and specifying only the provider that failed. "
+                "The VM is still running in case you want to connect it via SSH to "
+                "investigate further the issue, thus it's necessary to destroy it manually "
+                "to release the resources back to the host, like a USB device attached to the VM."
+            )
 
         finally:
-            if not args.skip_build and len(providers) > 1:
+            # if we reached out here do_run_release_test() succeeded, hence we can
+            # destroy the VM and release the resources back to the host if user haven't
+            # requested to not destroy it.
+            if not (args.skip_destroy or test_failed):
                 subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
                 shutil.rmtree(release_test_dir)
 
-        if not all(provider_passed[p] for p in provider_passed.keys()):
-            sys.exit(
-                "some providers failed release test: "
-                + ",".join(name for name, passed in provider_passed if not passed)
-            )
+    print(f'\n\nThe release tests passed on all specified providers: {", ".join(providers)}.')
 
 
 def release_command(args):
-    subprocess.check_call(
-        [
-            "vagrant",
-            "cloud",
-            "version",
-            "create",
-            f"tlcpack/microtvm-{args.platform}",
-            args.release_version,
-        ]
-    )
+    vm_name = f"tlcpack/microtvm-{args.platform}-{args.platform_version}"
+
+    if not args.skip_creating_release_version:
+        subprocess.check_call(
+            [
+                "vagrant",
+                "cloud",
+                "version",
+                "create",
+                vm_name,
+                args.release_version,
+            ]
+        )
     if not args.release_version:
         sys.exit(f"--release-version must be specified")
 
@@ -338,7 +457,7 @@ def release_command(args):
                 "cloud",
                 "publish",
                 "-f",
-                f"tlcpack/microtvm-{args.platform}",
+                vm_name,
                 args.release_version,
                 provider_name,
                 os.path.join(
@@ -351,53 +470,95 @@ def release_command(args):
         )
 
 
-ALL_COMMANDS = {
-    "build": build_command,
-    "test": test_command,
-    "release": release_command,
-}
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Automates building, testing, and releasing a base box"
     )
-    parser.add_argument(
-        "command",
-        default=",".join(ALL_COMMANDS),
-        choices=ALL_COMMANDS,
-        help="Action or actions (comma-separated) to perform.",
-    )
-    parser.add_argument(
-        "platform",
-        help="Name of the platform VM to act on. Must be a sub-directory of this directory.",
-    )
+    subparsers = parser.add_subparsers(help="Action to perform.")
     parser.add_argument(
         "--provider",
         choices=ALL_PROVIDERS,
         action="append",
-        default=[],
-        help="Name of the provider or providers to act on; if not specified, act on all",
+        required=True,
+        help="Name of the provider or providers to act on",
     )
-    parser.add_argument(
+
+    # "test" has special options for different platforms, and "build", "release" might
+    # in the future, so we'll add the platform argument to each one individually.
+    platform_help_str = "Platform to use (e.g. Arduino, Zephyr)"
+
+    # Options for build subcommand
+    parser_build = subparsers.add_parser("build", help="Build a base box.")
+    parser_build.set_defaults(func=build_command)
+    parser_build.add_argument("platform", help=platform_help_str, choices=ALL_PLATFORMS)
+    parser_build.add_argument(
+        "--debug-packer",
+        action="store_true",
+        help=("Run packer in debug mode, and write log to the base-box directory."),
+    )
+
+    # Options for test subcommand
+    parser_test = subparsers.add_parser("test", help="Test a base box before release.")
+    parser_test.set_defaults(func=test_command)
+    parser_test.add_argument(
         "--skip-build",
         action="store_true",
         help=(
-            "For use with the 'test' command. If given, assume a box has already been built in "
-            "the release-test subdirectory. Attach a USB device to this box and execute the "
-            "release test script--do not delete it."
+            "If given, assume a box has already been built in the release-test subdirectory, "
+            "so use that box to execute the release test script. If the tests fail the VM used "
+            "for testing will be left running for further investigation and will need to be "
+            "destroyed manually. If all tests pass on all specified providers no VM is left running, "
+            "unless --skip-destroy is given too."
         ),
     )
-    parser.add_argument(
+    parser_test.add_argument(
+        "--skip-destroy",
+        action="store_true",
+        help=(
+            "Skip destroying the test VM even if all tests pass. Can only be used if a single "
+            "provider is specified. Default is to destroy the VM if all tests pass (and always "
+            "skip destroying it if a test fails)."
+        ),
+    )
+    parser_test.add_argument(
         "--test-device-serial",
         help=(
             "If given, attach the test device with this USB serial number. Corresponds to the "
             "iSerial field from `lsusb -v` output."
         ),
     )
-    parser.add_argument(
+    parser_test_platform_subparsers = parser_test.add_subparsers(help=platform_help_str)
+    for platform in ALL_PLATFORMS:
+        platform_specific_parser = parser_test_platform_subparsers.add_parser(platform)
+        platform_specific_parser.set_defaults(platform=platform)
+        platform_specific_parser.add_argument(
+            "--microtvm-board",
+            choices=ALL_MICROTVM_BOARDS[platform],
+            required=True,
+            help="MicroTVM board used for testing.",
+        )
+
+    # Options for release subcommand
+    parser_release = subparsers.add_parser("release", help="Release base box to cloud.")
+    parser_release.set_defaults(func=release_command)
+    parser_release.add_argument("platform", help=platform_help_str, choices=ALL_PLATFORMS)
+    parser_release.add_argument(
         "--release-version",
+        required=True,
         help="Version to release, in the form 'x.y.z'. Must be specified with release.",
+    )
+    parser_release.add_argument(
+        "--skip-creating-release-version",
+        action="store_true",
+        help="Skip creating the version and just upload for this provider.",
+    )
+    parser_release.add_argument(
+        "--platform-version",
+        required=True,
+        help=(
+            "For Zephyr, the platform version to release, in the form 'x.y'. "
+            "For Arduino, the version of arduino-cli that's being used, in the form 'x.y.z'."
+        ),
     )
 
     return parser.parse_args()
@@ -405,21 +566,11 @@ def parse_args():
 
 def main():
     args = parse_args()
+
     if os.path.sep in args.platform or not os.path.isdir(os.path.join(THIS_DIR, args.platform)):
         sys.exit(f"<platform> must be a sub-direcotry of {THIS_DIR}; got {args.platform}")
 
-    if not args.provider:
-        args.provider = list(ALL_PROVIDERS)
-
-    todo = []
-    for phase in args.command.split(","):
-        if phase not in ALL_COMMANDS:
-            sys.exit(f"unknown command: {phase}")
-
-        todo.append(ALL_COMMANDS[phase])
-
-    for phase in todo:
-        phase(args)
+    args.func(args)
 
 
 if __name__ == "__main__":

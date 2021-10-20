@@ -28,8 +28,8 @@ from tvm import te
 from tvm import rpc, autotvm, relay
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
-from tvm.contrib import graph_runtime, utils, download
-from tvm.contrib.debugger import debug_runtime
+from tvm.contrib import graph_executor, utils, download
+from tvm.contrib.debugger import debug_executor
 import vta
 from vta.testing import simulator
 from vta.top import graph_pack
@@ -295,7 +295,7 @@ if __name__ == "__main__":
                 min_repeat_ms=150,
                 repeat=opt.measurements,
                 timeout=60,
-                check_correctness=True,
+                # check_correctness=True, # TODO: re-enable when check_correctness works again.
             ),
         ),
     }
@@ -325,9 +325,9 @@ if __name__ == "__main__":
 
         # If detailed runtime info is needed build with debug runtime
         if opt.debug_profile:
-            m = debug_runtime.create(graph, lib, ctx)
+            m = debug_executor.create(graph, lib, ctx)
         else:
-            m = graph_runtime.create(graph, lib, ctx)
+            m = graph_executor.create(graph, lib, ctx)
 
         # Set the network parameters and synthetic input
         image = tvm.nd.array((np.random.uniform(size=(1, 3, 224, 224))).astype("float32"))

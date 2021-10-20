@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
 
@@ -27,7 +27,6 @@
 
 #include "buffer_write_stream.h"
 #include "crt_config.h"
-#include "platform.cc"
 
 using ::tvm::runtime::micro_rpc::Framer;
 using ::tvm::runtime::micro_rpc::MessageType;
@@ -52,11 +51,12 @@ class ReceivedMessage {
 
 class TestSession {
  public:
-  TestSession(uint8_t initial_nonce)
+  explicit TestSession(uint8_t initial_nonce)
       : framer{&framer_write_stream},
         receive_buffer{receive_buffer_array, sizeof(receive_buffer_array)},
-        sess{initial_nonce, &framer, &receive_buffer, TestSessionMessageReceivedThunk, this},
-        unframer{sess.Receiver()} {}
+        sess{&framer, &receive_buffer, TestSessionMessageReceivedThunk, this},
+        unframer{sess.Receiver()},
+        initial_nonce{initial_nonce} {}
 
   void WriteTo(TestSession* other) {
     auto framer_buffer = framer_write_stream.BufferContents();
@@ -84,6 +84,7 @@ class TestSession {
   FrameBuffer receive_buffer;
   Session sess;
   Unframer unframer;
+  uint8_t initial_nonce;
 };
 
 #define EXPECT_FRAMED_PACKET(session, expected)          \
@@ -105,16 +106,6 @@ void TestSessionMessageReceivedThunk(void* context, MessageType message_type, Fr
 }
 }
 
-void PrintTo(tvm_crt_error_t p, std::ostream* os) {
-  std::ios_base::fmtflags f(os->flags());
-  *os << "tvm_crt_error_t(0x" << std::hex << std::setw(8) << std::setfill('0') << p << ")";
-  os->flags(f);
-}
-
-void PrintTo(ReceivedMessage msg, std::ostream* os) {
-  *os << "ReceivedMessage(" << int(msg.type) << ", \"" << msg.message << "\")";
-}
-
 class SessionTest : public ::testing::Test {
  public:
   static constexpr const uint8_t kAliceNonce = 0x3c;
@@ -126,14 +117,14 @@ class SessionTest : public ::testing::Test {
 
 TEST_F(SessionTest, NormalExchange) {
   tvm_crt_error_t err;
-  err = alice_.sess.Initialize();
+  err = alice_.sess.Initialize(alice_.initial_nonce);
   EXPECT_EQ(kTvmErrorNoError, err);
   EXPECT_FRAMED_PACKET(alice_,
                        "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
                        "fw");
   alice_.WriteTo(&bob_);
 
-  err = bob_.sess.Initialize();
+  err = bob_.sess.Initialize(bob_.initial_nonce);
   EXPECT_EQ(kTvmErrorNoError, err);
   EXPECT_FRAMED_PACKET(bob_,
                        "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
@@ -156,7 +147,7 @@ TEST_F(SessionTest, NormalExchange) {
 
   bob_.WriteTo(&alice_);
   EXPECT_TRUE(alice_.sess.IsEstablished());
-  ASSERT_EQ(alice_.messages_received.size(), 1);
+  ASSERT_EQ(alice_.messages_received.size(), 1UL);
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kStartSessionReply, ""));
 
   alice_.ClearBuffers();
@@ -165,7 +156,7 @@ TEST_F(SessionTest, NormalExchange) {
                        "\xFF\xFD\b\0\0\0\x82"
                        "f\x10hello\x90(");
   alice_.WriteTo(&bob_);
-  ASSERT_EQ(bob_.messages_received.size(), 2);
+  ASSERT_EQ(bob_.messages_received.size(), 2UL);
   EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kStartSessionReply, ""));
   EXPECT_EQ(bob_.messages_received[1], ReceivedMessage(MessageType::kNormal, "hello"));
 
@@ -175,7 +166,7 @@ TEST_F(SessionTest, NormalExchange) {
                        "\xff\xfd\b\0\0\0\x82"
                        "f\x10ollehLv");
   bob_.WriteTo(&alice_);
-  ASSERT_EQ(alice_.messages_received.size(), 1);
+  ASSERT_EQ(alice_.messages_received.size(), 1UL);
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kNormal, "olleh"));
 
   alice_.ClearBuffers();
@@ -184,13 +175,13 @@ TEST_F(SessionTest, NormalExchange) {
   alice_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("log1"), 4);
   EXPECT_FRAMED_PACKET(alice_, "\xff\xfd\a\0\0\0\0\0\x03log1\xf0\xd4");
   alice_.WriteTo(&bob_);
-  ASSERT_EQ(bob_.messages_received.size(), 1);
+  ASSERT_EQ(bob_.messages_received.size(), 1UL);
   EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLog, "log1"));
 
   bob_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("zero"), 4);
   EXPECT_FRAMED_PACKET(bob_, "\xff\xfd\a\0\0\0\0\0\x03zero\xb2h");
   bob_.WriteTo(&alice_);
-  ASSERT_EQ(alice_.messages_received.size(), 1);
+  ASSERT_EQ(alice_.messages_received.size(), 1UL);
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLog, "zero"));
 }
 
@@ -198,13 +189,13 @@ TEST_F(SessionTest, LogBeforeSessionStart) {
   alice_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("log1"), 4);
   EXPECT_FRAMED_PACKET(alice_, "\xfe\xff\xfd\a\0\0\0\0\0\x03log1\xf0\xd4");
   alice_.WriteTo(&bob_);
-  ASSERT_EQ(bob_.messages_received.size(), 1);
+  ASSERT_EQ(bob_.messages_received.size(), 1UL);
   EXPECT_EQ(bob_.messages_received[0], ReceivedMessage(MessageType::kLog, "log1"));
 
   bob_.sess.SendMessage(MessageType::kLog, reinterpret_cast<const uint8_t*>("zero"), 4);
   EXPECT_FRAMED_PACKET(bob_, "\xfe\xff\xfd\a\0\0\0\0\0\x03zero\xb2h");
   bob_.WriteTo(&alice_);
-  ASSERT_EQ(alice_.messages_received.size(), 1);
+  ASSERT_EQ(alice_.messages_received.size(), 1UL);
   EXPECT_EQ(alice_.messages_received[0], ReceivedMessage(MessageType::kLog, "zero"));
 }
 
@@ -212,14 +203,14 @@ static constexpr const char kBobStartPacket[] = "\xff\xfd\x04\0\0\0f\0\0\x01`\xa
 
 TEST_F(SessionTest, DoubleStart) {
   tvm_crt_error_t err;
-  err = alice_.sess.Initialize();
+  err = alice_.sess.Initialize(alice_.initial_nonce);
   EXPECT_EQ(kTvmErrorNoError, err);
   EXPECT_FRAMED_PACKET(alice_,
                        "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
                        "fw");
   alice_.WriteTo(&bob_);
 
-  err = bob_.sess.Initialize();
+  err = bob_.sess.Initialize(bob_.initial_nonce);
   EXPECT_EQ(kTvmErrorNoError, err);
   EXPECT_FRAMED_PACKET(bob_,
                        "\xfe\xff\xfd\x03\0\0\0\0\0\x02"
@@ -256,10 +247,4 @@ TEST_F(SessionTest, DoubleStart) {
   bob_.ClearBuffers();
   alice_.WriteTo(&bob_);
   EXPECT_TRUE(bob_.sess.IsEstablished());
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

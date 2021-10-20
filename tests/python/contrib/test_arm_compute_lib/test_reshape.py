@@ -50,7 +50,6 @@ def _get_expected_codegen(input_shape, output_shape, dtype):
             "newshape": [[str(s) for s in output_shape]],
             "shape": [[list(output_shape)]],
             "dtype": [[dtype]],
-            "reverse": [["0"]],
         },
     }
 

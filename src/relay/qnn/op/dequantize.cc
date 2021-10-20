@@ -53,15 +53,27 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
   int axis = dequantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1 : axis;
-  ICHECK_LT(axis, static_cast<int>(data->shape.size()))
-      << "axis " << dequantize_attrs->axis << " is out of range";
-  ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
+  auto rank = static_cast<int>(data->shape.size());
+  axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
 
+  // If zero point and scale are scalar then axis doesnt matter.
+  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0;
+  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
+
+  if (!(scale_is_scalar && zp_is_scalar)) {
+    ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << dequantize_attrs->axis << " is out of range";
+    ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
+  }
+
+  PrimExpr axis_shape;
+  if (rank > 0) {
+    axis_shape = data->shape[axis];
+  } else {
+    axis_shape = Integer(1);
+  }
   // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
-
+  AssignType(types[1], DataType::Float(32), axis_shape, reporter);  // scale
+  AssignType(types[2], DataType::Int(32), axis_shape, reporter);    // zero point
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type, output will always be float 32.
   reporter->Assign(types[3], TensorType(oshape, DataType::Float(32)));
@@ -81,7 +93,7 @@ Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis
 Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
                      const DequantizeAttrs* attrs) {
-  const auto axis = attrs->axis;
+  auto axis = attrs->axis;
 
   ICHECK_EQ(types.size(), 4);
   auto in_type = types[0];
@@ -91,6 +103,11 @@ Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
   Array<IndexExpr> input_shape = in_tensor_type->shape;
 
   size_t n_dim = input_shape.size();
+
+  // Wrap axis from negative to positive if needed.
+  if (axis < 0) {
+    axis = static_cast<int>(n_dim) + axis;
+  }
 
   // Expand scale and zero point if the input tensor is channel quantized
   auto expanded_input_scale = input_scale;

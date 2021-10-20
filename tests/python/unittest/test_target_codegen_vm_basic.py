@@ -71,7 +71,7 @@ def test_stack_vm_loop():
 
     def check(f):
         f(a)
-        np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
+        np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 
     run_jit(mod, check)
 
@@ -97,7 +97,7 @@ def test_stack_vm_cond():
         f(a)
         y = np.arange(a.shape[0]) * 2
         y[5:] -= 1
-        np.testing.assert_equal(a.asnumpy(), y)
+        np.testing.assert_equal(a.numpy(), y)
 
     run_jit(mod, check)
 
@@ -109,7 +109,7 @@ def test_vm_parallel():
     i = te.size_var("i")
     ib = tvm.tir.ir_builder.create()
     A = ib.buffer_ptr(Ab)
-    with ib.for_range(0, n, "i", for_type="parallel") as i:
+    with ib.for_range(0, n, "i", kind="parallel") as i:
         A[i] = A[i] + 1
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "test"))
@@ -117,7 +117,7 @@ def test_vm_parallel():
     def check(f):
         a = tvm.nd.array(np.zeros(10, dtype=dtype))
         f(a)
-        np.testing.assert_equal(a.asnumpy(), np.ones(a.shape[0]))
+        np.testing.assert_equal(a.numpy(), np.ones(a.shape[0]))
 
     run_jit(mod, check)
 

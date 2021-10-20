@@ -363,7 +363,14 @@ def schedule_conv2d_nchw_winograd_without_weight_transform(cfg, outs):
 
 @conv2d_winograd_nhwc.register(["cuda", "gpu"])
 def conv2d_winograd_nhwc_cuda(
-    data, weight, strides, padding, dilation, out_dtype, pre_computed=False
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
 ):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.

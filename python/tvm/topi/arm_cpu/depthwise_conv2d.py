@@ -692,7 +692,7 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec, conv, output, last):
     if kernel_vec.op.name == "kernel_vec":
         co, _, _, _, _ = s[kernel_vec].op.axis
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel packing will be pre-computed during compliation, so we skip
+            # kernel packing will be pre-computed during compilation, so we skip
             # this part to make tuning records correct
             s[kernel_vec].pragma(co, "debug_skip_region")
         else:

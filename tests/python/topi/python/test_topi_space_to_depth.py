@@ -49,18 +49,18 @@ def verify_space_to_depth(block_size, batch, in_channel, in_height, in_width, la
         a_np = np.transpose(a_np, axes=[0, 2, 3, 1])
         b_np = np.transpose(b_np, axes=[0, 2, 3, 1])
 
-    def check_device(device, ctx):
+    def check_device(device, dev):
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
             s = tvm.topi.testing.get_injective_schedule(device)(B)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), dev)
         f = tvm.build(s, [A, B], device)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for device, dev in tvm.testing.enabled_targets():
+        check_device(device, dev)
 
 
 @tvm.testing.uses_gpu

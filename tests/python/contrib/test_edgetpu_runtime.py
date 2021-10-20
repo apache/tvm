@@ -23,6 +23,8 @@ from tvm.contrib import utils, tflite_runtime
 
 # import tflite_runtime.interpreter as tflite
 
+# NOTE: This script was tested on tensorflow/tflite (v2.4.1)
+
 
 def skipped_test_tflite_runtime():
     def get_tflite_model_path(target_edgetpu):
@@ -49,7 +51,7 @@ def skipped_test_tflite_runtime():
             interpreter = tflite.Interpreter(model_path=model_path)
         return interpreter
 
-    def check_remote(target_edgetpu=False):
+    def check_remote(server, target_edgetpu=False):
         tflite_model_path = get_tflite_model_path(target_edgetpu)
 
         # inference via tflite interpreter python apis
@@ -65,21 +67,24 @@ def skipped_test_tflite_runtime():
         tflite_output = interpreter.get_tensor(output_details[0]["index"])
 
         # inference via remote tvm tflite runtime
-        server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
-        ctx = remote.cpu(0)
+        dev = remote.cpu(0)
+        if target_edgetpu:
+            runtime_target = "edge_tpu"
+        else:
+            runtime_target = "cpu"
 
         with open(tflite_model_path, "rb") as model_fin:
-            runtime = tflite_runtime.create(model_fin.read(), ctx)
-            runtime.set_input(0, tvm.nd.array(tflite_input, ctx))
+            runtime = tflite_runtime.create(model_fin.read(), dev, runtime_target)
+            runtime.set_input(0, tvm.nd.array(tflite_input, dev))
             runtime.invoke()
             out = runtime.get_output(0)
-            np.testing.assert_equal(out.asnumpy(), tflite_output)
+            np.testing.assert_equal(out.numpy(), tflite_output)
 
     # Target CPU on coral board
-    check_remote()
+    check_remote(rpc.Server("127.0.0.1"))
     # Target EdgeTPU on coral board
-    check_remote(target_edgetpu=True)
+    check_remote(rpc.Server("127.0.0.1"), target_edgetpu=True)
 
 
 if __name__ == "__main__":

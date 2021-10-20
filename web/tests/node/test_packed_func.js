@@ -122,3 +122,9 @@ test("NDArrayCbArg", () => {
   fcheck(x);
   assert(use_count(x) == 1);
 });
+
+test("Logging", () => {
+  const log_info = tvm.getGlobalFunc("testing.log_info_str");
+  log_info("helow world")
+  log_info.dispose();
+});

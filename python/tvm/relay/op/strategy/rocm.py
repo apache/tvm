@@ -18,16 +18,13 @@
 # pylint: disable=invalid-name,unused-argument,unused-wildcard-import,wildcard-import
 from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
+from tvm.te import SpecializedCondition
+from tvm.contrib.thrust import can_use_rocthrust
+from tvm.contrib import miopen
+
 from .generic import *
 from .. import op as _op
 from .cuda import judge_winograd, naive_schedule
-
-
-@schedule_lrn.register("rocm")
-def schedule_lrn_rocm(attrs, outs, target):
-    """schedule LRN for rocm"""
-    with target:
-        return topi.rocm.schedule_lrn(outs)
 
 
 @conv2d_strategy.register("rocm")
@@ -72,9 +69,9 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
-                name="conv2d_nhwc.cuda",
+                wrap_compute_conv2d(topi.gpu.conv2d_nhwc),
+                wrap_topi_schedule(topi.gpu.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.gpu",
             )
             N, H, W, _ = get_const_tuple(data.shape)
             KH, KW, CI, CO = get_const_tuple(kernel.shape)
@@ -217,5 +214,125 @@ def batch_matmul_strategy_rocm(attrs, inputs, out_type, target):
             wrap_topi_schedule(topi.rocm.schedule_batch_matmul_rocblas),
             name="batch_matmul_rocblas.rocm",
             plevel=12,
+        )
+    return strategy
+
+
+@argsort_strategy.register(["rocm"])
+def argsort_strategy_cuda(attrs, inputs, out_type, target):
+    """argsort rocm strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_argsort(topi.cuda.argsort),
+        wrap_topi_schedule(topi.cuda.schedule_argsort),
+        name="argsort.rocm",
+    )
+    if can_use_rocthrust(target, "tvm.contrib.thrust.sort"):
+        strategy.add_implementation(
+            wrap_compute_argsort(topi.cuda.argsort_thrust),
+            wrap_topi_schedule(topi.cuda.schedule_argsort),
+            name="argsort_thrust.rocm",
+            plevel=15,
+        )
+    return strategy
+
+
+@scatter_strategy.register(["rocm"])
+def scatter_cuda(attrs, inputs, out_type, target):
+    """scatter rocm strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scatter(topi.cuda.scatter),
+        wrap_topi_schedule(topi.cuda.schedule_scatter),
+        name="scatter.rocm",
+        plevel=10,
+    )
+
+    rank = len(inputs[0].shape)
+
+    with SpecializedCondition(rank == 1):
+        if can_use_rocthrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
+            strategy.add_implementation(
+                wrap_compute_scatter(topi.cuda.scatter_via_sort),
+                wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
+                name="scatter_via_sort.rocm",
+                plevel=9,  # use the sequential version by default
+            )
+    return strategy
+
+
+@sort_strategy.register(["rocm"])
+def sort_strategy_cuda(attrs, inputs, out_type, target):
+    """sort rocm strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sort(topi.cuda.sort),
+        wrap_topi_schedule(topi.cuda.schedule_sort),
+        name="sort.rocm",
+    )
+    if can_use_rocthrust(target, "tvm.contrib.thrust.sort"):
+        strategy.add_implementation(
+            wrap_compute_sort(topi.cuda.sort_thrust),
+            wrap_topi_schedule(topi.cuda.schedule_sort),
+            name="sort_thrust.cuda",
+            plevel=15,
+        )
+    return strategy
+
+
+@topk_strategy.register(["rocm"])
+def topk_strategy_cuda(attrs, inputs, out_type, target):
+    """topk rocm strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_topk(topi.cuda.topk),
+        wrap_topi_schedule(topi.cuda.schedule_topk),
+        name="topk.rocm",
+    )
+
+    if can_use_rocthrust(target, "tvm.contrib.thrust.sort"):
+        strategy.add_implementation(
+            wrap_compute_topk(topi.cuda.topk_thrust),
+            wrap_topi_schedule(topi.cuda.schedule_topk),
+            name="topk_thrust.rocm",
+            plevel=15,
+        )
+    return strategy
+
+
+@softmax_strategy.register(["rocm"])
+def softmax_strategy_rocm(attrs, inputs, out_type, target):
+    """rocm strategy for softmax"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="softmax.rocm",
+    )
+    if "miopen" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_softmax(miopen.softmax),
+            wrap_topi_schedule(topi.generic.schedule_extern),
+            name="softmax.miopen",
+            plevel=15,
+        )
+    return strategy
+
+
+@log_softmax_strategy.register(["rocm"])
+def log_softmax_strategy_rocm(attrs, inputs, out_type, target):
+    """rocm strategy for log softmax"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.log_softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="log_softmax.rocm",
+    )
+    if "miopen" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_softmax(miopen.log_softmax),
+            wrap_topi_schedule(topi.generic.schedule_extern),
+            name="log_softmax.miopen",
+            plevel=15,
         )
     return strategy

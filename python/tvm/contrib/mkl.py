@@ -105,7 +105,7 @@ def batch_matmul(lhs, rhs, transa=False, transb=False, iterative=False, **kwargs
     C: Tensor
         The result tensor.
     """
-    b = lhs.shape[0]
+    b = te.max(lhs.shape[0], rhs.shape[0])
     n = lhs.shape[2] if transa else lhs.shape[1]
     m = rhs.shape[1] if transb else rhs.shape[2]
     return te.extern(

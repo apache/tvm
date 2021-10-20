@@ -25,7 +25,7 @@ from tvm import autotvm
 from tvm.autotvm import MeasureInput, MeasureResult
 from tvm.autotvm.tuner.xgboost_cost_model import XGBoostCostModel
 
-from test_autotvm_common import get_sample_task, get_sample_records
+from tvm.testing.autotvm import get_sample_task, get_sample_records
 
 
 def test_fit():
@@ -59,13 +59,36 @@ def test_fit_spawn():
 
 def test_tuner():
     task, target = get_sample_task()
-    records = get_sample_records(n=100)
+    records = get_sample_records(n=10)
 
     tuner = autotvm.tuner.XGBTuner(task)
-    tuner.load_history(records)
+    tuner.load_history(records, min_seed_records=10)
+    # Confirm that loading history successfully loaded a
+    # base_model.
+    assert tuner.cost_model.base_model is not None
+
+    tuner = autotvm.tuner.XGBTuner(task)
+    tuner.load_history(records, min_seed_records=11)
+    # Confirm that loading history did not load base_model
+    # when not enough records according to `min_seed_records`
+    # are provided
+    assert tuner.cost_model.base_model is None
+
+
+def test_update():
+    task, target = get_sample_task()
+    tuner = autotvm.tuner.XGBTuner(task)
+    n_records = 5
+    records = get_sample_records(n=n_records)
+    tuner.update([inp for inp, _ in records], [res for _, res in records])
+    assert len(tuner.xs) == n_records
+    assert len(tuner.ys) == n_records
+    assert len(tuner.visited) == n_records
+    assert all(x in tuner.visited for x in tuner.xs)
 
 
 if __name__ == "__main__":
     test_fit()
     test_fit_spawn()
     test_tuner()
+    test_update()

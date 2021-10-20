@@ -31,6 +31,16 @@ class InvalidShapeError(ValueError):
     """Invalid shape for a topi function. i.e. call winograd template for non-3x3 kernel)"""
 
 
+def ncw_pack_layout(layout_info):
+    """Check whether the layout type is NCWinic"""
+    return layout_info[:3] == "NCW" and "c" in layout_info and "n" in layout_info
+
+
+def ncw_xc_layout(layout_info):
+    """Check whether the layout type is NCWxc"""
+    return layout_info[:3] == "NCW" and "c" in layout_info and layout_info[3:-1].isnumeric()
+
+
 def nchw_pack_layout(layout_info):
     """Check whether the layout type is NCHWinic"""
     return layout_info[:4] == "NCHW" and "c" in layout_info and "n" in layout_info
@@ -460,7 +470,7 @@ def make_idx(b, e, s, z, i):
 
     Returns
     -------
-    postion: Expr
+    position: Expr
         int expression that corresponds to an array position in the selection.
     """
     bc = tvm.tir.Select(s < 0, i <= e, i < b)
@@ -487,3 +497,13 @@ def is_empty_shape(shape):
       Whether input shape is empty or has dimesion with size 0.
     """
     return cpp.utils.is_empty_shape(shape)
+
+
+def ceil_div(a, b):
+    """Return ceil division of a by b"""
+    return tvm.tir.indexdiv(a + (b - 1), b)
+
+
+def swap(arr, axis):
+    """swap arr[axis] and arr[-1]"""
+    return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]

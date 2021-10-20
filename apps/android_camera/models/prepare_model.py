@@ -25,7 +25,7 @@ import json
 
 import tvm
 import tvm.relay as relay
-from tvm.contrib import utils, ndk, graph_runtime as runtime
+from tvm.contrib import utils, ndk, graph_executor as runtime
 from tvm.contrib.download import download_testdata, download
 
 target = "llvm -mtriple=arm64-linux-android"
@@ -106,7 +106,7 @@ def main(model_str, output_path):
         f.write(graph)
     print("dumping params...")
     with open(output_path_str + "/" + "deploy_param.params", "wb") as f:
-        f.write(relay.save_param_dict(params))
+        f.write(runtime.save_param_dict(params))
     print("dumping labels...")
     synset_url = "".join(
         [

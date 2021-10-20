@@ -19,6 +19,7 @@ Decorator functions for hashing schedule code
 
 code hashing is used to check the consistence of schedule code and the parameters loaded from log
 """
+import functools
 import inspect
 import zlib
 
@@ -35,6 +36,7 @@ def attach_code_hash(s):
     """
 
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             func(*args, **kwargs)
             raw_hash = zlib.crc32("".join(inspect.getsourcelines(func)[0]).encode())
@@ -56,6 +58,7 @@ def attach_code_hash_to_arg(arg_idx=1):
     """
 
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             func(*args, **kwargs)
             assert isinstance(args[arg_idx], schedule.Schedule)

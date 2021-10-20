@@ -23,7 +23,7 @@ import tvm
 from tvm import topi
 from tvm import auto_scheduler, te
 
-from test_auto_scheduler_common import (
+from tvm.testing.auto_scheduler import (
     get_tiled_matmul,
     invalid_compute_definition,
     matmul_auto_scheduler_test,
@@ -62,6 +62,11 @@ def test_estimate_flop():
     dag = auto_scheduler.ComputeDAG([A, B, F])
     assert abs(dag.flop_ct - (2 * N ** 3 + 1234)) < 0.5
 
+    A = te.placeholder((N, N), dtype="float32", name="A")
+    F = te.compute((N, N), lambda i, j: te.if_then_else(A[i, j] > 0, A[i, j], 0))
+    dag = auto_scheduler.ComputeDAG([A, F])
+    assert abs(dag.flop_ct - N ** 2) < 0.5
+
 
 def test_stage_order():
     """Test if the stage order is preserved when recovering a DAG."""
@@ -91,11 +96,6 @@ def test_stage_order():
         elif op.name in ["B", "C"]:
             assert stage_ops_1[idx + 1].name == "%s.shared" % op.name
 
-    # Serialize and deserialize the ComputeDAG constructed by a schedule.
-    loaded_dag = pickle.loads(pickle.dumps(dag))
-    assert str(loaded_dag.get_init_state()) == str(dag.get_init_state())
-    assert len(loaded_dag.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
-
     # Apply the same schedule to Ansor state and it should have the same stage order
     dag = auto_scheduler.ComputeDAG([A, B, C, D, E])
     state = dag.get_init_state()
@@ -119,18 +119,18 @@ def test_stage_order():
     assert str(loaded_dag.get_init_state()) == str(dag.get_init_state())
     assert len(loaded_dag.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
 
-    # Serialize and deserialize the search task.
+    # Serialize and deserialize the search task. Note that we intentionally skip hardware_params
+    # to test if the default one is serialized along with other attributes as well.
     task = auto_scheduler.SearchTask(
-        compute_dag=dag,
-        workload_key=json.dumps(("test-key",)),
-        target=tvm.target.Target("llvm"),
-        hardware_params=auto_scheduler.HardwareParams(100000, 16, 64, 0, 0, 0, 0, 0),
+        compute_dag=dag, workload_key=json.dumps(("test-key",)), target=tvm.target.Target("llvm")
     )
 
     task2 = pickle.loads(pickle.dumps(task))
-    assert "test-key" in auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY
-    assert str(task.dag.get_init_state()) == str(task2.dag.get_init_state())
-    assert len(task.dag.get_init_state().stage_ops) == len(task2.dag.get_init_state().stage_ops)
+    assert '["test-key"]' in auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY
+    assert str(task.compute_dag.get_init_state()) == str(task2.compute_dag.get_init_state())
+    assert len(task.compute_dag.get_init_state().stage_ops) == len(
+        task2.compute_dag.get_init_state().stage_ops
+    )
     assert task.workload_key == task2.workload_key
     assert str(task.target) == str(task2.target)
     assert task.hardware_params.num_cores == task2.hardware_params.num_cores
@@ -142,8 +142,8 @@ def test_invalid_compute_dag():
     failed = False
     try:
         A, B = invalid_compute_definition()
-        dag = auto_scheduler.ComputeDAG([A, B])
-    except tvm.TVMError as e:
+        auto_scheduler.ComputeDAG([A, B])
+    except tvm.TVMError:
         failed = True
 
     assert failed

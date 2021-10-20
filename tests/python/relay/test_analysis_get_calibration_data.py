@@ -75,13 +75,13 @@ def test_simple_graph():
 
     # Check the number and orders
     check_data_size(mod, data)
-    tvm.testing.assert_allclose(data[g0]["inputs"][0].asnumpy(), x_data)
-    tvm.testing.assert_allclose(data[g0]["inputs"][1].asnumpy(), y_data)
-    tvm.testing.assert_allclose(data[g0]["outputs"][0].asnumpy(), x_data + y_data)
-    tvm.testing.assert_allclose(data[g0]["outputs"][1].asnumpy(), x_data - y_data)
-    tvm.testing.assert_allclose(data[g1]["inputs"][0].asnumpy(), x_data + y_data)
-    tvm.testing.assert_allclose(data[g1]["inputs"][1].asnumpy(), z_data)
-    tvm.testing.assert_allclose(data[g1]["outputs"][0].asnumpy(), x_data + y_data - z_data)
+    tvm.testing.assert_allclose(data[g0]["inputs"][0].numpy(), x_data)
+    tvm.testing.assert_allclose(data[g0]["inputs"][1].numpy(), y_data)
+    tvm.testing.assert_allclose(data[g0]["outputs"][0].numpy(), x_data + y_data)
+    tvm.testing.assert_allclose(data[g0]["outputs"][1].numpy(), x_data - y_data)
+    tvm.testing.assert_allclose(data[g1]["inputs"][0].numpy(), x_data + y_data)
+    tvm.testing.assert_allclose(data[g1]["inputs"][1].numpy(), z_data)
+    tvm.testing.assert_allclose(data[g1]["outputs"][0].numpy(), x_data + y_data - z_data)
 
 
 def test_mobilenet_dnnl():

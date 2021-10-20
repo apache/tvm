@@ -17,172 +17,99 @@
 
 """Defines top-level glue functions for building microTVM artifacts."""
 
-import copy
+import json
 import logging
 import os
-import re
-from tvm.contrib import utils
+import pathlib
+import contextlib
 
-from .micro_library import MicroLibrary
+from typing import Union
+from .._ffi import libinfo
+from .. import rpc as _rpc
 
 
 _LOG = logging.getLogger(__name__)
 
 
-class Workspace:
-    """Defines helper functions for manipulating temporary compilation workspaces."""
-
-    def __init__(self, root=None, debug=False):
-        if debug or root is not None:
-            with utils.TempDirectory.set_keep_for_debug():
-                self.tempdir = utils.tempdir(custom_path=root)
-                _LOG.info("Created debug mode workspace at: %s", self.tempdir.temp_dir)
-        else:
-            self.tempdir = utils.tempdir()
-
-    def relpath(self, path):
-        return self.tempdir.relpath(path)
-
-    def listdir(self):
-        return self.tempdir.listdir()
-
-    @property
-    def path(self):
-        return self.tempdir.temp_dir
+STANDALONE_CRT_DIR = None
 
 
-# Required C runtime libraries, in link order.
-CRT_RUNTIME_LIB_NAMES = ["utvm_rpc_server", "utvm_rpc_common", "common"]
+class CrtNotFoundError(Exception):
+    """Raised when the standalone CRT dirtree cannot be found."""
 
 
-TVM_ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+def get_standalone_crt_dir() -> str:
+    """Find the standalone_crt directory.
 
-
-CRT_ROOT_DIR = os.path.join(TVM_ROOT_DIR, "src", "runtime", "crt")
-
-
-RUNTIME_LIB_SRC_DIRS = [os.path.join(CRT_ROOT_DIR, n) for n in CRT_RUNTIME_LIB_NAMES] + [
-    os.path.join(TVM_ROOT_DIR, "3rdparty/libcrc/src")
-]
-
-
-RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
-
-
-_COMMON_CFLAGS = ["-Wall", "-Werror"]
-
-
-_CRT_DEFAULT_OPTIONS = {
-    "cflags": ["-std=c11"] + _COMMON_CFLAGS,
-    "ccflags": ["-std=c++11"] + _COMMON_CFLAGS,
-    "ldflags": ["-std=c++11"],
-    "include_dirs": [
-        f"{TVM_ROOT_DIR}/include",
-        f"{TVM_ROOT_DIR}/3rdparty/dlpack/include",
-        f"{TVM_ROOT_DIR}/3rdparty/libcrc/include",
-        f"{TVM_ROOT_DIR}/3rdparty/dmlc-core/include",
-        f"{CRT_ROOT_DIR}/include",
-    ],
-}
-
-
-_CRT_GENERATED_LIB_OPTIONS = copy.copy(_CRT_DEFAULT_OPTIONS)
-
-
-# Disable due to limitation in the TVM C codegen, which generates lots of local variable
-# declarations at the top of generated code without caring whether they're used.
-# Example:
-#   void* arg0 = (((TVMValue*)args)[0].v_handle);
-#   int32_t arg0_code = ((int32_t*)arg_type_ids)[(0)];
-_CRT_GENERATED_LIB_OPTIONS["cflags"].append("-Wno-unused-variable")
-
-
-# Many TVM-intrinsic operators (i.e. expf, in particular)
-_CRT_GENERATED_LIB_OPTIONS["cflags"].append("-fno-builtin")
-
-
-def default_options(target_include_dir):
-    """Return default opts passed to Compile commands."""
-    bin_opts = copy.deepcopy(_CRT_DEFAULT_OPTIONS)
-    bin_opts["include_dirs"].append(target_include_dir)
-    lib_opts = copy.deepcopy(bin_opts)
-    lib_opts["cflags"] = ["-Wno-error=incompatible-pointer-types"]
-    return {"bin_opts": bin_opts, "lib_opts": lib_opts}
-
-
-def build_static_runtime(
-    workspace,
-    compiler,
-    module,
-    lib_opts=None,
-    bin_opts=None,
-    generated_lib_opts=None,
-    extra_libs=None,
-):
-    """Build the on-device runtime, statically linking the given modules.
-
-    Parameters
-    ----------
-    compiler : tvm.micro.Compiler
-        Compiler instance used to build the runtime.
-
-    module : IRModule
-        Module to statically link.
-
-    lib_opts : Optional[dict]
-        The `options` parameter passed to compiler.library().
-
-    bin_opts : Optional[dict]
-        The `options` parameter passed to compiler.binary().
-
-    generated_lib_opts : Optional[dict]
-        The `options` parameter passed to compiler.library() when compiling the generated TVM C
-        source module.
-
-    extra_libs : Optional[List[MicroLibrary|str]]
-        If specified, extra libraries to be compiled into the binary. If a MicroLibrary, it is
-        included into the binary directly. If a string, the path to a directory; all direct children
-        of this directory matching RUNTIME_SRC_REGEX are built into a library. These libraries are
-        placed before any common CRT libraries in the link order.
+    Though the C runtime source lives in the tvm tree, it is intended to be distributed with any
+    binary build of TVM. This source tree is intended to be integrated into user projects to run
+    models targeted with --runtime=c.
 
     Returns
     -------
-    MicroBinary :
-        The compiled runtime.
+    str :
+        The path to the standalone_crt
     """
-    lib_opts = _CRT_DEFAULT_OPTIONS if lib_opts is None else lib_opts
-    bin_opts = _CRT_DEFAULT_OPTIONS if bin_opts is None else bin_opts
-    generated_lib_opts = (
-        _CRT_GENERATED_LIB_OPTIONS if generated_lib_opts is None else generated_lib_opts
-    )
+    global STANDALONE_CRT_DIR
+    if STANDALONE_CRT_DIR is None:
+        for path in libinfo.find_lib_path():
+            crt_path = os.path.join(os.path.dirname(path), "standalone_crt")
+            if os.path.isdir(crt_path):
+                STANDALONE_CRT_DIR = crt_path
+                break
 
-    mod_build_dir = workspace.relpath(os.path.join("build", "module"))
-    os.makedirs(mod_build_dir)
-    mod_src_dir = workspace.relpath(os.path.join("src", "module"))
-    os.makedirs(mod_src_dir)
-    mod_src_path = os.path.join(mod_src_dir, "module.c")
-    module.save(mod_src_path, "cc")
+        else:
+            raise CrtNotFoundError()
 
-    libs = []
-    for mod_or_src_dir in (extra_libs or []) + RUNTIME_LIB_SRC_DIRS:
-        if isinstance(mod_or_src_dir, MicroLibrary):
-            libs.append(mod_or_src_dir)
-            continue
+    return STANDALONE_CRT_DIR
 
-        lib_src_dir = mod_or_src_dir
-        lib_name = os.path.basename(lib_src_dir)
-        lib_build_dir = workspace.relpath(f"build/{lib_name}")
-        os.makedirs(lib_build_dir)
 
-        lib_srcs = []
-        for p in os.listdir(lib_src_dir):
-            if RUNTIME_SRC_REGEX.match(p):
-                lib_srcs.append(os.path.join(lib_src_dir, p))
+class AutoTvmModuleLoader:
+    """MicroTVM AutoTVM Module Loader
 
-        libs.append(compiler.library(lib_build_dir, lib_srcs, lib_opts))
+    Parameters
+    ----------
+    template_project_dir : Union[pathlib.Path, str]
+        project template path
 
-    libs.append(compiler.library(mod_build_dir, [mod_src_path], generated_lib_opts))
+    project_options : dict
+        project generation option
+    """
 
-    runtime_build_dir = workspace.relpath(f"build/runtime")
-    os.makedirs(runtime_build_dir)
-    return compiler.binary(runtime_build_dir, libs, bin_opts)
+    def __init__(
+        self, template_project_dir: Union[pathlib.Path, str], project_options: dict = None
+    ):
+        self._project_options = project_options
+
+        if isinstance(template_project_dir, (pathlib.Path, str)):
+            self._template_project_dir = str(template_project_dir)
+        elif not isinstance(template_project_dir, str):
+            raise TypeError(f"Incorrect type {type(template_project_dir)}.")
+
+    @contextlib.contextmanager
+    def __call__(self, remote_kw, build_result):
+        with open(build_result.filename, "rb") as build_file:
+            build_result_bin = build_file.read()
+
+        tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
+        remote = tracker.request(
+            remote_kw["device_key"],
+            priority=remote_kw["priority"],
+            session_timeout=remote_kw["timeout"],
+            session_constructor_args=[
+                "tvm.micro.compile_and_create_micro_session",
+                build_result_bin,
+                self._template_project_dir,
+                json.dumps(self._project_options),
+            ],
+        )
+        system_lib = remote.get_function("runtime.SystemLib")()
+        yield remote, system_lib
+
+
+def autotvm_build_func():
+    """A dummy build function which causes autotvm to use a different export format."""
+
+
+# A sentinel value for the output format.
+autotvm_build_func.output_format = ".model-library-format"

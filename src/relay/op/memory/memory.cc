@@ -22,6 +22,9 @@
  * \brief Operators for manifest shape-aware memory allocation in Relay.
  */
 
+#include "memory.h"
+
+#include <tvm/node/node.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
@@ -29,7 +32,10 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/topi/elemwise.h>
 
+#include <vector>
+
 #include "../../transforms/infer_layout_utils.h"
+#include "../annotation/annotation.h"
 #include "../op_common.h"
 #include "../type_relations.h"
 
@@ -42,15 +48,16 @@ TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 // The passing value in attrs and args doesn't seem super great.
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
-TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage")
-    .set_body_typed([](Expr size, Expr alignment, TVMContext ctx, DataType dtype_hint) {
-      auto attrs = make_object<AllocStorageAttrs>();
-      attrs->dtype = dtype_hint;
-      attrs->device_id = ctx.device_id;
-      attrs->device_type = ctx.device_type;
-      static const Op& op = Op::Get("memory.alloc_storage");
-      return Call(op, {size, alignment}, Attrs(attrs), {});
-    });
+Expr AllocStorage(Expr size, Expr alignment, Device dev, DataType dtype_hint) {
+  auto attrs = make_object<AllocStorageAttrs>();
+  attrs->dtype = dtype_hint;
+  attrs->device_id = dev.device_id;
+  attrs->device_type = dev.device_type;
+  static const Op& op = Op::Get("memory.alloc_storage");
+  return Call(op, {size, alignment}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage").set_body_typed(AllocStorage);
 
 bool AllocStorageRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
@@ -79,6 +86,7 @@ RELAY_REGISTER_OP("memory.alloc_storage")
     .add_argument("size", "Tensor", "The size of the storage to allocate.")
     .add_argument("alignment", "Tensor", "The alignment of the storage.")
     .add_type_rel("AllocStorage", AllocStorageRel)
+    .set_attrs_type_key("relay.attrs.AllocStorageAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -90,19 +98,27 @@ RELAY_REGISTER_OP("memory.alloc_storage")
                              return {topi::identity(inputs[0])};
                            });
 
-TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
-    .set_body_typed([](Expr storage, Expr offset, tvm::relay::Expr shape, DataType dtype,
-                       Array<IndexExpr> assert_shape) {
-      auto attrs = make_object<AllocTensorAttrs>();
-      attrs->dtype = dtype;
-      if (assert_shape.defined()) {
-        attrs->assert_shape = assert_shape;
-      } else {
-        attrs->const_shape = Downcast<Constant>(shape);
-      }
-      static const Op& op = Op::Get("memory.alloc_tensor");
-      return Call(op, {storage, offset, shape}, Attrs(attrs), {});
-    });
+Expr AllocTensor(Expr storage, Expr offset, Expr shape, DataType dtype,
+                 Array<IndexExpr> assert_shape) {
+  auto attrs = make_object<AllocTensorAttrs>();
+  attrs->dtype = dtype;
+  if (assert_shape.defined()) {
+    attrs->assert_shape = assert_shape;
+  } else {
+    // Look through any on_device for the shape argument expression.
+    Expr literal_shape = shape;
+    auto props = GetOnDeviceProps(literal_shape);
+    if (props.body.defined()) {
+      // See through on_device calls.
+      literal_shape = props.body;
+    }
+    attrs->const_shape = Downcast<Constant>(literal_shape);
+  }
+  static const Op& op = Op::Get("memory.alloc_tensor");
+  return Call(op, {storage, offset, shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor").set_body_typed(AllocTensor);
 
 std::vector<int64_t> FromConstShape(Constant konst) {
   runtime::NDArray shape = konst->data;
@@ -185,6 +201,7 @@ RELAY_REGISTER_OP("memory.alloc_tensor")
     .add_argument("offset", "Tensor", "The offset into the backing storage.")
     .add_argument("shape", "Tensor", "The shape of the tensor to allocate.")
     .add_type_rel("AllocTensor", AllocTensorRel)
+    .set_attrs_type_key("relay.attrs.AllocTensorAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -206,7 +223,7 @@ bool KillRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 RELAY_REGISTER_OP("memory.kill")
     .describe(R"code(Mark a tensor for release to the allocator.)code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
+    .set_num_inputs(1)
     .add_argument("to_free", "Tensor", "The tensor to free.")
     .add_type_rel("Kill", KillRel)
     .set_support_level(10)

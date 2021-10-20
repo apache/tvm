@@ -18,14 +18,22 @@ import tvm
 from tvm import te
 
 
-def intrin_vadd(n):
+def intrin_vadd(xo, m, n):
     x = te.placeholder((n,), name="vx")
     y = te.placeholder((n,), name="vy")
-    z = te.compute(x.shape, lambda i: x[i] + y[i], name="z")
+    if m % n == 0:
+        body = lambda i: x[i] + y[i]
+    else:
+        body = lambda i: tvm.tir.Select(
+            xo * n + i < m, x[i] + y[i], tvm.tir.const(0, dtype=x.dtype)
+        )
+    z = te.compute(x.shape, body, name="z")
 
     def intrin_func(ins, outs):
         xx, yy = ins
         zz = outs[0]
+        # special handle needed to tackle tail loop part when m % n != 0
+        # here is tvm.min(n, m - xo * n)
         return tvm.tir.call_packed("vadd", xx, yy, zz)
 
     buffer_params = {"offset_factor": 16}
@@ -84,15 +92,17 @@ def intrin_gemv_no_reset(m, n):
 
 
 def test_tensorize_vadd():
-    m = 128
-    x = te.placeholder((m,), name="x")
-    y = te.placeholder((m,), name="y")
-    z = te.compute(x.shape, lambda i: x[i] + y[i], name="z")
+    def add(m):
+        x = te.placeholder((m,), name="x")
+        y = te.placeholder((m,), name="y")
+        z = te.compute(x.shape, lambda i: x[i] + y[i], name="z")
+        return x, y, z
 
-    def check(factor):
+    def check(m, factor):
+        x, y, z = add(m)
         s = te.create_schedule(z.op)
         xo, xi = s[z].split(z.op.axis[0], factor=factor)
-        vadd = intrin_vadd(factor)
+        vadd = intrin_vadd(xo, m, factor)
         s[z].tensorize(xi, vadd)
         s = s.normalize()
         dom_map = tvm.te.schedule.InferBound(s)
@@ -108,7 +118,50 @@ def test_tensorize_vadd():
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [x, y, z])
 
-    check(16)
+    def check_cache_write(m, factor):
+        x, y, z = add(m)
+        s = te.create_schedule(z.op)
+        _, _ = s[z].split(z.op.axis[0], factor=factor)
+
+        z_global = s.cache_write(z, "global")
+        xo, xi = z_global.op.axis
+
+        vadd = intrin_vadd(xo, m, factor)
+        s[z_global].tensorize(xi, vadd)
+        s = s.normalize()
+        dom_map = tvm.te.schedule.InferBound(s)
+        finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
+        out_dom, in_dom = finfer(s[z_global], dom_map)
+        # outer loop var will be rebased, so min value is the new loop var and extent is 1
+        assert tvm.ir.structural_equal(out_dom[xo].extent, 1)
+        assert isinstance(out_dom[xo].min, tvm.tir.Var)
+        assert xo.var.name == out_dom[xo].min.name
+
+        fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
+        body = fmatch(s[z_global], out_dom, in_dom, vadd)[0]
+        ana = tvm.arith.Analyzer()
+        vars = tvm.runtime.convert({xo.var: out_dom[xo].min})
+        vadd_body = tvm.tir.stmt_functor.substitute(vadd.op.body[0], vars)
+        assert tvm.ir.structural_equal(ana.simplify(body), ana.simplify(vadd_body))
+        stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
+        tvm.lower(s, [x, y, z])
+
+    def check_compute_reuse():
+        x, y, z = add(32)
+
+        def _intrin_vadd():
+            def _intrin_func(ins, outs):
+                return tvm.tir.call_packed("vadd", ins[0], ins[1], outs[0])
+
+            return tvm.te.decl_tensor_intrin(z.op, _intrin_func)
+
+        s = tvm.te.create_schedule(z.op)
+        s[z].tensorize(z.op.axis[0], _intrin_vadd())
+        tvm.lower(s, [x, y, z])
+
+    check(128, 16)
+    check_cache_write(129, 16)
+    check_compute_reuse()
 
 
 def test_tensorize_matmul():
@@ -326,8 +379,8 @@ def test_tensorize_tensor_compute_op():
     stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
     # The loop that we tried to tensorize still exists in the code
     # That means tensorize didn't work as expected
-    assert isinstance(stmt.body.body, tvm.tir.For)
-    assert stmt.body.body.loop_var.name == C.op.axis[0].var.name
+    assert isinstance(stmt.body, tvm.tir.For)
+    assert stmt.body.loop_var.name == C.op.axis[0].var.name
 
 
 if __name__ == "__main__":

@@ -25,7 +25,8 @@
 #define TVM_TIR_BUFFER_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/node/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/tir/var.h>
 
 #include <string>
@@ -66,8 +67,6 @@ class BufferNode : public Object {
   // Meta data
   /*! \brief optional name of the buffer */
   String name;
-  /*! \brief storage scope of the buffer, if other than global */
-  String scope;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
   /*!
@@ -92,7 +91,6 @@ class BufferNode : public Object {
     v->Visit("strides", &strides);
     v->Visit("elem_offset", &elem_offset);
     v->Visit("name", &name);
-    v->Visit("scope", &scope);
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
     v->Visit("buffer_type", &buffer_type);
@@ -104,7 +102,7 @@ class BufferNode : public Object {
     // in its semantics, skip name as name is not important.
     return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
            equal.DefEqual(shape, other->shape) && equal.DefEqual(strides, other->strides) &&
-           equal.DefEqual(elem_offset, other->elem_offset) && equal(scope, other->scope) &&
+           equal.DefEqual(elem_offset, other->elem_offset) &&
            equal(data_alignment, other->data_alignment) && equal(buffer_type, other->buffer_type);
   }
 
@@ -114,7 +112,6 @@ class BufferNode : public Object {
     hash_reduce.DefHash(shape);
     hash_reduce.DefHash(strides);
     hash_reduce.DefHash(elem_offset);
-    hash_reduce(scope);
     hash_reduce(data_alignment);
     hash_reduce(buffer_type);
   }
@@ -123,6 +120,14 @@ class BufferNode : public Object {
   DataType DefaultIndexType() const {
     return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
   }
+
+  /*! \brief Determine the offset in the buffer of the given index.
+   *
+   * Returns the buffer offset, in number of elements of type dtype,
+   * without adjusting for number of lanes.  (e.g. The number of
+   * float16x4 elements in a buffer of type float16x4.)
+   */
+  PrimExpr ElemOffset(Array<PrimExpr> index) const;
 
   static constexpr const char* _type_key = "tir.Buffer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -140,8 +145,8 @@ class Buffer : public ObjectRef {
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
   TVM_DLL Buffer(Var ptr, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
-                 PrimExpr elem_offset, String name, String scope, int data_alignment,
-                 int offset_factor, BufferType buffer_type, Span span = Span());
+                 PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
+                 BufferType buffer_type, Span span = Span());
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
@@ -181,7 +186,13 @@ class Buffer : public ObjectRef {
    */
   TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value) const;
 
+  /*!
+   * \brief Return the storage scope associated with this buffer.
+   */
+  TVM_DLL String scope() const;
+
   TVM_DEFINE_OBJECT_REF_METHODS(Buffer, ObjectRef, BufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferNode);
 };
 
 /*!
@@ -189,12 +200,13 @@ class Buffer : public ObjectRef {
  * \param shape The shape of the buffer,
  * \param dtype The content data type.
  * \param name The name of the buffer
+ * \param storage_scope The storage scope associated with this buffer
  * \param span The location of this object in the source code.
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           String name = "buffer", Span span = Span());
+                           String name = "buffer", String storage_scope = "", Span span = Span());
 
 /*!
  * \brief Base node for data producers.

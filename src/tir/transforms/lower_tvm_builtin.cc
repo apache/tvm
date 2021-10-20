@@ -34,52 +34,77 @@
 namespace tvm {
 namespace tir {
 
-inline PrimExpr ConstInt32(size_t index) {
-  ICHECK_LE(index, std::numeric_limits<int>::max());
-  return make_const(DataType::Int(32), static_cast<int>(index));
-}
-
-inline PrimExpr StackAlloca(std::string type, size_t num) {
-  Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
-  return Call(DataType::Handle(), builtin::tvm_stack_alloca(), args);
-}
-
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
 class BuiltinLower : public StmtExprMutator {
  public:
-  Stmt Build(Stmt stmt) {
-    stack_shape_ = Var("stack_shape", DataType::Handle());
-    stack_array_ = Var("stack_array", DataType::Handle());
-    stack_value_ = Var("stack_value", DataType::Handle());
-    stack_tcode_ = Var("stack_tcode", DataType::Handle());
+  // Record stack frame for existing scope.
+  struct AllocaScope {
+    Var stack_shape = Var("stack_shape", DataType::Handle());
+    Var stack_array = Var("stack_array", DataType::Handle());
+    Var stack_value = Var("stack_value", DataType::Handle());
+    Var stack_tcode = Var("stack_tcode", DataType::Handle());
+
+    int64_t max_shape_stack{-1};
+    uint64_t max_array_stack{0};
+    uint64_t max_arg_stack{0};
+
+    int64_t run_shape_stack{-1};
+    uint64_t run_array_stack{0};
+    uint64_t run_arg_stack{0};
+  };
+
+  Stmt Build(Stmt stmt) { return this->VisitBodyAndRealizeAlloca(stmt); }
+
+  // Allcoate stack frames, only at parallel-for or root.
+  Stmt VisitBodyAndRealizeAlloca(Stmt stmt) {
+    alloca_scope_.emplace_back();
     stmt = this->VisitStmt(stmt);
-    // create a shape var if any shape is made (including scalar shapes)
-    if (max_shape_stack_ != -1) {
-      stmt = LetStmt(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
+    ICHECK(!alloca_scope_.empty());
+    auto& scope = alloca_scope_.back();
+    if (scope.max_shape_stack != -1) {
+      stmt = LetStmt(scope.stack_shape, StackAlloca("shape", scope.max_shape_stack), stmt);
     }
-    if (max_array_stack_ != 0) {
-      stmt = LetStmt(stack_array_, StackAlloca("array", max_array_stack_), stmt);
+
+    if (scope.max_array_stack != 0) {
+      stmt = LetStmt(scope.stack_array, StackAlloca("array", scope.max_array_stack), stmt);
     }
-    if (max_arg_stack_ != 0) {
-      stmt = LetStmt(stack_value_, StackAlloca("arg_value", max_arg_stack_), stmt);
-      stmt = LetStmt(stack_tcode_, StackAlloca("arg_tcode", max_arg_stack_), stmt);
+    if (scope.max_arg_stack != 0) {
+      stmt = LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_arg_stack), stmt);
+      stmt = LetStmt(scope.stack_tcode, StackAlloca("arg_tcode", scope.max_arg_stack), stmt);
     }
+    alloca_scope_.pop_back();
+
     return stmt;
   }
 
   Stmt VisitStmt(const Stmt& s) final {
-    auto stmt = StmtExprMutator::VisitStmt(s);
-    ICHECK_EQ(run_shape_stack_, -1);
-    ICHECK_EQ(run_array_stack_, 0);
+    // allocate space to hold prepare stmts before s
+    prep_seq_stack_.emplace_back(std::vector<Stmt>());
 
-    if (prep_seq_.size() != 0) {
-      Stmt ret = SeqStmt::Flatten(prep_seq_, stmt);
-      prep_seq_.clear();
+    auto stmt = StmtExprMutator::VisitStmt(s);
+    auto& scope = alloca_scope_.back();
+    ICHECK_EQ(scope.run_shape_stack, -1);
+    ICHECK_EQ(scope.run_array_stack, 0);
+
+    auto prep_seq = std::move(prep_seq_stack_.back());
+    prep_seq_stack_.pop_back();
+
+    if (prep_seq.size() != 0) {
+      Stmt ret = SeqStmt::Flatten(prep_seq, stmt);
       return ret;
     } else {
       return stmt;
     }
+  }
+
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    if (const CallNode* call = op->value.as<CallNode>()) {
+      if (call->op.same_as(builtin::texture2d_alloca())) {
+        return StmtExprMutator::VisitStmt(MakeTextureAlloc(op, call));
+      }
+    }
+    return StmtExprMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const AllocateNode* op) {
@@ -88,9 +113,14 @@ class BuiltinLower : public StmtExprMutator {
     op = stmt.as<AllocateNode>();
     // Get constant allocation bound.
     int64_t nbytes = GetVectorBytes(op->dtype);
+    // If the buffers are for CPU and have global scope,
+    // and less than runtime::kMaxStackAlloca heuristic
+    // they are not serviced with TVMBackendWorkspaceAlloc calls
+    // to be placed on stack.
     if (device_type_.defined()) {
       if (const auto* dev_type = device_type_.as<IntImmNode>()) {
-        if (dev_type->value == kDLCPU) {
+        auto storage_scope = Downcast<PointerType>(op->buffer_var->type_annotation)->storage_scope;
+        if (dev_type->value == kDLCPU && storage_scope == "global") {
           int32_t constant_size = op->constant_allocation_size();
           if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
             return stmt;
@@ -128,11 +158,11 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::device_context_id) {
+    if (op->attr_key == attr::device_id) {
       ICHECK(!device_id_.defined());
       device_id_ = op->value;
       return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::device_context_type) {
+    } else if (op->attr_key == attr::device_type) {
       ICHECK(!device_type_.defined());
       device_type_ = op->value;
       return this->VisitStmt(op->body);
@@ -140,9 +170,32 @@ class BuiltinLower : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
+  Stmt VisitStmt_(const ForNode* op) final {
+    PrimExpr min = this->VisitExpr(op->min);
+    PrimExpr extent = this->VisitExpr(op->extent);
+    Stmt body;
+
+    if (op->kind == ForKind::kParallel) {
+      body = this->VisitBodyAndRealizeAlloca(op->body);
+    } else {
+      body = this->VisitStmt(op->body);
+    }
+
+    if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body)) {
+      return GetRef<Stmt>(op);
+    } else {
+      auto n = CopyOnWrite(op);
+      n->min = std::move(min);
+      n->extent = std::move(extent);
+      n->body = std::move(body);
+      return Stmt(n);
+    }
+  }
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
-      return MakeCallPacked(op);
+      return MakeCallPacked(op, /* use_string_lookup */ true);
+    } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
+      return MakeCallPacked(op, /* use_string_lookup */ false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
       return MakeCallTracePacked(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
@@ -158,64 +211,76 @@ class BuiltinLower : public StmtExprMutator {
   // call shape
   PrimExpr MakeShape(const CallNode* op) {
     // if args.size() == 0, it represents a scalar shape ()
-    if (run_shape_stack_ == -1) {
-      run_shape_stack_ = 0;
+    ICHECK(!alloca_scope_.empty());
+    auto& scope = alloca_scope_.back();
+    auto& prep_seq = prep_seq_stack_.back();
+    if (scope.run_shape_stack == -1) {
+      scope.run_shape_stack = 0;
     }
-    int64_t stack_begin = run_shape_stack_;
-    run_shape_stack_ += op->args.size();
+    int64_t stack_begin = scope.run_shape_stack;
+    scope.run_shape_stack += op->args.size();
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
-      prep_seq_.emplace_back(Store(stack_shape_, cast(DataType::Int(64), op->args[i]),
-                                   ConstInt32(stack_begin + i), const_true(1)));
+      prep_seq.emplace_back(Store(scope.stack_shape, cast(DataType::Int(64), op->args[i]),
+                                  ConstInt32(stack_begin + i), const_true(1)));
     }
-    return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
+    return AddressOffset(scope.stack_shape, DataType::Int(64), stack_begin);
   }
   // make array
   PrimExpr MakeArray(const CallNode* op) {
-    size_t idx = run_array_stack_;
-    run_array_stack_ += 1;
+    ICHECK(!alloca_scope_.empty());
+    auto& scope = alloca_scope_.back();
+    auto& prep_seq = prep_seq_stack_.back();
+
+    size_t idx = scope.run_array_stack;
+    scope.run_array_stack += 1;
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrData, op->args[0]));
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrShape, op->args[1]));
+
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrData, op->args[0]));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrShape, op->args[1]));
     PrimExpr strides = op->args[2];
     if (!strides.defined() || is_zero(strides)) {
       strides = make_zero(DataType::Handle());
     }
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrStrides, strides));
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrNDim, op->args[3]));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrStrides, strides));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrNDim, op->args[3]));
     DataType dtype = op->args[4].dtype();
-    prep_seq_.emplace_back(
-        TVMStructSet(stack_array_, idx, builtin::kArrTypeCode,
+    prep_seq.emplace_back(
+        TVMStructSet(scope.stack_array, idx, builtin::kArrTypeCode,
                      make_const(DataType::UInt(8), static_cast<int>(dtype.code()))));
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrTypeBits,
-                                        make_const(DataType::UInt(8), dtype.bits())));
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrTypeLanes,
-                                        make_const(DataType::UInt(16), dtype.lanes())));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrTypeBits,
+                                       make_const(DataType::UInt(8), dtype.bits())));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrTypeLanes,
+                                       make_const(DataType::UInt(16), dtype.lanes())));
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
     PrimExpr byte_offset = op->args[5];
     if (!is_zero(byte_offset)) {
       byte_offset = byte_offset * make_const(byte_offset.dtype(), data_bytes);
     }
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrByteOffset,
-                                        cast(DataType::UInt(64), byte_offset)));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrByteOffset,
+                                       cast(DataType::UInt(64), byte_offset)));
     ICHECK(device_type_.defined()) << "Unknown device type in current IR";
     ICHECK(device_id_.defined()) << "Unknown device id in current IR";
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrDeviceId,
-                                        cast(DataType::Int(32), device_id_)));
-    prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrDeviceType,
-                                        cast(DataType::Int(32), device_type_)));
-    return TVMStructGet(DataType::Handle(), stack_array_, idx, builtin::kArrAddr);
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceId,
+                                       cast(DataType::Int(32), device_id_)));
+    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceType,
+                                       cast(DataType::Int(32), device_type_)));
+    return TVMStructGet(DataType::Handle(), scope.stack_array, idx, builtin::kArrAddr);
   }
   // call packed.
-  PrimExpr MakeCallPacked(const CallNode* op) {
-    int64_t restore_shape_stack = run_shape_stack_;
-    size_t restore_array_stack = run_array_stack_;
-    size_t arg_stack_begin = run_arg_stack_;
-    run_arg_stack_ += op->args.size();
+  PrimExpr MakeCallPacked(const CallNode* op, bool use_string_lookup) {
+    auto& scope = alloca_scope_.back();
+    auto& prep_seq = prep_seq_stack_.back();
+
+    int64_t restore_shape_stack = scope.run_shape_stack;
+    size_t restore_array_stack = scope.run_array_stack;
+    size_t arg_stack_begin = scope.run_arg_stack;
+
+    scope.run_arg_stack += op->args.size();
     // Specially handle the buffer packed intrinsic
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
@@ -227,34 +292,42 @@ class BuiltinLower : public StmtExprMutator {
       if (t != api_type) {
         arg = Cast(api_type, arg);
       }
-      prep_seq_.emplace_back(TVMStructSet(stack_value_, static_cast<int>(arg_stack_begin + i - 1),
-                                          builtin::kTVMValueContent, arg));
+      prep_seq.emplace_back(TVMStructSet(scope.stack_value,
+                                         static_cast<int>(arg_stack_begin + i - 1),
+                                         builtin::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       if (api_type.is_handle() && arg.as<StringImmNode>()) {
         arg_tcode = kTVMStr;
       }
       if (IsArrayHandle(arg)) arg_tcode = kTVMDLTensorHandle;
-      prep_seq_.emplace_back(
-          Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
+      prep_seq.emplace_back(
+          Store(scope.stack_tcode, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
-    max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
-    max_shape_stack_ = std::max(run_shape_stack_, max_shape_stack_);
-    max_array_stack_ = std::max(run_array_stack_, max_array_stack_);
-    run_shape_stack_ = restore_shape_stack;
-    run_array_stack_ = restore_array_stack;
-    run_arg_stack_ = arg_stack_begin;
-    Array<PrimExpr> packed_args = {op->args[0], stack_value_, stack_tcode_,
+    scope.max_arg_stack = std::max(scope.run_arg_stack, scope.max_arg_stack);
+    scope.max_shape_stack = std::max(scope.run_shape_stack, scope.max_shape_stack);
+    scope.max_array_stack = std::max(scope.run_array_stack, scope.max_array_stack);
+    scope.run_shape_stack = restore_shape_stack;
+    scope.run_array_stack = restore_array_stack;
+    scope.run_arg_stack = arg_stack_begin;
+    Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
-    return Call(DataType::Int(32), builtin::tvm_call_packed_lowered(), packed_args);
+
+    auto builtin_call = use_string_lookup ? builtin::tvm_call_packed_lowered()
+                                          : builtin::tvm_call_cpacked_lowered();
+    return Call(op->dtype, builtin_call, packed_args);
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {
-    int64_t restore_shape_stack = run_shape_stack_;
-    size_t restore_array_stack = run_array_stack_;
-    size_t arg_stack_begin = run_arg_stack_;
-    run_arg_stack_ += op->args.size();
+    ICHECK(!alloca_scope_.empty());
+    auto& scope = alloca_scope_.back();
+    auto& prep_seq = prep_seq_stack_.back();
+
+    int64_t restore_shape_stack = scope.run_shape_stack;
+    size_t restore_array_stack = scope.run_array_stack;
+    size_t arg_stack_begin = scope.run_arg_stack;
+    scope.run_arg_stack += op->args.size();
     size_t args_size = op->args.size();
     ICHECK_GT(args_size, 0);
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
@@ -267,28 +340,61 @@ class BuiltinLower : public StmtExprMutator {
       if (t != api_type) {
         arg = Cast(api_type, arg);
       }
-      prep_seq_.emplace_back(TVMStructSet(stack_value_, static_cast<int>(arg_stack_begin + i - 1),
-                                          builtin::kTVMValueContent, arg));
+      prep_seq.emplace_back(TVMStructSet(scope.stack_value,
+                                         static_cast<int>(arg_stack_begin + i - 1),
+                                         builtin::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       ICHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
-      prep_seq_.emplace_back(
-          Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
+      prep_seq.emplace_back(
+          Store(scope.stack_tcode, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
-    max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
-    max_shape_stack_ = std::max(run_shape_stack_, max_shape_stack_);
-    max_array_stack_ = std::max(run_array_stack_, max_array_stack_);
-    run_shape_stack_ = restore_shape_stack;
-    run_array_stack_ = restore_array_stack;
+    scope.max_arg_stack = std::max(scope.run_arg_stack, scope.max_arg_stack);
+    scope.max_shape_stack = std::max(scope.run_shape_stack, scope.max_shape_stack);
+    scope.max_array_stack = std::max(scope.run_array_stack, scope.max_array_stack);
+    scope.run_shape_stack = restore_shape_stack;
+    scope.run_array_stack = restore_array_stack;
     // Update the top of the stack, so we can use more than one
     // packed function's arguments with the one stack.
-    run_arg_stack_ = arg_stack_begin + args_size - 1;
-    Array<PrimExpr> packed_args = {op->args[0], stack_value_, stack_tcode_,
+    scope.run_arg_stack = arg_stack_begin + args_size - 1;
+    Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1),
                                    // Pass traced value.
                                    op->args[args_size - 1]};
     return Call(op->dtype, builtin::tvm_call_trace_packed_lowered(), packed_args);
+  }
+
+  Stmt MakeTextureAlloc(const LetStmtNode* let, const CallNode* call) {
+    ICHECK(device_type_.defined()) << "Unknown device type in current IR";
+    ICHECK(device_id_.defined()) << "Unknown device id in current IR";
+    Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
+
+    Stmt body = SeqStmt(
+        {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
+         let->body});
+    DataType dtype =
+        let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
+
+    std::string fdevapi_prefix = "device_api.";
+    fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
+    Call call_packed =
+        Call(let->var.dtype(), builtin::tvm_call_packed(),
+             {StringImm(fdevapi_prefix + ".AllocTexture"), cast(DataType::Int(32), device_type_),
+              cast(DataType::Int(32), device_id_), cast(DataType::UInt(64), call->args[0]),
+              cast(DataType::UInt(64), call->args[1]), IntImm(DataType::Int(32), dtype.code()),
+              IntImm(DataType::Int(32), dtype.bits())});
+
+    Stmt alloca = LetStmt(let->var, call_packed, body);
+
+    Call free_op =
+        Call(DataType::Int(32), builtin::tvm_call_packed(),
+             {StringImm(fdevapi_prefix + ".FreeTexture"), cast(DataType::Int(32), device_type_),
+              cast(DataType::Int(32), device_id_), let->var});
+
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
+    body = SeqStmt({alloca, free_stmt});
+    return body;
   }
 
  private:
@@ -303,23 +409,13 @@ class BuiltinLower : public StmtExprMutator {
     return false;
   }
 
-  // The prepration sequence to be emitted.
-  std::vector<Stmt> prep_seq_;
+  // The prepration sequence to be emitted before the current statement.
+  std::vector<std::vector<Stmt>> prep_seq_stack_;
   PrimExpr device_type_;
   PrimExpr device_id_;
-  // Var handle for each stack.
-  Var stack_shape_;
-  Var stack_array_;
-  Var stack_tcode_;
-  Var stack_value_;
-  // The running statistics
-  int64_t run_shape_stack_{-1};
-  uint64_t run_array_stack_{0};
-  uint64_t run_arg_stack_{0};
-  // statistics of stacks
-  int64_t max_shape_stack_{-1};
-  uint64_t max_array_stack_{0};
-  uint64_t max_arg_stack_{0};
+
+  // Record all stack frames.
+  std::vector<AllocaScope> alloca_scope_;
 };
 
 namespace transform {

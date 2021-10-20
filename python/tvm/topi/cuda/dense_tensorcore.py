@@ -60,22 +60,27 @@ def dense_tensorcore_cuda(data, weight, bias=None, out_dtype=None):
         out_dtype = data.dtype
     batch, in_dim = get_const_tuple(data.shape)
     out_dim, _ = get_const_tuple(weight.shape)
-    assert (
-        (batch % 8 == 0 and in_dim % 16 == 0 and out_dim % 32 == 0)
-        or (batch % 16 == 0 and in_dim % 16 == 0 and out_dim % 16 == 0)
-        or (batch % 32 == 0 and in_dim % 16 == 0 and out_dim % 8 == 0)
-    ), (
-        "The shape of (batch, in_dim, out_dim) "
-        "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
-    )
+
+    assert data.dtype == weight.dtype
+    assert data.dtype in ["float16", "int8", "uint8", "int4", "uint4"]
+    if data.dtype in ["float16", "int8", "uint8"]:
+        assert (
+            (batch % 8 == 0 and in_dim % 16 == 0 and out_dim % 32 == 0)
+            or (batch % 16 == 0 and in_dim % 16 == 0 and out_dim % 16 == 0)
+            or (batch % 32 == 0 and in_dim % 16 == 0 and out_dim % 8 == 0)
+        ), (
+            "The shape of (batch, in_dim, out_dim) "
+            "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
+        )
+    else:
+        assert (
+            batch % 8 == 0 and in_dim % 32 == 0 and out_dim % 8 == 0
+        ), "The shape of (batch, in_dim, out_dim) must be multiple of (8, 32, 8)"
+
     k = te.reduce_axis((0, in_dim), name="k")
-    data_16 = te.compute((batch, in_dim), lambda b, i: data[b, i].astype("float16"))
-    weight_16 = te.compute((out_dim, in_dim), lambda o, i: weight[o, i].astype("float16"))
     matmul = te.compute(
         (batch, out_dim),
-        lambda i, j: te.sum(
-            data_16[i, k].astype(out_dtype) * weight_16[j, k].astype(out_dtype), axis=k
-        ),
+        lambda i, j: te.sum(data[i, k].astype(out_dtype) * weight[j, k].astype(out_dtype), axis=k),
         name="T_dense",
         tag="dense_tensorcore",
     )
@@ -91,10 +96,11 @@ def dense_tensorcore_cuda(data, weight, bias=None, out_dtype=None):
 def _schedule_dense_tensorcore(cfg, s, C):
     """Schedule dense operator using Tensorcore"""
     A, B = s[C].op.input_tensors
+    if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
+        s[B].compute_inline()
     batch, out_dim = get_const_tuple(C.shape)
+    data_dtype = A.dtype
     out_dtype = C.dtype
-    s[A].compute_inline()
-    s[B].compute_inline()
 
     # Explicit memory access
     AS = s.cache_read(A, "shared", [C])
@@ -127,16 +133,29 @@ def _schedule_dense_tensorcore(cfg, s, C):
     cfg.define_knob("offsetCS", [0, 8])
     cfg.define_knob("vec", [1, 2, 4, 8])
 
-    # Ensure that the default parameters are applicable when autotvm is not in use
-    if batch % 32 == 0 and out_dim % 8 == 0:
-        cfg.define_knob("wmma_m", [32, 16, 8])
-    elif batch % 16 == 0 and out_dim % 16 == 0:
-        cfg.define_knob("wmma_m", [16, 8, 32])
-    elif batch % 8 == 0 and out_dim % 32 == 0:
-        cfg.define_knob("wmma_m", [8, 16, 32])
+    if data_dtype in ["float16", "int8", "uint8"]:
+        # Ensure that the default parameters are applicable when autotvm is not in use
+        if batch % 32 == 0 and out_dim % 8 == 0:
+            cfg.define_knob("wmma_m", [32, 16, 8])
+        elif batch % 16 == 0 and out_dim % 16 == 0:
+            cfg.define_knob("wmma_m", [16, 8, 32])
+        elif batch % 8 == 0 and out_dim % 32 == 0:
+            cfg.define_knob("wmma_m", [8, 16, 32])
+        wmma_k = 16
+        wmma_m = cfg["wmma_m"].val
+        if wmma_m == 16:
+            wmma_n = 16
+        elif wmma_m == 8:
+            wmma_n = 32
+        elif wmma_m == 32:
+            wmma_n = 8
+    elif data_dtype in ["int4", "uint4"]:
+        wmma_m = wmma_n = 8
+        wmma_k = 32
+    else:
+        raise ValueError("data dtype %s is not yet supported" % data_dtype)
 
     warp_size = 32
-    wmma_k = 16
     block_row_warps = cfg["block_row_warps"].val
     block_col_warps = cfg["block_col_warps"].val
     warp_row_tiles = cfg["warp_row_tiles"].val
@@ -144,15 +163,7 @@ def _schedule_dense_tensorcore(cfg, s, C):
     chunk = cfg["chunk"].val
     offset = cfg["offset"].val
     offsetCS = cfg["offsetCS"].val
-    wmma_m = cfg["wmma_m"].val
     vec = cfg["vec"].val
-
-    if wmma_m == 16:
-        wmma_n = 16
-    elif wmma_m == 8:
-        wmma_n = 32
-    elif wmma_m == 32:
-        wmma_n = 8
 
     # Define the stride of intrin functions
     AS_align = chunk * wmma_k + offset
@@ -245,9 +256,8 @@ def _schedule_dense_tensorcore(cfg, s, C):
     shared_shedule(BS, BS_align)
 
     shape = (wmma_m, wmma_n, wmma_k)
-    in_dtype = "float16"
-    AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=in_dtype)
-    BL_gemm = te.placeholder((wmma_n, wmma_k), name="BL_gemm", dtype=in_dtype)
+    AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=data_dtype)
+    BL_gemm = te.placeholder((wmma_n, wmma_k), name="BL_gemm", dtype=data_dtype)
     k_gemm = te.reduce_axis((0, wmma_k), name="k_gemm")
     CL_compute = te.compute(
         (wmma_m, wmma_n),
@@ -263,13 +273,13 @@ def _schedule_dense_tensorcore(cfg, s, C):
     s[AF].tensorize(
         b_ii,
         intrin_wmma_load_matrix_A(
-            AF_stride, AS_stride, shape, "row_major", (wmma_m, wmma_k), (wmma_m, wmma_k), "float16"
+            AF_stride, AS_stride, shape, "row_major", (wmma_m, wmma_k), (wmma_m, wmma_k), data_dtype
         ),
     )
     s[BF].tensorize(
         o_ii,
         intrin_wmma_load_matrix_W(
-            BF_stride, BS_stride, shape, "col_major", (wmma_n, wmma_k), (wmma_n, wmma_k), "float16"
+            BF_stride, BS_stride, shape, "col_major", (wmma_n, wmma_k), (wmma_n, wmma_k), data_dtype
         ),
     )
     s[CF].tensorize(

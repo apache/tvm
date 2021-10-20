@@ -22,18 +22,20 @@
  * \brief WebGPU runtime based on the TVM JS.
  */
 
-// configurations for the dmlc log.
-#define DMLC_LOG_CUSTOMIZE 0
-#define DMLC_LOG_STACK_TRACE 0
-#define DMLC_LOG_DEBUG 0
-#define DMLC_LOG_NODATE 1
-#define DMLC_LOG_FATAL_THROW 0
+// configurations for tvm logging
+#define TVM_LOG_STACK_TRACE 0
+#define TVM_LOG_DEBUG 0
+#define TVM_LOG_CUSTOMIZE 1
+#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
+#include <iostream>
+#include <string>
 
 #include "../../src/runtime/meta_data.h"
 #include "../../src/runtime/vulkan/vulkan_shader.h"
@@ -67,34 +69,34 @@ class WebGPUDeviceAPI : public DeviceAPI {
     copy_within_gpu_ = getter("deviceCopyWithinGPU");
   }
 
-  void SetDevice(TVMContext ctx) final {}
-  void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void SetDevice(Device dev) final {}
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
     if (kind == kExist) {
       *rv = 1;
     }
   }
 
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final {
+  void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     double ptr_number = alloc_space_(nbytes);
     return reinterpret_cast<void*>(static_cast<int64_t>(ptr_number));
   }
 
-  void FreeDataSpace(TVMContext ctx, void* ptr) final { return free_space_(ptr); }
+  void FreeDataSpace(Device dev, void* ptr) final { return free_space_(ptr); }
 
+ protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
-    if (static_cast<int>(ctx_from.device_type) == kDLWebGPU &&
-        static_cast<int>(ctx_to.device_type) == kDLWebGPU) {
-      CHECK_EQ(ctx_from.device_id, ctx_to.device_id);
+    if (static_cast<int>(dev_from.device_type) == kDLWebGPU &&
+        static_cast<int>(dev_to.device_type) == kDLWebGPU) {
+      CHECK_EQ(dev_from.device_id, dev_to.device_id);
       copy_within_gpu_(const_cast<void*>(from), from_offset, to, to_offset, size);
-    } else if (static_cast<int>(ctx_from.device_type) == kDLWebGPU &&
-               ctx_to.device_type == kDLCPU) {
+    } else if (static_cast<int>(dev_from.device_type) == kDLWebGPU &&
+               dev_to.device_type == kDLCPU) {
       void* to_ptr = static_cast<uint8_t*>(to) + to_offset;
       copy_from_gpu_(const_cast<void*>(from), from_offset, to_ptr, size);
-    } else if (ctx_from.device_type == kDLCPU &&
-               static_cast<int>(ctx_to.device_type) == kDLWebGPU) {
+    } else if (dev_from.device_type == kDLCPU &&
+               static_cast<int>(dev_to.device_type) == kDLWebGPU) {
       void* from_ptr = static_cast<uint8_t*>(const_cast<void*>(from)) + from_offset;
       copy_to_gpu_(from_ptr, to, to_offset, size);
     } else {
@@ -102,34 +104,35 @@ class WebGPUDeviceAPI : public DeviceAPI {
     }
   }
 
-  TVMStreamHandle CreateStream(TVMContext ctx) final {
+ public:
+  TVMStreamHandle CreateStream(Device dev) final {
     LOG(FATAL) << "Not implemented";
     return nullptr;
   }
 
-  void FreeStream(TVMContext ctx, TVMStreamHandle stream) final {
+  void FreeStream(Device dev, TVMStreamHandle stream) final {
     LOG(FATAL) << "Not implemented";
     return;
   }
 
-  void SyncStreamFromTo(TVMContext ctx, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
+  void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
     LOG(FATAL) << "Not implemented";
     return;
   }
 
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
+  void StreamSync(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
-  void SetStream(TVMContext ctx, TVMStreamHandle stream) final {
+  void SetStream(Device dev, TVMStreamHandle stream) final {
     LOG(FATAL) << "Not implemented";
     return;
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
-    return WebGPUThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
+    return WebGPUThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }
 
-  void FreeWorkspace(TVMContext ctx, void* data) final {
-    WebGPUThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
+  void FreeWorkspace(Device dev, void* data) final {
+    WebGPUThreadEntry::ThreadLocal()->pool.FreeWorkspace(dev, data);
   }
 
   static WebGPUDeviceAPI* Global() {

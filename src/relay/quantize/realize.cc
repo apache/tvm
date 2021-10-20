@@ -29,8 +29,8 @@
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/transform.h>
 
+#include "../op/annotation/annotation.h"
 #include "../qnn/utils.h"
-#include "../transforms/pattern_utils.h"
 #include "./quantize.h"
 
 namespace tvm {
@@ -165,7 +165,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
                           MakeConstantScalar(cfg->dtype_activation, static_cast<int>(shift_nbit)));
       } else {
         data = LeftShift(data,
-                         MakeConstantScalar(cfg->dtype_activation, static_cast<int>(shift_nbit)));
+                         MakeConstantScalar(cfg->dtype_activation, static_cast<int>(-shift_nbit)));
       }
       data = Clip(data, clip_min_imm, clip_max_imm);
       return QRealizeIntExpr(data, dom_scale, n->dtype);
@@ -538,6 +538,41 @@ Expr CastHintRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
 
 RELAY_REGISTER_OP("annotation.cast_hint")
     .set_attr<FForwardRewrite>("FQRealizeRewrite", CastHintRealize);
+
+Expr BatchMatmulRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
+  const QConfig& cfg = QConfig::Current();
+  ICHECK_EQ(new_args.size(), 2);
+  if (!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>()) {
+    return Expr(nullptr);
+  }
+  const auto* lhs = new_args[0].as<QRealizeIntExprNode>();
+  const auto* rhs = new_args[1].as<QRealizeIntExprNode>();
+
+  Expr ldata = lhs->data;
+  Expr rdata = rhs->data;
+  DataType dtype = cfg->dtype_input;
+
+  if (lhs->dtype != dtype) {
+    ldata = Cast(ldata, dtype);
+  }
+  if (rhs->dtype != dtype) {
+    rdata = Cast(rdata, dtype);
+  }
+
+  const auto ref_attrs = ref_call->attrs.as<BatchMatmulAttrs>();
+  auto attrs = make_object<BatchMatmulAttrs>();
+  *attrs = *ref_attrs;
+  DataType out_dtype = cfg->dtype_activation;
+  attrs->out_dtype = out_dtype;
+
+  Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
+  Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
+  Expr dom_scale = FoldConstantOpt(mul);
+  return QRealizeIntExpr(ret, dom_scale, out_dtype);
+}
+
+RELAY_REGISTER_OP("nn.batch_matmul")
+    .set_attr<FForwardRewrite>("FQRealizeRewrite", BatchMatmulRealize);
 
 Pass QuantizeRealizePass() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =

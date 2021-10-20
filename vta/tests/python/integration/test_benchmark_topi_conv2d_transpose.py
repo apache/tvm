@@ -224,13 +224,13 @@ def run_conv2d_transpose(
     mod.save(temp.relpath("conv2d_transpose.o"))
     remote.upload(temp.relpath("conv2d_transpose.o"))
     f = remote.load_module("conv2d_transpose.o")
-    ctx = remote.context(str(target))
+    dev = remote.device(str(target))
 
     res_np = np.zeros(topi.utils.get_const_tuple(res.shape)).astype(res.dtype)
-    data_arr = tvm.nd.array(data_np, ctx)
-    kernel_arr = tvm.nd.array(kernel_np, ctx)
-    res_arr = tvm.nd.array(res_np, ctx)
-    time_f = f.time_evaluator("conv2d_transpose", ctx, number=samples)
+    data_arr = tvm.nd.array(data_np, dev)
+    kernel_arr = tvm.nd.array(kernel_np, dev)
+    res_arr = tvm.nd.array(res_np, dev)
+    time_f = f.time_evaluator("conv2d_transpose", dev, number=samples)
 
     # In vta sim mode, collect simulator runtime statistics
     stats = {}
@@ -259,7 +259,7 @@ def run_conv2d_transpose(
     # Check correctness
     correct = False
     if check_correctness:
-        res_orig = res_arr.asnumpy()
+        res_orig = res_arr.numpy()
         if data_pack:
             res_orig = res_orig.transpose((0, 4, 1, 5, 2, 3)).reshape(
                 wl.batch, wl.out_filter, fout_height, fout_width

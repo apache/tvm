@@ -23,6 +23,7 @@
  */
 #include <tvm/relay/attrs/vision.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace relay {
@@ -131,6 +132,83 @@ ignore class_id axis.
     .add_argument("iou_threshold", "Tensor", "Threshold for box overlap.")
     .set_support_level(5)
     .add_type_rel("NMS", NMSRel);
+
+TVM_REGISTER_NODE_TYPE(AllClassNonMaximumSuppressionAttrs);
+
+bool AllClassNMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 6);
+  const auto* boxes = types[0].as<TensorTypeNode>();
+  if (boxes == nullptr) return false;
+  const auto* scores = types[1].as<TensorTypeNode>();
+  if (scores == nullptr) return false;
+
+  const auto& boxes_shape = boxes->shape;
+  const auto& scores_shape = scores->shape;
+  ICHECK_EQ(boxes_shape.size(), 3) << "Input boxes should be 3-D.";
+  ICHECK_EQ(scores_shape.size(), 3) << "Input scores count should be 3-D.";
+
+  IndexExpr batch = boxes_shape[0];
+  IndexExpr num_classes = scores_shape[1];
+  IndexExpr num_boxes = boxes_shape[1];
+
+  const auto* param = attrs.as<AllClassNonMaximumSuppressionAttrs>();
+  CHECK(param);
+
+  std::vector<Type> fields;
+  if (param->output_format == "onnx") {
+    IndexExpr num_total_boxes = Any();
+    if (!batch.as<AnyNode>() && !num_boxes.as<AnyNode>()) {
+      num_total_boxes = batch * num_classes * num_boxes;
+    }
+    std::vector<IndexExpr> oshape{num_total_boxes, 3};
+    std::vector<IndexExpr> counts_shape{1};
+    fields.push_back(TensorType(oshape, DataType::Int(64)));
+    fields.push_back(TensorType(counts_shape, DataType::Int(64)));
+  } else {
+    IndexExpr num_total_boxes_per_batch = Any();
+    if (!num_boxes.as<AnyNode>()) {
+      num_total_boxes_per_batch = num_classes * num_boxes;
+    }
+    std::vector<IndexExpr> indices_shape{batch, num_total_boxes_per_batch, 2};
+    std::vector<IndexExpr> scores_shape{batch, num_total_boxes_per_batch};
+    std::vector<IndexExpr> counts_shape{batch};
+    fields.push_back(TensorType(indices_shape, DataType::Int(64)));
+    fields.push_back(TensorType(scores_shape, DataType::Float(32)));
+    fields.push_back(TensorType(counts_shape, DataType::Int(64)));
+  }
+  reporter->Assign(types[5], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+Expr MakeAllClassNMS(Expr boxes, Expr scores, Expr max_output_boxes_per_class, Expr iou_threshold,
+                     Expr score_threshold, std::string output_format = "onnx") {
+  auto attrs = make_object<AllClassNonMaximumSuppressionAttrs>();
+  attrs->output_format = std::move(output_format);
+  static const Op& op = Op::Get("vision.all_class_non_max_suppression");
+  return Call(op, {boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold},
+              Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.vision._make.all_class_non_max_suppression")
+    .set_body_typed(MakeAllClassNMS);
+
+RELAY_REGISTER_OP("vision.all_class_non_max_suppression")
+    .describe(R"doc(Non-maximum suppression operator for object detection, corresponding to ONNX
+    NonMaxSuppression and TensorFlow combined_non_max_suppression.
+    NMS is performed for each class separately
+)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(5)
+    .add_argument("boxes", "Tensor", "The input boxes in the format [batch, num_boxes, 4].")
+    .add_argument("scores", "Tensor",
+                  "Scores for each box and class in the format [batch, num_classes, num_boxes].")
+    .add_argument("max_output_boxes_per_class", "Tensor",
+                  "The maximum number of output boxes per class.")
+    .add_argument("iou_threshold", "Tensor", "The IoU threshold for box the overlap test.")
+    .add_argument("score_threshold", "Tensor",
+                  "The score threshold to filter out low score boxes early.")
+    .set_support_level(5)
+    .add_type_rel("AllClassNMS", AllClassNMSRel);
 
 }  // namespace relay
 }  // namespace tvm

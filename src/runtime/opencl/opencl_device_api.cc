@@ -29,6 +29,66 @@ namespace tvm {
 namespace runtime {
 namespace cl {
 
+std::string GetPlatformInfo(cl_platform_id pid, cl_platform_info param_name);
+std::string GetDeviceInfo(cl_device_id pid, cl_device_info param_name);
+
+struct ImageInfo {
+  size_t origin[3] = {};
+  size_t region[3] = {};
+  size_t row_pitch = 0;
+  size_t slice_pitch = 0;
+};
+
+/*!
+ * \brief Utility to apply a memory layout specific lowering convention
+ * to infer the physical shape from the provided DLTensor's logical shape.
+ * \param desc Descriptor which contains the buffer and layout tag.
+ * \param The DLTensor used to infer the tensors physical shape.
+ */
+ImageInfo GetImageInfo(const cl::BufferDescriptor* desc, const DLTensor* tensor) {
+  ImageInfo info{};
+  ICHECK(tensor->dtype.lanes == 1) << "Image dtype has lanes: " << tensor->dtype.lanes;
+
+  info.origin[0] = info.origin[1] = info.origin[2] = 0;
+  info.row_pitch = 0;
+  info.slice_pitch = 0;
+
+  size_t axis = DefaultTextureLayoutSeparator(
+      tensor->ndim, cl::BufferDescriptor::ScopeFromMemoryLayout(desc->layout));
+  auto texture_shape = ApplyTexture2DFlattening<int64_t>(tensor->shape, tensor->ndim, axis);
+  info.region[0] = texture_shape.width;
+  info.region[1] = texture_shape.height;
+  info.region[2] = 1;
+  return info;
+}
+
+cl::BufferDescriptor::MemoryLayout cl::BufferDescriptor::MemoryLayoutFromScope(
+    Optional<String> mem_scope) {
+  if (!mem_scope.defined()) {
+    return cl::BufferDescriptor::MemoryLayout::kBuffer1D;
+  } else if (mem_scope.value() == "global.texture") {
+    return cl::BufferDescriptor::MemoryLayout::kImage2DActivation;
+  } else if (mem_scope.value() == "global.texture-weight") {
+    return cl::BufferDescriptor::MemoryLayout::kImage2DWeight;
+  }
+  LOG(FATAL) << "No memory layout defined for memory of scope: " << mem_scope.value();
+  return cl::BufferDescriptor::MemoryLayout::kBuffer1D;
+}
+
+String cl::BufferDescriptor::ScopeFromMemoryLayout(cl::BufferDescriptor::MemoryLayout layout) {
+  switch (layout) {
+    case cl::BufferDescriptor::MemoryLayout::kBuffer1D:
+      return "global";
+    case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
+      return "global.texture";
+    case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
+      return "global.texture-weight";
+  }
+  LOG(FATAL) << "No scope corresponding to the provided memory layout: "
+             << static_cast<int>(layout);
+  return "";
+}
+
 OpenCLThreadEntry* OpenCLWorkspace::GetThreadEntry() { return OpenCLThreadEntry::ThreadLocal(); }
 
 OpenCLWorkspace* OpenCLWorkspace::Global() {
@@ -36,13 +96,11 @@ OpenCLWorkspace* OpenCLWorkspace::Global() {
   return inst;
 }
 
-void OpenCLWorkspace::SetDevice(TVMContext ctx) {
-  GetThreadEntry()->context.device_id = ctx.device_id;
-}
+void OpenCLWorkspace::SetDevice(Device dev) { GetThreadEntry()->device.device_id = dev.device_id; }
 
-void OpenCLWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
+void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
   this->Init();
-  size_t index = static_cast<size_t>(ctx.device_id);
+  size_t index = static_cast<size_t>(dev.device_id);
   if (kind == kExist) {
     *rv = static_cast<int>(index < devices.size());
     return;
@@ -74,20 +132,27 @@ void OpenCLWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
       *rv = static_cast<int64_t>(value);
       break;
     }
-    case kComputeVersion:
-      return;
-    case kDeviceName: {
-      char value[128] = {0};
-      OPENCL_CALL(
-          clGetDeviceInfo(devices[index], CL_DEVICE_NAME, sizeof(value) - 1, value, nullptr));
-      *rv = std::string(value);
+    case kComputeVersion: {
+      // String returned is "OpenCL $MAJOR.$MINOR $VENDOR_INFO".  To
+      // match other implementations, we want to return "$MAJOR.$MINOR"
+      std::string ret = GetDeviceInfo(devices[index], CL_DEVICE_VERSION);
+
+      const size_t version_start = 7;  // Length of initial "OpenCL " prefix to skip
+      const size_t version_end = ret.find(' ', version_start);
+      *rv = ret.substr(version_start, version_end - version_start);
       break;
     }
+      return;
+    case kDeviceName:
+      *rv = GetDeviceInfo(devices[index], CL_DEVICE_NAME);
+      break;
     case kMaxClockRate: {
       cl_uint value;
       OPENCL_CALL(clGetDeviceInfo(devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint),
                                   &value, nullptr));
-      *rv = static_cast<int32_t>(value);
+      // OpenCL returns the clock rate in MHz, while CUDA/ROCm return the
+      // clock rate in kHz.  Converting to the same units for each.
+      *rv = static_cast<int32_t>(value * 1000);
       break;
     }
     case kMultiProcessorCount: {
@@ -111,68 +176,153 @@ void OpenCLWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
       return;
     case kGcnArch:
       return;
-    case kApiVersion:
-      return;
+    case kApiVersion: {
+      *rv = CL_TARGET_OPENCL_VERSION;
+      break;
+    }
+    case kDriverVersion: {
+      char value[128] = {0};
+      OPENCL_CALL(
+          clGetDeviceInfo(devices[index], CL_DRIVER_VERSION, sizeof(value) - 1, value, nullptr));
+      *rv = std::string(value);
+      break;
+    }
   }
 }
 
-void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, size_t size, size_t alignment,
+void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
                                       DLDataType type_hint) {
   this->Init();
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
-  cl_mem mptr = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
+  cl::BufferDescriptor* desc = new cl::BufferDescriptor;
+  desc->buffer = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
+  desc->layout = cl::BufferDescriptor::MemoryLayout::kBuffer1D;
+  OPENCL_CHECK_ERROR(err_code);
+  return desc;
+}
+
+void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
+                                      Optional<String> mem_scope) {
+  if (!mem_scope.defined() || mem_scope.value() == "global") {
+    return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
+  }
+  ICHECK(IsTextureStorage(std::string(mem_scope.value())))
+      << "Device does not support allocate data space with "
+      << "specified memory scope: " << mem_scope.value();
+
+  ICHECK(ndim > 2) << "Shape for texture allocation must be at least rank 3; "
+                   << "provided shape is rank " << ndim;
+
+  cl::BufferDescriptor* desc = new cl::BufferDescriptor(mem_scope);
+  size_t axis = DefaultTextureLayoutSeparator(ndim, mem_scope.value());
+  auto texture = ApplyTexture2DFlattening<int64_t>(shape, ndim, axis);
+  desc->buffer = AllocTexture(dev, texture.width, texture.height, dtype);
+  return desc;
+}
+
+void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
+  // We have to make sure that the memory object is not in the command queue
+  // for some OpenCL platforms.
+  OPENCL_CALL(clFinish(this->GetQueue(dev)));
+
+  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(ptr);
+  OPENCL_CALL(clReleaseMemObject(desc->buffer));
+  delete desc;
+}
+
+cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height,
+                                     DLDataType type_hint) {
+  this->Init();
+  ICHECK(context != nullptr) << "No OpenCL device";
+  cl_int err_code;
+  cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
+  cl_image_format format = {CL_RGBA, cl_type};
+  cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0};
+  cl_mem mptr =
+      clCreateImage(this->context, CL_MEM_READ_WRITE, &format, &descriptor, nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;
 }
 
-void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
-  // We have to make sure that the memory object is not in the command queue
-  // for some OpenCL platforms.
-  OPENCL_CALL(clFinish(this->GetQueue(ctx)));
-
-  cl_mem mptr = static_cast<cl_mem>(ptr);
-  OPENCL_CALL(clReleaseMemObject(mptr));
+void* OpenCLWorkspace::AllocTextureWorkspace(Device dev, size_t width, size_t height,
+                                             DLDataType type_hint) {
+  return GetThreadEntry()->texture_pool.AllocTexture(dev, width, height, type_hint);
 }
 
-void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
-                                     size_t to_offset, size_t size, TVMContext ctx_from,
-                                     TVMContext ctx_to, DLDataType type_hint,
-                                     TVMStreamHandle stream) {
-  this->Init();
-  ICHECK(stream == nullptr);
-  if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
-    OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(ctx_to),
-                                    static_cast<cl_mem>((void*)from),  // NOLINT(*)
-                                    static_cast<cl_mem>(to), from_offset, to_offset, size, 0,
-                                    nullptr, nullptr));
-  } else if (IsOpenCLDevice(ctx_from) && ctx_to.device_type == kDLCPU) {
-    OPENCL_CALL(clEnqueueReadBuffer(this->GetQueue(ctx_from),
-                                    static_cast<cl_mem>((void*)from),  // NOLINT(*)
-                                    CL_FALSE, from_offset, size, static_cast<char*>(to) + to_offset,
-                                    0, nullptr, nullptr));
-    OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
-  } else if (ctx_from.device_type == kDLCPU && IsOpenCLDevice(ctx_to)) {
-    OPENCL_CALL(clEnqueueWriteBuffer(this->GetQueue(ctx_to), static_cast<cl_mem>(to), CL_FALSE,
-                                     to_offset, size, static_cast<const char*>(from) + from_offset,
-                                     0, nullptr, nullptr));
-    OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
+void OpenCLWorkspace::FreeTextureWorkspace(Device dev, void* ptr) {
+  GetThreadEntry()->texture_pool.FreeTexture(dev, ptr);
+}
+
+void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
+  size_t nbytes = GetDataSize(*from);
+  ICHECK_EQ(nbytes, GetDataSize(*to));
+  ICHECK(IsContiguous(*from) && IsContiguous(*to))
+      << "CopyDataFromTo only support contiguous array for now";
+
+  if (IsOpenCLDevice(from->device) && IsOpenCLDevice(to->device)) {
+    const auto* from_desc = static_cast<const cl::BufferDescriptor*>(from->data);
+    ICHECK(from_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D)
+        << "Device to device copying is currently only implemented for OpenCL buffer storage";
+    auto* to_desc = static_cast<cl::BufferDescriptor*>(to->data);
+    OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(to->device), from_desc->buffer, to_desc->buffer,
+                                    from->byte_offset, to->byte_offset, nbytes, 0, nullptr,
+                                    nullptr));
+  } else if (IsOpenCLDevice(from->device) && to->device.device_type == kDLCPU) {
+    const auto* from_desc = static_cast<const cl::BufferDescriptor*>(from->data);
+    switch (from_desc->layout) {
+      case cl::BufferDescriptor::MemoryLayout::kBuffer1D:
+        OPENCL_CALL(clEnqueueReadBuffer(
+            this->GetQueue(from->device), from_desc->buffer, CL_FALSE, from->byte_offset, nbytes,
+            static_cast<char*>(to->data) + to->byte_offset, 0, nullptr, nullptr));
+        break;
+      case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
+      case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
+        auto image_info = GetImageInfo(from_desc, from);
+        // TODO(csullivan): Support calculating row_pitch correctly in the case of reuse.
+        // Note that when utilizing texture pools for memory reuse, the allocated image
+        // size can be larger than the size to be read.
+        OPENCL_CALL(clEnqueueReadImage(
+            this->GetQueue(from->device), from_desc->buffer, CL_FALSE, image_info.origin,
+            image_info.region, image_info.row_pitch, image_info.slice_pitch,
+            static_cast<char*>(to->data) + to->byte_offset, 0, nullptr, nullptr));
+        break;
+    }
+    OPENCL_CALL(clFinish(this->GetQueue(from->device)));
+  } else if (from->device.device_type == kDLCPU && IsOpenCLDevice(to->device)) {
+    auto* to_desc = static_cast<cl::BufferDescriptor*>(to->data);
+    switch (to_desc->layout) {
+      case cl::BufferDescriptor::MemoryLayout::kBuffer1D:
+        OPENCL_CALL(clEnqueueWriteBuffer(
+            this->GetQueue(to->device), to_desc->buffer, CL_FALSE, to->byte_offset, nbytes,
+            static_cast<const char*>(from->data) + from->byte_offset, 0, nullptr, nullptr));
+        break;
+      case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
+      case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
+        auto image_info = GetImageInfo(to_desc, to);
+        OPENCL_CALL(clEnqueueWriteImage(
+            this->GetQueue(to->device), to_desc->buffer, CL_FALSE, image_info.origin,
+            image_info.region, image_info.row_pitch, image_info.slice_pitch,
+            static_cast<const char*>(from->data) + from->byte_offset, 0, nullptr, nullptr));
+        break;
+    }
+    OPENCL_CALL(clFinish(this->GetQueue(to->device)));
   } else {
     LOG(FATAL) << "Expect copy from/to OpenCL or between OpenCL";
   }
 }
 
-void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
+void OpenCLWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   ICHECK(stream == nullptr);
-  OPENCL_CALL(clFinish(this->GetQueue(ctx)));
+  OPENCL_CALL(clFinish(this->GetQueue(dev)));
 }
 
-void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) {
-  return GetThreadEntry()->pool.AllocWorkspace(ctx, size);
+void* OpenCLWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
+  return GetThreadEntry()->pool.AllocWorkspace(dev, size);
 }
 
-void OpenCLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
-  GetThreadEntry()->pool.FreeWorkspace(ctx, data);
+void OpenCLWorkspace::FreeWorkspace(Device dev, void* data) {
+  GetThreadEntry()->pool.FreeWorkspace(dev, data);
 }
 
 typedef dmlc::ThreadLocalStore<OpenCLThreadEntry> OpenCLThreadStore;
@@ -274,6 +424,39 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   }
   initialized_ = true;
 }
+
+TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int device_type = args[0];
+  int device_id = args[1];
+  int width = args[2];
+  int height = args[3];
+  int dtype_code_hint = args[4];
+  int dtype_bits_hint = args[5];
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
+
+  DLDataType type_hint;
+  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
+  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
+  type_hint.lanes = 1;
+
+  OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
+  *rv = ptr->AllocTextureWorkspace(dev, static_cast<size_t>(width), static_cast<size_t>(height),
+                                   type_hint);
+});
+
+TVM_REGISTER_GLOBAL("device_api.opencl.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int device_type = args[0];
+  int device_id = args[1];
+  void* data = args[2];
+  OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
+  Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
+  ptr->FreeTextureWorkspace(dev, data);
+  *rv = static_cast<int32_t>(0);
+});
 
 TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = OpenCLWorkspace::Global();

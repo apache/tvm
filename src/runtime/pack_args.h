@@ -32,6 +32,7 @@
 #define TVM_RUNTIME_PACK_ARGS_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <cstring>
 #include <vector>
@@ -40,12 +41,23 @@ namespace tvm {
 namespace runtime {
 /*!
  * \brief argument union type of 32bit.
- * Choose 32 bit because most GPU API do not work well with 64 bit.
  */
-union ArgUnion {
+union ArgUnion32 {
   int32_t v_int32;
   uint32_t v_uint32;
   float v_float32;
+};
+
+/*!
+ * \brief argument union type of 64 bit, for use by Vulkan and Metal runtime.
+ */
+union ArgUnion64 {
+  int32_t v_int32[2];
+  uint32_t v_uint32[2];
+  float v_float32[2];
+  int64_t v_int64;
+  uint64_t v_uint64;
+  double v_float64;
 };
 /*!
  * \brief Create a packed function from void addr types.
@@ -140,9 +152,9 @@ inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& code
   int num_args = static_cast<int>(codes.size());
   auto ret = [f, codes, num_args](TVMArgs args, TVMRetValue* ret) {
     TempArray<void*, N> addr_(num_args);
-    TempArray<ArgUnion, N> holder_(num_args);
+    TempArray<ArgUnion32, N> holder_(num_args);
     void** addr = addr_.data();
-    ArgUnion* holder = holder_.data();
+    ArgUnion32* holder = holder_.data();
     for (int i = 0; i < num_args; ++i) {
       switch (codes[i]) {
         case INT64_TO_INT64:
@@ -177,25 +189,28 @@ template <int N, typename F>
 inline PackedFunc PackFuncNonBufferArg_(F f, int base, const std::vector<ArgConvertCode>& codes) {
   int num_args = static_cast<int>(codes.size());
   auto ret = [f, codes, base, num_args](TVMArgs args, TVMRetValue* ret) {
-    TempArray<ArgUnion, N> holder_(num_args);
-    ArgUnion* holder = holder_.data();
+    TempArray<ArgUnion64, N> holder_(num_args);
+    ArgUnion64* holder = holder_.data();
     for (int i = 0; i < num_args; ++i) {
       switch (codes[i]) {
-        case INT64_TO_INT64:
+        case INT64_TO_INT64: {
+          holder[i].v_int64 = args.values[base + i].v_int64;
+          break;
+        }
         case FLOAT64_TO_FLOAT64: {
-          LOG(FATAL) << "Do not support 64bit argument to device function";
+          holder[i].v_float64 = args.values[base + i].v_float64;
           break;
         }
         case INT64_TO_INT32: {
-          holder[i].v_int32 = static_cast<int32_t>(args.values[base + i].v_int64);
+          holder[i].v_int32[0] = static_cast<int32_t>(args.values[base + i].v_int64);
           break;
         }
         case INT64_TO_UINT32: {
-          holder[i].v_uint32 = static_cast<uint32_t>(args.values[base + i].v_int64);
+          holder[i].v_uint32[0] = static_cast<uint32_t>(args.values[base + i].v_int64);
           break;
         }
         case FLOAT64_TO_FLOAT32: {
-          holder[i].v_float32 = static_cast<float>(args.values[base + i].v_float64);
+          holder[i].v_float32[0] = static_cast<float>(args.values[base + i].v_float64);
           break;
         }
         case HANDLE_TO_HANDLE: {

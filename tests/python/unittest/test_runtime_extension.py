@@ -47,7 +47,7 @@ def test_dltensor_compatible():
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     aview = MyTensorView(a)
     f(aview)
-    np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
+    np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 
 
 if __name__ == "__main__":

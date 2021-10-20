@@ -24,7 +24,7 @@ use std::{
 };
 pub use tvm_sys::ffi::DLTensor;
 use tvm_sys::ffi::{
-    DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDeviceType_kDLCPU,
+    DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDevice, DLDeviceType_kDLCPU,
 };
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -114,7 +114,7 @@ impl Tensor {
     pub fn as_dltensor(&self) -> DLTensor {
         DLTensor {
             data: self.data.as_ptr() as *mut c_void,
-            ctx: DLContext {
+            device: DLDevice {
                 device_type: DLDeviceType_kDLCPU,
                 device_id: 0 as c_int,
             },

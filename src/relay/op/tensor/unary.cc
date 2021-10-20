@@ -430,12 +430,14 @@ Array<te::Tensor> ShapeOfCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::shape(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.shape_of").set_body_typed([](Expr data, DataType dtype) {
+Expr MakeShapeOf(Expr data, DataType dtype) {
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("shape_of");
   return Call(op, {data}, Attrs(attrs), {});
-});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.shape_of").set_body_typed(MakeShapeOf);
 
 RELAY_REGISTER_OP("shape_of")
     .describe(R"code(Returns a tensor representing the shape of a tensor.

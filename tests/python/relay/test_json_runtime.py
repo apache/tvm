@@ -40,7 +40,7 @@ def set_func_attr(func, compile_name, symbol_name):
 
 
 def check_result(
-    mod, ref_mod, map_inputs, out_shape, tol=1e-5, target="llvm", ctx=tvm.cpu(), params=None
+    mod, ref_mod, map_inputs, out_shape, tol=1e-5, target="llvm", device=tvm.cpu(), params=None
 ):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
@@ -50,15 +50,15 @@ def check_result(
     compile_engine.get().clear()
     with tvm.transform.PassContext(opt_level=3):
         json, lib, param = relay.build(ref_mod, target=target, params=params)
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
     rt_mod.set_input(**param)
     rt_mod.run()
-    out = tvm.nd.empty(out_shape, ctx=ctx)
+    out = tvm.nd.empty(out_shape, device=device)
     out = rt_mod.get_output(0, out)
-    ref_result = out.asnumpy()
+    ref_result = out.numpy()
 
     def check_vm_result():
         compile_engine.get().clear()
@@ -66,26 +66,26 @@ def check_result(
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, ctx)
+        vm = runtime.vm.VirtualMachine(exe, device)
         out = vm.run(**map_inputs)
-        tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), ref_result, rtol=tol, atol=tol)
 
-    def check_graph_runtime_result():
+    def check_graph_executor_result():
         compile_engine.get().clear()
         with relay.build_config(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+        rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
         rt_mod.set_input(**param)
         rt_mod.run()
-        out = tvm.nd.empty(out_shape, ctx=ctx)
+        out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
-        tvm.testing.assert_allclose(out.asnumpy(), ref_result, rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), ref_result, rtol=tol, atol=tol)
 
     check_vm_result()
-    check_graph_runtime_result()
+    check_graph_executor_result()
 
 
 def test_conv2d():
@@ -96,16 +96,18 @@ def test_conv2d():
 
     def conv2d_direct():
         dtype = "float32"
-        ishape = (1, 32, 14, 14)
-        w1shape = (32, 32, 3, 3)
+        ishape = (1, 1, 99, 12)
+        w1shape = (54, 1, 3, 3)
 
         data0 = relay.var("data", shape=ishape, dtype=dtype)
         weight0 = relay.var("weight", shape=w1shape, dtype=dtype)
-        out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1))
+        out = relay.nn.conv2d(
+            data0, weight0, kernel_size=(3, 3), strides=(2, 2), padding=(1, 0, 1, 1)
+        )
 
         func = relay.Function([data0, weight0], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -118,7 +120,9 @@ def test_conv2d():
 
         data0 = relay.var("data", shape=ishape, dtype=dtype)
         weight0 = relay.var("weight", shape=w1shape, dtype=dtype)
-        out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1))
+        out = relay.nn.conv2d(
+            data0, weight0, kernel_size=(3, 3), strides=(2, 2), padding=(1, 0, 1, 1)
+        )
         main_f = relay.Function([data0, weight0], out)
         ref_mod = tvm.IRModule()
         ref_mod["main"] = main_f
@@ -127,7 +131,7 @@ def test_conv2d():
         i_data = np.random.uniform(0, 1, ishape).astype(dtype)
         w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-        return mod, ref_mod, {"data": i_data, "weight": w1_data}, (1, 32, 14, 14)
+        return mod, ref_mod, {"data": i_data, "weight": w1_data}, (1, 54, 50, 6)
 
     def group_conv2d():
         dtype = "float32"
@@ -139,8 +143,8 @@ def test_conv2d():
         out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), padding=(1, 1), groups=32)
 
         func = relay.Function([data0, weight0], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -183,8 +187,8 @@ def test_add():
         out = relay.add(data0, data1)
 
         func = relay.Function([data0, data1], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -212,6 +216,50 @@ def test_add():
     check_result(mod, ref_mod, {"data0": data0, "data1": data1}, shape, tol=1e-5)
 
 
+def test_multiply():
+    """Test a subgraph with a single add operator."""
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    dtype = "float32"
+    shape = (10, 10)
+
+    def gen_multiply():
+        data0 = relay.var("data0", shape=shape, dtype=dtype)
+        data1 = relay.var("data1", shape=shape, dtype=dtype)
+        out = relay.multiply(data0, data1)
+
+        func = relay.Function([data0, data1], out)
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
+        mod = tvm.IRModule()
+        mod[glb_var] = func
+        mod = transform.InferType()(mod)
+
+        data0 = relay.var("data0", shape=shape, dtype=dtype)
+        data1 = relay.var("data1", shape=shape, dtype=dtype)
+        main_f = relay.Function([data0, data1], glb_var(data0, data1))
+        mod["main"] = main_f
+        mod = transform.InferType()(mod)
+
+        data0 = relay.var("data0", shape=shape, dtype=dtype)
+        data1 = relay.var("data1", shape=shape, dtype=dtype)
+        out = relay.multiply(data0, data1)
+        main_f = relay.Function([data0, data1], out)
+        ref_mod = tvm.IRModule()
+        ref_mod["main"] = main_f
+        ref_mod = transform.InferType()(ref_mod)
+
+        return mod, ref_mod
+
+    mod, ref_mod = gen_multiply()
+
+    data0 = np.random.uniform(0, 1, shape).astype(dtype)
+    data1 = np.random.uniform(0, 1, shape).astype(dtype)
+    check_result(mod, ref_mod, {"data0": data0, "data1": data1}, shape, tol=1e-5)
+
+
 def test_relu():
     """Test a subgraph with a single ReLU operator."""
     if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
@@ -221,13 +269,13 @@ def test_relu():
     dtype = "float32"
     shape = (1, 32, 14, 14)
 
-    def gen_relu():
+    def gen_relu(shape):
         data0 = relay.var("data0", shape=shape, dtype=dtype)
         out = relay.nn.relu(data0)
 
         func = relay.Function([data0], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -246,18 +294,22 @@ def test_relu():
 
         return mod, ref_mod
 
-    mod, ref_mod = gen_relu()
+    def check(shape):
+        mod, ref_mod = gen_relu(shape)
 
-    data0 = np.random.uniform(-1, 1, shape).astype(dtype)
-    check_result(
-        mod,
-        ref_mod,
-        {
-            "data0": data0,
-        },
-        (1, 32, 14, 14),
-        tol=1e-5,
-    )
+        data0 = np.random.uniform(-1, 1, shape).astype(dtype)
+        check_result(
+            mod,
+            ref_mod,
+            {
+                "data0": data0,
+            },
+            shape,
+            tol=1e-5,
+        )
+
+    check(shape=(1, 32, 14, 14))
+    check(shape=(1, 32))
 
 
 def test_dense():
@@ -276,8 +328,8 @@ def test_dense():
         out = relay.nn.dense(a, b)
 
         func = relay.Function([a, b], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -325,8 +377,8 @@ def test_bn():
         out = bn[0]
 
         func = relay.Function([data, gamma, beta, moving_mean, moving_var], out)
-        func = set_func_attr(func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        func = set_func_attr(func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
         mod = transform.InferType()(mod)
@@ -471,8 +523,8 @@ def test_composite():
         arg_2 = relay.var("arg_2", shape=w1shape, dtype=dtype)
         call = relay.Call(func, [arg_1, arg_2])
         p_func = relay.Function([arg_1, arg_2], call)
-        p_func = set_func_attr(p_func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        p_func = set_func_attr(p_func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = p_func
         mod = transform.InferType()(mod)
@@ -521,8 +573,8 @@ def test_composite():
         arg_3 = relay.var("arg_3", shape=bshape, dtype=dtype)
         call = relay.Call(func, [arg_1, arg_2, arg_3])
         p_func = relay.Function([arg_1, arg_2, arg_3], call)
-        p_func = set_func_attr(p_func, "dnnl", "dnnl_0")
-        glb_var = relay.GlobalVar("dnnl_0")
+        p_func = set_func_attr(p_func, "dnnl", "tvmgen_default_dnnl_0")
+        glb_var = relay.GlobalVar("tvmgen_default_dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = p_func
         mod = transform.InferType()(mod)
@@ -636,8 +688,8 @@ def test_partial_constant():
     data3 = np.random.uniform(0, 1, ishape).astype(dtype)
 
     params = {
-        "in_1": tvm.nd.array(data1, ctx=tvm.cpu(0)),
-        "in_3": tvm.nd.array(data3, ctx=tvm.cpu(0)),
+        "in_1": tvm.nd.array(data1, device=tvm.cpu(0)),
+        "in_3": tvm.nd.array(data3, device=tvm.cpu(0)),
     }
     ref_mod["main"] = bind_params_by_name(ref_mod["main"], params)
 
@@ -664,6 +716,7 @@ def test_partial_constant():
 if __name__ == "__main__":
     test_conv2d()
     test_add()
+    test_multiply()
     test_relu()
     test_dense()
     test_bn()

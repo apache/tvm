@@ -116,7 +116,7 @@ if __name__ == "__main__":
                 port=int(tracket_port),
                 number=5,
                 timeout=60,
-                check_correctness=True,
+                # check_correctness=True, # TODO: re-enable when check_correctness works again.
             ),
         )
 

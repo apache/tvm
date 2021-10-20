@@ -26,12 +26,14 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include "../../support/arena.h"
 #include "../analysis/dependency_graph.h"
-#include "let_list.h"
-#include "pass_utils.h"
+#include "../op/annotation/annotation.h"
+#include "./device_aware_visitors.h"
+#include "./let_list.h"
+#include "./pass_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -94,187 +96,320 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg) {
   return std::make_pair(expr_scope, lifted_exprs);
 }
 
-Expr Fill::ToANormalForm(const Expr& e, const DependencyGraph& dg, NodeScopeMap* node_scope) {
-  Fill fi(dg, node_scope, nullptr);
-  return fi.GetScope(e)->let_list->Get(fi.VisitExpr(e));
-}
+namespace {
 
-// For basic block normal form, bind expressions only if the original expression's scope
-// should be lifted
-Expr Fill::ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
-                                  NodeScopeMap* node_scope, ExprSet* lifted) {
-  Fill fi(dg, node_scope, lifted);
-  auto var = fi.VisitExpr(e);
-  return fi.GetScope(e)->let_list->Get(var);
-}
+/* Special care is needed to handle local recursion.
+ * Fill additionally take a (possibly null) Var argument,
+ * If it is not null, Fill is required to bind the transformed result to that var.
+ *
+ * ToANormalForm and PlanDevices
+ * -----------------------------
+ * If PlanDevices has run this transform must respect the lexical scoping rules for the residual
+ * "on_device" calls. Eg:
+ * \code
+ *   on_device(add(subtract(x, y), add(y, z)), device_type=2, is_fixed=true)
+ *   ==>
+ *   let %x0 = on_device(subtract(x, y), device_type=2, is_fixed=true)
+ *   let %x1 = on_device(add(y, z), device_type=2, is_fixed=true)
+ *   let %x2 = on_device(add(%x0, %x1), device_type=2, is_fixed=true)
+ *   %x2
+ * \endcode
+ *
+ * In addition to conversion to ANF this pass is also handling hoisting implicitly shared
+ * sub-expressions to the inner-most scope common to all their uses:
+ * \code
+ *   on_device(
+ *     if y {
+ *       on_device(%0, device_type=2, is_fixed=true)
+ *     } else {
+ *       on_device(subtract(%0, b), device_type=2, is_fixed=true)
+ *     },
+ *     device_type=1, is_fixed=true)
+ *   (where %0 = add(a, b))
+ *   ==>
+ *   let %x0 = on_device(add(a, b), device_type=2, is_fixed=true);
+ *   on_device(
+ *     if y {
+ *       on_device(%x0, device_type=2, is_fixed=true)
+ *     } else {
+ *       let %x1 = on_device(subtract(%x0, b), device_type=2, is_fixed=true);
+ *       %x1
+ *     },
+ *     device_type=1, is_fixed=true)
+ * \endcode
+ * Though the PlanDevices has already avoided inserting "on_device" calls where they are redundant
+ * due to lexical scope, it's fiddly to do the same in this pass since the notion of 'scope' is
+ * now determined by the scope map. So we'll just insert them mechanically on every let-binding.
+ *
+ * TODO(mbs): Rewrite to derive from DeviceAwareExprMutator and not track device types
+ * explicitly. It's easy to get rid of the need for the extra var argument on VisitExpr by shifting
+ * the recursion a '1/2 step' to return a possibly compound expression who's inner expressions are
+ * all atomic. However the use of the scope map is currently subtle enough I want to  leave it
+ * alone for now.
+ */
+class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::LexicalOnDeviceMixin {
+ public:
+  static Expr ToANormalForm(const Expr& e, const DependencyGraph& dg, NodeScopeMap* node_scope) {
+    Fill fi(dg, node_scope, nullptr);
+    return fi.GetScope(e)->let_list->Get(fi.VisitExpr(e));
+  }
 
-Scope Fill::GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
+  // For basic block normal form, bind expressions only if the original expression's scope
+  // should be lifted
+  static Expr ToBasicBlockNormalForm(const Expr& e, const DependencyGraph& dg,
+                                     NodeScopeMap* node_scope, ExprSet* lifted) {
+    Fill fi(dg, node_scope, lifted);
+    return fi.GetScope(e)->let_list->Get(fi.VisitExpr(e));
+  }
 
-Scope Fill::GetSubScope(const Expr& e, size_t i) {
-  DependencyGraph::Node* n = dg_.expr_node.at(e);
-  auto h = n->children.head;
-  while (i != 0) {
+ private:
+  // Note: Conversion to ANF needn't care about the devices for global vars since all that can
+  // happen with them is to go from:
+  //    ...@g...
+  // to:
+  //    let %x = @g;
+  //    ...
+  //    ...%x...
+  // In that case the code will ask  for the device for @g, get kInvalidDeviceType, then
+  // MaybeOnDevice @g, which is always a no-op.
+  Fill(const DependencyGraph& dg, NodeScopeMap* node_scope, ExprSet* include_set)
+      : transform::LexicalOnDeviceMixin(Optional<IRModule>()),
+        dg_(dg),
+        node_scope_(node_scope),
+        include_set_(include_set) {}
+
+  Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
+
+  Scope GetSubScope(const Expr& e, size_t i) {
+    DependencyGraph::Node* n = dg_.expr_node.at(e);
+    auto h = n->children.head;
+    while (i != 0) {
+      ICHECK(h);
+      --i;
+      h = h->next;
+    }
     ICHECK(h);
-    --i;
-    h = h->next;
+    return node_scope_->at(h->value);
   }
-  ICHECK(h);
-  return node_scope_->at(h->value);
-}
 
-Expr Fill::VisitExpr(const Expr& e, const Var& v) {
-  if (memo.count(e) == 0) {
-    memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
-  } else if (v.defined()) {
-    GetScope(e)->let_list->Push(v, memo.at(e));
+  Expr VisitExpr(const Expr& e) { return this->VisitExpr(e, Var()); }
+
+  Expr VisitExpr(const Expr& e, const Var& v) final {
+    if (memo.count(e) == 0) {
+      memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
+    } else if (v.defined()) {
+      GetScope(e)->let_list->Push(v, memo.at(e));
+    }
+    auto ret = memo.at(e);
+    // if no include_set is specified, every expression should be atomic.
+    // TODO(mbs): Note that Constants must be let-bound even though they are considered 'atomic'
+    // by this test.
+    if (include_set_ == nullptr && function_nesting() > 0) {
+      ICHECK(IsAtomic(ret)) << "expression:" << std::endl << PrettyPrint(ret);
+    }
+    return ret;
   }
-  auto ret = memo.at(e);
-  // if no include_set is specified, every expression should be atomic.
-  if (include_set_ == nullptr) ICHECK(IsAtomic(ret));
-  return ret;
-}
 
-Expr Fill::VisitExpr(const Expr& e) { return this->VisitExpr(e, Var()); }
-
-Expr Fill::Atomic(const Expr& e, const Var& v) {
-  return v.defined() ? GetScope(e)->let_list->Push(v, e) : e;
-}
-
-// Bind expression `now` to var `v` if the original expression is in the include set, or if
-// v is already defined (e.g. coming from a Let expression). Otherwise return `now` directly
-Expr Fill::Compound(const Expr& orig, const Expr& now, const Var& v) {
-  Var var = v.defined() ? v : Var(String("x"), Type());
-  bool not_included = include_set_ && include_set_->find(orig) == include_set_->end();
-  if (!v.defined() && not_included) {
-    return now;
-  } else {
-    return GetScope(orig)->let_list->Push(var, now);
+  Expr Atomic(const Expr& e, const Var& v) {
+    Expr annotated_expr = MaybeOnDevice(e, GetInScopeDeviceType(e), /*is_fixed=*/true);
+    return v.defined() ? GetScope(e)->let_list->Push(v, annotated_expr) : annotated_expr;
   }
-}
 
-Expr Fill::VisitExpr_(const CallNode* c, const Var& v) {
-  Expr e = GetRef<Expr>(c);
-  std::vector<Expr> args;
-  for (const auto& a : c->args) {
-    args.push_back(VisitExpr(a));
+  // Bind expression `now` to var `v` if the original expression is in the include set, or if
+  // v is already defined (e.g. coming from a Let expression). Otherwise return `now` directly
+  Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
+    Expr annotated_expr = MaybeOnDevice(now, GetInScopeDeviceType(orig), /*is_fixed=*/true);
+    Var var = v.defined() ? v : Var(String("x"), Type());
+    bool not_included = include_set_ && include_set_->find(orig) == include_set_->end();
+    if (!v.defined() && not_included) {
+      return annotated_expr;
+    } else {
+      return GetScope(orig)->let_list->Push(var, annotated_expr);
+    }
   }
-  return Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
-}
 
-Expr Fill::VisitExpr_(const TupleNode* t, const Var& v) {
-  Expr e = GetRef<Expr>(t);
-  std::vector<Expr> fields;
-  for (const auto& a : t->fields) {
-    fields.push_back(VisitExpr(a));
+  Expr VisitExpr_(const CallNode* c, const Var& v) final {
+    auto props = GetOnDeviceProps(c);
+    if (props.body.defined() && props.is_fixed) {
+      // Keep track of expression device type for lexically enclosing sub-expressions.
+      PushDeviceType(props.device_type);
+      Expr body = VisitExpr(props.body, v);
+      // We are done with this sub-expression.
+      PopDeviceType();
+      // Preserve the "on_device" annotations.
+      return OnDevice(body, props.device_type, props.is_fixed);
+    }
+
+    Expr e = GetRef<Expr>(c);
+    std::vector<Expr> args;
+    for (const auto& a : c->args) {
+      args.push_back(VisitExpr(a));
+    }
+    return Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
   }
-  return Compound(e, Tuple(fields), v);
-}
 
-Expr Fill::VisitExpr_(const TupleGetItemNode* t, const Var& v) {
-  Expr e = GetRef<Expr>(t);
-  return Compound(e, TupleGetItem(VisitExpr(t->tuple), t->index), v);
-}
-
-Expr Fill::VisitExpr_(const RefCreateNode* r, const Var& v) {
-  Expr e = GetRef<Expr>(r);
-  return Compound(e, RefCreate(VisitExpr(r->value)), v);
-}
-
-Expr Fill::VisitExpr_(const RefReadNode* r, const Var& v) {
-  Expr e = GetRef<Expr>(r);
-  return Compound(e, RefRead(VisitExpr(r->ref)), v);
-}
-
-Expr Fill::VisitExpr_(const RefWriteNode* r, const Var& v) {
-  Expr e = GetRef<Expr>(r);
-  return Compound(e, RefWrite(VisitExpr(r->ref), VisitExpr(r->value)), v);
-}
-
-Expr Fill::VisitExpr_(const IfNode* i, const Var& v) {
-  Expr e = GetRef<Expr>(i);
-  Expr ret = If(VisitExpr(i->cond), GetSubScope(e, 1)->let_list->Get(VisitExpr(i->true_branch)),
-                GetSubScope(e, 2)->let_list->Get(VisitExpr(i->false_branch)));
-  return Compound(e, ret, v);
-}
-
-Expr Fill::VisitExpr_(const FunctionNode* f, const Var& v) {
-  Expr e = GetRef<Expr>(f);
-  Expr ret;
-  if (f->HasNonzeroAttr(attr::kPrimitive)) {
-    ret = e;
-  } else {
-    ret = Function(f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)), f->ret_type,
-                   f->type_params, f->attrs);
+  Expr VisitExpr_(const TupleNode* t, const Var& v) final {
+    Expr e = GetRef<Expr>(t);
+    std::vector<Expr> fields;
+    for (const auto& a : t->fields) {
+      fields.push_back(VisitExpr(a));
+    }
+    return Compound(e, Tuple(fields), v);
   }
-  return Compound(e, ret, v);
-}
 
-Expr Fill::VisitExpr_(const LetNode* l, const Var& v) {
-  Expr e = GetRef<Expr>(l);
-  VisitExpr(l->value, l->var);
-  Expr ret = GetSubScope(e, 0)->let_list->Get(VisitExpr(l->body));
-  return Compound(e, ret, v);
-}
-
-Expr Fill::VisitExpr_(const ConstantNode* c, const Var& v) {
-  Expr e = GetRef<Expr>(c);
-  return Compound(e, e, v);
-}
-
-Expr Fill::VisitExpr_(const VarNode* vn, const Var& v) {
-  Expr e = GetRef<Expr>(vn);
-  return Atomic(e, v);
-}
-
-Expr Fill::VisitExpr_(const GlobalVarNode* gvn, const Var& v) {
-  GlobalVar gv = GetRef<GlobalVar>(gvn);
-  return Atomic(gv, v);
-}
-
-Expr Fill::VisitExpr_(const OpNode* op, const Var& v) {
-  Expr e = GetRef<Expr>(op);
-  return Atomic(e, v);
-}
-
-Expr Fill::VisitExpr_(const ConstructorNode* c, const Var& v) {
-  Expr e = GetRef<Expr>(c);
-  return Atomic(e, v);
-}
-
-Expr Fill::VisitExpr_(const MatchNode* m, const Var& v) {
-  Expr e = GetRef<Expr>(m);
-  Expr data = VisitExpr(m->data);
-  std::vector<Clause> clauses;
-  for (const Clause& c : m->clauses) {
-    clauses.push_back(
-        Clause(c->lhs, GetSubScope(e, 1 + clauses.size())->let_list->Get(VisitExpr(c->rhs))));
+  Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {
+    Expr e = GetRef<Expr>(t);
+    return Compound(e, TupleGetItem(VisitExpr(t->tuple), t->index), v);
   }
-  return Compound(e, Match(data, clauses, m->complete), v);
-}
 
-IRModule ToANormalForm(const IRModule& m) {
-  DLOG(INFO) << "ToANF:" << std::endl << m;
+  Expr VisitExpr_(const RefCreateNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefCreate(VisitExpr(r->value)), v);
+  }
 
+  Expr VisitExpr_(const RefReadNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefRead(VisitExpr(r->ref)), v);
+  }
+
+  Expr VisitExpr_(const RefWriteNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefWrite(VisitExpr(r->ref), VisitExpr(r->value)), v);
+  }
+
+  Expr VisitExpr_(const IfNode* i, const Var& v) final {
+    Expr e = GetRef<Expr>(i);
+    Expr ret = If(VisitExpr(i->cond), GetSubScope(e, 1)->let_list->Get(VisitExpr(i->true_branch)),
+                  GetSubScope(e, 2)->let_list->Get(VisitExpr(i->false_branch)));
+    return Compound(e, ret, v);
+  }
+
+  Expr VisitExpr_(const FunctionNode* f, const Var& v) final {
+    Expr e = GetRef<Expr>(f);
+    Expr ret;
+    if (f->HasNonzeroAttr(attr::kPrimitive)) {
+      ret = e;
+    } else {
+      // Keep track of expression and bound variable device types for lexically enclosing
+      // sub-expressions.
+      PushDeviceType(GetFunctionResultDeviceType(f));
+      for (size_t i = 0; i < f->params.size(); ++i) {
+        PushBoundVar(f->params[i], GetFunctionParamDeviceType(f, i));
+      }
+      EnterFunctionBody();
+      ret = Function(f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)), f->ret_type,
+                     f->type_params, f->attrs);
+      // We are done with this function.
+      ExitFunctionBody();
+      for (size_t i = 0; i < f->params.size(); ++i) {
+        PopBoundVar(f->params[i]);
+      }
+      PopDeviceType();
+    }
+    if (function_nesting() == 0) {
+      ICHECK(!v.defined());
+      // This is a global function which can be bound directly in the module.
+      return ret;
+    } else {
+      // This is a local function which must be let-bound.
+      return Compound(e, ret, v);
+    }
+  }
+
+  Expr VisitExpr_(const LetNode* l, const Var& v) final {
+    Expr e = GetRef<Expr>(l);
+    // Keep track of bound variable device types for lexically enclosing sub-expressions.
+    PushBoundVar(l->var, GetInScopeDeviceType(l->value));
+    VisitExpr(l->value, l->var);
+    Expr ret = GetSubScope(e, 0)->let_list->Get(VisitExpr(l->body));
+    // We are done with these sub-expressions.
+    PopBoundVar(l->var);
+    return Compound(e, ret, v);
+  }
+
+  Expr VisitExpr_(const ConstantNode* c, const Var& v) final {
+    Expr e = GetRef<Expr>(c);
+    return Compound(e, e, v);
+  }
+
+  Expr VisitExpr_(const VarNode* vn, const Var& v) final {
+    Expr e = GetRef<Expr>(vn);
+    return Atomic(e, v);
+  }
+
+  Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
+    GlobalVar gv = GetRef<GlobalVar>(gvn);
+    return Atomic(gv, v);
+  }
+
+  Expr VisitExpr_(const OpNode* op, const Var& v) final {
+    Expr e = GetRef<Expr>(op);
+    return Atomic(e, v);
+  }
+
+  Expr VisitExpr_(const ConstructorNode* c, const Var& v) final {
+    Expr e = GetRef<Expr>(c);
+    return Atomic(e, v);
+  }
+
+  Expr VisitExpr_(const MatchNode* m, const Var& v) final {
+    Expr e = GetRef<Expr>(m);
+    Expr data = VisitExpr(m->data);
+    std::vector<Clause> clauses;
+    for (const Clause& c : m->clauses) {
+      clauses.emplace_back(c->lhs,
+                           GetSubScope(e, 1 + clauses.size())->let_list->Get(VisitExpr(c->rhs)));
+    }
+    return Compound(e, Match(data, clauses, m->complete), v);
+  }
+
+  const DependencyGraph& dg_;
+  NodeScopeMap* node_scope_ = nullptr;
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo;
+  // a set of Expressions to include for let bindings. If set to nullptr
+  // all Exprs will be pushed to the let list.
+  ExprSet* include_set_ = nullptr;
+};
+
+IRModule ModuleToANormalForm(const IRModule& mod) {
   tvm::Map<GlobalVar, Function> updates;
-  auto funcs = m->functions;
+  auto funcs = mod->functions;
   for (const auto& it : funcs) {
     ICHECK_EQ(FreeVars(it.second).size(), 0);
     if (const auto* n = it.second.as<FunctionNode>()) {
       if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
+      Function func = GetRef<Function>(n);
+      Function ret = Downcast<Function>(transform::ToANormalForm(func));
+      ICHECK_EQ(FreeVars(ret).size(), 0) << "rewritten:" << std::endl
+                                         << PrettyPrint(ret) << std::endl
+                                         << "should not have free vars: " << FreeVars(ret);
+      VLOG(1) << "rewritten:" << std::endl
+              << PrettyPrint(func) << std::endl
+              << "to ANF:" << std::endl
+              << PrettyPrint(ret);
+      updates.Set(it.first, ret);
     }
-    Expr ret = TransformF([&](const Expr& e) { return transform::ToANormalForm(e); }, it.second);
-    ICHECK_EQ(FreeVars(ret).size(), 0)
-        << AsText(ret) << "should not has free vars: " << FreeVars(ret);
-    updates.Set(it.first, Downcast<Function>(ret));
   }
 
   for (auto pair : updates) {
-    m->Add(pair.first, pair.second, true);
+    mod->Add(pair.first, pair.second, true);
   }
 
-  DLOG(INFO) << "ToANF: transformed" << std::endl << m;
+  return mod;
+}
 
-  return m;
+}  // namespace
+
+Expr ToBasicBlockNormalFormAux(const Expr& e) {
+  // calculate all the dependency between nodes.
+  support::Arena arena;
+  DependencyGraph dg = DependencyGraph::Create(&arena, e);
+  /* The scope of the whole expr is global.
+   * The scope of any subexpr, is the lowest common ancestor of all incoming edge.
+   * We also record the set of expressions whose scope is lifted.
+   */
+  std::pair<NodeScopeMap, ExprSet> scopes = CalcScope(dg);
+  return Fill::ToBasicBlockNormalForm(e, dg, &scopes.first, &scopes.second);
 }
 
 namespace transform {
@@ -307,7 +442,7 @@ Expr ToANormalForm(const Expr& e) {
 
 Pass ToANormalForm() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relay::ToANormalForm(m); };
+      [=](IRModule m, PassContext pc) { return ModuleToANormalForm(m); };
   return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }
 

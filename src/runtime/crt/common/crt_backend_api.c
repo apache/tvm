@@ -27,7 +27,7 @@
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <tvm/runtime/crt/platform.h>
 
 #include "crt_config.h"
@@ -36,9 +36,9 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, 
                                int dtype_bits_hint) {
   tvm_crt_error_t err = kTvmErrorNoError;
   void* ptr = 0;
-  DLContext ctx = {device_type, device_id};
+  DLDevice dev = {device_type, device_id};
   assert(nbytes > 0);
-  err = TVMPlatformMemoryAllocate(nbytes, ctx, &ptr);
+  err = TVMPlatformMemoryAllocate(nbytes, dev, &ptr);
   CHECK_EQ(err, kTvmErrorNoError,
            "TVMBackendAllocWorkspace(%d, %d, %" PRIu64 ", %d, %d) -> %" PRId32, device_type,
            device_id, nbytes, dtype_code_hint, dtype_bits_hint, err);
@@ -47,8 +47,8 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, 
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   tvm_crt_error_t err = kTvmErrorNoError;
-  DLContext ctx = {device_type, device_id};
-  err = TVMPlatformMemoryFree(ptr, ctx);
+  DLDevice dev = {device_type, device_id};
+  err = TVMPlatformMemoryFree(ptr, dev);
   return err;
 }
 

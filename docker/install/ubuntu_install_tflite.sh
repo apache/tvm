@@ -20,6 +20,10 @@ set -e
 set -u
 set -o pipefail
 
+# The tflite version should have matched versions to the tensorflow
+# version installed from pip in ubuntu_install_tensorflow.sh
+TENSORFLOW_VERSION=$(python3 -c "import tensorflow; print(tensorflow.__version__)" 2> /dev/null)
+
 # Download, build and install flatbuffers
 git clone --branch=v1.12.0 --depth=1 --recursive https://github.com/google/flatbuffers.git
 cd flatbuffers
@@ -33,14 +37,14 @@ pip3 install flatbuffers
 # Build the TFLite static library, necessary for building with TFLite ON.
 # The library is built at:
 # tensorflow/tensorflow/lite/tools/make/gen/*/lib/libtensorflow-lite.a.
-git clone https://github.com/tensorflow/tensorflow --branch=r2.3
+git clone https://github.com/tensorflow/tensorflow --branch=v${TENSORFLOW_VERSION}
 ./tensorflow/tensorflow/lite/tools/make/download_dependencies.sh
 ./tensorflow/tensorflow/lite/tools/make/build_lib.sh
 
 # Setup tflite from schema
 mkdir tflite
+cp tensorflow/tensorflow/lite/schema/schema.fbs tflite
 cd tflite
-wget -q https://raw.githubusercontent.com/tensorflow/tensorflow/r2.3/tensorflow/lite/schema/schema.fbs
 flatc --python schema.fbs
 
 cat <<EOM >setup.py
@@ -48,7 +52,7 @@ import setuptools
 
 setuptools.setup(
     name="tflite",
-    version="2.3.1",
+    version="${TENSORFLOW_VERSION}",
     author="google",
     author_email="google@google.com",
     description="TFLite",

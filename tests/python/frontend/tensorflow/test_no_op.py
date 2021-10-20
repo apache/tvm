@@ -26,8 +26,7 @@ from tvm.relay.frontend.tensorflow import from_tensorflow
 
 def run_relay(graph):
     mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
-    ex = relay.create_executor("debug", mod=mod)
-    return ex.evaluate()(**params)
+    return relay.create_executor("debug", mod=mod).evaluate()(**params)
 
 
 def test_no_op():
@@ -40,7 +39,7 @@ def test_no_op():
 
         # In TVM, no-op is currently translated to 0, though it should
         # probably be none or an empty tuple.
-        np.testing.assert_allclose(0, run_relay(g).asnumpy())
+        np.testing.assert_allclose(0, run_relay(g).numpy())
 
 
 if __name__ == "__main__":

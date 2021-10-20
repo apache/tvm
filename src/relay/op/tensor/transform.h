@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../transforms/infer_layout_utils.h"
 #include "../make_op.h"
 
 namespace tvm {
@@ -78,8 +79,8 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   // Sanity check: axis
   int axis = param->axis;
   if (!(-ndim <= axis && axis < ndim)) {
-    throw Error(ErrorBuilder() << "concatenate only accepts `axis` in [-ndim, ndim)"
-                               << ", but got axis = " << axis << ", and ndim = " << ndim);
+    throw CompileError(ErrorBuilder() << "concatenate only accepts `axis` in [-ndim, ndim)"
+                                      << ", but got axis = " << axis << ", and ndim = " << ndim);
   }
   axis = axis < 0 ? ndim + axis : axis;
 
@@ -101,29 +102,64 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   }
 
   // Calculate shape
-  std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
-  int data_length = static_cast<int>(tensor_tuple->fields.size());
+  std::vector<IndexExpr> oshape(ndim);
+  const size_t data_length = tensor_tuple->fields.size();
+
+  // Accumulate the concat axis output dim or decide if this is dynamic concat
+  bool is_dynamic_concat = false;
+  std::vector<TensorType> input_tensors;
+  IndexExpr concat_output_dim = first->shape[axis];
+  for (size_t i = 0; i < data_length; ++i) {
+    const auto& e = Downcast<TensorType>(tensor_tuple->fields[i]);
+    input_tensors.push_back(e);
+    if (e->shape[axis].as<AnyNode>()) {
+      is_dynamic_concat = true;
+      concat_output_dim = Any();
+    } else if (i > 0 && !is_dynamic_concat) {
+      // accumulate axis dimension
+      concat_output_dim += e->shape[axis];
+    }
+  }
+
+  oshape[axis] = concat_output_dim;
+
   for (int i = 0; i < ndim; ++i) {
+    if (i == axis) {
+      // The concat axis is already handled above.
+      // The rest of the body sets the output shape for non-concat axes
+      continue;
+    }
     std::vector<IndexExpr> non_any;
-    for (int j = 0; j < data_length; ++j) {
-      const auto& e = Downcast<TensorType>(tensor_tuple->fields[j]);
+    for (size_t j = 0; j < data_length; ++j) {
+      const auto& e = input_tensors[j];
       if (!e->shape[i].as<AnyNode>()) {
         non_any.push_back(e->shape[i]);
-        // accumulate axis dimension
-        if (j > 0 && i == axis && !oshape[i].as<AnyNode>()) {
-          oshape[i] += e->shape[i];
-        }
       }
     }
-    int non_any_size = static_cast<int>(non_any.size());
-    if (non_any_size != data_length) oshape[i] = Any();
-    if (i != axis) {
-      for (int k = 1; k < non_any_size; k++) {
-        if (reporter->AssertEQ(non_any[0], non_any[k])) continue;
-        throw Error(
-            "relay.concatenate requires all tensors have the same shape "
-            "on non-concatenating axes");
-      }
+    size_t non_any_size = non_any.size();
+    for (size_t k = 1; k < non_any_size; k++) {
+      if (reporter->AssertEQ(non_any[0], non_any[k])) continue;
+      throw Error(
+          "relay.concatenate requires all tensors have the same shape "
+          "on non-concatenating axes");
+    }
+
+    if (non_any_size == data_length) {
+      // All static case
+      oshape[i] = non_any[0];
+    } else if (non_any_size > 0 && is_dynamic_concat) {
+      // For non-concat axes, we want to enforce static shape constraint.
+      // However, if the concat axis is static, the output shape would become static while
+      // the input could be partially static/dynamic. To prevent runtime segfaults due to the lack
+      // of runtime input shape checking for such cases, static shape constraint is only enforced
+      // when the output concat axis is dynamic.
+      //
+      // Examples (both concat on the first axis):
+      // * [(?, 3), (?, ?)] -> (?, 3)
+      // * [(1, 3), (1, ?)] -> (2, ?)
+      oshape[i] = non_any[0];
+    } else {
+      oshape[i] = Any();
     }
   }
 
@@ -132,11 +168,12 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
-                                                     const Array<Layout>& new_in_layouts,
-                                                     const Array<Layout>& old_in_layouts,
-                                                     const Array<tvm::relay::Type>& old_in_types) {
-  ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
+static inline InferCorrectLayoutOutput ConcatenateLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<ConcatenateAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<ConcatenateAttrs> param = make_object<ConcatenateAttrs>(*attrs_ptr);
 
   Array<Array<IndexExpr>> old_in_shapes;
   ICHECK_EQ(old_in_types.size(), 1);
@@ -181,11 +218,11 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
     }
 
     if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
-      return Array<Array<Layout>>{{Layout::Undef()}, {Layout::Undef()}};
+      return InferCorrectLayoutOutput({Layout::Undef()}, {Layout::Undef()}, attrs);
     }
   }
 
-  return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
+  return InferCorrectLayoutOutput(Array<Layout>(old_in_layouts.size(), ret), {ret}, Attrs(param));
 }
 
 /*!
@@ -193,9 +230,11 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
  *
  * \param data_shape The input data shape.
  * \param attrs The attributes.
+ * \param reverse Whether to reverse the indices.
  * \return Output shape.
  */
-Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs);
+Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& attrs,
+                               bool reverse);
 
 }  // namespace relay
 }  // namespace tvm

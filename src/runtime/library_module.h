@@ -29,9 +29,21 @@
 #include <tvm/runtime/module.h>
 
 #include <functional>
+#include <string>
 
 namespace tvm {
 namespace runtime {
+
+/*! \brief Load a module with the given type key directly from the stream.
+ *  This function wraps the registry mechanism used to store type based deserializers
+ *  for each runtime::Module sub-class.
+ *
+ * \param type_key The type key of the serialized module.
+ * \param stream A pointer to the stream containing the serialized module.
+ * \return module The deserialized module.
+ */
+Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream);
+
 /*!
  * \brief Library is the common interface
  *  for storing data in the form of shared libaries.

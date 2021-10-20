@@ -65,7 +65,6 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
   }
   ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // weight_zero_point
   ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   // Kernel scale can be a vector of length output_channels or a scalar.
   if (param->groups == 1) {
@@ -88,21 +87,25 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return Conv2DRel<Conv2DAttrs>(tensor_types, 3, attrs, reporter);
 }
 
-Array<Array<Layout>> QnnConvInferCorrectLayout(const Attrs& attrs,
-                                               const Array<Layout>& new_in_layouts,
-                                               const Array<Layout>& old_in_layouts,
-                                               const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput QnnConvInferCorrectLayout(const Attrs& attrs,
+                                                   const Array<Layout>& new_in_layouts,
+                                                   const Array<Layout>& old_in_layouts,
+                                                   const Array<tvm::relay::Type>& old_in_types) {
   // Use Relay Conv2D Infer correct layout.
-  auto layouts =
+  auto conv_new_layouts =
       ConvInferCorrectLayout<Conv2DAttrs>(attrs, new_in_layouts, old_in_layouts, old_in_types);
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
   // tensors can be treated as channel layout.
   Layout channel_layout = Layout("C");
-  Array<Layout> input_layouts = {layouts[0][0],  layouts[0][1],  channel_layout,
-                                 channel_layout, channel_layout, channel_layout};
-  Array<Layout> output_layouts = layouts[1];
-  return {input_layouts, output_layouts};
+  Array<Layout> input_layouts = {conv_new_layouts->input_layouts[0],
+                                 conv_new_layouts->input_layouts[1],
+                                 channel_layout,
+                                 channel_layout,
+                                 channel_layout,
+                                 channel_layout};
+  Array<Layout> output_layouts = conv_new_layouts->output_layouts;
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, attrs);
 }
 
 bool is_depthwise(const Conv2DAttrs* param) {
@@ -234,8 +237,7 @@ Expr Conv2DPadInput(const Expr& data, const Expr& input_zero_point, const Conv2D
     } else {
       LOG(FATAL) << "qnn.conv2d does not support " << param->data_layout << " layout";
     }
-    auto pad_value = GetScalarFromConstant<int>(input_zero_point);
-    padded_data = Pad(data, pad_width, pad_value, "constant");
+    padded_data = Pad(data, pad_width, input_zero_point, "constant");
   }
   return padded_data;
 }
@@ -271,26 +273,30 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_
     auto scaled_hw_t2 =
         Multiply(casted_t2, MakeConstantScalar(DataType::Int(32), kernel_h * kernel_w));
     Array<IndexExpr> padding({0, 0});
-    reduced_t2 =
-        AvgPool2D(scaled_hw_t2, param->kernel_size, param->strides, padding, param->data_layout,
-                  false,   // ceil_mode
-                  false);  // count_include_pad
+    reduced_t2 = AvgPool2D(scaled_hw_t2, param->kernel_size, param->strides, param->dilation,
+                           padding, param->data_layout,
+                           false,   // ceil_mode
+                           false);  // count_include_pad
   } else {
     int stride1 = get_const_int(param->strides[0]);
     int stride2 = get_const_int(param->strides[1]);
     if (stride1 * stride2 != 1) {
       Array<IndexExpr> padding({0, 0});
-      reduced_t2 =
-          AvgPool2D(reduced_t2, param->kernel_size, param->strides, padding, param->data_layout,
-                    false,   // ceil_mode
-                    false);  // count_include_pad
+      reduced_t2 = AvgPool2D(reduced_t2, param->kernel_size, param->strides, param->dilation,
+                             padding, param->data_layout,
+                             false,   // ceil_mode
+                             false);  // count_include_pad
     }
   }
 
   auto multiplied_t2 = reduced_t2;
   auto one_scalar = MakeConstantScalar(DataType::Int(32), 1);
   if (!IsEqualScalar(kernel_zero_point, one_scalar)) {
-    multiplied_t2 = Multiply(kernel_zero_point, reduced_t2);
+    if (!IsConstScalar(kernel_zero_point)) {
+      multiplied_t2 = Multiply(MakeRepeat(kernel_zero_point, channel_multiplier, 0), reduced_t2);
+    } else {
+      multiplied_t2 = Multiply(kernel_zero_point, reduced_t2);
+    }
   }
 
   // Reduce the C dimension. Find the dimension.
@@ -376,6 +382,25 @@ Expr DepthwiseConv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_i
 }
 
 /*
+ * \brief Calculates the fourth term in the qnn.conv2d depthwise lowering sequence
+          for non-constant zero_points.
+ * \param input_zero_point The Expr for the input zero point.
+ * \param kernel_zero_point The Expr for the kernel zero point.
+ * \param kernel_h The height of kernel.
+ * \param kernel_w The width of kernel.
+ * \return The sequence of Relay operators for term4.
+ * \note The term4 looks like this
+ *
+ *       Sigma(r, s) zp_a * zp_w
+ */
+Expr DepthwiseConv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point,
+                               int kernel_h, int kernel_w) {
+  Expr scalar_term4 = MakeConstantScalar(DataType::Int(32), kernel_h * kernel_w);
+  Expr variable_term4 = Multiply(input_zero_point, kernel_zero_point);
+  return Multiply(scalar_term4, variable_term4);
+}
+
+/*
  * \brief Calculates the first term in the qnn.conv2d lowering sequence.
  * \param data The input expr.
  * \param weight The weight expr.
@@ -436,24 +461,29 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
   if (kernel_h * kernel_w != 1) {
     reduced_c_t2 =
         Multiply(reduced_c_t2, MakeConstantScalar(DataType::Int(32), kernel_h * kernel_w));
-    reduced_t2 =
-        AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, padding, param->data_layout,
-                  false,   // ceil_mode
-                  false);  // count_include_pad
+    reduced_t2 = AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, param->dilation,
+                           padding, param->data_layout,
+                           false,   // ceil_mode
+                           false);  // count_include_pad
   } else {
     int stride1 = get_const_int(param->strides[0]);
     int stride2 = get_const_int(param->strides[1]);
     if (stride1 * stride2 != 1) {
-      reduced_t2 =
-          AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, padding, param->data_layout,
-                    false,   // ceil_mode
-                    false);  // count_include_pad
+      reduced_t2 = AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, param->dilation,
+                             padding, param->data_layout,
+                             false,   // ceil_mode
+                             false);  // count_include_pad
     }
   }
 
   auto multiplied_t2 = reduced_t2;
   auto one_scalar = MakeConstantScalar(DataType::Int(32), 1);
   if (!IsEqualScalar(kernel_zero_point, one_scalar)) {
+    if (!IsConstScalar(kernel_zero_point)) {
+      Layout layout(param->data_layout);
+      int channel_axis = layout.IndexOf(LayoutAxis::Get('C'));
+      reduced_t2 = MakeRepeat(reduced_t2, out_channels, channel_axis);
+    }
     multiplied_t2 = Multiply(kernel_zero_point, reduced_t2);
   }
   return multiplied_t2;
@@ -465,7 +495,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
  * \param input_zero_point The input zero point expr.
  * \param param The qnn conv2d attributes.
  * \param out_channels The number of output channels.
- * \return The sequence of Relay operatos for term3.
+ * \return The sequence of Relay operators for term3.
  * \note The term3 looks like this
  *
  *       Sigma(c,r,s) zp_a * QW(k, c, r, s)
@@ -529,6 +559,27 @@ Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int i
 }
 
 /*
+ * \brief Calculates the fourth term in the qnn.conv2d lowering sequence
+          for non-constant zero_points.
+ * \param input_zero_point The Expr for the input zero point.
+ * \param kernel_zero_point The Expr for the kernel zero point.
+ * \param in_channels The number of input channels.
+ * \param kernel_h The height of kernel.
+ * \param kernel_w The width of kernel.
+ * \return The sequence of Relay operators for term4.
+ * \note The term4 looks like this
+ *
+ *       Sigma(c,r,s) zp_a * zp_w
+ *
+ */
+Expr Conv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point, int in_channels,
+                      int kernel_h, int kernel_w) {
+  Expr scalar_term4 = MakeConstantScalar(DataType::Int(32), in_channels * kernel_h * kernel_w);
+  Expr variable_term4 = Multiply(input_zero_point, kernel_zero_point);
+  return Multiply(scalar_term4, variable_term4);
+}
+
+/*
  * \brief Combines different terms of qnn conv2d lowering.
  * \param term1 The term1 of qnn conv2d lowering.
  * \param term2 The term2 of qnn conv2d lowering.
@@ -574,7 +625,7 @@ Expr Conv2DCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
  * \node Lowering of the qnn.conv2d operator
  *       A quantized tensor is represented in following manner
  *          A = scale_a x (QA - zp_A)
- *       where QA is quantized tensor, scale_a and zp_A are quantizations
+ *       where QA is quantized tensor, scale_a and zp_A are quantization
  *       params.
  *
  *       Quantized convolution will convolve two quantized tensors and returns a
@@ -611,8 +662,8 @@ Expr Conv2DCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
  *         a workaround, we fall back to simpler lowering using int32 conv if
  *         the conv is dilated. We fallback also in case of grouped conv.
  *
- *       For depthwise, we can similarly unroll the computation. The intial compute is as follows
- *       wehere cm = channel_multiplier
+ *       For depthwise, we can similarly unroll the computation. The initial compute is as follows
+ *       where cm = channel_multiplier
  *
  *       Qc(n, oc, oh, ow) = Sigma(r, s) (Qw(oc/m, oc%/m, r, s) - zp_w)
  *                                     * (Qa(n, oc/cm, oh + r, ow + s) - zp_a)
@@ -642,20 +693,36 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   Expr kernel_zero_point = new_args[3];
   const auto* param = attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr);
-  // Assertion checks for exisiing support.
+  // Assertion checks for existing support.
   ICHECK(param->data_layout == "NCHW" || param->data_layout == "NHWC")
       << "qnn.conv2d supports only NCHW/NHWC input data layout.";
   ICHECK(param->kernel_layout == "OIHW" || param->kernel_layout == "HWIO" ||
          param->kernel_layout == "HWOI")
       << "qnn.conv2d supports only OIHW/HWIO/HWOI kernel data layout.";
+  ICHECK(param->kernel_size.defined()) << "qnn.conv2d requires kernel size to be specified.";
 
   int batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier;
   std::tie(batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier) =
       GetWorkload(arg_types, param);
 
-  // Extract the integer zero points.
-  auto input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
-  auto kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
+  // zero points are allowed to be non-scalar. Let's check if that's the case.
+  bool dynamic_zp = false;
+  // Use -1 zero point as a default for dynamic.
+  int input_zero_point_int = -1;
+  int kernel_zero_point_int = -1;
+
+  // Input zero point can either be a constant or a scalar expression.
+  if (IsConstScalar(input_zero_point) && (IsConstScalar(kernel_zero_point))) {
+    // Extract the integer zero points.
+    input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
+    kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
+  } else {
+    // Make kernel_zero_point expression a 1-D tensor for consistent shape.
+    kernel_zero_point = Reshape(kernel_zero_point, {
+                                                       -1,
+                                                   });
+    dynamic_zp = true;
+  }
 
   // Fallback to int32 conv if there is dilation with non-zero kernel point or grouped conv2d
   // For dilated conv, if the kernel zero point is non-zero, the pooling operator also has to
@@ -665,8 +732,26 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   ICHECK_EQ(param->dilation.size(), 2) << "qnn.conv2d only supports 2D dilation";
   auto dilation_h = get_const_int(param->dilation[0]);
   auto dilation_w = get_const_int(param->dilation[1]);
-  if ((kernel_zero_point_int != 0 && (dilation_h != 1 || dilation_w != 1)) ||
-      (param->groups != 1 && !is_depthwise(param))) {
+  // Check if qnn supports the conv2d parameters. If not, fallback to regular conv2d.
+  bool supported_dilation = (kernel_zero_point_int == 0) || (dilation_h == 1 && dilation_w == 1);
+  bool supported_groups = (param->groups == 1 || is_depthwise(param));
+  bool conv2d_params_supported = supported_dilation && supported_groups;
+
+  // If we need to fall back to default conv2d, kernel zp may need to be broadcast to kernel_layout.
+  // Otherwise, we broadcast it to data_layout for qnn lowering.
+  if (dynamic_zp) {
+    if (!conv2d_params_supported) {
+      Layout kernel_layout(param->kernel_layout);
+      int kernel_axis = kernel_layout.IndexOf(LayoutAxis::Get("O"));
+      kernel_zero_point = ExpandBiasToMatchAxis(kernel_zero_point, 4, {kernel_axis});
+    } else {
+      Layout data_layout(param->data_layout);
+      int channel_axis = data_layout.IndexOf(LayoutAxis::Get("C"));
+      kernel_zero_point = ExpandBiasToMatchAxis(kernel_zero_point, 4, {channel_axis});
+    }
+  }
+
+  if (!conv2d_params_supported) {
     return Conv2DFallBack(data, weight, input_zero_point, kernel_zero_point, param);
   } else if (is_depthwise(param)) {
     ICHECK_NE(channel_multiplier, -1);
@@ -676,8 +761,13 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                                            kernel_w, channel_multiplier);
     auto term3 =
         DepthwiseConv2DThirdTerm(weight, input_zero_point, param, out_channels, channel_multiplier);
-    auto term4 =
-        DepthwiseConv2DFourthTerm(input_zero_point_int, kernel_zero_point_int, kernel_h, kernel_w);
+    Expr term4;
+    if (dynamic_zp) {
+      term4 = DepthwiseConv2DFourthTerm(input_zero_point, kernel_zero_point, kernel_h, kernel_w);
+    } else {
+      term4 = DepthwiseConv2DFourthTerm(input_zero_point_int, kernel_zero_point_int, kernel_h,
+                                        kernel_w);
+    }
     return Conv2DCombineTerms(term1, term2, term3, term4, input_zero_point_int,
                               kernel_zero_point_int);
   }
@@ -687,8 +777,13 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto term2 =
       Conv2DSecondTerm(padded_data, kernel_zero_point, param, kernel_h, kernel_w, out_channels);
   auto term3 = Conv2DThirdTerm(weight, input_zero_point, param, out_channels);
-  auto term4 = Conv2DFourthTerm(input_zero_point_int, kernel_zero_point_int, in_channels, kernel_h,
-                                kernel_w);
+  Expr term4;
+  if (dynamic_zp) {
+    term4 = Conv2DFourthTerm(input_zero_point, kernel_zero_point, in_channels, kernel_h, kernel_w);
+  } else {
+    term4 = Conv2DFourthTerm(input_zero_point_int, kernel_zero_point_int, in_channels, kernel_h,
+                             kernel_w);
+  }
   return Conv2DCombineTerms(term1, term2, term3, term4, input_zero_point_int,
                             kernel_zero_point_int);
 }

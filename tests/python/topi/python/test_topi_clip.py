@@ -39,19 +39,19 @@ def verify_clip(N, a_min, a_max, dtype):
 
     a_np, b_np = get_ref_data()
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            s = tvm.topi.testing.get_injective_schedule(device)(B)
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
 
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B], device, name="clip")
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
+        f = tvm.build(s, [A, B], target, name="clip")
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu

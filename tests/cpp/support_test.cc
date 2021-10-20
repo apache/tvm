@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include "../../src/support/hexdump.h"
+#include "../../src/support/utils.h"
 
 namespace tvm {
 namespace test {
@@ -43,11 +44,17 @@ TEST(HexDumpTests, Unaligned) {
                               "\x01\x23\x45\x67\x89\xab\xcd\xef\x01"));
 }
 
+TEST(HashTests, HashStability) {
+  size_t a = 345292;
+  int b = 795620;
+  EXPECT_EQ(::tvm::support::HashCombine(a, b), 2677237020);
+  uint64_t c = 12345;
+  int d = 987654432;
+  EXPECT_EQ(::tvm::support::HashCombine(c, d), 3642871070);
+  size_t e = 1010101;
+  size_t f = 3030303;
+  EXPECT_EQ(::tvm::support::HashCombine(e, f), 2722928432);
+}
+
 }  // namespace test
 }  // namespace tvm
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}

@@ -21,7 +21,7 @@ import numpy as np
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 # We use llvm target for testing functionality. `llvm` points to an older Intel
@@ -49,10 +49,21 @@ def get_ref_func(
     groups,
     channels=None,
 ):
+    if isinstance(input_zero_point, (int, float)):
+        input_zero_point = relay.const(input_zero_point, "int32")
+    if isinstance(kernel_zero_point, (int, float)):
+        kernel_zero_point = relay.const(kernel_zero_point, "int32")
+    else:
+        # Kernel zero point expression requires manual broadcasting for some layouts.
+        if kernel_layout == "OIHW":
+            kernel_zero_point = relay.reshape(kernel_zero_point, [-1, 1, 1, 1])
+        elif kernel_layout == "HWOI":
+            kernel_zero_point = relay.reshape(kernel_zero_point, [1, 1, -1, 1])
+
     casted_data = relay.op.cast(data, "int32")
     casted_kernel = relay.op.cast(kernel, "int32")
-    shifted_data = relay.op.subtract(casted_data, relay.const(input_zero_point, "int32"))
-    shifted_kernel = relay.op.subtract(casted_kernel, relay.const(kernel_zero_point, "int32"))
+    shifted_data = relay.op.subtract(casted_data, input_zero_point)
+    shifted_kernel = relay.op.subtract(casted_kernel, kernel_zero_point)
     func = relay.op.nn.conv2d(
         shifted_data,
         shifted_kernel,
@@ -88,11 +99,16 @@ def get_qnn_func(
     channels,
     groups,
 ):
+    if isinstance(input_zero_point, (int, float)):
+        input_zero_point = relay.const(input_zero_point, "int32")
+    if isinstance(kernel_zero_point, (int, float)):
+        kernel_zero_point = relay.const(kernel_zero_point, "int32")
+
     func = relay.qnn.op.conv2d(
         data,
         kernel,
-        input_zero_point=relay.const(input_zero_point, "int32"),
-        kernel_zero_point=relay.const(kernel_zero_point, "int32"),
+        input_zero_point=input_zero_point,
+        kernel_zero_point=kernel_zero_point,
         input_scale=relay.const(input_scale, "float32"),
         kernel_scale=relay.const(kernel_scale, "float32"),
         kernel_size=kernel_size,
@@ -198,11 +214,11 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtyp
             golden_data, golden_weight = golden_inputs
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            res = mod.get_output(0).asnumpy()
+            res = mod.get_output(0).numpy()
             return res
 
     golden_inputs = get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -406,6 +422,62 @@ def test_both_zero_point():
             kernel_dtype=kernel_dtype,
             input_zero_point=5,
             kernel_zero_point=3,
+            input_scale=1.0,
+            kernel_scale=1.0,
+            kernel_size=(2, 2),
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+            out_dtype="int32",
+        )
+        verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
+
+
+def test_dynamic_zero_point():
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
+
+        # uint8 input with non static zero points.
+        data_shape = (2, 4, 2, 4)
+        data_dtype = "uint8"
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = "uint8"
+        input_zero_point = relay.op.multiply(
+            relay.const(2, dtype="int32"), relay.const(2, dtype="int32")
+        )
+        kernel_zero_point = relay.const(np.random.randint(10, size=[3]), "int32")
+        ref_func, qnn_func = get_funcs(
+            data_shape=data_shape,
+            data_dtype=data_dtype,
+            kernel_shape=kernel_shape,
+            kernel_dtype=kernel_dtype,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
+            input_scale=1.0,
+            kernel_scale=1.0,
+            kernel_size=(2, 2),
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+            out_dtype="int32",
+        )
+        verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
+
+        # int8 input
+        data_shape = (2, 4, 2, 4)
+        data_dtype = "int8"
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = "int8"
+        ref_func, qnn_func = get_funcs(
+            data_shape=data_shape,
+            data_dtype=data_dtype,
+            kernel_shape=kernel_shape,
+            kernel_dtype=kernel_dtype,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(2, 2),
@@ -722,11 +794,11 @@ def test_tflite_large_irregular():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.full((1, 1001, 1, 1), 0).astype("uint8")
         np.testing.assert_equal(qnn_output, golden_output)
 
@@ -767,11 +839,11 @@ def test_tflite_output_multiplier_greater_than_one():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.array((17, 17, 0, 0, 2, 2, 16, 36, 2, 2, 0, 0)).reshape(2, 3, 1, 2)
         np.testing.assert_equal(qnn_output, golden_output)
 
@@ -830,11 +902,11 @@ def test_tflite_anistropic_strides():
         with tvm.transform.PassContext(opt_level=2):
             params = {"kernel": golden_weight}
             graph, lib, params = relay.build(qnn_func, "llvm", params=params)
-            mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            qnn_output = mod.get_output(0).asnumpy()
+            qnn_output = mod.get_output(0).numpy()
         golden_output = np.array((124, -92, 164, -132)).reshape(1, 1, 2, 2)
         np.testing.assert_equal(qnn_output, golden_output)
 
@@ -888,13 +960,17 @@ def test_depthwise_depth_multiplier():
         data_dtype = "uint8"
         kernel_shape = (4, 1, 3, 3)
         kernel_dtype = "uint8"
+        input_zero_point = relay.op.multiply(
+            relay.const(2, dtype="int32"), relay.const(2, dtype="int32")
+        )
+        kernel_zero_point = relay.const(np.random.randint(10, size=[4]), "int32")
         ref_func, qnn_func = get_funcs(
             data_shape=data_shape,
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),
@@ -905,6 +981,7 @@ def test_depthwise_depth_multiplier():
             kernel_layout="OIHW",
             out_dtype="int32",
             groups=4,
+            channels=4,
         )
 
         verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -919,8 +996,8 @@ def test_depthwise_depth_multiplier():
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),
@@ -946,8 +1023,8 @@ def test_depthwise_depth_multiplier():
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),
@@ -971,8 +1048,8 @@ def test_depthwise_depth_multiplier():
             data_dtype=data_dtype,
             kernel_shape=kernel_shape,
             kernel_dtype=kernel_dtype,
-            input_zero_point=5,
-            kernel_zero_point=3,
+            input_zero_point=input_zero_point,
+            kernel_zero_point=kernel_zero_point,
             input_scale=1.0,
             kernel_scale=1.0,
             kernel_size=(3, 3),

@@ -139,7 +139,7 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
                   << "Expected " << data->type_vars.size() << "arguments for " << tc << "; got "
                   << op->args.size());
       }
-    } catch (const dmlc::Error& err) {
+    } catch (const Error& err) {
       // TODO(@jroesch): can probably relax to just emit
       EmitFatal(Diagnostic::Error(op->span)
                 << "the type variable : `" << var->name_hint << "` is undefined");

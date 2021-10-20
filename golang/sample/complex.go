@@ -70,13 +70,13 @@ func main() {
     }
     jsonStr := string(bytes)
 
-    // Load module on tvm runtime - call tvm.graph_runtime.create
-    funp, err := gotvm.GetGlobalFunction("tvm.graph_runtime.create")
+    // Load module on tvm runtime - call tvm.graph_executor.create
+    funp, err := gotvm.GetGlobalFunction("tvm.graph_executor.create")
     if err != nil {
         fmt.Print(err)
         return
     }
-    fmt.Printf("Calling tvm.graph_runtime.create\n")
+    fmt.Printf("Calling tvm.graph_executor.create\n")
     // Call function
     graphrt, err := funp.Invoke(jsonStr, modp, (int64)(gotvm.KDLCPU), (int64)(0))
     if err != nil {
@@ -84,11 +84,11 @@ func main() {
         return
     }
     graphmod := graphrt.AsModule()
-    fmt.Printf("Graph runtime Created\n")
+    fmt.Printf("Graph executor Created\n")
 
     // Array allocation attributes
     tshapeIn  := []int64{1, 224, 224, 3}
-    tshapeOut := []int64{1, 1000}
+    tshapeOut := []int64{1, 1001}
 
     // Allocate input Array
     inX, err := gotvm.Empty(tshapeIn, "float32", gotvm.CPU(0))
@@ -105,7 +105,7 @@ func main() {
     }
     fmt.Printf("Input and Output Arrays allocated\n")
 
-    // Get module function from graph runtime : load_params
+    // Get module function from graph executor : load_params
     // Read params
     bytes, err = ioutil.ReadFile(modParams)
     if err != nil {

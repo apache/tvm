@@ -16,12 +16,14 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
+from typing import Any, Optional
 import tvm._ffi
+from tvm.ir.base import Span
 from tvm.runtime import convert, const
 from tvm.ir import Array, Op
 
 from .buffer import Buffer
-from .expr import Call, StringImm, Var, CommReducer
+from .expr import Call, PrimExprWithOp, StringImm, Var, CommReducer
 from . import _ffi_api
 
 
@@ -221,6 +223,22 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
+def ret(val):
+    """Create a tir return expression
+
+    Parameters
+    ----------
+    val : Expr
+        The returned tir expression, whose data type is int, float or void pointer.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The return expression
+    """
+    return call_intrin(val.dtype, "tir.ret", val)
+
+
 def any(*args, span=None):
     """Create a new experssion of the union of all conditions in the arguments
 
@@ -241,14 +259,14 @@ def any(*args, span=None):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _ffi_api._OpOr(args[0], args[1], span)
+    val = _ffi_api._OpOr(args[0], args[1], span)  # type: ignore
     for i in range(2, len(args)):
-        ret = _ffi_api._OpOr(ret, args[i], span)
-    return ret
+        val = _ffi_api._OpOr(val, args[i], span)  # type: ignore
+    return val
 
 
 def all(*args, span=None):
-    """Create a new experssion of the intersection of all conditions in the
+    """Create a new expression of the intersection of all conditions in the
       arguments
 
     Parameters
@@ -268,10 +286,10 @@ def all(*args, span=None):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _ffi_api._OpAnd(args[0], args[1], span)
+    val = _ffi_api._OpAnd(args[0], args[1], span)  # type: ignore
     for i in range(2, len(args)):
-        ret = _ffi_api._OpAnd(ret, args[i], span)
-    return ret
+        val = _ffi_api._OpAnd(val, args[i], span)  # type: ignore
+    return val
 
 
 @tvm._ffi.register_func("tvm.default_trace_action")
@@ -327,10 +345,10 @@ def min_value(dtype, span=None):
     value : tvm.Expr
         The minimum value of dtype.
     """
-    return _ffi_api.min_value(dtype, span)
+    return _ffi_api.min_value(dtype, span)  # type: ignore
 
 
-def max_value(dtype, span=None):
+def max_value(dtype: str, span: Optional[Span] = None) -> Any:
     """maximum value of dtype
 
     Parameters
@@ -346,11 +364,11 @@ def max_value(dtype, span=None):
     value : tvm.Expr
         The maximum value of dtype.
     """
-    return _ffi_api.max_value(dtype, span)
+    return _ffi_api.max_value(dtype, span)  # type: ignore
 
 
 def exp(x):
-    """Take exponetial of input x.
+    """Take exponential of input x.
 
     Parameters
     ----------
@@ -736,7 +754,24 @@ def rsqrt(x):
     return call_intrin(x.dtype, "tir.rsqrt", x)
 
 
-def floor(x, span=None):
+def clz(x):
+    """Count leading zero bits of an integer x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input 32 or 64 bit integer.
+        The result is undefined if the input is 0.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_intrin("int32", "tir.clz", x)
+
+
+def floor(x: PrimExprWithOp, span=None):
     """Take floor of float input x.
 
     Parameters
@@ -752,7 +787,7 @@ def floor(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.floor(x, span)
+    return _ffi_api.floor(x, span)  # type: ignore
 
 
 def ceil(x, span=None):
@@ -771,7 +806,7 @@ def ceil(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.ceil(x, span)
+    return _ffi_api.ceil(x, span)  # type: ignore
 
 
 def trunc(x, span=None):
@@ -793,7 +828,7 @@ def trunc(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.trunc(x, span)
+    return _ffi_api.trunc(x, span)  # type: ignore
 
 
 def abs(x, span=None):
@@ -812,7 +847,7 @@ def abs(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.abs(x, span)
+    return _ffi_api.abs(x, span)  # type: ignore
 
 
 def round(x, span=None):
@@ -831,7 +866,7 @@ def round(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.round(x, span)
+    return _ffi_api.round(x, span)  # type: ignore
 
 
 def nearbyint(x, span=None):
@@ -857,7 +892,7 @@ def nearbyint(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.nearbyint(x, span)
+    return _ffi_api.nearbyint(x, span)  # type: ignore
 
 
 def nextafter(x1, x2):
@@ -876,7 +911,7 @@ def nextafter(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_intrin(x1.dtype, "tir.nextafter", x1, x2)
+    return call_intrin(x1.dtype, "tir.nextafter", x1, x2)  # type: ignore
 
 
 def hypot(x1, x2):
@@ -895,7 +930,7 @@ def hypot(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_intrin(x1.dtype, "tir.hypot", x1, x2)
+    return call_intrin(x1.dtype, "tir.hypot", x1, x2)  # type: ignore
 
 
 def copysign(x1, x2):
@@ -914,7 +949,7 @@ def copysign(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_intrin(x1.dtype, "tir.copysign", x1, x2)
+    return call_intrin(x1.dtype, "tir.copysign", x1, x2)  # type: ignore
 
 
 def ldexp(x1, x2):
@@ -933,7 +968,7 @@ def ldexp(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_intrin(x1.dtype, "tir.ldexp", x1, x2)
+    return call_intrin(x1.dtype, "tir.ldexp", x1, x2)  # type: ignore
 
 
 def isnan(x, span=None):
@@ -952,7 +987,7 @@ def isnan(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.isnan(x, span)
+    return _ffi_api.isnan(x, span)  # type: ignore
 
 
 def isfinite(x, span=None):
@@ -971,7 +1006,7 @@ def isfinite(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.isfinite(x, span)
+    return _ffi_api.isfinite(x, span)  # type: ignore
 
 
 def isinf(x, span=None):
@@ -990,7 +1025,7 @@ def isinf(x, span=None):
     y : PrimExpr
         The result.
     """
-    return _ffi_api.isinf(x, span)
+    return _ffi_api.isinf(x, span)  # type: ignore
 
 
 def power(x, y, span=None):
@@ -1012,7 +1047,7 @@ def power(x, y, span=None):
     z : PrimExpr
         The result.
     """
-    return _ffi_api._OpPow(convert(x), convert(y), span)
+    return _ffi_api._OpPow(convert(x), convert(y), span)  # type: ignore
 
 
 def popcount(x):
@@ -1108,7 +1143,7 @@ def if_then_else(cond, t, f, span=None):
     Unlike Select, if_then_else cannot be vectorized
     if some lanes in the vector have different conditions.
     """
-    return _ffi_api._OpIfThenElse(convert(cond), convert(t), convert(f), span)
+    return _ffi_api._OpIfThenElse(convert(cond), convert(t), convert(f), span)  # type: ignore
 
 
 def div(a, b, span=None):
@@ -1133,7 +1168,7 @@ def div(a, b, span=None):
     ----
     When operands are integers, returns truncdiv(a, b, span).
     """
-    return _ffi_api._OpDiv(a, b, span)
+    return _ffi_api._OpDiv(a, b, span)  # type: ignore
 
 
 def indexdiv(a, b, span=None):
@@ -1161,7 +1196,7 @@ def indexdiv(a, b, span=None):
     This function may take advantage of operands'
     non-negativeness.
     """
-    return _ffi_api._OpIndexDiv(a, b, span)
+    return _ffi_api._OpIndexDiv(a, b, span)  # type: ignore
 
 
 def indexmod(a, b, span=None):
@@ -1189,7 +1224,7 @@ def indexmod(a, b, span=None):
     This function may take advantage of operands'
     non-negativeness.
     """
-    return _ffi_api._OpIndexMod(a, b, span)
+    return _ffi_api._OpIndexMod(a, b, span)  # type: ignore
 
 
 def truncdiv(a, b, span=None):
@@ -1215,7 +1250,7 @@ def truncdiv(a, b, span=None):
     ----
     This is the default integer division behavior in C.
     """
-    return _ffi_api._OpTruncDiv(a, b, span)
+    return _ffi_api._OpTruncDiv(a, b, span)  # type: ignore
 
 
 def truncmod(a, b, span=None):
@@ -1241,7 +1276,7 @@ def truncmod(a, b, span=None):
     ----
     This is the default integer division behavior in C.
     """
-    return _ffi_api._OpTruncMod(a, b, span)
+    return _ffi_api._OpTruncMod(a, b, span)  # type: ignore
 
 
 def floordiv(a, b, span=None):
@@ -1263,7 +1298,7 @@ def floordiv(a, b, span=None):
     res : PrimExpr
         The result expression.
     """
-    return _ffi_api._OpFloorDiv(a, b, span)
+    return _ffi_api._OpFloorDiv(a, b, span)  # type: ignore
 
 
 def floormod(a, b, span=None):
@@ -1285,7 +1320,7 @@ def floormod(a, b, span=None):
     res : PrimExpr
         The result expression.
     """
-    return _ffi_api._OpFloorMod(a, b, span)
+    return _ffi_api._OpFloorMod(a, b, span)  # type: ignore
 
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
@@ -1443,5 +1478,5 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
 # pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")
-max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y, None), min_value, name="max")
+min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore
+max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y, None), min_value, name="max")  # type: ignore

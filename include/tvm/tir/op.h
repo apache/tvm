@@ -71,6 +71,15 @@ TVM_DLL Type GetType(const PrimExpr& expr);
 TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
 
 /*!
+ * \brief Return the value.
+ *
+ * \param value The returned value.
+ * \param span The location of this operation in the source.
+ * \return The return expression.
+ */
+TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
+
+/*!
  * Query the maximum possible value of dtype.
  * \param dtype The data type.
  * \param span The location of this operation in the source.
@@ -855,6 +864,7 @@ TVM_DECLARE_INTRIN_UNARY(atan);
 TVM_DECLARE_INTRIN_UNARY(acosh);
 TVM_DECLARE_INTRIN_UNARY(asinh);
 TVM_DECLARE_INTRIN_UNARY(atanh);
+TVM_DECLARE_INTRIN_UNARY(clz);
 
 #define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
   inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
@@ -1241,7 +1251,7 @@ inline void DivAmbiguityError(const TA& a) {
                 "please call div, indexdiv/indexmod, "
                 "floordiv/floormod or truncdiv/truncmod directly "
                 "to avoid ambiguity in the code. "
-                "Checkout these functions in expr_operator.h.");
+                "Checkout these functions in tir/op.h.");
 }
 
 // The following code are not intended to be used in the codebase.

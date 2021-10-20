@@ -20,7 +20,7 @@
 from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from ..utils import get_const_tuple
+from ..utils import get_const_tuple, traverse_inline
 
 
 def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
@@ -38,9 +38,10 @@ def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
         How many numbers of input int32/uint32 will be multiplied and reduced.
         This is related to input channel.
     """
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+    pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
+    HSTR, WSTR = wkl.stride_h, wkl.stride_w
+    dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
+    out_width = (wkl.width + pl + pr - dilated_kernel_w) // WSTR + 1
 
     assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
         wkl.out_filter,
@@ -85,10 +86,10 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
         How many numbers of input int32/uint32 will be multiplied and reduced.
         This is related to input channel.
     """
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+    pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
+    HSTR, WSTR = wkl.stride_h, wkl.stride_w
+    out_height = (wkl.height + pt + pb - wkl.kernel_h) // HSTR + 1
+    out_width = (wkl.width + pl + pr - wkl.kernel_w) // WSTR + 1
 
     assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
         wkl.out_filter,
@@ -359,4 +360,33 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
         else:
             raise ValueError("Unsupported output ndim: %s" % out_ndim)
 
+    return s
+
+
+def schedule_depthwise_conv2d_nhwc(outs):
+    """Create schedule for depthwise conv2d in NHWC layout.
+    Parameters
+    ----------
+    outs : list[te.tensor.Tensor]
+            The output tensors.
+    Returns
+    -------
+    s : tvm.te.schedule.Schedule
+        The computation schedule for depthwise conv2d.
+    """
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        """Traverse operators from computation graph"""
+        if "depthwise_conv2d_nhwc" in op.tag:
+            out = outs[0]
+            depthwise_conv2d_out = op.output(0)
+            data_pad = depthwise_conv2d_out.op.input_tensors[0]
+            s[data_pad].compute_inline()
+            if depthwise_conv2d_out != out:
+                s[depthwise_conv2d_out].compute_at(s[out], s[out].op.axis[3])
+            s[out].fuse(*s[out].op.axis)
+
+    traverse_inline(s, outs[0].op, _callback)
     return s

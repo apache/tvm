@@ -48,28 +48,28 @@ where
 // TODO(@jroesch): convert to use generics instead of casting inside
 // the implementation.
 external! {
-   #[name("node.MapSize")]
+   #[name("runtime.MapSize")]
    fn map_size(map: ObjectRef) -> i64;
-   #[name("node.MapGetItem")]
+   #[name("runtime.MapGetItem")]
    fn map_get_item(map_object: ObjectRef, key: ObjectRef) -> ObjectRef;
-   #[name("node.MapCount")]
+   #[name("runtime.MapCount")]
    fn map_count(map: ObjectRef, key: ObjectRef) -> ObjectRef;
-   #[name("node.MapItems")]
+   #[name("runtime.MapItems")]
    fn map_items(map: ObjectRef) -> Array<ObjectRef>;
 }
 
-impl<K, V> FromIterator<(K, V)> for Map<K, V>
+impl<'a, K: 'a, V: 'a> FromIterator<(&'a K, &'a V)> for Map<K, V>
 where
     K: IsObjectRef,
     V: IsObjectRef,
 {
-    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = (&'a K, &'a V)>>(iter: T) -> Self {
         let iter = iter.into_iter();
         let (lower_bound, upper_bound) = iter.size_hint();
         let mut buffer: Vec<ArgValue> = Vec::with_capacity(upper_bound.unwrap_or(lower_bound) * 2);
         for (k, v) in iter {
-            buffer.push(k.into());
-            buffer.push(v.into())
+            buffer.push(k.into_arg_value());
+            buffer.push(v.into_arg_value());
         }
         Self::from_data(buffer).expect("failed to convert from data")
     }
@@ -81,8 +81,8 @@ where
     V: IsObjectRef,
 {
     pub fn from_data(data: Vec<ArgValue>) -> Result<Map<K, V>> {
-        let func = Function::get("node.Map").expect(
-            "node.Map function is not registered, this is most likely a build or linking error",
+        let func = Function::get("runtime.Map").expect(
+            "runtime.Map function is not registered, this is most likely a build or linking error",
         );
 
         let map_data: ObjectPtr<Object> = func.invoke(data)?.try_into()?;
@@ -106,6 +106,18 @@ where
         let key = key.clone();
         let oref: ObjectRef = map_get_item(self.object.clone(), key.upcast())?;
         oref.downcast()
+    }
+
+    pub fn empty() -> Self {
+        Self::from_iter(vec![].into_iter())
+    }
+
+    //(@jroesch): I don't think this is a correct implementation.
+    pub fn null() -> Self {
+        Map {
+            object: ObjectRef::null(),
+            _data: PhantomData,
+        }
     }
 }
 
@@ -190,13 +202,13 @@ where
     }
 }
 
-impl<'a, K, V> From<Map<K, V>> for ArgValue<'a>
+impl<'a, K, V> From<&'a Map<K, V>> for ArgValue<'a>
 where
     K: IsObjectRef,
     V: IsObjectRef,
 {
-    fn from(map: Map<K, V>) -> ArgValue<'a> {
-        map.object.into()
+    fn from(map: &'a Map<K, V>) -> ArgValue<'a> {
+        (&map.object).into()
     }
 }
 
@@ -256,7 +268,7 @@ mod test {
         let mut std_map: HashMap<TString, TString> = HashMap::new();
         std_map.insert("key1".into(), "value1".into());
         std_map.insert("key2".into(), "value2".into());
-        let tvm_map = Map::from_iter(std_map.clone().into_iter());
+        let tvm_map = Map::from_iter(std_map.iter());
         let back_map = tvm_map.into();
         assert_eq!(std_map, back_map);
     }

@@ -21,8 +21,8 @@
  * \file Use external cblas library call.
  */
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include "../cblas/gemm_common.h"
 #include "cublas_utils.h"
@@ -39,7 +39,7 @@ inline void CUBLASTryEnableTensorCore(cublasHandle_t hdl) {
   // TensorCores are only supported in cublas 9.0 or higher
   int version;
   CHECK_CUBLAS_ERROR(cublasGetVersion(hdl, &version));
-  if (version >= 9000) CHECK_CUBLAS_ERROR(cublasSetMathMode(hdl, CUBLAS_TENSOR_OP_MATH));
+  if (version >= 9000) CHECK_CUBLAS_ERROR(cublasSetMathMode(hdl, CUBLAS_DEFAULT_MATH));
 }
 
 struct CublasHgemmOp {
@@ -167,7 +167,7 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
   ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
   int32_t alpha = args.size() > 5 ? args[5] : 1;
   int32_t beta = args.size() > 6 ? args[6] : 0;
-  cublasLtMatrixLayout_t Adesc = NULL, Bdesc = NULL, Cdesc = NULL;
+  cublasLtMatrixLayout_t Adesc = nullptr, Bdesc = nullptr, Cdesc = nullptr;
   auto A_data = reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset);
   auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
   auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
@@ -204,7 +204,7 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
                                                       &order_COL32, sizeof(order_COL32)));
 
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, &alpha, B_data, Adesc, A_data, Bdesc, &beta,
-                                    C_data, Cdesc, C_data, Cdesc, NULL, NULL, 0, 0));
+                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, nullptr));
 }
 #endif
 
@@ -275,9 +275,8 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
   ICHECK_EQ(A->ndim, 3);
   ICHECK_EQ(B->ndim, 3);
   ICHECK_EQ(C->ndim, 3);
-  int batch_size = BatchCount3D(A);
-  ICHECK_EQ(BatchCount3D(B), batch_size);
-  ICHECK_EQ(BatchCount3D(C), batch_size);
+
+  int batch_size = BatchCount3D(C);
   ICHECK_EQ(ElementStride(A), 1);
   ICHECK_EQ(ElementStride(B), 1);
   ICHECK_EQ(ElementStride(C), 1);
@@ -299,9 +298,23 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
 
-  const int A_size = A->shape[1] * A->shape[2];
-  const int B_size = B->shape[1] * B->shape[2];
-  const int C_size = C->shape[1] * C->shape[2];
+  int A_stride = A->shape[1] * A->shape[2];
+  int B_stride = B->shape[1] * B->shape[2];
+  int C_stride = C->shape[1] * C->shape[2];
+
+  // Broadcast A or B by changing its stride.
+  int batch_size_a = BatchCount3D(A);
+  int batch_size_b = BatchCount3D(B);
+  if (batch_size_a != batch_size_b) {
+    if (batch_size_a == 1) {
+      A_stride = 0;
+    } else if (batch_size_b == 1) {
+      B_stride = 0;
+    }
+  } else {
+    ICHECK_EQ(batch_size_a, batch_size);
+    ICHECK_EQ(batch_size_b, batch_size);
+  }
 
   cudaDataType_t cuda_in_type = GetCudaDataType(A->dtype);
   cudaDataType_t cuda_out_type = GetCudaDataType(C->dtype);
@@ -325,8 +338,9 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
   CHECK_CUBLAS_ERROR(cublasGemmStridedBatchedEx(
       hdl, CUBLASBooleanToTranspose(transb), CUBLASBooleanToTranspose(transa),
       ColumnCount3D(B, transb), RowCount3D(A, transa), ColumnCount3D(A, transa), alpha_ptr, B_data,
-      cuda_in_type, ColumnStride3D(B), B_size, A_data, cuda_in_type, ColumnStride3D(A), A_size,
-      beta_ptr, C_data, cuda_out_type, ColumnStride3D(C), C_size, batch_size, cuda_out_type, algo));
+      cuda_in_type, ColumnStride3D(B), B_stride, A_data, cuda_in_type, ColumnStride3D(A), A_stride,
+      beta_ptr, C_data, cuda_out_type, ColumnStride3D(C), C_stride, batch_size, cuda_out_type,
+      algo));
 }
 
 // matrix multiplication for row major

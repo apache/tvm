@@ -160,23 +160,23 @@ if __name__ == "__main__":
             s, arg_bufs = gemm_int8(n, m, l)
             f = tvm.build(s, arg_bufs, "cuda", name="gemm_int8")
 
-    ctx = tvm.context("cuda", 0)
+    dev = tvm.device("cuda", 0)
 
     a_np = np.random.randint(size=(n, l), low=-128, high=127, dtype="int8")
     b_np = np.random.randint(size=(m, l), low=-128, high=127, dtype="int8")
 
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
-    c = tvm.nd.array(np.zeros((n, m), dtype="int32"), ctx)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    c = tvm.nd.array(np.zeros((n, m), dtype="int32"), dev)
     f(a, b, c)
 
     tvm.testing.assert_allclose(
-        c.asnumpy(), np.dot(a_np.astype("int32"), b_np.T.astype("int32")), rtol=1e-5
+        c.numpy(), np.dot(a_np.astype("int32"), b_np.T.astype("int32")), rtol=1e-5
     )
 
     num_ops = 2 * l * m * n
     num_runs = 1000
-    timer_f = f.time_evaluator(f.entry_name, ctx, number=num_runs)
+    timer_f = f.time_evaluator(f.entry_name, dev, number=num_runs)
     t = timer_f(a, b, c).mean
     GOPS = num_ops / (t * 1e3) / 1e6
     print("average time cost of %d runs = %g ms, %g GOPS." % (num_runs, t * 1e3, GOPS))

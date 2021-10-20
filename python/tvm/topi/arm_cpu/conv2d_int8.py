@@ -32,12 +32,12 @@ from .conv2d_gemm import (
 from .arm_utils import get_tiling_B_interleaved_t
 
 
-def _get_default_config(cfg, data, kernel, strides, padding, out_dtype):
+def _get_default_config(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """
     Get default int8 schedule config for the workload
     """
-    wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
-    is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
+    wkl = _get_conv2d_workload(data, kernel, strides, padding, dilation, out_dtype)
+    is_kernel_1x1 = wkl.kernel_h == 1 and wkl.kernel_w == 1
     if is_kernel_1x1:
         conv2d_generic.fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes=2, num_int8_elements=4)
     else:
@@ -65,6 +65,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
             te.placeholder((num_filter, in_channel, kh, kw), dtype=kernel.dtype),
             strides,
             padding,
+            dilation,
             out_dtype,
         )
     return nn.conv2d_NCHWc_int8_compute(
@@ -195,7 +196,7 @@ def _schedule_conv2d_NHWC_quantized(cfg, outs, interleave_A):
 def compute_conv2d_NHWC_quantized_interleaved(
     cfg, data, kernel, strides, padding, dilation, out_dtype
 ):
-    """ Interface for interleaved compute_conv2d_NHWC_quantized_interleaved"""
+    """Interface for interleaved compute_conv2d_NHWC_quantized_interleaved"""
     return _compute_conv2d_NHWC_quantized(
         cfg, data, kernel, strides, padding, dilation, out_dtype, True
     )
@@ -205,7 +206,7 @@ def compute_conv2d_NHWC_quantized_interleaved(
 def compute_conv2d_NHWC_quantized_interleaved_without_transform(
     cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels
 ):
-    """ Interface for interleaved compute_conv2d_NHWC_quantized_interleaved_without_transform"""
+    """Interface for interleaved compute_conv2d_NHWC_quantized_interleaved_without_transform"""
     return _compute_conv2d_NHWC_quantized_without_transform(
         cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels, True
     )
@@ -213,7 +214,7 @@ def compute_conv2d_NHWC_quantized_interleaved_without_transform(
 
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized_interleaved.arm_cpu")
 def schedule_conv2d_NHWC_quantized_interleaved(cfg, outs):
-    """ Interface for interleaved schedule_conv2d_NHWC_quantized_interleaved"""
+    """Interface for interleaved schedule_conv2d_NHWC_quantized_interleaved"""
     return _schedule_conv2d_NHWC_quantized(cfg, outs, True)
 
 
@@ -221,7 +222,7 @@ def schedule_conv2d_NHWC_quantized_interleaved(cfg, outs):
 # The weights are interleaved and transposed
 @autotvm.register_topi_compute("conv2d_NHWC_quantized_native.arm_cpu")
 def compute_conv2d_NHWC_quantized_native(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    """ Interface for native compute_conv2d_NHWC_quantized"""
+    """Interface for native compute_conv2d_NHWC_quantized"""
     return _compute_conv2d_NHWC_quantized(
         cfg, data, kernel, strides, padding, dilation, out_dtype, False
     )
@@ -231,7 +232,7 @@ def compute_conv2d_NHWC_quantized_native(cfg, data, kernel, strides, padding, di
 def compute_conv2d_NHWC_quantized_native_without_transform(
     cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels
 ):
-    """ Interface for compute_conv2d_NHWC_quantized_native_without_transform"""
+    """Interface for compute_conv2d_NHWC_quantized_native_without_transform"""
     return _compute_conv2d_NHWC_quantized_without_transform(
         cfg,
         data,
@@ -248,5 +249,5 @@ def compute_conv2d_NHWC_quantized_native_without_transform(
 
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized_native.arm_cpu")
 def schedule_conv2d_NHWC_quantized_native(cfg, outs):
-    """ Interface for native schedule_conv2d_NHWC_quantized"""
+    """Interface for native schedule_conv2d_NHWC_quantized"""
     return _schedule_conv2d_NHWC_quantized(cfg, outs, False)

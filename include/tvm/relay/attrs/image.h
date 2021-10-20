@@ -32,28 +32,29 @@
 namespace tvm {
 namespace relay {
 
-/*! \brief Attributes used in image resize operator */
-struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
+/*! \brief Attributes used in image resize1d operator */
+struct Resize1DAttrs : public tvm::AttrsNode<Resize1DAttrs> {
   Array<IndexExpr> size;
   std::string layout;
   std::string method;
   std::string coordinate_transformation_mode;
+  std::string rounding_method;
+  double cubic_alpha;
+  int cubic_exclude;
   DataType out_dtype;
 
-  TVM_DECLARE_ATTRS(ResizeAttrs, "relay.attrs.ResizeAttrs") {
+  TVM_DECLARE_ATTRS(Resize1DAttrs, "relay.attrs.Resize1DAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
-    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
-        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
-        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-        "dimensions respectively. Resize is applied on the 'H' and"
-        "'W' dimensions.");
-    TVM_ATTR_FIELD(method)
-        .set_default("bilinear")
-        .describe(
-            "Specify the mode to use for scaling."
-            "nearest_neighbor -  Nearest Neighbor"
-            "bilinear - Bilinear Interpolation"
-            "bicubic - Bicubic Interpolation");
+    TVM_ATTR_FIELD(layout).set_default("NCW").describe(
+        "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+        "'N', 'C', 'W' stands for batch, channel and width"
+        "dimensions respectively. Resize is applied on the"
+        "'W' dimension.");
+    TVM_ATTR_FIELD(method).set_default("linear").describe(
+        "Specify the mode to use for scaling."
+        "nearest_neighbor -  Nearest Neighbor"
+        "linear - Linear Interpolation"
+        "cubic - Cubic Interpolation");
     TVM_ATTR_FIELD(coordinate_transformation_mode)
         .set_default("half_pixel")
         .describe(
@@ -61,37 +62,107 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
             "to the coordinate in the original tensor."
             "Refer to the ONNX Resize operator specification for details"
             "Available options are half_pixel, align_corners and asymmetric");
+    TVM_ATTR_FIELD(rounding_method)
+        .set_default("round")
+        .describe(
+            "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
+            "Available options are round, floor, and ceil.");
+    TVM_ATTR_FIELD(cubic_alpha)
+        .set_default(-0.5)
+        .describe("Spline Coefficient for cubic interpolation");
+    TVM_ATTR_FIELD(cubic_exclude)
+        .set_default(0)
+        .describe("Flag to exclude exterior of the image during cubic interpolation");
+    TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
+  }
+};
+
+/*! \brief Attributes used in image resize2d operator */
+struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
+  Array<IndexExpr> size;
+  std::string layout;
+  std::string method;
+  std::string coordinate_transformation_mode;
+  std::string rounding_method;
+  double cubic_alpha;
+  int cubic_exclude;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(Resize2DAttrs, "relay.attrs.Resize2DAttrs") {
+    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively. Resize is applied on the 'H' and"
+        "'W' dimensions.");
+    TVM_ATTR_FIELD(method).set_default("linear").describe(
+        "Specify the mode to use for scaling."
+        "nearest_neighbor -  Nearest Neighbor"
+        "linear - Bilinear Interpolation"
+        "cubic - Bicubic Interpolation");
+    TVM_ATTR_FIELD(coordinate_transformation_mode)
+        .set_default("half_pixel")
+        .describe(
+            "Describes how to transform the coordinate in the resized tensor"
+            "to the coordinate in the original tensor."
+            "Refer to the ONNX Resize operator specification for details"
+            "Available options are half_pixel, align_corners and asymmetric");
+    TVM_ATTR_FIELD(rounding_method)
+        .set_default("round")
+        .describe(
+            "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
+            "Available options are round, floor, and ceil.");
+    TVM_ATTR_FIELD(cubic_alpha)
+        .set_default(-0.5)
+        .describe("Spline Coefficient for Bicubic Interpolation");
+    TVM_ATTR_FIELD(cubic_exclude)
+        .set_default(0)
+        .describe("Flag to exclude exterior of the image during bicubic interpolation");
     TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
   }
 };
 
 /*! \brief Attributes used in image resize3d operator */
-struct Resize3dAttrs : public tvm::AttrsNode<Resize3dAttrs> {
+struct Resize3DAttrs : public tvm::AttrsNode<Resize3DAttrs> {
   Array<IndexExpr> size;
-  String layout;
-  String method;
-  String coordinate_transformation_mode;
+  std::string layout;
+  std::string method;
+  std::string coordinate_transformation_mode;
+  std::string rounding_method;
+  double cubic_alpha;
+  int cubic_exclude;
   DataType out_dtype;
 
-  TVM_DECLARE_ATTRS(Resize3dAttrs, "relay.attrs.Resize3dAttrs") {
+  TVM_DECLARE_ATTRS(Resize3DAttrs, "relay.attrs.Resize3DAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
     TVM_ATTR_FIELD(layout).set_default("NCDHW").describe(
         "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
         "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
         "dimensions respectively. Resize3d is applied on the 'D', 'H' and"
         "'W' dimensions.");
-    TVM_ATTR_FIELD(method)
-        .set_default("trilinear")
-        .describe(
-            "Specify the mode to use for scaling."
-            "nearest_neighbor -  Nearest Neighbor"
-            "trilinear - Trilinear Interpolation");
+    TVM_ATTR_FIELD(method).set_default("linear").describe(
+        "Specify the mode to use for scaling."
+        "nearest_neighbor -  Nearest Neighbor"
+        "linear - Trilinear Interpolation"
+        "cubic - Tricubic Interpolation");
     TVM_ATTR_FIELD(coordinate_transformation_mode)
         .set_default("half_pixel")
         .describe(
             "Describes how to transform the coordinate in the resized tensor"
             "to the coordinate in the original tensor."
+            "Refer to the ONNX Resize operator specification for details"
             "Available options are half_pixel, align_corners and asymmetric");
+    TVM_ATTR_FIELD(rounding_method)
+        .set_default("round")
+        .describe(
+            "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
+            "Available options are round, floor, and ceil.");
+    TVM_ATTR_FIELD(cubic_alpha)
+        .set_default(-0.5)
+        .describe("Spline Coefficient for Tricubic Interpolation");
+    TVM_ATTR_FIELD(cubic_exclude)
+        .set_default(0)
+        .describe("Flag to exclude exterior of the image during tricubic interpolation");
     TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
   }
 };

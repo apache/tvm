@@ -467,7 +467,7 @@ class PythonConverter(ExprFunctor):
         false_body, false_defs = self.visit(if_block.false_branch)
 
         # need to get the value out of a NDArray to check the condition
-        # equvialent to: val.asnumpy()
+        # equvialent to: val.numpy()
         cond_check = ast.Call(ast.Attribute(cond_body, "asnumpy", Load()), [], [])
         ret = ast.IfExp(cond_check, true_body, false_body)
         return (ret, cond_defs + true_defs + false_defs)
@@ -476,7 +476,7 @@ class PythonConverter(ExprFunctor):
         """Proceeds by converting constant value to a numpy array
         and converting it to the appropriate value in the generated
         code (whether it be a Python scalar or a Numpy array)"""
-        value = constant.data.asnumpy()
+        value = constant.data.numpy()
         const_expr = ast.Call(
             ast.Attribute(Name("numpy", Load()), "array", Load()),
             [self.parse_numpy_array(value)],

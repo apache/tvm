@@ -39,8 +39,8 @@ var KHandle                 = int32(C.kTVMOpaqueHandle)
 var KNull                   = int32(C.kTVMNullptr)
 // KTVMType is golang type code for TVM kTVMDataType.
 var KTVMType                = int32(C.kTVMDataType)
-// KTVMContext is golang type code for TVM kTVMContext.
-var KTVMContext             = int32(C.kTVMContext)
+// KDLDevice is golang type code for TVM kDLDevice.
+var KDLDevice               = int32(C.kDLDevice)
 // KArrayHandle is golang type code for TVM kTVMDLTensorHandle.
 var KArrayHandle            = int32(C.kTVMDLTensorHandle)
 // KObjectHandle is golang type code for TVM kTVMObjectHandle.

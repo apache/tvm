@@ -66,8 +66,8 @@ int main(int argc, char** argv) {
 
   DLTensor input;
   input.data = input_storage;
-  DLContext ctx = {kDLCPU, 0};
-  input.ctx = ctx;
+  DLDevice dev = {kDLCPU, 0};
+  input.device = dev;
   input.ndim = 2;
   DLDataType dtype = {kDLFloat, 32, 1};
   input.dtype = dtype;
@@ -85,8 +85,8 @@ int main(int argc, char** argv) {
   float output_storage[10 * 5];
   DLTensor output;
   output.data = output_storage;
-  DLContext out_ctx = {kDLCPU, 0};
-  output.ctx = out_ctx;
+  DLDevice out_dev = {kDLCPU, 0};
+  output.device = out_dev;
   output.ndim = 2;
   DLDataType out_dtype = {kDLFloat, 32, 1};
   output.dtype = out_dtype;

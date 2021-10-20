@@ -15,75 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for graph partitioning."""
-import os
+
 import sys
+from collections import OrderedDict
 import numpy as np
+import pytest
 
 import tvm
-from tvm import te
-import tvm.relay.testing
-import tvm.relay.transform
-from tvm import relay
-from tvm import runtime
-from tvm.contrib import utils
+from tvm import relay, runtime
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+from utils.external_codegen import (
+    update_lib,
+    set_external_func_attr,
+    parametrize_external_codegen_checks,
+    parametrize_external_json_codegen_checks,
+)
 
 
-def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu()):
-    if sys.platform == "win32":
-        print("Skip test on Windows for now")
-        return
-
-    def update_lib(lib):
-        test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-        source_dir = os.path.join(test_dir, "..", "..", "..")
-        contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
-
-        kwargs = {}
-        kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-        tmp_path = utils.tempdir()
-        lib_name = "lib.so"
-        lib_path = tmp_path.relpath(lib_name)
-        lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = tvm.runtime.load_module(lib_path)
-
-        return lib
-
-    def check_vm_result():
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            exe = relay.vm.compile(mod, target=target)
-        code, lib = exe.save()
-        lib = update_lib(lib)
-        exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, ctx)
-        out = vm.run(**map_inputs)
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
-
-    def check_graph_runtime_result():
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            json, lib, _ = relay.build(mod, target=target)
-        lib = update_lib(lib)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
-
-        for name, data in map_inputs.items():
-            rt_mod.set_input(name, data)
-        rt_mod.run()
-        out = tvm.nd.empty(out_shape, ctx=ctx)
-        out = rt_mod.get_output(0, out)
-
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
-
-    check_vm_result()
-    check_graph_runtime_result()
-
-
-def set_external_func_attr(func, compiler, ext_symbol):
-    func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-    func = func.with_attr("Compiler", compiler)
-    func = func.with_attr("global_symbol", ext_symbol)
-    return func
-
-
-def test_multi_node_subgraph():
+@parametrize_external_codegen_checks
+def test_multi_node_subgraph(check_result):
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
     w1 = relay.var("w1", shape=(10, 10))
@@ -133,8 +84,7 @@ def test_multi_node_subgraph():
     for _ in range(8):
         w_data.append(np.random.rand(10, 10).astype("float32"))
 
-    map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
-    map_inputs["x"] = x_data
+    map_inputs = OrderedDict([("x", x_data)] + [("w{}".format(i), w_data[i]) for i in range(8)])
     check_result(
         mod,
         map_inputs,
@@ -150,7 +100,8 @@ def test_multi_node_subgraph():
     )
 
 
-def test_extern_gcc_single_op():
+@parametrize_external_codegen_checks
+def test_extern_gcc_single_op(check_result):
     x = relay.var("x", shape=(8, 8))
     y = relay.var("y", shape=(8, 8))
 
@@ -167,7 +118,8 @@ def test_extern_gcc_single_op():
     check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
 
-def test_extern_gcc_single_op_int():
+@parametrize_external_codegen_checks
+def test_extern_gcc_single_op_int(check_result):
     x = relay.var("x", shape=(8, 8), dtype="int32")
     y = relay.var("y", shape=(8, 8), dtype="int32")
 
@@ -184,7 +136,8 @@ def test_extern_gcc_single_op_int():
     check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
 
-def test_extern_gcc():
+@parametrize_external_codegen_checks
+def test_extern_gcc(check_result):
     x = relay.var("x", shape=(2, 2))
     y = relay.var("y", shape=(2, 2))
 
@@ -216,9 +169,17 @@ def test_extern_gcc():
     x_data = np.random.rand(2, 2).astype("float32")
     y_data = np.random.rand(2, 2).astype("float32")
 
-    check_result(mod, {"x": x_data, "y": y_data}, (2, 2), (y_data * y_data) - (x_data + x_data))
+    inputs = OrderedDict(
+        [
+            ("y", y_data),
+            ("x", x_data),
+        ]
+    )
+
+    check_result(mod, inputs, (2, 2), (y_data * y_data) - (x_data + x_data))
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
 def test_extern_gcc_consts():
     @tvm._ffi.register_func("relay.ext.ccompiler.constant_updater")
     def constant_updater(expr, symbol):
@@ -252,11 +213,45 @@ def test_extern_gcc_consts():
     tvm._ffi.registry.remove_global_func("relay.ext.ccompiler.constant_updater")
 
 
-def test_extern_dnnl():
-    if not tvm.get_global_func("relay.ext.dnnl", True):
-        print("skip because DNNL codegen is not available")
-        return
+@pytest.mark.skipif(
+    not tvm.get_global_func("relay.ext.dnnl", True),
+    reason="skip because DNNL codegen is not available",
+)
+@parametrize_external_json_codegen_checks
+def test_extern_dnnl_padding(check_result):
+    dtype = "float32"
+    ishape = (1, 1, 99, 12)
+    w1shape = (54, 1, 3, 3)
+    data0 = relay.var("data0", shape=(ishape), dtype=dtype)
+    weight0 = relay.var("weight0", shape=(w1shape), dtype=dtype)
+    out = relay.nn.conv2d(data0, weight0, kernel_size=(3, 3), strides=(2, 2), padding=(1, 0, 1, 1))
+    f = relay.Function([data0, weight0], out)
+    ref_mod = tvm.IRModule()
+    ref_mod["main"] = f
 
+    data1 = relay.var("data0", shape=(ishape), dtype=dtype)
+    weight1 = relay.var("weight0", shape=(w1shape), dtype=dtype)
+    f = set_external_func_attr(f, "dnnl", "dnnl_0")
+    call = relay.Call(f, [data1, weight1])
+    mod = tvm.IRModule.from_expr(call)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+        i_data, w_data
+    )
+    check_result(
+        mod, {"data0": i_data, "weight0": w_data}, (1, 54, 50, 6), ref_res.numpy(), tol=1e-5
+    )
+
+
+@pytest.mark.skipif(
+    not tvm.get_global_func("relay.ext.dnnl", True),
+    reason="skip because DNNL codegen is not available",
+)
+@parametrize_external_json_codegen_checks
+def test_extern_dnnl(check_result):
     dtype = "float32"
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
@@ -285,18 +280,20 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data, w_data, w_data)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+        i_data, w_data, w_data
+    )
     check_result(
-        mod, {"data0": i_data, "weight0": w_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5
+        mod, {"data0": i_data, "weight0": w_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5
     )
 
 
-def test_extern_dnnl_const():
-    if not tvm.get_global_func("relay.ext.dnnl", True):
-        print("skip because DNNL codegen is not available")
-        return
-
+@pytest.mark.skipif(
+    not tvm.get_global_func("relay.ext.dnnl", True),
+    reason="skip because DNNL codegen is not available",
+)
+@parametrize_external_json_codegen_checks
+def test_extern_dnnl_const(check_result):
     dtype = "float32"
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
@@ -324,16 +321,34 @@ def test_extern_dnnl_const():
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data)
-    check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(i_data)
+    check_result(mod, {"data0": i_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5)
+
+
+def test_load_params_with_constants_in_ext_codegen():
+    # After binding params and partitioning graph_module.get_params()
+    # might contain parameters that are not an graph executor input but
+    # for example constants in external function.
+    y_in = np.ones((1,)).astype("float32")
+    params = {"y": y_in}
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1,))
+    xcb = compiler_begin(x, "ccompiler")
+    ycb = compiler_begin(y, "ccompiler")
+    z = relay.add(xcb, ycb)
+    zce = compiler_end(z, "ccompiler")
+    mod["main"] = relay.Function([x, y], zce)
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = relay.transform.PartitionGraph()(mod)
+
+    graph_module = relay.build(mod, target="llvm", params=params)
+    # Params will be stored in metadata module.
+    assert len(graph_module.get_params()) == 0
+    lib = update_lib(graph_module.get_lib())
+    rt_mod = tvm.contrib.graph_executor.create(graph_module.get_graph_json(), lib, tvm.cpu(0))
+    rt_mod.load_params(runtime.save_param_dict(graph_module.get_params()))
 
 
 if __name__ == "__main__":
-    test_multi_node_subgraph()
-    test_extern_gcc_single_op()
-    test_extern_gcc_single_op_int()
-    test_extern_gcc()
-    test_extern_gcc_consts()
-    test_extern_dnnl()
-    test_extern_dnnl_const()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

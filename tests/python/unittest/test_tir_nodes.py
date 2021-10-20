@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import te
 import numpy as np
@@ -29,7 +30,7 @@ def test_const():
 def test_scalar_dtype_inference():
     for data in [
         True,
-        np.bool(1),
+        bool(1),
         np.uint8(1),
         np.uint16(1),
         np.uint32(1),
@@ -48,7 +49,7 @@ def test_scalar_dtype_inference():
 
     for data in [
         True,
-        np.bool(1),
+        bool(1),
         np.uint8(1),
         np.uint16(1),
         np.uint32(1),
@@ -104,6 +105,11 @@ def test_cast():
     assert isinstance(z, tvm.tir.Broadcast)
     assert z.lanes == 4
 
+    s = tvm.tir.StringImm("s")
+    with pytest.raises(tvm.error.TVMError) as cm:
+        s.astype("int")
+        assert "Can't cast a handle to other types" in str(cm.execption)
+
 
 def test_attr():
     x = te.var("x")
@@ -129,7 +135,7 @@ def test_basic():
 
 def test_stmt():
     x = tvm.tir.Evaluate(0)
-    tvm.tir.For(te.var("i"), 0, 1, tvm.tir.For.Serial, 0, x)
+    tvm.tir.For(te.var("i"), 0, 1, tvm.tir.ForKind.SERIAL, x)
 
 
 def test_dir():
@@ -338,6 +344,17 @@ def test_vars():
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 
+def test_scoped_storage_vars():
+    dtype = "float"
+    storage_scope = "global.texture"
+    ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
+    x = tvm.tir.Var("xyz", ptype)
+    assert x.dtype == "handle"
+    assert x.type_annotation == ptype
+    assert x.type_annotation.storage_scope == storage_scope
+    assert isinstance(ptype.element_type, tvm.ir.PrimType)
+
+
 def test_buffer_load_store():
     b = tvm.tir.decl_buffer((10,), "float32")
     x = tvm.tir.BufferLoad(b, [0])
@@ -364,28 +381,130 @@ def test_intimm_cond():
     assert x == 1
 
 
+def test_block_blockrealize():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    vx = tvm.tir.IterVar((16, 16), "vx", 0)
+    vx_var = vx.var
+    vy = tvm.tir.IterVar((16, 16), "vy", 2)
+    vy_var = vy.var
+    A = tvm.tir.decl_buffer((16), "float32")
+    B = tvm.tir.decl_buffer((16, 16), "float32")
+    alloc_buffer = tvm.tir.decl_buffer((16, 16), "float32")
+    match_buffer = tvm.tir.decl_buffer((16, 16), "float32")
+    init_body = tvm.tir.BufferStore(A, 0.0, [vx_var])
+    body = tvm.tir.BufferStore(
+        A,
+        tvm.tir.BufferLoad(A, [vx_var]) + tvm.tir.BufferLoad(B, [vx_var, vy_var]),
+        [vx_var],
+    )
+    reads = [
+        tvm.tir.BufferRegion(
+            B, [tvm.ir.Range.from_min_extent(vx_var, 1), tvm.ir.Range.from_min_extent(vy_var, 1)]
+        )
+    ]
+    writes = [tvm.tir.BufferRegion(A, [tvm.ir.Range.from_min_extent(vx_var, 1)])]
+    block_match_buffer = tvm.tir.MatchBufferRegion(
+        match_buffer, tvm.tir.BufferRegion(B, [tvm.ir.Range(0, 16), tvm.ir.Range(0, 16)])
+    )
+
+    block = tvm.tir.Block(
+        [vx, vy],
+        reads,
+        writes,
+        "block",
+        body,
+        init=init_body,
+        alloc_buffers=[alloc_buffer],
+        match_buffers=[block_match_buffer],
+        annotations={"attr_key": "attr_value"},
+    )
+
+    # Checking Block
+    assert isinstance(block, tvm.tir.Block)
+    # Checking iter_vars
+    assert block.iter_vars[0] == vx
+    assert block.iter_vars[1] == vy
+    # Checking reads/writes region
+    assert isinstance(block.reads[0], tvm.tir.BufferRegion)
+    assert block.reads[0].buffer == B
+    assert block.reads[0].region[0].min == vx_var
+    assert block.reads[0].region[1].min == vy_var
+    assert isinstance(block.writes[0], tvm.tir.BufferRegion)
+    assert block.writes[0].buffer == A
+    assert block.writes[0].region[0].min == vx_var
+    assert block.writes[0].region[0].extent == 1
+    # Checking name_hint
+    assert block.name_hint == "block"
+    # Checking body
+    assert block.body == body
+    # Checking init
+    assert block.init == init_body
+    # Checking alloc_buffers
+    assert block.alloc_buffers[0] == alloc_buffer
+    # Checking match_buffers
+    assert block.match_buffers[0].buffer == match_buffer
+    assert isinstance(block.match_buffers[0].source, tvm.tir.BufferRegion)
+    assert block.match_buffers[0].source.buffer == B
+    assert block.match_buffers[0].source.region[0].min == 0
+    assert block.match_buffers[0].source.region[0].extent == 16
+
+    # Checking BlockRealize
+    block_realize = tvm.tir.BlockRealize([x, y], tvm.tir.const(True, "bool"), block)
+    assert isinstance(block_realize, tvm.tir.BlockRealize)
+    assert block_realize.iter_values[0] == x
+    assert block_realize.iter_values[1] == y
+    assert block_realize.predicate == tvm.tir.const(True, "bool")
+    assert block_realize.block == block
+
+    # make sure we can print using ReprPrinter
+    str(block)
+    str(block_realize)
+    # make sure we can print using TIRTextPrinter
+    func = tvm.tir.PrimFunc([], block_realize)
+    output = func.astext()
+    assert output.find("meta[tir.BlockRealise]") == -1
+    assert output.find("bind") != -1
+    assert output.find("reads") != -1
+    assert output.find("writes") != -1
+    assert output.find("alloc_buffer") != -1
+    assert output.find("match_buffer") != -1
+    assert output.find("attr") != -1
+    assert output.find("with init()") != -1
+
+
+def test_tir_allocate():
+    dtype = "int8"
+    storage_scope = "global"
+    ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
+    a = te.var("buffer", ptype)
+    allocate = tvm.tir.Allocate(
+        buffer_var=a,
+        dtype=dtype,
+        extents=[2, 2],
+        condition=tvm.get_global_func("tir.const_true")(dtype, None),
+        body=tvm.tir.Evaluate(2 + 1),
+        annotations={
+            "attr1": "foo",
+            "attr2": "bar",
+        },
+    )
+    assert allocate.buffer_var == a
+    assert allocate.dtype == "int8"
+    assert list(allocate.extents) == [2, 2]
+    assert allocate.annotations["attr1"] == "foo"
+    assert allocate.annotations["attr2"] == "bar"
+
+    # make sure we can print using TIRTextPrinter
+    func = tvm.tir.PrimFunc([], allocate)
+    output = func.astext()
+    assert (
+        output.find(
+            'allocate(buffer: Pointer(global int8), int8, [2, 2]), storage_scope = global, annotations = {"attr2": "bar", "attr1": "foo"})'
+        )
+        != -1
+    )
+
+
 if __name__ == "__main__":
-    test_intimm_cond()
-    test_buffer_load_store()
-    test_vars()
-    test_prim_func()
-    test_cast()
-    test_attr()
-    test_const()
-    test_scalar_dtype_inference()
-    test_make()
-    test_ir()
-    test_basic()
-    test_stmt()
-    test_let()
-    test_dir()
-    test_dtype()
-    test_any()
-    test_all()
-    test_bitwise()
-    test_float_bitwise()
-    test_shift_bounds()
-    test_divide_by_zero()
-    test_isnan()
-    test_equality()
-    test_equality_string_imm()
+    pytest.main([__file__])

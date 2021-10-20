@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.script import tir as T
 import numpy
 
 
@@ -40,7 +41,7 @@ def test_basic():
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
     mod = tvm.tir.transform.LoopPartition()(mod)
-    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+    stmt = tvm.tir.transform.Simplify()(mod)["main"]
 
     assert not any(collect_visit(stmt.body.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse)))
     assert any(collect_visit(stmt.body.body[1], lambda x: isinstance(x, tvm.tir.IfThenElse)))
@@ -156,7 +157,7 @@ def test_thread_axis():
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
     mod = tvm.tir.transform.LoopPartition()(mod)
-    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+    stmt = tvm.tir.transform.Simplify()(mod)["main"]
 
     assert not any(collect_visit(stmt.body.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse)))
 
@@ -178,7 +179,7 @@ def test_vectorize():
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
-    stmt = tvm.lower(s, [A, B], name="main")["main"].body
+    stmt = tvm.lower(s, [A, B], name="main")["main"]
     body = stmt.body.body.body.body
     assert x.var.name not in str(body.condition)
     assert any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.tir.Ramp)))
@@ -229,7 +230,7 @@ def test_thread_axis2():
     _, x = s[C].split(x, factor=m)
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
-    stmt = tvm.lower(s, [A, B], name="main")["main"].body
+    stmt = tvm.lower(s, [A, B], name="main")["main"]
     for_body = stmt.body.body.body.body[0]
     assert "threadIdx" not in str(for_body.extent)
 
@@ -434,7 +435,6 @@ def test_conv_tiling():
     oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -487,28 +487,28 @@ def test_double_splitting_with_indivisible_factors():
     assert not any(collect_visit(top_produce, lambda x: isinstance(x, tvm.tir.IfThenElse)))
 
     # check functional correctness of generated code
-    ctx = tvm.context(target, 0)
+    dev = tvm.device(target, 0)
     a = tvm.nd.array(
         numpy.ones(
             m,
         ).astype(dtype),
-        ctx,
+        dev,
     )
     c = tvm.nd.array(
         numpy.zeros(
             m,
         ).astype(dtype),
-        ctx,
+        dev,
     )
     d = tvm.nd.array(
         numpy.zeros(
             m,
         ).astype(dtype),
-        ctx,
+        dev,
     )
     func(a, c, d)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy(), rtol=1e-5)
-    tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(d.numpy(), a.numpy(), rtol=1e-5)
 
 
 def test_simple_rfactor():
@@ -538,6 +538,33 @@ def test_simple_rfactor():
     assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
 
 
+@T.prim_func
+def partitioned_concat(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+    A = T.match_buffer(a, [16], dtype="float32")
+    B = T.match_buffer(b, [16], dtype="float32")
+    C = T.match_buffer(c, [32], dtype="float32")
+    for i in T.serial(0, 16):
+        T.store(C.data, i, T.load("float32", A.data, i), True)
+    for i in T.serial(0, 16):
+        T.store(C.data, i + 16, T.load("float32", B.data, i + 16), True)
+
+
+def test_explicit_partition_hint():
+    A = te.placeholder((16,), name="A")
+    B = te.placeholder((16,), name="B")
+    C = te.compute((32,), lambda i: te.if_then_else(i < 16, A[i], B[i]), name="C")
+    s = te.create_schedule(C.op)
+    s.normalize()
+    s[C].pragma(s[C].op.axis[0], "loop_partition_hint")
+    mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
+    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+        mod = tvm.tir.transform.StorageFlatten(64)(mod)
+        mod = tvm.tir.transform.LoopPartition()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
+    assert tvm.ir.structural_equal(mod["main"], partitioned_concat)
+
+
 if __name__ == "__main__":
     test_basic()
     test_const_loop()
@@ -559,3 +586,4 @@ if __name__ == "__main__":
     test_double_splitting_with_indivisible_factors()
     test_multilevel_splitting_with_indivisble_factors()
     test_simple_rfactor()
+    test_explicit_partition_hint()

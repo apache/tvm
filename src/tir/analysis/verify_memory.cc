@@ -149,7 +149,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 
   /// Check if a given DLDeviceType/TVMDeviceExtType value denotes GPU device.
   static bool IsGPUDevice(int dev_type) {
-    return kDLGPU == dev_type || kDLOpenCL == dev_type || kDLVulkan == dev_type ||
+    return kDLCUDA == dev_type || kDLOpenCL == dev_type || kDLVulkan == dev_type ||
            kDLMetal == dev_type || kDLROCM == dev_type || kOpenGL == dev_type;
   }
   /// Check if a given DLDeviceType/TVMDeviceExtType value denotes FPGA device.
@@ -170,7 +170,11 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 /// Interface of VerifyMemory pass
 std::vector<String> VerifyMemory_(const PrimFunc& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  ICHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
+  ICHECK(target.defined()) << "VerifyMemory: Require the target attribute";
+
+  VLOG(1) << "verifying memory for target '" << target.value()->str()
+          << "' for primitive:" << std::endl
+          << PrettyPrint(func);
 
   if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
       CallingConv::kDefault) {

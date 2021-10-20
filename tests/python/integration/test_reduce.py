@@ -14,10 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
+import pytest
 import numpy as np
+
+import tvm
+from tvm import te, topi
+from tvm.driver.build_module import schedule_to_module
 import tvm.testing
+import tvm.topi.testing
 
 
 @tvm.testing.requires_gpu
@@ -41,20 +45,22 @@ def test_reduce_prims():
 
         # one line to build the function.
         def check_device(device, host="llvm"):
-            ctx = tvm.context(device, 0)
+            dev = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
-            freduce = tvm.build(s, args=[A, B], target=device, target_host=host, name="myreduce")
+            freduce = tvm.build(
+                s, args=[A, B], target=tvm.target.Target(device, host), name="myreduce"
+            )
             # launch the kernel.
             n = 1028
             m = 129
-            x = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), ctx)
-            y = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+            x = tvm.nd.array(np.random.uniform(size=(n, m)).astype(A.dtype), dev)
+            y = tvm.nd.array(np.zeros(n, dtype=B.dtype), dev)
             freduce(x, y)
-            npy = y.asnumpy()
+            npy = y.numpy()
             npy[:2] = 0
-            res = np_reducer(x.asnumpy(), axis=1)
+            res = np_reducer(x.numpy(), axis=1)
             res[:2] = 0
             tvm.testing.assert_allclose(npy, res, rtol=1e-4)
 
@@ -73,23 +79,23 @@ def test_init_imm():
     n = tvm.runtime.convert(1027)
     A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k, init=10.0), name="B")
+    B = te.compute((), lambda: te.sum(A[k], axis=k, init=10.0), name="B")
     # schedule
     s = te.create_schedule(B.op)
     # one line to build the function.
     def check_target(target="llvm"):
         if not tvm.runtime.enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
         fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
-        res = 10.0 + np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = 10.0 + np.sum(a.numpy(), axis=0)
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -108,19 +114,19 @@ def test_init():
     def check_target(target="llvm"):
         if not tvm.runtime.enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, C, I, B])
         print(fapi)
         mmult = tvm.build(fapi, target=target, name="mmult")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), ctx)
-        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), ctx)
-        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), dev)
+        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), dev)
+        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), dev)
+        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), dev)
         mmult(a, c, ii, b)
-        res = ii.asnumpy() + np.matmul(a.asnumpy(), c.asnumpy())
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = ii.numpy() + np.matmul(a.numpy(), c.numpy())
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -129,7 +135,7 @@ def test_rfactor():
     n = tvm.runtime.convert(1027)
     A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name="B")
+    B = te.compute((), lambda: te.sum(A[k], axis=k), name="B")
     # schedule
     s = te.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
@@ -139,16 +145,16 @@ def test_rfactor():
     def check_target(target="llvm"):
         if not tvm.testing.device_enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
         fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = np.sum(a.numpy(), axis=0)
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -170,19 +176,19 @@ def test_rfactor_init():
     def check_target(target="llvm"):
         if not tvm.runtime.enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, C, I, B])
         print(fapi)
         mmult = tvm.build(fapi, target=target, name="mmult")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), ctx)
-        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), ctx)
-        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), dev)
+        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), dev)
+        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), dev)
+        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), dev)
         mmult(a, c, ii, b)
-        res = ii.asnumpy() + np.matmul(a.asnumpy(), c.asnumpy())
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = ii.numpy() + np.matmul(a.numpy(), c.numpy())
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -191,26 +197,26 @@ def test_rfactor_factor_axis():
     n = tvm.runtime.convert(1027)
     A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name="B")
+    B = te.compute((), lambda: te.sum(A[k], axis=k), name="B")
     # schedule
     s = te.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
-    BF = s.rfactor(B, kf, 1)
+    BF = s.rfactor(B, kf, 0)
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
         if not tvm.testing.device_enabled(target):
             return
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
         fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros((), dtype=B.dtype), dev)
         fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = np.sum(a.numpy(), axis=0)
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target()
 
@@ -240,7 +246,7 @@ def test_rfactor_threads():
 
     # one line to build the function.
     def check_target(device, host="stackvm"):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -250,12 +256,12 @@ def test_rfactor_threads():
         # launch the kernel.
         n = nn
         m = mm
-        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), dev)
         fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=1)
+        res = np.sum(a.numpy(), axis=1)
         res[:2] = 0
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target("vulkan")
     check_target("cuda")
@@ -294,18 +300,18 @@ def test_rfactor_elemwise_threads():
 
     # one line to build the function.
     def check_target(device, host="stackvm"):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         fapi = tvm.lower(s, args=[A, C])
         fsum = tvm.build(fapi, target=device, name="mysum")
         # launch the kernel.
-        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), dev)
         fsum(a, b)
-        res = np.sum(a.asnumpy(), axis=1) + 2
-        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
+        res = np.sum(a.numpy(), axis=1) + 2
+        tvm.testing.assert_allclose(b.numpy(), res, rtol=1e-4)
 
     check_target("vulkan")
     check_target("cuda")
@@ -337,7 +343,7 @@ def test_argmax():
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         fapi = tvm.lower(s, args=[idx, val, T0, T1])
         fargmax = tvm.build(fapi, target="llvm", name="argmax")
 
@@ -347,12 +353,12 @@ def test_argmax():
         np_val = np.random.uniform(size=(mm, nn)).astype("float32")
         np_res = np.argmax(np_val, axis=1)
 
-        nd_idx = tvm.nd.array(np_idx, ctx)
-        nd_val = tvm.nd.array(np_val, ctx)
-        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), ctx)
-        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), ctx)
+        nd_idx = tvm.nd.array(np_idx, dev)
+        nd_val = tvm.nd.array(np_val, dev)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), dev)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), dev)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
-        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
+        tvm.testing.assert_allclose(np_res, nd_res0.numpy())
 
     check_target()
 
@@ -393,7 +399,7 @@ def test_rfactor_argmax():
     s[B0].set_store_predicate(thread_x.var.equal(0))
 
     def check_target(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -404,12 +410,12 @@ def test_rfactor_argmax():
         np_val = np.random.uniform(size=(mm, nn)).astype("float32")
         np_res = np.argmax(np_val, axis=1)
 
-        nd_idx = tvm.nd.array(np_idx, ctx)
-        nd_val = tvm.nd.array(np_val, ctx)
-        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), ctx)
-        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), ctx)
+        nd_idx = tvm.nd.array(np_idx, dev)
+        nd_val = tvm.nd.array(np_val, dev)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), dev)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), dev)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
-        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
+        tvm.testing.assert_allclose(np_res, nd_res0.numpy())
 
     check_target("cuda")
     check_target("vulkan")
@@ -425,7 +431,7 @@ def test_warp_reduction1():
     thread_y = te.thread_axis((0, nthy), "threadIdx.y")
 
     def check_target(device, m, n):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -450,11 +456,11 @@ def test_warp_reduction1():
         func = tvm.build(s, [A, B], device, name="warp_reduction")
         a_np = np.random.uniform(size=(m, n)).astype(A.dtype)
         b_np = np.zeros((m,), dtype=A.dtype)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
         b_np = np.max(a_np, axis=1)
         func(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-3, atol=1e-3)
 
     check_target("cuda", m=32, n=256)
     check_target("cuda", m=10, n=20)
@@ -488,7 +494,7 @@ def test_warp_reduction2():
     thread_y = te.thread_axis((0, nthdy), "threadIdx.y")
 
     def check_target(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -502,36 +508,90 @@ def test_warp_reduction2():
         s[T0].bind(xo, block_x)
 
         # validation
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         a0_np = np.random.uniform(size=(m, n)).astype(A0.dtype)
         a1_np = np.random.uniform(size=(m, n)).astype(A1.dtype)
         t0_np = np.zeros((m,), dtype=A0.dtype)
         t1_np = np.zeros((m,), dtype=A1.dtype)
-        a0 = tvm.nd.array(a0_np, ctx)
-        a1 = tvm.nd.array(a1_np, ctx)
-        t0 = tvm.nd.array(t0_np, ctx)
-        t1 = tvm.nd.array(t1_np, ctx)
+        a0 = tvm.nd.array(a0_np, dev)
+        a1 = tvm.nd.array(a1_np, dev)
+        t0 = tvm.nd.array(t0_np, dev)
+        t1 = tvm.nd.array(t1_np, dev)
         func = tvm.build(s, [A0, A1, T0, T1], device, name="reduction")
         func(a0, a1, t0, t1)
         t0_np = np.sum(a0_np, axis=1)
         t1_np = np.product(a1_np, axis=1)
-        tvm.testing.assert_allclose(t0.asnumpy(), t0_np, rtol=1e-3, atol=1e-3)
-        tvm.testing.assert_allclose(t1.asnumpy(), t1_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(t0.numpy(), t0_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(t1.numpy(), t1_np, rtol=1e-3, atol=1e-3)
 
     check_target("cuda")
     check_target("rocm")
 
 
+@tvm.testing.requires_gpu
+def test_reduce_storage_reuse():
+    target = tvm.target.Target("cuda")
+
+    def run_passes(sch, args):
+        mod = schedule_to_module(sch, args)
+        mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
+        return tvm.transform.Sequential(
+            [
+                tvm.tir.transform.StorageFlatten(64),
+                tvm.tir.transform.Simplify(),
+                tvm.tir.transform.StorageRewrite(),
+                tvm.tir.transform.LowerThreadAllreduce(),
+            ]
+        )(mod)
+
+    dev = tvm.device(target.kind.name, 0)
+    shape = (16, 16)
+
+    A = te.placeholder(shape, dtype="float32", name="A")
+    B = topi.nn.softmax(A, axis=1) + 1.0
+
+    with tvm.target.Target(target):
+        s = topi.cuda.schedule_softmax(B)
+
+    mod = run_passes(s, [A, B])
+
+    # Due to the storage rewrite pass, the reduction output storage reduce_temp0 can be reused as
+    # the storage of the next compute.
+
+    # Example:
+    # ...
+    # tir.tvm_thread_allreduce((uint32)1, normal_reduce_temp0[0], 1, reduce_temp0, threadIdx.x)
+    # if ((threadIdx.x < 16)) {
+    #   reduce_temp0[0] = (T_softmax_exp[threadIdx.x]/reduce_temp0[0])
+    # }
+    # ...
+
+    # The LowerThreadAllreduce pass should remap reduce_temp0 on the left hand side of the store
+    # above, as well as the load on the right hand side.
+
+    # Expected output:
+    # ...
+    # red_buf0[0] = tir.tvm_warp_shuffle(mask[0], red_buf0[0], 0, 32, 32)
+    # if ((threadIdx.x < 16)) {
+    #   red_buf0[0] = (T_softmax_exp[threadIdx.x]/red_buf0[0])
+    # }
+    # ...
+
+    def check_store_dst_remapped(op):
+        if isinstance(op, tvm.tir.Store):
+            assert op.buffer_var.name != "reduce_temp0"
+
+    tvm.tir.stmt_functor.post_order_visit(mod["main"].body, check_store_dst_remapped)
+
+    inp = np.random.uniform(size=shape).astype("float32")
+    ref = tvm.topi.testing.softmax_python(inp) + 1.0
+
+    f = tvm.build(s, [A, B], target)
+    a = tvm.nd.array(inp, dev)
+    b = tvm.nd.array(np.zeros(shape, dtype=B.dtype), dev)
+    f(a, b)
+    tvm.testing.assert_allclose(b.numpy(), ref, rtol=1e-5)
+
+
 if __name__ == "__main__":
-    test_rfactor_elemwise_threads()
-    test_rfactor_threads()
-    test_rfactor_factor_axis()
-    test_rfactor()
-    test_reduce_prims()
-    test_argmax()
-    test_rfactor_argmax()
-    test_warp_reduction1()
-    test_warp_reduction2()
-    test_init()
-    test_init_imm()
-    test_rfactor_init()
+    pytest.main([__pfile__])

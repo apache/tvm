@@ -19,7 +19,7 @@
 """
 Template configuration space.
 
-Each template function can be parametrized by a ConfigSpace.
+Each template function can be parameterized by a ConfigSpace.
 The space is declared when we invoke the template function with ConfigSpace.
 During evaluation, we pass in a ConfigEntity, which contains a specific
 entity in the space. This entity contains deterministic parameters.
@@ -63,7 +63,7 @@ class TransformSpace(object):
         Each operator has some tunable parameters (e.g. the split factor).
         Then the tuning process is just to find good parameters of these op.
 
-    So the all the combinations of the parameters of these op forms our search space.
+    So all the combinations of the parameters of these op form our search space.
 
     Naming convention:
     We call the set of all possible values as XXXSpace. (XXX can be Split, Reorder, Config ...)
@@ -797,7 +797,7 @@ class ConfigSpace(object):
 
     def raise_error(self, msg):
         """register error in config
-        Using this to actively detect error when scheudling.
+        Using this to actively detect error when scheduling.
         Otherwise these error will occur during runtime, which
         will cost more time.
 
@@ -824,7 +824,10 @@ class ConfigSpace(object):
 
     def _add_new_transform(self, space_class, name, axes, policy, **kwargs):
         """Add a new transform space in template"""
-        if self._collect:
+        # if we do not have tuned info (_collect == True) but defined KNOB value
+        # for "default" scheduling before call of _add_new_transform, in this case
+        # no need to create new space and override previously pointed KNOB values
+        if self._collect and not (self.is_fallback and name in self._entity_map):
             # convert schedule axis to space definition axis
             axes = [x if isinstance(x, (VirtualAxis, Axis)) else self.axis(x) for x in axes]
 
@@ -848,6 +851,8 @@ class ConfigSpace(object):
         index: int
             index in the space
         """
+        if index < 0 or index >= len(self):
+            raise IndexError("Index out of range: size {}, got index {}".format(len(self), index))
         entities = OrderedDict()
         t = index
         for name, space in self.space_map.items():

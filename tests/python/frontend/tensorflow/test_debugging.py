@@ -28,8 +28,7 @@ from tvm.relay.frontend.tensorflow import from_tensorflow
 
 def run_relay(graph, shape_dict=None, *vars):
     mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True), shape=shape_dict)
-    ex = relay.create_executor("debug", mod=mod)
-    return ex.evaluate()(*vars)
+    return relay.create_executor("debug", mod=mod).evaluate()(*vars)
 
 
 def test_assert_true():
@@ -52,7 +51,7 @@ def test_assert_true():
         # do that, it's happening in Relay, and that optimization shouldn't
         # affect the arity of the main function. We should have to pass in
         # x_value here.
-        np.testing.assert_allclose(0, run_relay(g, {"input": shape}).asnumpy())
+        np.testing.assert_allclose(0, run_relay(g, {"input": shape}).numpy())
 
 
 def test_assert_true_var_capture():
@@ -72,7 +71,7 @@ def test_assert_true_var_capture():
         # TODO: The frontend converter notes the output of
         # the graph as a boolean, which is not correct - as you can see above,
         # TF believes that the value of this graph is None.
-        np.testing.assert_allclose(True, run_relay(g, None, x_value).asnumpy())
+        np.testing.assert_allclose(True, run_relay(g, None, x_value).numpy())
 
 
 def test_assert_false():
@@ -91,7 +90,7 @@ def test_assert_false():
         # though it should probably be none or an empty tuple. For the same
         # reason, there should not be an error here, even though the assertion
         # argument is false.
-        np.testing.assert_allclose(0, run_relay(g).asnumpy())
+        np.testing.assert_allclose(0, run_relay(g).numpy())
 
 
 if __name__ == "__main__":

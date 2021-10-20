@@ -23,6 +23,7 @@
  */
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/topi/einsum.h>
 #include <tvm/topi/transform.h>
 #include <tvm/topi/utils.h>
 
@@ -86,13 +87,16 @@ TVM_REGISTER_GLOBAL("topi.layout_transform").set_body([](TVMArgs args, TVMRetVal
 });
 
 TVM_REGISTER_GLOBAL("topi.take").set_body([](TVMArgs args, TVMRetValue* rv) {
-  if (args.size() == 3) {
-    std::string mode = args[2];
-    *rv = take(args[0], args[1], mode);
-  } else {
-    int axis = args[2];
+  if (args.size() == 4) {
     std::string mode = args[3];
-    *rv = take(args[0], args[1], axis, mode);
+    int batch_dims = args[2];
+    *rv = take(args[0], args[1], batch_dims, mode);
+  } else {
+    ICHECK_EQ(args.size(), 5) << "topi.take expects 4 or 5 arguments";
+    int batch_dims = args[2];
+    int axis = args[3];
+    std::string mode = args[4];
+    *rv = take(args[0], args[1], batch_dims, axis, mode);
   }
 });
 
@@ -165,12 +169,36 @@ TVM_REGISTER_GLOBAL("topi.tensordot").set_body([](TVMArgs args, TVMRetValue* rv)
   }
 });
 
+TVM_REGISTER_GLOBAL("topi.einsum").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = einsum(args[0], args[1]);
+});
+
 TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = strided_slice(args[0], args[1], args[2], args[3], args[4]);
+  Tensor x = args[0];
+  Array<PrimExpr> begin = args[1];
+  Array<PrimExpr> end = args[2];
+  Array<PrimExpr> strides = args[3];
+  if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides)) {
+    Array<Integer> begin_static = args[1];
+    Array<Integer> end_static = args[2];
+    Array<Integer> strides_static = args[3];
+    Array<Integer> axes = args[4];
+    std::string slice_mode = args[5];
+    if (axes.size() > 0) {
+      *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes, slice_mode);
+    } else {
+      *rv = strided_slice(x, begin_static, end_static, strides_static, slice_mode);
+    }
+  } else {
+    *rv = dynamic_strided_slice(x, begin, end, strides);
+  }
 });
 
 TVM_REGISTER_GLOBAL("topi.dynamic_strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = dynamic_strided_slice(args[0], args[1], args[2], args[3]);
+  te::Tensor begin = args[1];
+  te::Tensor end = args[2];
+  te::Tensor strides = args[3];
+  *rv = dynamic_strided_slice(args[0], begin, end, strides);
 });
 
 TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {

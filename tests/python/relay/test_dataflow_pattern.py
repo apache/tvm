@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=unused-wildcard-import
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
@@ -60,6 +61,19 @@ def test_CallPattern():
     assert isinstance(c, CallPattern)
     assert isinstance(c.args[0], WildcardPattern)
     assert isinstance(c.args[1], WildcardPattern)
+
+
+def test_FunctionPattern():
+    wc1 = wildcard()
+    wc2 = wildcard()
+    c = is_op("add")(wc1, wc2)
+    f = FunctionPattern([wc1, wc2], c)
+    assert isinstance(f, FunctionPattern)
+    assert isinstance(f.params[0], WildcardPattern)
+    assert isinstance(f.params[1], WildcardPattern)
+    assert isinstance(f.body, CallPattern)
+    assert isinstance(f.body.args[0], WildcardPattern)
+    assert isinstance(f.body.args[1], WildcardPattern)
 
 
 def test_TuplePattern():
@@ -114,6 +128,29 @@ def test_AttrPattern():
     assert op.attrs["TOpPattern"] == K_ELEMWISE
 
 
+def test_IfPattern():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    assert isinstance(pat, IfPattern)
+    assert isinstance(pat.cond, CallPattern)
+    assert isinstance(pat.true_branch, VarPattern)
+    assert isinstance(pat.false_branch, VarPattern)
+
+
+def test_LetPattern():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    assert isinstance(pat, LetPattern)
+    assert isinstance(pat.var, VarPattern)
+    assert isinstance(pat.value, CallPattern)
+    assert isinstance(pat.body, VarPattern)
+
+
 ## MATCHER TESTS
 
 
@@ -159,12 +196,91 @@ def test_match_call():
     add_pattern = is_op("add")(wildcard(), wildcard())
     assert add_pattern.match(x + y)
 
+    # Match call with any number of inputs
+    call_pattern = wildcard()(None)
+    assert call_pattern.match(relay.op.nn.relu(x))
+    assert call_pattern.match(relay.op.add(x, y))
+
 
 def test_no_match_call():
     x = relay.var("x")
     y = relay.var("y")
     add_pattern = is_op("add")(wildcard(), wildcard())
     assert not add_pattern.match(x - y)
+
+
+def test_match_func():
+    x = relay.var("x")
+    y = relay.var("y")
+    wc1 = wildcard()
+    wc2 = wildcard()
+    func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
+    assert func_pattern.match(relay.Function([x, y], x + y))
+
+    # Match Function with any number of inputs
+    func_pattern = FunctionPattern(None, wildcard())
+    assert func_pattern.match(relay.Function([x], x))
+    assert func_pattern.match(relay.Function([x, y], x + y))
+
+
+def test_no_match_func():
+    x = relay.var("x")
+    y = relay.var("y")
+    wc1 = wildcard()
+    wc2 = wildcard()
+    func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
+    assert not func_pattern.match(relay.Function([x, y], x - y))
+
+
+def test_match_if():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    cond = x < y
+
+    assert pat.match(relay.expr.If(cond, x, y))
+
+
+def test_no_match_if():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    x = relay.var("x")
+    y = relay.var("y")
+
+    assert not pat.match(relay.expr.If(x > y, x, y))
+    assert not pat.match(relay.expr.If(x < y, y, x))
+
+
+def test_match_let():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    lv = relay.var("let")
+    cond = x < y
+    assert pat.match(relay.expr.Let(lv, cond, lv))
+
+
+def test_no_match_let():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    lv = relay.var("let")
+
+    assert not pat.match(relay.expr.Let(lv, x > y, lv))
+    assert not pat.match(relay.expr.Let(lv, x < y, lv * x))
 
 
 def test_match_option():
@@ -263,6 +379,13 @@ def test_match_tuple():
     assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 1))
     assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 2))
 
+    # Match tuple with any inputs
+    tuple_pattern = is_tuple(None)
+    concat_pattern = is_op("concatenate")(tuple_pattern)
+    assert concat_pattern.match(relay.op.concatenate(relay.expr.Tuple((x,)), axis=0))
+    assert concat_pattern.match(relay.op.concatenate(relay.expr.Tuple((x, y)), axis=0))
+    assert concat_pattern.match(relay.op.concatenate(relay.expr.Tuple((x, y, z)), axis=0))
+
 
 def test_no_match_tuple():
     x = relay.var("x")
@@ -331,6 +454,8 @@ def test_no_match_op_attr():
     x = relay.var("x")
     y = relay.var("y")
     assert not op_pat.match(x - y)
+    z = relay.var("z")
+    assert not op_pat.match(relay.Let(z, x + y, z))
 
 
 def test_match_func_attr():
@@ -353,10 +478,30 @@ def test_no_match_func_attr():
 
 
 def test_match_call_attr():
+    # String attr
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"data_layout": "NCHW"})
     x = relay.var("x")
     y = relay.var("y")
     assert is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    # Array attr
+    is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"kernel_size": [3, 3]})
+    out = relay.op.nn.conv2d(x, y, kernel_size=[3, 3])
+    assert is_conv2d.match(out)
+
+    # non-operator call
+    attr_dict = {"call_attr": "attr"}
+    call_has_attr = wildcard()(wildcard()).has_attr(attr_dict)
+    call_attr = tvm.ir.make_node("DictAttrs", **attr_dict)
+    a = relay.Var("a")
+    b = relay.Var("b")
+    assert call_has_attr.match(relay.Call(a, [b], attrs=call_attr))
+
+    # empty attrs should match anything
+    empty_attrs = tvm.ir.make_node("DictAttrs", **{})
+    call_has_empty_attrs = wildcard()(wildcard()).has_attr({})
+    assert call_has_empty_attrs.match(relay.Call(a, [b], attrs=empty_attrs))
+    assert call_has_empty_attrs.match(relay.Call(a, [b], attrs=call_attr))
 
 
 def test_no_match_call_attr():
@@ -368,6 +513,32 @@ def test_no_match_call_attr():
 
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"RandomAttr": "NCHW"})
     assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    # Array attr
+    is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"kernel_size": [3, 3]})
+    out = relay.op.nn.conv2d(x, y, kernel_size=[2, 1])
+    assert not is_conv2d.match(out)
+
+    # non-operator calls
+    call_has_attr = wildcard()(wildcard()).has_attr({"call_attr": "attr"})
+    wrong_key = tvm.ir.make_node("DictAttrs", **{"wrong": "attr"})
+    wrong_value = tvm.ir.make_node("DictAttrs", **{"call_attr": "wrong"})
+    empty_attrs = tvm.ir.make_node("DictAttrs", **{})
+
+    a = relay.Var("a")
+    b = relay.Var("b")
+    # attrs left undefined
+    assert not call_has_attr.match(relay.Call(a, [b]))
+    # wrong attrs
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=wrong_key))
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=wrong_value))
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=empty_attrs))
+
+
+def test_match_call_attr_dtype():
+    is_cast = is_op("cast")(wildcard()).has_attr({"dtype": "float32"})
+    x = relay.var("x")
+    assert is_cast.match(relay.op.cast(x, "float32"))
 
 
 def test_match_diamond():
@@ -645,6 +816,29 @@ def test_rewrite_func():
     assert sub_pattern.match(out)
 
 
+def test_rewrite_func_with_attr():
+    x = relay.var("x")
+    y = relay.var("y")
+    f = relay.Function([x, y], x + y).with_attr("Composite", "add")
+
+    a = relay.var("a")
+    b = relay.var("b")
+    c = relay.Call(f, [a, b])
+    c_abs = relay.abs(c)
+
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            super(TestRewrite, self).__init__()
+            self.pattern = wildcard().has_attr({"Composite": "add"})(wildcard(), wildcard())
+
+        def callback(self, pre, post, node_map):
+            return post.args[0] + post.args[1]
+
+    out = rewrite(TestRewrite(), c_abs)
+    inlined_add_pattern = is_op("abs")(is_op("add")(wildcard(), wildcard()))
+    assert inlined_add_pattern.match(out)
+
+
 def test_nested_rewrite():
     class PatternCallback(DFPatternCallback):
         def __init__(self, pattern):
@@ -716,9 +910,7 @@ class BatchnormCallback(DFPatternCallback):
         beta = node_map[self.beta][0]
         gamma = node_map[self.gamma][0]
         eps = node_map[self.eps][0]
-        return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=eps.data.asnumpy().item())[
-            0
-        ]
+        return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=eps.data.numpy().item())[0]
 
 
 def test_fuse_batchnorm():
@@ -1209,6 +1401,63 @@ def test_partition_overused():
     assert pattern.partition(out) == out
 
 
+def test_partition_fuzzy_tuple():
+    x = relay.var("x")
+    y = relay.var("y")
+    z = x + y
+    tuple_pattern = is_tuple(None)
+    concat_pattern = is_op("concatenate")(tuple_pattern)
+
+    xp = relay.var("xp")
+    yp = relay.var("yp")
+    zp = relay.var("zp")
+
+    def create_func(args, body):
+        return relay.Function(args, body).with_attr("PartitionedFromPattern", "Tuple_concatenate_")
+
+    def concat(*args):
+        return relay.op.concatenate(relay.expr.Tuple(args), axis=0)
+
+    one = concat_pattern.partition(concat(x))
+    assert tvm.ir.structural_equal(one, create_func([xp], concat(xp))(x))
+    two = concat_pattern.partition(concat(x, y))
+    assert tvm.ir.structural_equal(two, create_func([xp, yp], concat(xp, yp))(x, y))
+    three = concat_pattern.partition(concat(x, y, z))
+    assert tvm.ir.structural_equal(three, create_func([xp, yp, zp], concat(xp, yp, zp))(x, y, z))
+
+
+def test_partition_fuzzy_function_args():
+
+    func_pattern = FunctionPattern(None, wildcard() + wildcard())(None) + wildcard()
+    x = relay.var("x")
+    y = relay.var("y")
+    z = relay.var("z")
+    b = relay.var("b")
+    xp = relay.var("xp")
+    yp = relay.var("yp")
+    zp = relay.var("zp")
+
+    def create_func(call):
+        N = len(call.op.params)
+        new_params = [relay.var(str(i)) for i in range(N + 1)]
+        label = "add_FunctionCall_add_"
+        if N == 3:
+            label = "add_" + label
+        return relay.Function(
+            new_params, relay.Call(call.op, (new_params[0:-1])) + new_params[-1]
+        ).with_attr("PartitionedFromPattern", label)(*([x, y, z][0:N] + [b]))
+
+    f1 = relay.Function([xp], xp + xp)(x)
+    one = func_pattern.partition(f1 + b)
+    assert tvm.ir.structural_equal(one, create_func(f1))
+    f2 = relay.Function([xp, yp], xp + yp)(x, y)
+    two = func_pattern.partition(f2 + b)
+    assert tvm.ir.structural_equal(two, create_func(f2))
+    f3 = relay.Function([xp, yp, zp], xp + yp + zp)(x, y, z)
+    three = func_pattern.partition(f3 + b)
+    assert tvm.ir.structural_equal(three, create_func(f3))
+
+
 def test_partition_check():
     pattern = is_op("nn.relu")(is_op("nn.conv2d")(is_var("input"), wildcard()))
 
@@ -1300,6 +1549,102 @@ def test_partition_option():
     assert tvm.ir.structural_equal(func(x, w, b), pattern2.partition(relu))
 
 
+def test_partition_function():
+    x = relay.var("x")
+    w = relay.var("w")
+    b = relay.var("b")
+
+    x1 = relay.var("x1")
+    w1 = relay.var("w1")
+
+    wc_x = wildcard()
+    wc_w = wildcard()
+    wc_b = wildcard()
+    wc_x1 = wildcard()
+    wc_w1 = wildcard()
+
+    func_pattern = FunctionPattern([wc_x1, wc_w1], is_op("nn.conv2d")(wc_x1, wc_w1))
+    pattern = func_pattern(wc_x, wc_w) + wc_b
+
+    func = relay.Function([x1, w1], relay.nn.conv2d(x1, w1))
+    expr = func(x, w) + b + b
+
+    x2 = relay.var("x2")
+    w2 = relay.var("w2")
+    b2 = relay.var("b2")
+    func2 = relay.Function([x2, w2, b2], func(x2, w2) + b2).with_attr(
+        "PartitionedFromPattern", "nn.conv2d_FunctionCall_add_"
+    )
+    expr2 = func2(x, w, b) + b
+    assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
+
+
+def test_rewrite_function_with_fuzzy_body():
+    """Allow Rewriting a function with a fuzzy body via dominator analysis"""
+    x = relay.var("x")
+    w = relay.var("w")
+    b = relay.var("b")
+
+    x1 = relay.var("x1")
+    w1 = relay.var("w1")
+
+    wc_x = wildcard()
+    wc_w = wildcard()
+    wc_b = wildcard()
+    wc_x1 = wildcard()
+    wc_w1 = wildcard()
+
+    func_pattern = FunctionPattern([wc_x1, wc_w1], wildcard())
+    pattern = func_pattern(wc_x, wc_w) + wc_b
+
+    func = relay.Function([x1, w1], relay.nn.conv2d(x1, w1))
+    expr = func(x, w) + b + b
+
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            super(TestRewrite, self).__init__()
+            self.pattern = pattern
+
+        def callback(self, pre, post, node_map):
+            return x + w
+
+    out = rewrite(TestRewrite(), expr)
+    assert tvm.ir.structural_equal(out, x + w + b)
+
+
+def test_partition_function_with_fuzzy_body():
+    """
+    Allow Rewriting a function with a fuzzy body via dominator analysis
+    """
+    x = relay.var("x")
+    w = relay.var("w")
+    b = relay.var("b")
+
+    x1 = relay.var("x1")
+    w1 = relay.var("w1")
+
+    wc_x = wildcard()
+    wc_w = wildcard()
+    wc_b = wildcard()
+    wc_x1 = wildcard()
+    wc_w1 = wildcard()
+
+    func_pattern = FunctionPattern([wc_x1, wc_w1], wildcard())
+    pattern = func_pattern(wc_x, wc_w) + wc_b
+
+    func = relay.Function([x1, w1], relay.nn.conv2d(x1, w1))
+    expr = func(x, w) + b + b
+
+    x2 = relay.var("x2")
+    w2 = relay.var("w2")
+    b2 = relay.var("b2")
+    func2 = relay.Function([x2, w2, b2], func(x2, w2) + b2).with_attr(
+        "PartitionedFromPattern", "nn.conv2d_FunctionCall_add_"
+    )
+    expr2 = func2(x, w, b) + b
+    assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
+
+
 def test_match_match():
     add_pattern = is_op("add")(wildcard(), wildcard())
 
@@ -1382,66 +1727,37 @@ def test_partition_constant_embedding():
     assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
 
+def test_rewrite_once():
+    # This class recursively removes the arguments to concat until there is nothing left to concatenate.
+    class ConcatRewriter(DFPatternCallback):
+        def __init__(self, rewrite_once):
+            super().__init__(rewrite_once=rewrite_once)
+            self.pattern = is_op("concatenate")(None)
+
+        def callback(self, pre, post, node_map):
+            concat_args = post.args[0]
+            # Remove the last argument
+            new_args = [concat_args[i] for i in range(len(concat_args) - 1)]
+            if new_args:
+                return relay.op.concatenate(relay.expr.Tuple(new_args), axis=0)
+            else:
+                return concat_args
+
+    x = relay.var("x")
+    y = relay.var("y")
+    z = relay.var("z")
+    concat = relay.op.concatenate(relay.expr.Tuple([x, y, z]), axis=0)
+
+    # Let the rewriter run recursively
+    out = rewrite(ConcatRewriter(False), concat)
+    expected = relay.expr.Tuple([x])
+    assert tvm.ir.structural_equal(out, expected)
+
+    # Run the rewriter once
+    out = rewrite(ConcatRewriter(True), concat)
+    expected = relay.op.concatenate(relay.expr.Tuple([x, y]), axis=0)
+    assert tvm.ir.structural_equal(out, expected)
+
+
 if __name__ == "__main__":
-    test_expr_pattern()
-    test_var_pattern()
-    test_constant_pattern()
-    test_wildcard_pattern()
-    test_CallPattern()
-    test_TuplePattern()
-    test_TupleGetItemPattern()
-    test_AltPattern()
-    test_TypePattern()
-    test_DataTypePattern()
-    test_ShapePattern()
-    test_AttrPattern()
-    test_match_op()
-    test_no_match_op()
-    test_match_op_or()
-    test_match_call_commutive()
-    test_no_match_call_commutive()
-    test_match_call()
-    test_no_match_call()
-    test_match_option()
-    test_no_match_option()
-    test_match_const()
-    test_match_tuple()
-    test_no_match_tuple()
-    test_match_type()
-    test_no_match_type()
-    test_match_dtype()
-    test_no_match_dtype()
-    test_match_shape()
-    test_no_match_shape()
-    test_match_op_attr()
-    test_no_match_op_attr()
-    test_match_func_attr()
-    test_no_match_func_attr()
-    test_match_call_attr()
-    test_no_match_call_attr()
-    test_match_diamond()
-    test_no_match_diamond()
-    test_match_fake_diamond()
-    test_match_dominator()
-    test_not_match_dominator()
-    test_rewrite()
-    test_rewrite_func()
-    test_nested_rewrite()
-    test_not_fuse_multi_diamond()
-    test_fuse_batchnorm()
-    test_no_fuse_batchnorm()
-    test_fuse_double_batchnorm()
-    test_partial_fuse_double_batchnorm()
-    test_fuse_batchnorm_commutation()
-    test_quadruple_rewrite_dominator()
-    test_algebraic_simplify()
-    test_double_partition()
-    test_partition_dominator()
-    test_quadruple_partition_dominator()
-    test_partition_batchnorm()
-    test_partition_double_batchnorm()
-    test_partition_check()
-    test_partition_check_types()
-    test_partition_option()
-    test_match_match()
-    test_partition_constant_embedding()
+    pytest.main([__file__])

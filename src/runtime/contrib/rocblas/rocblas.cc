@@ -22,9 +22,10 @@
  */
 #include "rocblas.h"
 
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 namespace tvm {
 namespace contrib {
@@ -48,6 +49,21 @@ using namespace runtime;
   }
 #endif
 
+struct RocBlasThreadEntry {
+  RocBlasThreadEntry() { CHECK_ROCBLAS_ERROR(rocblas_create_handle(&handle)); }
+
+  ~RocBlasThreadEntry() {
+    if (handle) {
+      CHECK_ROCBLAS_ERROR(rocblas_destroy_handle(handle));
+      handle = nullptr;
+    }
+  }
+
+  rocblas_handle handle;
+};  // RocBlasThreadEntry
+
+typedef dmlc::ThreadLocalStore<RocBlasThreadEntry> RocBlasThreadStore;
+
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
@@ -66,8 +82,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul").set_body([](TVMArgs args, TVMR
   ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
   ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
-  rocblas_handle handle;
-  CHECK_ROCBLAS_ERROR(rocblas_create_handle(&handle));
   float alpha = 1.0;
   float beta = 0.0;
   float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
@@ -83,10 +97,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul").set_body([](TVMArgs args, TVMR
   size_t ldb = transb ? K : N;
   size_t ldc = N;
 
-  CHECK_ROCBLAS_ERROR(rocblas_sgemm(handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr, ldb,
-                                    A_ptr, lda, &beta, C_ptr, ldc));
-
-  CHECK_ROCBLAS_ERROR(rocblas_destroy_handle(handle));
+  CHECK_ROCBLAS_ERROR(rocblas_sgemm(RocBlasThreadStore::Get()->handle, roc_trans_B, roc_trans_A, N,
+                                    M, K, &alpha, B_ptr, ldb, A_ptr, lda, &beta, C_ptr, ldc));
 });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
@@ -104,8 +116,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
       ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
       ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
-      rocblas_handle handle;
-      CHECK_ROCBLAS_ERROR(rocblas_create_handle(&handle));
       float alpha = 1.0;
       float beta = 0.0;
       float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
@@ -123,8 +133,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
       size_t ldc = N;
 
       CHECK_ROCBLAS_ERROR(rocblas_sgemm_strided_batched(
-          handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr, ldb, K * N, A_ptr, lda, M * K,
-          &beta, C_ptr, ldc, M * N, batch_size));
+          RocBlasThreadStore::Get()->handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr, ldb,
+          K * N, A_ptr, lda, M * K, &beta, C_ptr, ldc, M * N, batch_size));
     });
 }  // namespace contrib
 }  // namespace tvm

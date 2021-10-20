@@ -47,16 +47,16 @@ macro_rules! impl_pod_tvm_value {
 impl_pod_tvm_value!(v_int64, i64, i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
 impl_pod_tvm_value!(v_float64, f64, f32, f64);
 impl_pod_tvm_value!(v_type, DLDataType);
-impl_pod_tvm_value!(v_ctx, TVMContext);
+impl_pod_tvm_value!(v_device, DLDevice);
 
 #[derive(Debug, Error)]
 #[error("unsupported device: {0}")]
 pub struct UnsupportedDeviceError(String);
 
-macro_rules! impl_tvm_context {
+macro_rules! impl_tvm_device {
     ( $( $dev_type:ident : [ $( $dev_name:ident ),+ ] ),+ ) => {
-        /// Creates a TVMContext from a string (e.g., "cpu", "gpu", "ext_dev")
-        impl FromStr for TVMContext {
+        /// Creates a DLDevice from a string (e.g., "cpu", "cuda", "ext_dev")
+        impl FromStr for DLDevice {
             type Err = UnsupportedDeviceError;
             fn from_str(type_str: &str) -> Result<Self, Self::Err> {
                 Ok(Self {
@@ -69,7 +69,7 @@ macro_rules! impl_tvm_context {
             }
         }
 
-        impl TVMContext {
+        impl DLDevice {
             $(
                 $(
                     pub fn $dev_name(device_id: usize) -> Self {
@@ -84,9 +84,9 @@ macro_rules! impl_tvm_context {
     };
 }
 
-impl_tvm_context!(
+impl_tvm_device!(
     DLDeviceType_kDLCPU: [cpu, llvm, stackvm],
-    DLDeviceType_kDLGPU: [gpu, cuda, nvptx],
+    DLDeviceType_kDLCUDA: [cuda, nvptx],
     DLDeviceType_kDLOpenCL: [cl],
     DLDeviceType_kDLMetal: [metal],
     DLDeviceType_kDLVPI: [vpi],

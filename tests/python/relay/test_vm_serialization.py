@@ -43,31 +43,30 @@ def create_exec(f, target="llvm", params=None):
         return executable
 
 
-def get_serialized_output(mod, *data, params=None, target="llvm", ctx=tvm.cpu()):
+def get_serialized_output(mod, *data, params=None, target="llvm", device=tvm.cpu()):
     exe = create_exec(mod, target, params=params)
     code, lib = exe.save()
     des_exec = _vm.Executable.load_exec(code, lib)
-    des_vm = _vm.VirtualMachine(des_exec, ctx)
+    des_vm = _vm.VirtualMachine(des_exec, device)
     result = des_vm.run(*data)
     return result
 
 
 def run_network(mod, params, dtype="float32"):
-    def get_vm_output(mod, data, params, target, ctx, dtype="float32"):
-        ex = relay.create_executor("vm", mod=mod, ctx=ctx)
-        result = ex.evaluate()(data, **params)
-        return result.asnumpy().astype(dtype)
+    def get_vm_output(mod, data, params, target, device, dtype="float32"):
+        result = relay.create_executor("vm", mod=mod, device=device).evaluate()(data, **params)
+        return result.numpy().astype(dtype)
 
     data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
     data = np.random.uniform(size=data_shape).astype(dtype)
     target = "llvm"
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
 
-    tvm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params, target, ctx, dtype)
+    tvm_out = get_vm_output(mod, tvm.nd.array(data.astype(dtype)), params, target, dev, dtype)
     vm_out = get_serialized_output(
-        mod, tvm.nd.array(data.astype(dtype)), params=params, target=target, ctx=ctx
+        mod, tvm.nd.array(data.astype(dtype)), params=params, target=target, device=dev
     )
-    tvm.testing.assert_allclose(vm_out.asnumpy().astype(dtype), tvm_out, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(vm_out.numpy().astype(dtype), tvm_out, rtol=1e-5, atol=1e-5)
 
 
 def test_serializer():
@@ -143,7 +142,7 @@ def test_save_load():
     des_vm = _vm.VirtualMachine(des_exec, tvm.cpu())
 
     res = des_vm.run(x_data)
-    tvm.testing.assert_allclose(res.asnumpy(), x_data + x_data)
+    tvm.testing.assert_allclose(res.numpy(), x_data + x_data)
 
 
 def test_const():
@@ -152,7 +151,7 @@ def test_const():
     f = relay.Function([x], x + c)
     x_data = np.random.rand(10, 10).astype("float32")
     res = get_serialized_output(f, x_data)
-    tvm.testing.assert_allclose(res.asnumpy(), x_data + 1)
+    tvm.testing.assert_allclose(res.numpy(), x_data + 1)
 
 
 def test_if():
@@ -166,11 +165,11 @@ def test_if():
 
     # same
     res = get_serialized_output(f, x_data, x_data)
-    tvm.testing.assert_allclose(res.asnumpy(), x_data)
+    tvm.testing.assert_allclose(res.numpy(), x_data)
 
     # diff
     res = get_serialized_output(f, x_data, y_data)
-    tvm.testing.assert_allclose(res.asnumpy(), y_data)
+    tvm.testing.assert_allclose(res.numpy(), y_data)
 
 
 def test_loop():
@@ -196,7 +195,7 @@ def test_loop():
     mod["main"] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
 
     result = get_serialized_output(mod, i_data, accum_data)
-    tvm.testing.assert_allclose(result.asnumpy(), sum(range(1, loop_bound + 1)))
+    tvm.testing.assert_allclose(result.numpy(), sum(range(1, loop_bound + 1)))
 
 
 def test_tuple():
@@ -207,7 +206,7 @@ def test_tuple():
     j_data = np.random.rand(10).astype("float32")
 
     result = get_serialized_output(f, (i_data, j_data))
-    tvm.testing.assert_allclose(result.asnumpy(), j_data)
+    tvm.testing.assert_allclose(result.numpy(), j_data)
 
 
 def test_adt_list():
@@ -226,9 +225,9 @@ def test_adt_list():
     assert len(result[1]) == 2
     assert len(result[1][1]) == 2
     res = []
-    res.append(result[0].asnumpy().tolist())
-    res.append(result[1][0].asnumpy().tolist())
-    res.append(result[1][1][0].asnumpy().tolist())
+    res.append(result[0].numpy().tolist())
+    res.append(result[1][0].numpy().tolist())
+    res.append(result[1][1][0].numpy().tolist())
     tvm.testing.assert_allclose(res, np.array([3, 2, 1]))
 
 
@@ -263,7 +262,7 @@ def test_adt_compose():
 
     x_data = np.array(np.random.rand()).astype("float32")
     result = get_serialized_output(mod, x_data)
-    tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
+    tvm.testing.assert_allclose(result.numpy(), x_data + 2.0)
 
 
 def test_closure():
@@ -275,7 +274,7 @@ def test_closure():
     main = clo(relay.const(2.0))
 
     res = get_serialized_output(main)
-    tvm.testing.assert_allclose(res.asnumpy(), 3.0)
+    tvm.testing.assert_allclose(res.numpy(), 3.0)
 
 
 def test_synthetic():
@@ -298,7 +297,7 @@ def test_vm_shape_of():
     args.append(np.array((1, -1), dtype="int64"))
     main = relay.Function([x, newshape_var], relay.reshape(relu_x, newshape=newshape_var))
 
-    res = get_serialized_output(main, *args).asnumpy()
+    res = get_serialized_output(main, *args).numpy()
     tvm.testing.assert_allclose(res.flatten(), data.flatten())
 
 
@@ -311,9 +310,9 @@ def test_dynamic_bcast():
     x_data = np.random.uniform(size=(1, 2)).astype(dtype)
     y_data = np.random.uniform(size=(3, 2)).astype(dtype)
     res_np = np.add(x_data, y_data)
-    for target, ctx in testing.enabled_targets():
-        res = get_serialized_output(mod, *(x_data, y_data), target=target, ctx=ctx)
-        tvm.testing.assert_allclose(res.asnumpy(), res_np)
+    for target, dev in testing.enabled_targets():
+        res = get_serialized_output(mod, *(x_data, y_data), target=target, device=dev)
+        tvm.testing.assert_allclose(res.numpy(), res_np)
 
 
 if __name__ == "__main__":

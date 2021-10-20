@@ -23,7 +23,6 @@
 #ifndef TVM_NODE_STRUCTURAL_HASH_H_
 #define TVM_NODE_STRUCTURAL_HASH_H_
 
-#include <tvm/node/container.h>
 #include <tvm/node/functor.h>
 #include <tvm/runtime/data_type.h>
 

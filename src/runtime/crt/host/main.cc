@@ -22,10 +22,11 @@
  * \brief main entry point for host subprocess-based CRT
  */
 #include <inttypes.h>
+#include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
-#include <tvm/runtime/crt/memory.h>
-#include <tvm/runtime/crt/utvm_rpc_server.h>
+#include <tvm/runtime/crt/microtvm_rpc_server.h>
+#include <tvm/runtime/crt/page_allocator.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -33,15 +34,15 @@
 
 #include "crt_config.h"
 
-#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
-#include <tvm/runtime/crt/graph_runtime_module.h>
+#ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
+#include <tvm/runtime/crt/graph_executor_module.h>
 #endif
 
 using namespace std::chrono;
 
 extern "C" {
 
-ssize_t UTvmWriteFunc(void* context, const uint8_t* data, size_t num_bytes) {
+ssize_t MicroTVMWriteFunc(void* context, const uint8_t* data, size_t num_bytes) {
   ssize_t to_return = write(STDOUT_FILENO, data, num_bytes);
   fflush(stdout);
   fsync(STDOUT_FILENO);
@@ -60,69 +61,89 @@ void TVMPlatformAbort(tvm_crt_error_t error_code) {
 
 MemoryManagerInterface* memory_manager;
 
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
-  return memory_manager->Allocate(memory_manager, num_bytes, ctx, out_ptr);
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+  return memory_manager->Allocate(memory_manager, num_bytes, dev, out_ptr);
 }
 
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
-  return memory_manager->Free(memory_manager, ptr, ctx);
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+  return memory_manager->Free(memory_manager, ptr, dev);
 }
 
-high_resolution_clock::time_point g_utvm_start_time;
-int g_utvm_timer_running = 0;
+steady_clock::time_point g_microtvm_start_time;
+int g_microtvm_timer_running = 0;
 
-int TVMPlatformTimerStart() {
-  if (g_utvm_timer_running) {
+tvm_crt_error_t TVMPlatformTimerStart() {
+  if (g_microtvm_timer_running) {
     std::cerr << "timer already running" << std::endl;
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
-  g_utvm_start_time = high_resolution_clock::now();
-  g_utvm_timer_running = 1;
-  return 0;
+  g_microtvm_start_time = std::chrono::steady_clock::now();
+  g_microtvm_timer_running = 1;
+  return kTvmErrorNoError;
 }
 
-int TVMPlatformTimerStop(double* res_us) {
-  if (!g_utvm_timer_running) {
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+  if (!g_microtvm_timer_running) {
     std::cerr << "timer not running" << std::endl;
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
-  auto utvm_stop_time = high_resolution_clock::now();
-  duration<double, std::micro> time_span(utvm_stop_time - g_utvm_start_time);
-  *res_us = time_span.count();
-  g_utvm_timer_running = 0;
-  return 0;
+  auto microtvm_stop_time = std::chrono::steady_clock::now();
+  std::chrono::microseconds time_span = std::chrono::duration_cast<std::chrono::microseconds>(
+      microtvm_stop_time - g_microtvm_start_time);
+  *elapsed_time_seconds = static_cast<double>(time_span.count()) / 1e6;
+  g_microtvm_timer_running = 0;
+  return kTvmErrorNoError;
+}
+
+static_assert(RAND_MAX >= (1 << 8), "RAND_MAX is smaller than acceptable");
+unsigned int random_seed = 0;
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  if (random_seed == 0) {
+    random_seed = (unsigned int)time(NULL);
+  }
+  for (size_t i = 0; i < num_bytes; ++i) {
+    int random = rand_r(&random_seed);
+    buffer[i] = (uint8_t)random;
+  }
+
+  return kTvmErrorNoError;
 }
 }
 
-uint8_t memory[512 * 1024];
+uint8_t memory[2048 * 1024];
 
 static char** g_argv = NULL;
 
 int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValue* out_ret_value,
                           int* out_ret_tcode, void* resource_handle) {
   execvp(g_argv[0], g_argv);
-  perror("utvm runtime: error restarting");
+  perror("microTVM runtime: error restarting");
   return -1;
 }
 
 int main(int argc, char** argv) {
   g_argv = argv;
-  int status = MemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
+  int status =
+      PageMemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
   if (status != 0) {
     fprintf(stderr, "error initiailizing memory manager\n");
     return 2;
   }
 
-  utvm_rpc_server_t rpc_server = UTvmRpcServerInit(&UTvmWriteFunc, nullptr);
+  microtvm_rpc_server_t rpc_server = MicroTVMRpcServerInit(&MicroTVMWriteFunc, nullptr);
 
-#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
-  CHECK_EQ(TVMGraphRuntimeModule_Register(), kTvmErrorNoError,
-           "failed to register GraphRuntime TVMModule");
+#ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
+  CHECK_EQ(TVMGraphExecutorModule_Register(), kTvmErrorNoError,
+           "failed to register GraphExecutor TVMModule");
 #endif
 
-  if (TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server,
-                            0)) {
-    fprintf(stderr, "utvm runtime: internal error registering global packedfunc; exiting\n");
+  int error = TVMFuncRegisterGlobal("tvm.testing.reset_server",
+                                    (TVMFunctionHandle)&testonly_reset_server, 0);
+  if (error) {
+    fprintf(
+        stderr,
+        "microTVM runtime: internal error (error#: %x) registering global packedfunc; exiting\n",
+        error);
     return 2;
   }
 
@@ -133,21 +154,21 @@ int main(int argc, char** argv) {
     uint8_t c;
     int ret_code = read(STDIN_FILENO, &c, 1);
     if (ret_code < 0) {
-      perror("utvm runtime: read failed");
+      perror("microTVM runtime: read failed");
       return 2;
     } else if (ret_code == 0) {
-      fprintf(stderr, "utvm runtime: 0-length read, exiting!\n");
+      fprintf(stderr, "microTVM runtime: 0-length read, exiting!\n");
       return 2;
     }
     uint8_t* cursor = &c;
     size_t bytes_to_process = 1;
     while (bytes_to_process > 0) {
-      tvm_crt_error_t err = UTvmRpcServerLoop(rpc_server, &cursor, &bytes_to_process);
+      tvm_crt_error_t err = MicroTVMRpcServerLoop(rpc_server, &cursor, &bytes_to_process);
       if (err == kTvmErrorPlatformShutdown) {
         break;
       } else if (err != kTvmErrorNoError) {
         char buf[1024];
-        snprintf(buf, sizeof(buf), "utvm runtime: UTvmRpcServerLoop error: %08x", err);
+        snprintf(buf, sizeof(buf), "microTVM runtime: MicroTVMRpcServerLoop error: %08x", err);
         perror(buf);
         return 2;
       }

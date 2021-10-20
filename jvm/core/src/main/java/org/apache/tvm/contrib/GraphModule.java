@@ -19,10 +19,10 @@
 
 package org.apache.tvm.contrib;
 
+import org.apache.tvm.Device;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 import org.apache.tvm.NDArray;
-import org.apache.tvm.TVMContext;
 
 /**
  * Wrapper runtime module.
@@ -32,7 +32,7 @@ import org.apache.tvm.TVMContext;
  */
 public class GraphModule {
   private Module module;
-  private TVMContext ctx;
+  private Device device;
 
   private Function fsetInput;
   private Function frun;
@@ -41,9 +41,9 @@ public class GraphModule {
   private Function fdebugGetOutput;
   private Function floadParams;
 
-  GraphModule(Module module, TVMContext ctx) {
+  GraphModule(Module module, Device dev) {
     this.module = module;
-    this.ctx = ctx;
+    this.device = dev;
     fsetInput = module.getFunction("set_input");
     frun = module.getFunction("run");
     fgetInput = module.getFunction("get_input");
@@ -82,8 +82,8 @@ public class GraphModule {
    */
   public GraphModule setInput(String key, NDArray value) {
     NDArray input = value;
-    if (!value.ctx().equals(ctx)) {
-      input = NDArray.empty(value.shape(), ctx);
+    if (!value.device().equals(device)) {
+      input = NDArray.empty(value.shape(), device);
       value.copyTo(input);
     }
     fsetInput.pushArg(key).pushArg(input).invoke();
@@ -98,8 +98,8 @@ public class GraphModule {
    */
   public GraphModule setInput(int key, NDArray value) {
     NDArray input = value;
-    if (!value.ctx().equals(ctx)) {
-      input = NDArray.empty(value.shape(), ctx);
+    if (!value.device().equals(device)) {
+      input = NDArray.empty(value.shape(), device);
       value.copyTo(input);
     }
     fsetInput.pushArg(key).pushArg(input).invoke();
@@ -147,7 +147,7 @@ public class GraphModule {
     if (fdebugGetOutput != null) {
       fdebugGetOutput.pushArg(node).pushArg(out).invoke();
     } else {
-      throw new RuntimeException("Please compile runtime with USE_GRAPH_RUNTIME_DEBUG = 0");
+      throw new RuntimeException("Please compile runtime with USE_PROFILER = ON");
     }
     return out;
   }
@@ -162,7 +162,7 @@ public class GraphModule {
     if (fdebugGetOutput != null) {
       fdebugGetOutput.pushArg(node).pushArg(out).invoke();
     } else {
-      throw new RuntimeException("Please compile runtime with USE_GRAPH_RUNTIME_DEBUG = 0");
+      throw new RuntimeException("Please compile runtime with USE_PROFILER = ON");
     }
     return out;
   }

@@ -98,9 +98,9 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
         )
 
         out_channels, in_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
-        assert out_channels % 4 == 0, "Number of output channels should be multiple of {}".format(
-            oc_block_factor
-        )
+        assert (
+            out_channels % oc_block_factor == 0
+        ), "Number of output channels should be multiple of {}".format(oc_block_factor)
         packed_kernel = te.compute(
             (
                 out_channels // oc_block_factor,
@@ -142,9 +142,10 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
     pad_data = pad(packed_data, pad_before, pad_after, name="pad_data")
 
     # compute the output shape
-    out_height = (in_height - (kernel_h - 1) * dilation_h - 1 + pad_top + pad_down) // stride_h + 1
-    out_width = (in_width - (kernel_w - 1) * dilation_w - 1 + pad_left + pad_right) // stride_w + 1
-
+    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+    out_height = (in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1
+    out_width = (in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1
     oshape = (batch, oc_chunk, out_height, out_width, oc_block)
 
     icc = te.reduce_axis((0, ic_chunk), name="ic_chunk")

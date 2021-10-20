@@ -20,10 +20,21 @@ set -e
 set -u
 set -o pipefail
 
+export PYXIR_HOME=/opt/pyxir
+mkdir "$PYXIR_HOME"
+
 # install libraries for building Vitis-AI on ubuntu
-apt-get update && apt-get install -y --no-install-recommends \
-    graphviz\
-    gnupg2
+apt-get update && apt-get install -y \
+    graphviz \
+    gnupg2 \
+    gpg-agent \
+    gcc-aarch64-linux-gnu \
+    && rm -rf /var/lib/apt/lists/*
 
-apt-get update && apt-get install -y gcc-aarch64-linux-gnu
 
+. $VAI_ROOT/conda/etc/profile.d/conda.sh
+conda activate vitis-ai-tensorflow
+pip3 install progressbar h5py==2.10.0
+
+git clone --recursive --branch rel-v0.3.1 --depth 1 https://github.com/Xilinx/pyxir.git "${PYXIR_HOME}"
+cd "${PYXIR_HOME}" && python3 setup.py install --use_vart_cloud_dpu --use_dpuczdx8g_vart

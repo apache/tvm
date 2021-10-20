@@ -174,7 +174,7 @@ def resnet(
         Channel size of each stage
 
     num_classes : int
-        Ouput size of symbol
+        Output size of symbol
 
     data_shape : tuple of int.
         The shape of input data.

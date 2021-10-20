@@ -478,11 +478,11 @@ void StackVM::Run(State* s) const {
             break;
           }
           case StackVM::kArrDeviceId: {
-            stack[sp].v_int64 = arr[index].ctx.device_id;
+            stack[sp].v_int64 = arr[index].device.device_id;
             break;
           }
           case StackVM::kArrDeviceType: {
-            stack[sp].v_int64 = static_cast<int64_t>(arr[index].ctx.device_type);
+            stack[sp].v_int64 = static_cast<int64_t>(arr[index].device.device_type);
             break;
           }
           case StackVM::kArrAddr: {
@@ -537,11 +537,11 @@ void StackVM::Run(State* s) const {
             break;
           }
           case StackVM::kArrDeviceId: {
-            arr[index].ctx.device_id = static_cast<int>(stack[sp].v_int64);
+            arr[index].device.device_id = static_cast<int>(stack[sp].v_int64);
             break;
           }
           case StackVM::kArrDeviceType: {
-            arr[index].ctx.device_type = static_cast<DLDeviceType>(stack[sp].v_int64);
+            arr[index].device.device_type = static_cast<DLDeviceType>(stack[sp].v_int64);
             break;
           }
           case StackVM::kTVMValueContent: {

@@ -28,7 +28,10 @@ namespace tvm {
 namespace runtime {
 
 /*! \brief The current RPC procotol version. */
-constexpr const char* kRPCProtocolVer = "0.7.0";
+constexpr const char* kRPCProtocolVer = "0.8.0";
+
+// When tvm.rpc.server.GetCRTMaxPacketSize global function is not registered.
+const uint64_t kRPCMaxTransferSizeBytesDefault = UINT64_MAX;
 
 /*! \brief The RPC code */
 enum class RPCCode : int {
@@ -51,6 +54,10 @@ enum class RPCCode : int {
   kDevFreeData,
   kDevStreamSync,
   kCopyAmongRemote,
+  kDevAllocDataWithScope,
+  kDevCreateStream,
+  kDevFreeStream,
+  kDevSetStream,
 };
 
 /*!
@@ -103,10 +110,18 @@ inline const char* RPCCodeToString(RPCCode code) {
       return "kDevAllocData";
     case RPCCode::kDevFreeData:
       return "kDevFreeData";
+    case RPCCode::kDevCreateStream:
+      return "kDevCreateStream";
+    case RPCCode::kDevFreeStream:
+      return "kDevFreeStream";
     case RPCCode::kDevStreamSync:
       return "kDevStreamSync";
+    case RPCCode::kDevSetStream:
+      return "kDevSetStream";
     case RPCCode::kCopyAmongRemote:
       return "kCopyAmongRemote";
+    case RPCCode::kDevAllocDataWithScope:
+      return "kDevAllocDataWithScope";
     default:
       return "";
   }
@@ -218,6 +233,44 @@ struct RPCReference {
     return getter.num_bytes();
   }
 
+  template <typename TChannelPtr>
+  static void SendDLTensor(TChannelPtr channel, DLTensor* arr) {
+    DLDevice dev;
+    uint64_t data;
+    // When we return NDArray, we directly return
+    // the space and the context
+    // The client will be further wrapping
+    dev = arr->device;
+    data = reinterpret_cast<uint64_t>(arr->data);
+    channel->Write(data);
+    channel->Write(dev);
+    channel->Write(arr->ndim);
+    channel->Write(arr->dtype);
+    channel->WriteArray(arr->shape, arr->ndim);
+    if (arr->strides != nullptr) {
+      channel->ThrowError(RPCServerStatus::kInvalidDLTensorFieldStride);
+    }
+    channel->Write(arr->byte_offset);
+    return;
+  }
+
+  template <typename TChannelPtr>
+  static DLTensor* ReceiveDLTensor(TChannelPtr channel) {
+    uint64_t handle;
+    channel->Read(&handle);
+    DLTensor* arr = channel->template ArenaAlloc<DLTensor>(1);
+    DLTensor& tensor = *arr;
+    tensor.data = reinterpret_cast<void*>(handle);
+    channel->Read(&(tensor.device));
+    channel->Read(&(tensor.ndim));
+    channel->Read(&(tensor.dtype));
+    tensor.shape = channel->template ArenaAlloc<int64_t>(tensor.ndim);
+    channel->ReadArray(tensor.shape, tensor.ndim);
+    tensor.strides = nullptr;
+    channel->Read(&(tensor.byte_offset));
+    return arr;
+  }
+
   /*!
    * \brief Send packed argument sequnce to the other peer.
    *
@@ -265,8 +318,8 @@ struct RPCReference {
           channel->template Write<int32_t>(padding);
           break;
         }
-        case kTVMContext: {
-          channel->Write(value.v_ctx);
+        case kDLDevice: {
+          channel->Write(value.v_device);
           break;
         }
 
@@ -292,24 +345,7 @@ struct RPCReference {
         }
         case kTVMDLTensorHandle: {
           DLTensor* arr = static_cast<DLTensor*>(value.v_handle);
-          TVMContext ctx;
-          uint64_t data;
-          // When we return NDArray, we directly return
-          // the space and the context
-          // The client will be further wrapping
-          ctx = arr->ctx;
-          data = reinterpret_cast<uint64_t>(arr->data);
-          channel->Write(data);
-          channel->Write(ctx);
-          channel->Write(arr->ndim);
-          channel->Write(arr->dtype);
-          channel->WriteArray(arr->shape, arr->ndim);
-          if (arr->strides != nullptr) {
-            channel->ThrowError(RPCServerStatus::kInvalidDLTensorFieldStride);
-          }
-          if (arr->byte_offset != 0) {
-            channel->ThrowError(RPCServerStatus::kInvalidDLTensorFieldByteOffset);
-          }
+          SendDLTensor(channel, arr);
           break;
         }
         case kTVMNullptr:
@@ -384,8 +420,8 @@ struct RPCReference {
           channel->template Read<int32_t>(&padding);
           break;
         }
-        case kTVMContext: {
-          channel->Read(&(value.v_ctx));
+        case kDLDevice: {
+          channel->Read(&(value.v_device));
           break;
         }
         case kTVMPackedFuncHandle:
@@ -422,19 +458,7 @@ struct RPCReference {
           break;
         }
         case kTVMDLTensorHandle: {
-          uint64_t handle;
-          channel->Read(&handle);
-          DLTensor* arr = channel->template ArenaAlloc<DLTensor>(1);
-          DLTensor& tensor = *arr;
-          tensor.data = reinterpret_cast<void*>(handle);
-          channel->Read(&(tensor.ctx));
-          channel->Read(&(tensor.ndim));
-          channel->Read(&(tensor.dtype));
-          tensor.shape = channel->template ArenaAlloc<int64_t>(tensor.ndim);
-          channel->ReadArray(tensor.shape, tensor.ndim);
-          tensor.strides = nullptr;
-          tensor.byte_offset = 0;
-          value.v_handle = arr;
+          value.v_handle = ReceiveDLTensor(channel);
           break;
         }
         default: {

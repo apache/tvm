@@ -20,10 +20,13 @@
 /*!
  * \file tvm/tir/stmt.cc
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
+
+#include "buffer_common.h"
 
 namespace tvm {
 namespace tir {
@@ -128,8 +131,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // For
-For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAPI device_api,
-         Stmt body, Span span) {
+For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+         Optional<IterVar> thread_binding, Map<String, ObjectRef> annotations, Span span) {
   ICHECK(min.defined());
   ICHECK(extent.defined());
   ICHECK(min.dtype().is_scalar());
@@ -141,35 +144,39 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAP
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
   node->extent = std::move(extent);
-  node->for_type = for_type;
-  node->device_api = device_api;
+  node->kind = kind;
   node->body = std::move(body);
+  node->thread_binding = std::move(thread_binding);
+  node->annotations = std::move(annotations);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.For").set_body_typed([](Var loop_var, PrimExpr min, PrimExpr extent,
-                                                 int for_type, int device_api, Stmt body,
-                                                 Span span) {
-  return For(loop_var, min, extent, static_cast<ForType>(for_type),
-             static_cast<DeviceAPI>(device_api), body, span);
-});
+TVM_REGISTER_GLOBAL("tir.For").set_body_typed(
+    [](Var loop_var, PrimExpr min, PrimExpr extent, int kind, Stmt body,
+       Optional<IterVar> thread_binding, Optional<Map<String, ObjectRef>> annotations, Span span) {
+      return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
+                 annotations.value_or(Map<String, ObjectRef>()), span);
+    });
 
 TVM_REGISTER_NODE_TYPE(ForNode);
 
-std::ostream& operator<<(std::ostream& out, ForType type) {  // NOLINT(*)
+std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
   switch (type) {
-    case ForType::Serial:
+    case ForKind::kSerial:
       out << "for";
       break;
-    case ForType::Parallel:
+    case ForKind::kParallel:
       out << "parallel";
       break;
-    case ForType::Unrolled:
+    case ForKind::kUnrolled:
       out << "unrolled";
       break;
-    case ForType::Vectorized:
+    case ForKind::kVectorized:
       out << "vectorized";
+      break;
+    case ForKind::kThreadBinding:
+      out << "launch_thread";
       break;
   }
   return out;
@@ -179,7 +186,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ForNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const ForNode*>(node.get());
       p->PrintIndent();
-      p->stream << op->for_type << " (" << op->loop_var << ", ";
+      p->stream << op->kind << " (" << op->loop_var << ", ";
       p->Print(op->min);
       p->stream << ", ";
       p->Print(op->extent);
@@ -193,13 +200,66 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "}\n";
     });
 
+// While
+While::While(PrimExpr condition, Stmt body, Span span) {
+  ICHECK(condition.defined());
+  ICHECK(condition.dtype().is_scalar());
+  ICHECK(condition.as<tir::IntImmNode>() == nullptr) << "The condition should not be trivial.";
+  ICHECK(body.defined());
+
+  ObjectPtr<WhileNode> node = make_object<WhileNode>();
+  node->condition = std::move(condition);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.While").set_body_typed([](PrimExpr condition, Stmt body, Span span) {
+  return While(condition, body, span);
+});
+
+TVM_REGISTER_NODE_TYPE(WhileNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<WhileNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const WhileNode*>(node.get());
+      p->PrintIndent();
+      p->stream << "while(" << op->condition << ") {\n";
+      p->indent += 2;
+      p->Print(op->body);
+      p->indent -= 2;
+      p->PrintIndent();
+      p->stream << "}\n";
+    });
+
 // Store
 Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate, Span span) {
   ICHECK(value.defined());
   ICHECK(index.defined());
   ICHECK(predicate.defined());
-  ICHECK_EQ(value.dtype().lanes(), index.dtype().lanes());
-  ICHECK_EQ(value.dtype().lanes(), predicate.dtype().lanes());
+
+  // Assume that the array elements have 1 lane, unless a type
+  // annotation tells us otherwise.
+  int element_lanes = 1;
+  auto pointer_type = tir::GetPointerType(buffer_var->type_annotation);
+  if (pointer_type.first) {
+    // Currently cannot check element type of array, see Load::Load
+    // for details.
+
+    // TODO(Lunderberg): Uncomment this check once it can be applied.
+    // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
+    // for discussion.
+
+    // ICHECK_EQ(value.dtype().element_of(), pointer_type.second.element_of())
+    //     << "Type mismatch, cannot store type " << value.dtype() << " into buffer "
+    //     << buffer_var->name_hint << " of type " << pointer_type.second;
+    element_lanes = pointer_type.second.lanes();
+  }
+
+  ICHECK((value.dtype().lanes() == element_lanes * index.dtype().lanes()) ||
+         (value.dtype().lanes() == index.dtype().lanes()));
+  ICHECK((value.dtype().lanes() == element_lanes * predicate.dtype().lanes()) ||
+         (value.dtype().lanes() == index.dtype().lanes()));
 
   ObjectPtr<StoreNode> node = make_object<StoreNode>();
   node->buffer_var = std::move(buffer_var);
@@ -273,10 +333,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Span span) {
-  // TODO(tvm-team): Add invariant check to make sure
-  // IsPointerPType(buffer_var->type_annotation, dtype)
-  // once we fix the allocate tvm script printing.
+                   Stmt body, Map<String, ObjectRef> annotations, Span span) {
+  CHECK(IsPointerType(buffer_var->type_annotation, dtype))
+      << "The allocated data type (" << dtype
+      << ") does not match the type annotation of the buffer " << buffer_var << " ("
+      << buffer_var->type_annotation
+      << "). The data type should be an element of the pointer type.";
+
   for (size_t i = 0; i < extents.size(); ++i) {
     ICHECK(extents[i].defined());
     ICHECK(extents[i].dtype().is_scalar());
@@ -291,6 +354,7 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   node->extents = std::move(extents);
   node->condition = std::move(condition);
   node->body = std::move(body);
+  node->annotations = std::move(annotations);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -312,8 +376,8 @@ int32_t AllocateNode::constant_allocation_size(const Array<PrimExpr>& extents) {
 
 TVM_REGISTER_GLOBAL("tir.Allocate")
     .set_body_typed([](Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition,
-                       Stmt body, Span span) {
-      return Allocate(buffer_var, type, extents, condition, body, span);
+                       Stmt body, Map<String, ObjectRef> annotations, Span span) {
+      return Allocate(buffer_var, type, extents, condition, body, annotations, span);
     });
 
 TVM_REGISTER_NODE_TYPE(AllocateNode);
@@ -321,13 +385,15 @@ TVM_REGISTER_NODE_TYPE(AllocateNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<AllocateNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const AllocateNode*>(node.get());
+      const auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>();
+      ICHECK(ptr_type) << "The provided variable is not of pointer type";
       p->PrintIndent();
       p->stream << "allocate " << op->buffer_var << "[" << op->dtype;
       for (size_t i = 0; i < op->extents.size(); ++i) {
         p->stream << " * ";
         p->Print(op->extents[i]);
       }
-      p->stream << "]";
+      p->stream << "], storage_scope = " << ptr_type->storage_scope;
       if (!is_one(op->condition)) {
         p->stream << " if ";
         p->Print(op->condition);
@@ -338,7 +404,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // ProducerRealize
 ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition,
-                                 Stmt body, Span span) {
+                                 Stmt body, String storage_scope, Span span) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     ICHECK(bounds[i]->min.defined());
     ICHECK(bounds[i]->extent.defined());
@@ -355,13 +421,14 @@ ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr 
   node->condition = std::move(condition);
   node->body = std::move(body);
   node->span = std::move(span);
+  node->storage_scope = std::move(storage_scope);
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.ProducerRealize")
     .set_body_typed([](DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
-                       Span span) {
-      return ProducerRealize(producer, bounds, condition, body, span);
+                       String storage_scope, Span span) {
+      return ProducerRealize(producer, bounds, condition, body, storage_scope, span);
     });
 
 TVM_REGISTER_NODE_TYPE(ProducerRealizeNode);
@@ -587,6 +654,279 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->Print(op->body);
       p->indent -= 2;
 
+      p->PrintIndent();
+      p->stream << "}\n";
+    });
+
+// BufferRegion
+BufferRegion::BufferRegion(Buffer buffer, Array<Range> region) {
+  CHECK_EQ(buffer->shape.size(), region.size())
+      << "The dimension between " << buffer << " and region " << region
+      << " mismatched, the buffer is " << buffer;
+  ObjectPtr<BufferRegionNode> node = make_object<BufferRegionNode>();
+  node->buffer = std::move(buffer);
+  node->region = std::move(region);
+  data_ = std::move(node);
+}
+
+BufferRegion BufferRegion::FullRegion(Buffer buffer) {
+  Array<Range> region;
+  for (PrimExpr extent : buffer->shape) {
+    region.push_back(Range::FromMinExtent(0, extent));
+  }
+  return BufferRegion(buffer, region);
+}
+
+BufferRegion BufferRegion::FromPoint(Buffer buffer, Array<PrimExpr> indices) {
+  Array<Range> region;
+  for (const PrimExpr& index : indices) {
+    region.push_back(Range::FromMinExtent(index, 1));
+  }
+  return BufferRegion(buffer, region);
+}
+
+TVM_REGISTER_GLOBAL("tir.BufferRegion").set_body_typed([](Buffer buffer, Array<Range> region) {
+  return BufferRegion(buffer, region);
+});
+
+TVM_REGISTER_NODE_TYPE(BufferRegionNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<BufferRegionNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const BufferRegionNode*>(node.get());
+      p->stream << op->buffer->name;
+      p->stream << "[";
+      for (size_t i = 0; i < op->region.size(); ++i) {
+        const auto& range = op->region[i];
+        p->Print(range->min);
+        if (!is_one(range->extent)) {
+          p->stream << ":";
+          p->Print(range->min + range->extent);
+        }
+        if (i != op->region.size() - 1) p->stream << ", ";
+      }
+      p->stream << "]";
+    });
+
+// MatchBufferRegion
+MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
+  const Buffer& source_buffer = source->buffer;
+  arith::Analyzer analyzer;
+  // Check scope and dtype
+  CHECK_EQ(buffer.scope(), source_buffer.scope())
+      << "MatchBuffer " << buffer << " scope mismatch:" << buffer.scope() << " vs. "
+      << source_buffer.scope();
+  CHECK_EQ(buffer->dtype, source_buffer->dtype)
+      << "MatchBuffer " << buffer << " data type mismatch:" << buffer->dtype << " vs. "
+      << source_buffer->dtype;
+
+  // Check data_alignment
+  CHECK(source_buffer->data_alignment % buffer->data_alignment == 0)
+      << "Trying to match buffer to another one with lower alignment requirement "
+      << " required_alignment=" << buffer->data_alignment
+      << ", provided_alignment=" << source_buffer->data_alignment;
+
+  // Check BufferType. AutoBroadcast is not allowed for now.
+  CHECK(buffer->buffer_type == BufferType::kDefault &&
+        source_buffer->buffer_type == BufferType::kDefault)
+      << "AutoBroadcast is not allowed in MatchBuffer";
+
+  // Validate shape
+  CHECK(source->region.size() >= buffer->shape.size())
+      << "Dimension of source Region expected to be larger or equal than target buffer shape, but "
+         "got "
+      << source->region.size() << " vs. " << buffer->shape.size();
+  size_t offset = source->region.size() - buffer->shape.size();
+  for (size_t i = 0; i < offset; ++i) {
+    CHECK(analyzer.CanProve(source->region[i]->extent == 1))
+        << "The higher dimension should be 1, but got " << source->region[i]->extent << ".";
+  }
+  for (size_t i = 0; i < buffer->shape.size(); ++i) {
+    const Range& source_range = source->region[i + offset];
+    const PrimExpr& buffer_shape = buffer->shape[i];
+    if (!buffer_shape->IsInstance<VarNode>()) {
+      CHECK(analyzer.CanProve(source_range->extent == buffer_shape))
+          << "The dimension mismatched between source region and target buffer shape, got "
+          << source_range->extent << " vs. " << buffer_shape << ".";
+    }
+  }
+  // Note that we do not check elem_offset and strides in this function
+
+  // Construction
+  ObjectPtr<MatchBufferRegionNode> node = make_object<MatchBufferRegionNode>();
+  node->buffer = std::move(buffer);
+  node->source = std::move(source);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.MatchBufferRegion").set_body_typed([](Buffer buffer, BufferRegion source) {
+  return MatchBufferRegion(buffer, source);
+});
+
+TVM_REGISTER_NODE_TYPE(MatchBufferRegionNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<MatchBufferRegionNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const MatchBufferRegionNode*>(node.get());
+      p->PrintIndent();
+      p->stream << op->buffer->name << " = match_buffer(";
+      p->Print(op->source);
+      p->stream << ")\n";
+    });
+
+// Block
+Block::Block(Array<IterVar> iter_vars, Array<BufferRegion> reads, Array<BufferRegion> writes,
+             String name_hint, Stmt body, Optional<Stmt> init, Array<Buffer> alloc_buffers,
+             Array<MatchBufferRegion> match_buffers, Map<String, ObjectRef> annotations,
+             Span span) {
+  ObjectPtr<BlockNode> node = make_object<BlockNode>();
+  node->iter_vars = std::move(iter_vars);
+  node->reads = std::move(reads);
+  node->writes = std::move(writes);
+  node->name_hint = std::move(name_hint);
+  node->body = std::move(body);
+  node->init = std::move(init);
+  node->alloc_buffers = std::move(alloc_buffers);
+  node->match_buffers = std::move(match_buffers);
+  node->annotations = std::move(annotations);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.Block")
+    .set_body_typed([](Array<IterVar> iter_vars, Array<BufferRegion> reads,
+                       Array<BufferRegion> writes, String name_hint, Stmt body, Optional<Stmt> init,
+                       Array<Buffer> alloc_buffers, Array<MatchBufferRegion> match_buffers,
+                       Map<String, ObjectRef> annotations, Span span) {
+      return Block(iter_vars, reads, writes, name_hint, body, init, alloc_buffers, match_buffers,
+                   annotations, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(BlockNode);
+
+void PrintBlockTitle(const BlockNode* op, ReprPrinter* p) {
+  p->stream << "block " << op->name_hint << "(";
+  for (size_t i = 0; i < op->iter_vars.size(); i++) {
+    p->Print(op->iter_vars[i]);
+    if (i < op->iter_vars.size() - 1) p->stream << ", ";
+  }
+  p->stream << ")";
+}
+
+void PrintBlockSignature(const BlockNode* op, ReprPrinter* p) {
+  // print read/write regions
+  p->PrintIndent();
+  p->stream << "reads(";
+  p->Print(op->reads);
+  p->stream << ")\n";
+  p->PrintIndent();
+  p->stream << "writes(";
+  p->Print(op->writes);
+  p->stream << ")\n";
+  // Print alloc_buffers
+  for (const auto& alloc_buf : op->alloc_buffers) {
+    p->PrintIndent();
+    p->stream << alloc_buf->name << " = alloc_buffer(" << alloc_buf->dtype << "[";
+    for (size_t i = 0; i < alloc_buf->shape.size(); ++i) {
+      if (i > 0) p->stream << ", ";
+      p->Print(alloc_buf->shape[i]);
+    }
+    p->stream << "])\n";
+  }
+  // Print match_buffer_regions
+  for (const auto& match_buf : op->match_buffers) {
+    p->Print(match_buf);
+  }
+  if (!op->annotations.empty()) {
+    p->PrintIndent();
+    p->stream << "annotations(" << op->annotations << ")\n";
+  }
+}
+
+void PrintBlockBody(const BlockNode* op, ReprPrinter* p) {
+  // Print init
+  if (op->init.defined()) {
+    p->PrintIndent();
+    p->stream << "with init() {\n";
+    p->indent += 2;
+    p->Print(op->init.value());
+    p->indent -= 2;
+    p->PrintIndent();
+    p->stream << "}\n";
+  }
+  // Print body
+  p->Print(op->body);
+}
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<BlockNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const BlockNode*>(node.get());
+      p->PrintIndent();
+      PrintBlockTitle(op, p);
+      p->stream << " {\n";
+      p->indent += 2;
+
+      // Print block elements (e.g. reads/writes, etc)
+      PrintBlockSignature(op, p);
+      // Print block init and body
+      PrintBlockBody(op, p);
+
+      p->indent -= 2;
+      p->PrintIndent();
+      p->stream << "}\n";
+    });
+
+// BlockRealize
+BlockRealize::BlockRealize(Array<PrimExpr> values, PrimExpr predicate, Block block, Span span) {
+  CHECK_EQ(block->iter_vars.size(), values.size())
+      << "ValueError: BlockRealize needs to have the same number of iter_vars and binding values";
+  CHECK(predicate.dtype().is_bool()) << "TypeError: Expect Block.predicate to be a bool expression";
+  ObjectPtr<BlockRealizeNode> node = make_object<BlockRealizeNode>();
+  node->iter_values = std::move(values);
+  node->predicate = std::move(predicate);
+  node->block = std::move(block);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.BlockRealize")
+    .set_body_typed([](Array<PrimExpr> iter_values, PrimExpr predicate, Block block, Span span) {
+      return BlockRealize(iter_values, predicate, block, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(BlockRealizeNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<BlockRealizeNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const BlockRealizeNode*>(node.get());
+      auto* block_op = op->block.get();
+      p->PrintIndent();
+      PrintBlockTitle(block_op, p);
+      p->stream << " {\n";
+      p->indent += 2;
+
+      // Print binding iter_values
+      for (size_t i = 0; i < block_op->iter_vars.size(); ++i) {
+        p->PrintIndent();
+        p->stream << "bind(";
+        p->Print(block_op->iter_vars[i]->var);
+        p->stream << ", ";
+        p->Print(op->iter_values[i]);
+        p->stream << ")\n";
+      }
+      // Print predicate
+      if (!is_one(op->predicate)) {
+        p->PrintIndent();
+        p->stream << "where(";
+        p->Print(op->predicate);
+        p->stream << ")\n";
+      }
+      // Print block elements (e.g. reads/writes, etc)
+      PrintBlockSignature(block_op, p);
+      // Print block init and body
+      PrintBlockBody(block_op, p);
+
+      p->indent -= 2;
       p->PrintIndent();
       p->stream << "}\n";
     });

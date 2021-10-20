@@ -17,7 +17,7 @@
 import numpy as np
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm import relay
 from model_zoo import c2_squeezenet, c2_resnet50, c2_vgg19
 from caffe2.python import workspace, core
@@ -26,8 +26,8 @@ from collections import namedtuple
 import tvm.testing
 
 
-def get_tvm_output(model, input_data, target, ctx, output_shape, output_dtype="float32"):
-    """ Generic function to execute and get tvm output"""
+def get_tvm_output(model, input_data, target, device, output_shape, output_dtype="float32"):
+    """Generic function to execute and get tvm output"""
     # supporting multiple inputs in caffe2 in a bit tricky,
     # because the input names can appear at the beginning or end of model.predict_net.external_input
     assert isinstance(input_data, np.ndarray)
@@ -42,7 +42,7 @@ def get_tvm_output(model, input_data, target, ctx, output_shape, output_dtype="f
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target, params=params)
 
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_executor.GraphModule(lib["default"](device))
 
     # set inputs
     m.set_input(input_names, tvm.nd.array(input_data.astype(input_data.dtype)))
@@ -55,11 +55,11 @@ def get_tvm_output(model, input_data, target, ctx, output_shape, output_dtype="f
         tvm_output_list = []
         for i, s in enumerate(output_shape):
             tvm_output = m.get_output(i, tvm.nd.empty((s), output_dtype[i]))
-            tvm_output_list.append(tvm_output.asnumpy())
+            tvm_output_list.append(tvm_output.numpy())
         return tvm_output_list
     else:
         tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
-        return tvm_output.asnumpy()
+        return tvm_output.numpy()
 
 
 def get_caffe2_output(model, x, dtype="float32"):
@@ -78,8 +78,8 @@ def verify_caffe2_forward_impl(model, data_shape, out_shape):
     dtype = "float32"
     data = np.random.uniform(size=data_shape).astype(dtype)
     c2_out = get_caffe2_output(model, data, dtype)
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, data, target, ctx, out_shape, dtype)
+    for target, dev in tvm.testing.enabled_targets():
+        tvm_out = get_tvm_output(model, data, target, dev, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 

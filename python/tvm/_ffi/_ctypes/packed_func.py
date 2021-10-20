@@ -23,12 +23,12 @@ from numbers import Number, Integral
 
 from ..base import _LIB, get_last_ffi_error, py2cerror, check_call
 from ..base import c_str, string_types
-from ..runtime_ctypes import DataType, TVMByteArray, TVMContext, ObjectRValueRef
+from ..runtime_ctypes import DataType, TVMByteArray, Device, ObjectRValueRef
 from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, ArgTypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
-from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _ctx_to_int64
+from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _device_to_int64
 from .object import ObjectBase, PyNativeObject, _set_class_object
 from . import object as _object
 
@@ -73,7 +73,7 @@ def convert_to_tvm_func(pyfunc):
     local_pyfunc = pyfunc
 
     def cfun(args, type_codes, num_args, ret, _):
-        """ ctypes function """
+        """ctypes function"""
         num_args = num_args.value if isinstance(num_args, ctypes.c_int) else num_args
         pyargs = (C_TO_PY_ARG_SWITCH[type_codes[i]](args[i]) for i in range(num_args))
         # pylint: disable=broad-except
@@ -141,9 +141,9 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, DataType):
             values[i].v_str = c_str(str(arg))
             type_codes[i] = ArgTypeCode.STR
-        elif isinstance(arg, TVMContext):
-            values[i].v_int64 = _ctx_to_int64(arg)
-            type_codes[i] = ArgTypeCode.TVM_CONTEXT
+        elif isinstance(arg, Device):
+            values[i].v_int64 = _device_to_int64(arg)
+            type_codes[i] = ArgTypeCode.DLDEVICE
         elif isinstance(arg, (bytearray, bytes)):
             # from_buffer only taeks in bytearray.
             if isinstance(arg, bytes):

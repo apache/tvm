@@ -23,8 +23,8 @@
 #ifndef TVM_NODE_STRUCTURAL_EQUAL_H_
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
 
-#include <tvm/node/container.h>
 #include <tvm/node/functor.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/data_type.h>
 
 #include <string>

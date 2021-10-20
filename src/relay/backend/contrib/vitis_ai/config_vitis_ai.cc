@@ -29,6 +29,40 @@ namespace relay {
 namespace contrib {
 namespace vitis_ai {
 
+/*! \brief Attributes to store the compiler options for Vitis AI */
+struct VitisAICompilerConfigNode : public tvm::AttrsNode<VitisAICompilerConfigNode> {
+  String dpu;
+  String build_dir;
+  String work_dir;
+  String export_runtime_module;
+  String load_runtime_module;
+  TVM_DECLARE_ATTRS(VitisAICompilerConfigNode, "ext.attrs.VitisAICompilerConfigNode") {
+    TVM_ATTR_FIELD(dpu).describe("Vitis AI DPU identifier").set_default("");
+    TVM_ATTR_FIELD(build_dir)
+        .describe("Build directory to be used (optional, debug)")
+        .set_default("");
+    TVM_ATTR_FIELD(work_dir)
+        .describe("Work directory to be used (optional, debug)")
+        .set_default("");
+    TVM_ATTR_FIELD(export_runtime_module)
+        .describe("Export the Vitis AI runtime module to this file")
+        .set_default("");
+    TVM_ATTR_FIELD(load_runtime_module)
+        .describe("Load the Vitis AI runtime module to this file")
+        .set_default("");
+  }
+};
+
+class VitisAICompilerConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VitisAICompilerConfig, Attrs,
+                                            VitisAICompilerConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(VitisAICompilerConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options", VitisAICompilerConfig);
+
+// Following config options are here for backward compatibility (deprecated API's)
 /*! \brief The target Vitis-AI accelerator device */
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.target", String);
 /*! \brief (Optional config) The build directory to be used by Vitis-AI */

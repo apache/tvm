@@ -52,7 +52,7 @@ def verify_conv2d_1x1_nhwc_pack_int8(
     a_np, w_np, b_np = get_ref_data()
 
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
@@ -61,12 +61,12 @@ def verify_conv2d_1x1_nhwc_pack_int8(
         with tvm.target.Target(device):
             B = topi.nn.conv2d(A, W, stride, padding, dilation, layout="NHWC", out_dtype="int32")
             s = topi.x86.schedule_conv2d_nhwc_pack_int8([B])
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
         func = tvm.build(s, [A, W, B], device)
         func(a, w, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
     # for device in ['llvm -mcpu=skylake-avx512']:
     for device in ["llvm"]:

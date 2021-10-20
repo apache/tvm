@@ -65,7 +65,7 @@ def unpack_HWNCnc_to_hwnc(packed_out, out_dtype):
 
 
 def conv2d_hwnc_tensorcore(data, kernel, strides, padding, dilation, in_dtype, out_dtype="int32"):
-    """"Compute conv2d with tensorcore for HWNC layout with int8/int4"""
+    """ "Compute conv2d with tensorcore for HWNC layout with int8/int4"""
     assert data.dtype in ("int4", "uint4", "int8", "uint8")
     assert kernel.dtype in ("int4", "uint4", "int8", "uint8")
     packed_out = hwnc_tensorcore_cuda(data, kernel, strides, padding, dilation, out_dtype)
@@ -184,9 +184,9 @@ def hwnc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
 
 def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     """Schedule tensorcore template"""
-    packed_data, packed_kernel = s[Conv].op.input_tensors
+    pad_data, packed_kernel = s[Conv].op.input_tensors
     ic, kh, kw, ii = s[Conv].op.reduce_axis
-    pad_data = s[packed_data].op.input_tensors[0]
+    packed_data = s[pad_data].op.input_tensors[0]
 
     block_x = te.thread_axis("blockIdx.x")
     block_y = te.thread_axis("blockIdx.y")
@@ -196,7 +196,7 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     thread_z = te.thread_axis("threadIdx.z")
 
     # Designate the memory hierarchy
-    AS = s.cache_read(packed_data, "shared", [Conv])
+    AS = s.cache_read(pad_data, "shared", [Conv])
     WS = s.cache_read(packed_kernel, "shared", [Conv])
     AF = s.cache_read(AS, "wmma.matrix_a", [Conv])
     WF = s.cache_read(WS, "wmma.matrix_b", [Conv])
@@ -241,7 +241,6 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     cfg.define_knob("warp_row_tiles", [1, 2, 4, 8, 16])
     cfg.define_knob("warp_col_tiles", [1, 2, 4, 8, 16])
     cfg.define_knob("chunk", [1, 2, 4, 8])
-    cfg.define_knob("fuse_pack", [0, 1])
     cfg.define_knob("split_block_k_nums", [1, 2, 4, 8, 16, 32])
     cfg.define_knob("vector_ws", [1, 8])
     cfg.define_knob("vector_as", [1, 8, 16])
@@ -254,13 +253,8 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     vector_as = cfg["vector_as"].val
     vector_ws = cfg["vector_ws"].val
     split_block_k_nums = cfg["split_block_k_nums"].val
-    fuse_pack = cfg["fuse_pack"].val
 
-    if not fuse_pack:
-        s[packed_data].compute_inline()
-    else:
-        with Target("cuda"):
-            schedule_injective_from_existing(s, packed_data)
+    s[packed_data].compute_inline()
 
     if data_dtype in ["int4", "uint4"]:
         wmma_m = wmma_n = 8
@@ -324,24 +318,13 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     cfg["reorder_inner"].apply(s, ConvF, [ko, kh])
     cfg["reorder_inner"].apply(s, ConvF, [ki, kw])
 
-    cfg.define_knob("compute_at_AS", [0, 1, 2, 3])
-    cfg.define_knob("compute_at_WS", [0, 1, 2, 3])
-    compute_at_AS = cfg["compute_at_AS"].val
-    compute_at_WS = cfg["compute_at_WS"].val
-
     # Move intermediate computation into each output compute tile
     s[AF].compute_at(s[ConvF], kw)
     s[WF].compute_at(s[ConvF], kw)
 
     # Schedule for A's share memory
-    if compute_at_AS == 0:
-        s[AS].compute_at(s[ConvF], ki)
-    elif compute_at_AS == 1:
-        s[AS].compute_at(s[ConvF], kw)
-    elif compute_at_AS == 2:
-        s[AS].compute_at(s[ConvF], ko)
-    else:
-        s[AS].compute_at(s[ConvF], kh)
+    s[AS].compute_at(s[ConvF], ko)
+
     _, _, n, _, nn, ii = AS.op.axis
     tx, xo = s[AS].split(n, nparts=block_row_warps)
     ty, _ = s[AS].split(xo, nparts=block_col_warps)
@@ -354,14 +337,6 @@ def schedule_hwnc_tensorcore_cuda(cfg, s, Conv):
     s[AS].vectorize(_t)
 
     # Schedule for W's share memory
-    if compute_at_WS == 0:
-        s[WS].compute_at(s[ConvF], ki)
-    elif compute_at_WS == 1:
-        s[WS].compute_at(s[ConvF], kw)
-    elif compute_at_WS == 2:
-        s[WS].compute_at(s[ConvF], ko)
-    else:
-        s[WS].compute_at(s[ConvF], kh)
     s[WS].compute_at(s[ConvF], kw)
     kh, kw, ic, o, ii, oo = WS.op.axis
     tx, xo = s[WS].split(o, nparts=block_row_warps)

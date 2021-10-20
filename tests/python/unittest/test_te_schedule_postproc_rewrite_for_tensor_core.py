@@ -100,19 +100,19 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
 
     func = tvm.build(s, [A, B, C], "cuda")
 
-    ctx = tvm.gpu(0)
+    dev = tvm.cuda(0)
     a_np = np.random.uniform(size=(n, l)).astype(A.dtype)
     b_np = np.random.uniform(size=(l, m)).astype(B.dtype)
     c_np = np.zeros((n, m), dtype=np.float32)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
-    c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
     func(a, b, c)
-    evaluator = func.time_evaluator(func.entry_name, ctx, number=3)
+    evaluator = func.time_evaluator(func.entry_name, dev, number=3)
     print("gemm m=%d n=%d k=%d: %f ms" % (m, n, l, evaluator(a, b, c).mean * 1e3))
 
     c_np = np.dot(a_np, b_np)
-    np.testing.assert_allclose(c_np, c.asnumpy(), rtol=1e-3)
+    np.testing.assert_allclose(c_np, c.numpy(), rtol=1e-3)
 
 
 def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
@@ -195,15 +195,15 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
 
     func = tvm.build(s, [A, B, C], "cuda")
 
-    ctx = tvm.gpu(0)
+    dev = tvm.cuda(0)
     a_np = np.random.uniform(size=(batch, n, l)).astype(A.dtype)
     b_np = np.random.uniform(size=(batch, l, m)).astype(B.dtype)
     c_np = np.zeros((batch, n, m), dtype=np.float32)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(b_np, ctx)
-    c = tvm.nd.array(np.zeros((batch, n, m), dtype=C.dtype), ctx)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(b_np, dev)
+    c = tvm.nd.array(np.zeros((batch, n, m), dtype=C.dtype), dev)
     func(a, b, c)
-    evaluator = func.time_evaluator(func.entry_name, ctx, number=3)
+    evaluator = func.time_evaluator(func.entry_name, dev, number=3)
     print(
         "batch gemm m=%d n=%d k=%d batch=%d: %f ms"
         % (m, n, l, batch, evaluator(a, b, c).mean * 1e3)
@@ -211,7 +211,7 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
 
     for bs in range(batch):
         c_np[bs, :, :] = np.dot(a_np[bs, :, :], b_np[bs, :, :])
-    np.testing.assert_allclose(c_np, c.asnumpy(), rtol=1e-3)
+    np.testing.assert_allclose(c_np, c.numpy(), rtol=1e-3)
 
 
 @tvm.testing.requires_tensorcore

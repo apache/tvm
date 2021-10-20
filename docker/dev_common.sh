@@ -28,17 +28,42 @@ INVOCATION_PWD="$(pwd)"
 GIT_TOPLEVEL=$(cd $(dirname ${BASH_SOURCE[0]}) && git rev-parse --show-toplevel)
 
 
+function filter_jenkinsfile() {
+    local echo_on=0;
+    while read line; do
+        if [ "${line}" == "// NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->" ]; then
+            echo_on=1
+        elif [ "${line}" == "// <--- End of regex-scanned config." ]; then
+            break
+        elif [ ${echo_on} -eq 1 ]; then
+            echo "$line"
+        fi
+    done
+}
+
+
+function lookup_image_spec() {
+    img_line=$(cat "${GIT_TOPLEVEL}/Jenkinsfile" | filter_jenkinsfile | grep -E "^${1} = ")
+    if [ -n "${img_line}" ]; then
+        img_spec=$(echo "${img_line}" | sed -E "s/${1} = \"([^\"]*)\"/\1/")
+        has_similar_docker_image=1
+        docker inspect "${1}" &>/dev/null || has_similar_docker_image=0
+        if [ ${has_similar_docker_image} -ne 0 ]; then
+            echo "WARNING: resolved docker image through Jenkinsfile to \"${img_spec}\"" >&2
+        fi
+        echo "${img_spec}"
+    fi
+}
+
 function run_docker() {
     image_name="$1"  # Name of the Jenkinsfile var to find
     shift
 
-    image_spec=$(cat "${GIT_TOPLEVEL}/Jenkinsfile" | \
-                     grep -E "^${image_name} = " | \
-                     sed -E "s/${image_name} = \"([^\"]*)\"/\1/")
+    image_spec=$(lookup_image_spec "${image_name}")
     if [ -z "${image_spec}" ]; then
         echo "${image_name}: not found in ${GIT_TOPLEVEL}/Jenkinsfile" >&2
         exit 2
     fi
 
-    "${GIT_TOPLEVEL}/docker/bash.sh" -i "${image_spec}" "$@"
+    "${GIT_TOPLEVEL}/docker/bash.sh" "${image_spec}" "$@"
 }

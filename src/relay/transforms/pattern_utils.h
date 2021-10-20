@@ -27,6 +27,7 @@
 #define TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_
 
 #include <builtin_fp16.h>
+#include <dmlc/optional.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
@@ -85,6 +86,9 @@ namespace relay {
     { __VA_ARGS__ }                                                                   \
   } else if (type == DataType::UInt(8)) {                                             \
     typedef uint8_t DType;                                                            \
+    { __VA_ARGS__ }                                                                   \
+  } else if (type == DataType::Bool()) {                                              \
+    typedef bool DType;                                                               \
     { __VA_ARGS__ }                                                                   \
   } else if ((*tvm::runtime::Registry::Get("runtime._datatype_get_type_registered"))( \
                  static_cast<uint8_t>(type.code()))) {                                \
@@ -377,43 +381,56 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
  * \brief Convert an element of a NDArray with type int or float to scalar.
  * \param array Input NDArray
  * \param i element index
- * \return Converted scalar value.
+ * \return Converted scalar value, or None if conversion failed
  */
-static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) {
+static inline dmlc::optional<long double> TryToScalar(const runtime::NDArray& array, size_t i = 0) {
   if (array->dtype.code == kDLInt) {
     if (array->dtype.bits == 8) {
-      return reinterpret_cast<int8_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<int8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<int16_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<int16_t*>(array->data)[i]);
     } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<int32_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<int32_t*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<int64_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<int64_t*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLUInt) {
-    if (array->dtype.bits == 8) {
-      return reinterpret_cast<uint8_t*>(array->data)[i];
+    if (array->dtype.bits == 1) {  // bool
+      return dmlc::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
+    } else if (array->dtype.bits == 8) {
+      return dmlc::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<uint16_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<uint16_t*>(array->data)[i]);
     } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<uint32_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<uint32_t*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<uint64_t*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<uint64_t*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLFloat) {
     if (array->dtype.bits == 16) {
-      return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
-          reinterpret_cast<uint16_t*>(array->data)[i]);
+      return dmlc::optional<long double>(
+          __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
+              reinterpret_cast<uint16_t*>(array->data)[i]));
     }
     if (array->dtype.bits == 32) {
-      return reinterpret_cast<float*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<float*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<double*>(array->data)[i];
+      return dmlc::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
     }
   }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
-  // make compiler happy
-  return -std::numeric_limits<double>::infinity();
+  return dmlc::optional<long double>();
+}
+
+/*!
+ * \brief Convert an element of a NDArray with type int or float to scalar.
+ * \param array Input NDArray
+ * \param i element index
+ * \return Converted scalar value
+ */
+static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) {
+  auto try_value = TryToScalar(array, i);
+  ICHECK(try_value) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
+  return try_value.value();
 }
 
 /*!
@@ -479,6 +496,11 @@ inline Expr FastErf(Expr e) {
 inline Expr FastTanh(Expr e) {
   static const Op& op = Op::Get("fast_tanh");
   return Call(op, {e});
+}
+
+inline Expr FastSoftmax(Expr e, tvm::Attrs attr) {
+  static const Op& op = Op::Get("nn.fast_softmax");
+  return Call(op, {e}, attr);
 }
 
 inline Expr Log(Expr e) {
@@ -644,18 +666,22 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
   return MakeReduce(data, axis, keepdims, exclude, "sum");
 }
 
+static inline Expr Prod(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
+  return MakeReduce(data, axis, keepdims, exclude, "prod");
+}
+
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
   return MakeReshape(data, newshape);
 }
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                             Array<IndexExpr> padding, std::string layout, bool ceil_mode,
-                             bool count_include_pad) {
-  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                             Array<IndexExpr> dilation, Array<IndexExpr> padding,
+                             std::string layout, bool ceil_mode, bool count_include_pad) {
+  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout, ceil_mode,
                                      count_include_pad, "nn.avg_pool2d");
 }
 
-static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
+static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, Expr pad_value,
                        std::string pad_mode) {
   Array<Array<Integer>> pad_width_int;
   for (size_t i = 0; i < pad_width.size(); ++i) {
@@ -669,10 +695,6 @@ static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }
-
-Expr StopFusion(Expr data);
-
-Expr CastHint(Expr data, DataType dtype);
 
 }  // namespace relay
 }  // namespace tvm

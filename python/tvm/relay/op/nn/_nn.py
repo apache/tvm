@@ -39,17 +39,80 @@ reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
 # softmax
 reg.register_strategy("nn.softmax", strategy.softmax_strategy)
-reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
+reg.register_pattern("nn.softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# fast softmax
+reg.register_strategy("nn.fast_softmax", strategy.fast_softmax_strategy)
+reg.register_pattern("nn.fast_softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # log_softmax
-reg.register_schedule("nn.log_softmax", strategy.schedule_log_softmax)
-reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
+reg.register_strategy("nn.log_softmax", strategy.log_softmax_strategy)
+reg.register_pattern("nn.log_softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_legalize("nn.matmul")
+def legalize_matmul(attrs, inputs, types):
+    """Legalize matmul op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current matmul
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.matmul_legalize(attrs, inputs, types)
+
+
+# matmul
+reg.register_strategy("nn.matmul", strategy.matmul_strategy)
+reg.register_pattern("nn.matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_legalize("nn.dense")
+def legalize_dense(attrs, inputs, types):
+    """Legalize dense op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.dense_legalize(attrs, inputs, types)
 
 
 # dense
 reg.register_strategy("nn.dense", strategy.dense_strategy)
 reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_alter_op_layout("nn.dense")
+def alter_op_layout_dense(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of dense"""
+    return topi.nn.dense_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+# dense_pack
+reg.register_strategy("nn.contrib_dense_pack", strategy.dense_pack_strategy)
+reg.register_pattern("nn.contrib_dense_pack", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # fifo_buffer
@@ -60,6 +123,27 @@ def compute_fifo_buffer(attrs, inputs, out_type):
 
 reg.register_injective_schedule("nn.fifo_buffer")
 reg.register_pattern("nn.fifo_buffer", OpPattern.OPAQUE)
+
+
+@reg.register_legalize("nn.batch_matmul")
+def legalize_batch_matmul(attrs, inputs, types):
+    """Legalize batch_matmul op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.batch_matmul_legalize(attrs, inputs, types)
 
 
 # batch_matmul
@@ -84,6 +168,11 @@ def alter_op_layout_sparse_dense(attrs, inputs, tinfos, out_type):
     return topi.nn.sparse_dense_alter_layout(attrs, inputs, tinfos, out_type)
 
 
+# sparse_add
+reg.register_strategy("nn.sparse_add", strategy.sparse_add_strategy)
+reg.register_pattern("nn.sparse_add", reg.OpPattern.OPAQUE)
+
+
 @reg.register_compute("nn.internal.sparse_dense_padded")
 def compute_sparse_dense_padded(attrs, inputs, out_type):
     """Compute definition of sparse_dense_padded"""
@@ -103,6 +192,21 @@ def compute_sparse_transpose(attrs, inputs, out_type):
 
 reg.register_schedule("nn.sparse_transpose", strategy.schedule_sparse_transpose)
 reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# sparse_conv2d
+@reg.register_compute("nn.sparse_conv2d")
+def compute_sparse_conv2d(attrs, inputs, out_type):
+    """Compute definition of sparse_conv2d"""
+    return [
+        topi.nn.sparse_conv2d(
+            inputs[0], inputs[1], inputs[2], inputs[3], attrs["layout"], attrs["kernel_size"]
+        )
+    ]
+
+
+reg.register_strategy("nn.sparse_conv2d", strategy.sparse_conv2d_strategy)
+reg.register_pattern("nn.sparse_conv2d", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # conv1d
@@ -439,6 +543,16 @@ reg.register_pattern("nn.max_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
 # avg_pool2d_grad
 reg.register_schedule("nn.avg_pool2d_grad", strategy.schedule_pool_grad)
 reg.register_pattern("nn.avg_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_max_pool1d
+reg.register_schedule("nn.adaptive_max_pool1d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_max_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_avg_pool1d
+reg.register_schedule("nn.adaptive_avg_pool1d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_avg_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # global_max_pool2d
@@ -802,6 +916,17 @@ reg.register_reduce_schedule("nn.cross_entropy_with_logits")
 reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 
 
+# nll_loss
+@reg.register_compute("nn.nll_loss")
+def compute_nll_loss(attrs, inputs, out_dtype):
+    predictions, targets, weights = inputs
+    return [topi.nn.nll_loss(predictions, targets, weights, attrs.reduction, attrs.ignore_index)]
+
+
+reg.register_reduce_schedule("nn.nll_loss")
+reg.register_pattern("nn.nll_loss", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # depth_to_space
 @reg.register_compute("nn.depth_to_space")
 def compute_depth_to_space(attrs, inputs, out_dtype):
@@ -843,7 +968,8 @@ reg.register_injective_schedule("nn.batch_to_space_nd")
 
 
 @script
-def _conv_shape_func(dshape, kshape, strides, padding, dilation):
+def _conv_shape_func_nchw(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nchw & oihw layout."""
     out = output_tensor((dshape.shape[0],), "int64")
     out[0] = dshape[0]
     out[1] = kshape[0]
@@ -854,23 +980,52 @@ def _conv_shape_func(dshape, kshape, strides, padding, dilation):
     return out
 
 
+@script
+def _conv_shape_func_nhwc_hwio(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nhwc & hwio layout."""
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[dshape.shape[0] - 1] = kshape[kshape.shape[0] - 1]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i] - 1) * dilation[i] + 1
+        out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
+@script
+def _conv_shape_func_nhwc_hwoi(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nhwc & hwoi layout."""
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[dshape.shape[0] - 1] = kshape[kshape.shape[0] - 2]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i] - 1) * dilation[i] + 1
+        out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
 def conv_shape_func(attrs, inputs, _):
-    """
-    Shape function for contrib_conv2d_NCHWc op.
-    """
+    """Shape function for conv*d op."""
     strides = get_const_tuple(attrs.strides)
     padding = get_const_tuple(attrs.padding)
     dilation = get_const_tuple(attrs.dilation)
 
-    return [
-        _conv_shape_func(
-            inputs[0],
-            inputs[1],
-            convert(strides),
-            convert(padding),
-            convert(dilation),
+    shape_func = None
+    if attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+        shape_func = _conv_shape_func_nchw
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+        shape_func = _conv_shape_func_nhwc_hwio
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWOI":
+        shape_func = _conv_shape_func_nhwc_hwoi
+    else:
+        raise ValueError(
+            "Unsupported data/kernel layout: %s, %s"
+            % (attrs["data_layout"], attrs["kernel_layout"])
         )
-    ]
+
+    return [shape_func(inputs[0], inputs[1], convert(strides), convert(padding), convert(dilation))]
 
 
 reg.register_shape_func("nn.conv1d", False, conv_shape_func)
@@ -931,27 +1086,22 @@ def conv2d_NCHWc_shape_func(attrs, inputs, _):
 
 
 @script
-def _conv2d_transpose_nchw_shape_func(dshape, kshape, strides, padding, dilation, output_padding):
+def _conv_transpose_shape_func(dshape, kshape, strides, padding, dilation, output_padding):
     out = output_tensor((dshape.shape[0],), "int64")
-    kheight = kshape[2]
-    kwidth = kshape[3]
-    dilated_kh = (kheight - 1) * dilation[0] + 1
-    dilated_kw = (kwidth - 1) * dilation[1] + 1
-
-    out_height = strides[0] * (dshape[2] - 1) + dilated_kh - 2 * padding[0] + output_padding[0]
-    out_width = strides[1] * (dshape[3] - 1) + dilated_kw - 2 * padding[1] + output_padding[1]
-
     out[0] = dshape[0]
     out[1] = kshape[1]
-    out[2] = out_height
-    out[3] = out_width
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i + 2] - 1) * dilation[i] + 1
+        out[i + 2] = (
+            strides[i] * (dshape[i + 2] - 1) + dilated_k - 2 * padding[i] + output_padding[i]
+        )
     return out
 
 
-@reg.register_shape_func("nn.conv2d_transpose", False)
-def conv2d_transpose_nchw_shape_func(attrs, inputs, _):
+def conv_transpose_shape_func(attrs, inputs, _):
     """
-    Shape function for conv2d_transpose op.
+    Shape function for contrib_conv2d_NCHWc op.
     """
     strides = get_const_tuple(attrs.strides)
     padding = get_const_tuple(attrs.padding)
@@ -959,7 +1109,7 @@ def conv2d_transpose_nchw_shape_func(attrs, inputs, _):
     output_padding = get_const_tuple(attrs.output_padding)
 
     return [
-        _conv2d_transpose_nchw_shape_func(
+        _conv_transpose_shape_func(
             inputs[0],
             inputs[1],
             convert(strides),
@@ -968,6 +1118,10 @@ def conv2d_transpose_nchw_shape_func(attrs, inputs, _):
             convert(output_padding),
         )
     ]
+
+
+reg.register_shape_func("nn.conv1d_transpose", False, conv_transpose_shape_func)
+reg.register_shape_func("nn.conv2d_transpose", False, conv_transpose_shape_func)
 
 
 @script
@@ -1065,33 +1219,72 @@ def batch_flatten_shape_func(attrs, inputs, _):
 
 
 @script
-def _dense_shape_func(data_shape, weight_shape):
-    out = output_tensor((data_shape.shape[0],), "int64")
+def _matmul_shape_func(tensor_a_shape, tensor_b_shape, transpose_a, transpose_b):
+    out = output_tensor((tensor_a_shape.shape[0],), "int64")
     for i in const_range(out.shape[0] - 1):
-        out[i] = data_shape[i]
-    out[out.shape[0] - 1] = weight_shape[0]
+        out[i] = tensor_a_shape[i]
+    if transpose_a:
+        out[out.shape[0] - 2] = out[out.shape[0] - 1]
+    out[out.shape[0] - 1] = tensor_b_shape[0] if transpose_b else tensor_b_shape[1]
 
     return out
 
 
+@reg.register_shape_func("nn.matmul", False)
+def matmul_shape_func(attrs, inputs, _):
+    """Shape function for matmul op."""
+    ret = [
+        _matmul_shape_func(
+            inputs[0],
+            inputs[1],
+            expr.IntImm("bool", attrs.transpose_a),
+            expr.IntImm("bool", attrs.transpose_b),
+        )
+    ]
+    return ret
+
+
 @reg.register_shape_func("nn.dense", False)
 def dense_shape_func(attrs, inputs, _):
+    """Shape function for dense op. This is an alias of matmul_nt operator for data tensor in
+    non-transposed format and weight tensor in transposed format.
     """
-    Shape function for dense op.
-    """
-    ret = [_dense_shape_func(inputs[0], inputs[1])]
+    ret = [
+        _matmul_shape_func(
+            inputs[0],
+            inputs[1],
+            expr.IntImm("bool", False),
+            expr.IntImm("bool", True),
+        )
+    ]
     return ret
 
 
 @script
-def _batch_matmul_shape_func(data_shape, weight_shape):
+def _dense_pack_shape_func(data_shape, weight_shape):
     out = output_tensor((data_shape.shape[0],), "int64")
-    for i in const_range(out.shape[0] - 1):
-        if i == 0:
-            out[i] = max(data_shape[i], weight_shape[i])
-        else:
-            out[i] = data_shape[i]
-    out[out.shape[0] - 1] = weight_shape[weight_shape.shape[0] - 2]
+    assert data_shape.shape[0] == 2, "Input data must be 2D"
+    out[0] = data_shape[0]
+    out[1] = weight_shape[0] * weight_shape[2]
+
+    return out
+
+
+@reg.register_shape_func("nn.contrib_dense_pack", False)
+def dense_pack_shape_func(attrs, inputs, _):
+    """
+    Shape function for dense_pack op.
+    """
+    ret = [_dense_pack_shape_func(inputs[0], inputs[1])]
+    return ret
+
+
+@script
+def _batch_matmul_shape_func(tensor_a_shape, tensor_b_shape, transpose_a, transpose_b):
+    out = output_tensor((tensor_a_shape.shape[0],), "int64")
+    out[0] = max(tensor_a_shape[0], tensor_b_shape[0])
+    out[1] = tensor_a_shape[2] if transpose_a else tensor_a_shape[1]
+    out[2] = tensor_b_shape[1] if transpose_b else tensor_b_shape[2]
 
     return out
 
@@ -1099,9 +1292,16 @@ def _batch_matmul_shape_func(data_shape, weight_shape):
 @reg.register_shape_func("nn.batch_matmul", False)
 def batch_matmul_shape_func(attrs, inputs, _):
     """
-    Shape function for dense op.
+    Shape function for batch matmul op.
     """
-    ret = [_batch_matmul_shape_func(inputs[0], inputs[1])]
+    ret = [
+        _batch_matmul_shape_func(
+            inputs[0],
+            inputs[1],
+            expr.IntImm("bool", attrs.transpose_a),
+            expr.IntImm("bool", attrs.transpose_b),
+        )
+    ]
     return ret
 
 
@@ -1144,4 +1344,7 @@ def dilate_shape_func(attrs, inputs, _):
 
 reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
 reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
+reg.register_shape_func("nn.fast_softmax", False, elemwise_shape_func)
 reg.register_shape_func("nn.relu", False, elemwise_shape_func)
+reg.register_shape_func("nn.leaky_relu", False, elemwise_shape_func)
+reg.register_shape_func("nn.prelu", False, elemwise_shape_func)

@@ -42,14 +42,14 @@ def test_fully_connected_inference():
         if not nnpack.is_available():
             pytest.skip("nnpack is not available")
 
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
-        a = tvm.nd.array(np.random.uniform(size=(l)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=(m, l)).astype(B.dtype), ctx)
-        d = tvm.nd.array(np.zeros((m,), dtype=D.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(l)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=(m, l)).astype(B.dtype), dev)
+        d = tvm.nd.array(np.zeros((m,), dtype=D.dtype), dev)
         bb = 10.0
         f(a, b, d, bb)
-        tvm.testing.assert_allclose(d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy().T) + bb, rtol=1e-5)
+        tvm.testing.assert_allclose(d.numpy(), np.dot(a.numpy(), b.numpy().T) + bb, rtol=1e-5)
 
     verify()
 
@@ -111,7 +111,7 @@ def test_convolution_inference():
         if not nnpack.is_available():
             pytest.skip("nnpack is not available")
 
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         output = nnpack.convolution_inference(
             data,
             kernel,
@@ -127,15 +127,15 @@ def test_convolution_inference():
         na = np.random.uniform(size=dshape).astype(data.dtype)
         nb = np.random.uniform(size=kshape).astype(kernel.dtype)
         nc = np.zeros(bshape, dtype=bias.dtype)
-        ta = tvm.nd.array(na, ctx)
-        tb = tvm.nd.array(nb, ctx)
-        tc = tvm.nd.array(nc, ctx)
-        td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
+        ta = tvm.nd.array(na, dev)
+        tb = tvm.nd.array(nb, dev)
+        tc = tvm.nd.array(nc, dev)
+        td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), dev)
         f(ta, tb, tc, td)
         nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(
             1, bshape[0], 1, 1
         )
-        tvm.testing.assert_allclose(td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+        tvm.testing.assert_allclose(td.numpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
 
     for algorithm in [
         nnpack.ConvolutionAlgorithm.AUTO,
@@ -177,7 +177,7 @@ def test_convolution_inference_without_weight_transform():
         if not nnpack.is_available():
             pytest.skip("nnpack is not available")
 
-        ctx = tvm.cpu(0)
+        dev = tvm.cpu(0)
         transformed_kernel = nnpack.convolution_inference_weight_transform(
             kernel, algorithm=algorithm
         )
@@ -201,15 +201,15 @@ def test_convolution_inference_without_weight_transform():
             if with_bias
             else np.zeros(bshape, dtype=bias.dtype)
         )
-        ta = tvm.nd.array(na, ctx)
-        tb = tvm.nd.array(nb, ctx)
-        tc = tvm.nd.array(nc, ctx)
-        td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
+        ta = tvm.nd.array(na, dev)
+        tb = tvm.nd.array(nb, dev)
+        tc = tvm.nd.array(nc, dev)
+        td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), dev)
         f(ta, tb, tc, td)
         nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(
             1, bshape[0], 1, 1
         )
-        tvm.testing.assert_allclose(td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+        tvm.testing.assert_allclose(td.numpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
 
     for algorithm in [nnpack.ConvolutionAlgorithm.WT_8x8]:
         for with_bias in [True, False]:

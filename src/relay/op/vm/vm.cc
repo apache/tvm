@@ -22,6 +22,8 @@
  * \brief Dialect operators for Relay VM.
  */
 
+#include "vm.h"
+
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/attrs/vm.h>
 #include <tvm/relay/expr.h>
@@ -29,6 +31,8 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/topi/elemwise.h>
+
+#include <utility>
 
 #include "../../transforms/infer_layout_utils.h"
 #include "../op_common.h"
@@ -46,26 +50,30 @@ RELAY_REGISTER_OP("vm.shape_of")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The input tensor")
     .add_type_rel("ShapeOf", ShapeOfRel)
+    .set_attrs_type_key("relay.attrs.ShapeOfAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
-TVM_REGISTER_GLOBAL("relay.op.vm.shape_of").set_body_typed([](Expr expr) {
+Expr ShapeOf(Expr expr) {
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = DataType::Int(64);
   static const Op& op = Op::Get("vm.shape_of");
   return Call(op, {expr}, Attrs(attrs), {});
-});
+}
 
-TVM_REGISTER_GLOBAL("relay.op.vm.shape_func")
-    .set_body_typed([](Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
-      static const Op& op = Op::Get("vm.shape_func");
-      auto attrs = make_object<ShapeFuncAttrs>();
-      attrs->is_input = is_input;
-      return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
-    });
+TVM_REGISTER_GLOBAL("relay.op.vm.shape_of").set_body_typed(ShapeOf);
+
+Expr ShapeFunc(Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
+  static const Op& op = Op::Get("vm.shape_func");
+  auto attrs = make_object<ShapeFuncAttrs>();
+  attrs->is_input = is_input;
+  return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.vm.shape_func").set_body_typed(ShapeFunc);
 
 bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
@@ -121,7 +129,10 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 RELAY_REGISTER_OP("vm.shape_func")
     .describe(R"code(Get the shape of a tensor.)code" TVM_ADD_FILELINE)
     .set_num_inputs(3)
-    .add_argument("tensor", "Tensor", "The tensor to retrieve the shape for.")
+    .add_argument("func", "Function", "The operation to call")
+    .add_argument("ins", "Tuple", "The input tensors.")
+    .add_argument("outs", "Tuple", "The output tensors.")
+    .set_attrs_type_key("relay.attrs.ShapeFuncAttrs")
     .add_type_rel("ShapeFuncRel", ShapeFuncRel)
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
@@ -160,10 +171,11 @@ bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-TVM_REGISTER_GLOBAL("relay.op.vm.invoke_tvm_op")
-    .set_body_typed([](Expr func, Expr inputs, Expr outputs) {
-      return Call(Op::Get("vm.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
-    });
+Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs) {
+  return Call(Op::Get("vm.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
+}
+
+TVM_REGISTER_GLOBAL("relay.op.vm.invoke_tvm_op").set_body_typed(InvokeTVMOp);
 
 RELAY_REGISTER_OP("vm.invoke_tvm_op")
     .describe(R"code(Invoke an operation compiled by TVM.)code" TVM_ADD_FILELINE)
@@ -204,19 +216,21 @@ RELAY_REGISTER_OP("vm.reshape_tensor")
     .add_argument("data", "Tensor", "The input tensor")
     .add_argument("shape", "Tensor", "The output shape tensor")
     .add_type_rel("ReshapeTensor", ReshapeTensorRel)
+    .set_attrs_type_key("relay.attrs.ReshapeTensorAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
-TVM_REGISTER_GLOBAL("relay.op.vm.reshape_tensor")
-    .set_body_typed([](Expr data, Expr shape, Array<PrimExpr> newshape) {
-      static const Op& op = Op::Get("vm.reshape_tensor");
-      auto attrs = make_object<ReshapeTensorAttrs>();
-      attrs->newshape = std::move(newshape);
-      return Call(op, {data, shape}, Attrs(attrs), {});
-    });
+Expr ReshapeTensor(Expr data, Expr shape, Array<PrimExpr> newshape) {
+  static const Op& op = Op::Get("vm.reshape_tensor");
+  auto attrs = make_object<ReshapeTensorAttrs>();
+  attrs->newshape = std::move(newshape);
+  return Call(op, {data, shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.vm.reshape_tensor").set_body_typed(ReshapeTensor);
 
 }  // namespace relay
 }  // namespace tvm

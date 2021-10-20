@@ -26,8 +26,8 @@
 #include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/auto_scheduler/transform_step.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 #include <tvm/te/operation.h>
 
 #include <string>
@@ -538,14 +538,24 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
   Iterator new_it =
       Iterator(new_name, range, new_iter_kind, IteratorAnnotation::kNone, &orig_iters);
   Array<Iterator> new_iters;
-  new_iters.insert(new_iters.end(), stage->iters.begin(), stage->iters.begin() + fused_ids.front());
-  new_iters.push_back(new_it);
-  new_iters.insert(new_iters.end(), stage->iters.begin() + fused_ids.back() + 1,
-                   stage->iters.end());
+
+  if (fused_ids.empty()) {
+    new_iters.push_back(new_it);
+  } else {
+    new_iters.insert(new_iters.end(), stage->iters.begin(),
+                     stage->iters.begin() + fused_ids.front());
+    new_iters.push_back(new_it);
+    new_iters.insert(new_iters.end(), stage->iters.begin() + fused_ids.back() + 1,
+                     stage->iters.end());
+  }
 
   StateNode* pstate = state->CopyOnWrite();
   pstate->stages.Set(stage_id,
                      Stage(stage->op, stage->op_type, new_iters, stage->compute_at, stage->attrs));
+
+  if (fused_ids.empty()) {
+    return new_it;
+  }
 
   // Two vectors are used to represent the iterator relation before and after fuse
   // The original iterators in AttachMap will be updated with the new iterators
@@ -583,9 +593,13 @@ IterVar FuseStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   stage.fuse(to_fuse, &fused_axis);
 
   Array<IterVar> new_axes;
-  new_axes.insert(new_axes.end(), axes.begin(), axes.begin() + fused_ids.front());
-  new_axes.push_back(fused_axis);
-  new_axes.insert(new_axes.end(), axes.begin() + fused_ids.back() + 1, axes.end());
+  if (fused_ids.empty()) {
+    new_axes.push_back(fused_axis);
+  } else {
+    new_axes.insert(new_axes.end(), axes.begin(), axes.begin() + fused_ids.front());
+    new_axes.push_back(fused_axis);
+    new_axes.insert(new_axes.end(), axes.begin() + fused_ids.back() + 1, axes.end());
+  }
 
   stage_to_axes->Set(stage, std::move(new_axes));
   stages->Set(stage_id, std::move(stage));
@@ -683,9 +697,12 @@ void PragmaStepNode::ApplyToSchedule(Array<te::Stage>* stages,
     }
     ICHECK_LT(pos, pragma_type.size()) << "max step value not found.";
     int value = atoi(pragma_type.c_str() + pos + 1);
-    stage.pragma(axes[iter_id], "auto_unroll_max_step", value);
-    stage.pragma(axes[iter_id], "unroll_explicit", true);
+    if (iter_id < static_cast<int>(axes.size())) {
+      stage.pragma(axes[iter_id], "auto_unroll_max_step", value);
+      stage.pragma(axes[iter_id], "unroll_explicit", true);
+    }
   } else {
+    ICHECK_LT(iter_id, axes.size());
     stage.pragma(axes[iter_id], pragma_type);
   }
   stages->Set(stage_id, std::move(stage));

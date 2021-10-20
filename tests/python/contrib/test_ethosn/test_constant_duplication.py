@@ -20,7 +20,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
@@ -70,13 +70,11 @@ def _get_model():
     return req, params
 
 
+@requires_ethosn
 def test_constant_duplication():
-    if not ethosn_available():
-        return
-
     model, params = _get_model()
     mod = tei.make_module(model, params)
     res = tei.build(mod, params, npu=True, expected_host_ops=1)
     for key, value in res.params.items():
         assert key == "p0"
-        assert value.asnumpy().size == 64
+        assert value.numpy().size == 64

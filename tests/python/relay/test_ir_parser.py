@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
-from tvm import te
 from tvm import relay
 import tvm.relay.testing
 import pytest
 from numpy import isclose
 from typing import Union
-from functools import wraps
-
 
 SEMVER = '#[version = "0.0.5"]\n'
 
@@ -118,7 +117,7 @@ def assert_parse_module_as(code, mod):
 
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
-    return x.data.asnumpy().item()
+    return x.data.numpy().item()
 
 
 int32 = relay.scalar_type("int32")
@@ -171,6 +170,7 @@ def test_int_literal():
     assert get_scalar(parse_text("0")) == 0
     assert get_scalar(parse_text("-100")) == -100
     assert get_scalar(parse_text("-05")) == -5
+    assert get_scalar(parse_text("9223372036854775807")) == 9223372036854775807
 
 
 def test_float_literal():
@@ -827,8 +827,8 @@ def test_import_grad():
     mod.import_from_std("gradient.rly")
 
 
-def test_resnet():
-    mod, _ = relay.testing.resnet.get_workload()
+def test_mlp():
+    mod, _ = relay.testing.mlp.get_workload(1)
     text = mod.astext()
     parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
@@ -850,8 +850,8 @@ def inline_params(mod, params):
     return mod
 
 
-def test_resnet_inlined_params():
-    mod, params = relay.testing.resnet.get_workload()
+def test_mlp_inlined_params():
+    mod, params = relay.testing.mlp.get_workload(1)
     mod = inline_params(mod, params)
     mod = relay.transform.InferType()(mod)
     text = mod.astext()
@@ -908,6 +908,86 @@ def test_load_prelude():
     mod = tvm.IRModule()
     mod.import_from_std("prelude.rly")
     tvm.parser.parse(mod.astext())
+
+
+def test_call_attrs():
+    def get_func(shape, dtype):
+        x0 = relay.var("data", shape=shape, dtype=dtype)
+        w0 = relay.var("weight", shape=shape, dtype=dtype)
+        a = relay.nn.dense(x0, w0)
+        b = relay.nn.relu(a)
+        d = relay.add(b, relay.const(1.0, dtype=dtype))
+        return relay.Function([x0, w0], d)
+
+    # build relay graph
+    shape = (2, 4)
+    dtype = "float32"
+    sub_func = get_func(shape, dtype)
+    p0 = relay.var("p0", shape=shape, dtype=dtype)
+    p1 = relay.var("p1", shape=shape, dtype=dtype)
+    attr = tvm.ir.make_node("attrs.TestAttrs", name="func_call_attrs")
+    call = relay.Call(sub_func, [p0, p1], attrs=attr)
+    func = relay.Function([p0, p1], call)
+
+    # build relay module
+    mod = tvm.IRModule()
+    mod["main"] = func
+    mod = tvm.relay.transform.InferType()(mod)
+
+    # assert equal
+    program = """
+    def @main(%p0: Tensor[(2, 4), float32], %p1: Tensor[(2, 4), float32]) {
+    %2 = fn (%data: Tensor[(2, 4), float32], %weight: Tensor[(2, 4), float32]) {
+        %0 = nn.dense(%data, %weight, units=None);
+        %1 = nn.relu(%0);
+        add(%1, 1f)
+    };
+    %2(%p0, %p1, name="func_call_attrs", attrs_type_key="attrs.TestAttrs")
+    }
+    """
+    parsed = parse_module(program)
+    assert_graph_equal(parsed, mod)
+
+
+def test_tokenize_inf():
+    x = relay.var("x", shape=(3, 4), dtype="float32")
+    y = relay.clip(x, -np.inf, np.inf)
+
+    f = relay.Function([x], y)
+    mod = tvm.IRModule.from_expr(f)
+
+    mod = relay.transform.AnnotateSpans()(mod)
+
+
+def test_func_attrs():
+    attrs = tvm.ir.make_node("DictAttrs", **{"Primitive": 1, "relay.reshape_only": 1})
+    x = relay.var("x", shape=(2, 3))
+    func = relay.Function([x], relay.reshape(x, (-1,)), attrs=attrs)
+    assert_parses_as(func.astext(), func)
+
+
+def test_init_module_and_metatable():
+    init_metatable = {"relay.Constant": [relay.const(np.random.rand(2, 3), dtype="float32")]}
+    init_module = tvm.parser.fromtext(
+        SEMVER
+        + """
+            def @f(%y : Tensor[(2, 3), float32]) -> Tensor[(2, 3), float32] {
+              negative(%y)
+            }                                       
+        """,
+    )
+    mod = tvm.parser.parse(
+        SEMVER
+        + """
+            def @main(%x: Tensor[(2, 3), float32]) {
+              add(@f(%x), meta[relay.Constant][0])
+            }
+        """,
+        "from_string",
+        init_module,
+        init_metatable,
+    )
+    roundtrip(mod)
 
 
 if __name__ == "__main__":

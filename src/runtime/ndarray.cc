@@ -23,8 +23,9 @@
  */
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/registry.h>
 
 #include "runtime_base.h"
 
@@ -58,38 +59,41 @@ inline void VerifyDataType(DLDataType dtype) {
   ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
-inline size_t GetDataAlignment(const DLTensor& arr) {
-  size_t align = (arr.dtype.bits / 8) * arr.dtype.lanes;
-  if (align < kAllocAlignment) return kAllocAlignment;
-  return align;
-}
-
 void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
   ICHECK_EQ(arr_size, nbytes) << "ArrayCopyFromBytes: size mismatch";
   ICHECK(IsContiguous(*handle)) << "ArrayCopyFromBytes only support contiguous array for now";
-  DeviceAPI::Get(handle->ctx)
-      ->CopyDataFromTo(data, 0, handle->data, static_cast<size_t>(handle->byte_offset), nbytes,
-                       cpu_ctx, handle->ctx, handle->dtype, nullptr);
+
+  DLTensor from;
+  from.data = const_cast<void*>(data);
+  from.device = Device{kDLCPU, 0};
+  from.ndim = handle->ndim;
+  from.dtype = handle->dtype;
+  from.shape = handle->shape;
+  from.strides = nullptr;
+  from.byte_offset = 0;
+  DeviceAPI::Get(handle->device)->CopyDataFromTo(&from, handle, nullptr);
   // Synchronize in case data become unavailable later.
-  DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
+  DeviceAPI::Get(handle->device)->StreamSync(handle->device, nullptr);
 }
 
 void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
   ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
   ICHECK(IsContiguous(*handle)) << "ArrayCopyToBytes only support contiguous array for now";
-  DeviceAPI::Get(handle->ctx)
-      ->CopyDataFromTo(handle->data, static_cast<size_t>(handle->byte_offset), data, 0, nbytes,
-                       handle->ctx, cpu_ctx, handle->dtype, nullptr);
+
+  DLTensor to;
+  to.data = const_cast<void*>(data);
+  to.device = Device{kDLCPU, 0};
+  to.ndim = handle->ndim;
+  to.dtype = handle->dtype;
+  to.shape = handle->shape;
+  to.strides = nullptr;
+  to.byte_offset = 0;
+
+  DeviceAPI::Get(handle->device)->CopyDataFromTo(const_cast<DLTensor*>(handle), &to, nullptr);
   // Synchronize in case data become unavailable later.
-  DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
+  DeviceAPI::Get(handle->device)->StreamSync(handle->device, nullptr);
 }
 
 struct NDArray::Internal {
@@ -99,8 +103,8 @@ struct NDArray::Internal {
     if (ptr->manager_ctx != nullptr) {
       static_cast<NDArray::Container*>(ptr->manager_ctx)->DecRef();
     } else if (ptr->dl_tensor.data != nullptr) {
-      tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.ctx)
-          ->FreeDataSpace(ptr->dl_tensor.ctx, ptr->dl_tensor.data);
+      tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.device)
+          ->FreeDataSpace(ptr->dl_tensor.device, ptr->dl_tensor.data);
     }
     delete ptr;
   }
@@ -119,7 +123,7 @@ struct NDArray::Internal {
   }
   // Local create function which allocates tensor metadata
   // but does not allocate space for the data.
-  static NDArray Create(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
+  static NDArray Create(ShapeTuple shape, DLDataType dtype, Device dev) {
     VerifyDataType(dtype);
 
     // critical zone: construct header
@@ -130,12 +134,12 @@ struct NDArray::Internal {
     NDArray ret(GetObjectPtr<Object>(data));
     // setup shape
     data->shape_ = std::move(shape);
-    data->dl_tensor.shape = dmlc::BeginPtr(data->shape_);
+    data->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(data->shape_.data());
     data->dl_tensor.ndim = static_cast<int>(data->shape_.size());
     // setup dtype
     data->dl_tensor.dtype = dtype;
-    // setup ctx
-    data->dl_tensor.ctx = ctx;
+    // setup device
+    data->dl_tensor.device = dev;
     return ret;
   }
   // Implementation of API function
@@ -168,10 +172,10 @@ struct NDArray::Internal {
   }
 };
 
-NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
+NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
   ICHECK(data_ != nullptr);
   ICHECK(get_mutable()->dl_tensor.strides == nullptr) << "Can only create view for compact tensor";
-  NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.ctx);
+  NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.device);
   ret.get_mutable()->dl_tensor.byte_offset = this->get_mutable()->dl_tensor.byte_offset;
   size_t curr_size = GetDataSize(this->get_mutable()->dl_tensor);
   size_t view_size = GetDataSize(ret.get_mutable()->dl_tensor);
@@ -186,13 +190,11 @@ NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
 
 DLManagedTensor* NDArray::ToDLPack() const { return Internal::ToDLPack(get_mutable()); }
 
-NDArray NDArray::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
-  NDArray ret = Internal::Create(shape, dtype, ctx);
-  // setup memory content
-  size_t size = GetDataSize(ret.get_mutable()->dl_tensor);
-  size_t alignment = GetDataAlignment(ret.get_mutable()->dl_tensor);
+NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<String> mem_scope) {
+  NDArray ret = Internal::Create(shape, dtype, dev);
   ret.get_mutable()->dl_tensor.data =
-      DeviceAPI::Get(ret->ctx)->AllocDataSpace(ret->ctx, size, alignment, ret->dtype);
+      DeviceAPI::Get(ret->device)
+          ->AllocDataSpace(ret->device, shape.size(), shape.data(), ret->dtype, mem_scope);
   return ret;
 }
 
@@ -204,9 +206,11 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   data->manager_ctx = tensor;
   data->dl_tensor = tensor->dl_tensor;
   // update shape_
-  data->shape_.resize(data->dl_tensor.ndim);
-  data->shape_.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
-  data->dl_tensor.shape = data->shape_.data();
+  std::vector<ShapeTuple::index_type> shape;
+  shape.resize(data->dl_tensor.ndim);
+  shape.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
+  data->shape_ = ShapeTuple(shape);
+  data->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(data->shape_.data());
   return NDArray(GetObjectPtr<Object>(data));
 }
 
@@ -227,21 +231,20 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
   size_t to_size = GetDataSize(*to);
   ICHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size must exactly match";
 
-  ICHECK(from->ctx.device_type == to->ctx.device_type || from->ctx.device_type == kDLCPU ||
-         to->ctx.device_type == kDLCPU || from->ctx.device_type == kDLCPUPinned ||
-         to->ctx.device_type == kDLCPUPinned)
-      << "Can not copy across different ctx types directly";
+  ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
+         to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||
+         to->device.device_type == kDLCUDAHost)
+      << "Can not copy across different device types directly. From device type: "
+      << from->device.device_type << " to device type: " << to->device.device_type;
 
-  // Use the context that is *not* a cpu context to get the correct device
+  // Use the device that is *not* a cpu device to get the correct device
   // api manager.
-  TVMContext ctx = from->ctx.device_type != kDLCPU ? from->ctx : to->ctx;
+  Device dev = from->device.device_type != kDLCPU ? from->device : to->device;
 
-  DeviceAPI::Get(ctx)->CopyDataFromTo(from->data, static_cast<size_t>(from->byte_offset), to->data,
-                                      static_cast<size_t>(to->byte_offset), from_size, from->ctx,
-                                      to->ctx, from->dtype, stream);
+  DeviceAPI::Get(dev)->CopyDataFromTo(const_cast<DLTensor*>(from), to, stream);
 }
 
-std::vector<int64_t> NDArray::Shape() const { return get_mutable()->shape_; }
+ShapeTuple NDArray::Shape() const { return get_mutable()->shape_; }
 runtime::DataType NDArray::DataType() const {
   return runtime::DataType(get_mutable()->dl_tensor.dtype);
 }
@@ -270,14 +273,25 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   dtype.code = static_cast<uint8_t>(dtype_code);
   dtype.bits = static_cast<uint8_t>(dtype_bits);
   dtype.lanes = static_cast<uint16_t>(dtype_lanes);
-  DLContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id = device_id;
-  auto ndarray = NDArray::Empty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx);
+  tvm::Device dev;
+  dev.device_type = static_cast<DLDeviceType>(device_type);
+  dev.device_id = device_id;
+  auto ndarray = NDArray::Empty(ShapeTuple(shape, shape + ndim), dtype, dev);
 
   *out = NDArray::Internal::MoveToFFIHandle(ndarray);
   API_END();
 }
+
+TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, TVMRetValue* ret) {
+  int64_t* shape_ptr = static_cast<int64_t*>(static_cast<void*>(args[0]));
+  int ndim = args[1];
+  ShapeTuple shape(shape_ptr, shape_ptr + ndim);
+  DataType dtype = args[2];
+  tvm::Device dev = args[3];
+  Optional<String> mem_scope = args[4];
+  auto ndarray = NDArray::Empty(shape, dtype, dev, mem_scope);
+  *ret = ndarray;
+});
 
 int TVMArrayFree(TVMArrayHandle handle) {
   API_BEGIN();

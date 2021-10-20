@@ -76,7 +76,7 @@ macro_rules! TVMPODValue {
             Null,
             DataType(DLDataType),
             String(*mut c_char),
-            Context(TVMContext),
+            Device(DLDevice),
             Handle(*mut c_void),
             ArrayHandle(TVMArrayHandle),
             ObjectHandle(*mut c_void),
@@ -97,7 +97,7 @@ macro_rules! TVMPODValue {
                         DLDataTypeCode_kDLFloat => Float($value.v_float64),
                         TVMArgTypeCode_kTVMNullptr => Null,
                         TVMArgTypeCode_kTVMDataType => DataType($value.v_type),
-                        TVMArgTypeCode_kTVMContext => Context($value.v_ctx),
+                        TVMArgTypeCode_kDLDevice => Device($value.v_device),
                         TVMArgTypeCode_kTVMOpaqueHandle => Handle($value.v_handle),
                         TVMArgTypeCode_kTVMDLTensorHandle => ArrayHandle($value.v_handle as TVMArrayHandle),
                         TVMArgTypeCode_kTVMObjectHandle => ObjectHandle($value.v_handle),
@@ -119,7 +119,7 @@ macro_rules! TVMPODValue {
                     Float(val) => (TVMValue { v_float64: *val }, DLDataTypeCode_kDLFloat),
                     Null => (TVMValue{ v_int64: 0 },TVMArgTypeCode_kTVMNullptr),
                     DataType(val) => (TVMValue { v_type: *val }, TVMArgTypeCode_kTVMDataType),
-                    Context(val) => (TVMValue { v_ctx: val.clone() }, TVMArgTypeCode_kTVMContext),
+                    Device(val) => (TVMValue { v_device: val.clone() }, TVMArgTypeCode_kDLDevice),
                     String(val) => {
                         (
                             TVMValue { v_handle: *val as *mut c_void },
@@ -224,7 +224,7 @@ macro_rules! impl_pod_value {
                 }
             }
 
-            impl<'a, 'v> From<&'a $type> for ArgValue<'v> {
+            impl<'a> From<&'a $type> for ArgValue<'a> {
                 fn from(val: &'a $type) -> Self {
                     Self::$variant(*val as $inner_ty)
                 }
@@ -264,7 +264,7 @@ impl_pod_value!(Int, i64, [i8, i16, i32, i64, isize]);
 impl_pod_value!(UInt, i64, [u8, u16, u32, u64, usize]);
 impl_pod_value!(Float, f64, [f32, f64]);
 impl_pod_value!(DataType, DLDataType, [DLDataType]);
-impl_pod_value!(Context, TVMContext, [TVMContext]);
+impl_pod_value!(Device, DLDevice, [DLDevice]);
 
 impl<'a> From<&'a str> for ArgValue<'a> {
     fn from(s: &'a str) -> Self {
@@ -284,9 +284,9 @@ impl<'a> From<&'a CStr> for ArgValue<'a> {
     }
 }
 
-impl<'a> From<CString> for ArgValue<'a> {
-    fn from(s: CString) -> Self {
-        Self::String(s.into_raw())
+impl<'a> From<&'a CString> for ArgValue<'a> {
+    fn from(s: &'a CString) -> Self {
+        Self::String(s.as_ptr() as _)
     }
 }
 
@@ -311,14 +311,14 @@ impl<'a, 'v> TryFrom<&'a ArgValue<'v>> for &'v str {
 }
 
 /// Converts an unspecialized handle to a ArgValue.
-impl<T> From<*const T> for ArgValue<'static> {
+impl<'a, T> From<*const T> for ArgValue<'a> {
     fn from(ptr: *const T) -> Self {
         Self::Handle(ptr as *mut c_void)
     }
 }
 
 /// Converts an unspecialized mutable handle to a ArgValue.
-impl<T> From<*mut T> for ArgValue<'static> {
+impl<'a, T> From<*mut T> for ArgValue<'a> {
     fn from(ptr: *mut T) -> Self {
         Self::Handle(ptr as *mut c_void)
     }
@@ -382,9 +382,9 @@ impl TryFrom<RetValue> for std::ffi::CString {
 
 // Implementations for bool.
 
-impl<'a> From<bool> for ArgValue<'a> {
-    fn from(s: bool) -> Self {
-        (s as i64).into()
+impl<'a> From<&bool> for ArgValue<'a> {
+    fn from(s: &bool) -> Self {
+        (*s as i64).into()
     }
 }
 

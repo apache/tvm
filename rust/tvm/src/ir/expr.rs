@@ -32,12 +32,14 @@ use super::span::Span;
 #[type_key = "Expr"]
 pub struct BaseExprNode {
     pub base: Object,
+    pub span: Span,
 }
 
 impl BaseExprNode {
-    pub fn base<T: IsObject>() -> BaseExprNode {
+    pub fn base<T: IsObject>(span: Span) -> BaseExprNode {
         BaseExprNode {
             base: Object::base::<T>(),
+            span,
         }
     }
 }
@@ -52,9 +54,9 @@ pub struct PrimExprNode {
 }
 
 impl PrimExprNode {
-    pub fn base<T: IsObject>(datatype: DataType) -> PrimExprNode {
+    pub fn base<T: IsObject>(datatype: DataType, span: Span) -> PrimExprNode {
         PrimExprNode {
-            base: BaseExprNode::base::<T>(),
+            base: BaseExprNode::base::<T>(span),
             datatype,
         }
     }
@@ -70,9 +72,9 @@ pub struct GlobalVarNode {
 }
 
 impl GlobalVar {
-    pub fn new(name_hint: String, _span: Span) -> GlobalVar {
+    pub fn new(name_hint: String, span: Span) -> GlobalVar {
         let node = GlobalVarNode {
-            base: relay::ExprNode::base::<GlobalVarNode>(),
+            base: relay::ExprNode::base::<GlobalVarNode>(span),
             name_hint: name_hint.into(),
         };
         GlobalVar(Some(ObjectPtr::new(node)))

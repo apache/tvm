@@ -48,11 +48,12 @@ void ServerLoopFromChild(SOCKET socket);
  * \param tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \param key The key used to identify the device type in tracker. Default=""
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
+ * \param work_dir Custom work directory. Default=""
  * \param silent Whether run in silent mode. Default=True
  */
 void RPCServerCreate(std::string host = "", int port = 9090, int port_end = 9099,
                      std::string tracker_addr = "", std::string key = "",
-                     std::string custom_addr = "", bool silent = true);
+                     std::string custom_addr = "", std::string work_dir = "", bool silent = true);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_APPS_CPP_RPC_SERVER_H_

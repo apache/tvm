@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import tvm.topi.testing
 
 
@@ -51,9 +51,10 @@ def test_same_io_qnn_params():
 
     golden_output = np.concatenate((x_data, y_data), axis=axis)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data, y_data)
-    np.testing.assert_equal(op_res.asnumpy(), golden_output)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+        x_data, y_data
+    )
+    np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
 def test_different_io_qnn_params():
@@ -86,9 +87,10 @@ def test_different_io_qnn_params():
 
     golden_output = np.concatenate((x_data - 2, y_data - 3), axis=axis)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data, y_data)
-    np.testing.assert_equal(op_res.asnumpy(), golden_output)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+        x_data, y_data
+    )
+    np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
 def test_few_same_io_qnn_params():
@@ -121,9 +123,10 @@ def test_few_same_io_qnn_params():
 
     golden_output = np.concatenate((x_data + 1, y_data), axis=axis)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data, y_data)
-    np.testing.assert_equal(op_res.asnumpy(), golden_output)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+        x_data, y_data
+    )
+    np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
 def test_same_i_qnn_params():
@@ -156,9 +159,10 @@ def test_same_i_qnn_params():
 
     golden_output = np.concatenate((x_data + 1, y_data + 1), axis=axis)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data, y_data)
-    np.testing.assert_equal(op_res.asnumpy(), golden_output)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(
+        x_data, y_data
+    )
+    np.testing.assert_equal(op_res.numpy(), golden_output)
 
 
 def test_call_input():
@@ -183,9 +187,8 @@ def test_call_input():
     )
     func = relay.Function([x], z)
 
-    intrp = relay.create_executor("graph", ctx=tvm.cpu(0), target="llvm")
-    op_res = intrp.evaluate(func)(x_data)
-    np.testing.assert_equal(op_res.asnumpy(), x_data)
+    op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(x_data)
+    np.testing.assert_equal(op_res.numpy(), x_data)
 
 
 if __name__ == "__main__":

@@ -14,18 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
+
 import numpy as np
 import pytest
-
 import tvm
-from tvm import te
-from tvm import relay
+import tvm.topi.testing
+from tvm import relay, te
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
-from utils.assert_diagnostic import DiagnosticTesting
-import tvm.topi.testing
 
-import os
+from utils import ref_funcs
+from utils.assert_diagnostic import DiagnosticTesting
 
 
 def int32(val):
@@ -53,18 +53,16 @@ def check_result(
         expected = [expected]
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
-        for tgt, ctx in targets:
-            print(tgt)
+        for tgt, dev in targets:
             if disable_targets and tgt in disable_targets:
                 continue
-            if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
+            if kind == "debug" and (only_vm or dev.device_type != tvm.cpu().device_type):
                 continue
-            ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
-            result = ex.evaluate()(*args)
+            result = relay.create_executor(kind, mod=mod, device=dev, target=tgt).evaluate()(*args)
             if isinstance(result, tvm.runtime.container.ADT):
-                result = [r.asnumpy() for r in result]
+                result = [r.numpy() for r in result]
             else:
-                result = [result.asnumpy()]
+                result = [result.numpy()]
 
             for r, e in zip(result, expected):
                 if assert_shape:
@@ -72,12 +70,11 @@ def check_result(
                         str(e),
                         str(r),
                     )
-                    return
-
-                if flatten:
-                    r = r.flatten()
-                    e = e.flatten()
-                tvm.testing.assert_allclose(r, e, atol=2e-6)
+                else:
+                    if flatten:
+                        r = r.flatten()
+                        e = e.flatten()
+                    tvm.testing.assert_allclose(r, e, atol=2e-6)
 
 
 def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
@@ -121,6 +118,7 @@ def test_any_elemwise():
     verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
     verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
     verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
+    verify_any_elemwise((relay.Any(),), (3,), relay.round, np.round)
 
 
 @tvm.testing.uses_gpu
@@ -209,6 +207,27 @@ def test_any_concat():
     ref = np.concatenate(x_np, axis=0)
     check_result(x_np, mod, ref)
 
+    def test_oshape(in_vars, axis, oshape):
+        z = relay.op.concatenate(in_vars, axis=axis)
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function(in_vars, z)
+        typed_mod = relay.transform.InferType()(mod)
+        assert typed_mod["main"].body.checked_type == relay.TensorType(oshape, dtype="float32")
+
+    x = [relay.var("x", shape=(relay.Any(), 3), dtype="float32") for _ in range(3)]
+    x.append(relay.var("x", shape=(relay.Any(), relay.Any()), dtype="float32"))
+
+    test_oshape(x, 0, (relay.Any(), 3))
+    test_oshape(x, 1, (relay.Any(), relay.Any()))
+
+    # [(1, 3), (1, ?)] -> (2, ?)
+    x = [
+        relay.var("x", shape=(1, 3), dtype="float32"),
+        relay.var("x", shape=(1, relay.Any()), dtype="float32"),
+    ]
+    test_oshape(x, 0, (2, relay.Any()))
+    test_oshape(x, 1, (1, relay.Any()))
+
 
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var("x", shape=x_shape, dtype="float32")
@@ -240,6 +259,28 @@ def test_any_reshape():
     verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
 
 
+def verify_any_one_hot(indices_shape, indices_np_shape, depth, on_value, off_value, axis, dtype):
+    indices = relay.var("indices", shape=indices_shape, dtype="int32")
+    on_value_const = relay.const(on_value, dtype)
+    off_value_const = relay.const(off_value, dtype)
+    y = relay.one_hot(indices, on_value_const, off_value_const, depth, axis=axis, dtype=dtype)
+    params = [indices]
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function(params, y)
+
+    indices_npy = np.random.randint(0, depth, size=indices_np_shape).astype("int32")
+    out_npy = tvm.topi.testing.one_hot(indices_npy, on_value, off_value, depth, axis, dtype)
+    args = [indices_npy]
+    check_result(args, mod, out_npy)
+
+
+@tvm.testing.uses_gpu
+def test_any_one_hot():
+    verify_any_one_hot(any_dims(1), (3,), 3, 1, 0, -1, "int32")
+    verify_any_one_hot(any_dims(2), (2, 2), 5, 0.5, -0.5, 1, "float32")
+    verify_any_one_hot(any_dims(4), (3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
+
+
 def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
     x = relay.var("x", shape=x_shape, dtype=dtype)
     y = relay.argwhere(x)
@@ -250,9 +291,7 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
     check_result([data], mod, expected, flatten=True)
 
 
-# TODO(zhiics) Enable argwhere gpu test after sort is fixed. Otherwise, we have
-# to use thrust to guarantee the correct results which has been tested locally.
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_any_argwhere():
     verify_any_argwhere(any_dims(1), (5,))
     verify_any_argwhere(any_dims(2), (5, 5))
@@ -333,28 +372,51 @@ def test_any_shape_of():
     check_result([data], mod, np.array(3).astype("int64"))
 
 
-def verify_any_reduce(
-    reduce_op, data_shape, axis, exclude, keepdims, static_data_shape, ref_out_shape
-):
-    mod = tvm.IRModule()
-    dtype = "bool" if reduce_op == relay.all else "float32"
-    data = relay.var("data", shape=data_shape, dtype=dtype)
-    y = reduce_op(data, axis, keepdims, exclude)
-    mod["main"] = relay.Function([data], y)
-    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+class TestAnyReduce:
+    config = {
+        "argmax": (relay.argmax, any_dims(3), None, False, False, (3, 4, 5), ()),
+        "argmin": (relay.argmin, any_dims(4), 1, False, True, (3, 4, 5, 6), (3, 1, 5, 6)),
+        "all": (relay.all, any_dims(3), (1, 2), True, False, (3, 4, 5), (4, 5)),
+        "max": (relay.max, any_dims(4), -1, True, True, (3, 4, 5, 6), (1, 1, 1, 6)),
+        "min": (relay.min, any_dims(3), (0, 1), False, False, (4, 5, 6), (6,)),
+        "prod": (relay.prod, any_dims(4), 2, True, True, (3, 4, 5, 6), (1, 1, 5, 1)),
+        "mean": (relay.mean, any_dims(2), 0, False, False, (1, 2), (2,)),
+        "variance": (relay.variance, any_dims(5), (2, 4), False, False, (3, 4, 5, 6, 7), (3, 4, 6)),
+    }
 
+    (
+        reduce_op,
+        data_shape,
+        axis,
+        exclude,
+        keepdims,
+        static_data_shape,
+        ref_out_shape,
+    ) = tvm.testing.parameters(*config.values(), ids=config.keys())
 
-@tvm.testing.uses_gpu
-def test_any_reduce():
-    verify_any_reduce(relay.argmax, any_dims(3), None, False, False, (3, 4, 5), ())
-    verify_any_reduce(relay.argmin, any_dims(4), 1, False, True, (3, 4, 5, 6), (3, 1, 5, 6))
-    verify_any_reduce(relay.all, any_dims(3), (1, 2), True, False, (3, 4, 5), (4, 5))
-    verify_any_reduce(relay.max, any_dims(4), -1, True, True, (3, 4, 5, 6), (1, 1, 1, 6))
-    verify_any_reduce(relay.min, any_dims(3), (0, 1), False, False, (4, 5, 6), (6,))
-    verify_any_reduce(relay.prod, any_dims(4), 2, True, True, (3, 4, 5, 6), (1, 1, 5, 1))
-    verify_any_reduce(relay.mean, any_dims(2), 0, False, False, (1, 2), (2,))
-    verify_any_reduce(relay.variance, any_dims(5), (2, 4), False, False, (3, 4, 5, 6, 7), (3, 4, 6))
+    def test_any_reduce(
+        self,
+        target,
+        dev,
+        reduce_op,
+        data_shape,
+        axis,
+        exclude,
+        keepdims,
+        static_data_shape,
+        ref_out_shape,
+    ):
+        target = tvm.target.Target(target)
+        if target.kind.name == "vulkan" and reduce_op == relay.all:
+            pytest.xfail("Known failing test case for vulkan runtime")
+
+        mod = tvm.IRModule()
+        dtype = "bool" if reduce_op == relay.all else "float32"
+        data = relay.var("data", shape=data_shape, dtype=dtype)
+        y = reduce_op(data, axis, keepdims, exclude)
+        mod["main"] = relay.Function([data], y)
+        data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+        check_result([data_np], mod, ref_out_shape, assert_shape=True, targets=[(target, dev)])
 
 
 def verify_any_layout_transform(
@@ -456,16 +518,33 @@ def verify_any_conv2d(
     dilation,
     static_data_shape,
     ref_out_shape,
+    data_layout="NCHW",
+    kernel_layout="OIHW",
+    use_cudnn=False,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
     kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
-    y = relay.nn.conv2d(data, kernel, strides, padding, dilation, kernel_size=kernel_shape[2:4])
+    y = relay.nn.conv2d(
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        kernel_size=kernel_shape[2:4] if kernel_layout == "OIHW" else kernel_shape[0:2],
+        data_layout=data_layout,
+        kernel_layout=kernel_layout,
+    )
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
+
+    targets = None
+    if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape_from_cudnn", True):
+        targets = [("cuda -libs=cudnn", tvm.cuda(0))]
+
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
@@ -489,35 +568,118 @@ def test_any_conv2d():
         (2, 64, 224, 224),
         (2, 64, 222, 222),
     )
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        use_cudnn=True,
+    )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 224, 224, 64),
+        (1, 224, 224, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
+    verify_any_conv2d(
+        (relay.Any(), 224, 224, 64),
+        (3, 3, 64, 64),
+        (1, 1),
+        (1, 1),
+        (2, 2),
+        (2, 224, 224, 64),
+        (2, 222, 222, 64),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
 
 
-def verify_any_conv2d_NCHWc(
+class TestAnyConv2dNCHWc:
+    data_shape = tvm.testing.parameter((relay.Any(), 8, 224, 224, 8))
+    kernel_shape = tvm.testing.parameter((8, 8, 3, 3, 8, 8))
+    strides = tvm.testing.parameter((1, 1))
+    padding = tvm.testing.parameter((1, 1))
+    data_layout = tvm.testing.parameter("NCHW8c")
+    kernel_layout = tvm.testing.parameter("OIHW8i8o")
+    out_layout = tvm.testing.parameter("NCHW8c")
+
+    dilation, static_data_shape, ref_out_shape = tvm.testing.parameters(
+        ((1, 1), (1, 8, 224, 224, 8), (1, 8, 224, 224, 8)),
+        ((2, 2), (2, 8, 224, 224, 8), (2, 8, 222, 222, 8)),
+    )
+
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    def test_any_conv2d_NCHWc(
+        self,
+        target,
+        dev,
+        data_shape,
+        kernel_shape,
+        strides,
+        padding,
+        dilation,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        static_data_shape,
+        ref_out_shape,
+    ):
+        mod = tvm.IRModule()
+        dtype = "float32"
+        data = relay.var("data", shape=data_shape, dtype=dtype)
+        kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
+        y = relay.nn.contrib_conv2d_nchwc(
+            data,
+            kernel,
+            strides,
+            padding,
+            dilation,
+            kernel_size=kernel_shape[2:4],
+            channels=kernel_shape[0] * kernel_shape[-1],
+            data_layout=data_layout,
+            kernel_layout=kernel_layout,
+            out_layout=out_layout,
+        )
+        mod["main"] = relay.Function([data, kernel], y)
+        data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+        kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+        check_result(
+            [data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=[(target, dev)]
+        )
+
+
+def verify_any_conv1d_transpose_ncw(
     data_shape,
     kernel_shape,
     strides,
     padding,
     dilation,
-    data_layout,
-    kernel_layout,
-    out_layout,
+    groups,
     static_data_shape,
     ref_out_shape,
+    output_padding,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
     kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
-    y = relay.nn.contrib_conv2d_nchwc(
+    y = relay.nn.conv1d_transpose(
         data,
         kernel,
         strides,
         padding,
         dilation,
-        kernel_size=kernel_shape[2:4],
-        channels=kernel_shape[0] * kernel_shape[-1],
-        data_layout=data_layout,
-        kernel_layout=kernel_layout,
-        out_layout=out_layout,
+        groups,
+        kernel_size=kernel_shape[2:],
+        output_padding=output_padding,
     )
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
@@ -525,32 +687,29 @@ def verify_any_conv2d_NCHWc(
     check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
 
 
-# TODO(@kevinthesun): Support dynamic input height and width.
 @tvm.testing.uses_gpu
-def test_any_conv2d_NCHWc():
-    verify_any_conv2d_NCHWc(
-        (relay.Any(), 8, 224, 224, 8),
-        (8, 8, 3, 3, 8, 8),
-        (1, 1),
-        (1, 1),
-        (1, 1),
-        "NCHW8c",
-        "OIHW8i8o",
-        "NCHW8c",
-        (1, 8, 224, 224, 8),
-        (1, 8, 224, 224, 8),
+def test_any_conv1d_transpose_ncw():
+    verify_any_conv1d_transpose_ncw(
+        (relay.Any(), 64, 224),
+        (64, 192, 3),
+        (1,),
+        (1,),
+        (1,),
+        1,
+        (2, 64, 224),
+        (2, 192, 224),
+        (0, 0),
     )
-    verify_any_conv2d_NCHWc(
-        (relay.Any(), 8, 224, 224, 8),
-        (8, 8, 3, 3, 8, 8),
+    verify_any_conv1d_transpose_ncw(
+        (relay.Any(), 32, 224),
+        (32, 64, 3),
+        (2,),
+        (1,),
+        (1,),
+        1,
+        (1, 32, 224),
+        (1, 64, 448),
         (1, 1),
-        (1, 1),
-        (2, 2),
-        "NCHW8c",
-        "OIHW8i8o",
-        "NCHW8c",
-        (2, 8, 224, 224, 8),
-        (2, 8, 222, 222, 8),
     )
 
 
@@ -613,13 +772,21 @@ def test_any_conv2d_transpose_nchw():
 
 
 def verify_any_pool2d(
-    pool_type, data_shape, pool_size, strides, padding, layout, static_data_shape, ref_out_shape
+    pool_type,
+    data_shape,
+    pool_size,
+    strides,
+    dilation,
+    padding,
+    layout,
+    static_data_shape,
+    ref_out_shape,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
     pool_func = relay.nn.max_pool2d if pool_type == "max" else relay.nn.avg_pool2d
     data = relay.var("data", shape=data_shape, dtype=dtype)
-    y = pool_func(data, pool_size, strides, padding, layout)
+    y = pool_func(data, pool_size, strides, dilation, padding, layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     check_result([data_np], mod, ref_out_shape, assert_shape=True)
@@ -633,6 +800,7 @@ def test_any_pool2d():
         (3, 3),
         (1, 1),
         (1, 1),
+        (1, 1),
         "NCHW",
         (2, 3, 220, 220),
         (2, 3, 220, 220),
@@ -642,6 +810,7 @@ def test_any_pool2d():
         (relay.Any(), relay.Any(), relay.Any(), 4),
         (1, 1),
         (2, 2),
+        (1, 1),
         (0, 0),
         "NHWC",
         (3, 220, 220, 4),
@@ -652,6 +821,7 @@ def test_any_pool2d():
         (relay.Any(), 3, relay.Any(), relay.Any(), 4),
         (3, 3),
         (2, 2),
+        (1, 1),
         (1, 1),
         "NCHW4c",
         (2, 3, 220, 220, 4),
@@ -695,12 +865,13 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
     mod["main"] = relay.Function([data], y.astuple())
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     for kind in ["vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data_np)
+        result = relay.create_executor(kind, mod=mod, device=tvm.cpu(), target="llvm").evaluate()(
+            data_np
+        )
         for ret, ref_ret in zip(result, ref_out_shape):
-            assert ret.asnumpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
+            assert ret.numpy().shape == ref_ret, "Shape mismatch: expect %s but got %s." % (
                 str(ref_ret),
-                str(ret.asnumpy().shape),
+                str(ret.numpy().shape),
             )
 
 
@@ -711,6 +882,8 @@ def test_any_split():
     verify_any_split((relay.Any(), relay.Any()), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
     verify_any_split((relay.Any(), relay.Any()), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
+    verify_any_split((relay.Any(), 12), (8,), 1, (7, 12), [(7, 8), (7, 4)])
+    verify_any_split((relay.Any(), relay.Any()), (8,), 1, (7, 12), [(7, 8), (7, 4)])
 
 
 @tvm.testing.uses_gpu
@@ -725,25 +898,149 @@ def test_any_batch_flatten():
     check_result([data_np], mod, ref_out_shape, assert_shape=True)
 
 
-def verify_any_dense(
-    data_shape, weight_shape, units, static_data_shape, static_weight_shape, ref_out_shape
-):
-    mod = tvm.IRModule()
-    dtype = "float32"
-    data = relay.var("data", shape=data_shape, dtype=dtype)
-    weight = relay.var("weight", shape=weight_shape, dtype=dtype)
-    y = relay.nn.dense(data, weight, units)
-    mod["main"] = relay.Function([data, weight], y)
-    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    weight_np = np.random.uniform(size=static_weight_shape).astype(dtype)
-    check_result([data_np, weight_np], mod, ref_out_shape, assert_shape=True)
-
-
 # TODO(tvm-team) Fix dense schedule
-# @tvm.testing.uses_gpu
-def test_any_dense():
-    verify_any_dense(any_dims(2), any_dims(2), None, (4, 16), (8, 16), (4, 8))
-    verify_any_dense(any_dims(2), (50, relay.Any()), 50, (4, 40), (50, 40), (4, 50))
+@tvm.testing.known_failing_targets("cuda", "vulkan")
+class TestAnyDense:
+    (
+        data_shape,
+        weight_shape,
+        units,
+        static_data_shape,
+        static_weight_shape,
+        ref_out_shape,
+    ) = tvm.testing.parameters(
+        (any_dims(2), any_dims(2), None, (4, 16), (8, 16), (4, 8)),
+        (any_dims(2), (50, relay.Any()), 50, (4, 40), (50, 40), (4, 50)),
+    )
+
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    def test_any_dense(
+        self,
+        target,
+        dev,
+        data_shape,
+        weight_shape,
+        units,
+        static_data_shape,
+        static_weight_shape,
+        ref_out_shape,
+    ):
+        mod = tvm.IRModule()
+        dtype = "float32"
+        data = relay.var("data", shape=data_shape, dtype=dtype)
+        weight = relay.var("weight", shape=weight_shape, dtype=dtype)
+        y = relay.nn.dense(data, weight, units)
+        mod["main"] = relay.Function([data, weight], y)
+        data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+        weight_np = np.random.uniform(size=static_weight_shape).astype(dtype)
+
+        check_result(
+            [data_np, weight_np], mod, ref_out_shape, assert_shape=True, targets=[(target, dev)]
+        )
+
+    @tvm.testing.parametrize_targets("cuda -libs=cublas")
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    def test_any_dense_cublas(
+        self,
+        target,
+        dev,
+        data_shape,
+        weight_shape,
+        units,
+        static_data_shape,
+        static_weight_shape,
+        ref_out_shape,
+    ):
+
+        self.test_any_dense(
+            target,
+            dev,
+            data_shape,
+            weight_shape,
+            units,
+            static_data_shape,
+            static_weight_shape,
+            ref_out_shape,
+        )
+
+
+class TestAnyBatchMatmul:
+    dtype = tvm.testing.parameter("float32")
+    executor_kind = tvm.testing.parameter("vm", "debug")
+
+    (x_shape, y_shape) = tvm.testing.parameters(
+        ((1, 16, 32), (1, 32, 16)),
+        ((5, 16, 32), (5, 32, 16)),
+        ((5, 16, 32), (5, 32, 20)),
+        ((30, 16, 32), (30, 32, 20)),
+    )
+
+    # any_x = tvm.testing.parameter("none", "batch")
+    # any_y = tvm.testing.parameter("none", "batch", "all")
+
+    any_x, any_y = tvm.testing.parameters(
+        ("none", "batch"), ("none", "all"), ("batch", "none"), ("batch", "batch"), ("batch", "all")
+    )
+
+    transpose_x = tvm.testing.parameter(True, False)
+    transpose_y = tvm.testing.parameter(True, False)
+
+    @tvm.testing.fixture
+    def x_var_shape(self, x_shape, any_x):
+        if any_x == "none":
+            return x_shape
+        elif any_x == "batch":
+            return tuple(relay.Any() if i == 0 else size for i, size in enumerate(x_shape))
+        elif any_x == "all":
+            return tuple(relay.Any() for _ in x_shape)
+
+    @tvm.testing.fixture
+    def y_var_shape(self, y_shape, any_y):
+        if any_y == "none":
+            return y_shape
+        elif any_y == "batch":
+            return tuple(relay.Any() if i == 0 else size for i, size in enumerate(y_shape))
+        elif any_y == "all":
+            return tuple(relay.Any() for _ in y_shape)
+
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    def test_any_batch_matmul(
+        self,
+        target,
+        dev,
+        x_shape,
+        y_shape,
+        any_x,
+        any_y,
+        x_var_shape,
+        y_var_shape,
+        transpose_x,
+        transpose_y,
+        executor_kind,
+        dtype,
+    ):
+        if transpose_x:
+            x_shape = (x_shape[0], x_shape[2], x_shape[1])
+            x_var_shape = (x_var_shape[0], x_var_shape[2], x_var_shape[1])
+
+        if transpose_y:
+            y_shape = (y_shape[0], y_shape[2], y_shape[1])
+            y_var_shape = (y_var_shape[0], y_var_shape[2], y_var_shape[1])
+
+        x = relay.var("x", relay.TensorType(x_var_shape, dtype))
+        y = relay.var("y", relay.TensorType(y_var_shape, dtype))
+        z = relay.nn.batch_matmul(x, y, transpose_a=transpose_x, transpose_b=transpose_y)
+
+        func = relay.Function([x, y], z)
+        x_np = np.random.uniform(size=x_shape).astype(dtype)
+        y_np = np.random.uniform(size=y_shape).astype(dtype)
+        z_np = tvm.topi.testing.batch_matmul(x_np, y_np, trans_x=transpose_x, trans_y=transpose_y)
+
+        mod = tvm.ir.IRModule.from_expr(func)
+        z = relay.create_executor(executor_kind, mod=mod, device=dev, target=target).evaluate()(
+            x_np, y_np
+        )
+        tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -815,7 +1112,73 @@ def test_any_softmax():
     verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
 
 
-def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
+def verify_any_relu(data_shape, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.nn.relu(data)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_relu():
+    verify_any_relu(any_dims(3), (1, 2, 3), (1, 2, 3))
+    verify_any_relu(any_dims(4), (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_prelu(data_shape, alpha, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    alpha = relay.const(np.array([alpha]), dtype=dtype)
+    y = relay.nn.prelu(data, alpha)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_prelu():
+    verify_any_prelu(any_dims(3), 1, (1, 2, 3), (1, 2, 3))
+    verify_any_prelu(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_leaky_relu(data_shape, alpha, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.nn.leaky_relu(data, alpha)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_leaky_relu():
+    verify_any_leaky_relu(any_dims(3), 0.1, (1, 2, 3), (1, 2, 3))
+    verify_any_leaky_relu(any_dims(4), 0.2, (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_bias_add(data_shape, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    bias = relay.const(np.random.randn(1), dtype=dtype)
+    y = relay.nn.bias_add(data, bias)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_bias_add():
+    verify_any_bias_add(any_dims(3), (1, 2, 3), (1, 2, 3))
+    verify_any_bias_add(any_dims(4), (13, 11, 3, 1), (13, 11, 3, 1))
+
+
+def verify_any_topk(data_shape, kval, np_dshape, dtype, ret_type="indices", const_k=False):
     mod = tvm.IRModule()
     data = relay.var("data", shape=data_shape, dtype=dtype)
     np_data = np.random.uniform(size=np_dshape).astype(dtype)
@@ -827,7 +1190,9 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
         k = relay.var("k", shape=(), dtype="int32")
         args = [data, k]
         in_vals = [np_data, kval]
-    out = relay.topk(data, k, ret_type="indices")
+    out = relay.topk(data, k, ret_type=ret_type)
+    if ret_type == "both":
+        out = out[0]
     mod["main"] = relay.Function(args, out)
 
     sorted = np.argsort(-np_data)
@@ -839,12 +1204,60 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
     check_result(in_vals, mod, ref_out)
 
 
-# TODO(kevinthesun): enable this test when Thrust is available in ci.
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
     verify_any_topk(any_dims(2), 2, (6, 3), "int32")
-    verify_any_topk(any_dims(2), 3, (6, 3), "float32", True)
+    verify_any_topk(any_dims(2), 3, (6, 3), "float32", const_k=True)
+    verify_any_topk(any_dims(1), 0, (0,), "float32", ret_type="both")
+
+
+def verify_any_get_valid_counts(num_anchor_real, dtype, targets=None):
+    mod = tvm.IRModule()
+    batch_size = 1
+    num_anchor = relay.Any()
+    data = relay.var("data", shape=(batch_size, num_anchor, 5), dtype=dtype)
+    np_data = np.random.uniform(size=(batch_size, num_anchor_real, 5)).astype(dtype)
+
+    np_out1 = np.zeros(shape=(batch_size,))
+    np_out2 = np.zeros(shape=np_data.shape).astype(dtype)
+    np_out3 = np.zeros(shape=(batch_size, num_anchor_real))
+    score_threshold = 0.95
+
+    for i in range(batch_size):
+        np_out1[i] = 0
+        inter_idx = 0
+        for j in range(num_anchor_real):
+            score = np_data[i, j, 0]
+            if score > score_threshold:
+                for k in range(5):
+                    np_out2[i, inter_idx, k] = np_data[i, j, k]
+                np_out1[i] += 1
+                np_out3[i, inter_idx] = j
+                inter_idx += 1
+            if j >= np_out1[i]:
+                for k in range(5):
+                    np_out2[i, j, k] = -1.0
+                np_out3[i, j] = -1
+
+    z = relay.vision.get_valid_counts(data, score_threshold, 0, score_index=0)
+
+    mod["main"] = relay.Function([data], z.astuple())
+
+    check_result([np_data], mod, [np_out1, np_out2, np_out3], targets=targets)
+
+
+@tvm.testing.uses_gpu
+def test_any_get_valid_counts():
+    verify_any_get_valid_counts(10, "float32")
+    # opencl seems to have issues with empty size buffer
+    # Check failed: err_code == CL_SUCCESS == false: OpenCL Error,
+    # code=-61: CL_INVALID_BUFFER_SIZE
+    targets = []
+    for tgt, dev in tvm.testing.enabled_targets():
+        if "opencl" not in tgt:
+            targets.append((tgt, dev))
+    verify_any_get_valid_counts(0, "float32", targets=targets)
 
 
 @tvm.testing.uses_gpu
@@ -898,7 +1311,7 @@ def verify_any_strided_slice(
     mod = tvm.IRModule()
     data = relay.var("data", shape=data_shape, dtype="float32")
     if const_attrs:
-        data = relay.var("data", shape=data_np_shape, dtype="float32")
+        data = relay.var("data", shape=data_shape, dtype="float32")
         begin = relay.const(np_begin)
         end = relay.const(np_end)
         strides = relay.const(np_strides)
@@ -1141,7 +1554,7 @@ def test_any_ndarray_size():
     verify_any_ndarray_size((1, 2, 3, 4))
 
 
-def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shape):
+def verify_any_resize2d(data_shape, scale, layout, static_data_shape, ref_out_shape):
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
@@ -1149,7 +1562,7 @@ def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shap
         size = (data_shape[1] * scale, data_shape[2] * scale)
     else:
         size = (data_shape[2] * scale, data_shape[3] * scale)
-    y = relay.image.resize(data, size, layout)
+    y = relay.image.resize2d(data, size, layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     check_result([data_np], mod, ref_out_shape, assert_shape=True)
@@ -1157,14 +1570,14 @@ def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shap
 
 @tvm.testing.uses_gpu
 def test_any_resize():
-    verify_any_resize(
+    verify_any_resize2d(
         data_shape=(relay.Any(), 4, 4, 4),
         scale=2,
         layout="NHWC",
         static_data_shape=(1, 4, 4, 4),
         ref_out_shape=(1, 8, 8, 4),
     )
-    verify_any_resize(
+    verify_any_resize2d(
         data_shape=(relay.Any(), 8, 17, 20),
         scale=3,
         layout="NCHW",
@@ -1389,9 +1802,26 @@ def test_any_where():
         any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4), y_np_shape_invalid=(2, 4)
     )
 
+    # Test scalar where in a dynamically shaped graph
+    x = relay.var("x", shape=any_dims(1), dtype="int64")
+    y = relay.var("y", shape=any_dims(2), dtype="float32")
 
-# TODO(kevinthesun): enable gpu test when Thrust is available in ci.
-# @tvm.testing.uses_gpu
+    left = relay.take(x, relay.const(1, dtype="int32")) + relay.const(4, "int64")
+    right = relay.const(4, "int64")
+    where = relay.where(relay.const(False, "bool"), left, right)
+    z = relay.take(y, where, axis=1)
+
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x, y], z)
+
+    x_np = np.random.randn(2).astype("int64")
+    y_np = np.random.randn(2, 6).astype("float32")
+    expected = y_np[:, 4]
+
+    check_result([x_np, y_np], mod, expected)
+
+
+@tvm.testing.uses_gpu
 def test_non_max_suppression():
     x0 = relay.var("x0", relay.ty.TensorType((1, relay.Any(), 6), "float32"))
     x1 = relay.var("x1", relay.ty.TensorType((1,), "int32"))
@@ -1435,7 +1865,6 @@ def test_non_max_suppression():
         mod,
         [np_indices_result, np_valid_box_count],
         only_vm=False,
-        disable_targets=["nvptx"],
     )
 
     np_data = np.zeros((1, 0, 6)).astype("float32")
@@ -1450,8 +1879,211 @@ def test_non_max_suppression():
         mod,
         [np_indices_result, np_valid_box_count],
         only_vm=False,
-        disable_targets=["nvptx"],
     )
+
+
+@tvm.testing.uses_gpu
+def test_all_class_non_max_suppression():
+    def verify_all_class_non_max_suppression(
+        boxes_np,
+        scores_np,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        expected,
+        output_format="onnx",
+    ):
+        batch_size = boxes_np.shape[0]
+        num_classes = scores_np.shape[1]
+        num_boxes = relay.Any()
+        boxes = relay.var("boxes", relay.ty.TensorType((batch_size, num_boxes, 4), "float32"))
+        scores = relay.var(
+            "scores", relay.ty.TensorType((batch_size, num_classes, num_boxes), "float32")
+        )
+
+        nms_out = relay.vision.all_class_non_max_suppression(
+            boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_format
+        )
+
+        if output_format == "onnx":
+            three = relay.const(np.array([3]), dtype="int64")
+            begin = relay.const(np.array([0, 0]), dtype="int64")
+            end = relay.op.concatenate([nms_out[1], three], axis=0)
+            strides = relay.const(np.array([1, 1]), dtype="int64")
+            out = relay.op.strided_slice(nms_out[0], begin, end, strides)
+            mod = tvm.IRModule()
+            mod["main"] = relay.Function([boxes, scores], out)
+            check_result([boxes_np, scores_np], mod, [expected])
+        else:
+            out = nms_out.tuple_value
+            mod = tvm.IRModule()
+            mod["main"] = relay.Function([boxes, scores], out)
+            check_result([boxes_np, scores_np], mod, expected)
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.5, 0.5, 0.4, 0.4],
+                [0.0, 0.0, 0.5, 0.5],
+                [0.5, 0.5, 0.9, 0.9],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+        ]
+    ).astype("float32")
+
+    scores = np.array(
+        [
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.8, 0.2, 0.6, 0.3, 0.9]],
+        ]
+    ).astype("float32")
+
+    max_output_boxes_per_class = 2
+    iou_threshold = 0.8
+    score_threshold = 0.4
+
+    expected = np.array([[0, 0, 4], [0, 0, 2], [0, 1, 4], [0, 1, 0]])
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+    expected = [
+        np.array(
+            [[[0, 4], [0, 2], [1, 4], [1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]]
+        ),
+        np.array(
+            [
+                [
+                    0.9,
+                    0.6,
+                    0.9,
+                    0.8,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ]
+            ]
+        ),
+        np.array([4]),
+    ]
+
+    verify_all_class_non_max_suppression(
+        boxes,
+        scores,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        expected,
+        output_format="tensorflow",
+    )
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 0.9, 1.2],
+            ]
+        ]
+    ).astype(np.float32)
+    scores = np.array([[[0.2, 0.3], [0.3, 0.2]]]).astype(np.float32)
+    iou_threshold = 0.3
+    score_threshold = 0.15
+
+    expected = np.array([[0, 0, 1], [0, 1, 0]])
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+    # zero box detection case
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],
+            ]
+        ]
+    ).astype(np.float32)
+    scores = np.array([[[0.2]]]).astype(np.float32)
+    score_threshold = 0.4
+
+    expected = np.zeros((0, 3))
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+
+@tvm.testing.uses_gpu
+def test_gather_nd():
+    def verify_gather_nd(data_shape, indices_shape, data_shape_np, indices_shape_np, batch_dims=0):
+        x = relay.var("x", relay.TensorType(data_shape, "float32"))
+        y = relay.var("y", relay.TensorType(indices_shape, "int32"))
+        z = relay.gather_nd(x, y, batch_dims=batch_dims, index_rank=indices_shape[0])
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([x, y], z)
+
+        data_np = np.random.uniform(size=data_shape_np).astype("float32")
+        indices_np = np.random.randint(low=0, high=2, size=indices_shape_np, dtype="int32")
+
+        ref_res = ref_funcs.gather_nd(data_np, indices_np, batch_dims)
+        check_result([data_np, indices_np], mod, [ref_res])
+
+    verify_gather_nd((2, 2), (2, relay.Any()), (2, 2), (2, 3))
+    verify_gather_nd((relay.Any(), 2), (2, relay.Any()), (2, 2), (2, 3))
+    verify_gather_nd((relay.Any(), 2), (1, relay.Any()), (10, 2), (1, 10), 1)
+    verify_gather_nd(
+        (relay.Any(), 2, 2, 3, 4), (3, relay.Any(), relay.Any()), (3, 2, 2, 3, 4), (3, 3, 2), 2
+    )
+
+
+@tvm.testing.uses_gpu
+def test_scatter_nd():
+    def verify_scatter_nd(data_np, indices_np, updates_np, ref_res):
+        indices_shape = (2, relay.Any())
+        updates_shape = (relay.Any(),)
+        data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
+        indices = relay.var("indices", relay.TensorType(indices_shape, str(indices_np.dtype)))
+        updates = relay.var("updates", relay.TensorType(updates_shape, str(updates_np.dtype)))
+
+        out = relay.op.scatter_nd(data, indices, updates, "add")
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([data, indices, updates], out)
+
+        check_result([data_np, indices_np, updates_np], mod, [ref_res])
+
+    data = np.zeros((2, 2)).astype("int64")
+    indices = np.array([[1, 1, 0], [0, 1, 0]])
+    updates = np.array([2, 3, 0])
+    out = np.array([[0, 0], [2, 3]])
+    verify_scatter_nd(data, indices, updates, out)
+
+
+@tvm.testing.uses_gpu
+def test_gather():
+    def verify_gather(data_shape, indices_shape, data_shape_np, indices_shape_np, axis):
+        x = relay.var("x", relay.TensorType(data_shape, "float32"))
+        y = relay.var("y", relay.TensorType(indices_shape, "int32"))
+        z = relay.gather(x, axis, y)
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([x, y], z)
+
+        data_np = np.random.uniform(size=data_shape_np).astype("float32")
+        indices_np = np.random.randint(low=0, high=2, size=indices_shape_np, dtype="int32")
+
+        ref_res = tvm.topi.testing.gather_python(data_np, axis, indices_np)
+        check_result([data_np, indices_np], mod, [ref_res])
+
+    verify_gather((relay.Any(),), (relay.Any(),), (10,), (10,), 0)
+    verify_gather((2, 2), (2, relay.Any()), (2, 2), (2, 3), 1)
+    verify_gather((relay.Any(), 2), (2, relay.Any()), (2, 2), (2, 3), 1)
+    verify_gather((relay.Any(), relay.Any()), (relay.Any(), relay.Any()), (2, 3), (1, 3), 0)
 
 
 if __name__ == "__main__":

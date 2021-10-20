@@ -32,7 +32,7 @@ pub mod ffi {
 
     use std::os::raw::{c_char, c_int, c_void};
 
-    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/c_runtime_api.rs"));
+    include!(concat!(env!("OUT_DIR"), "/c_runtime_api.rs"));
 
     pub type BackendPackedCFunc = extern "C" fn(
         args: *const TVMValue,
@@ -40,21 +40,22 @@ pub mod ffi {
         num_args: c_int,
         out_ret_value: *mut TVMValue,
         out_ret_tcode: *mut u32,
+        resource_handle: *mut c_void,
     ) -> c_int;
 }
 
 pub mod array;
 pub mod byte_array;
-pub mod context;
 pub mod datatype;
+pub mod device;
 pub mod errors;
 #[macro_use]
 pub mod packed_func;
 pub mod value;
 
 pub use byte_array::ByteArray;
-pub use context::{Context, DeviceType};
 pub use datatype::DataType;
+pub use device::{Device, DeviceType};
 pub use errors::*;
 pub use packed_func::{ArgValue, RetValue};
 

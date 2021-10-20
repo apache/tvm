@@ -16,18 +16,25 @@
 # under the License.
 import numpy as np
 import pytest
+import time
+from unittest.mock import patch
 
 import tvm
 from tvm import runtime
-from tvm import relay
+from tvm import relay, IRModule
+from tvm.relay.backend import vm
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 from tvm.relay.loops import while_loop
 from tvm.relay import testing
+from tvm.contrib import utils
+from tvm import rpc
 import tvm.testing
+from tvm.relay.transform import InferType
+from tvm.relay.testing import mlp
 
 
-def check_result(args, expected_result, mod=None):
+def check_result(target, dev, args, expected_result, mod=None):
     """
     Check that evaluating `expr` applied to the arguments produces
     `result` on Relay VM.
@@ -40,13 +47,11 @@ def check_result(args, expected_result, mod=None):
     expected_result:
         The expected result of running the expression.
     """
-    for target, ctx in tvm.testing.enabled_targets():
-        vm = relay.create_executor("vm", ctx=ctx, target=target, mod=mod)
-        rts_result = vm.evaluate()(*args)
-        tvm.testing.assert_allclose(expected_result, rts_result.asnumpy())
+    rts_result = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(*args)
+    tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
-def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
+def veval(f, *args, device=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
         mod = tvm.IRModule()
         mod["main"] = f
@@ -54,13 +59,13 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         assert isinstance(f, tvm.IRModule), "expected expression or module"
         mod = f
     exe = relay.vm.compile(mod, target)
-    vm = runtime.vm.VirtualMachine(exe, ctx)
+    vm = runtime.vm.VirtualMachine(exe, device)
     return vm.invoke("main", *args)
 
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
-        return [o.asnumpy().tolist()]
+        return [o.numpy().tolist()]
     elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
@@ -70,8 +75,7 @@ def vmobj_to_list(o):
         raise RuntimeError("Unknown object type: %s" % type(o))
 
 
-@tvm.testing.uses_gpu
-def test_split():
+def test_split(target, dev):
     x = relay.var("x", shape=(12,))
     y = relay.split(x, 3, axis=0).astuple()
     f = relay.Function([x], y)
@@ -80,14 +84,12 @@ def test_split():
         12,
     ).astype("float32")
     ref_res = np.split(x_data, 3, axis=0)
-    for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(f, x_data, ctx=ctx, target=tgt)
-        for i in range(3):
-            tvm.testing.assert_allclose(res[i].asnumpy(), ref_res[i])
+    res = veval(f, x_data, device=dev, target=target)
+    for i in range(3):
+        tvm.testing.assert_allclose(res[i].numpy(), ref_res[i])
 
 
-@tvm.testing.uses_gpu
-def test_split_no_fuse():
+def test_split_no_fuse(target, dev):
     x = relay.var("x", shape=(12,))
     y = relay.split(x, 3, axis=0).astuple()
     z = relay.concatenate([relay.TupleGetItem(y, 0)], axis=0)
@@ -96,29 +98,27 @@ def test_split_no_fuse():
     x_data = np.random.rand(
         12,
     ).astype("float32")
-    for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(f, x_data, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
+
+    res = veval(f, x_data, device=dev, target=target)
+    tvm.testing.assert_allclose(res.numpy(), np.split(x_data, 3, axis=0)[0])
 
 
-@tvm.testing.uses_gpu
-def test_id():
+def test_id(target, dev):
     x = relay.var("x", shape=(10, 10), dtype="float64")
     f = relay.Function([x], x)
     x_data = np.random.rand(10, 10).astype("float64")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result([x_data], x_data, mod=mod)
+    check_result(target, dev, [x_data], x_data, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_op():
+def test_op(target, dev):
     x = relay.var("x", shape=(10, 10))
     f = relay.Function([x], x + x)
     x_data = np.random.rand(10, 10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result([x_data], 2 * x_data, mod=mod)
+    check_result(target, dev, [x_data], 2 * x_data, mod=mod)
 
 
 def any(x):
@@ -126,8 +126,8 @@ def any(x):
     return relay.op.min(x, axis=[0, 1])
 
 
-@tvm.testing.uses_gpu
-def test_cond():
+@tvm.testing.known_failing_targets("vulkan")
+def test_cond(target, dev):
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(10, 10))
     # f = relay.Function([x, y], relay.op.equal(x, y))
@@ -138,14 +138,14 @@ def test_cond():
     mod = tvm.IRModule()
     mod["main"] = f
     # same
-    check_result([x_data, x_data], True, mod=mod)
+    check_result(target, dev, [x_data, x_data], True, mod=mod)
 
     # diff
-    check_result([x_data, y_data], False, mod=mod)
+    check_result(target, dev, [x_data, y_data], False, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_simple_if():
+@tvm.testing.known_failing_targets("vulkan")
+def test_simple_if(target, dev):
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(10, 10))
     f = relay.Function([x, y], relay.If(any(relay.op.equal(x, y)), x, y))
@@ -155,14 +155,14 @@ def test_simple_if():
     mod = tvm.IRModule()
     mod["main"] = f
     # same
-    check_result([x_data, x_data], x_data, mod=mod)
+    check_result(target, dev, [x_data, x_data], x_data, mod=mod)
 
     # diff
-    check_result([x_data, y_data], y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], y_data, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_multiple_ifs():
+@tvm.testing.parametrize_targets("llvm")
+def test_multiple_ifs(target, dev):
     mod = tvm.IRModule({})
     b = relay.var("b")
     v0 = relay.var("v0")
@@ -176,14 +176,36 @@ def test_multiple_ifs():
     out = relay.Let(v0, relay.Tuple([relay.const(0)]), out)
     fn = relay.Function([b], out)
     mod["main"] = fn
-    ctx = tvm.runtime.ndarray.context("llvm", 0)
-    vm = relay.create_executor(ctx=ctx, mod=mod, kind="vm")
-    res = vmobj_to_list(vm.evaluate()(False))
+    func = relay.create_executor(device=dev, mod=mod, kind="vm").evaluate()
+    res = vmobj_to_list(func(False))
     assert res == [1, 0]
 
 
-@tvm.testing.uses_gpu
-def test_simple_call():
+def test_unused_function(target, dev):
+    cond = relay.const(True)
+    mod = tvm.IRModule()
+    then_name = relay.GlobalVar("times_2")
+    # define unused function
+    else_name = relay.GlobalVar("times_3")
+    t1 = relay.TensorType((2, 2), dtype="float32")
+    x1 = relay.var("x1", t1, dtype="float32")
+    x2 = relay.var("x2", t1, dtype="float32")
+    f2 = relay.multiply(x1, relay.const(2.0))
+    f3 = relay.multiply(x2, relay.const(3.0))
+    mod[then_name] = relay.Function([x1], f2)
+    mod[else_name] = relay.Function([x2], f3)
+    mod = InferType()(mod)
+    x3 = relay.var("x3", t1, dtype="float32")
+    # put unused function in else branch
+    f = relay.If(cond, then_name(x3), else_name(x3))
+    mod["main"] = relay.Function([x3], f)
+    x_data = np.random.rand(2, 2).astype("float32")
+    y_data = x_data * 2
+
+    check_result(target, dev, [x_data], y_data, mod=mod)
+
+
+def test_simple_call(target, dev):
     mod = tvm.IRModule({})
     sum_up = relay.GlobalVar("sum_up")
     i = relay.var("i", shape=[], dtype="int32")
@@ -194,11 +216,10 @@ def test_simple_call():
     i_data = np.array(0, dtype="int32")
     iarg = relay.var("iarg", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg], sum_up(iarg))
-    check_result([i_data], i_data, mod=mod)
+    check_result(target, dev, [i_data], i_data, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_count_loop():
+def test_count_loop(target, dev):
     mod = tvm.IRModule({})
     sum_up = relay.GlobalVar("sum_up")
     i = relay.var("i", shape=[], dtype="int32")
@@ -214,14 +235,12 @@ def test_count_loop():
     i_data = np.array(0, dtype="int32")
     iarg = relay.var("i", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg], sum_up(iarg))
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, i_data, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), i_data)
-    check_result([i_data], i_data, mod=mod)
+    result = veval(mod, i_data, device=dev, target=target)
+    tvm.testing.assert_allclose(result.numpy(), i_data)
+    check_result(target, dev, [i_data], i_data, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_sum_loop():
+def test_sum_loop(target, dev):
     mod = tvm.IRModule({})
     sum_up = relay.GlobalVar("sum_up")
     i = relay.var("i", shape=[], dtype="int32")
@@ -242,11 +261,10 @@ def test_sum_loop():
     iarg = relay.var("i", shape=[], dtype="int32")
     aarg = relay.var("accum", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
-    check_result([i_data, accum_data], sum(range(1, loop_bound + 1)), mod=mod)
+    check_result(target, dev, [i_data, accum_data], sum(range(1, loop_bound + 1)), mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_tuple_fst():
+def test_tuple_fst(target, dev):
     ttype = relay.TupleType([relay.TensorType((1,)), relay.TensorType((10,))])
     tup = relay.var("tup", type_annotation=ttype)
     f = relay.Function([tup], relay.TupleGetItem(tup, 0))
@@ -254,11 +272,10 @@ def test_tuple_fst():
     j_data = np.random.rand(10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result([(i_data, j_data)], i_data, mod=mod)
+    check_result(target, dev, [(i_data, j_data)], i_data, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_tuple_second():
+def test_tuple_second(target, dev):
     ttype = relay.TupleType([relay.TensorType((1,)), relay.TensorType((10,))])
     tup = relay.var("tup", type_annotation=ttype)
     f = relay.Function([tup], relay.TupleGetItem(tup, 1))
@@ -266,11 +283,10 @@ def test_tuple_second():
     j_data = np.random.rand(10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result([(i_data, j_data)], j_data, mod=mod)
+    check_result(target, dev, [(i_data, j_data)], j_data, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_list_constructor():
+def test_list_constructor(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -283,17 +299,15 @@ def test_list_constructor():
 
     mod["main"] = f
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        assert len(result) == 2
-        assert len(result[1]) == 2
+    result = veval(mod, device=dev, target=target)
+    assert len(result) == 2
+    assert len(result[1]) == 2
 
-        obj = vmobj_to_list(result)
-        tvm.testing.assert_allclose(obj, np.array([3, 2, 1]))
+    obj = vmobj_to_list(result)
+    tvm.testing.assert_allclose(obj, np.array([3, 2, 1]))
 
 
-@tvm.testing.uses_gpu
-def test_let_tensor():
+def test_let_tensor(target, dev):
     sb = relay.ScopeBuilder()
     shape = (1,)
     x = relay.var("x", shape=shape, dtype="float32")
@@ -309,11 +323,10 @@ def test_let_tensor():
     x_data = np.random.rand(*shape).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result([x_data], x_data + 42.0, mod=mod)
+    check_result(target, dev, [x_data], x_data + 42.0, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_let_scalar():
+def test_let_scalar(target, dev):
     sb = relay.ScopeBuilder()
 
     x = relay.var("x", "float32")
@@ -327,11 +340,10 @@ def test_let_scalar():
     x_data = np.array(np.random.rand()).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result([x_data], x_data + 42.0, mod=mod)
+    check_result(target, dev, [x_data], x_data + 42.0, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_compose():
+def test_compose(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -361,13 +373,11 @@ def test_compose():
     mod["main"] = f
 
     x_data = np.array(np.random.rand()).astype("float32")
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, [x_data], ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
+    result = veval(mod, [x_data], device=dev, target=target)
+    tvm.testing.assert_allclose(result.numpy(), x_data + 2.0)
 
 
-@tvm.testing.uses_gpu
-def test_list_hd():
+def test_list_hd(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -382,13 +392,11 @@ def test_list_hd():
 
     mod["main"] = f
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), 3)
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(result.numpy(), 3)
 
 
-@pytest.mark.xfail
-def test_list_tl_empty_list():
+def test_list_tl_empty_list(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -399,12 +407,11 @@ def test_list_tl_empty_list():
 
     mod["main"] = f
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
+    with pytest.raises(tvm.error.TVMError):
+        result = veval(mod, device=dev, target=target)
 
 
-@tvm.testing.uses_gpu
-def test_list_tl():
+def test_list_tl(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -419,13 +426,11 @@ def test_list_tl():
 
     mod["main"] = f
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(vmobj_to_list(result), np.array([2, 1]))
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([2, 1]))
 
 
-@tvm.testing.uses_gpu
-def test_list_nth():
+def test_list_nth(target, dev):
     expected = list(range(10))
 
     for i in range(len(expected)):
@@ -441,13 +446,11 @@ def test_list_nth():
 
         f = relay.Function([], nth(l, relay.const(i)))
         mod["main"] = f
-        for tgt, ctx in tvm.testing.enabled_targets():
-            result = veval(mod, ctx=ctx, target=tgt)
-            tvm.testing.assert_allclose(result.asnumpy(), expected[i])
+        result = veval(mod, device=dev, target=target)
+        tvm.testing.assert_allclose(result.numpy(), expected[i])
 
 
-@tvm.testing.uses_gpu
-def test_list_update():
+def test_list_update(target, dev):
     expected = list(range(10))
 
     mod = tvm.IRModule()
@@ -467,13 +470,11 @@ def test_list_update():
 
     f = relay.Function([], l)
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(vmobj_to_list(result), np.array(expected))
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array(expected))
 
 
-@tvm.testing.uses_gpu
-def test_list_length():
+def test_list_length(target, dev):
     expected = list(range(10))
 
     mod = tvm.IRModule()
@@ -491,13 +492,11 @@ def test_list_length():
 
     f = relay.Function([], l)
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), 10)
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(result.numpy(), 10)
 
 
-@tvm.testing.uses_gpu
-def test_list_map():
+def test_list_map(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -511,13 +510,11 @@ def test_list_map():
 
     f = relay.Function([], map(add_one_func, l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 2]))
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 2]))
 
 
-@tvm.testing.uses_gpu
-def test_list_foldl():
+def test_list_foldl(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -531,13 +528,11 @@ def test_list_foldl():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], foldl(rev_dup_func, nil(), l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 3, 2, 2, 1, 1]))
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 3, 2, 2, 1, 1]))
 
 
-@tvm.testing.uses_gpu
-def test_list_foldr():
+def test_list_foldr(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -551,13 +546,11 @@ def test_list_foldr():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], foldr(identity_func, nil(), l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(vmobj_to_list(result), np.array([1, 2, 3]))
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([1, 2, 3]))
 
 
-@tvm.testing.uses_gpu
-def test_list_sum():
+def test_list_sum(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -567,13 +560,11 @@ def test_list_sum():
     l = cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))
     f = relay.Function([], sum(l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(result.asnumpy(), 6)
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(result.numpy(), 6)
 
 
-@tvm.testing.uses_gpu
-def test_list_filter():
+def test_list_filter(target, dev):
     mod = tvm.IRModule()
     p = Prelude(mod)
 
@@ -590,26 +581,22 @@ def test_list_filter():
     )
     f = relay.Function([], filter(greater_than_one, l))
     mod["main"] = f
-    for tgt, ctx in tvm.testing.enabled_targets():
-        result = veval(mod, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 5]))
+    result = veval(mod, device=dev, target=target)
+    tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 5]))
 
 
-@tvm.testing.uses_gpu
-def test_closure():
+def test_closure(target, dev):
     x = relay.var("x", shape=())
     y = relay.var("y", shape=())
     f = relay.Function([x], x + y)
     ff = relay.Function([y], f)
     clo = ff(relay.const(1.0))
     main = clo(relay.const(2.0))
-    for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(main, ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(res.asnumpy(), 3.0)
+    res = veval(main, device=dev, target=target)
+    tvm.testing.assert_allclose(res.numpy(), 3.0)
 
 
-@tvm.testing.uses_gpu
-def test_add_op_scalar():
+def test_add_op_scalar(target, dev):
     """
     test_add_op_scalar:
         fn (x, y) {
@@ -617,17 +604,41 @@ def test_add_op_scalar():
         }
     """
     mod = tvm.IRModule()
-    x = relay.var("x", shape=())
-    y = relay.var("y", shape=())
+    x = relay.var("x", shape=())  # Default to float32
+    y = relay.var("y", shape=())  # Default to float32
     func = relay.Function([x, y], relay.op.add(x, y))
-    x_data = np.array(10.0, dtype="float32")
-    y_data = np.array(1.0, dtype="float32")
-    mod["main"] = func
-    check_result([x_data, y_data], x_data + y_data, mod=mod)
+    x_y_data = [
+        (np.array(10.0, dtype="float32"), np.array(1.0, dtype="float32")),
+        (np.float32(10.0), np.float32(1.0)),
+        (10.0, 1.0),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_add_op_tensor():
+def test_add_op_scalar_int(target, dev):
+    """
+    test_add_op_scalar_int:
+        fn (x, y) {
+            return x + y;
+        }
+    """
+    mod = tvm.IRModule()
+    x = relay.var("x", shape=(), dtype="int32")
+    y = relay.var("y", shape=(), dtype="int32")
+    func = relay.Function([x, y], relay.op.add(x, y))
+    x_y_data = [
+        (np.array(10.0, dtype="int32"), np.array(1.0, dtype="int32")),
+        (np.int32(10), np.int32(1)),
+        (10, 1),
+    ]
+    for (x_data, y_data) in x_y_data:
+        mod["main"] = func
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+
+
+def test_add_op_tensor(target, dev):
     """
     test_add_op_tensor:
         fn (x, y) {
@@ -641,11 +652,10 @@ def test_add_op_tensor():
     x_data = np.random.rand(10, 5).astype("float32")
     y_data = np.random.rand(10, 5).astype("float32")
     mod["main"] = func
-    check_result([x_data, y_data], x_data + y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_add_op_broadcast():
+def test_add_op_broadcast(target, dev):
     """
     test_add_op_broadcast:
         fn (x, y) {
@@ -659,7 +669,7 @@ def test_add_op_broadcast():
     x_data = np.random.rand(10, 5).astype("float32")
     y_data = np.random.rand(1, 5).astype("float32")
     mod["main"] = func
-    check_result([x_data, y_data], x_data + y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
 
 
 def test_vm_optimize_dynamic():
@@ -678,9 +688,12 @@ def test_vm_optimize():
     comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, target="llvm", params=params)
 
+    free_vars = relay.analysis.free_vars(opt_mod["main"].body)
+    # Paremeters should all be bound, so the only free var is data
+    assert len(free_vars) == 1
 
-@tvm.testing.uses_gpu
-def test_loop_free_var():
+
+def test_loop_free_var(target, dev):
     x = relay.var("x", shape=(), dtype="int32")
     i = relay.var("i", shape=(), dtype="int32")
     s = relay.var("s", shape=(), dtype="int32")
@@ -702,11 +715,10 @@ def test_loop_free_var():
         ret = relay.TupleGetItem(tup, 1)
         mod = tvm.IRModule()
         mod["main"] = relay.Function(relay.analysis.free_vars(ret), ret)
-        check_result(args, expected, mod=mod)
+        check_result(target, dev, args, expected, mod=mod)
 
 
-@tvm.testing.uses_gpu
-def test_vm_reshape_tensor():
+def test_vm_reshape_tensor(target, dev):
     x_np = np.random.uniform(size=(8, 16)).astype("float32")
     x = relay.var("x", shape=(8, 16), dtype="float32")
     y = relay.reshape(x, [-1, 4, 8])
@@ -715,7 +727,7 @@ def test_vm_reshape_tensor():
     with tvm.transform.PassContext(opt_level=3):
         exec = relay.vm.compile(mod, "llvm")
     assert "reshape_tensor" in exec.bytecode
-    check_result([x_np], x_np.reshape([4, 4, 8]), mod)
+    check_result(target, dev, [x_np], x_np.reshape([4, 4, 8]), mod)
 
     x = relay.var("x", shape=(8, 16), dtype="float32")
     y = relay.reshape(x, [16, -1])
@@ -725,7 +737,7 @@ def test_vm_reshape_tensor():
     with tvm.transform.PassContext(opt_level=3):
         exec = relay.vm.compile(mod, "llvm")
     assert exec.bytecode.count("reshape_tensor") == 1
-    check_result([x_np], x_np.reshape([4, 4, 8]), mod)
+    check_result(target, dev, [x_np], x_np.reshape([4, 4, 8]), mod)
 
     # reshape with symbolic/any shape
     for n in [tvm.tir.Any(), tvm.te.size_var("n")]:
@@ -737,7 +749,7 @@ def test_vm_reshape_tensor():
         with tvm.transform.PassContext(opt_level=3):
             exec = relay.vm.compile(mod, "llvm")
         assert exec.bytecode.count("reshape_tensor") == 1
-        check_result([x_np], x_np.reshape([32, 2, 2]), mod)
+        check_result(target, dev, [x_np], x_np.reshape([32, 2, 2]), mod)
 
     # dyn.reshape
     x = relay.var("x", shape=(8, 16), dtype="float32")
@@ -751,10 +763,10 @@ def test_vm_reshape_tensor():
     assert exec.bytecode.count("reshape_tensor") == 2
     assert "reshape_tensor" in exec.bytecode
     y_np = np.array([8, 2, 8]).astype("int32")
-    check_result([x_np, y_np], x_np.reshape([8, 2, 8]), mod)
+    check_result(target, dev, [x_np, y_np], x_np.reshape([8, 2, 8]), mod)
 
 
-def test_vm_reshape_tuple(x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
+def test_vm_reshape_tuple(target, dev, x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
     tup = relay.var(
         "tup",
         type_annotation=relay.TupleType([relay.TensorType(x_shape), relay.TensorType(y_shape)]),
@@ -765,9 +777,8 @@ def test_vm_reshape_tuple(x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
     x_data = np.random.uniform(size=x_shape).astype("float32")
     y_data = np.random.uniform(size=y_shape).astype("float32")
 
-    for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(f, (x_data, y_data), ctx=ctx, target=tgt)
-        tvm.testing.assert_allclose(res.asnumpy(), np.reshape(x_data, (1, -1)))
+    res = veval(f, (x_data, y_data), device=dev, target=target)
+    tvm.testing.assert_allclose(res.numpy(), np.reshape(x_data, (1, -1)))
 
 
 def test_constant_shape_with_external_codegen():
@@ -795,5 +806,161 @@ def test_constant_shape_with_external_codegen():
     assert "shape_func" in opt_mod.astext(False)
 
 
+def test_vm_rpc():
+    """
+    This test checks to make sure you can export a VMExecutable,
+    upload it to a remote machine using RPC and then execute it
+    on the other machine.
+    """
+    target = tvm.target.Target("llvm --host=llvm")
+
+    # Build a IRModule.
+    x = relay.var("x", shape=(10, 1))
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+
+    # Export to Disk
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    vm_exec.mod.export_library(path)
+
+    # Use local rpc server for testing.
+    # Server must use popen so it doesn't inherit the current process state. It
+    # will crash otherwise.
+    def check_remote(server):
+        remote = rpc.connect(server.host, server.port, session_timeout=10)
+
+        # Upload the serialized Executable.
+        remote.upload(path)
+        # Get a handle to remote Executable.
+        rexec = remote.load_module("vm_library.so")
+
+        ctx = remote.cpu()
+        # Build a VM out of the executable and context.
+        vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
+        np_input = np.random.uniform(size=(10, 1)).astype("float32")
+        input_tensor = tvm.nd.array(np_input, ctx)
+        # Invoke its "main" function.
+        out = vm_factory.invoke("main", input_tensor)
+        # Check the result.
+        np.testing.assert_allclose(out.numpy(), np_input + np_input)
+
+    check_remote(rpc.Server("127.0.0.1"))
+
+
+def test_get_output_single():
+    target = tvm.target.Target("llvm")
+
+    # Build a IRModule.
+    x = relay.var("x", shape=(10,))
+    f = relay.Function([x], x + x)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    inp = np.ones(10, dtype="float32")
+    vm_factory.invoke_stateful("main", inp)
+    outputs = vm_factory.get_outputs()
+    assert len(outputs) == 1
+    np.testing.assert_allclose(outputs[0].numpy(), inp + inp)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_get_output_multiple(target, dev):
+    # Build a IRModule.
+    x = relay.var("x", shape=(10,))
+    f = relay.Function([x], relay.Tuple([x + x, x]))
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, dev)
+    inp = np.ones(10, dtype="float32")
+    vm_factory.invoke_stateful("main", inp)
+    outputs = vm_factory.get_outputs()
+    assert len(outputs) == 2
+    np.testing.assert_allclose(outputs[0].numpy(), inp + inp)
+    np.testing.assert_allclose(outputs[1].numpy(), inp)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_get_input_index(target, dev):
+    # Build a IRModule.
+    data_0, data_1 = ["d1", "d2"]
+    x, y = [relay.var(c, shape=(10,)) for c in [data_0, data_1]]
+    f = relay.Function([x, y], x + y)
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    vm_exec = vm.compile(mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, dev)
+    assert vm_factory.get_input_index(data_1) == 1
+    assert vm_factory.get_input_index(data_0) == 0
+    assert vm_factory.get_input_index("invalid") == -1
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_benchmark(target, dev):
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target=target, params=params)
+    exe = runtime.vm.VirtualMachine(lib, tvm.cpu())
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"))
+    result = exe.benchmark(tvm.cpu(), data, func_name="main", repeat=2, number=1)
+    assert result.mean == result.median
+    assert result.mean > 0
+    assert len(result.results) == 2
+
+    with patch.object(
+        tvm.runtime.module.Module,
+        "time_evaluator",
+        return_value=lambda x: tvm.runtime.module.BenchmarkResult([1, 2, 2, 5]),
+    ) as method:
+        result = exe.benchmark(dev, data, func_name="main", repeat=2, number=1)
+        assert result.mean == 2.5
+        assert result.median == 2.0
+        assert result.max == 5
+        assert result.min == 1
+        assert result.std == 1.5
+
+
+def test_benchmark_end_to_end(target, dev):
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target=target, params=params)
+    exe = runtime.vm.VirtualMachine(lib, dev)
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
+    result = exe.benchmark(dev, data, func_name="main", repeat=2, number=1, end_to_end=True)
+    assert result.mean > 0
+
+
+@tvm.testing.requires_cuda
+def test_benchmark_end_to_end_rpc():
+    server = rpc.Server("127.0.0.1")
+    remote = rpc.connect(server.host, server.port)
+
+    mod, params = mlp.get_workload(1)
+    lib = vm.compile(mod, target="cuda", params=params)
+
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    lib.mod.export_library(path)
+    remote.upload(path)
+    rlib = remote.load_module("vm_library.so")
+
+    exe = runtime.vm.VirtualMachine(rlib, remote.device("cuda"))
+    data = tvm.nd.array(
+        np.random.rand(1, 1, 28, 28).astype("float32"), device=remote.device("cuda")
+    )
+    result = exe.benchmark(
+        remote.device("cuda"), data=data, func_name="main", repeat=2, number=1, end_to_end=True
+    )
+    assert result.mean > 0
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+
+    sys.exit(pytest.main(sys.argv))

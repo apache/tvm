@@ -62,7 +62,7 @@ from tvm import topi
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_runtime, utils, download
+from tvm.contrib import graph_executor, utils, download
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 
@@ -180,7 +180,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 # Here we use an Pynq-Z1 board as an example.
 
 # Tracker host and port can be set by your environment
-tracker_host = os.environ.get("TVM_TRACKER_HOST", "0.0.0.0")
+tracker_host = os.environ.get("TVM_TRACKER_HOST", "127.0.0.1")
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
@@ -215,7 +215,8 @@ tuning_option = {
             port=tracker_port,
             number=5,
             timeout=60,
-            check_correctness=True,
+            module_loader=vta.module_loader(),
+            # check_correctness=True, # TODO: re-enable when check_correctness works again.
         ),
     ),
 }
@@ -356,7 +357,7 @@ def tune_and_evaluate(tuning_opt):
     )
 
     # filter out non-packed conv2d task
-    tasks = list(filter(lambda t: len(t.args[0][1]) > 4, tasks))
+    tasks = list(filter(lambda t: len(t.args[0][1]) > 4 and "conv" in t.name, tasks))
 
     # We should have extracted 10 convolution tasks
     assert len(tasks) == 10
@@ -430,9 +431,9 @@ def tune_and_evaluate(tuning_opt):
         remote.upload(temp.relpath("graphlib.tar"))
         lib = remote.load_module("graphlib.tar")
 
-        # Generate the graph runtime
+        # Generate the graph executor
         ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        m = graph_executor.GraphModule(lib["default"](ctx))
 
         # upload parameters to device
         image = tvm.nd.array((np.random.uniform(size=(1, 3, 224, 224))).astype("float32"))

@@ -67,6 +67,10 @@ std::string FindCUDAIncludePath() {
   if (stat(cuda_include_path.c_str(), &st) == 0) {
     return cuda_include_path;
   }
+
+  if (stat("/usr/include/cuda.h", &st) == 0) {
+    return "/usr/include";
+  }
 #endif
   LOG(FATAL) << "Cannot find cuda include path."
              << "CUDA_PATH is not set or CUDA is not installed in the default installation path."

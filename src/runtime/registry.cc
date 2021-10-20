@@ -22,8 +22,9 @@
  * \brief The global registry of packed function.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <array>
 #include <memory>
@@ -37,9 +38,9 @@ namespace runtime {
 
 struct Registry::Manager {
   // map storing the functions.
-  // We delibrately used raw pointer
-  // This is because PackedFunc can contain callbacks into the host languge(python)
-  // and the resource can become invalid because of indeterminstic order of destruction and forking.
+  // We deliberately used raw pointer.
+  // This is because PackedFunc can contain callbacks into the host language (Python) and the
+  // resource can become invalid because of indeterministic order of destruction and forking.
   // The resources will only be recycled during program exit.
   std::unordered_map<std::string, Registry*> fmap;
   // mutex
@@ -102,6 +103,76 @@ std::vector<std::string> Registry::ListNames() {
   return keys;
 }
 
+/*!
+ * \brief Execution environment specific API registry.
+ *
+ *  This registry stores C API function pointers about
+ *  execution environment(e.g. python) specific API function that
+ *  we need for specific low-level handling(e.g. signal checking).
+ *
+ *  We only stores the C API function when absolutely necessary (e.g. when signal handler
+ *  cannot trap back into python). Always consider use the PackedFunc FFI when possible
+ *  in other cases.
+ */
+class EnvCAPIRegistry {
+ public:
+  /*!
+   * \brief Callback to check if signals have been sent to the process and
+   *        if so invoke the registered signal handler in the frontend environment.
+   *
+   *  When runnning TVM in another langugage(python), the signal handler
+   *  may not be immediately executed, but instead the signal is marked
+   *  in the interpreter state(to ensure non-blocking of the signal handler).
+   *
+   * \return 0 if no error happens, -1 if error happens.
+   */
+  typedef int (*F_PyErr_CheckSignals)();
+
+  // NOTE: the following function are only registered
+  // in a python environment.
+  /*!
+   * \brief PyErr_CheckSignal function
+   */
+  F_PyErr_CheckSignals pyerr_check_signals = nullptr;
+
+  static EnvCAPIRegistry* Global() {
+    static EnvCAPIRegistry* inst = new EnvCAPIRegistry();
+    return inst;
+  }
+
+  // register environment(e.g. python) specific api functions
+  void Register(const std::string& symbol_name, void* fptr) {
+    if (symbol_name == "PyErr_CheckSignals") {
+      Update(symbol_name, &pyerr_check_signals, fptr);
+    } else {
+      LOG(FATAL) << "Unknown env API " << symbol_name;
+    }
+  }
+
+  // implementation of tvm::runtime::EnvCheckSignals
+  void CheckSignals() {
+    // check python signal to see if there are exception raised
+    if (pyerr_check_signals != nullptr && (*pyerr_check_signals)() != 0) {
+      // The error will let FFI know that the frontend environment
+      // already set an error.
+      throw EnvErrorAlreadySet("");
+    }
+  }
+
+ private:
+  // update the internal API table
+  template <typename FType>
+  void Update(const std::string& symbol_name, FType* target, void* ptr) {
+    FType ptr_casted = reinterpret_cast<FType>(ptr);
+    if (target[0] != nullptr && target[0] != ptr_casted) {
+      LOG(WARNING) << "tvm.runtime.RegisterEnvCAPI overrides an existing function " << symbol_name;
+    }
+    target[0] = ptr_casted;
+  }
+};
+
+void EnvCheckSignals() { EnvCAPIRegistry::Global()->CheckSignals(); }
+
 }  // namespace runtime
 }  // namespace tvm
 
@@ -150,5 +221,11 @@ int TVMFuncListGlobalNames(int* out_size, const char*** out_array) {
 int TVMFuncRemoveGlobal(const char* name) {
   API_BEGIN();
   tvm::runtime::Registry::Remove(name);
+  API_END();
+}
+
+int TVMBackendRegisterEnvCAPI(const char* name, void* ptr) {
+  API_BEGIN();
+  tvm::runtime::EnvCAPIRegistry::Global()->Register(name, ptr);
   API_END();
 }

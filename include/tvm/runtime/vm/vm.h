@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_VM_VM_H_
 #define TVM_RUNTIME_VM_VM_H_
 
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -84,11 +84,11 @@ struct VMFunction {
   /*! \brief The size of the frame for this function */
   Index register_file_size;
   /*! \brief The device type of each parameter for this function. */
-  std::vector<Index> params_device_type;
+  std::vector<DLDeviceType> params_device_type;
 
   VMFunction(const std::string& name, std::vector<std::string> params,
              const std::vector<Instruction>& instructions, Index register_file_size,
-             const std::vector<Index> params_device_type = {})
+             const std::vector<DLDeviceType> params_device_type = {})
       : name(name),
         params(params),
         instructions(instructions),
@@ -198,14 +198,14 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param reg The register to read from.
    * \return The read object.
    */
-  inline ObjectRef ReadRegister(RegName reg) const;
+  ObjectRef ReadRegister(RegName reg) const;
 
   /*!
    * \brief Read a VM register and cast it to int32_t
    * \param reg The register to read from.
    * \return The read scalar.
    */
-  inline int64_t LoadScalarInt(RegName reg) const;
+  int64_t LoadScalarInt(RegName reg) const;
 
   /*!
    * \brief Invoke a VM function.
@@ -239,17 +239,17 @@ class VirtualMachine : public runtime::ModuleNode {
                             Index output_size, const std::vector<ObjectRef>& args);
 
   /*!
-   * \brief Initialize the virtual machine for a set of contexts.
-   * \param contexts The set of TVM contexts.
-   * \param alloc_types The allocator types for each context.
+   * \brief Initialize the virtual machine for a set of devices.
+   * \param devices The set of TVM devices.
+   * \param alloc_types The allocator types for each device.
    */
-  void Init(const std::vector<TVMContext>& contexts, const std::vector<AllocatorType>& alloc_types);
+  void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types);
 
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
-  /*! \brief Get context from the context list based on a given device type. */
-  TVMContext GetContext(Index device_type) const;
+  /*! \brief Get device from the device list based on a given device type. */
+  Device GetDevice(Index device_type) const;
 
   /*!
    * \brief Invoke a global setting up the VM state to execute.
@@ -257,6 +257,32 @@ class VirtualMachine : public runtime::ModuleNode {
    * This does not begin execution of the VM.
    */
   void InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args);
+
+  /*!
+   * \brief Set inputs to a function.
+   * \param name The function name
+   * \param args args[offset:] are arguments to the
+   * function. If the arguments are not of the correct device for the function,
+   * they will be copied to the device.
+   * \param offset Starting offset of the arguments in `args`.
+   */
+  void SetInput(std::string name, TVMArgs args, int offset);
+
+  /*!
+   * \brief Internal hook for profiling the start of an op.
+   *
+   * This hook is only called on certain ops that are likely to take a
+   * significant amount of runtime (normally because they alloc or transfer to
+   * device).
+   *
+   * \param instr Instruction that will be executed after this hook fires
+   */
+  virtual void OpStartHook(Instruction instr);
+
+  /*!
+   * \brief Internal hook for profiling the end of an op.
+   */
+  virtual void OpStopHook();
 
  protected:
   /*! \brief The virtual machine's packed function table. */
@@ -275,8 +301,8 @@ class VirtualMachine : public runtime::ModuleNode {
   const Executable* exec_;
   /*! \brief The function name to inputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
-  /*! \brief The set of TVM contexts the VM is currently executing on. */
-  std::vector<TVMContext> ctxs_;
+  /*! \brief The set of TVM devices the VM is currently executing on. */
+  std::vector<Device> devices_;
   /*! \brief The cached memory allocators. */
   std::vector<Allocator*> allocators_;
   /*!

@@ -72,13 +72,13 @@ struct JSONNode {
     }
     void Load(dmlc::JSONReader* reader) {
       reader->BeginArray();
-      ICHECK(reader->NextArrayItem()) << "invalid json format";
+      CHECK(reader->NextArrayItem()) << "invalid json format";
       reader->Read(&node_id);
-      ICHECK(reader->NextArrayItem()) << "invalid json format";
+      CHECK(reader->NextArrayItem()) << "invalid json format";
       reader->Read(&index);
       if (reader->NextArrayItem()) {
         reader->Read(&version);
-        ICHECK(!reader->NextArrayItem()) << "invalid json format";
+        CHECK(!reader->NextArrayItem()) << "invalid json format";
       } else {
         version = 0;
       }
@@ -226,12 +226,12 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph& jgraph, bool no_parse)
   for (const JSONNode& n : jgraph.nodes) {
     n.node->inputs.reserve(n.inputs.size());
     for (const JSONNode::Entry& e : n.inputs) {
-      ICHECK(e.node_id < jgraph.nodes.size());
+      CHECK(e.node_id < jgraph.nodes.size());
       n.node->inputs.emplace_back(NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
     }
     n.node->control_deps.reserve(n.control_deps.size());
     for (uint32_t nid : n.control_deps) {
-      ICHECK(nid < jgraph.nodes.size());
+      CHECK(nid < jgraph.nodes.size());
       n.node->control_deps.push_back(jgraph.nodes[nid].node);
     }
     for (const JSONGraph& subgraph : n.subgraphs) {
@@ -252,13 +252,13 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph& jgraph, bool no_parse)
   }
   // consistency check
   for (uint32_t nid : jgraph.arg_nodes) {
-    ICHECK(nid < jgraph.nodes.size());
-    ICHECK(jgraph.nodes[nid].node->is_variable());
+    CHECK(nid < jgraph.nodes.size());
+    CHECK(jgraph.nodes[nid].node->is_variable());
   }
   std::shared_ptr<Symbol> symbol = std::make_shared<Symbol>();
   symbol->outputs.reserve(jgraph.heads.size());
   for (const JSONNode::Entry& e : jgraph.heads) {
-    ICHECK(e.node_id < jgraph.nodes.size());
+    CHECK(e.node_id < jgraph.nodes.size());
     symbol->outputs.emplace_back(NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
   }
   return symbol;
@@ -266,7 +266,7 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph& jgraph, bool no_parse)
 
 // Load a graph from JSON file.
 Graph LoadJSON(Graph src) {
-  ICHECK_NE(src.attrs.count("json"), 0U) << "Load JSON require json to be presented.";
+  CHECK_NE(src.attrs.count("json"), 0U) << "Load JSON require json to be presented.";
   const std::string& json_str = nnvm::get<std::string>(*src.attrs.at("json"));
   bool no_parse = false;
   if (src.attrs.count("load_json_no_parse")) {

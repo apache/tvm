@@ -24,7 +24,9 @@ from tvm import te, relay, autotvm
 from .. import nn
 from ..utils import get_const_tuple
 from .conv2d_winograd import _infer_tile_size
+from .tensorcore_alter_op import pad_to_tensorcore
 from ..nn import conv2d_legalize
+
 
 logger = logging.getLogger("topi")
 
@@ -223,7 +225,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
     if topi_tmpl == "conv2d_HWNCnc_tensorcore.cuda":
         assert data_layout == "HWNC" and kernel_layout == "HWOI"
-        assert float(tvm.gpu(0).compute_version) >= 7.5
+        assert float(tvm.cuda(0).compute_version) >= 7.5
         H, W, N, CI = get_const_tuple(data.shape)
         KH, KW, CO, _ = get_const_tuple(kernel.shape)
 
@@ -266,6 +268,60 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         return relay.nn.conv2d(*inputs, **new_attrs)
 
     return None
+
+
+def _pad_conv2d_HWNC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor):
+    # Pad batch size
+    if db != 0:
+        data = relay.nn.pad(data, pad_width=((0, 0), (0, 0), (0, db), (0, 0)))
+
+    # Pad input channel
+    if di != 0:
+        data = relay.nn.pad(data, pad_width=((0, 0), (0, 0), (0, 0), (0, di)))
+        kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, 0), (0, di)))
+
+    # Pad output channel
+    if do != 0:
+        kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, do), (0, 0)))
+
+    if do != 0:
+        new_out_channel = out_channel + do
+        new_attrs["channels"] = new_out_channel
+
+    out = relay.nn.conv2d(data, kernel, **new_attrs)
+
+    if db != 0 or do != 0:
+        original_out_shape = [x.value for x in output_tensor.shape]
+        out = relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
+
+    return out
+
+
+def _pad_conv2d_NHWC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor):
+    # Pad batch size
+    if db != 0:
+        data = relay.nn.pad(data, pad_width=((0, db), (0, 0), (0, 0), (0, 0)))
+
+    # Pad input channel
+    if di != 0:
+        data = relay.nn.pad(data, pad_width=((0, 0), (0, 0), (0, 0), (0, di)))
+        kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, di), (0, 0)))
+
+    # Pad output channel
+    if do != 0:
+        kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, 0), (0, do)))
+
+    if do != 0:
+        new_out_channel = out_channel + do
+        new_attrs["channels"] = new_out_channel
+
+    out = relay.nn.conv2d(data, kernel, **new_attrs)
+
+    if db != 0 or do != 0:
+        original_out_shape = [x.value for x in output_tensor.shape]
+        out = relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
+
+    return out
 
 
 @conv2d_legalize.register("cuda")
@@ -345,4 +401,125 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             else:
                 out = relay.nn.conv2d(data, kernel, **new_attrs)
             return out
+
+        if data_layout == "NHWC" and kernel_layout == "HWIO":
+            batch = data_tensor.shape[0].value
+            in_channel = data_tensor.shape[3].value
+            out_channel = kernel_tensor.shape[3].value
+
+            if (
+                (batch % 8 == 0 and in_channel % 16 == 0 and out_channel % 32 == 0)
+                or (batch % 16 == 0 and in_channel % 16 == 0 and out_channel % 16 == 0)
+                or (batch % 32 == 0 and in_channel % 16 == 0 and out_channel % 8 == 0)
+            ):
+                # no need to pad
+                return None
+
+            candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
+
+            if extra_flops > 2:
+                logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
+                return None
+
+            logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
+
+            return _pad_conv2d_NHWC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+
+        if data_layout == "HWNC" and kernel_layout == "HWOI":
+            batch = data_tensor.shape[2].value
+            in_channel = data_tensor.shape[3].value
+            out_channel = kernel_tensor.shape[2].value
+
+            if batch % 8 == 0 and in_channel % 16 == 0 and out_channel % 32 == 0:
+                return None
+
+            candidates = [(8, 16, 32)]
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
+
+            if extra_flops > 2:
+                logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
+                return None
+            logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
+
+            return _pad_conv2d_HWNC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+
+    elif data_dtype in ["float16"]:
+        if data_layout == "NHWC" and kernel_layout == "HWIO":
+            batch = data_tensor.shape[0].value
+            in_channel = data_tensor.shape[3].value
+            out_channel = kernel_tensor.shape[3].value
+
+            if (
+                (batch % 8 == 0 and in_channel % 16 == 0 and out_channel % 32 == 0)
+                or (batch % 16 == 0 and in_channel % 16 == 0 and out_channel % 16 == 0)
+                or (batch % 32 == 0 and in_channel % 16 == 0 and out_channel % 8 == 0)
+            ):
+                # no need to pad
+                return None
+
+            candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
+
+            if extra_flops > 2:
+                logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
+                return None
+
+            logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
+
+            return _pad_conv2d_NHWC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+
+    elif data_dtype in ["int4", "uint4"]:
+        if data_layout == "NHWC" and kernel_layout == "HWIO":
+            batch = data_tensor.shape[0].value
+            in_channel = data_tensor.shape[3].value
+            out_channel = kernel_tensor.shape[3].value
+
+            if (
+                (batch % 8 == 0 and in_channel % 16 == 0 and out_channel % 32 == 0)
+                or (batch % 16 == 0 and in_channel % 16 == 0 and out_channel % 16 == 0)
+                or (batch % 32 == 0 and in_channel % 16 == 0 and out_channel % 8 == 0)
+            ):
+                # no need to pad
+                return None
+
+            candidates = [(16, 16, 16), (32, 16, 8), (8, 16, 32)]
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
+
+            if extra_flops > 2:
+                logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
+                return None
+
+            logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
+
+            return _pad_conv2d_NHWC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+
+        if data_layout == "HWNC" and kernel_layout == "HWOI":
+            batch = data_tensor.shape[2].value
+            in_channel = data_tensor.shape[3].value
+            out_channel = kernel_tensor.shape[2].value
+
+            if batch % 8 == 0 and in_channel % 32 == 0 and out_channel % 8 == 0:
+                return None
+
+            candidates = [(8, 32, 8)]
+            (db, di, do), extra_flops = pad_to_tensorcore(
+                batch, in_channel, out_channel, candidates
+            )
+
+            if extra_flops > 2:
+                logger.info("conv2d pad_to_tensorcore skipped, extra_flops %s", extra_flops)
+                return None
+            logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
+
+            return _pad_conv2d_HWNC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+
     return None

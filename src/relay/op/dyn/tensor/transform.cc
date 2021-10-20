@@ -64,8 +64,9 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  // Doesn't support dynamic output rank
-  for (int i = 0; i < newshape->shape[0].as<IntImmNode>()->value; i++) {
+  const IntImmNode* rank = newshape->shape[0].as<IntImmNode>();
+  ICHECK(rank != nullptr) << "Dynamic Reshape doesn't support Dynamic Rank";
+  for (int i = 0; i < rank->value; i++) {
     oshape.push_back(Any());
   }
 
@@ -90,7 +91,6 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
 
 Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
-  attrs->reverse = false;
   static const Op& op = Op::Get("dyn.reshape");
   return Call(op, {data, newshape}, Attrs(attrs), {});
 }
@@ -141,7 +141,8 @@ RELAY_REGISTER_OP("dyn.reshape")
     .set_support_level(3)
     .add_type_rel("DynamicReshape", ReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 // tile operator
 // TVM_REGISTER_NODE_TYPE(TileAttrs);
@@ -401,6 +402,9 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (fill_value == nullptr) {
     return false;
   }
+  if (fill_shape == nullptr) {
+    return false;
+  }
 
   DataType out_dtype = param->dtype;
   if (out_dtype.bits() == 0) {
@@ -462,10 +466,18 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   auto dshape = data->shape;
   int64_t num_axis = dshape.size();
 
+  const auto* begin = types[1].as<TensorTypeNode>();
+  ICHECK(begin);
+
   // calculate output shape
   std::vector<IndexExpr> oshape(num_axis);
-  for (int64_t i = 0; i < num_axis; ++i) {
+  int64_t num_dynamic_axes = begin->shape[0].as<IntImmNode>()->value;
+  for (int64_t i = 0; i < num_dynamic_axes; ++i) {
     oshape[i] = Any();
+  }
+
+  for (int64_t i = num_dynamic_axes; i < num_axis; ++i) {
+    oshape[i] = dshape[i];
   }
 
   reporter->Assign(types[4], TensorType(oshape, data->dtype));
@@ -480,11 +492,12 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
   te::Tensor strides = inputs[3];
   // Dynamic computation
   int64_t data_rank = data->shape.size();
-  ICHECK(begin->shape[0].as<IntImmNode>()->value == data_rank &&
-         end->shape[0].as<IntImmNode>()->value == data_rank &&
-         strides->shape[0].as<IntImmNode>()->value == data_rank)
-      << "begin, end, and strides are required to have the same length"
-      << " if they are dynamic variables.";
+  int64_t num_dynamic_axes = begin->shape[0].as<IntImmNode>()->value;
+  ICHECK(end->shape[0].as<IntImmNode>()->value == num_dynamic_axes &&
+         strides->shape[0].as<IntImmNode>()->value == num_dynamic_axes)
+      << "begin, end, strides should have the same length if they are dynamic variables";
+  ICHECK(num_dynamic_axes <= data_rank)
+      << "the number of dynamic axes to slice should be less than or equal to the data rank";
   return Array<te::Tensor>{topi::dynamic_strided_slice(data, begin, end, strides)};
 }
 
@@ -604,6 +617,137 @@ RELAY_REGISTER_OP("dyn.sparse_to_dense")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
+
+/* relay.dyn.unsqueeze */
+TVM_REGISTER_NODE_TYPE(DynExpandDimsAttrs);
+
+bool ExpandDimsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  ICHECK_EQ(num_inputs, 2);
+  const auto* data_type = types[0].as<TensorTypeNode>();
+  if (data_type == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "expand_dims: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  const auto* param = attrs.as<DynExpandDimsAttrs>();
+
+  // We don't know the output shape until we see the value of the axis input
+  int ndim = data_type->shape.size();
+  Array<IndexExpr> oshape(ndim + param->num_newaxis, Any());
+
+  const auto* axis_type = types[1].as<TensorTypeNode>();
+  ICHECK(axis_type->shape.size() == 0) << "Axis should be a scalar got shape " << axis_type->shape;
+
+  // Set output shape
+  reporter->Assign(types[2], TensorType(oshape, data_type->dtype));
+  return true;
+}
+
+Array<te::Tensor> ExpandDimsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                    const Type& out_type) {
+  // inputs = [Input tensor, axis to expand]
+  ICHECK_EQ(inputs.size(), 2);
+
+  const auto* param = attrs.as<DynExpandDimsAttrs>();
+
+  Array<IndexExpr> ishape = inputs[0]->shape;
+  const TensorTypeNode* out_ttype = out_type.as<TensorTypeNode>();
+  int ndim_out = out_ttype->shape.size();
+  int ndim_in = ishape.size();
+  ICHECK_EQ(ndim_in + param->num_newaxis, ndim_out);
+
+  Array<IndexExpr> newshape;
+  for (auto val : out_ttype->shape) {
+    // These vars will be populated by the VM executor with the results
+    // of the shape_func for the op.
+    newshape.push_back(val.as<tir::AnyNode>()->ToVar());
+  }
+
+  return {topi::reshape(inputs[0], newshape)};
+}
+
+Expr MakeExpandDims(Expr data, Expr axis_tensor, int num_newaxis) {
+  auto attrs = make_object<DynExpandDimsAttrs>();
+  attrs->num_newaxis = num_newaxis;
+  static const Op& op = Op::Get("dyn.expand_dims");
+  return Call(op, {data, axis_tensor}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.expand_dims").set_body_typed(MakeExpandDims);
+
+RELAY_REGISTER_OP("dyn.expand_dims")
+    .describe(R"code(Insert one new axis at the position given by `axis`
+
+- **data**: The input data to the operator.
+- **axis**: The axis to insert a new dimension
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("axis", "Tensor", "The axis to insert at a dimension.")
+    .set_support_level(3)
+    .add_type_rel("DynamicExpandDims", ExpandDimsRel)
+    .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+bool DynSqueezeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  // [data, axes, output]
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  const auto* axes = types[1].as<TensorTypeNode>();
+  if (axes == nullptr) {
+    return false;
+  }
+
+  ICHECK_EQ(axes->shape.size(), 1) << "Got" << axes->shape.size() << "expected 1";
+  ICHECK(axes->shape[0].as<IntImmNode>()) << "axes expected to be static rank";
+  size_t output_rank = data->shape.size() - axes->shape[0].as<IntImmNode>()->value;
+  std::vector<IndexExpr> result_shape(output_rank, Any());
+  reporter->Assign(types[2], TensorType(result_shape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                 const Type& out_type) {
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  ICHECK(out_ttype != nullptr);
+  Array<IndexExpr> newshape;
+  for (auto val : out_ttype->shape) {
+    newshape.push_back(val.as<tir::AnyNode>()->ToVar());
+  }
+  return {topi::reshape(inputs[0], newshape)};
+}
+
+Expr MakeDynSqueeze(Expr data, Expr axes) {
+  auto attrs = make_object<SqueezeAttrs>();
+  static const Op& op = Op::Get("dyn.squeeze");
+  return Call(op, {data, axes}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.squeeze").set_body_typed(MakeDynSqueeze);
+
+RELAY_REGISTER_OP("dyn.squeeze")
+    .describe(R"code(Remove axes of value 1 in input tensor at the dimensions given by axes
+
+- **data**: The input data to the operator.
+- **axes**: The axes to squeeze.
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .set_attrs_type<SqueezeAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("axes", "Tensor", "The axes to squeeze.")
+    .set_support_level(3)
+    .add_type_rel("DynSqueeze", DynSqueezeRel)
+    .set_attr<FTVMCompute>("FTVMCompute", SqueezeCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TReshapeOp>("TReshapeOp", true);
 
 }  // namespace dyn
 }  // namespace relay

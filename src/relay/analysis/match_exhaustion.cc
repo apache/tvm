@@ -124,9 +124,14 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
   }
 };
 
-// Returns list of arrays corresponding to Cartesian product of input list
+// Returns list of arrays corresponding to Cartesian product of input list.
+// Note: CartesianProduct({}) = {{}}
 Array<Array<Pattern>> CartesianProduct(Array<Array<Pattern>> fields) {
-  ICHECK_NE(fields.size(), 0);
+  // the only combination of 0 fields is 0 fields
+  if (fields.size() == 0) {
+    return {{}};
+  }
+
   Array<Pattern> field_vals = fields[fields.size() - 1];
   Array<Array<Pattern>> ret;
 
@@ -197,7 +202,7 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
 
   auto ctor_cand = Downcast<PatternConstructor>(cand);
 
-  // for constructors, we will expand the wildcards in any field that is an ADT.
+  // expand all fields' wildcards
   Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < ctor_cand->constructor->inputs.size(); i++) {
     values_by_field.push_back(
@@ -217,7 +222,7 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
 // Returns a list of all possible expansions.
 Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple, const Pattern& cand,
                                     const IRModule& mod) {
-  // for a wildcard node, create constructor nodes with wildcards for all args.
+  // for a wildcard node, create tuple with wildcards for all args.
   if (cand.as<PatternWildcardNode>()) {
     Array<Pattern> args;
     for (auto inp : clause_tuple->patterns) {
@@ -228,7 +233,7 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple, const Patt
 
   auto tuple_cand = Downcast<PatternTuple>(cand);
 
-  // for constructors, we will expand the wildcards in any field that is an ADT.
+  // expand all members' patterns
   Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < tuple_cand->patterns.size(); i++) {
     values_by_field.push_back(

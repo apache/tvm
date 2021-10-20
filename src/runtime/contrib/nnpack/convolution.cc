@@ -23,8 +23,8 @@
 #include <nnpack.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include "nnpack_utils.h"
 
@@ -99,12 +99,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
       // Division with rounding up, in case size is not multiple of sizeof(float)
       const size_t workspace_elements = (workspace_size + sizeof(float) - 1) / sizeof(float);
 
-      TVMContext ctx = input->ctx;
+      Device dev = input->device;
       DLDataType type_hint = input->dtype;
 
-      DeviceAPI* cpu_api = DeviceAPI::Get(ctx);
+      DeviceAPI* cpu_api = DeviceAPI::Get(dev);
       void* workspace_buffer =
-          cpu_api->AllocWorkspace(ctx, workspace_elements * sizeof(float), type_hint);
+          cpu_api->AllocWorkspace(dev, workspace_elements * sizeof(float), type_hint);
       ICHECK(workspace_buffer != nullptr);
 
       for (auto n = 0; n < input->shape[0]; ++n) {
@@ -122,7 +122,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
 
         ICHECK_EQ(status, nnp_status_success);
       }
-      cpu_api->FreeWorkspace(ctx, workspace_buffer);
+      cpu_api->FreeWorkspace(dev, workspace_buffer);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_transform")
@@ -188,12 +188,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
       // Division with rounding up, in case size is not multiple of sizeof(float)
       const size_t workspace_elements = (workspace_size + sizeof(float) - 1) / sizeof(float);
 
-      TVMContext ctx = input->ctx;
+      Device dev = input->device;
       DLDataType type_hint = input->dtype;
 
-      DeviceAPI* cpu_api = DeviceAPI::Get(ctx);
+      DeviceAPI* cpu_api = DeviceAPI::Get(dev);
       void* workspace_buffer =
-          cpu_api->AllocWorkspace(ctx, workspace_elements * sizeof(float), type_hint);
+          cpu_api->AllocWorkspace(dev, workspace_elements * sizeof(float), type_hint);
       ICHECK(workspace_buffer != nullptr);
 
       for (auto n = 0; n < input->shape[0]; ++n) {
@@ -211,7 +211,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
         ICHECK_EQ(status, nnp_status_success);
       }
 
-      cpu_api->FreeWorkspace(ctx, workspace_buffer);
+      cpu_api->FreeWorkspace(dev, workspace_buffer);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_weight_transform")

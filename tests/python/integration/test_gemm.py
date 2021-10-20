@@ -79,7 +79,7 @@ def test_gemm():
 
     # one line to build the function.
     def check_device(device):
-        ctx = tvm.context(device, 0)
+        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
@@ -93,13 +93,13 @@ def test_gemm():
         l = n
         a_np = np.random.uniform(size=(n, l)).astype(A.dtype)
         b_np = np.random.uniform(size=(m, l)).astype(B.dtype)
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
-        ftimer = f.time_evaluator(f.entry_name, ctx, number=1)
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
+        ftimer = f.time_evaluator(f.entry_name, dev, number=1)
         tcost = ftimer(a, b, c).mean
-        print("%s: exec=%g sec/op" % (ctx, tcost))
-        tvm.testing.assert_allclose(c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
+        print("%s: exec=%g sec/op" % (dev, tcost))
+        tvm.testing.assert_allclose(c.numpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
     check_device("vulkan")
     check_device("nvptx -mcpu=sm_20")

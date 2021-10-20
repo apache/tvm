@@ -99,15 +99,15 @@ def test_empty_array():
     tvm.runtime.convert(myfunc)(x)
 
 
-def test_ctx():
-    def test_ctx_func(ctx):
-        assert tvm.gpu(7) == ctx
+def test_device():
+    def test_device_func(dev):
+        assert tvm.cuda(7) == dev
         return tvm.cpu(0)
 
-    x = test_ctx_func(tvm.gpu(7))
+    x = test_device_func(tvm.cuda(7))
     assert x == tvm.cpu(0)
     x = tvm.opencl(10)
-    x = tvm.testing.context_test(x, x.device_type, x.device_id)
+    x = tvm.testing.device_test(x, x.device_type, x.device_id)
     assert x == tvm.opencl(10)
 
 
@@ -163,4 +163,4 @@ if __name__ == "__main__":
     test_convert()
     test_return_func()
     test_byte_array()
-    test_ctx()
+    test_device()

@@ -53,28 +53,29 @@ HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_l
 
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target,
                                                             const Target& target_host) {
+  // There is no use of target_host so no updates here in the function.
   const auto device_type = target->kind->device_type;
   if (device_type == kDLCPU) {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 0, 0, 0, 0, 0);
-  } else if (device_type == kDLGPU || device_type == kDLROCM) {
-    auto ctx = TVMContext{static_cast<DLDeviceType>(device_type), 0};
-    auto device_name = device_type == kDLGPU ? "device_api.gpu" : "device_api.rocm";
+  } else if (device_type == kDLCUDA || device_type == kDLROCM) {
+    auto dev = Device{static_cast<DLDeviceType>(device_type), 0};
+    auto device_name = device_type == kDLCUDA ? "device_api.cuda" : "device_api.rocm";
     auto func = tvm::runtime::Registry::Get(device_name);
-    ICHECK(func != nullptr) << "Cannot find GPU device_api in registry";
+    ICHECK(func != nullptr) << "Cannot find CUDA device_api in registry";
     auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
 
     tvm::runtime::TVMRetValue ret;
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
     int max_shared_memory_per_block = ret;
 
     // There is no explicit local memory limition in CUDA runtime,
     // so we can use INT32_MAX to disalbe the check on local_memory.
     int max_local_memory_per_block = INT32_MAX;
 
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
     int max_threads_per_block = ret;
 
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
     int warp_size = ret;
 
     int max_vthread_extent = warp_size / 4;
@@ -90,6 +91,45 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     int max_vthread_extent = warp_size / 4;
     return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
+  } else if (target->kind->device_type == kDLOpenCL) {
+    if (target->GetAttr<String>("device", "") == "mali") {
+      // We cannot use device API to get hardware attributes like CUDA,
+      // because like Mali target is normally on the remote machine.
+      int max_shared_memory_per_block = 32768;
+      int max_local_memory_per_block = INT32_MAX;  // skip the check on local memory
+      int max_threads_per_block = 256;
+      int warp_size = 1;
+      int max_vthread_extent = 1;
+      return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
+                            max_threads_per_block, max_vthread_extent, warp_size);
+    } else {
+      // add other opencl target
+      auto target_device = target->GetAttr<String>("device", "");
+      LOG(FATAL) << "No default hardware parameters for opencl target device: " << target_device;
+    }
+  } else if (device_type == kDLVulkan) {
+    auto dev = Device{static_cast<DLDeviceType>(device_type), 0};
+    auto device_name = "device_api.vulkan";
+    auto func = tvm::runtime::Registry::Get(device_name);
+    ICHECK(func != nullptr) << "Cannot find Vulkan device_api in registry";
+    auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
+
+    tvm::runtime::TVMRetValue ret;
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
+    int max_shared_memory_per_block = ret;
+
+    int max_local_memory_per_block = INT32_MAX;
+
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
+    int max_threads_per_block = ret;
+
+    device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
+    int warp_size = ret;
+
+    int max_vthread_extent = std::max(1, warp_size / 4);
+
+    return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
+                          max_threads_per_block, max_vthread_extent, warp_size);
   } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
   }
@@ -97,10 +137,14 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 }
 
 SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target target,
-                       Target target_host, Optional<HardwareParams> hardware_params) {
+                       Target target_host, Optional<HardwareParams> hardware_params,
+                       LayoutRewriteOption layout_rewrite_option, Array<String> task_input_names,
+                       String desc) {
+  CheckAndUpdateHostConsistency(&target, &target_host);
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
+  node->desc = std::move(desc);
   node->target = std::move(target);
   node->target_host = std::move(target_host);
   if (hardware_params) {
@@ -109,6 +153,8 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
     node->hardware_params =
         HardwareParamsNode::GetDefaultHardwareParams(node->target, node->target_host);
   }
+  node->layout_rewrite_option = layout_rewrite_option;
+  node->task_input_names = std::move(task_input_names);
   data_ = std::move(node);
 }
 
@@ -121,10 +167,18 @@ TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
                             max_threads_per_block, max_vthread_extent, warp_size);
     });
 
+TVM_REGISTER_GLOBAL("auto_scheduler.GetDefaultHardwareParams")
+    .set_body_typed([](Target target, Target target_host) {
+      return HardwareParamsNode::GetDefaultHardwareParams(target, target_host);
+    });
+
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
     .set_body_typed([](ComputeDAG compute_dag, String workload_key, Target target,
-                       Target target_host, Optional<HardwareParams> hardware_params) {
-      return SearchTask(compute_dag, workload_key, target, target_host, hardware_params);
+                       Target target_host, Optional<HardwareParams> hardware_params,
+                       int layout_rewrite_option, Array<String> task_input_names, String desc) {
+      CheckAndUpdateHostConsistency(&target, &target_host);
+      return SearchTask(compute_dag, workload_key, target, target_host, hardware_params,
+                        LayoutRewriteOption(layout_rewrite_option), task_input_names, desc);
     });
 
 }  // namespace auto_scheduler

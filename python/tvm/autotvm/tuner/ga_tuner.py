@@ -143,5 +143,5 @@ class GATuner(Tuner):
     def has_next(self):
         return len(self.visited) - (len(self.genes) - self.trial_pt) < len(self.space)
 
-    def load_history(self, data_set):
+    def load_history(self, data_set, min_seed_records=500):
         pass

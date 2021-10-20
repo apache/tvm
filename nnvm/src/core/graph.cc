@@ -54,7 +54,7 @@ static void SubgraphSanityCheck(const std::vector<std::shared_ptr<Symbol>>& subg
         nnvm::Node* node = n.get();
         // if the node is visited, but on a different level, then check failed
         // if check failed here or before, we stop doing anything, but raise an error
-        ICHECK(!node2level.count(node) || node2level[node] == level)
+        CHECK(!node2level.count(node) || node2level[node] == level)
             << "A subgraph should not depend on the outputs of nodes on higher levels";
         // otherwise, this node belongs to the current level
         node2level[node] = level;
@@ -76,9 +76,9 @@ IndexedGraph::IndexedGraph(const Graph& g) {
   DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr, &subgraphs](const ObjectPtr& n) {
     const auto& is_ghost = Op::GetAttr<TIsGhost>("TIsGhost");
     if (!n->is_variable() && is_ghost.get(n->op(), false)) return;
-    ICHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
+    CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
     uint32_t nid = static_cast<uint32_t>(nodes_.size());
-    ICHECK(n);
+    CHECK(n);
     for (const auto& subgraph : n->attrs.subgraphs) subgraphs.push_back(subgraph);
     // nodes_
     IndexedGraph::Node new_node;
@@ -96,7 +96,7 @@ IndexedGraph::IndexedGraph(const Graph& g) {
     // input entries
     for (const auto& e : n->inputs) {
       auto it = node2index_.find(e.node.get());
-      ICHECK(it != node2index_.end() && it->first == e.node.get());
+      CHECK(it != node2index_.end() && it->first == e.node.get());
       input_entries_.emplace_back(NodeEntry{it->second, e.index, e.version});
     }
     inputs_rptr.push_back(input_entries_.size());
@@ -104,7 +104,7 @@ IndexedGraph::IndexedGraph(const Graph& g) {
     for (const auto& nptr : n->control_deps) {
       if (!nptr->is_variable() && is_ghost.get(nptr->op(), false)) continue;
       auto it = node2index_.find(nptr.get());
-      ICHECK(it != node2index_.end()) << "control dep not found in graph";
+      CHECK(it != node2index_.end()) << "control dep not found in graph";
       control_deps_.push_back(it->second);
     }
     control_rptr.push_back(control_deps_.size());

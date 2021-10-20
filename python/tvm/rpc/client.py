@@ -72,8 +72,8 @@ class RPCSession(object):
         """
         return self._sess.get_function(name)
 
-    def context(self, dev_type, dev_id=0):
-        """Construct a remote context.
+    def device(self, dev_type, dev_id=0):
+        """Construct a remote device.
 
         Parameters
         ----------
@@ -83,14 +83,14 @@ class RPCSession(object):
 
         Returns
         -------
-        ctx: TVMContext
-            The corresponding encoded remote context.
+        dev: Device
+            The corresponding encoded remote device.
         """
-        ctx = nd.context(dev_type, dev_id)
+        dev = nd.device(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
-        ctx.device_type += encode
-        ctx._rpc_sess = self
-        return ctx
+        dev.device_type += encode
+        dev._rpc_sess = self
+        return dev
 
     def upload(self, data, target=None):
         """Upload file to remote runtime temp folder
@@ -199,35 +199,39 @@ class RPCSession(object):
 
     def cpu(self, dev_id=0):
         """Construct CPU device."""
-        return self.context(1, dev_id)
+        return self.device(1, dev_id)
 
-    def gpu(self, dev_id=0):
-        """Construct GPU device."""
-        return self.context(2, dev_id)
+    def cuda(self, dev_id=0):
+        """Construct CUDA GPU device."""
+        return self.device(2, dev_id)
 
     def cl(self, dev_id=0):
         """Construct OpenCL device."""
-        return self.context(4, dev_id)
+        return self.device(4, dev_id)
 
     def vulkan(self, dev_id=0):
         """Construct Vulkan device."""
-        return self.context(7, dev_id)
+        return self.device(7, dev_id)
 
     def metal(self, dev_id=0):
         """Construct Metal device."""
-        return self.context(8, dev_id)
+        return self.device(8, dev_id)
+
+    def rocm(self, dev_id=0):
+        """Construct ROCm device."""
+        return self.device(10, dev_id)
 
     def ext_dev(self, dev_id=0):
         """Construct extension device."""
-        return self.context(12, dev_id)
+        return self.device(12, dev_id)
 
     def hexagon(self, dev_id=0):
         """Construct Hexagon device."""
-        return self.context(14, dev_id)
+        return self.device(14, dev_id)
 
     def webgpu(self, dev_id=0):
         """Construct WebGPU device."""
-        return self.context(15, dev_id)
+        return self.device(15, dev_id)
 
 
 class LocalSession(RPCSession):
@@ -327,7 +331,7 @@ class TrackerSession(object):
         res += "----------------------------\n"
         for item in data["server_info"]:
             addr = item["addr"]
-            res += addr[0] + ":" + str(addr[1]) + "\t"
+            res += str(addr[0]) + ":" + str(addr[1]) + "\t"
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:
@@ -362,7 +366,9 @@ class TrackerSession(object):
         res += separate_line
         return res
 
-    def request(self, key, priority=1, session_timeout=0, max_retry=5):
+    def request(
+        self, key, priority=1, session_timeout=0, max_retry=5, session_constructor_args=None
+    ):
         """Request a new connection from the tracker.
 
         Parameters
@@ -380,6 +386,11 @@ class TrackerSession(object):
 
         max_retry : int, optional
             Maximum number of times to retry before give up.
+
+        session_constructor_args : list, optional
+            List of additional arguments to passed as the remote session constructor.
+            The first element of the list is always a string specifying the name of
+            the session constructor, the following args are the positional args to that function.
         """
         last_err = None
         for _ in range(max_retry):
@@ -391,7 +402,13 @@ class TrackerSession(object):
                 if value[0] != base.TrackerCode.SUCCESS:
                     raise RuntimeError("Invalid return value %s" % str(value))
                 url, port, matchkey = value[1]
-                return connect(url, port, matchkey, session_timeout)
+                return connect(
+                    url,
+                    port,
+                    matchkey,
+                    session_timeout,
+                    session_constructor_args=session_constructor_args,
+                )
             except socket.error as err:
                 self.close()
                 last_err = err
@@ -458,7 +475,7 @@ def connect(url, port, key="", session_timeout=0, session_constructor_args=None)
         Additional key to match server
 
     session_timeout : float, optional
-        The duration of the session, allows server to kill
+        The duration of the session in seconds, allows server to kill
         the connection when duration is longer than this value.
         When duration is zero, it means the request must always be kept alive.
 

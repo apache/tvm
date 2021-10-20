@@ -43,7 +43,8 @@ namespace tvm {
 
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
-                   std::unordered_set<String> import_set, parser::SourceMap source_map) {
+                   std::unordered_set<String> import_set, parser::SourceMap source_map,
+                   DictAttrs attrs) {
   auto n = make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
@@ -52,6 +53,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->constructor_tag_map_ = {};
   n->import_set_ = std::move(import_set);
   n->source_map = source_map;
+  n->attrs = std::move(attrs);
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -72,6 +74,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
 
 bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const {
   if (functions.size() != other->functions.size()) return false;
+  if (!equal(this->attrs, other->attrs)) return false;
   for (const auto& kv : this->functions) {
     if (!other->ContainGlobalVar(kv.first->name_hint)) return false;
     if (!equal(kv.second, other->Lookup(kv.first->name_hint))) return false;
@@ -112,6 +115,7 @@ void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
     temp.emplace_back(kv.first->name_hint, kv.second);
   }
   reduce_temp();
+  hash_reduce(this->attrs);
 }
 
 bool IRModuleNode::ContainGlobalVar(const String& name) const {
@@ -284,6 +288,20 @@ Constructor IRModuleNode::LookupTag(const int32_t tag) {
   return (*it).second;
 }
 
+String IRModuleNode::GetUniqueName(const String& name) {
+  String result = name;
+  int suffix = 0;
+  while (true) {
+    auto it = global_var_map_.find(result);
+    if (it == global_var_map_.end()) {
+      return result;
+    }
+    std::ostringstream os;
+    os << name << "_" << ++suffix;
+    result = os.str();
+  }
+}
+
 struct Renamer : relay::ExprMutator, TypeMutator {
   Map<String, GlobalVar> defs;
   Map<String, GlobalTypeVar> types;
@@ -347,25 +365,43 @@ void IRModuleNode::Update(const IRModule& mod) {
   }
 }
 
-IRModule IRModule::FromExpr(const RelayExpr& expr,
-                            const tvm::Map<GlobalVar, BaseFunc>& global_funcs,
-                            const tvm::Map<GlobalTypeVar, TypeData>& type_definitions) {
-  auto mod = IRModule(global_funcs, type_definitions);
-  BaseFunc func;
-  std::string gv_name = "main";
+IRModule IRModuleNode::ShallowCopy() {
+  return IRModule(this->functions, this->type_definitions, this->Imports(), this->source_map,
+                  this->attrs);
+}
 
+std::pair<IRModule, GlobalVar> IRModule::FromExprInContext(
+    const RelayExpr& expr, const tvm::Map<GlobalVar, BaseFunc>& global_funcs,
+    const tvm::Map<GlobalTypeVar, TypeData>& type_definitions,
+    std::unordered_set<String> import_set) {
+  auto mod = IRModule(global_funcs, type_definitions, std::move(import_set));
+  String gv_name;
+
+  // All global definitions must be functions.
+  BaseFunc func;
   if (auto* func_node = expr.as<BaseFuncNode>()) {
     func = GetRef<BaseFunc>(func_node);
     if (auto opt = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      // Function literal has been annotated with it's required global symbol.
       gv_name = opt.value();
     }
-
   } else {
     func = relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
   }
-  auto main_gv = GlobalVar(gv_name);
+
+  if (gv_name.empty()) {
+    // Bind function to 'main' (though rename if would clash with existing 'main').
+    gv_name = mod->GetUniqueName("main");
+  }
+
+  GlobalVar main_gv(gv_name);
   mod->Add(main_gv, func);
-  return mod;
+  return {mod, main_gv};
+}
+
+IRModule IRModule::FromExpr(const RelayExpr& expr, const Map<GlobalVar, BaseFunc>& global_funcs,
+                            const Map<GlobalTypeVar, TypeData>& type_definitions) {
+  return FromExprInContext(expr, global_funcs, type_definitions).first;
 }
 
 void IRModuleNode::Import(const String& path) {
@@ -465,11 +501,7 @@ TVM_REGISTER_GLOBAL("ir.Module_LookupTag").set_body_typed([](IRModule mod, int32
   return mod->LookupTag(tag);
 });
 
-TVM_REGISTER_GLOBAL("ir.Module_FromExpr")
-    .set_body_typed([](RelayExpr e, tvm::Map<GlobalVar, BaseFunc> funcs,
-                       tvm::Map<GlobalTypeVar, TypeData> type_defs) {
-      return IRModule::FromExpr(e, funcs, type_defs);
-    });
+TVM_REGISTER_GLOBAL("ir.Module_FromExpr").set_body_typed(&IRModule::FromExpr);
 
 TVM_REGISTER_GLOBAL("ir.Module_Update").set_body_typed([](IRModule mod, IRModule from) {
   mod->Update(from);

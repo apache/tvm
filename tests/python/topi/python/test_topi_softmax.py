@@ -15,14 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test code for softmax"""
+import logging
 import os
+import sys
+
 import numpy as np
+import pytest
+
 import tvm
-from tvm import te
-from tvm import topi
 import tvm.testing
 import tvm.topi.testing
-import logging
+from tvm import te, topi
 from tvm.topi.utils import get_const_tuple
 
 
@@ -34,75 +37,72 @@ _softmax_schedule = {
 }
 
 
-def check_device(A, B, a_np, b_np, device, ctx, name):
-    print("Running on target: %s" % device)
-    with tvm.target.Target(device):
-        s_func = tvm.topi.testing.dispatch(device, _softmax_schedule)
-        s = s_func(B)
-
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-    f = tvm.build(s, [A, B], device, name=name)
-    f(a, b)
-    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+dtype = tvm.testing.parameter("float32", "float64")
 
 
-def verify_softmax(m, n, dtype="float32"):
-    A = te.placeholder((m, n), dtype=dtype, name="A")
-    B = topi.nn.softmax(A)
-    # confirm lower works
-    s = te.create_schedule([B.op])
-    tvm.lower(s, [A, B], simple_mode=True)
+configs = {
+    "softmax": {
+        "topi": topi.nn.softmax,
+        "ref": tvm.topi.testing.softmax_python,
+        "dimensions": [2, 4],
+    },
+    "log_softmax": {
+        "topi": topi.nn.log_softmax,
+        "ref": tvm.topi.testing.log_softmax_python,
+        "dimensions": [2],
+    },
+}
+shapes = [(32, 10), (3, 4), (1, 16, 256, 256)]
+softmax_operation, shape = tvm.testing.parameters(
+    *[
+        (name, shape)
+        for name, config in configs.items()
+        for shape in shapes
+        if len(shape) in config["dimensions"]
+    ]
+)
 
-    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    b_np = tvm.topi.testing.softmax_python(a_np)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(A, B, a_np, b_np, device, ctx, "softmax")
+@tvm.testing.fixture(cache_return_value=True)
+def ref_data(shape, dtype, softmax_operation):
+    ref_func = configs[softmax_operation]["ref"]
+
+    a_np = np.random.uniform(size=shape).astype(dtype)
+
+    if len(shape) == 2:
+        b_np = ref_func(a_np)
+    elif len(shape) == 4:
+        _, c, h, w = a_np.shape
+        a_np_2d = a_np.transpose(0, 2, 3, 1).reshape(h * w, c)
+        b_np_2d = tvm.topi.testing.softmax_python(a_np_2d)
+        b_np = b_np_2d.reshape(1, h, w, c).transpose(0, 3, 1, 2)
+
+    return a_np, b_np
 
 
-def verify_softmax_4d(shape, dtype="float32"):
+def test_softmax(target, dev, shape, dtype, ref_data, softmax_operation):
+    target = tvm.target.Target(target)
+    if target.kind.name == "vulkan" and dtype == "float64":
+        # https://www.khronos.org/registry/SPIR-V/specs/1.0/GLSL.std.450.html
+        pytest.xfail("Vulkan GLSL.std.450 does not support 64-bit floats")
+
     A = te.placeholder(shape, dtype=dtype, name="A")
-    B = topi.nn.softmax(A, axis=1)
 
-    _, c, h, w = shape
-    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    b_np = tvm.topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h * w, c))
-    b_np = b_np.reshape(1, h, w, c).transpose(0, 3, 1, 2)
+    topi_op = configs[softmax_operation]["topi"]
+    B = topi_op(A, axis=1)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(A, B, a_np, b_np, device, ctx, "softmax")
+    with tvm.target.Target(target):
+        fschedule = tvm.topi.testing.dispatch(target, _softmax_schedule)
+        s = fschedule(B)
 
+    a_np, b_np = ref_data
 
-@tvm.testing.uses_gpu
-def test_softmax():
-    verify_softmax(32, 10)
-    verify_softmax(3, 4)
-    verify_softmax(32, 10, "float64")
-    verify_softmax_4d((1, 16, 256, 256))
-
-
-def verify_log_softmax(m, n, dtype="float32"):
-    A = te.placeholder((m, n), dtype=dtype, name="A")
-    B = topi.nn.log_softmax(A)
-    # confirm lower works
-    s = te.create_schedule([B.op])
-    tvm.lower(s, [A, B], simple_mode=True)
-    a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
-    b_np = tvm.topi.testing.log_softmax_python(a_np)
-
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(A, B, a_np, b_np, device, ctx, "log_softmax")
-
-
-@tvm.testing.uses_gpu
-def test_log_softmax():
-    verify_log_softmax(32, 10)
-    verify_log_softmax(3, 4)
-    verify_log_softmax(32, 10, "float64")
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    f = tvm.build(s, [A, B], target)
+    f(a, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    test_softmax()
-    test_log_softmax()
+    sys.exit(pytest.main(sys.argv))

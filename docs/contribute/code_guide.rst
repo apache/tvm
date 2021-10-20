@@ -41,7 +41,7 @@ You can also use the following command via docker.
 
 .. code:: bash
 
-    docker/bash.sh tvmai/ci-lint clang-format-10 [path-to-file]
+    docker/bash.sh tlcpack/ci-lint clang-format-10 [path-to-file]
 
 
 clang-format is also not perfect, when necessary, you can use disble clang-format on certain code regions.
@@ -79,7 +79,7 @@ Python Code Styles
 ------------------
 - The functions and classes are documented in `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format.
 - Check your code style using ``make pylint``
-- Stick to language features as in ``python 3.5``
+- Stick to language features as in ``python 3.6``
 
 
 Writing Python Tests
@@ -91,7 +91,7 @@ If you want your test to run over a variety of targets, use the :py:func:`tvm.te
 .. code:: python
 
   @tvm.testing.parametrize_targets
-  def test_mytest(target, ctx):
+  def test_mytest(target, dev):
     ...
 
 will run ``test_mytest`` with ``target="llvm"``, ``target="cuda"``, and few others. This also ensures that your test is run on the correct hardware by the CI. If you only want to test against a couple targets use ``@tvm.testing.parametrize_targets("target_1", "target_2")``. If you want to test on a single target, use the associated decorator from :py:func:`tvm.testing`. For example, CUDA tests use the ``@tvm.testing.requires_cuda`` decorator.

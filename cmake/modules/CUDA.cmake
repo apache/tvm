@@ -16,19 +16,19 @@
 # under the License.
 
 # CUDA Module
-find_cuda(${USE_CUDA})
+find_cuda(${USE_CUDA} ${USE_CUDNN})
 
 if(CUDA_FOUND)
   # always set the includedir when cuda is available
   # avoid global retrigger of cmake
-	include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
+  include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
 endif(CUDA_FOUND)
 
 if(USE_CUDA)
   if(NOT CUDA_FOUND)
     message(FATAL_ERROR "Cannot find CUDA, USE_CUDA=" ${USE_CUDA})
   endif()
-  message(STATUS "Build with CUDA support")
+  message(STATUS "Build with CUDA ${CUDA_VERSION} support")
   file(GLOB RUNTIME_CUDA_SRCS src/runtime/cuda/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_CUDA_SRCS})
   list(APPEND COMPILER_SRCS src/target/opt/build_cuda_on.cc)
@@ -40,6 +40,7 @@ if(USE_CUDA)
 
   if(USE_CUDNN)
     message(STATUS "Build with cuDNN support")
+    include_directories(SYSTEM ${CUDA_CUDNN_INCLUDE_DIRS})
     file(GLOB CONTRIB_CUDNN_SRCS src/runtime/contrib/cudnn/*.cc)
     list(APPEND RUNTIME_SRCS ${CONTRIB_CUDNN_SRCS})
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUDNN_LIBRARY})
@@ -64,6 +65,17 @@ if(USE_CUDA)
     list(APPEND RUNTIME_SRCS ${CONTRIB_THRUST_SRC})
   endif(USE_THRUST)
 
+  if(USE_GRAPH_EXECUTOR_CUDA_GRAPH)
+    if(NOT USE_GRAPH_EXECUTOR)
+      message(FATAL_ERROR "CUDA Graph is only supported by graph executor, please set USE_GRAPH_EXECUTOR=ON")
+    endif()
+    if(CUDAToolkit_VERSION_MAJOR LESS "10")
+      message(FATAL_ERROR "CUDA Graph requires CUDA 10 or above, got=" ${CUDAToolkit_VERSION})
+    endif()
+    message(STATUS "Build with Graph executor with CUDA Graph support...")
+    file(GLOB RUNTIME_CUDA_GRAPH_SRCS src/runtime/graph_executor/cuda_graph/*.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_CUDA_GRAPH_SRCS})
+  endif()
 else(USE_CUDA)
   list(APPEND COMPILER_SRCS src/target/opt/build_cuda_off.cc)
 endif(USE_CUDA)

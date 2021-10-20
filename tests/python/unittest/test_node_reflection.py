@@ -43,6 +43,16 @@ def test_infinity_value():
     _test_infinity_value(float("-inf"), "float32")
 
 
+def _test_minmax_value(value):
+    json_str = tvm.ir.save_json(value)
+    tvm.ir.assert_structural_equal(value, tvm.ir.load_json(json_str))
+
+
+def test_minmax_value():
+    _test_minmax_value(tvm.tir.min_value("float32"))
+    _test_minmax_value(tvm.tir.max_value("float32"))
+
+
 def test_make_smap():
     # save load json
     x = tvm.tir.const(1, "int32")
@@ -160,3 +170,4 @@ if __name__ == "__main__":
     test_pass_config()
     test_dict()
     test_infinity_value()
+    test_minmax_value()

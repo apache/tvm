@@ -28,7 +28,7 @@
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <dlpack/dlpack.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <cstdint>
 #if CUDART_VERSION >= 10010

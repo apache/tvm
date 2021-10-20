@@ -41,7 +41,7 @@ CONDA_BUILD = os.getenv("CONDA_BUILD") is not None
 def get_lib_path():
     """Get library path, name and version"""
     # We can not import `libinfo.py` in setup.py directly since __init__.py
-    # Will be invoked which introduces dependences
+    # Will be invoked which introduces dependencies
     libinfo_py = os.path.join(CURRENT_DIR, "./tvm/_ffi/libinfo.py")
     libinfo = {"__file__": libinfo_py}
     exec(compile(open(libinfo_py, "rb").read(), libinfo_py, "exec"), libinfo, libinfo)
@@ -49,13 +49,22 @@ def get_lib_path():
     if not CONDA_BUILD:
         lib_path = libinfo["find_lib_path"]()
         libs = [lib_path[0]]
-        if libs[0].find("runtime") == -1:
+        if "runtime" not in libs[0]:
             for name in lib_path[1:]:
-                if name.find("runtime") != -1:
+                if "runtime" in name:
                     libs.append(name)
                     break
+
+        # Add standalone_crt, if present
+        for name in lib_path:
+            candidate_path = os.path.join(os.path.dirname(name), "standalone_crt")
+            if os.path.isdir(candidate_path):
+                libs.append(candidate_path)
+                break
+
     else:
         libs = None
+
     return libs, version
 
 
@@ -94,7 +103,7 @@ def config_cython():
             subdir = "_cy2"
         ret = []
         path = "tvm/_ffi/_cython"
-        extra_compile_args = ["-std=c++14"]
+        extra_compile_args = ["-std=c++14", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
             libraries = ["tvm"]
@@ -154,9 +163,16 @@ setup_kwargs = {}
 if wheel_include_libs:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
-            shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
-            _, libname = os.path.split(path)
-            fo.write("include tvm/%s\n" % libname)
+            if os.path.isfile(path):
+                shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
+                _, libname = os.path.split(path)
+                fo.write(f"include tvm/{libname}\n")
+
+            if os.path.isdir(path):
+                _, libname = os.path.split(path)
+                shutil.copytree(path, os.path.join(CURRENT_DIR, "tvm", libname))
+                fo.write(f"recursive-include tvm/{libname} *\n")
+
     setup_kwargs = {"include_package_data": True}
 
 if include_libs:
@@ -171,38 +187,26 @@ def get_package_data_files():
     return ["relay/std/prelude.rly", "relay/std/core.rly"]
 
 
+# Temporarily add this directory to the path so we can import the requirements generator
+# tool.
+sys.path.insert(0, os.path.dirname(__file__))
+import gen_requirements
+
+sys.path.pop(0)
+
+requirements = gen_requirements.join_requirements()
+extras_require = {
+    piece: deps for piece, (_, deps) in requirements.items() if piece not in ("all", "core")
+}
+
 setup(
     name="tvm",
     version=__version__,
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
     zip_safe=False,
     entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
-    install_requires=[
-        "numpy",
-        "scipy",
-        "decorator",
-        "attrs",
-        "psutil",
-        "synr>=0.2.1",
-    ],
-    extras_require={
-        "test": ["pillow<7", "matplotlib"],
-        "extra_feature": [
-            "tornado",
-            "psutil",
-            "xgboost>=1.1.0",
-            "mypy",
-            "orderedset",
-        ],
-        "tvmc": [
-            "tensorflow>=2.1.0",
-            "tflite>=2.1.0",
-            "onnx>=1.7.0",
-            "onnxruntime>=1.0.0",
-            "torch>=1.4.0",
-            "torchvision>=0.5.0",
-        ],
-    },
+    install_requires=requirements["core"][1],
+    extras_require=extras_require,
     packages=find_packages(),
     package_dir={"tvm": "tvm"},
     package_data={"tvm": get_package_data_files()},
@@ -218,4 +222,10 @@ if wheel_include_libs:
     os.remove("MANIFEST.in")
     for path in LIB_LIST:
         _, libname = os.path.split(path)
-        os.remove("tvm/%s" % libname)
+        path_to_be_removed = f"tvm/{libname}"
+
+        if os.path.isfile(path_to_be_removed):
+            os.remove(path_to_be_removed)
+
+        if os.path.isdir(path_to_be_removed):
+            shutil.rmtree(path_to_be_removed)

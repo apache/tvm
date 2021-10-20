@@ -16,12 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#pragma once
+
+#ifndef TVM_RUNTIME_VULKAN_VULKAN_COMMON_H_
+#define TVM_RUNTIME_VULKAN_VULKAN_COMMON_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/registry.h>
 #include <vulkan/vulkan.h>
 
 #include <memory>
@@ -32,6 +35,17 @@
 namespace tvm {
 namespace runtime {
 namespace vulkan {
+
+/*! \brief Maximum number of GPU supported in VulkanModule. */
+static constexpr const int kVulkanMaxNumDevice = 8;
+
+/*! \brief TVM Vulkan binary pack magic number */
+static constexpr const int kVulkanModuleMagic = 0x02700027;
+
+const int kMaxPushConstantsBytes = 128;
+
+/*! \brief A mask used when we attach additional information to shaders */
+enum ShaderMetaDataFlagMask { kUseUBO = 0 };
 
 inline const char* VKGetErrorString(VkResult error) {
   switch (error) {
@@ -80,10 +94,10 @@ inline const char* VKGetErrorString(VkResult error) {
  * \brief Protected Vulkan call
  * \param func Expression to call.
  */
-#define VULKAN_CHECK_ERROR(__e)                                      \
-  {                                                                  \
-    ICHECK(__e == VK_SUCCESS) << "Vulan Error, code=" << __e << ": " \
-                              << vulkan::VKGetErrorString(__e);      \
+#define VULKAN_CHECK_ERROR(__e)                                       \
+  {                                                                   \
+    ICHECK(__e == VK_SUCCESS) << "Vulkan Error, code=" << __e << ": " \
+                              << vulkan::VKGetErrorString(__e);       \
   }
 
 #define VULKAN_CALL(func)    \
@@ -92,54 +106,11 @@ inline const char* VKGetErrorString(VkResult error) {
     VULKAN_CHECK_ERROR(__e); \
   }
 
-struct VulkanDescriptorTemplateKHRFunctions {
-  PFN_vkCreateDescriptorUpdateTemplateKHR vkCreateDescriptorUpdateTemplateKHR{nullptr};
-  PFN_vkDestroyDescriptorUpdateTemplateKHR vkDestroyDescriptorUpdateTemplateKHR{nullptr};
-  PFN_vkUpdateDescriptorSetWithTemplateKHR vkUpdateDescriptorSetWithTemplateKHR{nullptr};
-  PFN_vkCmdPushDescriptorSetWithTemplateKHR vkCmdPushDescriptorSetWithTemplateKHR{nullptr};
-};
-
-struct VulkanGetBufferMemoryRequirements2Functions {
-  PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR{nullptr};
-};
-
-struct VulkanStagingBuffer {
-  VkDevice device{nullptr};
-  VkBuffer buffer{VK_NULL_HANDLE};
-  VkDeviceMemory memory{VK_NULL_HANDLE};
-  void* host_addr{nullptr};
-  size_t size{0};
-};
-
-struct VulkanContext {
-  // phyiscal device
-  VkPhysicalDevice phy_device{nullptr};
-  // Phyiscal device property
-  VkPhysicalDeviceProperties phy_device_prop;
-  // Memory type index for staging.
-  uint32_t staging_mtype_index{0};
-  // whether staging is coherent
-  bool coherent_staging{false};
-
-  std::unique_ptr<VulkanDescriptorTemplateKHRFunctions> descriptor_template_khr_functions{nullptr};
-  std::unique_ptr<VulkanGetBufferMemoryRequirements2Functions>
-      get_buffer_memory_requirements_2_functions{nullptr};
-  // Memory type index for compute
-  uint32_t compute_mtype_index{0};
-  // The logical device
-  VkDevice device{nullptr};
-  // command queue
-
-  std::unique_ptr<std::mutex> queue_mutex;
-  VkQueue queue{nullptr};
-  // queue family_index;
-  uint32_t queue_family_index{0};
-  // Queue family index.
-  VkQueueFamilyProperties queue_prop;
-
-  bool UseImmediate() const { return descriptor_template_khr_functions.get() != nullptr; }
-};
+std::vector<const char*> FindEnabledExtensions(const std::vector<VkExtensionProperties>& ext_prop,
+                                               const std::vector<const char*>& required_extensions,
+                                               const std::vector<const char*>& optional_extensions);
 
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
+#endif  // TVM_RUNTIME_VULKAN_VULKAN_COMMON_H_

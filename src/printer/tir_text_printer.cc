@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <string>
 
+#include "../tir/transforms/ir_utils.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
@@ -64,8 +65,12 @@ Doc TIRTextPrinter::Print(const ObjectRef& node) {
     return PrintRange(node.as<RangeNode>());
   } else if (node->IsInstance<BufferNode>()) {
     return PrintBuffer(node.as<BufferNode>());
+  } else if (node->IsInstance<DataProducerNode>()) {
+    return PrintProducer(node.as<DataProducerNode>());
   } else if (node->IsInstance<StringObj>()) {
     return PrintString(node.as<StringObj>());
+  } else if (node->IsInstance<BufferRegionNode>()) {
+    return PrintBufferRegion(node.as<BufferRegionNode>());
   } else {
     return this->meta_->GetMetaNode(node);
   }
@@ -196,14 +201,27 @@ Doc TIRTextPrinter::PrintBuffer(const BufferNode* op) {
   }
 }
 
+Doc TIRTextPrinter::PrintProducer(const DataProducerNode* op) {
+  const DataProducer& prod = GetRef<DataProducer>(op);
+
+  if (meta_->InMeta(prod)) {
+    return meta_->GetMetaNode(prod);
+  } else if (memo_producer_.count(prod)) {
+    return memo_producer_[prod];
+  } else {
+    memo_producer_[prod] = AllocProducer(prod);
+    return DataProducerNode2Doc(op, memo_producer_[prod]);
+  }
+}
+
 Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   doc << Doc::Text(": Buffer(") << Print(buf->data) << ", " << PrintDType(buf->dtype) << ", "
       << Print(buf->shape) << ", " << Print(buf->strides);
   if (!is_zero(buf->elem_offset)) {
     doc << ", elem_offset=" << Print(buf->elem_offset);
   }
-  if (buf->scope != "global") {
-    doc << ", scope=" << Doc::StrLiteral(buf->scope);
+  if (GetRef<Buffer>(buf).scope() != "global") {
+    doc << ", scope=" << Doc::StrLiteral(GetRef<Buffer>(buf).scope());
   }
   if (buf->data_alignment != 128) {
     doc << ", align=" << buf->data_alignment;
@@ -215,6 +233,29 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
     doc << ", type=" << Doc::StrLiteral("auto");
   }
   return doc << ")";
+}
+
+Doc TIRTextPrinter::DataProducerNode2Doc(const DataProducerNode* prod, Doc doc) {
+  return doc << Doc::Text(": DataProducer(") << Print(prod->GetNameHint()) << ", "
+             << PrintDType(prod->GetDataType()) << ", " << Print(prod->GetShape()) << ")";
+}
+
+Doc TIRTextPrinter::PrintBufferRegion(const BufferRegionNode* op) {
+  Doc doc;
+  doc << Print(op->buffer) << "[";
+  for (size_t i = 0; i < op->region.size(); ++i) {
+    if (i != 0) {
+      doc << ", ";
+    }
+    const auto& range = op->region[i];
+    if (!is_one(range->extent)) {
+      doc << Print(range->min) << ":" << Print(range->min + range->extent);
+    } else {
+      doc << Print(range->min);
+    }
+  }
+  doc << "]";
+  return doc;
 }
 
 Doc TIRTextPrinter::VisitExprDefault_(const Object* op) {
@@ -301,7 +342,7 @@ Doc TIRTextPrinter::VisitExpr_(const NotNode* op) {
 Doc TIRTextPrinter::VisitExpr_(const SelectNode* op) {
   Doc doc;
   doc << "select(" << Print(op->condition) << ", " << Print(op->true_value) << ", "
-      << Print(op->false_value);
+      << Print(op->false_value) << ")";
   return doc;
 }
 
@@ -418,6 +459,12 @@ Doc TIRTextPrinter::VisitStmt_(const BufferStoreNode* op) {
   return doc;
 }
 
+Doc TIRTextPrinter::VisitStmt_(const ProducerStoreNode* op) {
+  Doc doc;
+  doc << Print(op->producer) << Print(op->indices) << " = " << Print(op->value);
+  return doc;
+}
+
 Doc TIRTextPrinter::VisitStmt_(const BufferRealizeNode* op) {
   Doc doc;
   doc << "realize(" << Print(op->buffer) << ", " << Print(op->bounds) << ", "
@@ -425,10 +472,26 @@ Doc TIRTextPrinter::VisitStmt_(const BufferRealizeNode* op) {
   return doc;
 }
 
+Doc TIRTextPrinter::VisitStmt_(const ProducerRealizeNode* op) {
+  Doc doc;
+  doc << "producer_realize(" << Print(op->producer) << ", " << Print(op->bounds) << ", "
+      << Print(op->condition) << ", " << PrintBody(op->body) << ")";
+  return doc;
+}
+
 Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   Doc doc;
-  doc << "allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
-      << Print(op->extents) << ")";
+  auto scope = GetPtrStorageScope(op->buffer_var);
+  doc << "allocate(" << Print(op->buffer_var) << ", ";
+  doc << PrintDType(op->dtype) << ", ";
+  doc << Print(op->extents) << "), storage_scope = " << scope;
+  if (!op->annotations.empty()) {
+    std::vector<Doc> attr_docs;
+    for (const auto& it : op->annotations) {
+      attr_docs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
+    }
+    doc << ", annotations = {" << PrintSep(attr_docs, Doc::Text(", ")) << "})";
+  }
   if (!is_one(op->condition)) {
     doc << " if " << Print(op->condition);
   }
@@ -465,28 +528,20 @@ Doc TIRTextPrinter::VisitStmt_(const EvaluateNode* op) {
   return doc;
 }
 
-inline const char* ForType2String(ForType t) {
-  switch (t) {
-    case ForType::Serial:
-      return "serial";
-    case ForType::Parallel:
-      return "parallel";
-    case ForType::Vectorized:
-      return "vectorized";
-    case ForType::Unrolled:
-      return "unroll";
-  }
-  LOG(FATAL) << "Unknown ForType";
-  return "Unknown";
-}
-
 Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
   Doc doc;
   doc << "for (" << Print(op->loop_var) << ", " << Print(op->min) << ", "
       << Print(op->min + op->extent) << ")";
-  if (op->for_type != ForType::Serial) {
-    doc << " " << Doc::StrLiteral(ForType2String(op->for_type));
+  if (op->kind != ForKind::kSerial) {
+    doc << " " << Doc::StrLiteral(ForKind2String(op->kind));
   }
+  doc << PrintBody(op->body);
+  return doc;
+}
+
+Doc TIRTextPrinter::VisitStmt_(const WhileNode* op) {
+  Doc doc;
+  doc << "while (" << Print(op->condition) << ")";
   doc << PrintBody(op->body);
   return doc;
 }
@@ -494,6 +549,92 @@ Doc TIRTextPrinter::VisitStmt_(const ForNode* op) {
 Doc TIRTextPrinter::VisitStmt_(const PrefetchNode* op) {
   Doc doc;
   doc << "prefetch(" << Print(op->buffer) << ", " << Print(op->bounds) << ")";
+  return doc;
+}
+
+Doc TIRTextPrinter::VisitStmt_(const BlockRealizeNode* op) {
+  const auto* block_op = op->block.as<BlockNode>();
+  // print block name and block vars
+  Doc doc;
+  doc << "block([";
+  std::vector<Doc> block_var_docs;
+  for (const auto& iter_var : block_op->iter_vars) {
+    Doc block_var_doc;
+    if (is_zero(iter_var->dom->min) && iter_var->iter_type == kDataPar) {
+      block_var_doc << Print(iter_var->dom->extent);
+    } else {
+      block_var_doc << "tir.";
+      switch (iter_var->iter_type) {
+        case kDataPar:
+          block_var_doc << "range";
+          break;
+        case kCommReduce:
+          block_var_doc << "reduce_axis";
+          break;
+        case kOrdered:
+          block_var_doc << "scan_axis";
+          break;
+        case kOpaque:
+          block_var_doc << "opaque_axis";
+          break;
+        default:
+          LOG(FATAL) << "Unknown block var iter type";
+          break;
+      }
+      block_var_doc << "(" << Print(iter_var->dom->min) << ", "
+                    << Print(iter_var->dom->min + iter_var->dom->extent) << ")";
+    }
+    block_var_docs.push_back(block_var_doc);
+  }
+  doc << PrintSep(block_var_docs, Doc::Text(", ")) << "], ";
+  doc << Doc::StrLiteral(block_op->name_hint) << ")";
+  std::vector<Doc> block_var_names;
+  for (const auto& iter_var : block_op->iter_vars) {
+    Doc block_var_name;
+    AllocVar(iter_var->var);
+    block_var_names.push_back(Print(iter_var->var));
+  }
+  if (!block_var_names.empty()) {
+    doc << " as [" << PrintSep(block_var_names, Doc::Text(", ")) << "]";
+  }
+  doc << " {";
+  Doc block_attr_doc;
+  // print predicate, binding, read/write tensor region, annotations
+  if (!is_one(op->predicate)) {
+    block_attr_doc << Doc::NewLine() << "where(" << Print(op->predicate) << ")";
+  }
+  for (size_t i = 0; i < block_op->iter_vars.size(); ++i)
+    block_attr_doc << Doc::NewLine() << "bind(" << Print(block_op->iter_vars[i]->var) << ", "
+                   << Print(op->iter_values[i]) << ")";
+  block_attr_doc << Doc::NewLine() << "tir.reads(" << Print(block_op->reads) << ")";
+  block_attr_doc << Doc::NewLine() << "tir.writes(" << Print(block_op->writes) << ")";
+  if (!block_op->annotations.empty()) {
+    std::vector<Doc> attr_docs;
+    for (const auto& it : block_op->annotations) {
+      attr_docs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
+    }
+    block_attr_doc << Doc::NewLine() << "tir.attrs({" << PrintSep(attr_docs, Doc::Text(", "))
+                   << "})";
+  }
+  // print body
+  Doc body;
+  body << Doc::NewLine();
+  for (const auto& alloc_buf : block_op->alloc_buffers) {
+    body << AllocBuf(alloc_buf) << " = alloc_buffer(" << PrintDType(alloc_buf->dtype)
+         << Print(alloc_buf->shape) << ")" << Doc::NewLine();
+  }
+  for (const auto& match_buf : block_op->match_buffers) {
+    body << AllocBuf(match_buf->buffer) << " = match_buffer(" << Print(match_buf->source) << ")"
+         << Doc::NewLine();
+  }
+  if (block_op->init.defined()) {
+    Doc init_block;
+    init_block << "with init()";
+    init_block << PrintBody(block_op->init.value());
+    body << init_block << Doc::NewLine();
+  }
+  body << Print(block_op->body);
+  doc << Doc::Indent(2, block_attr_doc << body);
   return doc;
 }
 
@@ -505,7 +646,11 @@ Doc TIRTextPrinter::VisitType_(const PrimTypeNode* node) {
 
 Doc TIRTextPrinter::VisitType_(const PointerTypeNode* node) {
   Doc doc;
-  doc << "Pointer(" << Print(node->element_type) << ")";
+  doc << "Pointer(";
+  if (!node->storage_scope.empty()) {
+    doc << node->storage_scope << " ";
+  }
+  doc << Print(node->element_type) << ")";
   return doc;
 }
 
@@ -597,6 +742,20 @@ Doc TIRTextPrinter::AllocBuf(const Buffer& buffer) {
   return val;
 }
 
+Doc TIRTextPrinter::AllocProducer(const DataProducer& producer) {
+  const auto& it = memo_producer_.find(producer);
+  if (it != memo_producer_.end()) {
+    return it->second;
+  }
+  std::string name = producer->GetNameHint();
+  if (name.length() == 0 || !std::isalpha(name[0])) {
+    name = "tensor_" + name;
+  }
+  Doc val = GetUniqueName(name);
+  memo_producer_[producer] = val;
+  return val;
+}
+
 Doc TIRTextPrinter::PrintSep(const std::vector<Doc>& vec, const Doc& sep) {
   Doc seq;
   if (vec.size() != 0) {
@@ -613,6 +772,16 @@ Doc TIRTextPrinter::PrintBody(const Stmt& body, bool indent) {
   if (body->IsInstance<SeqStmtNode>()) return Print(body);
   doc << " {" << Doc::Indent(2, Doc::NewLine() << Print(body)) << Doc::NewLine() << "}";
   return doc;
+}
+
+bool TIRTextPrinter::GetVarName(Var v, std::string* s) {
+  auto it = memo_var_.find(v);
+  if (it == memo_var_.end()) {
+    return false;
+  }
+
+  *s = it->second.str();
+  return true;
 }
 
 }  // namespace tir

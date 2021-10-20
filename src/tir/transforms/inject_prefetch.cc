@@ -31,6 +31,8 @@
 
 #include <unordered_set>
 
+#include "ir_utils.h"
+
 namespace tvm {
 namespace tir {
 
@@ -71,11 +73,11 @@ class PrefetchInjector : public StmtMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     auto& var = op->loop_var;
     loop_nest_.push_back(var);
-    if (op->for_type == ForType::Vectorized) {
+    if (op->kind == ForKind::kVectorized) {
       vectorized_[var.get()] = IntSet::Interval(op->min, (op->min + op->extent) - 1);
     }
     Stmt ret = StmtMutator::VisitStmt_(op);
-    if (op->for_type == ForType::Vectorized) {
+    if (op->kind == ForKind::kVectorized) {
       vectorized_.erase(var.get());
     }
     loop_nest_.pop_back();
@@ -96,9 +98,14 @@ namespace transform {
 
 Pass InjectPrefetch() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
-    n->body = PrefetchInjector()(std::move(n->body));
-    return f;
+    // Only apply this pass to TIR from TE schedules
+    if (IsFromLegacyTESchedule(f)) {
+      auto* n = f.CopyOnWrite();
+      n->body = PrefetchInjector()(std::move(n->body));
+      return f;
+    } else {
+      return f;
+    }
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPrefetch", {});
 }

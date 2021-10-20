@@ -66,11 +66,13 @@ class DevContext(object):
     MEM_ID_INP = 2
     MEM_ID_ACC = 3
     MEM_ID_OUT = 4
+    MEM_ID_ACC_8BIT = 5
     # VTA ALU Opcodes
     ALU_OPCODE_MIN = 0
     ALU_OPCODE_MAX = 1
     ALU_OPCODE_ADD = 2
     ALU_OPCODE_SHR = 3
+    ALU_OPCODE_MUL = 4
     # Task queue id (pipeline stage)
     QID_LOAD_INP = 1
     QID_LOAD_WGT = 1
@@ -232,7 +234,7 @@ class Environment(object):
             return "llvm -mtriple=armv7-none-linux-gnueabihf"
         if self.TARGET == "ultra96":
             return "llvm -mtriple=aarch64-linux-gnu"
-        if self.TARGET in ["sim", "tsim"]:
+        if self.TARGET in ["sim", "tsim", "intelfocl"]:
             return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
 
@@ -250,69 +252,6 @@ def get_env():
         The current environment.
     """
     return Environment.current
-
-
-# The memory information for the compiler
-@tvm.register_func("tvm.info.mem.%s" % Environment.inp_scope)
-def mem_info_inp_buffer():
-    spec = get_env()
-    return tvm.ir.make_node(
-        "MemoryInfo",
-        unit_bits=spec.INP_ELEM_BITS,
-        max_simd_bits=spec.INP_ELEM_BITS,
-        max_num_bits=spec.INP_BUFF_SIZE * 8,
-        head_address=None,
-    )
-
-
-@tvm.register_func("tvm.info.mem.%s" % Environment.wgt_scope)
-def mem_info_wgt_buffer():
-    spec = get_env()
-    return tvm.ir.make_node(
-        "MemoryInfo",
-        unit_bits=spec.WGT_ELEM_BITS,
-        max_simd_bits=spec.WGT_ELEM_BITS,
-        max_num_bits=spec.WGT_BUFF_SIZE * 8,
-        head_address=None,
-    )
-
-
-@tvm.register_func("tvm.info.mem.%s" % Environment.acc_scope)
-def mem_info_acc_buffer():
-    spec = get_env()
-    return tvm.ir.make_node(
-        "MemoryInfo",
-        unit_bits=spec.ACC_ELEM_BITS,
-        max_simd_bits=spec.ACC_ELEM_BITS,
-        max_num_bits=spec.ACC_BUFF_SIZE * 8,
-        head_address=None,
-    )
-
-
-# TVM related registration
-@tvm.register_func("tvm.intrin.rule.default.vta.coproc_sync")
-def coproc_sync(op):
-    _ = op
-    return tvm.tir.call_extern(
-        "int32",
-        "VTASynchronize",
-        get_env().dev.command_handle,
-        tvm.runtime.const(1 << 31, dtype="uint32"),
-    )
-
-
-@tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_push")
-def coproc_dep_push(op):
-    return tvm.tir.call_extern(
-        "int32", "VTADepPush", get_env().dev.command_handle, op.args[0], op.args[1]
-    )
-
-
-@tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_pop")
-def coproc_dep_pop(op):
-    return tvm.tir.call_extern(
-        "int32", "VTADepPop", get_env().dev.command_handle, op.args[0], op.args[1]
-    )
 
 
 def _init_env():

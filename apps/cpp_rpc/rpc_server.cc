@@ -22,7 +22,8 @@
  * \brief RPC Server implementation.
  */
 #include <tvm/runtime/registry.h>
-#if defined(__linux__) || defined(__ANDROID__)
+#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
+#include <signal.h>
 #include <sys/select.h>
 #include <sys/wait.h>
 #endif
@@ -52,7 +53,7 @@ namespace runtime {
  * \brief wait the child process end.
  * \param status status value
  */
-#if defined(__linux__) || defined(__ANDROID__)
+#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
 static pid_t waitPidEintr(int* status) {
   pid_t pid = 0;
   while ((pid = waitpid(-1, status, 0)) == -1) {
@@ -98,14 +99,15 @@ class RPCServer {
    * \brief Constructor.
    */
   RPCServer(std::string host, int port, int port_end, std::string tracker_addr, std::string key,
-            std::string custom_addr)
+            std::string custom_addr, std::string work_dir)
       : host_(std::move(host)),
         port_(port),
         my_port_(0),
         port_end_(port_end),
         tracker_addr_(std::move(tracker_addr)),
         key_(std::move(key)),
-        custom_addr_(std::move(custom_addr)) {}
+        custom_addr_(std::move(custom_addr)),
+        work_dir_(std::move(work_dir)) {}
 
   /*!
    * \brief Destructor.
@@ -138,7 +140,7 @@ class RPCServer {
    * \brief ListenLoopProc The listen process.
    */
   void ListenLoopProc() {
-    TrackerClient tracker(tracker_addr_, key_, custom_addr_);
+    TrackerClient tracker(tracker_addr_, key_, custom_addr_, port_);
     while (true) {
       support::TCPSocket conn;
       support::SockAddr addr("0.0.0.0", 0);
@@ -161,21 +163,21 @@ class RPCServer {
       }
 
       int timeout = GetTimeOutFromOpts(opts);
-#if defined(__linux__) || defined(__ANDROID__)
+#if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
       // step 3: serving
       if (timeout != 0) {
         const pid_t timer_pid = fork();
         if (timer_pid == 0) {
           // Timer process
           sleep(timeout);
-          exit(0);
+          _exit(0);
         }
 
         const pid_t worker_pid = fork();
         if (worker_pid == 0) {
           // Worker process
-          ServerLoopProc(conn, addr);
-          exit(0);
+          ServerLoopProc(conn, addr, work_dir_);
+          _exit(0);
         }
 
         int status = 0;
@@ -201,8 +203,8 @@ class RPCServer {
       } else {
         auto pid = fork();
         if (pid == 0) {
-          ServerLoopProc(conn, addr);
-          exit(0);
+          ServerLoopProc(conn, addr, work_dir_);
+          _exit(0);
         }
         // Wait for the result
         int status = 0;
@@ -218,6 +220,10 @@ class RPCServer {
       auto dur = high_resolution_clock::now() - start_time;
 
       LOG(INFO) << "Serve Time " << duration_cast<milliseconds>(dur).count() << "ms";
+#else
+      LOG(WARNING) << "Unknown platform. It is not known how to bring up the subprocess."
+                   << " RPC will be launched in the main thread.";
+      ServerLoopProc(conn, addr, work_dir_);
 #endif
       // close from our side.
       LOG(INFO) << "Socket Connection Closed";
@@ -308,9 +314,10 @@ class RPCServer {
    * \param sock The socket information
    * \param addr The socket address information
    */
-  static void ServerLoopProc(support::TCPSocket sock, support::SockAddr addr) {
+  static void ServerLoopProc(support::TCPSocket sock, support::SockAddr addr,
+                             std::string work_dir) {
     // Server loop
-    const auto env = RPCEnv();
+    const auto env = RPCEnv(work_dir);
     RPCServerLoop(int(sock.sockfd));
     LOG(INFO) << "Finish serving " << addr.AsString();
     env.CleanUp();
@@ -339,6 +346,7 @@ class RPCServer {
   std::string tracker_addr_;
   std::string key_;
   std::string custom_addr_;
+  std::string work_dir_;
   support::TCPSocket listen_sock_;
   support::TCPSocket tracker_sock_;
 };
@@ -370,19 +378,19 @@ void ServerLoopFromChild(SOCKET socket) {
  * silent mode. Default=True
  */
 void RPCServerCreate(std::string host, int port, int port_end, std::string tracker_addr,
-                     std::string key, std::string custom_addr, bool silent) {
+                     std::string key, std::string custom_addr, std::string work_dir, bool silent) {
   if (silent) {
     // Only errors and fatal is logged
     dmlc::InitLogging("--minloglevel=2");
   }
   // Start the rpc server
   RPCServer rpc(std::move(host), port, port_end, std::move(tracker_addr), std::move(key),
-                std::move(custom_addr));
+                std::move(custom_addr), std::move(work_dir));
   rpc.Start();
 }
 
 TVM_REGISTER_GLOBAL("rpc.ServerCreate").set_body([](TVMArgs args, TVMRetValue* rv) {
-  RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+  RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
 });
 }  // namespace runtime
 }  // namespace tvm

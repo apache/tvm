@@ -16,11 +16,7 @@
 # under the License.
 # pylint: disable=redefined-outer-name, invalid-name
 """Start an RPC server"""
-from __future__ import absolute_import
-
 import argparse
-import multiprocessing
-import sys
 import logging
 from .. import rpc
 
@@ -51,13 +47,16 @@ def main(args):
         load_library=args.load_library,
         custom_addr=args.custom_addr,
         silent=args.silent,
+        no_fork=not args.fork,
     )
     server.proc.join()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="the hostname of the server")
+    parser.add_argument(
+        "--host", type=str, default="0.0.0.0", help="The host IP address the tracker binds to"
+    )
     parser.add_argument("--port", type=int, default=9090, help="The port of the RPC")
     parser.add_argument("--port-end", type=int, default=9199, help="The end search port of the RPC")
     parser.add_argument(
@@ -85,14 +84,9 @@ if __name__ == "__main__":
     parser.set_defaults(fork=True)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
-    if args.fork is False:
-        if sys.version_info[0] < 3:
-            raise RuntimeError("Python3 is required for spawn mode.")
-        multiprocessing.set_start_method("spawn")
-    else:
-        if not args.silent:
-            logging.info(
-                "If you are running ROCM/Metal, fork will cause "
-                "compiler internal error. Try to launch with arg ```--no-fork```"
-            )
+    if not args.fork is False and not args.silent:
+        logging.info(
+            "If you are running ROCM/Metal, fork will cause "
+            "compiler internal error. Try to launch with arg ```--no-fork```"
+        )
     main(args)

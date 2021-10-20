@@ -125,7 +125,7 @@ The following code snippet demonstrate how to load generated shared library (add
 ```java
 import org.apache.tvm.Module;
 import org.apache.tvm.NDArray;
-import org.apache.tvm.TVMContext;
+import org.apache.tvm.Device;
 
 import java.io.File;
 import java.util.Arrays;
@@ -135,12 +135,12 @@ public class LoadAddFunc {
     String loadingDir = args[0];
     Module fadd = Module.load(loadingDir + File.separator + "add_cpu.so");
 
-    TVMContext ctx = TVMContext.cpu();
+    Device dev = Device.cpu();
 
     long[] shape = new long[]{2};
-    NDArray arr = NDArray.empty(shape, ctx);
+    NDArray arr = NDArray.empty(shape, dev);
     arr.copyFrom(new float[]{3f, 4f});
-    NDArray res = NDArray.empty(shape, ctx);
+    NDArray res = NDArray.empty(shape, dev);
 
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
     System.out.println(Arrays.toString(res.asFloatArray()));
@@ -164,7 +164,7 @@ server.start();
 This will open a socket and wait for remote requests. You can use Java, Python, or any other frontend to make an RPC call. Here's an example for calling remote function `test.rpc.strcat` in Java.
 
 ```java
-RPCSession client = Client.connect("localhost", port.value);
+RPCSession client = Client.connect("127.0.0.1", port.value);
 Function func = client.getFunction("test.rpc.strcat");
 String result = func.call("abc", 11L).asString();
 ```

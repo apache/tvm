@@ -27,7 +27,7 @@ cd /usr/tvm
 git checkout 4b13bf668edc7099b38d463e5db94ebc96c80470
 
 echo set\(USE_LLVM llvm-config-8\) >> config.cmake
-echo set\(USE_GRAPH_RUNTIME ON\) >> config.cmake
+echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
 echo set\(USE_BLAS openblas\) >> config.cmake
 mkdir -p build
 cd build

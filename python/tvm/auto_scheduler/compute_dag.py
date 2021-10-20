@@ -19,11 +19,11 @@
 """ The auto-scheduler's computational graph and related program analyses. """
 
 import hashlib
+import json
 
 import tvm._ffi
 from tvm.runtime import Object
 from tvm.runtime._ffi_node_api import LoadJSON, SaveJSON
-from tvm.te import ComputeOp, PlaceholderOp
 
 from . import _ffi_api
 from .loop_state import State, StateObject
@@ -32,7 +32,12 @@ from .workload_registry import workload_key_to_tensors
 
 
 class LayoutRewriteOption:
-    """Options for applying layout rewrite."""
+    """
+    Options for applying layout rewrite.
+
+    The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone op,
+    and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a network.
+    """
 
     # Do not perform layout rewrite
     NO_REWRITE = 0
@@ -43,6 +48,35 @@ class LayoutRewriteOption:
     # Note: The lowered function with this option does not accept the origial input shapes,
     # so this option must be used along with `AutoSchedulerLayoutRewrite` pass in Relay.
     REWRITE_FOR_PRE_TRANSFORMED = 2
+
+    @staticmethod
+    def get_target_default(target, in_relay_integration=False):
+        """Get the default layout rewrite option for the specified target.
+        Currently we only enable layout rewrite for cpu / mali backend for now
+
+        Parameters
+        ----------
+        target: tvm.target.Target
+            The compilation target.
+        in_relay_integration: bool
+            If this check is ask for relay integration.
+
+        Returns
+        -------
+        layout_rewrite_option: LayoutRewriteOption
+            The default layout rewrite option for the specified target.
+        """
+        layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
+        if target.kind.name == "llvm" or (
+            "device" in target.attrs and target.attrs["device"] == "mali"
+        ):
+            layout_rewrite_option = (
+                LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+                if in_relay_integration
+                else LayoutRewriteOption.INSERT_TRANSFORM_STAGE
+            )
+
+        return layout_rewrite_option
 
 
 @tvm._ffi.register_object("auto_scheduler.ComputeDAG")
@@ -62,7 +96,7 @@ class ComputeDAG(Object):
 
     Parameters
     ----------
-    compute : Union[List[Tensor], str, Schedule]
+    compute : Union[List[Tensor], str, tvm.te.Schedule]
         Input/output tensors or workload key for a compute declaration.
     """
 
@@ -87,8 +121,6 @@ class ComputeDAG(Object):
                 "Invalid compute type: %s. ComputeDAG expects string, list of Tensor, or Schedule"
                 % type(compute_or_sche)
             )
-        self.compute = compute
-        self.sche = sche
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute, sche)
 
     def get_init_state(self):
@@ -188,32 +220,30 @@ class ComputeDAG(Object):
         state_obj = state if isinstance(state, StateObject) else state.state_object
         return _ffi_api.ComputeDAGRewriteLayoutFromState(self, state_obj)
 
-    def hash_key(self):
-        """Return the hash key of this compute DAG.
+    def workload_key(self):
+        """Return the workload key of this compute DAG.
+        The workload key is a JSON string from a tuple of (hash of DAG, tensor shapes...)
 
         Returns
         -------
         key: str
-            The hash key of this compute DAG
+            The workload key of this compute DAG
         """
-        # TODO(merrymercy): Implement this more carefully and move this to c++ as a member function
-        # of ComputeDAG
-        str_key = ""
-        for op in self.ops:
-            t = op.output(0)
-            if isinstance(op, PlaceholderOp):
-                str_key += "placeholder,"
-                str_key += str(get_const_tuple(t.shape)) + ","
-                str_key += t.dtype + ";"
-            elif isinstance(op, ComputeOp):
-                str_key += str(t.op.body) + ","
-                str_key += str(get_const_tuple(t.shape)) + ","
-                str_key += t.dtype + ";"
-            else:
-                raise ValueError("Invalid op: " + op)
+        str_dag = _ffi_api.ComputeDAGPrintDAG(self, True)
+        hash_func = tvm._ffi.get_global_func(
+            "auto_scheduler.compute_dag.hash_func", allow_missing=True
+        )
 
-        str_key = str_key.encode(encoding="utf-8")
-        return hashlib.md5(str_key).hexdigest()
+        if hash_func is None:
+            str_dag = str_dag.encode("utf-8")
+            hash_key = hashlib.md5(str_dag).hexdigest()
+        else:
+            hash_key = hash_func(str_dag)
+
+        io_shapes = []
+        for tensor in self.tensors:
+            io_shapes.append(get_const_tuple(tensor.shape))
+        return json.dumps([hash_key] + io_shapes)
 
     def __str__(self):
         # pretty print
@@ -230,9 +260,27 @@ class ComputeDAG(Object):
         return "\n".join(lines)
 
     def __getstate__(self):
-        return {"compute": SaveJSON(self.compute), "sche": SaveJSON(self.sche)}
+        return {"tensors": SaveJSON(self.tensors)}
 
     def __setstate__(self, state):
-        self.compute = LoadJSON(state["compute"])  # pylint: disable=assignment-from-no-return
-        self.sche = LoadJSON(state["sche"])  # pylint: disable=assignment-from-no-return
-        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, self.compute, self.sche)
+        # Since we always use tensors to recover the ComputeDAG, we do not support
+        # (de)serialization of the ComputeDAG constructed by a schedule.
+        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, LoadJSON(state["tensors"]), None)
+
+
+def get_shape_from_rewritten_layout(rewritten_layout, axis_names):
+    """Get the orginal shape from a rewritten layout string.
+
+    Parameters
+    ----------
+    rewritten_layout: str
+        The layout after rewrite
+    axis_names: List[str]
+        Specify the order of axes by names
+
+    Returns
+    -------
+    shape: List[PrimExpr]
+        The original shape
+    """
+    return _ffi_api.GetShapeFromRewrittenLayout(rewritten_layout, axis_names)

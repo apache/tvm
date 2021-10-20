@@ -25,7 +25,6 @@
 #define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
 #include <tvm/ir/op.h>
-#include <tvm/runtime/container.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -40,6 +39,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../../tir/transforms/ir_utils.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -104,6 +104,12 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   virtual void PrintFuncPrefix();  // NOLINT(*)
   /*!
+   * \brief Print extra function attributes
+   *
+   *  Example: __launch_bounds__(256) for CUDA functions
+   */
+  virtual void PrintExtraAttrs(const PrimFunc& f);
+  /*!
    * \brief Print the final return at the end the function.
    */
   virtual void PrintFinalReturn();  // NOLINT(*)
@@ -150,6 +156,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
@@ -193,6 +200,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual std::string CastFromTo(std::string value, DataType from, DataType target);
   // Get load of single element with expression
   virtual void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os);
+  // Print restrict keyword for a given Var if applicable
+  virtual void PrintRestrict(const Var& v, std::ostream& os);
 
  protected:
   // Print reference to struct location

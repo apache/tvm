@@ -23,15 +23,29 @@ if(USE_ARM_COMPUTE_LIB)
     file(GLOB ACL_RELAY_CONTRIB_SRC src/relay/backend/contrib/arm_compute_lib/*.cc)
     file(GLOB ACL_RUNTIME_MODULE src/runtime/contrib/arm_compute_lib/acl_runtime.cc)
     list(APPEND COMPILER_SRCS ${ACL_RELAY_CONTRIB_SRC})
-    list(APPEND COMPILER_SRCS ${ACL_RUNTIME_MODULE})
+
+    if(NOT USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
+        list(APPEND COMPILER_SRCS ${ACL_RUNTIME_MODULE})
+    endif()
+    if(NOT DEFINED TVM_LLVM_VERSION)
+      message(FATAL_ERROR "Support for offloading to Compute library for the Arm Architecture requires LLVM Support")
+    endif()
+
     message(STATUS "Build with Arm Compute Library support...")
 endif()
 
-if(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME)
+if(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME AND NOT DEFINED USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
+    message(WARNING "USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME renamed to USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR. "
+                    "Please update your config.cmake")
+    set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR ${USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME})
+    unset(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME CACHE)
+endif(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME AND NOT DEFINED USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
+
+if(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
     set(ACL_PATH ${CMAKE_CURRENT_SOURCE_DIR}/acl)
     # Detect custom ACL path.
-    if (NOT USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME STREQUAL "ON")
-        set(ACL_PATH ${USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME})
+    if (NOT USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR STREQUAL "ON")
+        set(ACL_PATH ${USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR})
     endif()
 
     file(GLOB ACL_CONTRIB_SRC src/runtime/contrib/arm_compute_lib/*)
@@ -58,11 +72,11 @@ if(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_ACL_COMPUTE_CORE_LIB})
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_ACL_COMPUTE_GRAPH_LIB})
     list(APPEND RUNTIME_SRCS ${ACL_CONTRIB_SRC})
-    message(STATUS "Build with Arm Compute Library graph runtime support: "
+    message(STATUS "Build with Arm Compute Library graph executor support: "
             ${EXTERN_ACL_COMPUTE_LIB} ", \n"
             ${EXTERN_ACL_COMPUTE_CORE_LIB} ", \n"
             ${EXTERN_ACL_COMPUTE_GRAPH_LIB})
 
-    # Set flag to detect ACL graph runtime support.
-    add_definitions(-DTVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB)
+    # Set flag to detect ACL graph executor support.
+    add_definitions(-DTVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB)
 endif()

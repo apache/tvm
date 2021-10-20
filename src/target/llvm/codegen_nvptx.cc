@@ -48,48 +48,44 @@ class CodeGenNVPTX : public CodeGenLLVM {
   void VisitStmt_(const AllocateNode* op) final {
     ICHECK(!is_zero(op->condition));
     llvm::Value* buf = nullptr;
-
-    int32_t constant_size = op->constant_allocation_size();
-    ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
     StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
-    if (constant_size % 4 == 0 && info.alignment == 0) {
-      info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
-    }
     // maximum necessary alignment in the NV devices
     if (info.alignment > 16) {
       info.alignment = 16;
     }
 
-    if (info.scope.rank == runtime::StorageRank::kLocal) {
-      // const int local_address_space = 5;
-      // TODO(tqchen): for higher version of LLVM, local address space can be set.
-      llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-        return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
-      });
-      if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
-#if TVM_LLVM_VERSION >= 100
-        alloca->setAlignment(llvm::Align(info.alignment));
-#else
-        alloca->setAlignment(info.alignment);
-#endif
-      }
-      buf = alloca;
-    } else {
-      ICHECK(info.scope.rank == runtime::StorageRank::kShared)
-          << "Can only allocate shared or local memory inside kernel";
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
+    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       // Shared memory: address space  == 3
-      const unsigned shared_address_space = 3;
-      llvm::Type* type = llvm::ArrayType::get(DTypeToLLVMType(op->dtype), constant_size);
-      // Allocate shared memory in global, address_space = 3
-      llvm::GlobalVariable* global = new llvm::GlobalVariable(
-          *module_, type, false, llvm::GlobalValue::PrivateLinkage, nullptr, ".shared", nullptr,
-          llvm::GlobalValue::NotThreadLocal, shared_address_space);
+      buf =
+          AllocateSharedMemory(op->dtype, 0, 3, info.alignment, llvm::GlobalValue::ExternalLinkage);
+    } else {
+      int32_t constant_size = op->constant_allocation_size();
+      ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
+
+      if (constant_size % 4 == 0 && info.alignment == 0) {
+        info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
+      }
+      if (storage_scope.rank == runtime::StorageRank::kLocal) {
+        // const int local_address_space = 5;
+        // TODO(tqchen): for higher version of LLVM, local address space can be set.
+        llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
+          return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
+        });
+        if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
-      global->setAlignment(llvm::Align(info.alignment));
+          alloca->setAlignment(llvm::Align(info.alignment));
 #else
-      global->setAlignment(info.alignment);
+          alloca->setAlignment(info.alignment);
 #endif
-      buf = global;
+        }
+        buf = alloca;
+      } else {
+        ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
+            << "Can only allocate shared or local memory inside kernel";
+        buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
+                                   llvm::GlobalValue::PrivateLinkage);
+      }
     }
 
     buf = builder_->CreatePointerCast(
@@ -238,14 +234,24 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     llvm::Value* v1 = MakeValue(op->args[1]);
     if (op->args[1]->dtype.is_float()) {
 #if TVM_LLVM_VERSION >= 90
+#if TVM_LLVM_VERSION >= 130
+      return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1, llvm::MaybeAlign(),
+                                       llvm::AtomicOrdering::Monotonic);
+#else
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
                                        llvm::AtomicOrdering::Monotonic);
+#endif
 #else
       LOG(FATAL) << "Floating point atomic requires LLVM 9 or newer";
 #endif
     }
+#if TVM_LLVM_VERSION >= 130
+    return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1, llvm::MaybeAlign(),
+                                     llvm::AtomicOrdering::Monotonic);
+#else
     return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
                                      llvm::AtomicOrdering::Monotonic);
+#endif
   }
   return CodeGenLLVM::CreateIntrinsic(op);
 }
@@ -268,11 +274,11 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
 
   cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false, false);
 
-  for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
-    auto f = Downcast<PrimFunc>(kv.second);
-    cg->AddFunction(f);
-  }
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
+    ICHECK(kv.second->template IsInstance<PrimFuncNode>())
+        << "Can only lower IR Module with PrimFuncs";
+    return Downcast<PrimFunc>(kv.second);
+  });
 
   const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
   if (flibdevice_path != nullptr) {

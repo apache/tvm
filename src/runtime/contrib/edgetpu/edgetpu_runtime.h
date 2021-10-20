@@ -25,10 +25,13 @@
 #ifndef TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 
+#include <edgetpu.h>
+
 #include <memory>
 #include <string>
 
 #include "../tflite/tflite_runtime.h"
+#include "edgetpu.h"
 
 namespace tvm {
 namespace runtime {
@@ -42,16 +45,24 @@ namespace runtime {
 class EdgeTPURuntime : public TFLiteRuntime {
  public:
   /*!
+   * \brief Destructor of EdgeTPURuntime.
+   *
+   * NOTE: tflite::Interpreter member should be destruct before the EdgeTpuContext member
+   * destruction. If the order is reverse, occurs SEGV in the destructor of tflite::Interpreter.
+   */
+  ~EdgeTPURuntime() { interpreter_.reset(); }
+
+  /*!
    * \return The type key of the executor.
    */
   const char* type_key() const final { return "EdgeTPURuntime"; }
 
   /*!
-   * \brief Initialize the edge TPU tflite runtime with tflite model and context.
+   * \brief Initialize the edge TPU tflite runtime with tflite model and device.
    * \param tflite_model_bytes The tflite model.
-   * \param ctx The context where the tflite model will be executed on.
+   * \param dev The device where the tflite model will be executed on.
    */
-  void Init(const std::string& tflite_model_bytes, TVMContext ctx);
+  void Init(const std::string& tflite_model_bytes, Device dev);
 
  private:
   std::shared_ptr<edgetpu::EdgeTpuContext> edgetpu_context_;

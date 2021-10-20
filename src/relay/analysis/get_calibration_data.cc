@@ -36,7 +36,7 @@ namespace relay {
 
 /*!
  * \brief This function returns a module that will be used by
- * the relay graph runtime for collecting the calibration data.
+ * the relay graph executor for collecting the calibration data.
  * To do that, we first make all inputs and outputs of each
  * function into the final output (i.e., the final output is a
  * tuple of tensors). Then, we change the compiler attribute of
@@ -106,7 +106,7 @@ IRModule GetCalibrateModule(IRModule module) {
       }
     }
   }
-  // reset the attribute of functions for running graph runtime
+  // reset the attribute of functions for running graph executor
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);

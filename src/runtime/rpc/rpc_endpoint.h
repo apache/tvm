@@ -132,11 +132,10 @@ class RPCEndpoint {
    * \param to The target array.
    * \param to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param ctx_to The target context.
+   * \param dev_to The target device.
    * \param type_hint Hint of content data type.
    */
-  void CopyToRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
-                    TVMContext ctx_to, DLDataType type_hint);
+  void CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes);
   /*!
    * \brief Copy bytes from remote array content.
    * \param from The source host data.
@@ -144,11 +143,10 @@ class RPCEndpoint {
    * \param to The target array.
    * \param to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param ctx_from The source context.
+   * \param dev_from The source device.
    * \param type_hint Hint of content data type.
    */
-  void CopyFromRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
-                      TVMContext ctx_from, DLDataType type_hint);
+  void CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes);
 
   /*!
    * \brief Call a remote defined system function with arguments.
@@ -165,9 +163,11 @@ class RPCEndpoint {
    * \param remote_key The remote key of the session
    *   if remote_key equals "%toinit", we need to re-intialize
    *   it by event handler.
+   * \param fcleanup The cleanup Packed function.
    */
   static std::shared_ptr<RPCEndpoint> Create(std::unique_ptr<RPCChannel> channel, std::string name,
-                                             std::string remote_key);
+                                             std::string remote_key,
+                                             TypedPackedFunc<void()> fcleanup = nullptr);
 
  private:
   class EventHandler;
@@ -192,6 +192,8 @@ class RPCEndpoint {
   std::string name_;
   // The remote key
   std::string remote_key_;
+  // Invoked when the RPC session is terminated
+  TypedPackedFunc<void()> fcleanup_;
 };
 
 /*!
@@ -206,6 +208,16 @@ template <typename... Args>
 inline TVMRetValue RPCEndpoint::SysCallRemote(RPCCode code, Args&&... args) {
   return syscall_remote_(static_cast<int>(code), std::forward<Args>(args)...);
 }
+
+/*!
+ * \brief Calculates overhead size of a CopyToRemote packet.
+ * \param to DLTensor to copy.
+ * \param code RPCCode for this transfer.
+ * \param nbytes Number of bytes to transfer.
+ * \return The remote-copy packet overhead size.
+ */
+uint64_t RemoteCopyCalculatePacketOverheadSize(DLTensor* tensor, RPCCode code, uint64_t nbytes);
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_RPC_RPC_ENDPOINT_H_

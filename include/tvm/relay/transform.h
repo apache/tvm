@@ -30,7 +30,7 @@
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/runtime/container.h>
+#include <tvm/target/target.h>
 
 #include <string>
 
@@ -96,6 +96,13 @@ TVM_DLL Pass LazyGradientInit();
  * \return The pass.
  */
 TVM_DLL Pass FoldConstant();
+
+/*!
+ * \brief Split function with huge number of arguments to smaller pieces.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass SplitArgs(int max_function_args);
 
 /*!
  * \brief Fuse operations into expr into seperate functions.
@@ -418,6 +425,35 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
  * \return The pass.
  */
 TVM_DLL Pass SimplifyExpr();
+
+/*!
+ * \brief Run any registered RelayToTIR passes registered on the functions in a module.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RelayToTIRTargetHook();
+
+/*!
+ * \brief A pass for manifesting explicit memory allocations and rewriting
+ * specific dialects.
+ *
+ * \param target_host The target used by the host for compilation.
+ * \param targets The device type and target pairs for compilation.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets);
+
+/*!
+ * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the device on which
+ * every Relay sub-expression should run (and the result stored). Captures the result of that
+ * analysis using new "on_device" and "device_copy" CallNodes. See
+ * tvm::relay::transform::{LexicalOnDeviceMixin,DeviceAwareExprVisitor,DeviceAwareExprMutator}
+ * for help recovering the device for an arbitrary sub-expression in downstream transformations.
+ *
+ * \param default_device_type DLDeviceType for default device.
+ */
+TVM_DLL Pass PlanDevices(DLDeviceType default_device_type);
 
 }  // namespace transform
 

@@ -58,53 +58,62 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     a_np, w_np, b_np, c1_np, c2_np, c3_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_hwcn_implement)
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _conv2d_hwcn_implement)
             t_conv = fcompute(A, W, stride, padding, dilation)
             t_bias = topi.add(t_conv, B)
             t_relu = topi.nn.relu(t_bias)
             s1 = fschedule([t_conv])
             s2 = fschedule([t_bias])
             s3 = fschedule([t_relu])
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
 
-        conv_out = tvm.nd.array(np.zeros(get_const_tuple(t_conv.shape), dtype=t_conv.dtype), ctx)
-        bias_out = tvm.nd.array(np.zeros(get_const_tuple(t_bias.shape), dtype=t_bias.dtype), ctx)
-        relu_out = tvm.nd.array(np.zeros(get_const_tuple(t_relu.shape), dtype=t_relu.dtype), ctx)
-        func1 = tvm.build(s1, [A, W, t_conv], device)
-        func2 = tvm.build(s2, [A, W, B, t_bias], device)
-        func3 = tvm.build(s3, [A, W, B, t_relu], device)
+        conv_out = tvm.nd.array(np.zeros(get_const_tuple(t_conv.shape), dtype=t_conv.dtype), dev)
+        bias_out = tvm.nd.array(np.zeros(get_const_tuple(t_bias.shape), dtype=t_bias.dtype), dev)
+        relu_out = tvm.nd.array(np.zeros(get_const_tuple(t_relu.shape), dtype=t_relu.dtype), dev)
+        func1 = tvm.build(s1, [A, W, t_conv], target)
+        func2 = tvm.build(s2, [A, W, B, t_bias], target)
+        func3 = tvm.build(s3, [A, W, B, t_relu], target)
         func1(a, w, conv_out)
         func2(a, w, b, bias_out)
         func3(a, w, b, relu_out)
-        tvm.testing.assert_allclose(conv_out.asnumpy(), c1_np, rtol=1e-5)
-        tvm.testing.assert_allclose(bias_out.asnumpy(), c2_np, rtol=1e-5)
-        tvm.testing.assert_allclose(relu_out.asnumpy(), c3_np, rtol=1e-5)
+        tvm.testing.assert_allclose(conv_out.numpy(), c1_np, rtol=1e-5)
+        tvm.testing.assert_allclose(bias_out.numpy(), c2_np, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_out.numpy(), c3_np, rtol=1e-5)
 
-    for device in ["cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
-        check_device(device)
+    for target in ["cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
+        check_target(target)
 
 
 @tvm.testing.requires_gpu
 def test_conv2d_hwcn():
-    verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, 1, "SAME")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
     verify_conv2d_hwcn(4, 128, 16, 128, 5, 2, "SAME")
     verify_conv2d_hwcn(4, 128, 16, 256, 5, 2, "SAME")
-    verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "VALID")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, 1, "VALID")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "VALID")
     verify_conv2d_hwcn(4, 128, 16, 128, 5, 2, "VALID")
     verify_conv2d_hwcn(4, 128, 16, 256, 5, 2, "VALID")
     # dilation = 2
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME", dilation=2)
+    # Pass stride as tuple
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, (1, 1), "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 256, 3, (1, 1), "SAME")
+    verify_conv2d_hwcn(4, 128, 16, 128, 5, (2, 2), "SAME")
+    verify_conv2d_hwcn(4, 128, 16, 256, 5, (2, 2), "SAME")
+    verify_conv2d_hwcn(1, 256, 32, 128, 3, (1, 1), "VALID")
+    verify_conv2d_hwcn(1, 256, 32, 256, 3, (1, 1), "VALID")
+    verify_conv2d_hwcn(4, 128, 16, 128, 5, (2, 2), "VALID")
+    verify_conv2d_hwcn(4, 128, 16, 256, 5, (2, 2), "VALID")
 
 
 if __name__ == "__main__":

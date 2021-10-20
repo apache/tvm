@@ -23,7 +23,7 @@ import tempfile
 import tvm
 from tvm import te, auto_scheduler
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
 
 
 def fequal(a, b):
@@ -144,7 +144,7 @@ def test_gpu_feature():
     with tempfile.NamedTemporaryFile(mode="w") as f:
         f.write(json_records)
         f.flush()
-        inputs, results = auto_scheduler.RecordReader(f.name).read_lines()
+        inputs, _ = auto_scheduler.RecordReader(f.name).read_lines()
 
         inp = inputs[0]
         task = auto_scheduler.SearchTask(
@@ -155,7 +155,7 @@ def test_gpu_feature():
             ),
         )
 
-        state = task.dag.infer_bound_from_state(inputs[0].state)
+        state = task.compute_dag.infer_bound_from_state(inputs[0].state)
         fea = auto_scheduler.feature.get_per_store_features_from_states([state], task)[0]
         names = auto_scheduler.feature.get_per_store_feature_names()
 

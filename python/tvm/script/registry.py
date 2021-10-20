@@ -16,7 +16,8 @@
 # under the License.
 """TVM Script Parser Function Registry """
 # pylint: disable=inconsistent-return-statements, relative-beyond-top-level, import-outside-toplevel
-import inspect
+import types
+from typing import Union, Callable, Dict, Optional, Any
 
 
 class Registry(object):
@@ -24,10 +25,10 @@ class Registry(object):
     All these maps are static
     """
 
-    registrations = dict()
+    registrations: Dict[str, type] = dict()
 
     @staticmethod
-    def lookup(name):
+    def lookup(name: str) -> Optional[Any]:
         if name in Registry.registrations:
             # every time we create a new handler
             # since we may want to keep some local info inside it
@@ -35,12 +36,14 @@ class Registry(object):
         return None
 
 
-def register(inputs):
+def register(inputs: Union[Callable, type]) -> type:
     """Register Intrin/ScopeHandler/SpecialStmt"""
-    if inspect.isfunction(inputs):
-        from .intrin import Intrin
+    registration: type
+    if isinstance(inputs, types.FunctionType):
+        # is function
+        from .tir.intrin import Intrin
 
-        def create_new_intrin(func):
+        def create_new_intrin(func) -> type:
             class NewIntrin(Intrin):
                 def __init__(self):
                     super().__init__(func)
@@ -48,11 +51,12 @@ def register(inputs):
             return NewIntrin
 
         registration = create_new_intrin(inputs)
-    elif inspect.isclass(inputs):
+    elif isinstance(inputs, type):
+        # is class
         registration = inputs
     else:
         raise ValueError()
 
-    key = registration().signature()[0]
+    key: str = registration().signature()[0]
     Registry.registrations[key] = registration
     return registration

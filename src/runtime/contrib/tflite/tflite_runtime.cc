@@ -90,7 +90,7 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
   }
 }
 
-void TFLiteRuntime::Init(const std::string& tflite_model_bytes, TVMContext ctx) {
+void TFLiteRuntime::Init(const std::string& tflite_model_bytes, Device dev) {
   const char* buffer = tflite_model_bytes.c_str();
   size_t buffer_size = tflite_model_bytes.size();
   // The buffer used to construct the model must be kept alive for
@@ -107,7 +107,7 @@ void TFLiteRuntime::Init(const std::string& tflite_model_bytes, TVMContext ctx) 
   status = interpreter_->AllocateTensors();
   CHECK_TFLITE_STATUS(status) << "Failed to allocate tensors.";
 
-  ctx_ = ctx;
+  device_ = dev;
 }
 
 void TFLiteRuntime::Invoke() { interpreter_->Invoke(); }
@@ -140,7 +140,7 @@ NDArray TFLiteRuntime::GetOutput(int index) const {
     shape.push_back(dims->data[i]);
     size *= dims->data[i];
   }
-  NDArray ret = NDArray::Empty(shape, dtype, ctx_);
+  NDArray ret = NDArray::Empty(shape, dtype, device_);
   TVM_DTYPE_DISPATCH(dtype, DType, {
     DType* dest = static_cast<DType*>(ret->data);
     DType* src = interpreter_->typed_output_tensor<DType>(index);
@@ -176,9 +176,9 @@ PackedFunc TFLiteRuntime::GetFunction(const std::string& name,
   }
 }
 
-Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, TVMContext ctx) {
+Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   auto exec = make_object<TFLiteRuntime>();
-  exec->Init(tflite_model_bytes, ctx);
+  exec->Init(tflite_model_bytes, dev);
   return Module(exec);
 }
 

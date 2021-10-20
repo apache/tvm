@@ -14,14 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import sys
+
 import numpy as np
+import pytest
 import scipy
 from scipy import special
+
 import tvm
-from tvm import te
-from tvm import topi
 import tvm.testing
 import tvm.topi.testing
+
+from tvm import te, topi
 from tvm.topi import utils
 
 
@@ -31,203 +36,205 @@ def test_util():
     assert utils.get_const_tuple((x, x)) == (100, 100)
 
 
-@tvm.testing.uses_gpu
-def test_ewise():
-    def test_apply(
-        func,
-        name,
-        f_numpy,
-        low,
-        high,
-        shape=(20, 3),
-        dtype="float32",
-        check_round=False,
-        skip_name_check=False,
-    ):
-        m = te.var("m")
-        l = te.var("l")
-        A = te.placeholder((m, l), dtype=dtype, name="A")
+ewise_operations = {
+    "floor": {"topi": topi.floor, "ref": np.floor, "input_range": (-100, 100)},
+    "ceil": {"topi": topi.ceil, "ref": np.ceil, "input_range": (-100, 100)},
+    "sign": {
+        "topi": topi.sign,
+        "ref": np.sign,
+        "input_range": (-100, 100),
+        "skip_name_check": True,
+    },
+    "trunc": {"topi": topi.trunc, "ref": np.trunc, "input_range": (-100, 100)},
+    "fabs": {"topi": topi.abs, "ref": np.fabs, "input_range": (-100, 100)},
+    "round": {"topi": topi.round, "ref": np.round, "input_range": (-100, 100), "check_round": True},
+    "exp": {"topi": topi.exp, "ref": np.exp, "input_range": (-1, 1)},
+    "tanh": {
+        "topi": topi.tanh,
+        "ref": np.tanh,
+        "input_range": (-10, 10),
+        "shape": (128, 128),
+        "dtype": ["float32", "float64"],
+    },
+    "sigmoid": {
+        "topi": topi.sigmoid,
+        "ref": lambda x: 1 / (1 + np.exp(-x)),
+        "input_range": (-1, 1),
+    },
+    "log": {"topi": topi.log, "ref": np.log, "input_range": (0, 100)},
+    "sqrt": {"topi": topi.sqrt, "ref": np.sqrt, "input_range": (0, 100)},
+    "rsqrt": {
+        "topi": topi.rsqrt,
+        "ref": lambda x: np.ones_like(x) / np.sqrt(x),
+        "input_range": (0, 100),
+        "skip_name_check": True,
+    },
+    "cos": {"topi": topi.cos, "ref": np.cos, "input_range": (-2.0 * np.pi, 2.0 * np.pi)},
+    "tan": {
+        "topi": topi.tan,
+        "ref": np.tan,
+        "input_range": (-2.0 * np.pi, 2.0 * np.pi),
+        "dtypes": ["float32", "float64"],
+    },
+    "sin": {"topi": topi.sin, "ref": np.sin, "input_range": (-2.0 * np.pi, 2.0 * np.pi)},
+    "erf": {"topi": topi.erf, "ref": scipy.special.erf, "input_range": (-0.1, 0.1)},
+    "isnan": {
+        "topi": topi.isnan,
+        "ref": np.isnan,
+        "input_range": (-1, 1),
+        "replace_with_nan": True,
+    },
+    "isfinite": {
+        "topi": topi.isfinite,
+        "ref": np.isfinite,
+        "input_range": (0, 1),
+        "shape": (8, 8),
+        "skip_name_check": True,
+        "replace_with_nan": True,
+        "replace_with_inf": True,
+        "dtypes": ["float32", "float64", "int32", "int16"],
+    },
+    "isinf": {
+        "topi": topi.isinf,
+        "ref": np.isinf,
+        "input_range": (0, 1),
+        "shape": (8, 8),
+        "skip_name_check": True,
+        "replace_with_nan": True,
+        "replace_with_inf": True,
+        "dtypes": ["float32", "float64", "int32", "int16"],
+    },
+    "fast_exp": {
+        "topi": topi.fast_exp,
+        "ref": np.exp,
+        "skip_name_check": True,
+        "input_range": (-88, 88),
+        "step": 0.01,
+    },
+    "fast_erf": {
+        "topi": topi.fast_erf,
+        "ref": scipy.special.erf,
+        "skip_name_check": True,
+        "input_range": (-10, 10),
+        "step": 0.01,
+    },
+    "fast_erf": {
+        "topi": topi.fast_tanh,
+        "ref": np.tanh,
+        "skip_name_check": True,
+        "input_range": (-10, 10),
+        "step": 0.01,
+    },
+}
 
-        B = func(A)
-        assert tuple(B.shape) == tuple(A.shape)
-        if not skip_name_check:
-            assert B.op.body[0].op.name == "tir." + name
-        a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
-        # avoid round check too close to boundary
-        if check_round:
-            a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-4
-        b_np = f_numpy(a_np)
-
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(B)
-            foo = tvm.build(s, [A, B], device, name=name)
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(np.zeros_like(b_np), ctx)
-            foo(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
-
-        for target, ctx in tvm.testing.enabled_targets():
-            check_device(target, ctx)
-
-    def test_isnan(
-        low,
-        high,
-        shape=(20, 3),
-        dtype="float32",
-        check_round=False,
-        skip_name_check=False,
-    ):
-        m = te.var("m")
-        l = te.var("l")
-        A = te.placeholder((m, l), dtype=dtype, name="A")
-
-        B = topi.isnan(A)
-        assert tuple(B.shape) == tuple(A.shape)
-        if not skip_name_check:
-            assert B.op.body[0].op.name == "tir.isnan"
-        a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
-        a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
-        # avoid round check too close to boundary
-        if check_round:
-            a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-5
-        b_np = np.isnan(a_np)
-
-        def check_device(device, ctx):
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(B)
-            foo = tvm.build(s, [A, B], device, name="isnan")
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(np.zeros_like(b_np), ctx)
-            foo(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
-
-        for target, ctx in tvm.testing.enabled_targets():
-            check_device(target, ctx)
-
-    def test_infiniteness_ops(topi_op, ref_op, name):
-        for dtype in ["float32", "float64", "int32", "int16"]:
-            m = te.var("m")
-            l = te.var("l")
-            A = te.placeholder((m, l), dtype=dtype, name="A")
-            B = topi_op(A)
-            assert tuple(B.shape) == tuple(A.shape)
-
-            a_np = np.random.uniform(size=(8, 8)).astype(A.dtype) * 10
-            if dtype.startswith("float"):
-                a_np.ravel()[
-                    np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)
-                ] = np.infty
-                a_np.ravel()[
-                    np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)
-                ] = np.nan
-            b_np = ref_op(a_np)
-
-            def check_device(device, ctx):
-                with tvm.target.Target(device):
-                    s = tvm.topi.testing.get_injective_schedule(device)(B)
-                foo = tvm.build(s, [A, B], device, name=name)
-                a = tvm.nd.array(a_np, ctx)
-                b = tvm.nd.array(np.zeros_like(b_np), ctx)
-                foo(a, b)
-                tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
-
-            for target, ctx in tvm.testing.enabled_targets():
-                check_device(target, ctx)
-
-    test_apply(topi.floor, "floor", np.floor, -100, 100)
-    test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
-    test_apply(topi.sign, "sign", np.sign, -100, 100, skip_name_check=True)
-    test_apply(topi.trunc, "trunc", np.trunc, -100, 100)
-    test_apply(topi.abs, "fabs", np.abs, -100, 100)
-    test_apply(topi.round, "round", np.round, -100, 100, check_round=True)
-    test_apply(topi.exp, "exp", np.exp, -1, 1)
-    test_apply(topi.tanh, "tanh", np.tanh, -10, 10, shape=(128, 128))
-    test_apply(topi.tanh, "tanh", np.tanh, -10, 10, shape=(128, 128), dtype="float64")
-    test_apply(topi.sigmoid, "sigmoid", lambda x: 1 / (1 + np.exp(-x)), -1, 1)
-    test_apply(topi.log, "log", np.log, 0, 100)
-    test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
-    test_apply(
-        topi.rsqrt, "rsqrt", lambda x: np.ones_like(x) / np.sqrt(x), 0, 100, skip_name_check=True
-    )
-    test_apply(topi.cos, "cos", np.cos, -2.0 * np.pi, 2.0 * np.pi)
-    test_apply(topi.tan, "tan", np.tan, -2.0 * np.pi, 2.0 * np.pi, dtype="float32")
-    test_apply(topi.tan, "tan", np.tan, -2.0 * np.pi, 2.0 * np.pi, dtype="float64")
-    test_apply(topi.sin, "sin", np.sin, -2.0 * np.pi, 2.0 * np.pi)
-    test_apply(topi.erf, "erf", scipy.special.erf, -0.1, 0.1, dtype="float32")
-    test_isnan(-100, 100)
-    test_infiniteness_ops(topi.isfinite, np.isfinite, "isifinite")
-    test_infiniteness_ops(topi.isinf, np.isinf, "isinf")
+topi_name, dtype = tvm.testing.parameters(
+    *[
+        (name, dtype)
+        for name, config in ewise_operations.items()
+        for dtype in config.get("dtypes", ["float32"])
+    ]
+)
 
 
-@tvm.testing.uses_gpu
-def test_cast():
-    def verify(from_dtype, to_dtype, low=-100, high=100):
-        shape = (5, 4)
-        A = te.placeholder(shape, dtype=from_dtype, name="A")
-        B = topi.cast(A, to_dtype)
+@tvm.testing.fixture(cache_return_value=True)
+def ewise_ref_data(topi_name, dtype):
+    config = ewise_operations[topi_name]
 
-        if from_dtype == "bool":
-            a_np = np.random.choice([True, False], size=shape)
-        else:
-            a_np = np.random.uniform(low, high, size=shape).astype(from_dtype)
-        if to_dtype == "bool":
-            a_np = a_np - a_np[2, 3]
-        b_np = a_np.astype(to_dtype)
+    input_range = config["input_range"]
+    shape = config.get("shape", (20, 3))
 
-        for device, ctx in tvm.testing.enabled_targets():
-            print("Running on target: %s" % device)
-            with tvm.target.Target(device):
-                s = tvm.topi.testing.get_injective_schedule(device)(B)
-            foo = tvm.build(s, [A, B], device)
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.empty(shape=shape, dtype=to_dtype, ctx=ctx)
-            foo(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np)
+    a_np = np.random.uniform(*input_range, size=shape).astype(dtype)
 
-    verify("int32", "float32")
-    verify("int32", "float64")
-    verify("int32", "bool")
-    verify("float32", "int32")
-    verify("float32", "float64")
-    verify("float32", "bool")
-    verify("bool", "float32")
-    verify("bool", "int32")
+    if dtype.startswith("float"):
+        if config.get("replace_with_nan", False):
+            a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
+        if config.get("replace_with_inf", False):
+            a_np.ravel()[
+                np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)
+            ] = np.infty
+
+    # avoid round check too close to boundary
+    if topi_name == "round":
+        a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-4
+
+    b_np = config["ref"](a_np)
+
+    return a_np, b_np
 
 
-def test_fastmath():
-    def test_apply(func, name, f_numpy, low, high, step, dtype="float32"):
-        a_np = np.arange(low, high, step).astype(dtype)
-        b_np = f_numpy(a_np)
-        A = te.placeholder(a_np.shape, dtype=dtype, name="A")
-        B = func(A)
-        assert tuple(B.shape) == tuple(A.shape)
+def test_ewise(target, dev, topi_name, dtype, ewise_ref_data):
+    target = tvm.target.Target(target)
+    if target.kind.name == "vulkan" and topi_name in ["tan", "erf", "isnan", "isfinite", "isinf"]:
+        pytest.xfail(f"Vulkan runtime doesn't support {topi_name} yet")
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not tvm.testing.device_enabled(device):
-                print("Skip because %s is not enabled" % device)
-                return
-            with tvm.target.Target(device):
-                s = topi.generic.schedule_injective(B)
-            func = tvm.build(s, [A, B], device, name=name)
-            a = tvm.nd.array(a_np, ctx)
-            b = tvm.nd.array(np.zeros_like(b_np), ctx)
-            func(a, b)
-            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+    topi_op = ewise_operations[topi_name]["topi"]
+    skip_name_check = ewise_operations[topi_name].get("skip_name_check", False)
 
-        check_device("llvm")
-        check_device("llvm -device=arm-cpu")
+    m = te.var("m")
+    l = te.var("l")
+    A = te.placeholder((m, l), dtype=dtype, name="A")
 
-    test_apply(topi.fast_exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
-    test_apply(topi.fast_erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)
-    test_apply(topi.fast_tanh, "fast_tanh", np.tanh, low=-10, high=10, step=0.01)
+    B = topi_op(A)
+    assert tuple(B.shape) == tuple(A.shape)
+    if not skip_name_check:
+        assert B.op.body[0].op.name == "tir." + topi_name
+
+    a_np, b_np = ewise_ref_data
+
+    with tvm.target.Target(target):
+        s = tvm.topi.testing.get_injective_schedule(target)(B)
+    foo = tvm.build(s, [A, B], target, name=topi_name)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros_like(b_np), dev)
+    foo(a, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5, atol=1e-5)
+
+
+from_dtype, to_dtype = tvm.testing.parameters(
+    ("int32", "float32"),
+    ("int32", "float64"),
+    ("int32", "bool"),
+    ("float32", "int32"),
+    ("float32", "float64"),
+    ("float32", "bool"),
+    ("bool", "float32"),
+    ("bool", "int32"),
+)
+
+
+@tvm.testing.fixture(cache_return_value=True)
+def cast_ref_data(from_dtype, to_dtype):
+    shape = (5, 4)
+    input_range = (-100, 100)
+
+    if from_dtype == "bool":
+        a_np = np.random.choice([True, False], size=shape)
+    else:
+        a_np = np.random.uniform(*input_range, size=shape).astype(from_dtype)
+
+    if to_dtype == "bool":
+        a_np = a_np - a_np[2, 3]
+    b_np = a_np.astype(to_dtype)
+
+    return a_np, b_np
+
+
+def test_cast(target, dev, cast_ref_data, from_dtype, to_dtype):
+    m = te.var("m")
+    l = te.var("l")
+    A = te.placeholder((m, l), dtype=from_dtype, name="A")
+    B = topi.cast(A, to_dtype)
+
+    a_np, b_np = cast_ref_data
+
+    with tvm.target.Target(target):
+        s = tvm.topi.testing.get_injective_schedule(target)(B)
+    foo = tvm.build(s, [A, B], target)
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.empty(b_np.shape, dtype=to_dtype, device=dev)
+    foo(a, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np)
 
 
 if __name__ == "__main__":
-    test_util()
-    test_ewise()
-    test_cast()
-    test_fastmath()
+    sys.exit(pytest.main(sys.argv))

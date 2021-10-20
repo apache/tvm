@@ -31,6 +31,8 @@
 
 #include <stack>
 
+#include "../op/annotation/annotation.h"
+
 namespace tvm {
 namespace relay {
 MixedModeVisitor::MixedModeVisitor(int visit_limit) {
@@ -103,9 +105,39 @@ Expr MixedModeMutator::VisitExpr(const Expr& expr) {
 class PostOrderRewriter : public MixedModeMutator {
  public:
   explicit PostOrderRewriter(ExprRewriter* rewriter) : rewriter_(rewriter) {}
+
   Expr DispatchVisitExpr(const Expr& expr) final {
     auto post = ExprFunctor::VisitExpr(expr);
     return rewriter_->Rewrite(expr, post);
+  }
+
+  using MixedModeMutator::VisitExpr_;
+
+  Expr VisitExpr_(const LetNode* node) final {
+    auto pre_visit = [this](const LetNode* op) {
+      Expr var = this->Mutate(op->var);
+      Expr value = this->Mutate(op->value);
+    };
+    auto post_visit = [this, node](const LetNode* op) {
+      Var var = Downcast<Var>(this->Mutate(op->var));
+      Expr value = this->Mutate(op->value);
+      Expr body = this->Mutate(op->body);
+      Expr expr = GetRef<Expr>(op);
+      Expr post;
+      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+        post = expr;
+      } else {
+        post = Let(var, value, body);
+      }
+      //  avoid rewriting the first LetNode twice
+      if (op == node) {
+        this->memo_[expr] = post;
+      } else {
+        this->memo_[expr] = this->rewriter_->Rewrite(expr, post);
+      }
+    };
+    ExpandANormalForm(node, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(node)];
   }
 
  protected:
@@ -497,15 +529,19 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
-    for (Var param : func->params) {
-      if (!args_map.count(param)) {
-        new_params.push_back(param);
+    std::vector<DLDeviceType> new_param_device_types;
+    for (size_t i = 0; i < func->params.size(); ++i) {
+      if (!args_map.count(func->params[i])) {
+        new_params.push_back(func->params[i]);
+        new_param_device_types.push_back(GetFunctionParamDeviceType(func, i));
       }
     }
     if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
       return expr;
     }
-    auto ret = Function(new_params, new_body, func->ret_type, func->type_params, func->attrs);
+    auto ret =
+        Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
+    ret = MaybeFunctionOnDevice(ret, new_param_device_types, GetFunctionResultDeviceType(func));
     std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
@@ -513,9 +549,19 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     for (const auto& v : FreeVars(ret)) {
       if (set.count(v) == 0) {
         new_params.push_back(v);
+        if (GetFunctionResultDeviceType(func) != kInvalidDeviceType) {
+          // TODO(mbs): The function has been annotated with a device, which means we are supposed
+          // to be preserving device annotations on every transformation. However there's no
+          // such context for the free vars in args_map.
+          LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
+                       << "' into function body but no device is known for it";
+        }
+        new_param_device_types.push_back(kInvalidDeviceType);
       }
     }
-    ret = Function(new_params, new_body, func->ret_type, func->type_params, func->attrs);
+    ret =
+        Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
+    ret = MaybeFunctionOnDevice(ret, new_param_device_types, GetFunctionResultDeviceType(func));
     ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
     return std::move(ret);
   } else {
@@ -532,5 +578,27 @@ TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret)
     *ret = Bind(Downcast<Type>(input), args[1]);
   }
 });
+
+void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
+                       std::function<void(const LetNode*)> post_visit) {
+  std::stack<const LetNode*> stack;
+  stack.push(op);
+  bool is_anormal = true;
+  while (is_anormal) {
+    const LetNode* current_op = stack.top();
+    pre_visit(current_op);
+    if (const LetNode* new_op = current_op->body.as<LetNode>()) {
+      stack.push(new_op);
+    } else {
+      is_anormal = false;
+    }
+  }
+  while (stack.size()) {
+    const LetNode* current_op = stack.top();
+    stack.pop();
+    post_visit(current_op);
+  }
+}
+
 }  // namespace relay
 }  // namespace tvm

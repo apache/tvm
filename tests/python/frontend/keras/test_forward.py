@@ -18,7 +18,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 import keras
 import tvm.testing
 
@@ -84,16 +84,16 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
     def get_keras_output(xs, dtype="float32"):
         return keras_model.predict(xs)
 
-    def get_tvm_output(xs, target, ctx, dtype="float32"):
+    def get_tvm_output(xs, target, dev, dtype="float32"):
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
         mod, params = relay.frontend.from_keras(keras_model, shape_dict, layout=layout)
         with tvm.transform.PassContext(opt_level=2):
             lib = relay.build(mod, target, params=params)
-        m = graph_runtime.GraphModule(lib["default"](ctx))
+        m = graph_executor.GraphModule(lib["default"](dev))
         for name, x in zip(keras_model.input_names, xs):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))
         m.run()
-        return [m.get_output(i).asnumpy() for i in range(m.get_num_outputs())]
+        return [m.get_output(i).numpy() for i in range(m.get_num_outputs())]
 
     def to_channels_first(arr):
         return arr.transpose([0, -1] + list(range(1, arr.ndim - 1)))
@@ -104,9 +104,9 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
     xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
     keras_out = keras_out if isinstance(keras_out, list) else [keras_out]
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, dev in tvm.testing.enabled_targets():
         inputs = [to_channels_first(x) for x in xs] if need_transpose else xs
-        tvm_out = get_tvm_output(inputs, target, ctx)
+        tvm_out = get_tvm_output(inputs, target, dev)
         for kout, tout in zip(keras_out, tvm_out):
             if need_transpose:
                 tout = to_channels_last(tout)
@@ -198,6 +198,11 @@ class TestKeras:
         x = keras.layers.Dense(10, activation="relu", kernel_initializer="uniform")(x)
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
+        # RNN dense
+        data = keras.layers.Input(shape=(1, 32))
+        x = keras.layers.Dense(32, activation="relu", kernel_initializer="uniform")(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_permute(self, keras):
         data = keras.layers.Input(shape=(2, 3, 4))
@@ -350,6 +355,16 @@ class TestKeras:
         x = keras.layers.Reshape(target_shape=(4, 4))(data)
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model, need_transpose=False)
+        # "non-square" target shape
+        data = keras.layers.Input(shape=(15,))
+        x = keras.layers.Reshape(target_shape=(5, 3))(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+        # modify channel dim
+        data = keras.layers.Input(shape=(3, 2, 4))
+        x = keras.layers.Reshape(target_shape=(3, 8))(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model)
 
     def test_forward_crop(self, keras):
         data = keras.layers.Input(shape=(32, 32, 3))
@@ -401,6 +416,17 @@ class TestKeras:
         z = keras.layers.GlobalAveragePooling2D()(x)
         keras_model = keras.models.Model(data, z)
         verify_keras_frontend(keras_model)
+
+    def test_forward_lstm(self, keras):
+        data = keras.layers.Input(shape=(10, 32))
+        rnn_funcs = [
+            keras.layers.LSTM(16),
+            keras.layers.LSTM(16, return_sequences=True),
+        ]
+        for rnn_func in rnn_funcs:
+            x = rnn_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_rnn(self, keras):
         data = keras.layers.Input(shape=(1, 32))
@@ -564,6 +590,20 @@ class TestKeras:
             keras_model = keras.models.Model(data, x)
             verify_keras_frontend(keras_model, layout="NDHWC")
 
+    def test_forward_nested_layers(self, keras):
+        sub_model = keras.applications.MobileNet(
+            include_top=False, weights="imagenet", input_shape=(224, 224, 3)
+        )
+        keras_model = keras.Sequential(
+            [
+                sub_model,
+                keras.layers.GlobalAveragePooling2D(),
+                keras.layers.Dense(1024, activation="relu"),
+                keras.layers.Dense(2, activation="sigmoid"),
+            ]
+        )
+        verify_keras_frontend(keras_model)
+
 
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
@@ -584,6 +624,7 @@ if __name__ == "__main__":
         sut.test_forward_multi_inputs(keras=k)
         sut.test_forward_multi_outputs(keras=k)
         sut.test_forward_reuse_layers(keras=k)
+        sut.test_forward_lstm(keras=k)
         sut.test_forward_rnn(keras=k)
         sut.test_forward_vgg16(keras=k)
         sut.test_forward_vgg16(keras=k, layout="NHWC")

@@ -25,7 +25,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <iostream>
 #include <vector>
@@ -58,8 +58,19 @@ struct PrimitiveInliner : ExprMutator {
   explicit PrimitiveInliner(const IRModule& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) {
-    var_map.insert({let_node->var, VisitExpr(let_node->value)});
-    return ExprMutator::VisitExpr_(let_node);
+    auto pre_visit = [this](const LetNode* op) {
+      var_map.insert({op->var, this->VisitExpr(op->value)});
+    };
+    auto post_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->VisitExpr(op->value);
+      // Visit body and cache the op
+      Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
+      this->memo_[expr] = Let(op->var, value, body);
+    };
+    ExpandANormalForm(let_node, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(let_node)];
   }
 
   Expr VisitExpr_(const CallNode* call) {
@@ -125,13 +136,13 @@ struct PrimitiveInliner : ExprMutator {
         if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
 
-        DLOG(INFO) << "Before inlining primitives: " << global << std::endl << AsText(func, false);
+        VLOG(1) << "Before inlining primitives: " << global << std::endl << PrettyPrint(func);
 
         func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
                         func->attrs);
         module_->Add(global, func, true);
 
-        DLOG(INFO) << "After inlining primitives: " << global << std::endl << AsText(func, false);
+        VLOG(1) << "After inlining primitives: " << global << std::endl << PrettyPrint(func);
       }
     }
     return module_;

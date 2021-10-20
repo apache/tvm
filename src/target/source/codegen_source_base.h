@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -136,25 +137,26 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt);
  * \brief Create a C source module for viewing and compiling GCC code.
  * \param code The code to be viewed.
  * \param fmt The code format.
- * \param symbol The symbol that the c source module represents.
+ * \param func_names The name of functions inside the runtime module.
  * \param const_vars. The constant variables that the c source module needs.
  * \return The created module.
  */
 runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
-                                    const String& symbol = "",
+                                    const Array<String>& func_names,
                                     const Array<String>& const_vars = {});
 
 /*!
  * \brief Wrap the submodules in a metadata module.
  * \param params The variable to constant mapping that is collected by the host
  *        module.
- * \param dso_module The host module to be wrapped.
- * \param modules The modules to be wrapped.
+ * \param target_module The main TIR-lowered internal runtime module
+ * \param modules All the external modules that needs to be imported inside the metadata module(s).
+ * \param target The target that all the modules are compiled for
  * \return The wrapped module.
  */
 runtime::Module CreateMetadataModule(
-    const std::unordered_map<std::string, runtime::NDArray>& params,
-    const runtime::Module& dso_module, const Array<runtime::Module>& modules);
+    const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
+    const Array<runtime::Module>& ext_modules, Target target, runtime::Metadata metadata);
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.
@@ -167,6 +169,17 @@ runtime::Module CreateMetadataModule(
 runtime::Module DeviceSourceModuleCreate(
     std::string data, std::string fmt, std::unordered_map<std::string, runtime::FunctionInfo> fmap,
     std::string type_key, std::function<std::string(const std::string&)> fget_source = nullptr);
+
+/*!
+ * \brief Wrap the submodules that are to be wrapped in a c-source metadata module for C runtime.
+ * \param modules The modules to be wrapped.
+ * \param target the target the modules are compiled for.
+ * \param metadata the metadata needed for code generation.
+ * \return The wrapped module.
+ */
+runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
+                                               runtime::Metadata metadata);
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_

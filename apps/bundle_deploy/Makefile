@@ -32,12 +32,14 @@ PKG_CXXFLAGS = ${PKG_COMPILE_OPTS} -std=c++14 \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
-	-Icrt_config
+	-Icrt_config \
+	-DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
-	-Icrt_config
+	-Icrt_config \
+	-DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 
 PKG_LDFLAGS = -pthread -lm
 
@@ -62,6 +64,9 @@ $(endif)
 
 CRT_SRCS = $(shell find $(CRT_ROOT))
 
+MODEL_OBJ = $(build_dir)/model_c/devc.o $(build_dir)/model_c/lib0.o $(build_dir)/model_c/lib1.o
+TEST_MODEL_OBJ = $(build_dir)/test_model_c/devc.o $(build_dir)/test_model_c/lib0.o $(build_dir)/test_model_c/lib1.o
+
 demo_dynamic: $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/bundle_c.so $(build_dir)/bundle.so $(build_dir)/graph_cpp.json $(build_dir)/graph_c.json $(build_dir)/params_cpp.bin $(build_dir)/params_c.bin $(build_dir)/cat.bin
 	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/graph_cpp.json $(build_dir)/params_cpp.bin $(build_dir)/cat.bin
 	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/demo_dynamic $(build_dir)/bundle_c.so $(build_dir)/graph_c.json $(build_dir)/params_c.bin $(build_dir)/cat.bin
@@ -79,8 +84,8 @@ test_static: $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/
 $(build_dir)/crt/libcommon.a: $(CRT_SRCS)
 	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" common
 
-$(build_dir)/crt/libgraph_runtime.a: $(CRT_SRCS)
-	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" graph_runtime
+$(build_dir)/crt/libgraph_executor.a: $(CRT_SRCS)
+	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" graph_executor
 
 $(build_dir)/crt/libmemory.a: $(CRT_SRCS)
 	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" memory
@@ -93,11 +98,11 @@ $(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph_c.json ${build_dir}/t
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)g++ $(PKG_CXXFLAGS) -o $@ test.cc $(BACKTRACE_OBJS) $(BACKTRACE_LDFLAGS)
 
-$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model_c.o ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c $(BACKTRACE_OBJS)
+$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o $(MODEL_OBJ) ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_executor.a ${build_dir}/crt/libcommon.a ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
-$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model_c.o ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
+$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o $(TEST_MODEL_OBJ) ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_executor.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_LDFLAGS)
 
@@ -119,11 +124,15 @@ $(build_dir)/params_c.bin.c: $(build_dir)/params_c.bin
 $(build_dir)/params_cpp.bin.c: $(build_dir)/params_cpp.bin
 	$(QUIET)xxd -i $^  > $@
 
-$(build_dir)/model_c.o $(build_dir)/graph_c.json $(build_dir)/model_cpp.o $(build_dir)/graph_cpp.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
+$(MODEL_OBJ) $(build_dir)/graph_c.json $(build_dir)/model_cpp.o $(build_dir)/graph_cpp.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
 	$(QUIET)python3 $< -o $(build_dir)
+	$(QUIET)mkdir -p build/model_c
+	$(QUIET)tar -C build/model_c -xvf build/model_c.tar
 
-$(build_dir)/test_model_c.o $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_model_cpp.o $(build_dir)/test_graph_cpp.json $(build_dir)/test_params_cpp.bin $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin: build_model.py
+$(TEST_MODEL_OBJ) $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_model_cpp.o $(build_dir)/test_graph_cpp.json $(build_dir)/test_params_cpp.bin $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin: build_model.py
 	$(QUIET)python3 $< -o $(build_dir) --test
+	$(QUIET)mkdir -p build/test_model_c
+	$(QUIET)tar -C build/test_model_c -xvf build/test_model_c.tar
 
 # Build our bundle against the serialized bundle.c API, the runtime.cc API, and
 # the serialized graph.json and params.bin
@@ -131,7 +140,7 @@ $(build_dir)/bundle.so: bundle.cc runtime.cc $(build_dir)/model_cpp.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/bundle_c.so: bundle.c $(build_dir)/model_c.o ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
+$(build_dir)/bundle_c.so: bundle.c $(MODEL_OBJ) ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_executor.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
@@ -139,7 +148,7 @@ $(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model_cpp.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/test_bundle_c.so: bundle.c $(build_dir)/test_model_c.o ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
+$(build_dir)/test_bundle_c.so: bundle.c $(TEST_MODEL_OBJ) ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_executor.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 

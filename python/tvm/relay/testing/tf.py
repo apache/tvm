@@ -28,11 +28,13 @@ import numpy as np
 # Tensorflow imports
 import tensorflow as tf
 from tensorflow.core.framework import graph_pb2
+
+import tvm
 from tvm.contrib.download import download_testdata
 
 try:
     tf_compat_v1 = tf.compat.v1
-except ImportError:
+except (ImportError, AttributeError):
     tf_compat_v1 = tf
 
 ######################################################################
@@ -71,6 +73,46 @@ def convert_to_list(x):
     if not isinstance(x, list):
         x = [x]
     return x
+
+
+def vmobj_to_list(o):
+    """Converts TVM objects returned by VM execution to Python List.
+
+    Parameters
+    ----------
+    o : Obj
+        VM Object as output from VM runtime executor.
+
+    Returns
+    -------
+    result : list
+        Numpy objects as list with equivalent values to the input object.
+
+    """
+
+    if isinstance(o, tvm.nd.NDArray):
+        result = [o.numpy()]
+    elif isinstance(o, tvm.runtime.container.ADT):
+        result = []
+        for f in o:
+            result.extend(vmobj_to_list(f))
+    elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
+        if o.constructor.name_hint == "Cons":
+            tl = vmobj_to_list(o.fields[1])
+            hd = vmobj_to_list(o.fields[0])
+            hd.extend(tl)
+            result = hd
+        elif o.constructor.name_hint == "Nil":
+            result = []
+        elif "tensor_nil" in o.constructor.name_hint:
+            result = [0]
+        elif "tensor" in o.constructor.name_hint:
+            result = [o.fields[0].numpy()]
+        else:
+            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
+    else:
+        raise RuntimeError("Unknown object type: %s" % type(o))
+    return result
 
 
 def AddShapesToGraphDef(session, out_node):

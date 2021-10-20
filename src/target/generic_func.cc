@@ -22,7 +22,6 @@
 #include <dmlc/thread_local.h>
 #include <tvm/node/node.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/generic_func.h>
 #include <tvm/target/target.h>
@@ -51,7 +50,7 @@ struct GenericFunc::Manager {
 
 GenericFunc GenericFunc::Get(const std::string& name) {
   Manager* m = Manager::Global();
-  std::lock_guard<std::mutex>(m->mutex);
+  std::lock_guard<std::mutex> lock(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) {
     auto f = make_object<GenericFuncNode>();
@@ -66,7 +65,7 @@ GenericFunc GenericFunc::Get(const std::string& name) {
 
 void GenericFunc::RegisterGenericFunc(GenericFunc func, const std::string& name) {
   Manager* m = Manager::Global();
-  std::lock_guard<std::mutex>(m->mutex);
+  std::lock_guard<std::mutex> lock(m->mutex);
   auto it = m->fmap.find(name);
   ICHECK(it == m->fmap.end()) << "GenericFunc already registered " << name;
   func->name_ = name;

@@ -17,13 +17,17 @@
 
 """ Test sketch generation. """
 
+import sys
 import tvm
 import tvm.testing
+
+import pytest
+
 from tvm import te, auto_scheduler
 from tvm.auto_scheduler import _ffi_api
 from tvm.auto_scheduler.loop_state import Stage
 
-from test_auto_scheduler_common import (
+from tvm.testing.auto_scheduler import (
     matmul_auto_scheduler_test,
     double_matmul_auto_scheduler_test,
     conv2d_nchw_bn_relu_auto_scheduler_test,
@@ -32,12 +36,24 @@ from test_auto_scheduler_common import (
     softmax_nm_auto_scheduler_test,
     softmax_abcd_auto_scheduler_test,
     conv2d_winograd_nhwc_auto_scheduler_test,
+    zero_rank_reduce_auto_scheduler_test,
 )
 
 
-def generate_sketches(workload_func, args, target, print_for_debug=False):
-    task = auto_scheduler.SearchTask(func=workload_func, args=args, target=target)
-    policy = auto_scheduler.SketchPolicy(task, verbose=0)
+def generate_sketches(
+    workload_func, args, target, print_for_debug=False, init_search_callbacks=None
+):
+    # NOTE: test_cpu_matmul_sketch and test_cpu_max_pool2d_sketch assume 4 cores to trigger all
+    # possible sketch generations.
+    task = auto_scheduler.SearchTask(
+        func=workload_func,
+        args=args,
+        target=target,
+        hardware_params=auto_scheduler.HardwareParams(num_cores=4, target=target),
+    )
+    policy = auto_scheduler.SketchPolicy(
+        task, verbose=0, init_search_callbacks=init_search_callbacks
+    )
     return policy.generate_sketches(print_for_debug)
 
 
@@ -252,6 +268,48 @@ def test_cpu_conv2d_winograd_sketch():
     assert sketches[1] != sketches[2]
 
 
+def test_cpu_zero_rank_sketch():
+    sketches = generate_sketches(zero_rank_reduce_auto_scheduler_test, (128,), "llvm")
+    """ 2 rfactor sketches + 1 multi-level tiling sketches """
+    assert len(sketches) == 3
+
+
+def test_cpu_custom_sketch():
+    def meet_condition_func(search_policy, state, stage_id):
+        return auto_scheduler.PreloadCustomSketchRule.APPLY_AND_SKIP_REST
+
+    def apply_func(search_policy, state, stage_id):
+        ret = []
+        state = auto_scheduler.loop_state.State(state, search_policy.search_task.compute_dag)
+        C = state.stage_ops[2]
+
+        ret.append([state.state_object, -1])
+
+        s1 = state.copy()
+        i, _, _ = s1[C].iters
+        s1.split(C, i, [8, 2])
+        ret.append([s1.state_object, -1])
+        return ret
+
+    sketches = generate_sketches(
+        matmul_auto_scheduler_test,
+        (512, 512, 512),
+        "llvm",
+        init_search_callbacks=[
+            auto_scheduler.PreloadCustomSketchRule(meet_condition_func, apply_func)
+        ],
+    )
+    assert len(sketches) == 2
+    assert sketches[0].stages[2].iters[0].range.extent == 512
+    assert sketches[0].stages[2].iters[1].range.extent == 512
+    assert sketches[0].stages[2].iters[2].range.extent == 512
+    assert sketches[1].stages[2].iters[0].range.extent == 32
+    assert sketches[1].stages[2].iters[1].range.extent == 8
+    assert sketches[1].stages[2].iters[2].range.extent == 2
+    assert sketches[1].stages[2].iters[3].range.extent == 512
+    assert sketches[1].stages[2].iters[4].range.extent == 512
+
+
 @tvm.testing.requires_cuda
 def test_cuda_matmul_sketch():
     sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), "cuda")
@@ -385,16 +443,12 @@ def test_cuda_conv2d_winograd_sketch():
     assert_is_not_tiled(sketches[0].stages[12])
 
 
+@tvm.testing.requires_cuda
+def test_cuda_zero_rank_sketch():
+    sketches = generate_sketches(zero_rank_reduce_auto_scheduler_test, (128,), "cuda")
+    """ 1 cross thread reuction sketch + 1 multi-level tiling sketch """
+    assert len(sketches) == 2
+
+
 if __name__ == "__main__":
-    test_cpu_matmul_sketch()
-    test_cpu_conv2d_bn_relu_sketch()
-    test_cpu_max_pool2d_sketch()
-    test_cpu_min_sketch()
-    test_cpu_softmax_sketch()
-    test_cpu_conv2d_winograd_sketch()
-    test_cuda_matmul_sketch()
-    test_cuda_conv2d_bn_relu_sketch()
-    test_cuda_max_pool2d_sketch()
-    test_cuda_min_sketch()
-    test_cuda_softmax_sketch()
-    test_cuda_conv2d_winograd_sketch()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

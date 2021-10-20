@@ -31,10 +31,10 @@ import tvm
 from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
-from tvm.relay.op.contrib.vitis_ai import annotation
+from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 from tvm.relay.build_module import bind_params_by_name
 from tvm.contrib.target import vitis_ai
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_executor
 from tvm.contrib import utils
 
 
@@ -68,7 +68,7 @@ def skip_test():
 def build_module(
     mod,
     target,
-    dpu_target="DPUCADX8G",
+    dpu_target="DPUCADF8H",
     params=None,
     enable_vitis_ai=True,
     tvm_ops=0,
@@ -84,10 +84,7 @@ def build_module(
         opt_level=3, config={"relay.ext.vitis_ai.options.target": dpu_target}
     ):
         if enable_vitis_ai:
-            mod["main"] = bind_params_by_name(mod["main"], params)
-            mod = annotation(mod, params, dpu_target)
-            mod = transform.MergeCompilerRegions()(mod)
-            mod = transform.PartitionGraph()(mod)
+            mod = partition_for_vitis_ai(mod, params, dpu_target)
             tvm_op_count = get_cpu_op_count(mod)
             assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
                 tvm_op_count, tvm_ops
@@ -126,10 +123,17 @@ def extract_vitis_ai_modules(module):
 
 
 def verify_codegen(
-    module, num_vitis_ai_modules=1, params=None, target="llvm", dpu_target="DPUCADX8G"
+    module, num_vitis_ai_modules=1, params=None, target="llvm", tvm_ops=0, dpu_target="DPUCADX8G"
 ):
     """Check Vitis-AI codegen against a known good output."""
-    module = build_module(module, target, params=params, dpu_target=dpu_target)
+    module = build_module(
+        module,
+        target,
+        params=params,
+        dpu_target=dpu_target,
+        tvm_ops=tvm_ops,
+        vitis_ai_partitions=num_vitis_ai_modules,
+    )
     vitis_ai_modules = extract_vitis_ai_modules(module)
 
     assert len(vitis_ai_modules) == num_vitis_ai_modules, (
@@ -145,7 +149,7 @@ def verify_result(
     result,
     tol=1e-5,
     target="llvm",
-    ctx=tvm.cpu(),
+    device=tvm.cpu(),
     params=None,
     dpu_target="DPUCADX8G",
     tvm_ops=0,
@@ -154,8 +158,7 @@ def verify_result(
 
     lib = build_module(mod, target, params=params, dpu_target=dpu_target, tvm_ops=tvm_ops)
     lib = update_lib(lib)
-    ctx = tvm.cpu()
-    rt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
+    rt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu()))
 
     for name, data in map_inputs.items():
         rt_mod.set_input(name, data)
@@ -166,6 +169,6 @@ def verify_result(
     results = result if isinstance(result, list) else [result]
 
     for idx, shape in enumerate(out_shapes):
-        out = tvm.nd.empty(shape, ctx=ctx)
+        out = tvm.nd.empty(shape, device=device)
         out = rt_mod.get_output(idx, out)
-        tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.numpy(), results[idx], rtol=tol, atol=tol)

@@ -61,11 +61,11 @@ def verify_conv3d_transpose_ncdhw(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device, ctx):
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
+    def check_target(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
             fcompute, fschedule = tvm.topi.testing.dispatch(
-                device, _conv3d_transpose_ncdhw_implement
+                target, _conv3d_transpose_ncdhw_implement
             )
             B = fcompute(
                 A,
@@ -78,20 +78,20 @@ def verify_conv3d_transpose_ncdhw(
             C = topi.nn.relu(B)
             s1 = fschedule([B])
             s2 = fschedule([C])
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
 
-        func1 = tvm.build(s1, [A, W, B], device)
-        func2 = tvm.build(s2, [A, W, C], device)
+        func1 = tvm.build(s1, [A, W, B], target)
+        func2 = tvm.build(s2, [A, W, C], target)
         func1(a, w, b)
         func2(a, w, c)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, atol=1e-4, rtol=1e-4)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, atol=1e-4, rtol=1e-4)
+        tvm.testing.assert_allclose(b.numpy(), b_np, atol=1e-4, rtol=1e-4)
+        tvm.testing.assert_allclose(c.numpy(), c_np, atol=1e-4, rtol=1e-4)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu

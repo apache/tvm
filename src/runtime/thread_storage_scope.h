@@ -19,7 +19,7 @@
 
 /*!
  * \file thread_storage_scope.h
- * \brief Extract thread axis configuration from TVMArgs.
+ * \brief Extract launch parameters configuration from TVMArgs.
  */
 #ifndef TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 #define TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
@@ -28,6 +28,8 @@
 
 #include <string>
 #include <vector>
+
+#include "meta_data.h"
 
 namespace tvm {
 namespace runtime {
@@ -118,7 +120,9 @@ struct StorageScope {
    */
   static StorageScope Create(const std::string& s) {
     StorageScope r;
-    if (s.compare(0, 6, "global") == 0) {
+    if (s.empty()) {
+      r.rank = StorageRank::kGlobal;
+    } else if (s.compare(0, 6, "global") == 0) {
       r.rank = StorageRank::kGlobal;
       r.tag = s.substr(6, std::string::npos);
     } else if (s.compare(0, 6, "shared") == 0) {
@@ -159,7 +163,7 @@ struct ThreadScope {
    */
   static ThreadScope Create(const std::string& s) {
     ThreadScope r;
-    if (s == "vthread" || s == "cthread") {
+    if (s.compare(0, 7, "vthread") == 0 || s == "cthread") {
       // virtual thread at the same level as local
       r.rank = 1;
       r.dim_index = -1;
@@ -180,6 +184,8 @@ struct ThreadScope {
 struct ThreadWorkLoad {
   // array, first three are thread configuration.
   size_t work_size[6];
+  // Dynamic shared memory allocation size in bytes.
+  size_t dyn_shmem_size{0};
   /*!
    * \param i The block dimension.
    * \return i-th block dim
@@ -191,17 +197,23 @@ struct ThreadWorkLoad {
    */
   inline size_t grid_dim(size_t i) const { return work_size[i]; }
 };
-/*! \brief Thread axis configuration */
-class ThreadAxisConfig {
+/*! \brief Launch parameters configuration */
+class LaunchParamConfig {
  public:
-  void Init(size_t base, const std::vector<std::string>& thread_axis_tags) {
+  void Init(size_t base, const std::vector<std::string>& launch_param_tags) {
     base_ = base;
     std::vector<bool> filled(6, false);
-    for (size_t i = 0; i < thread_axis_tags.size(); ++i) {
-      const std::string& tag = thread_axis_tags[i];
-      ThreadScope ts = ThreadScope::Create(tag);
-      arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
-      filled[ts.rank * 3 + ts.dim_index] = true;
+    for (size_t i = 0; i < launch_param_tags.size(); ++i) {
+      const std::string& tag = launch_param_tags[i];
+      if (tag == kUseDynamicSharedMemoryTag) {
+        ICHECK_EQ(i, launch_param_tags.size() - 1)
+            << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
+        use_dyn_shared_memory_ = true;
+      } else {
+        ThreadScope ts = ThreadScope::Create(tag);
+        arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
+        filled[ts.rank * 3 + ts.dim_index] = true;
+      }
     }
     work_dim_ = 1;
     for (int i = 0; i < 3; ++i) {
@@ -215,7 +227,14 @@ class ThreadAxisConfig {
     ThreadWorkLoad w;
     std::fill(w.work_size, w.work_size + 6, 1);
     for (size_t i = 0; i < arg_index_map_.size(); ++i) {
-      w.work_size[arg_index_map_[i]] = static_cast<size_t>(x.values[base_ + i].v_int64);
+      // Dynamic shapes can result in 0 dim size. Guard to ensure that the dim size is atleast 1.
+      size_t size = static_cast<size_t>(x.values[base_ + i].v_int64);
+      if (size > 0) {
+        w.work_size[arg_index_map_[i]] = size;
+      }
+    }
+    if (use_dyn_shared_memory_) {
+      w.dyn_shmem_size = static_cast<size_t>(x.values[base_ + arg_index_map_.size()].v_int64);
     }
     return w;
   }
@@ -229,6 +248,8 @@ class ThreadAxisConfig {
   size_t work_dim_;
   /*! \brief The index mapping. */
   std::vector<uint32_t> arg_index_map_;
+  /*! \brief Whether or not use dynamic shared memory. */
+  bool use_dyn_shared_memory_{false};
 };
 
 }  // namespace runtime

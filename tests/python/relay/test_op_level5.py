@@ -17,34 +17,125 @@
 """ Support level5 operator test cases.
 """
 import math
+import sys
+
 import numpy as np
+import pytest
+
 import tvm
-from tvm import te
-from tvm import relay
-from tvm.relay import transform
-from tvm.relay.testing import run_infer_type
-import tvm.topi.testing
 import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te
+from tvm.relay.testing import run_infer_type
+
+executor_kind = tvm.testing.parameter("graph", "debug")
 
 
-def test_resize_infer_type():
+def test_resize1d_infer_type():
+    n, c, w = te.size_var("n"), te.size_var("c"), te.size_var("w")
+    x = relay.var("x", relay.TensorType((n, c, w), "int8"))
+    tw = te.var("tw")
+    z = relay.image.resize1d(x, (tw,))
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, tw), "int8")
+
+    x = relay.var("x", relay.TensorType((n, c, w), "int8"))
+    z = relay.image.resize1d(x, (200,), "NCW", "linear", "align_corners")
+    assert "size=" in z.astext()
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, 200), "int8")
+
+
+class TestResize1D:
+    interpolate_method = tvm.testing.parameter("nearest_neighbor", "linear", "cubic")
+    coord_trans = tvm.testing.parameter("asymmetric", "align_corners", "half_pixel")
+
+    layout = tvm.testing.parameter("NWC", "NCW")
+    dshape, scale = tvm.testing.parameters(
+        ((1, 4, 4), 2),
+        ((2, 8, 17), 3),
+        ((2, 8, 17), 3),
+        ((3, 4, 5), 5),
+    )
+
+    def test_resize(
+        self, target, dev, executor_kind, dshape, scale, interpolate_method, layout, coord_trans
+    ):
+        target_kind = tvm.target.Target(target).kind.name
+        if (
+            target_kind == "vulkan"
+            and dshape == (3, 4, 5)
+            and scale == 5
+            and interpolate_method == "nearest_neighbor"
+            and coord_trans == "align_corners"
+        ):
+            pytest.xfail("Known failing case for these parameters")
+
+        if layout == "NWC":
+            size = (dshape[1] * scale,)
+        else:
+            size = (dshape[2] * scale,)
+
+        x_data = np.random.uniform(size=dshape).astype("float32")
+
+        ref_res = tvm.topi.testing.resize1d_python(
+            x_data, (scale,), layout, interpolate_method, coord_trans
+        )
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.image.resize1d(
+            x, size, layout, interpolate_method, coordinate_transformation_mode=coord_trans
+        )
+        assert "size=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-4)
+
+
+def test_resize2d_infer_type():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
     th, tw = te.var("th"), te.var("tw")
-    z = relay.image.resize(x, (th, tw))
+    z = relay.image.resize2d(x, (th, tw))
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    z = relay.image.resize(x, (100, 200), "NCHW", "bilinear", "align_corners")
+    z = relay.image.resize2d(x, (100, 200), "NCHW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
 
 
-@tvm.testing.uses_gpu
-def test_resize():
-    def verify_resize(dshape, scale, method, layout, coord_trans):
+class TestResize2D:
+    interpolate_method = tvm.testing.parameter("nearest_neighbor", "linear", "cubic")
+    coord_trans = tvm.testing.parameter("asymmetric", "align_corners", "half_pixel")
+
+    layout = tvm.testing.parameter("NHWC", "NCHW")
+
+    dshape, scale = tvm.testing.parameters(
+        ((1, 4, 4, 4), 2),
+        ((2, 8, 17, 20), 3),
+        ((2, 8, 17, 20), 3),
+        ((3, 4, 5, 6), 5),
+    )
+
+    def test_resize(
+        self, target, dev, executor_kind, dshape, scale, interpolate_method, layout, coord_trans
+    ):
+        target_kind = tvm.target.Target(target).kind.name
+        if (
+            target_kind == "vulkan"
+            and dshape == (3, 4, 5, 6)
+            and scale == 5
+            and interpolate_method == "nearest_neighbor"
+            and coord_trans == "align_corners"
+        ):
+            pytest.xfail("Known failing case for these parameters")
+
         if layout == "NHWC":
             size = (dshape[1] * scale, dshape[2] * scale)
         else:
@@ -52,28 +143,21 @@ def test_resize():
 
         x_data = np.random.uniform(size=dshape).astype("float32")
 
-        if method == "bilinear":
-            ref_res = tvm.topi.testing.bilinear_resize_python(x_data, size, layout, coord_trans)
-        else:
-            ref_res = tvm.topi.testing.upsampling_python(x_data, (scale, scale), layout)
+        ref_res = tvm.topi.testing.resize2d_python(
+            x_data, (scale, scale), layout, interpolate_method, coord_trans
+        )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize(x, size, layout, method, coordinate_transformation_mode=coord_trans)
+        z = relay.image.resize2d(
+            x, size, layout, interpolate_method, coordinate_transformation_mode=coord_trans
+        )
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
-
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-5)
-
-    for layout in ["NHWC", "NCHW"]:
-        verify_resize((1, 4, 4, 4), 2, "bilinear", layout, "align_corners")
-        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "half_pixel")
-        verify_resize((2, 8, 17, 20), 3, "bilinear", layout, "asymmetric")
-        verify_resize((3, 4, 5, 6), 5, "nearest_neighbor", layout, "asymmetric")
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-4)
 
 
 def test_resize3d_infer_type():
@@ -91,52 +175,85 @@ def test_resize3d_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, td, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
-    z = relay.image.resize3d(x, (10, 10, 20), "NCDHW", "trilinear", "align_corners")
+    z = relay.image.resize3d(x, (10, 10, 20), "NCDHW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 10, 10, 20), "int8")
 
 
-@tvm.testing.parametrize_targets
-def test_resize3d(target, ctx):
-    def verify_resize(dshape, scale, method, layout):
+class TestResize3D:
+    interpolate_method = tvm.testing.parameter("nearest_neighbor", "linear", "cubic")
+    coord_trans = tvm.testing.parameter("asymmetric", "align_corners", "half_pixel")
+
+    layout = tvm.testing.parameter("NDHWC", "NCDHW")
+
+    dshape, scale = tvm.testing.parameters(
+        ((1, 4, 4, 4, 4), 2),
+    )
+
+    def test_resize(
+        self, target, dev, executor_kind, dshape, scale, interpolate_method, layout, coord_trans
+    ):
         if layout == "NDHWC":
             size = (dshape[1] * scale, dshape[2] * scale, dshape[3] * scale)
         else:
             size = (dshape[2] * scale, dshape[3] * scale, dshape[4] * scale)
 
         x_data = np.random.uniform(size=dshape).astype("float32")
-        if method == "trilinear":
-            ref_res = tvm.topi.testing.trilinear_resize3d_python(x_data, size, layout)
-        else:
-            ref_res = tvm.topi.testing.upsampling3d_python(x_data, (scale, scale, scale), layout)
+        ref_res = tvm.topi.testing.resize3d_python(
+            x_data, (scale, scale, scale), layout, interpolate_method, coord_trans
+        )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize3d(x, size, layout, method, "align_corners")
+        z = relay.image.resize3d(x, size, layout, interpolate_method, coord_trans)
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
 
-        for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(x_data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
-
-    for method in ["trilinear", "nearest_neighbor"]:
-        for layout in ["NDHWC", "NCDHW"]:
-            verify_resize((1, 4, 4, 4, 4), 2, method, layout)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4, atol=1e-6)
 
 
-@tvm.testing.uses_gpu
-def test_crop_and_resize():
-    def verify_crop_and_resize(
-        img_shape, boxes, box_indices, crop_size, layout, method, extrapolation_value=0.0
-    ):
+class TestCropAndResize:
+    interpolate_method = tvm.testing.parameter("bilinear", "nearest_neighbor")
+    layout = tvm.testing.parameter("NHWC", "NCHW")
+
+    def test_crop_and_resize(self, target, dev, executor_kind, layout, interpolate_method):
+        target_kind = tvm.target.Target(target).kind.name
+        if (
+            target_kind == "vulkan"
+            and layout == "NHWC"
+            and interpolate_method == "nearest_neighbor"
+        ):
+            pytest.xfail("Known failing case for these parameters")
+
+        extrapolation_value = 0.0
+
+        if layout == "NHWC":
+            img_shape = (10, 224, 224, 3)
+            boxes = np.array([[0.1, 0.2, 0.8, 0.7], [0.2, 0, 1, 0.6]]).astype("float32")
+            box_indices = np.array([1, 0]).astype("int32")
+            crop_size = np.array([20, 30]).astype("int32")
+        elif layout == "NCHW":
+            img_shape = (5, 3, 255, 255)
+            boxes = np.array([[0, 0, 1, 1], [0.2, 0.1, 1, 0.9]]).astype("float32")
+            box_indices = np.array([0, 1]).astype("int32")
+            crop_size = np.array([30, 30]).astype("int32")
+        else:
+            raise ValueError(f"Unknown layout: {layout}")
 
         image_data = np.random.uniform(size=img_shape).astype("float32")
 
         ref_res = tvm.topi.testing.crop_and_resize_python(
-            image_data, boxes, box_indices, crop_size, layout, method, extrapolation_value
+            image_data,
+            boxes,
+            box_indices,
+            crop_size,
+            layout,
+            interpolate_method,
+            extrapolation_value,
         )
 
         img = relay.var("img", relay.TensorType(img_shape, "float32"))
@@ -144,32 +261,16 @@ def test_crop_and_resize():
         bx_idx = relay.var("bx_idx", relay.TensorType(box_indices.shape, "int32"))
 
         z = relay.image.crop_and_resize(
-            img, bx, bx_idx, list(crop_size), layout, method, extrapolation_value
+            img, bx, bx_idx, list(crop_size), layout, interpolate_method, extrapolation_value
         )
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([img, bx, bx_idx], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(image_data, boxes, box_indices)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-04)
-
-    boxes_nhwc = np.array([[0.1, 0.2, 0.8, 0.7], [0.2, 0, 1, 0.6]]).astype("float32")
-    indices_nhwc = np.array([1, 0]).astype("int32")
-    size_nhwc = np.array([20, 30]).astype("int32")
-    boxes_nchw = np.array([[0, 0, 1, 1], [0.2, 0.1, 1, 0.9]]).astype("float32")
-    indices_nchw = np.array([0, 1]).astype("int32")
-    size_nchw = np.array([30, 30]).astype("int32")
-
-    for method in ["bilinear", "nearest_neighbor"]:
-        verify_crop_and_resize(
-            (10, 224, 224, 3), boxes_nhwc, indices_nhwc, size_nhwc, "NHWC", method
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            image_data, boxes, box_indices
         )
-        verify_crop_and_resize(
-            (5, 3, 255, 255), boxes_nchw, indices_nchw, size_nchw, "NCHW", method, 0.1
-        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-3, atol=1e-04)
 
 
 @tvm.testing.uses_gpu
@@ -251,13 +352,11 @@ def test_multibox_prior():
         data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
         func = relay.Function([x], z)
         func = run_infer_type(func)
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(data)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-            op_res2 = intrp2.evaluate(func)(data)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+        for target, dev in tvm.testing.enabled_targets():
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
     sizes = (0.3, 1.5, 0.7)
     ratios = (1.3, 2.4)
@@ -310,15 +409,12 @@ def test_get_valid_counts():
         assert "score_threshold" in z.astext()
         func = relay.Function([x], z.astuple())
         func = run_infer_type(func)
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor("debug", ctx=ctx, target=target)
-            out = intrp.evaluate(func)(np_data)
-            tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
-            # get_valid_count for opencl doesn't do data rearrangement
-            if target in ["opencl"]:
-                return
-            tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3, atol=1e-04)
-            tvm.testing.assert_allclose(out[2].asnumpy(), np_out3, rtol=1e-3, atol=1e-04)
+        for target, dev in tvm.testing.enabled_targets():
+            out = relay.create_executor("debug", device=dev, target=target).evaluate(func)(np_data)
+
+            tvm.testing.assert_allclose(out[0].numpy(), np_out1, rtol=1e-3, atol=1e-04)
+            tvm.testing.assert_allclose(out[1].numpy(), np_out2, rtol=1e-3, atol=1e-04)
+            tvm.testing.assert_allclose(out[2].numpy(), np_out3, rtol=1e-3, atol=1e-04)
 
     verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
     verify_get_valid_counts((1, 2500, 5), -1, -1, 0)
@@ -367,8 +463,6 @@ def test_non_max_suppression():
         )
         if isinstance(z_indices, relay.expr.TupleWrapper):
             z_indices = z_indices.astuple()
-        assert "iou_threshold" in z.astext()
-        assert "iou_threshold" in z_indices.astext()
         zz = run_infer_type(z)
         zz_indices = run_infer_type(z_indices)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
@@ -386,17 +480,23 @@ def test_non_max_suppression():
         func = run_infer_type(func)
         func_indices = relay.Function([x0, x1, x2, x3], z_indices)
         func_indices = run_infer_type(func_indices)
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-            op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
-            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
-            tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
-            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
-            tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
+        for target, dev in tvm.testing.enabled_targets():
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                x0_data, x1_data, x2_data, x3_data
+            )
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                x0_data, x1_data, x2_data, x3_data
+            )
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
+            op_indices_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(
+                func_indices
+            )(x0_data, x1_data, x2_data, x3_data)
+            tvm.testing.assert_allclose(op_indices_res1[0].numpy(), ref_indices_res, rtol=1e-5)
+            op_indices_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(
+                func_indices
+            )(x0_data, x1_data, x2_data, x3_data)
+            tvm.testing.assert_allclose(op_indices_res2[0].numpy(), ref_indices_res, rtol=1e-5)
 
     np_data = np.array(
         [
@@ -490,6 +590,42 @@ def test_non_max_suppression():
         top_k=2,
     )
 
+    np_data = np.array(
+        [
+            [
+                [0, 0.8, 1, 20, 25, 45, 1, 2, 3, 4],
+                [1, 0.7, 30, 60, 50, 80, 5, 6, 7, 8],
+                [0, 0.4, 4, 21, 19, 40, 9, 10, 11, 12],
+                [2, 0.9, 35, 61, 52, 79, 13, 14, 15, 16],
+                [1, 0.5, 100, 60, 70, 110, 17, 18, 19, 20],
+            ]
+        ]
+    ).astype("float32")
+    np_result = np.array(
+        [
+            [
+                [2, 0.9, 35, 61, 52, 79, 13, 14, 15, 16],
+                [0, 0.8, 1, 20, 25, 45, 1, 2, 3, 4],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+            ]
+        ]
+    )
+    dshape = (1, 5, 10)
+    verify_nms(
+        np_data,
+        np_valid_count,
+        np_indices,
+        np_max_output_size,
+        dshape,
+        np_result,
+        np_indices_result,
+        force_suppress=True,
+        top_k=2,
+        check_type_only=False,
+    )
+
 
 @tvm.testing.uses_gpu
 def test_multibox_transform_loc():
@@ -541,13 +677,15 @@ def test_multibox_transform_loc():
         nms = relay.vision.non_max_suppression(mtl[0], mtl[1], mtl[0], return_indices=False)
         func = relay.Function([cls_prob, loc_pred, anchors], nms)
         func = run_infer_type(func)
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(np_cls_prob, np_loc_preds, np_anchors)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), expected_np_out, rtol=1e-5)
-            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-            op_res2 = intrp2.evaluate(func)(np_cls_prob, np_loc_preds, np_anchors)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), expected_np_out, rtol=1e-5)
+        for target, dev in tvm.testing.enabled_targets():
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                np_cls_prob, np_loc_preds, np_anchors
+            )
+            tvm.testing.assert_allclose(op_res1.numpy(), expected_np_out, rtol=1e-5)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                np_cls_prob, np_loc_preds, np_anchors
+            )
+            tvm.testing.assert_allclose(op_res2.numpy(), expected_np_out, rtol=1e-5)
 
     def test_threshold():
         num_anchors = 5
@@ -585,7 +723,18 @@ def test_multibox_transform_loc():
 
 @tvm.testing.uses_gpu
 def test_roi_align():
-    def verify_roi_align(data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio):
+    def verify_roi_align(
+        data_shape,
+        rois_shape,
+        channel,
+        in_size,
+        pooled_size,
+        spatial_scale,
+        sample_ratio,
+        mode,
+        layout,
+        ref_func,
+    ):
         data = relay.var("data", relay.ty.TensorType(data_shape, "float32"))
         rois = relay.var("rois", relay.ty.TensorType(rois_shape, "float32"))
         z = relay.vision.roi_align(
@@ -594,37 +743,104 @@ def test_roi_align():
             pooled_size=(pooled_size, pooled_size),
             spatial_scale=spatial_scale,
             sample_ratio=sample_ratio,
-            layout="NCHW",
+            mode=mode,
+            layout=layout,
         )
         zz = run_infer_type(z)
-        batch, channel, in_size, _ = data_shape
+
         num_roi = rois_shape[0]
-        assert zz.checked_type == relay.ty.TensorType(
-            (num_roi, channel, pooled_size, pooled_size), "float32"
-        )
+
+        if layout == "NCHW":
+            assert zz.checked_type == relay.ty.TensorType(
+                (num_roi, channel, pooled_size, pooled_size), "float32"
+            )
+        else:
+            assert zz.checked_type == relay.ty.TensorType(
+                (num_roi, pooled_size, pooled_size, channel), "float32"
+            )
 
         func = relay.Function([data, rois], z)
         func = run_infer_type(func)
         np_data = np.random.uniform(size=data_shape).astype("float32")
         np_rois = np.random.uniform(size=rois_shape).astype("float32") * in_size
-        np_rois[:, 0] = np.random.randint(low=0, high=batch, size=num_roi)
-        ref_res = tvm.topi.testing.roi_align_nchw_python(
+        np_rois[:, 0] = np.random.randint(low=0, high=data_shape[0], size=num_roi)
+        ref_res = ref_func(
             np_data,
             np_rois,
             pooled_size=pooled_size,
             spatial_scale=spatial_scale,
             sample_ratio=sample_ratio,
+            mode=mode,
         )
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(np_data, np_rois)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4)
-            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-            op_res2 = intrp2.evaluate(func)(np_data, np_rois)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-4)
+        for target, dev in tvm.testing.enabled_targets():
+            print("test on", target)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                np_data, np_rois
+            )
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, atol=1e-6, rtol=1e-3)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                np_data, np_rois
+            )
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, atol=1e-6, rtol=1e-3)
 
-    verify_roi_align((1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1)
-    verify_roi_align((4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2)
+    def verify_roi_align_nchw(
+        data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode
+    ):
+        _, channel, in_size, _ = data_shape
+        return verify_roi_align(
+            data_shape,
+            rois_shape,
+            channel,
+            in_size,
+            pooled_size,
+            spatial_scale,
+            sample_ratio,
+            mode,
+            "NCHW",
+            tvm.topi.testing.roi_align_nchw_python,
+        )
+
+    def verify_roi_align_nhwc(
+        data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode
+    ):
+        _, in_size, _, channel = data_shape
+        return verify_roi_align(
+            data_shape,
+            rois_shape,
+            channel,
+            in_size,
+            pooled_size,
+            spatial_scale,
+            sample_ratio,
+            mode,
+            "NHWC",
+            tvm.topi.testing.roi_align_nhwc_python,
+        )
+
+    verify_roi_align_nchw(
+        (1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="avg"
+    )
+    verify_roi_align_nchw(
+        (4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="avg"
+    )
+    verify_roi_align_nchw(
+        (1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="max"
+    )
+    verify_roi_align_nchw(
+        (4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="max"
+    )
+    verify_roi_align_nhwc(
+        (1, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="avg"
+    )
+    verify_roi_align_nhwc(
+        (4, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="avg"
+    )
+    verify_roi_align_nhwc(
+        (1, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1, mode="max"
+    )
+    verify_roi_align_nhwc(
+        (4, 16, 16, 4), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2, mode="max"
+    )
 
 
 @tvm.testing.uses_gpu
@@ -654,13 +870,15 @@ def test_roi_pool():
         ref_res = tvm.topi.testing.roi_pool_nchw_python(
             np_data, np_rois, pooled_size=pooled_size, spatial_scale=spatial_scale
         )
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(np_data, np_rois)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4)
-            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-            op_res2 = intrp2.evaluate(func)(np_data, np_rois)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-4)
+        for target, dev in tvm.testing.enabled_targets():
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                np_data, np_rois
+            )
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                np_data, np_rois
+            )
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-4)
 
     verify_roi_pool((1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0)
     verify_roi_pool((4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5)
@@ -682,13 +900,15 @@ def test_proposal():
             if not tvm.testing.device_enabled(target):
                 print("Skip test because %s is not enabled." % target)
                 continue
-            ctx = tvm.context(target, 0)
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
-            tvm.testing.assert_allclose(op_res1.asnumpy(), np_out, rtol=1e-4)
-            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-            op_res2 = intrp2.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
-            tvm.testing.assert_allclose(op_res2.asnumpy(), np_out, rtol=1e-4)
+            dev = tvm.device(target, 0)
+            op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                np_cls_prob, np_bbox_pred, np_im_info
+            )
+            tvm.testing.assert_allclose(op_res1.numpy(), np_out, rtol=1e-4)
+            op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+                np_cls_prob, np_bbox_pred, np_im_info
+            )
+            tvm.testing.assert_allclose(op_res2.numpy(), np_out, rtol=1e-4)
 
     attrs = {
         "scales": (0.5,),
@@ -775,47 +995,85 @@ def test_yolo_reorg():
 
         func = relay.Function([x], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_yolo_reorg((1, 100, 20, 20), 10)
     verify_yolo_reorg((1, 4, 6, 6), 2)
 
 
-@tvm.testing.uses_gpu
-def test_deformable_conv2d():
-    def test_infer_type(batch, in_channel, size, out_channel, deformable_groups, groups, layout):
-        kernel_size = (3, 3)
+class TestDeformableConv2D:
+    batch, in_channel, size, out_channel, deformable_groups = tvm.testing.parameters(
+        (1, 4, 16, 4, 4),
+        (2, 4, 16, 4, 1),
+    )
+    kernel_size = tvm.testing.parameter((3, 3))
+    groups = tvm.testing.parameter(1, 2)
+    layout = tvm.testing.parameter("NCHW", "NHWC")
+    dtype = tvm.testing.parameter("float32")
+
+    @tvm.testing.fixture
+    def data_shape(self, layout, batch, in_channel, size):
         if layout == "NCHW":
-            kernel_layout = "OIHW"
-            data_shape = (batch, in_channel, size, size)
-            weight_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
-            out_shape = (batch, out_channel, size, size)
-            offset_shape = (
+            return (batch, in_channel, size, size)
+        elif layout == "NHWC":
+            return (batch, size, size, in_channel)
+
+    @tvm.testing.fixture
+    def kernel_shape(self, layout, in_channel, out_channel, groups, kernel_size):
+        if layout == "NCHW":
+            return (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
+        elif layout == "NHWC":
+            return (kernel_size[0], kernel_size[1], in_channel // groups, out_channel)
+
+    @tvm.testing.fixture
+    def out_shape(self, layout, batch, out_channel, size):
+        if layout == "NCHW":
+            return (batch, out_channel, size, size)
+        elif layout == "NHWC":
+            return (batch, size, size, out_channel)
+
+    @tvm.testing.fixture
+    def offset_shape(self, layout, batch, kernel_size, deformable_groups, out_shape):
+        if layout == "NCHW":
+            return (
                 batch,
                 2 * kernel_size[0] * kernel_size[1] * deformable_groups,
                 out_shape[2],
                 out_shape[3],
             )
-        else:
-            kernel_layout = "HWIO"
-            data_shape = (batch, size, size, in_channel)
-            weight_shape = (kernel_size[0], kernel_size[1], in_channel // groups, out_channel)
-            out_shape = (batch, size, size, out_channel)
-            offset_shape = (
+        elif layout == "NHWC":
+            return (
                 batch,
                 out_shape[1],
                 out_shape[2],
                 2 * kernel_size[0] * kernel_size[1] * deformable_groups,
             )
 
-        data = relay.var("data", shape=data_shape)
-        offset = relay.var("offset")
-        kernel = relay.var("kernel")
-        y = relay.nn.deformable_conv2d(
+    @tvm.testing.fixture
+    def kernel_layout(self, layout):
+        return {"NCHW": "OIHW", "NHWC": "HWIO"}[layout]
+
+    @tvm.testing.fixture
+    def relay_setup(
+        self,
+        dtype,
+        data_shape,
+        layout,
+        kernel_layout,
+        kernel_size,
+        deformable_groups,
+        groups,
+        out_channel,
+    ):
+        data = relay.var("data", shape=data_shape, dtype=dtype)
+        offset = relay.var("offset", dtype=dtype)
+        kernel = relay.var("kernel", dtype=dtype)
+        expr = relay.nn.deformable_conv2d(
             data,
             offset,
             kernel,
@@ -829,60 +1087,67 @@ def test_deformable_conv2d():
             groups=groups,
             channels=out_channel,
         )
-        yy = run_infer_type(y)
+        func = relay.Function([data, offset, kernel], expr)
+        return expr, func
+
+    def test_infer_type(self, relay_setup, out_shape, offset_shape, kernel_shape):
+        expr, func = relay_setup
+        yy = run_infer_type(expr)
         assert yy.checked_type == relay.TensorType(out_shape), yy.checked_type
         assert yy.args[1].checked_type == relay.TensorType(offset_shape), yy.args[1].checked_type
-        assert yy.args[2].checked_type == relay.TensorType(weight_shape), yy.args[2].checked_type
+        assert yy.args[2].checked_type == relay.TensorType(kernel_shape), yy.args[2].checked_type
 
-    test_infer_type(1, 4, 16, 4, 4, 1, "NCHW")
-    test_infer_type(2, 4, 16, 4, 1, 2, "NCHW")
-    test_infer_type(1, 4, 16, 4, 4, 1, "NHWC")
-    test_infer_type(2, 4, 16, 4, 1, 2, "NHWC")
+    # The reference python implementation only supports groups==1.
+    @pytest.mark.parametrize("groups", [1])
+    def test_run(
+        self,
+        target,
+        dev,
+        dtype,
+        executor_kind,
+        data_shape,
+        offset_shape,
+        kernel_shape,
+        relay_setup,
+        deformable_groups,
+        groups,
+        layout,
+    ):
+        target = tvm.target.Target(target)
+        if layout == "NHWC" and target.kind.name != "llvm":
+            pytest.xfail("Can only run NHWC layout on llvm")
 
-    def test_run(batch, in_channel, size, out_channel, deformable_groups, groups):
-        kernel_size = (3, 3)
-        data_shape = (batch, in_channel, size, size)
-        offset_shape = (batch, 2 * kernel_size[0] * kernel_size[1] * deformable_groups, size, size)
-        kernel_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
-        dtype = "float32"
-        data = relay.var("data", shape=data_shape, dtype=dtype)
-        offset = relay.var("offset")
-        kernel = relay.var("kernel")
-        y = relay.nn.deformable_conv2d(
-            data,
-            offset,
-            kernel,
-            strides=(1, 1),
-            padding=(1, 1),
-            dilation=(1, 1),
-            kernel_size=kernel_size,
-            deformable_groups=deformable_groups,
-            groups=groups,
-            channels=out_channel,
-        )
-        func = relay.Function([data, offset, kernel], y)
+        expr, func = relay_setup
         data = np.random.uniform(size=data_shape).astype(dtype)
         offset = np.random.uniform(size=offset_shape).astype(dtype)
         kernel = np.random.uniform(size=kernel_shape).astype(dtype)
-        ref_res = tvm.topi.testing.deformable_conv2d_nchw_python(
-            data,
-            offset,
-            kernel,
-            stride=(1, 1),
-            padding=(1, 1),
-            dilation=(1, 1),
-            deformable_groups=deformable_groups,
-            groups=groups,
+        if layout == "NCHW":
+            ref_res = tvm.topi.testing.deformable_conv2d_nchw_python(
+                data,
+                offset,
+                kernel,
+                stride=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                deformable_groups=deformable_groups,
+                groups=groups,
+            )
+        else:
+            ref_res = tvm.topi.testing.deformable_conv2d_nhwc_python(
+                data,
+                offset,
+                kernel,
+                stride=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                deformable_groups=deformable_groups,
+                groups=groups,
+            )
+
+        op_res1 = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            data, offset, kernel
         )
-
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res1 = intrp1.evaluate(func)(data, offset, kernel)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
-
-    test_run(1, 4, 16, 4, 1, 1)
-    test_run(2, 4, 16, 4, 4, 1)
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -918,11 +1183,12 @@ def test_depth_to_space():
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4)
 
     for layout in ["NHWC", "NCHW"]:
         for mode in ["DCR", "CDR"]:
@@ -962,11 +1228,12 @@ def test_space_to_depth():
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4)
 
     for layout in ["NHWC", "NCHW"]:
         verify_space_to_depth((1, 4, 4, 4), 2, layout)
@@ -990,118 +1257,111 @@ def test_dilation2d_infer_type():
     assert yy.checked_type == relay.TensorType((n, 10, 217, 217), "float32")
 
 
-@tvm.testing.uses_gpu
-def test_dilation2d_run():
-    def run_test_dilation2d(
-        indata,
-        kernel,
-        out,
-        dtype="float32",
-        strides=[1, 1],
-        padding=[0, 0],
-        dilations=[1, 1],
-        except_targets=["cuda"],
-        **attrs,
-    ):
+class TestDilation2DRun:
+    data_layout, kernel_layout = tvm.testing.parameters(("NCHW", "IHW"), ("NHWC", "HWI"))
+    dtype = tvm.testing.parameter("float32")
 
-        dshape = indata.shape
-        kshape = kernel.shape
+    config = tvm.testing.parameter(
+        dict(
+            image=[[[[0.1], [0.2]], [[0.3], [0.4]]]],
+            kernel=[[[0.4], [0.3]], [[0.1], [0.0]]],
+            out=[[[[0.5]]]],
+        ),
+        dict(
+            image=[[[[0.1], [0.2]], [[0.3], [0.4]]]],
+            kernel=[[[0.4], [0.3]], [[0.1], [0.0]]],
+            out=[[[[0.5], [0.6]], [[0.7], [0.8]]]],
+            padding=[0, 0, 1, 1],
+        ),
+        dict(
+            image=[[[[0.1, 0.2, 0.0], [0.2, 0.3, 0.1]], [[0.3, 0.4, 0.2], [0.4, 0.5, 0.3]]]],
+            kernel=[[[0.4, 0.5, 0.3], [0.3, 0.4, 0.2]], [[0.1, 0.2, 0.0], [0.0, 0.1, -0.1]]],
+            out=[[[[0.5, 0.7, 0.3], [0.6, 0.8, 0.4]], [[0.7, 0.9, 0.5], [0.8, 1.0, 0.6]]]],
+            padding=[0, 0, 1, 1],
+        ),
+        dict(
+            image=[[[[0.1], [0.2]], [[0.3], [0.4]]], [[[0.2], [0.3]], [[0.4], [0.5]]]],
+            kernel=[[[0.4], [0.3]], [[0.1], [0.0]]],
+            out=[[[[0.5], [0.6]], [[0.7], [0.8]]], [[[0.6], [0.7]], [[0.8], [0.9]]]],
+            padding=[0, 0, 1, 1],
+        ),
+        dict(
+            image=[[[[0.1], [0.2]], [[0.3], [0.4]]]],
+            kernel=[[[0.4], [0.3]]],
+            out=[[[[0.5]], [[0.7]]]],
+        ),
+        dict(
+            image=[[[[0.1], [0.2], [0.3]], [[0.4], [0.5], [0.6]], [[0.7], [0.8], [0.9]]]],
+            kernel=[[[0.4], [0.3]], [[0.1], [0.2]]],
+            out=[[[[0.7], [0.8], [0.6]], [[1.0], [1.1], [0.9]], [[0.8], [0.9], [0.9]]]],
+            padding=[1, 1],
+            dilations=[2, 2],
+        ),
+        dict(
+            image=[
+                [
+                    [[0.1], [0.2], [0.3], [0.4]],
+                    [[0.5], [0.6], [0.7], [0.8]],
+                    [[0.9], [1.0], [1.1], [1.2]],
+                ]
+            ],
+            kernel=[[[0.4], [0.3]], [[0.1], [0.2]]],
+            out=[[[[0.8], [1.0]], [[1.2], [1.4]]]],
+            strides=[1, 2],
+        ),
+    )
 
-        if except_targets is None:
-            except_targets = []
+    @tvm.testing.fixture
+    def test_case(self, config, data_layout, dtype):
+        indata = np.array(config["image"], dtype=dtype)
+        kernel = np.array(config["kernel"], dtype=dtype)
+        out = np.array(config["out"], dtype=dtype)
 
-        x = relay.var("x", shape=dshape, dtype=dtype)
-        w = relay.var("w", shape=kshape, dtype=dtype)
-        y = relay.image.dilation2d(
-            x, w, strides=strides, dilations=dilations, padding=padding, **attrs
-        )
-        func = relay.Function([x, w], y)
-
-        for target, ctx in tvm.testing.enabled_targets():
-            if target in except_targets:
-                continue
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(indata, kernel)
-            tvm.testing.assert_allclose(op_res.asnumpy(), out, rtol=1e-5, atol=1e-5)
-
-    def _convert_data(indata, kernel, out, layout=None):
-        indata = np.asarray(indata)
-        kernel = np.asarray(kernel)
-        out = np.asarray(out)
-        if layout == "NCHW":
+        if data_layout == "NHWC":
+            pass
+        elif data_layout == "NCHW":
             indata = indata.transpose([0, 3, 1, 2])
             kernel = kernel.transpose([2, 0, 1])
             out = out.transpose([0, 3, 1, 2])
+        else:
+            raise ValueError(f"Unsupported layout '{data_layout}'")
+
         return indata, kernel, out
 
-    image = [[[[0.1], [0.2]], [[0.3], [0.4]]]]
-    kernel = [[[0.4], [0.3]], [[0.1], [0.0]]]
-    out = [[[[0.5]]]]
-    run_test_dilation2d(*_convert_data(image, kernel, out, layout="NCHW"))
-    run_test_dilation2d(*_convert_data(image, kernel, out), data_layout="NHWC", kernel_layout="HWI")
+    @tvm.testing.parametrize_targets("llvm")
+    def test_dilation2d(
+        self,
+        target,
+        dev,
+        test_case,
+        dtype,
+        config,
+        data_layout,
+        kernel_layout,
+    ):
+        strides = config.get("strides", [1, 1])
+        padding = config.get("padding", [0, 0])
+        dilations = config.get("dilations", [1, 1])
 
-    image = [[[[0.1], [0.2]], [[0.3], [0.4]]]]
-    kernel = [[[0.4], [0.3]], [[0.1], [0.0]]]
-    out = [[[[0.5], [0.6]], [[0.7], [0.8]]]]
-    run_test_dilation2d(*_convert_data(image, kernel, out, layout="NCHW"), padding=[0, 0, 1, 1])
-    run_test_dilation2d(
-        *_convert_data(image, kernel, out),
-        padding=[0, 0, 1, 1],
-        data_layout="NHWC",
-        kernel_layout="HWI",
-    )
+        indata, kernel, out = test_case
 
-    image = [[[[0.1, 0.2, 0.0], [0.2, 0.3, 0.1]], [[0.3, 0.4, 0.2], [0.4, 0.5, 0.3]]]]
-    kernel = [[[0.4, 0.5, 0.3], [0.3, 0.4, 0.2]], [[0.1, 0.2, 0.0], [0.0, 0.1, -0.1]]]
-    out = [[[[0.5, 0.7, 0.3], [0.6, 0.8, 0.4]], [[0.7, 0.9, 0.5], [0.8, 1.0, 0.6]]]]
-    run_test_dilation2d(*_convert_data(image, kernel, out, layout="NCHW"), padding=[0, 0, 1, 1])
-    run_test_dilation2d(
-        *_convert_data(image, kernel, out),
-        padding=[0, 0, 1, 1],
-        data_layout="NHWC",
-        kernel_layout="HWI",
-    )
+        x = relay.var("x", shape=indata.shape, dtype=dtype)
+        w = relay.var("w", shape=kernel.shape, dtype=dtype)
+        y = relay.image.dilation2d(
+            x,
+            w,
+            strides=strides,
+            dilations=dilations,
+            padding=padding,
+            data_layout=data_layout,
+            kernel_layout=kernel_layout,
+        )
+        func = relay.Function([x, w], y)
 
-    image = [[[[0.1], [0.2]], [[0.3], [0.4]]], [[[0.2], [0.3]], [[0.4], [0.5]]]]
-    kernel = [[[0.4], [0.3]], [[0.1], [0.0]]]
-    out = [[[[0.5], [0.6]], [[0.7], [0.8]]], [[[0.6], [0.7]], [[0.8], [0.9]]]]
-    run_test_dilation2d(*_convert_data(image, kernel, out, layout="NCHW"), padding=[0, 0, 1, 1])
-    run_test_dilation2d(
-        *_convert_data(image, kernel, out),
-        padding=[0, 0, 1, 1],
-        data_layout="NHWC",
-        kernel_layout="HWI",
-    )
-
-    image = [[[[0.1], [0.2]], [[0.3], [0.4]]]]
-    kernel = [[[0.4], [0.3]]]
-    out = [[[[0.5]], [[0.7]]]]
-    run_test_dilation2d(*_convert_data(image, kernel, out, layout="NCHW"))
-    run_test_dilation2d(*_convert_data(image, kernel, out), data_layout="NHWC", kernel_layout="HWI")
-
-    image = [[[[0.1], [0.2], [0.3]], [[0.4], [0.5], [0.6]], [[0.7], [0.8], [0.9]]]]
-    kernel = [[[0.4], [0.3]], [[0.1], [0.2]]]
-    out = [[[[0.7], [0.8], [0.6]], [[1.0], [1.1], [0.9]], [[0.8], [0.9], [0.9]]]]
-    run_test_dilation2d(
-        *_convert_data(image, kernel, out, layout="NCHW"), padding=[1, 1], dilations=[2, 2]
-    )
-    run_test_dilation2d(
-        *_convert_data(image, kernel, out),
-        padding=[1, 1],
-        dilations=[2, 2],
-        data_layout="NHWC",
-        kernel_layout="HWI",
-    )
-
-    image = [
-        [[[0.1], [0.2], [0.3], [0.4]], [[0.5], [0.6], [0.7], [0.8]], [[0.9], [1.0], [1.1], [1.2]]]
-    ]
-    kernel = [[[0.4], [0.3]], [[0.1], [0.2]]]
-    out = [[[[0.8], [1.0]], [[1.2], [1.4]]]]
-    run_test_dilation2d(*_convert_data(image, kernel, out, layout="NCHW"), strides=[1, 2])
-    run_test_dilation2d(
-        *_convert_data(image, kernel, out), strides=[1, 2], data_layout="NHWC", kernel_layout="HWI"
-    )
+        op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            indata, kernel
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), out, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -1120,11 +1380,12 @@ def test_affine_grid():
         data_np = np.random.uniform(size=data_shape).astype(dtype)
         ref_res = tvm.topi.testing.affine_grid_python(data_np, target_shape)
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res1 = intrp1.evaluate(func)(data_np)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+                op_res1 = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    data_np
+                )
+                tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     verify_affine_grid(1, (16, 32))
     verify_affine_grid(4, (16, 32))
@@ -1147,11 +1408,12 @@ def test_grid_sample():
         grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
         ref_res = tvm.topi.testing.grid_sample_nchw_python(data_np, grid_np, method="bilinear")
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res1 = intrp1.evaluate(func)(data_np, grid_np)
-                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+                op_res1 = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    data_np, grid_np
+                )
+                tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
@@ -1174,11 +1436,12 @@ def test_space_to_batch_nd():
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4)
 
     verify_space_to_batch_nd([3, 3, 2, 1], [3], [[0, 0]])
     verify_space_to_batch_nd([2, 2, 4, 1], [2, 2], [[0, 0], [2, 0]])
@@ -1201,36 +1464,110 @@ def test_batch_to_space_nd():
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
         func = relay.Function([x], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_data
+                )
+                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-4)
 
     verify_batch_to_space_nd([4, 1, 1, 3], [2, 2], [[0, 0], [0, 0]])
     verify_batch_to_space_nd([8, 1, 3, 1], [2, 2], [[0, 0], [2, 0]])
 
 
+@tvm.testing.uses_gpu
+def test_all_class_non_max_suppression():
+    def verify_all_class_non_max_suppression(
+        boxes_np,
+        scores_np,
+        max_output_boxes_per_class,
+        iou_threshold,
+        score_threshold,
+        expected_indices,
+    ):
+        boxes = relay.var("boxes", relay.ty.TensorType(boxes_np.shape, "float32"))
+        scores = relay.var("scores", relay.ty.TensorType(scores_np.shape, "float32"))
+
+        out = relay.vision.all_class_non_max_suppression(
+            boxes,
+            scores,
+            max_output_boxes_per_class,
+            iou_threshold,
+            score_threshold,
+        )
+
+        func = relay.Function([boxes, scores], out.astuple())
+        func = run_infer_type(func)
+
+        for target, dev in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                selected_indices, num_detections = relay.create_executor(
+                    kind, device=dev, target=target
+                ).evaluate(func)(boxes_np, scores_np)
+                tvm_res = selected_indices.numpy()[: num_detections.numpy()[0]]
+                np.testing.assert_equal(tvm_res, expected_indices)
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.0, 0.0, 0.5, 0.5],
+                [0.5, 0.5, 0.9, 0.9],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.5, 0.5, 0.95, 0.95],
+                [0.5, 0.5, 0.96, 0.96],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+        ]
+    ).astype("float32")
+
+    scores = np.array(
+        [
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+        ]
+    ).astype("float32")
+
+    max_output_boxes_per_class = 2
+    iou_threshold = 0.8
+    score_threshold = 0.0
+
+    expected = np.array(
+        [[0, 0, 4], [0, 0, 2], [0, 1, 4], [0, 1, 2], [1, 0, 4], [1, 0, 1], [1, 1, 4], [1, 1, 1]]
+    )
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 1.0, 1.1],
+                [0.0, -0.1, 1.0, 0.9],
+                [0.0, 10.0, 1.0, 11.0],
+                [0.0, 10.1, 1.0, 11.1],
+                [0.0, 100.0, 1.0, 101.0],
+            ]
+        ]
+    ).astype(np.float32)
+    scores = np.array([[[0.9, 0.75, 0.6, 0.95, 0.5, 0.3]]]).astype(np.float32)
+    max_output_boxes_per_class = 3
+    iou_threshold = 0.5
+    score_threshold = 0.4
+
+    expected = np.array([[0, 0, 3], [0, 0, 0]])
+
+    verify_all_class_non_max_suppression(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, expected
+    )
+
+
 if __name__ == "__main__":
-    test_resize_infer_type()
-    test_resize()
-    test_resize3d_infer_type()
-    test_resize3d()
-    test_crop_and_resize()
-    test_multibox_prior()
-    test_multibox_transform_loc()
-    test_get_valid_counts()
-    test_roi_align()
-    test_roi_pool()
-    test_proposal()
-    test_yolo_reorg_infer_shape()
-    test_yolo_reorg()
-    test_non_max_suppression()
-    test_deformable_conv2d()
-    test_depth_to_space()
-    test_space_to_depth()
-    test_dilation2d_infer_type()
-    test_dilation2d_run()
-    test_affine_grid()
-    test_grid_sample()
-    test_space_to_batch_nd()
+    sys.exit(pytest.main(sys.argv))

@@ -16,19 +16,20 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Arm Compute Library supported operators."""
-import numpy as np
 import tvm
-
-from tvm.relay.expr import const
+from tvm import relay
+from tvm._ffi import register_func
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.expr import const
 
-from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr
+from ...dataflow_pattern import is_constant, is_expr, is_op, wildcard
+from ..strategy.generic import is_depthwise_conv2d
 from .register import register_pattern_table
 
 
 def is_arm_compute_runtime_enabled():
-    """Check if the ACL graph runtime is present.
+    """Check if the ACL graph executor is present.
 
     Returns
     -------
@@ -41,7 +42,7 @@ def is_arm_compute_runtime_enabled():
     return False
 
 
-def partition_for_arm_compute_lib(mod, params=None):
+def partition_for_arm_compute_lib(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Compute Library.
 
@@ -63,12 +64,67 @@ def partition_for_arm_compute_lib(mod, params=None):
         [
             transform.InferType(),
             transform.MergeComposite(arm_compute_lib_pattern_table()),
-            transform.AnnotateTarget("arm_compute_lib"),
+            transform.AnnotateTarget("arm_compute_lib", False),
             transform.PartitionGraph(),
         ]
     )
 
     return seq(mod)
+
+
+@register_func("relay.ext.arm_compute_lib.optimize")
+def preprocess_module(mod):
+    """
+    Pre-process a module containing functions ready for ACL codegen. For now we enforce OHWI
+    kernel layout and fold the transforms away.
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+
+    Returns
+    -------
+    preprocessed_mod : The processed module.
+    """
+
+    def convert_layout_conv2d(conv2d_function):
+        def convert_conv(attrs, inputs, tinfos, desired_layouts):
+            new_attrs = dict(attrs)
+            data_info = tinfos[0]
+            weight_info = tinfos[1]
+            desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+            new_attrs["data_layout"] = desired_data_layout
+            new_attrs["kernel_layout"] = desired_kernel_layout
+
+            if is_depthwise_conv2d(
+                data_info.shape,
+                attrs["data_layout"],
+                weight_info.shape,
+                attrs["kernel_layout"],
+                attrs["groups"],
+            ):
+                dkl = desired_kernel_layout
+                new_attrs["kernel_layout"] = dkl[3] + dkl[1:3] + dkl[0]
+            return conv2d_function(*inputs, **new_attrs)
+
+        return convert_conv
+
+    with OpAttrContext(
+        "nn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.nn.conv2d)
+    ), OpAttrContext(
+        "qnn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.qnn.op.conv2d)
+    ):
+        seq = tvm.transform.Sequential(
+            [
+                transform.ConvertLayout(
+                    {"nn.conv2d": ["NHWC", "OHWI"], "qnn.conv2d": ["NHWC", "OHWI"]}
+                ),
+                transform.FoldConstant(),
+            ]
+        )
+        preprocessed_mod = seq(mod)
+    return preprocessed_mod
 
 
 @register_pattern_table("arm_compute_lib")
@@ -83,7 +139,7 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op("nn.pad")(wildcard()) | wildcard()
+        pattern = is_op("nn.pad")(wildcard(), wildcard()) | wildcard()
         pattern = is_op("nn.conv2d")(pattern, is_constant())
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         pattern = pattern.optional(is_op("nn.relu"))
@@ -97,7 +153,7 @@ def arm_compute_lib_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the convolution pattern.
         """
-        pattern = is_op("nn.pad")(wildcard()) | wildcard()
+        pattern = is_op("nn.pad")(wildcard(), wildcard()) | wildcard()
         pattern = is_op("qnn.conv2d")(
             pattern, is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
         )
@@ -236,8 +292,6 @@ _register_external_op_helper("reshape")
 def conv2d(expr):
     """Check if the external ACL codegen for conv2d should be used."""
     attrs, args = expr.attrs, expr.args
-    if attrs.groups != 1:
-        return False
     if attrs.data_layout != "NHWC":
         return False
     if attrs.out_dtype != "float32" and attrs.out_dtype != "":
@@ -248,14 +302,25 @@ def conv2d(expr):
     kernel_typ = args[1].checked_type
     if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "float32":
         return False
+    is_depthwise = is_depthwise_conv2d(
+        data_typ.shape,
+        attrs["data_layout"],
+        kernel_typ.shape,
+        attrs["kernel_layout"],
+        attrs["groups"],
+    )
+    if is_depthwise:
+        return depthwise_conv2d(attrs, args)
+    # ACL doesn't support grouped convolution
+    if attrs.groups != 1 and not is_depthwise:
+        return False
     return True
 
 
 def qnn_conv2d(expr):
     """Check if the external ACL codegen for qnn.conv2d should be used."""
     attrs, args = expr.attrs, expr.args
-    if attrs.groups != 1:
-        return False
+
     if attrs.data_layout != "NHWC":
         return False
     if attrs.out_dtype != "int32" and attrs.out_dtype != "":
@@ -265,6 +330,40 @@ def qnn_conv2d(expr):
         return False
     kernel_typ = args[1].checked_type
     if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "uint8":
+        return False
+    is_depthwise = is_depthwise_conv2d(
+        data_typ.shape,
+        attrs["data_layout"],
+        kernel_typ.shape,
+        attrs["kernel_layout"],
+        attrs["groups"],
+    )
+    if is_depthwise:
+        return depthwise_conv2d(attrs, args)
+    # ACL doesn't support grouped convolution
+    if attrs.groups != 1 and not is_depthwise:
+        return False
+    return True
+
+
+def depthwise_conv2d(attrs, args):
+    """Check if the external ACL codegen for depthwise convolution should be used.
+
+    Note
+    ----
+    Relay does not have a depthwise conv2d operator whilst ACL does. We simply
+    separate the checks for depthwise for clarity.
+    """
+    kernel_typ = args[1].checked_type
+    # Only supports 3x3, 5x5 depthwise
+    if (
+        kernel_typ.shape[0] not in [3, 5]
+        or kernel_typ.shape[1] not in [3, 5]
+        or kernel_typ.shape[0] != kernel_typ.shape[1]
+    ):
+        return False
+    # Stride must be (1, 1) or (2, 2)
+    if (attrs.strides[0], attrs.strides[1]) not in [(1, 1), (2, 2)]:
         return False
     return True
 
@@ -281,7 +380,7 @@ def dense(expr):
         return False
     if attrs.out_dtype != "float32" and attrs.out_dtype != "":
         return False
-    return not require_padding([*args, expr.checked_type])
+    return True
 
 
 def qnn_dense(expr):
@@ -295,7 +394,15 @@ def qnn_dense(expr):
         return False
     if attrs.out_dtype != "int32":
         return False
-    return not require_padding([*args, expr.checked_type])
+    return True
+
+
+def check_dilation(attrs):
+    """Prevents offloading if dilation other than (1, 1)"""
+    if not isinstance(attrs, relay.op.op_attrs.GlobalPool2DAttrs):
+        if not (len(attrs.dilation) == 2 and attrs.dilation[0] == 1 and attrs.dilation[1] == 1):
+            return False
+    return True
 
 
 @tvm.ir.register_op_attr("nn.max_pool2d", "target.arm_compute_lib")
@@ -307,33 +414,7 @@ def max_pool2d(expr):
     typ = args[0].checked_type
     if typ.dtype not in ["float32", "uint8"]:
         return False
-    return not require_padding([*args, expr.checked_type])
-
-
-def require_padding(inputs):
-    """Checks whether supplied data will require padding.
-    Most of the operators ACL up to 20.11 uses padded data.
-    """
-
-    def _check(shape, dtype):
-        """NEON has 128bits/16bytes per vector"""
-        if len(shape) == 0:
-            return False
-        return (shape[-1] * np.dtype(dtype).itemsize) % 16 != 0
-
-    for i in inputs:
-        if isinstance(i, (tvm.relay.expr.Var, tvm.relay.expr.Call)):
-            if _check(i.checked_type.shape, i.checked_type.dtype):
-                return True
-        elif isinstance(i, tvm.relay.expr.Constant):
-            if _check(i.data.shape, i.data.dtype):
-                return True
-        elif isinstance(i, tvm.ir.tensor_type.TensorType):
-            if _check(i.shape, i.dtype):
-                return True
-        else:
-            raise RuntimeException("Not supported input type: %s" % type(i))
-    return False
+    return check_dilation(attrs)
 
 
 @tvm.ir.register_op_attr("nn.avg_pool2d", "target.arm_compute_lib")
@@ -351,7 +432,7 @@ def avg_pool2d(expr, from_quantized_composite=False):
     if attrs.layout != "NHWC":
         return False
 
-    return not require_padding([*args, expr.checked_type])
+    return check_dilation(attrs)
 
 
 @tvm.ir.register_op_attr("nn.global_max_pool2d", "target.arm_compute_lib")
@@ -363,7 +444,7 @@ def global_max_pool2d(expr):
         return False
     if attrs.layout != "NHWC":
         return False
-    return not require_padding([*args, expr.checked_type])
+    return True
 
 
 @tvm.ir.register_op_attr("nn.global_avg_pool2d", "target.arm_compute_lib")
@@ -375,7 +456,7 @@ def global_avg_pool2d(expr):
         return False
     if attrs.layout != "NHWC":
         return False
-    return not require_padding([*args, expr.checked_type])
+    return True
 
 
 @tvm.ir.register_op_attr("maximum", "target.arm_compute_lib")
@@ -407,3 +488,36 @@ def qnn_add(expr):
             return False
 
     return True
+
+
+class OpAttrContext(object):
+    """Temporarily changes the attr of an op."""
+
+    def __init__(self, op_name, attr_key, attr_value):
+        """Saves the required info for RAII pattern usage.
+
+        Parameters
+        ----------
+        op_name : str
+            The op name.
+
+        attr_key : str
+            The attribute name.
+
+        attr_value : object
+            The attribute value.
+        """
+        self.op = relay.op.get(op_name)
+        self.attr_key = attr_key
+        self.attr_value = attr_value
+
+    def __enter__(self):
+        self.older_attr = self.op.get_attr(self.attr_key)
+        self.op.reset_attr(self.attr_key)
+        self.op.set_attr(self.attr_key, self.attr_value)
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        self.op.reset_attr(self.attr_key)
+        if self.older_attr:
+            self.op.set_attr(self.attr_key, self.older_attr)

@@ -35,14 +35,14 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.gpu(0)
+        dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
-        a = tvm.nd.array(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), np.dot(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)), rtol=rtol
+            c.numpy(), np.dot(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)), rtol=rtol
         )
 
     verify()
@@ -70,7 +70,7 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.cublaslt.matmul", True):
             print("skip because extern function is not available")
             return
-        ctx = tvm.gpu(0)
+        dev = tvm.cuda(0)
         f = tvm.build(s, [A, B, C], target)
         a_old = np.random.uniform(0, 128, size=(n, l))
         b_old = np.random.uniform(0, 128, size=(l, m))
@@ -95,12 +95,12 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
         )
         b_new = b_new.reshape([m, L])
 
-        a = tvm.nd.array(a_new.astype(A.dtype), ctx)
-        b = tvm.nd.array(b_new.astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros((m, N_out), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_new.astype(A.dtype), dev)
+        b = tvm.nd.array(b_new.astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros((m, N_out), dtype=C.dtype), dev)
         f(a, b, c)
         # Transform output c from layout CUBLASLT_ORDER_COL32 to row major layout
-        c_out = c.asnumpy()
+        c_out = c.numpy()
         c_out = c_out.reshape([int(m * N_out / 32), 32])
         c_out = np.hstack(np.vsplit(c_out, int(N_out / 32)))
         c_out = c_out[:, :n]
@@ -112,33 +112,23 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
     verify()
 
 
-def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
-    j = 16
-    n = 1024
-    l = 128
-    m = 236
-    A = te.placeholder((j, n, l), name="A", dtype=in_dtype)
-    B = te.placeholder((j, l, m), name="B", dtype=in_dtype)
+def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
+    A = te.placeholder(Ashape, name="A", dtype=in_dtype)
+    B = te.placeholder(Bshape, name="B", dtype=in_dtype)
     C = cublas.batch_matmul(A, B, dtype=out_dtype)
     s = te.create_schedule(C.op)
 
-    def verify(target="cuda"):
-        if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
-            print("skip because extern function is not available")
-            return
-        ctx = tvm.gpu(0)
-        f = tvm.build(s, [A, B, C], target)
-        a = tvm.nd.array(np.random.uniform(size=(j, n, l)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=(j, l, m)).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros((j, n, m), dtype=C.dtype), ctx)
-        f(a, b, c)
-        tvm.testing.assert_allclose(
-            c.asnumpy(),
-            np.matmul(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)).astype(C.dtype),
-            rtol=rtol,
-        )
-
-    verify()
+    dev = tvm.cuda(0)
+    f = tvm.build(s, [A, B, C], "cuda")
+    a = tvm.nd.array(np.random.uniform(size=Ashape).astype(A.dtype), dev)
+    b = tvm.nd.array(np.random.uniform(size=Bshape).astype(B.dtype), dev)
+    c = tvm.nd.array(np.zeros(Cshape, dtype=C.dtype), dev)
+    f(a, b, c)
+    tvm.testing.assert_allclose(
+        c.numpy(),
+        np.matmul(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)).astype(C.dtype),
+        rtol=rtol,
+    )
 
 
 @tvm.testing.requires_cuda
@@ -156,9 +146,20 @@ def test_matmul_add_igemm():
 
 @tvm.testing.requires_cuda
 def test_batch_matmul():
-    verify_batch_matmul("float", "float")
-    verify_batch_matmul("float16", "float")
-    verify_batch_matmul("float16", "float16", rtol=1e-2)
+    if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
+        print("skip because extern function is not available")
+        return
+
+    verify_batch_matmul((16, 1024, 128), (16, 128, 236), (16, 1024, 236), "float", "float")
+    verify_batch_matmul((16, 1024, 128), (1, 128, 236), (16, 1024, 236), "float", "float")
+    verify_batch_matmul((16, 1024, 128), (16, 128, 236), (16, 1024, 236), "float16", "float")
+    verify_batch_matmul((16, 1024, 128), (1, 128, 236), (16, 1024, 236), "float16", "float")
+    verify_batch_matmul(
+        (16, 1024, 128), (16, 128, 236), (16, 1024, 236), "float16", "float16", rtol=1e-2
+    )
+    verify_batch_matmul(
+        (16, 1024, 128), (1, 128, 236), (16, 1024, 236), "float16", "float16", rtol=1e-2
+    )
 
 
 if __name__ == "__main__":

@@ -24,11 +24,14 @@
 #ifndef TVM_RUNTIME_VM_EXECUTABLE_H_
 #define TVM_RUNTIME_VM_EXECUTABLE_H_
 
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/vm/bytecode.h>
 
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -62,6 +65,19 @@ class Executable : public ModuleNode {
    * \return PackedFunc or nullptr when it is not available.
    */
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+
+  /*!
+   * \brief Write the Executable to the binary stream in serialized form.
+   * \param stream The binary stream to save the executable to.
+   */
+  void SaveToBinary(dmlc::Stream* stream) final;
+
+  /*!
+   * \brief Write the Executable to the provided path as a file contianing its serialized content.
+   * \param path The path to write the serialized data to.
+   * \param format The format of the serialized blob.
+   */
+  void SaveToFile(const std::string& path, const std::string& format) final;
 
   /*!
    * \brief Serialize the executable into global section, constant section, and
@@ -125,12 +141,24 @@ class Executable : public ModuleNode {
    * \brief Get the `lib` module in an executable. Users have the flexibility to call
    * `export_library` from the frontend to save the library to disk.
    *
-   * \return The runtime module that contains the hardwre dependent code.
+   * \return The runtime module that contains the hardware dependent code.
    */
-  runtime::Module GetLib() const { return lib; }
+  runtime::Module GetLib() const;
 
   /*!
-   * \brief Get the arity of the VM Fucntion.
+   * \brief Set the `lib` module in an executable.
+   *
+   * This allows us to do partial initialization in the case of (de|ser)ialization cases.
+   * This method also ensures correct initialization of library ensuring we only Import a
+   * single library.
+   *
+   * NB: This also provides some abstraction over how libraries are stored as there are plans
+   * to iterate on the way runtime::Module works in the backend of the compiler.
+   */
+  void SetLib(const runtime::Module& lib);
+
+  /*!
+   * \brief Get the arity of the VMFunction.
    * \param func Function name.
    * \return The number of parameters.
    */
@@ -148,9 +176,6 @@ class Executable : public ModuleNode {
 
   const char* type_key() const final { return "VMExecutable"; }
 
-  /*! \brief The runtime module/library that contains both the host and also the device
-   * code when executing on non-CPU devices. */
-  runtime::Module lib;
   /*! \brief The global constant pool. */
   std::vector<ObjectRef> constants;
   /*! \brief A map from globals (as strings) to their index in the function map. */
@@ -159,6 +184,8 @@ class Executable : public ModuleNode {
    * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
    */
   std::unordered_map<std::string, Index> primitive_map;
+  /*! \brief The structural hashes of the operators in this function. */
+  std::map<Index, Map<String, ObjectRef>> op_attrs;
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> functions;
   /*! \brief The device type for each constant. */

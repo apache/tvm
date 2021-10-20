@@ -30,10 +30,10 @@ namespace contrib {
 
 void* ACLAllocator::allocate(size_t size, size_t alignment) {
   ICHECK_GT(size, 0) << "Cannot allocate size less than or equal to zero";
-  return this->device_api_->AllocWorkspace(this->ctx_, size, {});
+  return this->device_api_->AllocWorkspace(this->device_, size, {});
 }
 
-void ACLAllocator::free(void* ptr) { this->device_api_->FreeWorkspace(this->ctx_, ptr); }
+void ACLAllocator::free(void* ptr) { this->device_api_->FreeWorkspace(this->device_, ptr); }
 
 std::unique_ptr<arm_compute::IMemoryRegion> ACLAllocator::make_region(size_t size,
                                                                       size_t alignment) {
@@ -43,7 +43,7 @@ std::unique_ptr<arm_compute::IMemoryRegion> ACLAllocator::make_region(size_t siz
 ACLMemoryRegion::ACLMemoryRegion(size_t size, size_t alignment)
     : IMemoryRegion(size), ptr_(nullptr) {
   if (size != 0) {
-    this->ptr_ = this->device_api_->AllocDataSpace(this->ctx_, size, alignment, {});
+    this->ptr_ = this->device_api_->AllocDataSpace(this->device_, size, alignment, {});
   }
 }
 
@@ -56,7 +56,7 @@ ACLMemoryRegion::ACLMemoryRegion(void* ptr, size_t size)
 
 ACLMemoryRegion::~ACLMemoryRegion() {
   if (this->ptr_ != nullptr && !is_subregion_) {
-    this->device_api_->FreeDataSpace(this->ctx_, this->ptr_);
+    this->device_api_->FreeDataSpace(this->device_, this->ptr_);
   }
 }
 

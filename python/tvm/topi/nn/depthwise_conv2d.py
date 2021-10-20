@@ -24,7 +24,7 @@ from tvm import te
 from .dilate import dilate
 from .pad import pad
 from .utils import get_pad_tuple
-from ..utils import simplify
+from ..utils import simplify, get_const_tuple
 
 # workload description of depthwise-conv2d
 Workload = namedtuple(
@@ -36,22 +36,64 @@ Workload = namedtuple(
         "width",
         "in_filter",
         "out_filter",
-        "hkernel",
-        "wkernel",
-        "hpad",
-        "wpad",
-        "hstride",
-        "wstride",
+        "kernel_h",
+        "kernel_w",
+        "padt",
+        "padl",
+        "padb",
+        "padr",
+        "dilation_h",
+        "dilation_w",
+        "stride_h",
+        "stride_w",
     ],
 )
 
 
-def _get_workload(data, kernel, stride, padding, out_dtype):
-    """ Get the workload structure. """
-    _, in_channel, height, width = [x.value for x in data.shape]
-    channel, channel_multiplier, kh, kw = [x.value for x in kernel.shape]
-    out_channel = channel * channel_multiplier
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layout="NCHW"):
+    """Get the workload structure for a depthwise conv2d.
+
+    Input data and filter should use NCHW layout.
+    """
+    if data_layout == "NCHW":
+        _, in_channel, height, width = get_const_tuple(data.shape)
+        filter_channel, channel_multiplier, kh, kw = get_const_tuple(kernel.shape)
+    elif data_layout == "NHWC":
+        _, height, width, in_channel = get_const_tuple(data.shape)
+        kh, kw, filter_channel, channel_multiplier = get_const_tuple(kernel.shape)
+    elif data_layout == "NCHWc":
+        _, in_channel_chunk, height, width, in_channel_block = get_const_tuple(data.shape)
+        in_channel = in_channel_chunk * in_channel_block
+        (
+            filter_channel_chunk,
+            cm_chunk,
+            kh,
+            kw,
+            cm_block,
+            filter_channel_block,
+        ) = get_const_tuple(kernel.shape)
+        filter_channel = filter_channel_chunk * filter_channel_block
+        channel_multiplier = cm_chunk * cm_block
+
+        assert (
+            in_channel_block == filter_channel_block
+        ), "Incorrect dimensions, data has block size {}, but filter has block size {}".format(
+            in_channel_block, filter_channel_block
+        )
+
+    else:
+        raise ValueError("Data layout {} not supported".format(data_layout))
+
+    assert (
+        in_channel == filter_channel
+    ), "Incorrect dimensions, data has {} channels but filter expects {} channels".format(
+        in_channel, filter_channel
+    )
+
+    out_channel = filter_channel * channel_multiplier
+    dilation_h, dilation_w = (
+        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    )
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
     else:
@@ -62,6 +104,9 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
         '{} vs. {}".format(
         data.dtype, kernel.dtype
     )
+    dilated_kernel_h = (kh - 1) * dilation_h + 1
+    dilated_kernel_w = (kw - 1) * dilation_w + 1
+    pt, pl, pb, pr = get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
     return Workload(
         data.dtype,
         out_dtype,
@@ -71,8 +116,12 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
         out_channel,
         kh,
         kw,
-        HPAD,
-        WPAD,
+        pt,
+        pl,
+        pb,
+        pr,
+        dilation_h,
+        dilation_w,
         HSTR,
         WSTR,
     )
@@ -89,8 +138,8 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     Filter : tvm.te.Tensor
         4-D with shape [in_channel, channel_multiplier, filter_height, filter_width]
 
-    stride : tuple of two ints
-        The spatial stride along height and width
+    stride : int or a list/tuple of two ints
+        The spatial stride, or (stride_height, stride_width).
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']

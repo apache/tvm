@@ -77,25 +77,25 @@ def verify_conv1d(
 
     a_np, w_np, b_np = get_ref_data(layout)
 
-    def check_device(device, ctx):
+    def check_target(target, dev):
         if layout == "NCW":
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv1d_ncw_implement)
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _conv1d_ncw_implement)
         else:
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv1d_nwc_implement)
-        with tvm.target.Target(device):
+            fcompute, fschedule = tvm.topi.testing.dispatch(target, _conv1d_nwc_implement)
+        with tvm.target.Target(target):
             B = fcompute(A, W, stride, padding, dilation, "float32")
             s = fschedule([B])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
 
-        func = tvm.build(s, [A, W, B], device)
+        func = tvm.build(s, [A, W, B], target)
         func(a, w, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
-    for device, ctx in tvm.testing.enabled_targets():
-        check_device(device, ctx)
+    for target, dev in tvm.testing.enabled_targets():
+        check_target(target, dev)
 
 
 @tvm.testing.uses_gpu

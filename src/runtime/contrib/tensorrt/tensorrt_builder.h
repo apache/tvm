@@ -52,8 +52,6 @@ struct TensorRTEngineAndContext {
   nvinfer1::IExecutionContext* context;
   std::vector<std::string> inputs;
   std::vector<std::string> outputs;
-  /*! \brief GPU buffers for inputs and outputs. */
-  std::vector<NDArray> device_buffers;
 };
 
 /*!
@@ -74,8 +72,8 @@ class TensorRTBuilder {
    * \param batch_size If use_implicit_batch,
    */
   TensorRTBuilder(TensorRTLogger* logger, const std::vector<const DLTensor*>& data_entry,
-                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16,
-                  int batch_size);
+                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16, int batch_size,
+                  nvinfer1::IInt8Calibrator* calibrator = nullptr);
 
   /*!
    * \brief Add TensorRT input(s) for input node in network definition.
@@ -123,12 +121,6 @@ class TensorRTBuilder {
   /*! \brief Clean up resources used to create engine. */
   void CleanUp();
 
-  /*! \brief Allocate a GPU buffer for input or output DLTensor, only if the context is not GPU
-   * already. Inputs that are already on the GPU can be passed directly to TensorRT and will not
-   * need a buffer. */
-  void AllocateDeviceBuffer(nvinfer1::ICudaEngine* engine, const std::string& name,
-                            std::vector<runtime::NDArray>* device_buffers);
-
   /*! \brief Maps a node to its outputs. */
   std::unordered_map<int, std::vector<TensorRTOpInput>> node_output_map_;
 
@@ -161,6 +153,9 @@ class TensorRTBuilder {
   /*! \brief Whether to automatically convert model to 16-bit floating point precision. */
   bool use_fp16_;
 
+  /*! \brief whether to automatically convert model to int8 precision */
+  bool use_int8_;
+
   /*! \brief Batch size to optimize for. */
   int batch_size_;
 
@@ -169,6 +164,10 @@ class TensorRTBuilder {
 
   /*! \brief Output names. */
   std::vector<std::string> network_output_names_;
+
+  /*! \brief calibrator pointer to add batch data when using int8 mode */
+  /*! \brief pointer will be nullptr when it is fp16 or fp32 precision */
+  nvinfer1::IInt8Calibrator* calibrator_;
 };
 
 }  // namespace contrib

@@ -33,13 +33,13 @@ use serde_json;
 
 use tvm_sys::ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt};
 
-use tvm_sys::{ffi::DLTensor, ArgValue, Context, DataType, DeviceType};
+use tvm_sys::{ffi::DLTensor, ArgValue, DataType, Device, DeviceType};
 
 use crate::{errors::*, Module, Storage, Tensor};
 
 // @see `kTVMNDArrayMagic` in `ndarray.h`
 const _NDARRAY_MAGIC: u64 = 0xDD5E_40F0_96B4_A13F;
-// @see `kTVMNDArrayListMagic` in `graph_runtime.h`
+// @see `kTVMNDArrayListMagic` in `graph_executor.h`
 const _NDARRAY_LIST_MAGIC: u64 = 0xF7E5_8D4F_0504_9CB7;
 
 /// A TVM computation graph.
@@ -233,14 +233,14 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         let mut storages: Vec<Storage> = storage_num_bytes
             .into_iter()
             .map(|nbytes| Storage::new(nbytes, align))
-            .collect::<Result<Vec<Storage>, std::alloc::LayoutErr>>()?;
+            .collect::<Result<Vec<Storage>, std::alloc::LayoutError>>()?;
 
         let tensors = izip!(storage_ids, shapes, dtypes)
             .map(|(storage_id, shape, dtype)| {
                 let storage = storages[storage_id].view();
                 Tensor {
                     data: mem::replace(&mut storages[storage_id], storage),
-                    ctx: Context::default(),
+                    device: Device::default(),
                     dtype,
                     size: shape.iter().product::<i64>() as usize,
                     shape,
@@ -418,14 +418,14 @@ named! {
     )
 }
 
-// Parses a Context
+// Parses a Device
 named! {
-  tvm_ctx<&[u8], Context>,
+  tvm_device<&[u8], Device>,
   do_parse!(
     device_type: le_u32 >>
     device_id:   le_i32 >>
     (
-        Context {
+        Device {
             device_type: DeviceType::from(device_type),
             device_id: device_id as usize,
         }
@@ -449,7 +449,7 @@ named! {
     do_parse!(
                 take!(8)      >>
                 le_u64        >>
-        ctx:    tvm_ctx       >>
+        device: tvm_device    >>
         ndim:   le_u32        >>
         dtype:  data_type     >>
         shape:  count!(map!(le_i64, |sz| sz as i64), ndim as usize) >>
@@ -458,7 +458,7 @@ named! {
         (
             Tensor {
                 data: Storage::from(data),
-                ctx: ctx,
+                device: device,
                 dtype: dtype,
                 size: shape.iter().product::<i64>() as usize,
                 shape: shape,
@@ -483,7 +483,7 @@ named! {
     )
 }
 
-/// Loads a param dict saved using `relay.save_param_dict`.
+/// Loads a param dict saved using `runtime.save_param_dict`.
 pub fn load_param_dict(bytes: &[u8]) -> Result<HashMap<String, Tensor>, GraphFormatError> {
     match parse_param_dict(bytes) {
         Ok((remaining_bytes, param_dict)) => {

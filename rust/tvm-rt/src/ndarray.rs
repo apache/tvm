@@ -20,16 +20,16 @@
 //! This module implements the [`NDArray`] type for working with *TVM tensors* or
 //! coverting from a Rust's ndarray to TVM `NDArray`.
 //!
-//! One can create an empty NDArray given the shape, context and dtype using [`empty`].
+//! One can create an empty NDArray given the shape, device and dtype using [`empty`].
 //! To create an NDArray from a mutable buffer in cpu use [`copy_from_buffer`].
-//! To copy an NDArray to different context use [`copy_to_ctx`].
+//! To copy an NDArray to different device use [`copy_to_device`].
 //!
 //! Given a [`Rust's dynamic ndarray`], one can convert it to TVM NDArray as follows:
 //!
 //! # Example
 //!
 //! ```
-//! # use tvm_rt::{NDArray, Context, DataType};
+//! # use tvm_rt::{NDArray, DataType, Device};
 //! # use ndarray::{Array, ArrayD};
 //! # use std::str::FromStr;
 //! use std::convert::TryFrom;
@@ -37,7 +37,7 @@
 //! let a = Array::from_shape_vec((2, 2), vec![1f32, 2., 3., 4.])
 //!     .unwrap()
 //!     .into_dyn(); // Rust's ndarray
-//! let nd = NDArray::from_rust_ndarray(&a, Context::cpu(0), DataType::from_str("float32").unwrap()).unwrap();
+//! let nd = NDArray::from_rust_ndarray(&a, Device::cpu(0), DataType::from_str("float32").unwrap()).unwrap();
 //! assert_eq!(nd.shape(), &[2, 2]);
 //! let rnd: ArrayD<f32> = ArrayD::try_from(&nd).unwrap();
 //! assert!(rnd.all_close(&a, 1e-8f32));
@@ -45,7 +45,7 @@
 //!
 //! [`Rust's dynamic ndarray`]:https://docs.rs/ndarray/0.12.1/ndarray/
 //! [`copy_from_buffer`]:struct.NDArray.html#method.copy_from_buffer
-//! [`copy_to_ctx`]:struct.NDArray.html#method.copy_to_ctx
+//! [`copy_to_device`]:struct.NDArray.html#method.copy_to_device
 
 use std::ffi::c_void;
 use std::{borrow::Cow, convert::TryInto};
@@ -54,14 +54,14 @@ use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 use mem::size_of;
 use tvm_macros::Object;
 use tvm_sys::ffi::DLTensor;
-use tvm_sys::{ffi, ByteArray, Context, DataType};
+use tvm_sys::{ffi, ByteArray, DataType, Device};
 
 use ndarray::{Array, ArrayD};
 use num_traits::Num;
 
 use crate::errors::NDArrayError;
 
-use crate::object::{Object, ObjectPtr};
+use crate::object::{Object, ObjectPtr, ObjectRef};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 #[repr(C)]
@@ -73,7 +73,7 @@ pub struct NDArrayContainer {
     // Container Base
     dl_tensor: DLTensor,
     manager_ctx: *mut c_void,
-    // TOOD: shape?
+    shape: ObjectRef,
 }
 
 impl NDArrayContainer {
@@ -94,6 +94,21 @@ impl NDArrayContainer {
         let base_offset = memoffset::offset_of!(NDArrayContainer, dl_tensor) as isize;
         unsafe {
             &mut *std::mem::ManuallyDrop::new(object_ptr)
+                .ptr
+                .as_ptr()
+                .cast::<u8>()
+                .offset(base_offset)
+                .cast::<NDArrayContainer>()
+        }
+    }
+
+    pub fn as_mut_ptr<'a>(object_ptr: &ObjectPtr<NDArrayContainer>) -> *mut NDArrayContainer
+    where
+        NDArrayContainer: 'a,
+    {
+        let base_offset = memoffset::offset_of!(NDArrayContainer, dl_tensor) as isize;
+        unsafe {
+            object_ptr
                 .ptr
                 .as_ptr()
                 .cast::<u8>()
@@ -189,9 +204,9 @@ impl NDArray {
         self.len() * self.dtype().itemsize()
     }
 
-    /// Returns the context which the NDArray was defined.
-    pub fn ctx(&self) -> Context {
-        self.as_dltensor().ctx.into()
+    /// Returns the device which the NDArray was defined.
+    pub fn device(&self) -> Device {
+        self.as_dltensor().device.into()
     }
 
     /// Returns the type of the entries of the NDArray.
@@ -239,12 +254,12 @@ impl NDArray {
     /// ## Example
     ///
     /// ```
-    /// # use tvm_rt::{Context, DataType, NDArray};
+    /// # use tvm_rt::{Device, DataType, NDArray};
     /// # use std::str::FromStr;
     /// let mut shape = [4];
     /// let mut data = vec![1i32, 2, 3, 4];
-    /// let ctx = Context::cpu(0);
-    /// let mut ndarray = NDArray::empty(&mut shape, ctx, DataType::from_str("int32").unwrap());
+    /// let dev = Device::cpu(0);
+    /// let mut ndarray = NDArray::empty(&mut shape, dev, DataType::from_str("int32").unwrap());
     /// ndarray.copy_from_buffer(&mut data);
     /// assert_eq!(ndarray.shape(), shape);
     /// assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
@@ -272,12 +287,12 @@ impl NDArray {
     /// ## Example
     ///
     /// ```
-    /// # use tvm_rt::{Context, DataType, NDArray};
+    /// # use tvm_rt::{Device, DataType, NDArray};
     /// # use std::str::FromStr;
     /// let shape = &mut [2];
     /// let mut data = vec![1f32, 2.0];
-    /// let ctx = Context::cpu(0);
-    /// let mut ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
+    /// let dev = Device::cpu(0);
+    /// let mut ndarray = NDArray::empty(shape, dev, DataType::from_str("int32").unwrap());
     /// ndarray.copy_from_buffer(&mut data);
     /// ```
     ///
@@ -287,7 +302,7 @@ impl NDArray {
         check_call!(ffi::TVMArrayCopyFromBytes(
             self.as_raw_dltensor(),
             data.as_ptr() as *mut _,
-            data.len() * mem::size_of::<T>()
+            (data.len() * mem::size_of::<T>()) as _,
         ));
     }
 
@@ -296,7 +311,7 @@ impl NDArray {
         check_call!(ffi::TVMArrayCopyToBytes(
             self.as_raw_dltensor(),
             data.as_ptr() as *mut _,
-            self.size(),
+            self.size() as _,
         ));
     }
 
@@ -332,8 +347,8 @@ impl NDArray {
         Ok(target)
     }
 
-    /// Copies the NDArray to a target context.
-    pub fn copy_to_ctx(&self, target: &Context) -> Result<NDArray, NDArrayError> {
+    /// Copies the NDArray to a target device.
+    pub fn copy_to_device(&self, target: &Device) -> Result<NDArray, NDArrayError> {
         let tmp = NDArray::empty(self.shape(), *target, self.dtype());
         let copy = self.copy_to_ndarray(tmp)?;
         Ok(copy)
@@ -342,17 +357,17 @@ impl NDArray {
     /// Converts a Rust's ndarray to TVM NDArray.
     pub fn from_rust_ndarray<T: Num32 + Copy>(
         input_nd: &ArrayD<T>,
-        ctx: Context,
+        dev: Device,
         dtype: DataType,
     ) -> Result<Self, NDArrayError> {
         let shape: Vec<i64> = input_nd.shape().iter().map(|&x| x as i64).collect();
-        let mut nd = NDArray::empty(&shape, ctx, dtype);
+        let mut nd = NDArray::empty(&shape, dev, dtype);
         nd.fill_from_iter(input_nd.iter().copied());
         Ok(nd)
     }
 
-    /// Allocates and creates an empty NDArray given the shape, context and dtype.
-    pub fn empty(shape: &[i64], ctx: Context, dtype: DataType) -> NDArray {
+    /// Allocates and creates an empty NDArray given the shape, device and dtype.
+    pub fn empty(shape: &[i64], dev: Device, dtype: DataType) -> NDArray {
         let mut handle = ptr::null_mut() as ffi::TVMArrayHandle;
         let dtype: tvm_sys::ffi::DLDataType = dtype.into();
         check_call!(ffi::TVMArrayAlloc(
@@ -361,8 +376,8 @@ impl NDArray {
             i32::from(dtype.code) as c_int,
             i32::from(dtype.bits) as c_int,
             i32::from(dtype.lanes) as c_int,
-            ctx.device_type as c_int,
-            ctx.device_id as c_int,
+            dev.device_type as c_int,
+            dev.device_id as c_int,
             &mut handle as *mut _,
         ));
         let ptr = NDArrayContainer::from_raw(handle)
@@ -441,9 +456,9 @@ mod tests {
     #[test]
     fn basics() {
         let shape = &[1, 2, 3];
-        let ctx = Context::cpu(0);
+        let dev = Device::cpu(0);
         println!("before empty");
-        let ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
+        let ndarray = NDArray::empty(shape, dev, DataType::from_str("int32").unwrap());
         println!("after empty");
         assert_eq!(ndarray.shape(), shape);
         assert_eq!(ndarray.len(), shape.iter().product::<i64>() as usize);
@@ -456,8 +471,8 @@ mod tests {
     fn copy() {
         let shape = &[4];
         let data = vec![1i32, 2, 3, 4];
-        let ctx = Context::cpu(0);
-        let mut ndarray = NDArray::empty(shape, ctx, DataType::int(32, 1)).zeroed();
+        let dev = Device::cpu(0);
+        let mut ndarray = NDArray::empty(shape, dev, DataType::int(32, 1)).zeroed();
         assert_eq!(ndarray.to_vec::<i32>().unwrap(), vec![0, 0, 0, 0]);
         ndarray.copy_from_buffer(&data);
         assert_eq!(ndarray.shape(), shape);
@@ -466,11 +481,7 @@ mod tests {
         assert!(ndarray.is_contiguous());
         assert_eq!(ndarray.byte_offset(), 0);
         let shape = vec![4];
-        let e = NDArray::empty(
-            &shape,
-            Context::cpu(0),
-            DataType::from_str("int32").unwrap(),
-        );
+        let e = NDArray::empty(&shape, Device::cpu(0), DataType::from_str("int32").unwrap());
         let nd = ndarray.copy_to_ndarray(e);
         assert!(nd.is_ok());
         assert_eq!(nd.unwrap().to_vec::<i32>().unwrap(), data);
@@ -482,10 +493,10 @@ mod tests {
     fn copy_wrong_dtype() {
         let shape = vec![4];
         let mut data = vec![1f32, 2., 3., 4.];
-        let ctx = Context::cpu(0);
-        let mut nd_float = NDArray::empty(&shape, ctx, DataType::from_str("float32").unwrap());
+        let dev = Device::cpu(0);
+        let mut nd_float = NDArray::empty(&shape, dev, DataType::from_str("float32").unwrap());
         nd_float.copy_from_buffer(&mut data);
-        let empty_int = NDArray::empty(&shape, ctx, DataType::from_str("int32").unwrap());
+        let empty_int = NDArray::empty(&shape, dev, DataType::from_str("int32").unwrap());
         nd_float.copy_to_ndarray(empty_int).unwrap();
     }
 
@@ -495,7 +506,7 @@ mod tests {
             .unwrap()
             .into_dyn();
         let nd =
-            NDArray::from_rust_ndarray(&a, Context::cpu(0), DataType::from_str("float32").unwrap())
+            NDArray::from_rust_ndarray(&a, Device::cpu(0), DataType::from_str("float32").unwrap())
                 .unwrap();
         assert_eq!(nd.shape(), &[2, 2]);
         let rnd: ArrayD<f32> = ArrayD::try_from(&nd).unwrap();

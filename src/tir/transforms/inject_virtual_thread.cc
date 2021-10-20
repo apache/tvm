@@ -303,7 +303,10 @@ class VTInjector : public StmtExprMutator {
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return For(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
+      auto n = CopyOnWrite(op);
+      n->extent = std::move(extent);
+      n->body = std::move(body);
+      return Stmt(n);
     }
   }
   // IfThenElse
@@ -328,6 +331,13 @@ class VTInjector : public StmtExprMutator {
     } else {
       return IfThenElse(condition, then_case, else_case);
     }
+  }
+
+  // While
+  Stmt VisitStmt_(const WhileNode* op) final {
+    // TODO(masahi): What should we do for While nodes?
+    LOG(FATAL) << "WhileNode in InjectVirtualThread not supported yet";
+    return Stmt();
   }
 
   // Seq
@@ -417,7 +427,7 @@ class VTInjector : public StmtExprMutator {
       Map<Var, PrimExpr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
       return For(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
-                 ForType::Serial, DeviceAPI::None, stmt);
+                 ForKind::kSerial, stmt);
     }
   }
 
@@ -449,12 +459,12 @@ class VirtualThreadInjector : public StmtMutator {
     op = stmt.as<AttrStmtNode>();
     if (op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
-      bool allow_share = iv->thread_tag == "vthread";
+      bool allow_share = std::string(iv->thread_tag).substr(0, 7) == "vthread";
       int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
       VarTouchedAnalysis vs;
       auto touched = vs.TouchedVar(op->body, iv->var.get());
-      VTInjector injecter(iv->var, nthread, touched, allow_share);
-      return injecter(op->body);
+      VTInjector injector(iv->var, nthread, touched, allow_share);
+      return injector(op->body);
     } else {
       return stmt;
     }
@@ -465,11 +475,6 @@ class VirtualThreadInjector : public StmtMutator {
     return GetRef<Stmt>(op);
   }
 };
-
-Stmt InjectVirtualThread(Stmt stmt) {
-  stmt = VirtualThreadInjector()(std::move(stmt));
-  return ConvertSSA(std::move(stmt));
-}
 
 namespace transform {
 

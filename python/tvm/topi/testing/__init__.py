@@ -32,14 +32,16 @@ from .conv2d_transpose_python import conv2d_transpose_nchw_python, conv2d_transp
 from .conv1d_transpose_ncw_python import conv1d_transpose_ncw_python
 from .correlation_nchw_python import correlation_nchw_python
 from .deformable_conv2d_python import deformable_conv2d_nchw_python, deformable_conv2d_nhwc_python
-from .depthwise_conv2d_python import depthwise_conv2d_python_nchw, depthwise_conv2d_python_nhwc
+from .depthwise_conv2d_python import (
+    depthwise_conv2d_python_nchw,
+    depthwise_conv2d_python_nhwc,
+    depthwise_conv2d_python_nchwc,
+)
 from .dilate_python import dilate_python
 from .softmax_python import softmax_python, log_softmax_python
-from .upsampling_python import upsampling_python, upsampling3d_python
-from .bilinear_resize_python import bilinear_resize_python
-from .trilinear_resize3d_python import trilinear_resize3d_python
+from .resize_python import resize1d_python, resize2d_python, resize3d_python
 from .reorg_python import reorg_python
-from .roi_align_python import roi_align_nchw_python
+from .roi_align_python import roi_align_nchw_python, roi_align_nhwc_python
 from .roi_pool_python import roi_pool_nchw_python
 from .lrn_python import lrn_python
 from .l2_normalize_python import l2_normalize_python
@@ -49,8 +51,7 @@ from .strided_slice_python import strided_slice_python, strided_set_python
 from .batch_matmul import batch_matmul
 from .slice_axis_python import slice_axis_python
 from .sequence_mask_python import sequence_mask
-from .pool1d_python import pool1d_ncw_python
-from .pool3d_python import pool3d_ncdhw_python
+from .poolnd_python import poolnd_python
 from .pool_grad_python import pool_grad_nchw
 from .one_hot import one_hot
 from .depth_to_space import depth_to_space_python
@@ -70,3 +71,5 @@ from .grid_sample_python import affine_grid_python, grid_sample_nchw_python
 from .matrix_set_diag import matrix_set_diag
 from .space_to_batch_nd import space_to_batch_nd_python
 from .batch_to_space_nd import batch_to_space_nd_python
+from .nll_loss import nll_loss
+from .dense import dense

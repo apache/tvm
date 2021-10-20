@@ -134,6 +134,16 @@ arm_compute::DataType MakeACLDataType(const DLDataType& data_type) {
   }
 }
 
+arm_compute::ActivationLayerInfo MakeACLActivationInfo(const std::string& activation_type) {
+  auto act_func = arm_compute::ActivationLayerInfo::ActivationFunction::IDENTITY;
+  if (activation_type == "relu") {
+    act_func = arm_compute::ActivationLayerInfo::ActivationFunction::RELU;
+  } else {
+    LOG(FATAL) << "Activation " << activation_type << " unsupported by ACL runtime";
+  }
+  return {act_func};
+}
+
 template <typename T>
 std::vector<T> GetVectorFromDLTensor(const DLTensor* tensor) {
   ICHECK(tensor) << "Cannot convert a nullptr";

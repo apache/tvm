@@ -24,7 +24,7 @@ def test_vectorize_loop():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, n) as i:
-        with ib.for_range(0, 4, for_type="vectorize") as j:
+        with ib.for_range(0, 4, kind="vectorize") as j:
             A[j] = tvm.tir.const(1, A.dtype)
     stmt = ib.get()
 
@@ -45,7 +45,7 @@ def test_vectorize_vector():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32x4", name="A")
     with ib.for_range(0, n) as i:
-        with ib.for_range(0, 4, for_type="vectorize") as j:
+        with ib.for_range(0, 4, kind="vectorize") as j:
             A[j] = tvm.tir.const(1, A.dtype)
     stmt = ib.get()
     assert isinstance(stmt.body, tvm.tir.For)
@@ -64,7 +64,7 @@ def test_vectorize_with_if():
     x = te.var("x")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         with ib.if_scope(x < n):
             A[i] = A[i] + 1
         with ib.else_scope():
@@ -86,7 +86,7 @@ def test_vectorize_let():
     v = tvm.tir.Var("v", "float32")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         ib.emit(lambda body: tvm.tir.LetStmt(v, A[i] + 1, body))
         A[i] = v + 2
 
@@ -100,7 +100,7 @@ def test_vectorize_with_le_cond():
     n = te.var("n")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         with ib.if_scope(i <= n):
             A[i] = A[i] + 1
     stmt = ib.get()
@@ -115,7 +115,7 @@ def test_vectorize_with_ge_cond():
     n = te.var("n")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         with ib.if_scope(i >= n):
             A[i] = A[i] + 1
     stmt = ib.get()
@@ -131,7 +131,7 @@ def test_vectorize_if_then_else():
     x = te.var("x")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         A[i] = tvm.tir.call_intrin("float32", "tir.if_then_else", i > 0, A[i] + 1, A[i])
     stmt = ib.get()
 
@@ -143,7 +143,7 @@ def test_vectorize_if_then_else():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, n) as k:
-        with ib.for_range(0, 4, for_type="vectorize") as i:
+        with ib.for_range(0, 4, kind="vectorize") as i:
             A[k * 4 + i] = tvm.tir.call_intrin(
                 "float32", "tir.if_then_else", k > 0, A[k * 4 + i], 0
             )
@@ -158,6 +158,53 @@ def test_vectorize_if_then_else():
     assert isinstance(stmt.body.value.args[2], tvm.tir.Broadcast)
 
 
+def test_vectorize_while_fail():
+    """A while loop inside a vectorized loop should fail."""
+
+    n = 64
+    num_iter = 10
+
+    def test_ir(A, B, C):
+        ib = tvm.tir.ir_builder.create()
+        n = C.shape[0]
+        A = ib.buffer_ptr(A)
+        B = ib.buffer_ptr(B)
+        C = ib.buffer_ptr(C)
+        i = ib.allocate("int32", (1,), name="i", scope="local")
+        i[0] = 0
+
+        with ib.for_range(0, n) as j:
+            C[j] = 0.0
+
+        with ib.for_range(0, n, kind="vectorize") as j:
+            with ib.while_loop(i[0] < num_iter):
+                C[j] += A[j] + B[j]
+                i[0] += 1
+
+        return ib.get()
+
+    dtype = "float32"
+    A = te.placeholder((n,), name="A", dtype=dtype)
+    B = te.placeholder((n,), name="B", dtype=dtype)
+
+    C = te.extern(
+        (n,),
+        [A, B],
+        lambda ins, outs: test_ir(ins[0], ins[1], outs[0]),
+        name="while_vectorize",
+        dtype=dtype,
+    )
+    s = te.create_schedule(C.op)
+
+    try:
+        tvm.lower(s, [A, B, C], "llvm")
+        assert False
+    except tvm.error.TVMError as e:
+        error_msg = str(e).split("\n")[-1]
+        expected = "A while loop inside a vectorized loop not supported"
+        assert expected in error_msg
+
+
 if __name__ == "__main__":
     test_vectorize_vector()
     test_vectorize_with_if()
@@ -166,3 +213,4 @@ if __name__ == "__main__":
     test_vectorize_with_le_cond()
     test_vectorize_with_ge_cond()
     test_vectorize_let()
+    test_vectorize_while_fail()

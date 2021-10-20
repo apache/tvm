@@ -67,7 +67,7 @@ Doc TextPrinter::PrintMod(const IRModule& mod) {
 
 String PrettyPrint(const ObjectRef& node) {
   Doc doc;
-  doc << TextPrinter(false, nullptr, false).PrintFinal(node);
+  doc << TextPrinter(/*show_meta_data=*/false, nullptr, false).PrintFinal(node);
   return doc.str();
 }
 

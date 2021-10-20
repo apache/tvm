@@ -17,7 +17,7 @@
 
 [package]
 name = "tvm"
-version = "0.1.0"
+version = "0.1.1-alpha"
 license = "Apache-2.0"
 description = "Rust frontend support for TVM"
 repository = "https://github.com/apache/tvm"
@@ -34,9 +34,55 @@ dynamic-linking = ["tvm-rt/dynamic-linking"]
 static-linking = ["tvm-rt/static-linking"]
 blas = ["ndarray/blas"]
 python = ["pyo3"]
+# Enabling any of the following features is like setting the value to "ON" in config.cmake.
+use-cuda = ["tvm-rt/use-cuda"]
+use-opencl = ["tvm-rt/use-opencl"]
+use-vulkan = ["tvm-rt/use-vulkan"]
+use-metal = ["tvm-rt/use-metal"]
+use-rocm = ["tvm-rt/use-rocm"]
+use-hexagon-device = ["tvm-rt/use-hexagon-device"]
+use-rpc = ["tvm-rt/use-rpc"]
+use-threads = ["tvm-rt/use-threads"]
+use-llvm = ["tvm-rt/use-llvm"]
+use-stackvm-runtime = ["tvm-rt/use-stackvm-runtime"]
+use-graph-runtime = ["tvm-rt/use-graph-runtime"]
+use-graph-runtime-debug = ["tvm-rt/use-graph-runtime-debug"]
+use-openmp = ["tvm-rt/use-openmp"]
+use-relay-debug = ["tvm-rt/use-relay-debug"]
+use-rtti = ["tvm-rt/use-rtti"]
+use-mscv-mt = ["tvm-rt/use-mscv-mt"]
+use-micro = ["tvm-rt/use-micro"]
+use-install-dev = ["tvm-rt/use-install-dev"]
+hide-private-symbols = ["tvm-rt/hide-private-symbols"]
+use-fallback-stl-map = ["tvm-rt/use-fallback-stl-map"]
+use-ethosn = ["tvm-rt/use-ethosn"]
+use-index-default-i64 = ["tvm-rt/use-index-default-i64"]
+use-tf-tvmdsoop = ["tvm-rt/use-tf-tvmdsoop"]
+use-byodt-posit = ["tvm-rt/use-byodt-posit"]
+use-mkl = ["tvm-rt/use-mkl"]
+use-mkldnn = ["tvm-rt/use-mkldnn"]
+use-dnnl-codegen = ["tvm-rt/use-dnnl-codegen"]
+use-cudnn = ["tvm-rt/use-cudnn"]
+use-cublas = ["tvm-rt/use-cublas"]
+use-thrust = ["tvm-rt/use-thrust"]
+use-miopen = ["tvm-rt/use-miopen"]
+use-rocblas = ["tvm-rt/use-rocblas"]
+use-sort = ["tvm-rt/use-sort"]
+use-nnpack = ["tvm-rt/use-nnpack"]
+use-random = ["tvm-rt/use-random"]
+use-micro-standalone-runtime = ["tvm-rt/use-micro-standalone-runtime"]
+use-cpp-rpc = ["tvm-rt/use-cpp-rpc"]
+use-tflite = ["tvm-rt/use-tflite"]
+use-coreml = ["tvm-rt/use-coreml"]
+use-target-onnx = ["tvm-rt/use-target-onnx"]
+use-arm-compute-lib = ["tvm-rt/use-arm-compute-lib"]
+use-arm-compute-lib-graph-runtime = ["tvm-rt/use-arm-compute-lib-graph-runtime"]
+use-tensorrt-codegen = ["tvm-rt/use-tensorrt-codegen"]
+use-tensorrt-runtime = ["tvm-rt/use-tensorrt-runtime"]
+use-vitis-ai = ["tvm-rt/use-vitis-ai"]
 
 [dependencies.tvm-rt]
-version = "0.1"
+version = "0.1.0-alpha"
 default-features = false
 path = "../tvm-rt/"
 
@@ -46,13 +92,14 @@ anyhow = "^1.0"
 lazy_static = "1.1"
 ndarray = "0.12"
 num-traits = "0.2"
-tvm-macros = { version = "*", path = "../tvm-macros/" }
+tvm-macros = { version = "0.1.1-alpha", path = "../tvm-macros/" }
 paste = "0.1"
 mashup = "0.1"
 once_cell = "^1.3.1"
-pyo3 = { version = "0.11.1", optional = true }
+pyo3 = { version = "^0.13", optional = true }
 codespan-reporting = "0.9.5"
 structopt = { version = "0.3" }
+tracing = "^0.1"
 
 [[bin]]
 name = "tyck"

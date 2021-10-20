@@ -21,7 +21,6 @@
 
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr.h>
-#include <tvm/runtime/container.h>
 
 #include <unordered_map>
 #include <vector>
@@ -77,17 +76,20 @@ void AnnotatedRegionSetNode::AddToRegion(AnnotatedRegion dest, const Expr& expr)
   }
 }
 
-AnnotatedRegion AnnotatedRegionSetNode::MakeRegion(const std::string& target) {
+AnnotatedRegion AnnotatedRegionSetNode::MakeRegion(const std::string& func_name,
+                                                   const std::string& target) {
   auto ret = regions_.emplace(AnnotatedRegion());
   (*ret.first)->id_ = region_id_++;
   (*ret.first)->target_ = target;
+  (*ret.first)->func_name_ = func_name;
   return *ret.first;
 }
 
 class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
  public:
-  Creator(const Op& region_begin_op, const Op& region_end_op)
-      : begin_op_(region_begin_op), end_op_(region_end_op) {}
+  Creator(const Op& region_begin_op, const Op& region_end_op,
+          const std::string& func_name = "default")
+      : begin_op_(region_begin_op), end_op_(region_end_op), func_name_(func_name) {}
 
   AnnotatedRegionSet Create(const Expr& expr) {
     VisitExpr(expr);
@@ -145,7 +147,7 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
       ICHECK(!region.defined());
 
       // Create a new region.
-      region = region_set_->MakeRegion(target);
+      region = region_set_->MakeRegion(func_name_, target);
       region->nodes_.insert(GetRef<Call>(call));
       region->ins_.push_back(GetRef<Call>(call));
     } else {
@@ -157,8 +159,9 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
       // Check if the argument already belongs to a region
       auto region = region_set_->GetRegion(call->args[0]);
       if (!region.defined()) {
-        throw Error(ErrorBuilder() << "Cannot find the corresponding region for end annotation:\n"
-                                   << AsText(GetRef<Call>(call), false));
+        throw CompileError(ErrorBuilder()
+                           << "Cannot find the corresponding region for end annotation:\n"
+                           << AsText(GetRef<Call>(call), false));
       } else {
         // If the argument is belonged to a region, it must have the same target.
         // Otherwise we should see a region_begin op.
@@ -213,10 +216,13 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
   const Op begin_op_;
   /*! \brief Region 'end' annotation operator. */
   const Op end_op_;
+  /*! \brief The unique function name that is used to be the name of this region set. */
+  const std::string func_name_;
 };
 
-AnnotatedRegionSet AnnotatedRegionSet::Create(const Expr& expr, const Op& begin, const Op& end) {
-  return Creator(begin, end).Create(expr);
+AnnotatedRegionSet AnnotatedRegionSet::Create(const Expr& expr, const Op& begin, const Op& end,
+                                              const std::string& func_name) {
+  return Creator(begin, end, func_name).Create(expr);
 }
 
 TVM_REGISTER_NODE_TYPE(AnnotatedRegionNode);

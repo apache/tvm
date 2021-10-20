@@ -179,7 +179,7 @@ class ComputeDAGNode : public Object {
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
   State init_state;
-  /*! \brief The static read-write access analyzer */
+  /*! \brief The static read-write access analyzer. */
   AccessAnalyzer access_analyzer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -263,6 +263,13 @@ class ComputeDAG : public ObjectRef {
   String PrintStepsAsPython(const Array<Step>& transform_steps) const;
 
   /*!
+   * \brief Print the compute DAG to a string. This is also used to generate the ComputeDAG hash.
+   * \param simple_mode Simple mode will only include the op names and brief compute.
+   * \return The ComputeDAG in a string.
+   */
+  String PrintDAG(bool simple_mode = false) const;
+
+  /*!
    * \brief Fill the correct bound information for a given state by calling ir_pass::InferBound.
    * The states can lose complete bound information after some transform steps (e.g., compute_at).
    * We can call this function to infer and fill all the bound information.
@@ -302,6 +309,14 @@ class ComputeDAG : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);
 };
+
+/*!
+ *  \brief Get the orginal shape from a rewritten layout string.
+ *  \param rewritten_layout The layout after auto-scheduler's layout rewrite.
+ *  \param axis_names Specifiy the names of axes.
+ *  \return shape The original shape.
+ */
+Array<PrimExpr> GetShapeFromRewrittenLayout(String rewritten_layout, Array<String> axis_names);
 
 }  // namespace auto_scheduler
 }  // namespace tvm

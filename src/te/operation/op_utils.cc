@@ -77,7 +77,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
         var = Var(iv->var->name_hint + ".init", bind_iv->var.dtype());
       }
 
-      ForType for_type = ForType::Serial;
+      ForKind kind = ForKind::kSerial;
       IterVarAttr it_attr;
       if (stage->iter_var_attrs.count(iv)) {
         it_attr = stage->iter_var_attrs[iv];
@@ -85,13 +85,13 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       if (it_attr.defined()) {
         switch (it_attr->iter_type) {
           case kUnrolled:
-            for_type = ForType::Unrolled;
+            kind = ForKind::kUnrolled;
             break;
           case kVectorized:
-            for_type = ForType::Vectorized;
+            kind = ForKind::kVectorized;
             break;
           case kParallelized:
-            for_type = ForType::Parallel;
+            kind = ForKind::kParallel;
             break;
           case kDataPar:
             break;
@@ -115,11 +115,11 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
         nest[i + 1].emplace_back(LetStmt(var, cast(var.dtype(), dom->min), no_op));
         value_map[iv] = cast(var.dtype(), dom->min);
       } else if (is_zero(dom->min)) {
-        nest[i + 1].emplace_back(For(var, 0, dom->extent, for_type, DeviceAPI::None, no_op));
+        nest[i + 1].emplace_back(For(var, 0, dom->extent, kind, no_op));
         value_map[iv] = var;
       } else {
         Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
-        nest[i + 1].emplace_back(For(idx, 0, dom->extent, for_type, DeviceAPI::None, no_op));
+        nest[i + 1].emplace_back(For(idx, 0, dom->extent, kind, no_op));
         PrimExpr new_value = dom->min + idx;
         value_map[iv] = new_value;
         nest[i + 1].emplace_back(LetStmt(var, new_value, no_op));
@@ -156,10 +156,12 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       nest[i + 1].emplace_back(AttrStmt(bind_iv, tir::attr::thread_extent, dom->extent, no_op));
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
+      } else if (stage->scope == "") {
+        value_map[iv] = var;
       } else {
         runtime::ThreadScope ts = runtime::ThreadScope::Create(bind_iv->thread_tag);
-        if (stage->scope == "" ||
-            static_cast<int>(runtime::StorageScope::Create(stage->scope).rank) <= ts.rank) {
+        runtime::StorageScope ss = runtime::StorageScope::Create(stage->scope);
+        if (static_cast<int>(ss.rank) <= ts.rank) {
           value_map[iv] = var;
         } else if (stage->scope == "warp" && ts.rank == 1) {
           // To determine whether a thread index is inside or outside a warp, we need
@@ -243,33 +245,41 @@ Stmt Substitute(Stmt s, const std::unordered_map<IterVar, PrimExpr>& value_map) 
   return tir::Substitute(s, init);
 }
 
-IterVarType ForTypeToIterVarType(tir::ForType for_type) {
-  switch (for_type) {
-    case ForType::Serial:
+PrimExpr Substitute(PrimExpr s, const std::unordered_map<IterVar, PrimExpr>& value_map) {
+  std::unordered_map<const VarNode*, PrimExpr> init;
+  for (const auto& kv : value_map) {
+    init[kv.first->var.get()] = kv.second;
+  }
+  return tir::Substitute(s, init);
+}
+
+IterVarType ForKindToIterVarType(tir::ForKind kind) {
+  switch (kind) {
+    case ForKind::kSerial:
       return kDataPar;
-    case ForType::Parallel:
+    case ForKind::kParallel:
       return kParallelized;
-    case ForType::Vectorized:
+    case ForKind::kVectorized:
       return kVectorized;
-    case ForType::Unrolled:
+    case ForKind::kUnrolled:
       return kUnrolled;
     default:
       return kDataPar;
   }
 }
 
-tir::ForType IterVarTypeToForType(IterVarType iter_type) {
+tir::ForKind IterVarTypeToForKind(IterVarType iter_type) {
   switch (iter_type) {
     case kDataPar:
-      return ForType::Serial;
+      return ForKind::kSerial;
     case kParallelized:
-      return ForType::Parallel;
+      return ForKind::kParallel;
     case kVectorized:
-      return ForType::Vectorized;
+      return ForKind::kVectorized;
     case kUnrolled:
-      return ForType::Unrolled;
+      return ForKind::kUnrolled;
     default:
-      return ForType::Serial;
+      return ForKind::kSerial;
   }
 }
 

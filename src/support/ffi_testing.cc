@@ -23,9 +23,12 @@
  */
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
+
+#include <thread>
 
 namespace tvm {
 // Attrs used to python API
@@ -71,13 +74,29 @@ TVM_REGISTER_GLOBAL("testing.test_check_eq_callback").set_body([](TVMArgs args, 
       runtime::TypedPackedFunc<void(int x, int y)>([msg](int x, int y) { CHECK_EQ(x, y) << msg; });
 });
 
-TVM_REGISTER_GLOBAL("testing.context_test").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLContext ctx = args[0];
+TVM_REGISTER_GLOBAL("testing.device_test").set_body([](TVMArgs args, TVMRetValue* ret) {
+  Device dev = args[0];
   int dtype = args[1];
   int did = args[2];
-  CHECK_EQ(static_cast<int>(ctx.device_type), dtype);
-  CHECK_EQ(static_cast<int>(ctx.device_id), did);
-  *ret = ctx;
+  CHECK_EQ(static_cast<int>(dev.device_type), dtype);
+  CHECK_EQ(static_cast<int>(dev.device_id), did);
+  *ret = dev;
+});
+
+TVM_REGISTER_GLOBAL("testing.run_check_signal").set_body_typed([](int nsec) {
+  for (int i = 0; i < nsec; ++i) {
+    tvm::runtime::EnvCheckSignals();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  LOG(INFO) << "Function finished without catching signal";
+});
+
+TVM_REGISTER_GLOBAL("testing.identity_cpp").set_body([](TVMArgs args, TVMRetValue* ret) {
+  const auto* identity_func = tvm::runtime::Registry::Get("testing.identity_py");
+  ICHECK(identity_func != nullptr)
+      << "AttributeError: \"testing.identity_py\" is not registered. Please check "
+         "if the python module is properly loaded";
+  *ret = (*identity_func)(args[0]);
 });
 
 // in src/api_test.cc
@@ -99,4 +118,45 @@ TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRet
   // and get another value.
   *ret = (obj.use_count() - 1);
 });
+
+class FrontendTestModuleNode : public runtime::ModuleNode {
+ public:
+  virtual const char* type_key() const { return "frontend_test"; }
+
+  static constexpr const char* kAddFunctionName = "__add_function";
+
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+
+ private:
+  std::unordered_map<std::string, PackedFunc> functions_;
+};
+
+constexpr const char* FrontendTestModuleNode::kAddFunctionName;
+
+PackedFunc FrontendTestModuleNode::GetFunction(const std::string& name,
+                                               const ObjectPtr<Object>& sptr_to_self) {
+  if (name == kAddFunctionName) {
+    return TypedPackedFunc<void(std::string, PackedFunc)>(
+        [this, sptr_to_self](std::string func_name, PackedFunc pf) {
+          CHECK_NE(func_name, kAddFunctionName)
+              << "func_name: cannot be special function " << kAddFunctionName;
+          functions_[func_name] = pf;
+        });
+  }
+
+  auto it = functions_.find(name);
+  if (it == functions_.end()) {
+    return PackedFunc();
+  }
+
+  return it->second;
+}
+
+runtime::Module NewFrontendTestModule() {
+  auto n = make_object<FrontendTestModuleNode>();
+  return runtime::Module(n);
+}
+
+TVM_REGISTER_GLOBAL("testing.FrontendTestModule").set_body_typed(NewFrontendTestModule);
+
 }  // namespace tvm

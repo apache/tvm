@@ -20,8 +20,8 @@
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
 
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
-#include <tvm/support/logging.h>
 
 #include <array>
 #include <memory>
@@ -143,7 +143,7 @@ class Device {
   virtual ~Device() = 0;
 
   static std::shared_ptr<Device> Global();
-  static bool ValidateDeviceId(decltype(DLContext::device_id) device_id) {
+  static bool ValidateDeviceId(decltype(DLDevice::device_id) device_id) {
     // Only supporting a single device for now.
     return device_id == 0;
   }

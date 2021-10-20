@@ -18,7 +18,7 @@
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
 import tvm
-from tvm import te
+from tvm import te, auto_scheduler
 
 from .pad import pad
 from .utils import get_pad_tuple3d
@@ -104,7 +104,15 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
     )
 
 
-def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype="float32"):
+def conv3d_ndhwc(
+    Input,
+    Filter,
+    stride,
+    padding,
+    dilation,
+    out_dtype="float32",
+    auto_scheduler_rewritten_layout="",
+):
     """Convolution operator in NDHWC layout.
 
     Parameters
@@ -123,6 +131,12 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype="float32"):
 
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
+
+    out_dtype: str = "float32",
+        The type of output tensor
+
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
 
     Returns
     -------
@@ -143,7 +157,22 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype="float32"):
         dilation_d, dilation_h, dilation_w = dilation
 
     batch, in_depth, in_height, in_width, in_channel = Input.shape
-    kernel_d, kernel_h, kernel_w, channel, num_filter = Filter.shape
+
+    if auto_scheduler_rewritten_layout:
+        # Infer shape for the rewritten layout
+        (
+            kernel_d,
+            kernel_h,
+            kernel_w,
+            channel,
+            num_filter,
+        ) = auto_scheduler.get_shape_from_rewritten_layout(
+            auto_scheduler_rewritten_layout, ["rd", "rh", "rw", "rc", "cc"]
+        )
+        auto_scheduler.remove_index_check(Filter)
+    else:
+        kernel_d, kernel_h, kernel_w, channel, num_filter = Filter.shape
+
     # compute the output shape
     dilated_kernel_d = (kernel_d - 1) * dilation_d + 1
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
@@ -178,7 +207,12 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype="float32"):
         ),
         name="Conv3dOutput",
         tag="conv3d_ndhwc",
+        attrs={"layout_free_placeholders": [Filter]},
     )
+
+    if auto_scheduler_rewritten_layout:
+        Output = auto_scheduler.rewrite_compute_body(Output, auto_scheduler_rewritten_layout)
+
     return Output
 
 

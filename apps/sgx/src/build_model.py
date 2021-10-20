@@ -23,7 +23,7 @@ import os
 from os import path as osp
 import sys
 
-from tvm import relay
+from tvm import relay, runtime
 from tvm.relay import testing
 import tvm
 from tvm import te
@@ -49,7 +49,7 @@ def main():
     with open(osp.join(build_dir, "graph.json"), "w") as f_graph_json:
         f_graph_json.write(graph)
         with open(osp.join(build_dir, "params.bin"), "wb") as f_params:
-            f_params.write(relay.save_param_dict(params))
+            f_params.write(runtime.save_param_dict(params))
 
 
 if __name__ == "__main__":

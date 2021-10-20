@@ -31,70 +31,24 @@
 #include <utility>
 #include <vector>
 
+#include "../../runtime/file_utils.h"
+
 namespace tvm {
 namespace relay {
 
 using namespace runtime;
 
-TVM_REGISTER_GLOBAL("tvm.relay._save_param_dict").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ICHECK_EQ(args.size() % 2, 0u);
-  // `args` is in the form "key, value, key, value, ..."
-  size_t num_params = args.size() / 2;
-  std::vector<std::string> names;
-  names.reserve(num_params);
-  std::vector<DLTensor*> arrays;
-  arrays.reserve(num_params);
-  for (size_t i = 0; i < num_params * 2; i += 2) {
-    names.emplace_back(args[i].operator String());
-    arrays.emplace_back(args[i + 1].operator DLTensor*());
-  }
-  std::string bytes;
-  dmlc::MemoryStringStream strm(&bytes);
-  dmlc::Stream* fo = &strm;
-  uint64_t header = kTVMNDArrayListMagic, reserved = 0;
-  fo->Write(header);
-  fo->Write(reserved);
-  fo->Write(names);
-  {
-    uint64_t sz = static_cast<uint64_t>(arrays.size());
-    fo->Write(sz);
-    for (size_t i = 0; i < sz; ++i) {
-      tvm::runtime::SaveDLTensor(fo, arrays[i]);
-    }
-  }
-  TVMByteArray arr;
-  arr.data = bytes.c_str();
-  arr.size = bytes.length();
-  *rv = arr;
+TVM_REGISTER_GLOBAL("tvm.relay._save_param_dict")
+    .set_body_typed([](const Map<String, NDArray>& params) {
+      std::string s = ::tvm::runtime::SaveParams(params);
+      // copy return array so it is owned by the ret value
+      TVMRetValue rv;
+      rv = TVMByteArray{s.data(), s.size()};
+      return rv;
+    });
+TVM_REGISTER_GLOBAL("tvm.relay._load_param_dict").set_body_typed([](const String& s) {
+  return ::tvm::runtime::LoadParams(s);
 });
-
-TVM_REGISTER_GLOBAL("tvm.relay._load_param_dict").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::string bytes = args[0];
-  std::vector<std::string> names;
-  dmlc::MemoryStringStream memstrm(&bytes);
-  dmlc::Stream* strm = &memstrm;
-  uint64_t header, reserved;
-  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
-  ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
-  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
-  ICHECK(strm->Read(&names)) << "Invalid parameters file format";
-  uint64_t sz;
-  strm->Read(&sz, sizeof(sz));
-  size_t size = static_cast<size_t>(sz);
-  ICHECK(size == names.size()) << "Invalid parameters file format";
-  tvm::Array<NamedNDArray> ret;
-  for (size_t i = 0; i < size; ++i) {
-    tvm::runtime::NDArray temp;
-    temp.Load(strm);
-    auto n = tvm::make_object<NamedNDArrayNode>();
-    n->name = std::move(names[i]);
-    n->array = temp;
-    ret.push_back(NamedNDArray(n));
-  }
-  *rv = ret;
-});
-
-TVM_REGISTER_NODE_TYPE(NamedNDArrayNode);
 
 }  // namespace relay
 }  // namespace tvm

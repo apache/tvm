@@ -98,11 +98,11 @@ NDArray CoreMLModel::GetOutput(int index) const {
     LOG(FATAL) << "unexpected data type " << data_desc.dataType;
   }
   MLMultiArray* src = [output_ featureValueForName:name].multiArrayValue;
-  TVMContext cpu_ctx = {
+  Device cpu_dev = {
       .device_type = kDLCPU,
       .device_id = 0,
   };
-  NDArray ret = NDArray::Empty(shape, dtype, cpu_ctx);
+  NDArray ret = NDArray::Empty(shape, dtype, cpu_dev);
   ret.CopyFromBytes(src.dataPointer, size);
 
   return ret;

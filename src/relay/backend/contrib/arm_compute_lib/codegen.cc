@@ -24,6 +24,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/type.h>
+#include <tvm/tir/analysis.h>
 
 #include <memory>
 #include <string>
@@ -126,7 +127,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
       nodes.activation = current_call;
       current_call = current_call->args[0].as<CallNode>();
     }
-    if (backend::IsOp(current_call, "nn.bias_add")) {
+    if (backend::IsOp(current_call, "add")) {
       nodes.bias = current_call;
       current_call = current_call->args[0].as<CallNode>();
     }
@@ -154,19 +155,32 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
    */
   std::shared_ptr<JSONGraphNode> CreateCompositeConvJSONNode(const CallNode* cn) {
     CompositeConvNode nodes = UnpackCompositeConvolution(cn);
-    std::string name = "nn.conv2d";
 
     const auto* conv_attr = nodes.conv->attrs.as<Conv2DAttrs>();
     ICHECK(conv_attr);
-    ICHECK(conv_attr->kernel_layout == "OHWI")
-        << "Kernel layout must be OHWI, has the module been pre-processed correctly?";
+
+    std::string name;
+    std::string name_prefix = "nn";
+
+    // Distinguish between normal and depth-wise convolution
+    if (conv_attr->channels.defined() &&
+        tvm::tir::ExprDeepEqual()(conv_attr->channels, conv_attr->groups) &&
+        conv_attr->groups != 1) {
+      name = "depthwise_conv2d";
+      ICHECK(conv_attr->kernel_layout == "IHWO")
+          << "Kernel layout must be IHWO, has the module been pre-processed correctly?";
+    } else {
+      name = "conv2d";
+      ICHECK(conv_attr->kernel_layout == "OHWI")
+          << "Kernel layout must be OHWI, has the module been pre-processed correctly?";
+    }
 
     // Inputs must be added in the same order they appear in the relay graph.
     std::vector<JSONGraphNodeEntry> inputs;
     inputs.push_back(VisitExpr(cn->args[0])[0]);
     inputs.push_back(VisitExpr(nodes.conv->args[1])[0]);
     if (nodes.requantize) {
-      name = "qnn.conv2d";
+      name_prefix = "qnn";
       inputs.push_back(VisitExpr(nodes.conv->args[2])[0]);  // input zero-point
       inputs.push_back(VisitExpr(nodes.conv->args[3])[0]);  // kernel zero-point
       inputs.push_back(VisitExpr(nodes.conv->args[4])[0]);  // input scale
@@ -180,7 +194,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
       inputs.push_back(VisitExpr(nodes.requantize->args[4])[0]);  // output zero-point
     }
 
-    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    auto json_node = std::make_shared<JSONGraphNode>(name_prefix + "." + name, "kernel", inputs, 1);
     SetCallNodeAttribute(json_node, nodes.conv);
 
     // Override attributes
@@ -224,10 +238,11 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
       nodes.requantize = current_call;
       current_call = current_call->args[0].as<CallNode>();
     }
-    if (backend::IsOp(current_call, "nn.bias_add")) {
+    if (backend::IsOp(current_call, "add")) {
       nodes.bias = current_call;
       current_call = current_call->args[0].as<CallNode>();
     }
+
     // Enforce a dense node exists at this point during traversal
     if (nodes.requantize) {
       ICHECK(backend::IsOp(current_call, "qnn.dense"));
@@ -330,25 +345,6 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
 };
 
 /*!
- * \brief Pre-process a module containing functions ready for ACL codegen.
- *
- * For now we enforce OHWI kernel layout and fold the transforms away.
- *
- * \param mod The module to be pre-processed.
- * \return The processed module.
- */
-IRModule PreProcessModule(const IRModule& mod) {
-  IRModule preprocessed_module;
-  tvm::Map<String, Array<String>> desired_layouts = {{"nn.conv2d", {"NHWC", "OHWI"}},
-                                                     {"qnn.conv2d", {"NHWC", "OHWI"}}};
-  preprocessed_module = transform::ConvertLayout(desired_layouts)(mod);
-  preprocessed_module = transform::FoldConstant()(preprocessed_module);
-  return preprocessed_module;
-}
-
-TVM_REGISTER_GLOBAL("relay.ext.arm_compute_lib.optimize").set_body_typed(PreProcessModule);
-
-/*!
  * \brief Create a runtime module for ACL.
  *
  * This consists of a series of "serialized functions" which each represent a
@@ -380,12 +376,12 @@ runtime::Module ACLCompiler(const ObjectRef& ref) {
 TVM_REGISTER_GLOBAL("relay.ext.arm_compute_lib").set_body_typed(ACLCompiler);
 
 /*!
- * \brief Check whether ACL graph runtime is used.
+ * \brief Check whether ACL graph executor is used.
  *
- * \return True if ACL graph runtime is enabled, False if not.
+ * \return True if ACL graph executor is enabled, False if not.
  */
 inline constexpr bool IsACLRuntimeEnabled() {
-#if TVM_GRAPH_RUNTIME_ARM_COMPUTE_LIB
+#if TVM_GRAPH_EXECUTOR_ARM_COMPUTE_LIB
   return true;
 #else
   return false;

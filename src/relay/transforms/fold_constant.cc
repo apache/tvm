@@ -27,7 +27,6 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
@@ -82,29 +81,39 @@ class ConstantFolder : public MixedModeMutator {
         device_copy_op_(Op::Get("device_copy")),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
-        invoke_tvm_op_(Op::Get("vm.invoke_tvm_op")),
-        shape_func_op_(Op::Get("vm.shape_func")),
-        alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
-        alloc_storage_op_(Op::Get("memory.alloc_storage")),
         cast_op_(Op::Get("cast")),
         ndarray_size_op_(Op::Get("ndarray_size")) {}
 
   using MixedModeMutator::VisitExpr_;
 
   Expr VisitExpr_(const LetNode* op) final {
-    Expr value = this->Mutate(op->value);
-    if (value.as<ConstantNode>()) {
-      memo_[op->var] = value;
-      return this->Mutate(op->body);
-    } else {
-      Var var = Downcast<Var>(this->Mutate(op->var));
-      Expr body = this->Mutate(op->body);
-      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
-        return GetRef<Expr>(op);
+    auto pre_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->Mutate(op->value);
+      if (value.as<ConstantNode>()) {
+        this->memo_[op->var] = value;
       } else {
-        return Let(var, value, body);
+        this->Mutate(op->var);
       }
-    }
+    };
+    auto post_visit = [this](const LetNode* op) {
+      Expr expr = GetRef<Expr>(op);
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->Mutate(op->value);
+      if (value.as<ConstantNode>()) {
+        this->memo_[expr] = this->Mutate(op->body);
+      } else {
+        Var var = Downcast<Var>(this->Mutate(op->var));
+        Expr body = this->Mutate(op->body);
+        if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+          this->memo_[expr] = expr;
+        } else {
+          this->memo_[expr] = Let(var, value, body);
+        }
+      }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
   }
 
   bool inside_primitive = false;
@@ -120,13 +129,23 @@ class ConstantFolder : public MixedModeMutator {
     }
   }
 
+  Expr VisitExpr_(const IfNode* op) final {
+    auto new_cond = ExprMutator::VisitExpr(op->cond);
+    if (auto const_cond = new_cond.as<ConstantNode>()) {
+      if (reinterpret_cast<uint8_t*>(const_cond->data->data)[0]) {
+        return ExprMutator::VisitExpr(op->true_branch);
+      } else {
+        return ExprMutator::VisitExpr(op->false_branch);
+      }
+    }
+    return ExprMutator::VisitExpr_(op);
+  }
+
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
     if (inside_primitive) {
       return GetRef<Expr>(call);
     }
     static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
-
-    std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
 
     auto origin_args = call->args;
     call = post.as<CallNode>();
@@ -136,9 +155,6 @@ class ConstantFolder : public MixedModeMutator {
     if (call->args.size() == 0) return post;
     const OpNode* op = call->op.as<OpNode>();
     if (op == nullptr) return post;
-    if (skip_list.count(op->name)) {
-      return post;
-    }
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return post;
     // Try to evaluate shape_of op
@@ -191,10 +207,6 @@ class ConstantFolder : public MixedModeMutator {
   const Op& device_copy_op_;
   const Op& shape_of_op_;
   const Op& vm_shape_of_op_;
-  const Op& invoke_tvm_op_;
-  const Op& shape_func_op_;
-  const Op& alloc_tensor_op_;
-  const Op& alloc_storage_op_;
   const Op& cast_op_;
   const Op& ndarray_size_op_;
 
@@ -217,35 +229,16 @@ class ConstantFolder : public MixedModeMutator {
   }
   // Constant evaluate an expression.
   Expr ConstEvaluate(Expr expr) {
-    std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::ToANormalForm(),
-                                           transform::InferType()};
-    Function func;
-    if (expr.as<FunctionNode>()) {
-      func = Downcast<Function>(expr);
-    } else {
-      // TODO(@jroesch): fix this
-      func = Function(FreeVars(expr), expr, Type(), FreeTypeVars(expr, module_), {});
-    }
-    auto mod = IRModule({}, module_->type_definitions, module_->Imports());
-    auto global = GlobalVar("main");
-    mod->Add(global, func);
-    auto seq = transform::Sequential(passes);
-    mod = seq(mod);
-    auto entry_func = Downcast<Function>(mod->Lookup("main"));
-    expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
-
-    using tvm::transform::PassContext;
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     Target target = Target("llvm");
-    // use a fresh build context
-    // in case we are already in a build context.
-    // needed for both execution and creation(due to JIT)
-    With<PassContext> fresh_build_ctx(PassContext::Create());
 
-    FInterpreter executor = CreateInterpreter(mod, ctx, target);
-    return ObjectToExpr(executor(expr));
+    // use a fresh build context in case we are already in a build context.
+    // needed for both execution and creation(due to JIT)
+    With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
+
+    return ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(), dev, target));
   }
 
   // Evaluate a call to the shape_of operator for tensors with constant
@@ -263,17 +256,17 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant shape
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
     if (ishape.size() == 0) {
-      value = runtime::NDArray::Empty({}, cdtype, ctx);
+      value = runtime::NDArray::Empty({}, cdtype, dev);
     } else {
       ICHECK_NE(ishape.size(), 0);
       std::vector<int64_t> cshape = {static_cast<int64_t>(ishape.size())};
-      value = runtime::NDArray::Empty(cshape, cdtype, ctx);
+      value = runtime::NDArray::Empty(cshape, cdtype, dev);
       int32_t* dims = static_cast<int32_t*>(value->data);
       using ::tvm::tir::IntImmNode;
       for (size_t i = 0; i < ishape.size(); ++i) {
@@ -288,7 +281,7 @@ class ConstantFolder : public MixedModeMutator {
     Constant shape = Downcast<Constant>(ObjectToExpr(value));
 
     if (shape->data.Shape().size() == 0 && GetScalarFromConstant<int32_t>(shape) == 0) {
-      auto ndarray = runtime::NDArray::Empty({}, cdtype, ctx);
+      auto ndarray = runtime::NDArray::Empty({}, cdtype, dev);
       shape = Constant(ndarray);
     }
 
@@ -310,12 +303,12 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant size
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
+    Device dev;
+    dev.device_type = kDLCPU;
+    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
-    value = runtime::NDArray::Empty({}, cdtype, ctx);
+    value = runtime::NDArray::Empty({}, cdtype, dev);
     int32_t* data = static_cast<int32_t*>(value->data);
     if (ishape.size() == 0) {
       *data = 0;
@@ -360,6 +353,8 @@ class ConstantFolder : public MixedModeMutator {
 Expr FoldConstant(const Expr& expr, const IRModule& mod) {
   return ConstantFolder(mod).Mutate(expr);
 }
+
+TVM_REGISTER_GLOBAL("relay._transform.FoldConstantExpr").set_body_typed(FoldConstant);
 
 namespace transform {
 

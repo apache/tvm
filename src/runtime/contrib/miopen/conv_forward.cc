@@ -24,6 +24,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
+#include <cassert>
+
 #include "miopen_utils.h"
 
 namespace tvm {
@@ -57,8 +59,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup").set_body([](TVMArgs args,
   if (n_group > 1) assert(mode > 1 && "Group /Depthwise Conv mode when num of groups > 1");
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<miopenConvolutionMode_t>(mode);
-  // Set Ctx
-  entry_ptr->conv_entry.ctx = TVMContext{kDLROCM, 0};
+  // Set Device
+  entry_ptr->conv_entry.device = Device{kDLROCM, 0};
   // Set Data Type
   entry_ptr->conv_entry.data_type =
       static_cast<miopenDataType_t>(dtype);  // MIOpen supports fp32(miopenFloat), fp16(miopenHalf),
@@ -104,11 +106,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup").set_body([](TVMArgs args,
 
   runtime::DeviceAPI* rocm_api = entry_ptr->conv_entry.rocm_api;
   float* input_buf = static_cast<float*>(
-      rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx, input_size * sizeof(float)));
+      rocm_api->AllocWorkspace(entry_ptr->conv_entry.device, input_size * sizeof(float)));
   float* filter_buf = static_cast<float*>(
-      rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx, filter_size * sizeof(float)));
+      rocm_api->AllocWorkspace(entry_ptr->conv_entry.device, filter_size * sizeof(float)));
   float* output_buf = static_cast<float*>(
-      rocm_api->AllocWorkspace(entry_ptr->conv_entry.ctx, output_size * sizeof(float)));
+      rocm_api->AllocWorkspace(entry_ptr->conv_entry.device, output_size * sizeof(float)));
 
   const int request_algo_count = 4;
   const bool exhaustive_search = false;
@@ -123,9 +125,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup").set_body([](TVMArgs args,
       entry_ptr->conv_entry.output_desc, output_buf, request_algo_count, &returned_algo_count,
       perfs, workspace, workspace_size, exhaustive_search));
 
-  rocm_api->FreeWorkspace(entry_ptr->conv_entry.ctx, input_buf);
-  rocm_api->FreeWorkspace(entry_ptr->conv_entry.ctx, filter_buf);
-  rocm_api->FreeWorkspace(entry_ptr->conv_entry.ctx, output_buf);
+  rocm_api->FreeWorkspace(entry_ptr->conv_entry.device, input_buf);
+  rocm_api->FreeWorkspace(entry_ptr->conv_entry.device, filter_buf);
+  rocm_api->FreeWorkspace(entry_ptr->conv_entry.device, output_buf);
 
   const std::vector<std::string> fwd_algo_names{
       "miopenConvolutionFwdAlgoGEMM",
@@ -164,8 +166,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
       entry_ptr->conv_entry.fwd_algo = static_cast<miopenConvFwdAlgorithm_t>(algo);
       // Set Mode
       entry_ptr->conv_entry.mode = static_cast<miopenConvolutionMode_t>(mode);
-      // Set Ctx
-      entry_ptr->conv_entry.ctx = x->ctx;
+      // Set Device
+      entry_ptr->conv_entry.device = x->device;
       // Set Data Type
       entry_ptr->conv_entry.data_type =
           static_cast<miopenDataType_t>(dtype);  // MIOpen supports fp32(miopenFloat),

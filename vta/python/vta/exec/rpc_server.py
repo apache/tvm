@@ -34,7 +34,6 @@ from ..environment import get_env, pkg_config
 from ..libinfo import find_libvta
 
 
-@tvm.register_func("tvm.rpc.server.start", override=True)
 def server_start():
     """VTA RPC server extension."""
     # pylint: disable=unused-variable
@@ -127,7 +126,9 @@ def server_start():
 def main():
     """Main funciton"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="the hostname of the server")
+    parser.add_argument(
+        "--host", type=str, default="0.0.0.0", help="The host IP address the server binds to"
+    )
     parser.add_argument("--port", type=int, default=9091, help="The port of the RPC")
     parser.add_argument("--port-end", type=int, default=9199, help="The end search port of the RPC")
     parser.add_argument(
@@ -146,8 +147,21 @@ def main():
     else:
         tracker_addr = None
 
+    # register the initialization callback
+    def server_init_callback():
+        # pylint: disable=redefined-outer-name, reimported, import-outside-toplevel, import-self
+        import tvm
+        import vta.exec.rpc_server
+
+        tvm.register_func("tvm.rpc.server.start", vta.exec.rpc_server.server_start, override=True)
+
     server = rpc.Server(
-        args.host, args.port, args.port_end, key=args.key, tracker_addr=tracker_addr
+        args.host,
+        args.port,
+        args.port_end,
+        key=args.key,
+        tracker_addr=tracker_addr,
+        server_init_callback=server_init_callback,
     )
     server.proc.join()
 

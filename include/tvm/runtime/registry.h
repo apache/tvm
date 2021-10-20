@@ -52,6 +52,50 @@
 namespace tvm {
 namespace runtime {
 
+/*!
+ * \brief Check if signals have been sent to the process and if so
+ *  invoke the registered signal handler in the frontend environment.
+ *
+ *  When runnning TVM in another langugage(python), the signal handler
+ *  may not be immediately executed, but instead the signal is marked
+ *  in the interpreter state(to ensure non-blocking of the signal handler).
+ *
+ *  This function can be explicitly invoked to check the cached signal
+ *  and run the related processing if a signal is marked.
+ *
+ *  On Linux, when siginterrupt() is set, invoke this function whenever a syscall returns EINTR.
+ *  When it is not set, invoke it between long-running syscalls when you will not immediately
+ *  return to the frontend. On Windows, the same rules apply, but due to differences in signal
+ *  processing, these are likely to only make a difference when used with Ctrl+C and socket calls.
+ *
+ *  Not inserting this function will not cause any correctness
+ *  issue, but will delay invoking the Python-side signal handler until the function returns to
+ *  the Python side. This means that the effect of e.g. pressing Ctrl+C or sending signals the
+ *  process will be delayed until function return. When a C function is blocked on a syscall
+ *  such as accept(), it needs to be called when EINTR is received.
+ *  So this function is not needed in most API functions, which can finish quickly in a
+ *  reasonable, deterministic amount of time.
+ *
+ * \code
+ *
+ * int check_signal_every_k_iter = 10;
+ *
+ * for (int iter = 0; iter < very_large_number; ++iter) {
+ *   if (iter % check_signal_every_k_iter == 0) {
+ *     tvm::runtime::EnvCheckSignals();
+ *   }
+ *   // do work here
+ * }
+ *
+ * \endcode
+ *
+ * \note This function is a nop when no PyErr_CheckSignals is registered.
+ *
+ * \throws This function throws an exception when the frontend signal handler
+ *         indicate an error happens, otherwise it returns normally.
+ */
+TVM_DLL void EnvCheckSignals();
+
 /*! \brief Registry for global function */
 class Registry {
  public:
@@ -93,7 +137,7 @@ class Registry {
   template <typename FLambda>
   Registry& set_body_typed(FLambda f) {
     using FType = typename detail::function_signature<FLambda>::FType;
-    return set_body(TypedPackedFunc<FType>(std::move(f)).packed());
+    return set_body(TypedPackedFunc<FType>(std::move(f), name_).packed());
   }
   /*!
    * \brief set the body of the function to be the passed method pointer.
@@ -122,7 +166,7 @@ class Registry {
       // call method pointer
       return (target.*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(T, Args...)>(fwrap));
+    return set_body(TypedPackedFunc<R(T, Args...)>(fwrap, name_));
   }
 
   /*!
@@ -152,7 +196,7 @@ class Registry {
       // call method pointer
       return (target.*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(const T, Args...)>(fwrap));
+    return set_body(TypedPackedFunc<R(const T, Args...)>(fwrap, name_));
   }
 
   /*!
@@ -194,7 +238,7 @@ class Registry {
       // call method pointer
       return (target->*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap));
+    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap, name_));
   }
 
   /*!
@@ -236,7 +280,7 @@ class Registry {
       // call method pointer
       return (target->*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap));
+    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap, name_));
   }
 
   /*!

@@ -20,7 +20,7 @@
 /*!
  * \file tvm/runtime/serializer.h
  * \brief Serializer extension to support TVM data types
- *  Include this file to enable serialization of DLDataType, DLContext
+ *  Include this file to enable serialization of DLDataType, DLDevice
  */
 #ifndef TVM_RUNTIME_SERIALIZER_H_
 #define TVM_RUNTIME_SERIALIZER_H_
@@ -49,17 +49,17 @@ struct Handler<DLDataType> {
 };
 
 template <>
-struct Handler<DLContext> {
-  inline static void Write(Stream* strm, const DLContext& ctx) {
-    int32_t device_type = static_cast<int32_t>(ctx.device_type);
+struct Handler<DLDevice> {
+  inline static void Write(Stream* strm, const DLDevice& dev) {
+    int32_t device_type = static_cast<int32_t>(dev.device_type);
     Handler<int32_t>::Write(strm, device_type);
-    Handler<int32_t>::Write(strm, ctx.device_id);
+    Handler<int32_t>::Write(strm, dev.device_id);
   }
-  inline static bool Read(Stream* strm, DLContext* ctx) {
+  inline static bool Read(Stream* strm, DLDevice* dev) {
     int32_t device_type = 0;
     if (!Handler<int32_t>::Read(strm, &(device_type))) return false;
-    ctx->device_type = static_cast<DLDeviceType>(device_type);
-    if (!Handler<int32_t>::Read(strm, &(ctx->device_id))) return false;
+    dev->device_type = static_cast<DLDeviceType>(device_type);
+    if (!Handler<int32_t>::Read(strm, &(dev->device_id))) return false;
     return true;
   }
 };

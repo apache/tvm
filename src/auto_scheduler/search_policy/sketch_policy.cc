@@ -78,6 +78,8 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
   node->rand_gen = std::mt19937(seed);
   node->params = std::move(params);
   node->verbose = verbose;
+  node->sample_init_min_pop_ =
+      GetIntParam(node->params, SketchParamKey::SampleInitPopulation::min_population);
 
   if (init_search_callbacks) {
     PrintTitle("Call init-search callbacks", verbose);
@@ -115,20 +117,34 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
     node->mutation_rules.push_back(std::make_shared<MutateParallel>(0.01));
   } else if (IsGPUTask(node->search_task)) {
     // Sketch Generation Rules
-    node->sketch_rules.push_back(&rule_add_cache_read_stage);
-    node->sketch_rules.push_back(&rule_special_compute_location_gpu);
-    node->sketch_rules.push_back(&rule_always_inline);
-    node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
-    node->sketch_rules.push_back(&rule_cross_thread_reduction);
-    node->sketch_rules.push_back(&rule_add_cache_write_stage);
-    node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
-    node->sketch_rules.push_back(&rule_multi_level_tiling);
-    node->sketch_rules.push_back(&rule_skip_stage);
+    if (node->search_task->target->GetAttr<String>("device", "") == "mali") {
+      node->sketch_rules.push_back(&rule_always_inline);
+      node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+      node->sketch_rules.push_back(&rule_add_rfactor);
+      node->sketch_rules.push_back(&rule_add_cache_write_stage);
+      node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+      node->sketch_rules.push_back(&rule_multi_level_tiling);
+      node->sketch_rules.push_back(&rule_skip_stage);
+    } else {
+      node->sketch_rules.push_back(&rule_add_cache_read_stage);
+      node->sketch_rules.push_back(&rule_special_compute_location_gpu);
+      node->sketch_rules.push_back(&rule_always_inline);
+      node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+      node->sketch_rules.push_back(&rule_cross_thread_reduction);
+      node->sketch_rules.push_back(&rule_add_cache_write_stage);
+      node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+      node->sketch_rules.push_back(&rule_multi_level_tiling);
+      node->sketch_rules.push_back(&rule_skip_stage);
+    }
 
     // Initial Population Generation Rules
     node->init_rules.push_back(&init_fill_tile_size);
     node->init_rules.push_back(&init_thread_bind);
     node->init_rules.push_back(&init_unroll);
+
+    if (node->search_task->target->GetAttr<String>("device", "") == "mali") {
+      node->init_rules.push_back(&init_vectorization);
+    }
 
     // Mutation Rules for Evolutionary Search
     node->mutation_rules.push_back(std::make_shared<MutateTileSize>(0.90));
@@ -368,8 +384,6 @@ Array<State> SketchPolicyNode::GenerateSketches() {
 Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches) {
   // Use this population as the parallel degree to do sampling
   int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
-  // At least we should sample this number of valid programs
-  int min_population = GetIntParam(params, SketchParamKey::SampleInitPopulation::min_population);
 
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
@@ -383,29 +397,27 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
 
   std::unordered_set<std::string> explored_state_strs;
   size_t iter = 1;
-  size_t target_size = min_population;
   size_t unchange_cnt = 0;
-  while (out_states.size() < target_size) {
+  while (static_cast<int>(out_states.size()) < sample_init_min_pop_) {
     std::vector<State> temp_states(population);
 
     // Sample a batch of states randomly
-    support::parallel_for(0, population,
-                          [this, &temp_states, &sketches, &rand_gens](int index) {
-                            // Randomly choose a sketch
-                            State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
-                            // Apply random annotation rules one by one
-                            bool valid = true;
-                            for (const auto& rule : init_rules) {
-                              if (rule->Apply(this, &tmp_s, &rand_gens[index]) ==
-                                  PopulationGenerationRule::ResultKind::kInvalid) {
-                                valid = false;
-                                break;
-                              }
-                            }
-                            if (valid) {
-                              temp_states[index] = std::move(tmp_s);
-                            }
-                          });
+    support::parallel_for(0, population, [this, &temp_states, &sketches, &rand_gens](int index) {
+      // Randomly choose a sketch
+      State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
+      // Apply random annotation rules one by one
+      bool valid = true;
+      for (const auto& rule : init_rules) {
+        if (rule->Apply(this, &tmp_s, &rand_gens[index]) ==
+            PopulationGenerationRule::ResultKind::kInvalid) {
+          valid = false;
+          break;
+        }
+      }
+      if (valid) {
+        temp_states[index] = std::move(tmp_s);
+      }
+    });
 
     // Filter out the states that were failed to apply initial rules
     Array<State> cand_states;
@@ -445,7 +457,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
                             std::chrono::high_resolution_clock::now() - tic_begin)
                             .count();
       StdCout(verbose) << "Sample Iter: " << iter << std::fixed << std::setprecision(4)
-                       << "\t#Pop: " << out_states.size() << "\t#Target: " << target_size
+                       << "\t#Pop: " << out_states.size() << "\t#Target: " << sample_init_min_pop_
                        << "\tfail_ct: " << fail_ct << "\tTime elapsed: " << std::fixed
                        << std::setprecision(2) << duration << std::endl;
     }
@@ -453,9 +465,9 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     if (unchange_cnt == 5) {
       // Reduce the target size to avoid too-long time in this phase if no valid state was found
       // in the past iterations
-      if (target_size > 1) {
-        target_size /= 2;
-        StdCout(verbose) << "#Target has been reduced to " << target_size
+      if (sample_init_min_pop_ > 1) {
+        sample_init_min_pop_ /= 2;
+        StdCout(verbose) << "#Target has been reduced to " << sample_init_min_pop_
                          << " due to too many failures or duplications" << std::endl;
       }
       unchange_cnt = 0;
@@ -507,7 +519,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   // auxiliary global variables
   std::vector<float> pop_scores;
   std::vector<double> pop_selection_probs;
-  float max_score = -1e-10;
+  float max_score = -1e-10f;
   pop_scores.reserve(population);
   pop_selection_probs.reserve(population);
   std::uniform_real_distribution<> dis(0.0, 1.0);
@@ -659,6 +671,26 @@ Array<MeasureInput> SketchPolicyNode::PickStatesWithEpsGreedy(const Array<State>
   return inputs;
 }
 
+/********** PreloadCustomSketchRule **********/
+TVM_REGISTER_OBJECT_TYPE(PreloadCustomSketchRuleNode);
+
+PreloadCustomSketchRule::PreloadCustomSketchRule(PackedFunc meet_condition_func,
+                                                 PackedFunc apply_func, String rule_name) {
+  auto node = make_object<PreloadCustomSketchRuleNode>();
+  node->meet_condition_func = std::move(meet_condition_func);
+  node->apply_func = std::move(apply_func);
+  node->rule_name = std::move(rule_name);
+  data_ = std::move(node);
+}
+
+void PreloadCustomSketchRuleNode::Callback(SearchPolicyNode* policy) {
+  CHECK(policy->IsInstance<SketchPolicyNode>());
+  auto sketch_policy = dynamic_cast<SketchPolicyNode*>(policy);
+  sketch_policy->sketch_rules.push_back(
+      new RuleCustomSketch(meet_condition_func, apply_func, rule_name));
+  StdCout(policy->verbose) << "Custom sketch rule \"" << rule_name << "\" added." << std::endl;
+}
+
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")
     .set_body_typed([](SearchTask task, CostModel program_cost_model, Map<String, ObjectRef> params,
                        int seed, int verbose,
@@ -686,6 +718,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyEvolutionarySearch")
 TVM_REGISTER_GLOBAL("auto_scheduler.PrintTitle").set_body_typed([](std::string title) {
   PrintTitle(title, 1);
 });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.PreloadCustomSketchRule")
+    .set_body_typed([](PackedFunc meet_condition_func, PackedFunc apply_func, String rule_name) {
+      return PreloadCustomSketchRule(meet_condition_func, apply_func, rule_name);
+    });
 
 }  // namespace auto_scheduler
 }  // namespace tvm

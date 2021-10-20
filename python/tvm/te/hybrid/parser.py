@@ -207,8 +207,7 @@ class HybridParser(ast.NodeVisitor):
             _domain = [Range.from_min_extent(0, i) for i in _buf.shape]
             _dtype = _buf.dtype
             _true = tvm.runtime.convert(True)
-            body = tvm.tir.ProducerRealize(_buf, _domain, _true, body)
-            body = tvm.tir.AttrStmt(_buf.op, "realize_scope", tvm.runtime.convert(_scope), body)
+            body = tvm.tir.ProducerRealize(_buf, _domain, _true, body, tvm.runtime.convert(_scope))
 
         for elem in to_pop:
             self.symbols.pop(elem)
@@ -480,14 +479,14 @@ class HybridParser(ast.NodeVisitor):
         return op
 
     def visit_For(self, node):
-        iter_var, low, ext, for_type = self.visit(node.iter)
+        iter_var, low, ext, kind = self.visit(node.iter)
         _internal_assert(
             isinstance(node.target, ast.Name), "The loop iterator should be a variable!"
         )
 
         _name = node.target.id
 
-        if isinstance(for_type, tuple):
+        if isinstance(kind, tuple):
             low = self.analyzer.simplify(low)
             ext = self.analyzer.simplify(ext)
             _internal_assert(
@@ -511,14 +510,14 @@ class HybridParser(ast.NodeVisitor):
             return concat_list_to_block(bodies)
 
         if iter_var is None:
-            _internal_assert(for_type is not None, "The loop iterating function parse error!")
+            _internal_assert(kind is not None, "The loop iterating function parse error!")
             offset = iter_var = tvm.te.var(_name)
             if not tvm.tir.analysis.expr_deep_equal(low, tvm.runtime.const(0, "int32")):
                 offset = iter_var + low
             self.add_symbol(_name, Symbol.LoopVar, offset)
             _body = visit_list_to_block(self.visit, node.body)
         else:
-            _internal_assert(for_type is None, "The loop bind function parse error!")
+            _internal_assert(kind is None, "The loop bind function parse error!")
             self.add_symbol(_name, Symbol.ThreadBind, iter_var)
             self.device += 1
             _body = visit_list_to_block(self.visit, node.body)
@@ -526,13 +525,13 @@ class HybridParser(ast.NodeVisitor):
 
         _body = self.wrap_up_realize(node, _body)
 
-        if for_type is None:
+        if kind is None:
             res = _body
         else:
             _internal_assert(
-                not isinstance(for_type, tuple), "Micro expansion should be handled before!"
+                not isinstance(kind, tuple), "Micro expansion should be handled before!"
             )
-            res = tvm.tir.For(iter_var, tvm.runtime.const(0, "int32"), ext, for_type, 0, _body)
+            res = tvm.tir.For(iter_var, tvm.runtime.const(0, "int32"), ext, kind, _body)
 
         self.symbols.pop(_name)
         return res

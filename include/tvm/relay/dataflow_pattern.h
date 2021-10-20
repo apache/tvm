@@ -27,6 +27,9 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 
+#include <string>
+#include <vector>
+
 namespace tvm {
 namespace relay {
 
@@ -46,6 +49,29 @@ class DFPatternNode : public Object {
  */
 class DFPattern : public ObjectRef {
  public:
+  /*! \brief Syntatic Sugar for creating a CallPattern */
+  DFPattern operator()(const std::vector<DFPattern>& args);
+  /*! \brief Syntatic Sugar for creating a CallPattern with an "add" op */
+  DFPattern operator+(const DFPattern& other);
+  /*! \brief Syntatic Sugar for creating a CallPattern with a "subtract" op */
+  DFPattern operator-(const DFPattern& other);
+  /*! \brief Syntatic Sugar for creating a CallPattern with a "multiply" op */
+  DFPattern operator*(const DFPattern& other);
+  /*! \brief Syntatic Sugar for creating a CallPattern with a "divide" op */
+  DFPattern operator/(const DFPattern& other);
+  /*! \brief Syntatic Sugar for creating an AltPattern */
+  DFPattern operator||(const DFPattern& other);
+  /*! \brief Syntatic Sugar for creating an AttrPattern */
+  DFPattern HasAttr(const Map<String, ObjectRef>& attrs);
+  /*! \brief Syntatic Sugar for creating a TypePattern */
+  DFPattern HasType(const Type& type);
+  /*! \brief Syntatic Sugar for creating a DataTypePattern with a DataType */
+  DFPattern HasDtype(const DataType& dtype);
+  /*! \brief Syntatic Sugar for creating a DataTypePattern with a data type's name */
+  DFPattern HasDtype(const std::string& dtype);
+  /*! \brief Syntatic Sugar for creating a ShapePattern */
+  DFPattern HasShape(const Array<PrimExpr> shape);
+
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
 };
 
@@ -86,20 +112,11 @@ class VarPatternNode : public DFPatternNode {
    * \brief The name of the Var (optional).
    */
   String name;
-  /*!
-   * \brief type annotation of the variable.
-   * This field records user provided type annotation of the Var.
-   * This field is optional and can be None.
-   */
-  Type type_annotation;
 
   /*! \return The name hint of the variable */
   const String& name_hint() const { return name; }
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("type_annotation", &type_annotation);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name", &name); }
 
   static constexpr const char* _type_key = "relay.dataflow_pattern.VarPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(VarPatternNode, DFPatternNode);
@@ -107,7 +124,7 @@ class VarPatternNode : public DFPatternNode {
 
 class VarPattern : public DFPattern {
  public:
-  TVM_DLL VarPattern(String name_hint, Type type_annotation);
+  TVM_DLL VarPattern(String name_hint);
   TVM_DEFINE_OBJECT_REF_METHODS(VarPattern, DFPattern, VarPatternNode);
 };
 
@@ -148,34 +165,9 @@ class CallPatternNode : public DFPatternNode {
   /*! \brief The arguments(inputs) of the call */
   tvm::Array<relay::DFPattern> args;
 
-  /*! \brief The additional attributes */
-  Attrs attrs;
-
-  /*!
-   * \brief The type arguments passed to polymorphic(template) function.
-   *
-   * This is the advance feature that is only used when the function is
-   * polymorphic. It is safe to be ignored in most cases. For example, in the
-   * following code, the type_args of addone call is [int].
-   *
-   * \code
-   *
-   * template<typename T>
-   * T addone(T a) { return a + 1; }
-   *
-   * void main() {
-   *   int x = addone<int>(10);
-   * }
-   *
-   * \endcode
-   */
-  tvm::Array<Type> type_args;
-
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("args", &args);
-    v->Visit("attrs", &attrs);
-    v->Visit("type_args", &type_args);
   }
 
   static constexpr const char* _type_key = "relay.dataflow_pattern.CallPattern";
@@ -184,8 +176,86 @@ class CallPatternNode : public DFPatternNode {
 
 class CallPattern : public DFPattern {
  public:
-  TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args);
+  TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args);
   TVM_DEFINE_OBJECT_REF_METHODS(CallPattern, DFPattern, CallPatternNode);
+};
+
+/*!
+ * \brief Relay Function container
+ * \sa Function
+ */
+class FunctionPatternNode : public DFPatternNode {
+ public:
+  /*! \brief Function parameters */
+  tvm::Array<DFPattern> params;
+  /*!
+   * \brief
+   * The expression which represents the computation of the function,
+   * the expression may reference the parameters, and the type of it
+   * or sub-expressions may reference the type variables.
+   */
+  DFPattern body;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("params", &params);
+    v->Visit("body", &body);
+  }
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.FunctionPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief Managed reference to FunctionNode.
+ * \sa FunctionNode
+ */
+class FunctionPattern : public DFPattern {
+ public:
+  /*!
+   * \brief Constructor
+   * \param params The parameters of the function.
+   * \param body The body of the function.
+   */
+  TVM_DLL FunctionPattern(tvm::Array<DFPattern> params, DFPattern body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FunctionPattern, DFPattern, FunctionPatternNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionPatternNode);
+};
+
+/*! \brief A binding of a sub-network. */
+class LetPatternNode : public DFPatternNode {
+ public:
+  /*! \brief The variable we bind to */
+  DFPattern var;
+  /*! \brief The value we bind var to */
+  DFPattern value;
+  /*! \brief The body of the let binding */
+  DFPattern body;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("var", &var);
+    v->Visit("value", &value);
+    v->Visit("body", &body);
+  }
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.LetPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetPatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief Let binding that binds a local var
+ */
+class LetPattern : public DFPattern {
+ public:
+  /*!
+   * \brief The constructor
+   * \param var The variable that is bound to.
+   * \param value The value used to bind to the variable.
+   * \param body The body of the let binding.
+   */
+  TVM_DLL LetPattern(DFPattern var, DFPattern value, DFPattern body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LetPattern, DFPattern, LetPatternNode);
 };
 
 /*! \brief Tuple of multiple Exprs */
@@ -224,6 +294,26 @@ class TupleGetItemPatternNode : public DFPatternNode {
 
   static constexpr const char* _type_key = "relay.dataflow_pattern.TupleGetItemPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemPatternNode, DFPatternNode);
+};
+
+class IfPatternNode : public DFPatternNode {
+ public:
+  DFPattern cond, true_branch, false_branch;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("cond", &cond);
+    v->Visit("true_branch", &true_branch);
+    v->Visit("false_branch", &false_branch);
+  }
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.IfPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfPatternNode, DFPatternNode);
+};
+
+class IfPattern : public DFPattern {
+ public:
+  TVM_DLL IfPattern(DFPattern cond, DFPattern then_clause, DFPattern else_clause);
+  TVM_DEFINE_OBJECT_REF_METHODS(IfPattern, DFPattern, IfPatternNode);
 };
 
 class TupleGetItemPattern : public DFPattern {
@@ -376,7 +466,7 @@ class AttrPatternNode : public DFPatternNode {
   /*! \brief The pattern. */
   DFPattern pattern;
   /*! \brief The attribute to match */
-  Attrs attrs;
+  DictAttrs attrs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pattern", &pattern);
@@ -392,7 +482,7 @@ class AttrPatternNode : public DFPatternNode {
  */
 class AttrPattern : public DFPattern {
  public:
-  TVM_DLL AttrPattern(DFPattern pattern, Attrs attrs);
+  TVM_DLL AttrPattern(DFPattern pattern, DictAttrs attrs);
   TVM_DEFINE_OBJECT_REF_METHODS(AttrPattern, DFPattern, AttrPatternNode);
 };
 
@@ -429,6 +519,21 @@ class DominatorPattern : public DFPattern {
   TVM_DLL DominatorPattern(DFPattern parent, DFPattern path, DFPattern child);
   TVM_DEFINE_OBJECT_REF_METHODS(DominatorPattern, DFPattern, DominatorPatternNode);
 };
+
+/*! \brief Syntatic Sugar for creating a VarPattern with a name */
+DFPattern IsVar(const String& name);
+/*! \brief Syntatic Sugar for creating a ConstantPattern */
+DFPattern IsConstant();
+/*! \brief Syntatic Sugar for creating a WildcardPattern */
+DFPattern IsWildcard();
+/*! \brief Syntatic Sugar for creating a ExprPattern */
+DFPattern IsExpr(const Expr& expr);
+/*! \brief Syntatic Sugar for creating a ExprPattern base on an Op*/
+DFPattern IsOp(const String& op_name);
+/*! \brief Syntatic Sugar for creating a TuplePattern*/
+DFPattern IsTuple(const Array<DFPattern>& fields);
+/*! \brief Syntatic Sugar for creating a TupleGetItemPattern*/
+DFPattern IsTupleGetItem(const DFPattern tuple, int index = -1);
 
 }  // namespace relay
 }  // namespace tvm

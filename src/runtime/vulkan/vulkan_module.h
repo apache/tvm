@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#pragma once
+
+#ifndef TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
+#define TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
 
 #include <string>
 #include <unordered_map>
@@ -35,3 +37,4 @@ Module VulkanModuleCreate(std::unordered_map<std::string, VulkanShader> smap,
 using vulkan::VulkanModuleCreate;
 }  // namespace runtime
 }  // namespace tvm
+#endif  // TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_

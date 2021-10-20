@@ -18,13 +18,15 @@
 # pylint: disable=unused-argument, redefined-builtin
 """Conv2D operators"""
 from __future__ import absolute_import as _abs
-from collections import namedtuple
-import tvm
-from tvm import te, auto_scheduler
 
+from collections import namedtuple
+
+import tvm
+from tvm import auto_scheduler, te
+
+from ..utils import get_const_int, get_const_tuple, simplify, tag
 from .pad import pad
 from .utils import get_pad_tuple
-from ..utils import simplify, get_const_tuple, get_const_int, tag
 from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
@@ -38,12 +40,16 @@ Workload = namedtuple(
         "in_filter",
         "groups",
         "out_filter",
-        "hkernel",
-        "wkernel",
-        "hpad",
-        "wpad",
-        "hstride",
-        "wstride",
+        "kernel_h",
+        "kernel_w",
+        "padt",
+        "padl",
+        "padb",
+        "padr",
+        "dilation_h",
+        "dilation_w",
+        "stride_h",
+        "stride_w",
     ],
 )
 
@@ -154,8 +160,8 @@ def conv2d_infer_layout(workload, cfg):
     raise ValueError("missing register for topi.nn.conv2d_infer_layout")
 
 
-def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
-    """ Get the workload structure. """
+def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layout="NCHW"):
+    """Get the workload structure."""
     if data_layout == "NCHW":
         _, CI, IH, IW = get_const_tuple(data.shape)
     elif data_layout == "NHWC":
@@ -170,7 +176,13 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
     else:
         KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
+    dilation_h, dilation_w = (
+        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    )
+    pt, pl, pb, pr = get_pad_tuple(
+        padding,
+        (get_const_int((KH - 1) * dilation_h + 1), get_const_int((KW - 1) * dilation_w + 1)),
+    )
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
@@ -182,7 +194,25 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
         '{} vs. {}".format(
         data.dtype, kernel.dtype
     )
-    return Workload(data.dtype, out_dtype, IH, IW, CI, GRPS, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
+    return Workload(
+        data.dtype,
+        out_dtype,
+        IH,
+        IW,
+        CI,
+        GRPS,
+        CO,
+        KH,
+        KW,
+        pt,
+        pl,
+        pb,
+        pr,
+        dilation_h,
+        dilation_w,
+        HSTR,
+        WSTR,
+    )
 
 
 def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
@@ -361,6 +391,12 @@ def conv2d_nhwc(
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
+    out_dtype: str = "float32",
+        The type of output tensor
+
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -381,23 +417,9 @@ def conv2d_nhwc(
 
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
-        # todo(merrymercy): wrap this with a more general interface.
-        if len(Filter.shape) >= 10:
-            # For cpu tile structure SSRSRS
-            base = len(Filter.shape) - 10
-            kernel_h = Filter.shape[2 + base] * Filter.shape[6 + base]
-            kernel_w = Filter.shape[3 + base] * Filter.shape[7 + base]
-            channel = Filter.shape[4 + base] * Filter.shape[8 + base]
-            num_filter = Filter.shape[5 + base] * Filter.shape[9 + base]
-            for i in range(base + 2):
-                num_filter *= Filter.shape[i]
-        elif len(Filter.shape) == 4:
-            num_filter, kernel_h, kernel_w, channel = Filter.shape
-        else:
-            raise ValueError(
-                "Don't know how to infer the layout for filter shape: %s. "
-                "Please add a new branch to handle this case." % str(Filter)
-            )
+        kernel_h, kernel_w, channel, num_filter = auto_scheduler.get_shape_from_rewritten_layout(
+            auto_scheduler_rewritten_layout, ["ry", "rx", "rc", "ff"]
+        )
         auto_scheduler.remove_index_check(Filter)
     else:
         kernel_h, kernel_w, channel, num_filter = Filter.shape
@@ -531,7 +553,9 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
                 ow * WSTR + kw * dilation_w,
                 idxmod(ic, ic_bn),
             ].astype(out_dtype)
-            * kernel[oc_chunk, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block],
+            * kernel[oc_chunk, idxdiv(ic, ic_bn), kh, kw, idxmod(ic, ic_bn), oc_block].astype(
+                out_dtype
+            ),
             axis=[ic, kh, kw],
         ),
         name="conv2d_NCHWc",
@@ -990,6 +1014,7 @@ def _conv2d_winograd_nhwc_impl(
     out_dtype,
     tile_size,
     pre_computed=False,
+    auto_scheduler_rewritten_layout="",
 ):
     """Conv2D Winograd implementation in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
@@ -1010,8 +1035,10 @@ def _conv2d_winograd_nhwc_impl(
         Specifies the output data type.
     tile_size : int
         The size of the tile to use for the Winograd filter
-    pre_computed: bool
+    pre_computed: bool = False
         Whether the kernel is precomputed
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
 
     Returns
     -------
@@ -1028,7 +1055,16 @@ def _conv2d_winograd_nhwc_impl(
     if not pre_computed:
         KH, KW, CI, CO = get_const_tuple(weight.shape)
     else:
-        H_CAT, W_CAT, CO, CI = get_const_tuple(weight.shape)
+        if auto_scheduler_rewritten_layout:
+            H_CAT, W_CAT, CO, CI = get_const_tuple(
+                auto_scheduler.get_shape_from_rewritten_layout(
+                    auto_scheduler_rewritten_layout, ["eps", "nu", "co", "ci"]
+                )
+            )
+            auto_scheduler.remove_index_check(weight)
+        else:
+            H_CAT, W_CAT, CO, CI = get_const_tuple(weight.shape)
+
         KH, KW = H_CAT - tile_size + 1, W_CAT - tile_size + 1
 
     pad_t, pad_l, pad_b, pad_r = get_pad_tuple(padding, (KH, KW))
@@ -1060,8 +1096,10 @@ def _conv2d_winograd_nhwc_impl(
             ),
             name="kernel_pack",
         )
+        attrs = {}
     else:
         kernel_pack = weight
+        attrs = {"layout_free_placeholders": [kernel_pack]}
 
     # pack data tile
     input_tile = te.compute(
@@ -1093,8 +1131,11 @@ def _conv2d_winograd_nhwc_impl(
             data_pack[eps][nu][p][ci] * kernel_pack[eps][nu][co][ci], axis=[ci]
         ),
         name="bgemm",
-        attrs={"layout_free_placeholders": [kernel_pack]},
+        attrs=attrs,
     )
+
+    if auto_scheduler_rewritten_layout:
+        bgemm = auto_scheduler.rewrite_compute_body(bgemm, auto_scheduler_rewritten_layout)
 
     # inverse transform
     r_a = te.reduce_axis((0, alpha), "r_a")
@@ -1120,7 +1161,16 @@ def _conv2d_winograd_nhwc_impl(
 
 
 @tvm.target.generic_func
-def conv2d_winograd_nhwc(data, weight, strides, padding, dilation, out_dtype, pre_computed=False):
+def conv2d_winograd_nhwc(
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
+):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
 
@@ -1140,6 +1190,8 @@ def conv2d_winograd_nhwc(data, weight, strides, padding, dilation, out_dtype, pr
         Specifies the output data type.
     pre_computed: bool
         Whether the kernel is precomputed
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
 
     Returns
     -------
@@ -1157,11 +1209,18 @@ def conv2d_winograd_nhwc(data, weight, strides, padding, dilation, out_dtype, pr
         out_dtype,
         tile_size,
         pre_computed,
+        auto_scheduler_rewritten_layout,
     )
 
 
 def conv2d_winograd_nhwc_without_weight_transform(
-    data, weight, strides, padding, dilation, out_dtype
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    auto_scheduler_rewritten_layout="",
 ):
     """Conv2D Winograd without layout transform in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
@@ -1180,6 +1239,8 @@ def conv2d_winograd_nhwc_without_weight_transform(
         dilation size, or [dilation_height, dilation_width]
     out_dtype : str, optional
         Specifies the output data type.
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
 
     Returns
     -------
@@ -1188,5 +1249,12 @@ def conv2d_winograd_nhwc_without_weight_transform(
     """
 
     return conv2d_winograd_nhwc(
-        data, weight, strides, padding, dilation, out_dtype, pre_computed=True
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        pre_computed=True,
+        auto_scheduler_rewritten_layout=auto_scheduler_rewritten_layout,
     )

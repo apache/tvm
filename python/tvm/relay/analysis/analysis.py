@@ -20,27 +20,12 @@
 This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
-from tvm.ir import IRModule
-from tvm.relay import transform, build_module
-from tvm.runtime.ndarray import cpu
+from ...ir import IRModule
+from ...relay import transform, build_module
+from ...runtime.ndarray import cpu
 
 from . import _ffi_api
 from .feature import Feature
-
-
-def context_analysis(mod, default_context):
-    """Analyze the device context information of each IR node in a Relay
-    program.
-
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
-
-    default_context : tvm.runtime.TVMContext
-        The default context allocated to an IR node.
-    """
-    return _ffi_api.ContextAnalysis(mod, default_context)
 
 
 def post_order_visit(expr, fvisit):
@@ -268,40 +253,6 @@ def all_dtypes(expr):
     return set(_ffi_api.all_dtypes(expr))
 
 
-def collect_device_info(expr):
-    """Collect the device allocation map for the given expression. The device
-    ids are propagated from the `device_copy` operators.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
-    Returns
-    -------
-    ret : Dict[tvm.relay.ir.expr, int]
-        A dictionary mapping tvm.relay.Expr to device type.
-    """
-    return _ffi_api.CollectDeviceInfo(expr)
-
-
-def collect_device_annotation_ops(expr):
-    """Collect the device annotation ops for the given expression.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
-    Returns
-    -------
-    ret : Dict[tvm.relay.Expr, int]
-        A dictionary mapping tvm.relay.Expr to device type where the keys are
-        annotation expressions.
-    """
-    return _ffi_api.CollectDeviceAnnotationOps(expr)
-
-
 def get_total_mac_number(expr):
     """
     Count the number of MACs (multiply-accumulate) of a model
@@ -370,7 +321,7 @@ def extract_fused_functions(mod):
 
     Parameters
     ----------
-    mod : tvm.relay.IRModule
+    mod : tvm.IRModule
 
     Returns
     -------
@@ -382,6 +333,23 @@ def extract_fused_functions(mod):
     for hash_, func in ret_mod.functions.items():
         ret[hash_] = func
     return ret
+
+
+def list_op_freqs(mod):
+    """Pass to extract unique operator names and how frequently they appear
+    in an IRModule. Fused functions are traversed to count the operators
+    that compose them.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+
+    Returns
+    -------
+    ret : Dict[str, int]
+        Dict of unique operator names to frequency
+    """
+    return _ffi_api.ExtractOperators(mod)
 
 
 def search_fc_transpose(expr):
@@ -405,7 +373,7 @@ def search_fc_transpose(expr):
 def get_calibration_data(mod, data):
     """Get the calibration data of a given relay graph
 
-    This pass uses the graph runtime to get the calibration data of a module, which
+    This pass uses the graph executor to get the calibration data of a module, which
     includes the input and output values of each function. The returned data uses
     the GlobalVar of each function as a key. Users can further access the inputs and
     outputs by using `inputs` or  `outputs` as the key.
@@ -433,8 +401,7 @@ def get_calibration_data(mod, data):
     mod = _ffi_api.get_calibrate_module(mod)
     mod = transform.Inline()(mod)
 
-    ref_ex = build_module.create_executor("graph", mod=mod, ctx=cpu(0))
-    ref_res = ref_ex.evaluate()(**data)
+    ref_res = build_module.create_executor("graph", mod=mod, device=cpu(0)).evaluate()(**data)
 
     calib_data = {}
     for gvar, indices in output_map.items():

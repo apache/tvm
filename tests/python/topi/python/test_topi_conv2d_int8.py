@@ -27,6 +27,8 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.utils import get_pad_tuple
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.arm_cpu.conv2d_gemm import is_aarch64_arm
+from tvm.topi.nn.conv2d import _get_workload
+from tvm.topi.generic.conv2d import fallback_schedule_cpu_common_int8
 
 from common import Int8Fallback
 import tvm.testing
@@ -81,16 +83,16 @@ def compile_conv2d_NHWC_gemm_int8_arm(
     ]
 
     for device_tuple in devices:
-        device = device_tuple[0]
+        target = device_tuple[0]
         compute = device_tuple[1]
         schedule = device_tuple[2]
 
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Compiling on arm AArch64 target: %s" % device)
-        with tvm.target.Target(device):
+        print("Compiling on arm AArch64 target: %s" % target)
+        with tvm.target.Target(target):
             assert is_aarch64_arm(), "AArch64 target not recognized"
 
             C = compute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
@@ -104,22 +106,22 @@ def compile_conv2d_NHWC_gemm_int8_arm(
             tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
-                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+                target,
+                name="relu_%dnnn_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
         else:
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
@@ -173,13 +175,13 @@ def verify_conv2d_NHWC_gemm_int8(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
             C = topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved(
                 A, W, (stride, stride), padding, (dilation, dilation), dtype
             )
@@ -189,22 +191,22 @@ def verify_conv2d_NHWC_gemm_int8(
                 C = topi.nn.relu(C)
             s = topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
@@ -213,14 +215,14 @@ def verify_conv2d_NHWC_gemm_int8(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
-    check_device("llvm")
+    check_target("llvm")
 
 
 oc_block_factor = 4
@@ -282,17 +284,17 @@ def verify_conv2d_NCHWc_int8(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
+        if target == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
             print("Skip because int8 intrinsics are not available")
             return
 
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
             C = topi.cuda.conv2d_NCHWc_int8(
                 A, W, (stride, stride), padding, (dilation, dilation), "NCHW", dtype
             )
@@ -302,22 +304,22 @@ def verify_conv2d_NCHWc_int8(
                 C = topi.nn.relu(C)
             s = topi.cuda.schedule_conv2d_NCHWc_int8([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
@@ -326,15 +328,15 @@ def verify_conv2d_NCHWc_int8(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
-    for device in ["cuda"]:
-        check_device(device)
+    for target in ["cuda"]:
+        check_target(target)
 
 
 def verify_conv2d_nchw_int8(
@@ -385,17 +387,33 @@ def verify_conv2d_nchw_int8(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+    def verify_workload_padding():
+        _, _, out_height, out_width = get_const_tuple(c_np.shape)
+        wkl = _get_workload(A, W, (stride, stride), padding, dilation, dtype)
+
+        # for testing functionality,
+        # we choose arbitrary int32_lanes and num_int8_elements can divide the channel,
+        # regardless of the performance.
+        int32_lanes, num_int8_elements = num_filter, in_channel
+
+        # check if tile_ow candidates are the factors of the right output weight.
+        cfg = autotvm.get_config()
+        fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements)
+        ow_tile = np.prod(cfg["tile_ow"].size)
+
+        tvm.testing.assert_allclose(ow_tile, out_width)
+
+    def check_target(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
             return
-        if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
+        if target == "cuda" and not tvm.contrib.nvcc.have_int8(dev.compute_version):
             print("Skip because int8 intrinsics are not available")
             return
 
-        print("Running on target: %s" % device)
-        with tvm.target.Target(device):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
             C = topi.cuda.conv2d_nchw_int8(
                 A, W, (stride, stride), padding, (dilation, dilation), dtype
             )
@@ -405,22 +423,22 @@ def verify_conv2d_nchw_int8(
                 C = topi.nn.relu(C)
             s = topi.cuda.schedule_conv2d_nchw_int8([C])
 
-        a = tvm.nd.array(a_np, ctx)
-        w = tvm.nd.array(w_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(b_np, dev)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func = tvm.build(
                 s,
                 [A, W, bias, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
@@ -429,15 +447,17 @@ def verify_conv2d_nchw_int8(
             func = tvm.build(
                 s,
                 [A, W, C],
-                device,
+                target,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
-    for device in ["cuda"]:
-        check_device(device)
+    verify_workload_padding()
+
+    for target in ["cuda"]:
+        check_target(target)
 
 
 @tvm.testing.requires_cuda
@@ -547,6 +567,7 @@ def test_conv2d_nchw():
         verify_conv2d_nchw_int8(1, 32, 149, 32, 3, 1, 0)
         verify_conv2d_nchw_int8(7, 32, 149, 32, 3, 1, 0)
         verify_conv2d_nchw_int8(1, 32, 35, 64, 7, 2, (0, 0, 1, 1))
+        verify_conv2d_nchw_int8(1, 32, 35, 64, 7, 2, (0, 0, 2, 2))
 
 
 def test_conv2d_nhwc():

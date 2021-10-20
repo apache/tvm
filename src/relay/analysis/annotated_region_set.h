@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relay/pass/annotated_region_set.h
+ * \file tvm/relay/transforms/annotated_region_set.h
  * \brief Define data structures to extract and manipulate regions from
  * a relay function. Regions are denoted by region_begin and region_end
  * annotations that exist on all the input and output edges of the region.
@@ -33,7 +33,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 
 #include <list>
 #include <string>
@@ -63,6 +62,9 @@ class AnnotatedRegionNode : public Object {
   /*! \brief Get the region ID. */
   int GetID() const { return id_; }
 
+  /*! \brief Get the region name. */
+  std::string GetName() const { return func_name_; }
+
   /*! \brief Get the region target. */
   std::string GetTarget() const { return target_; }
 
@@ -81,6 +83,8 @@ class AnnotatedRegionNode : public Object {
  protected:
   /*! \brief The region ID. */
   int id_{-1};
+  /*! \brief The func name. */
+  std::string func_name_ = "default";
   /*! \brief The target for this region. */
   std::string target_ = "default";
   /*! \brief The inputs to this region. */
@@ -178,7 +182,7 @@ class AnnotatedRegionSetNode : public Object {
    *
    * \return The new region.
    */
-  AnnotatedRegion MakeRegion(const std::string& target);
+  AnnotatedRegion MakeRegion(const std::string& func_name, const std::string& target);
 
   std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual> regions_;
   /*! \brief The next region ID to assign. */
@@ -257,10 +261,12 @@ class AnnotatedRegionSet : public ObjectRef {
    * \param expr The relay expr from which to construct the set.
    * \param begin Region begin annotation operator.
    * \param end Region end annotation operator.
+   * \param func_name function name
    *
    * \return The created RegionSet for the expression.
    */
-  static AnnotatedRegionSet Create(const Expr& expr, const Op& begin, const Op& end);
+  static AnnotatedRegionSet Create(const Expr& expr, const Op& begin, const Op& end,
+                                   const std::string& func_name = "default");
 
  private:
   /*! \brief Helper class to construct a RegionSet from an expr.*/

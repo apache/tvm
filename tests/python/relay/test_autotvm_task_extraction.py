@@ -60,9 +60,9 @@ def test_task_extraction():
     tasks = autotvm.task.extract_from_program(
         mod["main"], target=target, params=params, ops=(dense,)
     )
-    assert len(tasks) == 1
+    assert len(tasks) == 2
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(dense,))
-    assert len(tasks) == 1
+    assert len(tasks) == 2
 
     mod, params, _ = get_network("resnet-18", batch_size=1)
     mod_list.append(mod)
@@ -70,13 +70,13 @@ def test_task_extraction():
     tasks = autotvm.task.extract_from_program(
         mod["main"], target=target, params=params, ops=(conv2d, dense)
     )
-    assert len(tasks) == 13
+    assert len(tasks) == 14
     tasks = autotvm.task.extract_from_program(
         mod, target=target, params=params, ops=(conv2d, dense)
     )
-    assert len(tasks) == 13
+    assert len(tasks) == 14
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params)
-    assert len(tasks) == 13
+    assert len(tasks) == 14
 
     mod, params, _ = get_network("resnet3d-18", batch_size=1)
     tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(conv3d,))
@@ -88,7 +88,7 @@ def test_task_extraction():
     tasks = autotvm.task.extract_from_program(
         mod, target=target, params=params, ops=(conv2d, dense)
     )
-    assert len(tasks) == 20
+    assert len(tasks) == 21
 
     mod, params, _ = get_network("dcgan", batch_size=1)
     tasks = autotvm.task.extract_from_program(
@@ -102,5 +102,26 @@ def test_task_extraction():
     assert len(tasks) == 31
 
 
+def test_task_extraction_for_dense_int8_cuda():
+    target = "cuda"
+    dense = relay.op.get("nn.dense")
+
+    def get_net(batch, in_dim, out_dim, dtype, out_dtype):
+        data = tvm.relay.var("data", shape=[batch, in_dim], dtype=dtype)
+        weight = tvm.relay.var("weight", shape=[out_dim, in_dim], dtype=dtype)
+        out = relay.nn.dense(data, weight, out_dtype=out_dtype)
+        mod, params = relay.testing.create_workload(out)
+        return mod, params
+
+    mod, params = get_net(1, 16, 32, "float32", "float32")
+    tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(dense,))
+    assert len(tasks) == 1 and tasks[0].name == "dense_small_batch.gpu"
+
+    mod, params = get_net(1, 16, 32, "int8", "int32")
+    tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(dense,))
+    assert len(tasks) == 1 and tasks[0].name == "dense_int8.cuda"
+
+
 if __name__ == "__main__":
     test_task_extraction()
+    test_task_extraction_for_dense_int8_cuda()

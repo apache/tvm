@@ -526,22 +526,13 @@ bool StatefulOp(const Expr& e) {
 
 using FInterpreter = runtime::TypedPackedFunc<ObjectRef(Expr)>;
 
-DLContext CPUContext() {
-  DLContext ctx;
-  ctx.device_type = kDLCPU;
-  ctx.device_id = 0;
-  return ctx;
-}
+Target CPUTarget() { return Target("llvm"); }
 
-FInterpreter CPUInterpreter() {
-  using tvm::transform::PassContext;
-
-  Target target = Target("llvm");
-  // use a fresh build context
-  // in case we are already in a build context.
-  With<PassContext> fresh_build_ctx(PassContext::Create());
-
-  return CreateInterpreter(IRModule(nullptr), CPUContext(), target);
+Device CPUDevice() {
+  Device dev;
+  dev.device_type = kDLCPU;
+  dev.device_id = 0;
+  return dev;
 }
 
 using FuncId = int;
@@ -613,7 +604,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const ConstantNode* op, LetList* ll) final {
-    return HasStatic(MkSTensor(op->data.CopyTo(context_)), ll->Push(GetRef<Expr>(op)));
+    return HasStatic(MkSTensor(op->data.CopyTo(device_)), ll->Push(GetRef<Expr>(op)));
   }
 
   PStatic VisitExpr_(const TupleNode* op, LetList* ll) final {
@@ -669,7 +660,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic VisitExpr_(const IfNode* op, LetList* ll) final {
     PStatic c = VisitExpr(op->cond, ll);
     if (c->pstatic.defined()) {
-      NDArray cpu_array = Downcast<STensor>(c->pstatic)->data.CopyTo(CPUContext());
+      NDArray cpu_array = Downcast<STensor>(c->pstatic)->data.CopyTo(CPUDevice());
       ICHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
         return VisitExpr(op->true_branch, ll);
@@ -754,7 +745,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (ps->pstatic.defined()) {
       if (auto* st = ps->pstatic.as<STensorNode>()) {
         if (st->data.Shape().empty()) {
-          NDArray cpu_array = st->data.CopyTo(CPUContext());
+          NDArray cpu_array = st->data.CopyTo(CPUDevice());
           DataType dtype = DataType(cpu_array->dtype);
           if (dtype == DataType::Int(32)) {
             return std::max<int32_t>(0, *static_cast<const int32_t*>(cpu_array->data));
@@ -861,8 +852,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     return VisitFunc(GetRef<Function>(op), ll);
   }
 
-  struct ReflectError : dmlc::Error {
-    ReflectError() : dmlc::Error("static value not found") {}
+  struct ReflectError : Error {
+    ReflectError() : Error("static value not found") {}
   };
 
   Expr Reflect(const PStatic& st) {
@@ -904,13 +895,9 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   // Constant evaluate an expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
-    std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::InferType()};
-    auto mod = IRModule::FromExpr(expr);
-    auto seq = transform::Sequential(passes);
-    mod = seq(mod);
-    auto entry_func = Downcast<Function>(mod->Lookup("main"));
-    auto fused_infered = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
-    return Reify(executor_(fused_infered), ll);
+    // use a fresh build context in case we are already in a build context.
+    With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
+    return Reify(Eval(expr, mod_->type_definitions, mod_->Imports(), CPUDevice(), CPUTarget()), ll);
   }
 
   Func ConstEvaluateFunc(const Expr& expr) {
@@ -1136,8 +1123,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   std::unordered_map<Function, FuncId, ObjectPtrHash, ObjectPtrEqual> func_map_;
   std::unordered_map<FuncId, Fuel> fuel_map_;
   Store store_;
-  DLContext context_ = CPUContext();
-  FInterpreter executor_ = CPUInterpreter();
+  Device device_ = CPUDevice();
 };
 
 /*! \brief Remap multiple Var sharing the same Id into the same Var. */

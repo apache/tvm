@@ -20,7 +20,7 @@ import pytest
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.testing import check_grad, run_infer_type, _np_randn_from_type
+from tvm.relay.testing import check_grad, run_infer_type, run_opt_pass, _np_randn_from_type
 from tvm.relay.transform import gradient
 import tvm.testing
 
@@ -40,10 +40,11 @@ def test_clip():
         fwd_func = run_infer_type(fwd_func)
         bwd_func = run_infer_type(gradient(fwd_func))
 
-        for target, ctx in tvm.testing.enabled_targets():
-            intrp = relay.create_executor(ctx=ctx, target=target)
-            op_res, (op_grad,) = intrp.evaluate(bwd_func)(data)
-            np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
+        for target, dev in tvm.testing.enabled_targets():
+            op_res, (op_grad,) = relay.create_executor(device=dev, target=target).evaluate(
+                bwd_func
+            )(data)
+            np.testing.assert_allclose(op_grad.numpy(), ref_grad, rtol=0.01)
 
 
 def verify_transpose_grad(d_shape, axes=None):
@@ -66,6 +67,13 @@ def test_negative_grad():
 def test_cast_grad():
     data = relay.var("data", relay.TensorType((10, 4), "float32"))
     fwd_func = relay.Function([data], relay.cast(data, "float64"))
+    check_grad(fwd_func)
+
+
+def test_cast_like_grad():
+    data = relay.var("data", shape=(10, 4), dtype="float32")
+    like = relay.var("like", shape=(1,), dtype="float64")
+    fwd_func = relay.Function([data, like], relay.cast_like(data, like))
     check_grad(fwd_func)
 
 
@@ -124,6 +132,61 @@ def test_gather_nd_grad():
     data_np = np.random.rand(2, 3).astype("float64")
     indices_np = np.array([[0, 1, 1, 0], [0, 1, 0, 0]], dtype="int64")
     check_grad(fwd, inputs=[data_np, indices_np], test_inputs=[data_np])
+
+
+def test_reshape_like_grad():
+    data = relay.var("data", shape=(2, 3, 4), dtype="float32")
+    shape_like = relay.var("shape_like", shape=(6, 2, 2), dtype="float32")
+    fwd_func = relay.Function([data, shape_like], relay.reshape_like(data, shape_like))
+    check_grad(fwd_func)
+
+
+def test_zeros_ones_grad_const_ints():
+    # when shape is static (i.e. not an input), there is no gradient at all
+    static_ty = relay.TensorType([2, 3, 4], dtype="float32")
+    expected_ty = relay.TupleType([static_ty, relay.TupleType([])])
+
+    for op in [relay.zeros, relay.ones]:
+        fwd_func = relay.Function([], op(static_ty.concrete_shape, static_ty.dtype))
+        bwd_func = run_infer_type(gradient(run_infer_type(fwd_func)))
+        tvm.ir.assert_structural_equal(bwd_func.ret_type, expected_ty)
+
+
+def test_zeros_ones_grad_const_expr():
+    # when shape is static (i.e. not an input), there is no gradient at all
+    shape_const = relay.const(np.array([2, 3, 4]), dtype="int32") * relay.const(1, dtype="int32")
+    static_ty = relay.TensorType([2, 3, 4], dtype="float32")
+    dyn_ty = relay.TensorType([relay.Any(), relay.Any(), relay.Any()], dtype="float32")
+    expected_ty_static = relay.TupleType([static_ty, relay.TupleType([])])
+    expected_ty_dyn = relay.TupleType([dyn_ty, relay.TupleType([])])
+
+    for op in [relay.zeros, relay.ones]:
+        # with DynamicToStatic, the shape should be concretized
+        fwd_func = relay.Function([], op(shape_const, static_ty.dtype))
+        fwd_func = run_opt_pass(fwd_func, relay.transform.DynamicToStatic())
+        bwd_func = run_infer_type(gradient(run_infer_type(fwd_func)))
+        tvm.ir.assert_structural_equal(bwd_func.ret_type, expected_ty_static)
+
+        fwd_func = relay.Function([], op(shape_const, static_ty.dtype))
+        bwd_func = run_infer_type(gradient(run_infer_type(fwd_func)))
+        tvm.ir.assert_structural_equal(bwd_func.ret_type, expected_ty_dyn)
+
+
+def test_zeros_ones_grad_dynamic():
+    rank = np.random.randint(low=1, high=5, dtype="int32")
+    dyn_shape = np.random.randint(low=1, high=4, size=(rank,), dtype="int32")
+    shape_data = relay.var("shape_data", shape=(rank,), dtype="int32")
+
+    for op, op_ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
+        fwd_func = relay.Function([shape_data], op(shape_data, dtype="float32"))
+        bwd_func = run_infer_type(gradient(run_infer_type(fwd_func)))
+
+        for target, dev in tvm.testing.enabled_targets():
+            res, (grad,) = relay.create_executor(device=dev, target=target).evaluate(bwd_func)(
+                dyn_shape
+            )
+            tvm.testing.assert_allclose(res.numpy(), op_ref(dyn_shape, dtype="float32"))
+            tvm.testing.assert_allclose(grad.numpy(), np.zeros((rank,), dtype="int32"))
 
 
 if __name__ == "__main__":

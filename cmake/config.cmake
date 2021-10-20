@@ -93,19 +93,25 @@ set(USE_RPC ON)
 # Whether to build the C++ RPC server binary
 set(USE_CPP_RPC OFF)
 
+# Whether to build the iOS RPC server application
+set(USE_IOS_RPC OFF)
+
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
 
-# Whether enable tiny embedded graph runtime.
-set(USE_GRAPH_RUNTIME ON)
+# Whether enable tiny embedded graph executor.
+set(USE_GRAPH_EXECUTOR ON)
 
-# Whether enable additional graph debug functions
-set(USE_GRAPH_RUNTIME_DEBUG OFF)
+# Whether enable tiny graph executor with CUDA Graph
+set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
 
-# Whether enable additional vm profiler functions
-set(USE_VM_PROFILER OFF)
+# Whether enable pipeline executor.
+set(USE_PIPELINE_EXECUTOR OFF)
 
-# Whether enable uTVM standalone runtime
+# Whether to enable the profiler for the graph executor and vm
+set(USE_PROFILER ON)
+
+# Whether enable microTVM standalone runtime
 set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
@@ -116,7 +122,7 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 # - OFF: disable llvm, note this will disable CPU codegen
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-set(USE_LLVM ON)
+set(USE_LLVM OFF)
 
 #---------------------------------------------
 # Contrib libraries
@@ -174,7 +180,10 @@ set(USE_FLATBUFFERS_PATH none)
 # - /path/to/edgetpu: use specific path to edgetpu library
 set(USE_EDGETPU OFF)
 
-# Whether use CuDNN
+# Possible values:
+# - ON: enable cuDNN with cmake's auto search in CUDA directory
+# - OFF: disable cuDNN
+# - /path/to/cudnn: use specific path to cuDNN path
 set(USE_CUDNN OFF)
 
 # Whether use cuBLAS
@@ -204,10 +213,10 @@ set(USE_DNNL_CODEGEN OFF)
 #
 # USE_ARM_COMPUTE_LIB - Support for compiling a relay graph offloading supported
 #                       operators to Arm Compute Library. OFF/ON
-# USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME - Run Arm Compute Library annotated functions via the ACL
+# USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR - Run Arm Compute Library annotated functions via the ACL
 #                                     runtime. OFF/ON/"path/to/ACL"
 set(USE_ARM_COMPUTE_LIB OFF)
-set(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME OFF)
+set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 
 # Whether to build with Arm Ethos-N support
 # Possible values:
@@ -218,6 +227,9 @@ set(USE_ETHOSN OFF)
 # If USE_ETHOSN is enabled, use ETHOSN_HW (ON) if Ethos-N hardware is available on this machine
 # otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
+
+# Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
+set(USE_ETHOSU OFF)
 
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
@@ -232,8 +244,8 @@ set(USE_TENSORRT_RUNTIME OFF)
 # Whether use VITIS-AI codegen
 set(USE_VITIS_AI OFF)
 
-# Build Verilator codegen and runtime, example located in 3rdparty/vta-hw/apps/verilator
-set(USE_VERILATOR_HW OFF)
+# Build Verilator codegen and runtime
+set(USE_VERILATOR OFF)
 
 # Build ANTLR parser for Relay text format
 # Possible values:
@@ -267,5 +279,71 @@ set(USE_FALLBACK_STL_MAP OFF)
 set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
 
+# Whether to build the hexagon launcher
+set(USE_HEXAGON_LAUNCHER OFF)
+
+# Hexagon architecture to target when compiling TVM itself (not the target for
+# compiling _by_ TVM). This applies to components like the TVM runtime, but is
+# also used to select correct include/library paths from the Hexagon SDK when
+# building offloading runtime for Android.
+# Valid values are v60, v62, v65, v66, v68.
+set(USE_HEXAGON_ARCH "v66")
+
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)
+
+# Whether enable BNNS runtime
+set(USE_BNNS OFF)
+
+# Whether to use libbacktrace
+# Libbacktrace provides line and column information on stack traces from errors.
+# It is only supported on linux and macOS.
+# Possible values:
+# - AUTO: auto set according to system information and feasibility
+# - ON: enable libbacktrace
+# - OFF: disable libbacktrace
+set(USE_LIBBACKTRACE AUTO)
+
+# Whether to build static libtvm_runtime.a, the default is to build the dynamic
+# version: libtvm_runtime.so.
+#
+# The static runtime library needs to be linked into executables with the linker
+# option --whole-archive (or its equivalent). The reason is that the TVM registry
+# mechanism relies on global constructors being executed at program startup.
+# Global constructors alone are not sufficient for the linker to consider a
+# library member to be used, and some of such library members (object files) may
+# not be included in the final executable. This would make the corresponding
+# runtime functions to be unavailable to the program.
+set(BUILD_STATIC_RUNTIME OFF)
+
+
+# Caches the build so that building is faster when switching between branches.
+# If you switch branches, build and then encounter a linking error, you may
+# need to regenerate the build tree through "make .." (the cache will
+# still provide significant speedups).
+# Possible values:
+# - AUTO: search for path to ccache, disable if not found.
+# - ON: enable ccache by searching for the path to ccache, report an error if not found
+# - OFF: disable ccache
+# - /path/to/ccache: use specific path to ccache
+set(USE_CCACHE AUTO)
+
+# Whether to enable PAPI support in profiling. PAPI provides access to hardware
+# counters while profiling.
+# Possible values:
+# - ON: enable PAPI support. Will search PKG_CONFIG_PATH for a papi.pc
+# - OFF: disable PAPI support.
+# - /path/to/folder/containing/: Path to folder containing papi.pc.
+set(USE_PAPI OFF)
+
+# Whether to use GoogleTest for C++ unit tests. When enabled, the generated
+# build file (e.g. Makefile) will have a target "cpptest".
+# Possible values:
+# - ON: enable GoogleTest. The package `GTest` will be required for cmake
+#   to succeed.
+# - OFF: disable GoogleTest.
+# - AUTO: cmake will attempt to find the GTest package, if found GTest will
+#   be enabled, otherwise it will be disabled.
+# Note that cmake will use `find_package` to find GTest. Please use cmake's
+# predefined variables to specify the path to the GTest package if needed.
+set(USE_GTEST AUTO)

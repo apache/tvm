@@ -34,6 +34,7 @@
  */
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/tir/function.h>
@@ -54,6 +55,9 @@ namespace relay {
  */
 Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
   Doc doc;
+  if (!opt_info_memo_.insert(expr).second) {
+    return doc;
+  }
   // default annotations
   if (annotate_ == nullptr) {
     if ((expr.as<ConstantNode>() || expr.as<CallNode>()) && expr->checked_type_.defined()) {
@@ -65,7 +69,6 @@ Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
       doc << annotated_expr;
     }
   }
-
   return doc;
 }
 
@@ -117,6 +120,9 @@ Doc RelayTextPrinter::Print(const ObjectRef& node, bool meta, bool try_inline) {
     return PrintPattern(Downcast<Pattern>(node), meta);
   } else if (node.as<IRModuleNode>()) {
     return PrintMod(Downcast<IRModule>(node));
+  } else if (!show_meta_data_ && node.as<BaseAttrsNode>()) {
+    // Show attributes in readable form.
+    return PrintAttrs(Downcast<Attrs>(node));
   } else {
     // default module.
     std::ostringstream os;
@@ -219,6 +225,7 @@ Doc RelayTextPrinter::AllocVar(const Var& var) {
   if (var->type_annotation.defined()) {
     val << ": " << Print(var->type_annotation);
   }
+  val << PrintOptionalInfo(var);
   return val;
 }
 
@@ -236,6 +243,34 @@ bool RelayTextPrinter::AlwaysInline(const Expr& expr) {
          expr.as<VarNode>() || expr.as<ConstructorNode>();
 }
 
+Doc RelayTextPrinter::VisitLeaf(const Expr& expr) {
+  if (!CheckVisited(expr)) {
+    Doc result = ExprFunctor<Doc(const Expr&)>::VisitExpr(expr);
+    // Add if not added after visiting
+    if (!CheckVisited(expr)) {
+      memo_[expr] = result;
+    } else {
+      result_memo_[expr] = result;
+    }
+    return result;
+  }
+  return memo_[expr];
+}
+
+bool RelayTextPrinter::CheckVisited(const Expr& expr) { return (memo_.count(expr)); }
+
+Doc RelayTextPrinter::VisitExpr(const Expr& expr) {
+  auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
+  auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
+
+  if (fcheck_visited(expr)) {
+    return memo_[expr];
+  } else {
+    ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
+    return memo_[expr];
+  }
+}
+
 //------------------------------------
 // Overload of Expr printing functions
 //------------------------------------
@@ -251,9 +286,6 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
   if (try_inline) {
     inline_expr |= IsUnique(expr);
   }
-
-  auto it = memo_.find(expr);
-  if (it != memo_.end()) return it->second;
 
   Doc printed_expr;
 
@@ -277,13 +309,19 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
   if (expr.as<VarNode>()) {
     // This is our first time visiting the var and we hit the VarNode case
     // in the visitor. Thus the variable is free.
-    doc_stack_.back() << "free_var " << printed_expr << ";" << Doc::NewLine();
+    if (var_memo_.insert(expr).second && result_memo_.count(expr)) {
+      doc_stack_.back() << "free_var " << result_memo_[expr] << ";" << Doc::NewLine();
+    }
     // Memoization is done in AllocVar.
     return memo_[expr];
   } else if (inline_expr) {
     memo_[expr] = printed_expr;
     return printed_expr;
   } else {
+    // Already exists. Reuse
+    if (!var_memo_.insert(expr).second) {
+      return memo_[expr];
+    }
     Doc temp_var = AllocTemp();
     memo_[expr] = temp_var;
     doc_stack_.back() << temp_var << " = " << printed_expr << ";" << Doc::NewLine();
@@ -322,7 +360,7 @@ Doc RelayTextPrinter::VisitExpr_(const ConstantNode* op) {
   if (op->is_scalar()) {
     std::ostringstream os;
     DataType dtype = DataType(op->data->dtype);
-    ICHECK_EQ(op->data->ctx.device_type, kDLCPU);
+    ICHECK_EQ(op->data->device.device_type, kDLCPU);
     if (dtype == DataType::Int(32)) {
       return ScalarLiteral(dtype, static_cast<const int32_t*>(op->data->data)[0]);
     } else if (dtype == DataType::Int(64)) {
@@ -735,6 +773,8 @@ Doc RelayTextPrinter::PrintAttr(const ObjectRef& value, bool meta) {
       printed_attr << "?";
     } else if (auto str_obj = value.as<tvm::StringObj>()) {
       printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
+    } else if (const auto* on_device_attrs = value.as<OnDeviceAttrs>()) {
+      printed_attr << "device_type=" << on_device_attrs->device_type;
     } else if (meta) {
       printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
     } else {
@@ -814,19 +854,35 @@ class RelayTextPrinter::AttrPrinter : public AttrVisitor {
   RelayTextPrinter* parent_;
 };
 
+Doc RelayTextPrinter::PrintAttrs(const Attrs& attrs) {
+  std::vector<Doc> docs;
+  AttrPrinter printer(&docs, this);
+  const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
+  Doc doc;
+  doc << "{" << Doc::Concat(docs) << "}";
+
+  return doc;
+}
+
 std::vector<Doc> RelayTextPrinter::PrintCallAttrs(const Attrs& attrs, const Expr& op) {
   std::vector<Doc> docs;
   if (!attrs.defined()) return docs;
   const auto* op_node = op.as<OpNode>();
-  if (op_node && (attrs->type_index() != op_node->attrs_type_index)) {
+  if (show_meta_data_ && op_node && (attrs->type_index() != op_node->attrs_type_index)) {
     // fallback
     Doc doc;
     doc << meta_->GetMetaNode(attrs);
     docs.push_back(doc);
     return docs;
   } else {
+    // Show attributes in readable form.
     AttrPrinter printer(&docs, this);
     const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
+    if (!op_node) {
+      // print call attr type key to restore expr for relay parser
+      std::string s = std::string(attrs->GetTypeKey());
+      printer.Visit("attrs_type_key", &s);
+    }
     return docs;
   }
 }

@@ -36,7 +36,7 @@ from caffe.proto import caffe_pb2 as pb
 
 import tvm
 from tvm import relay
-from tvm.contrib import utils, graph_runtime
+from tvm.contrib import utils, graph_executor
 from tvm.contrib.download import download_testdata
 
 CURRENT_DIR = os.path.join(os.path.expanduser("~"), ".tvm_test_data", "caffe_test")
@@ -47,20 +47,20 @@ CURRENT_DIR = os.path.join(os.path.expanduser("~"), ".tvm_test_data", "caffe_tes
 
 
 def _create_dir(d_path):
-    """ If the directory is not existed, create it"""
+    """If the directory is not existed, create it"""
     if not (os.path.exists(d_path) and os.path.isdir(d_path)):
         os.makedirs(d_path)
 
 
 def _list_to_str(ll):
-    """ Convert list or tuple to str, separated by underline. """
+    """Convert list or tuple to str, separated by underline."""
     if isinstance(ll, (tuple, list)):
         tmp = [str(i) for i in ll]
         return "_".join(tmp)
 
 
 def _gen_filename_str(op_name, data_shape, *args, **kwargs):
-    """ Combining the filename according to the op_name, shape and other args. """
+    """Combining the filename according to the op_name, shape and other args."""
     file_dir = os.path.join(CURRENT_DIR, op_name)
     _create_dir(file_dir)
     res = op_name + "_"
@@ -86,14 +86,14 @@ def _gen_filename_str(op_name, data_shape, *args, **kwargs):
 
 
 def _save_prototxt(n_netspec, f_path):
-    """ Generate .prototxt file according to caffe.NetSpec"""
+    """Generate .prototxt file according to caffe.NetSpec"""
     s = n_netspec.to_proto()
     with open(f_path, "w") as f:
         f.write(str(s))
 
 
 def _save_solver(solver_file, proto_file, blob_file):
-    """ Define a solver proto, you can change the configs."""
+    """Define a solver proto, you can change the configs."""
     blob_file_prefix = blob_file.split(".caffemodel")[0]
     s = pb.SolverParameter()
     s.train_net = proto_file
@@ -113,7 +113,7 @@ def _save_solver(solver_file, proto_file, blob_file):
 
 
 def _save_caffemodel(solver_file, blob_file):
-    """ Generate .caffemodel file."""
+    """Generate .caffemodel file."""
     solver = caffe.SGDSolver(solver_file)
     solver.net.save(blob_file)
 
@@ -125,7 +125,7 @@ def _gen_model_files(n_netspec, proto_file, blob_file, solver_file):
 
 
 def _siso_op(data, func, *args, **kwargs):
-    """ Create single input and single output Caffe op """
+    """Create single input and single output Caffe op"""
     n = caffe.NetSpec()
     n.data = L.Input(input_param={"shape": {"dim": list(data.shape)}})
     n.output = func(n.data, *args, **kwargs)
@@ -133,7 +133,7 @@ def _siso_op(data, func, *args, **kwargs):
 
 
 def _miso_op(data_list, func, *args, **kwargs):
-    """ Create multi input and single output Caffe op """
+    """Create multi input and single output Caffe op"""
     n = caffe.NetSpec()
     if not isinstance(data_list, (tuple, list)):
         raise TypeError("Need tuple or list but get {}".format(type(data_list)))
@@ -146,7 +146,7 @@ def _miso_op(data_list, func, *args, **kwargs):
 
 
 def _simo_op(data, func, *args, **kwargs):
-    """ Create single input and multi output Caffe op """
+    """Create single input and multi output Caffe op"""
     n = caffe.NetSpec()
     n.data = L.Input(input_param={"shape": {"dim": list(data.shape)}})
     output_list = func(n.data, *args, **kwargs)
@@ -156,7 +156,7 @@ def _simo_op(data, func, *args, **kwargs):
 
 
 def _run_caffe(data, proto_file, blob_file):
-    """ Run caffe model by Caffe according to .caffemodel and .prototxt"""
+    """Run caffe model by Caffe according to .caffemodel and .prototxt"""
     net = caffe.Net(proto_file, blob_file, caffe.TEST)
     if isinstance(data, (list, tuple)):
         for idx, d in enumerate(data):
@@ -175,7 +175,7 @@ def _run_caffe(data, proto_file, blob_file):
 
 
 def _run_tvm(data, proto_file, blob_file):
-    """ Run caffe model by TVM according to .caffemodel and .prototxt"""
+    """Run caffe model by TVM according to .caffemodel and .prototxt"""
     init_net = pb.NetParameter()
     predict_net = pb.NetParameter()
 
@@ -201,11 +201,11 @@ def _run_tvm(data, proto_file, blob_file):
     target = "llvm"
     target_host = "llvm"
 
-    ctx = tvm.cpu(0)
+    dev = tvm.cpu(0)
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, target_host=target_host, params=params)
     dtype = "float32"
-    m = graph_runtime.GraphModule(lib["default"](ctx))
+    m = graph_executor.GraphModule(lib["default"](dev))
     if isinstance(data, (tuple, list)):
         for idx, d in enumerate(data):
             m.set_input("data" + str(idx), tvm.nd.array(d.astype(dtype)))
@@ -216,7 +216,7 @@ def _run_tvm(data, proto_file, blob_file):
     tvm_output = list()
     # get outputs
     for i in range(m.get_num_outputs()):
-        tvm_output.append(m.get_output(i).asnumpy())
+        tvm_output.append(m.get_output(i).numpy())
     return tvm_output
 
 
@@ -228,7 +228,7 @@ def _compare_caffe_tvm(caffe_out, tvm_out, is_network=False):
 
 
 def _test_op(data, func_op, op_name, **kwargs):
-    """ Single op testing pipline. """
+    """Single op testing pipline."""
     shape_list = list()
     if isinstance(data, (list, tuple)):
         n = _miso_op(data, func_op, **kwargs)
@@ -268,14 +268,14 @@ def _test_network(data, proto_file, blob_file):
 
 
 def _test_batchnorm(data, moving_average_fraction=0.999, eps=1e-5):
-    """ One iteration of BatchNorm """
+    """One iteration of BatchNorm"""
     _test_op(
         data, L.BatchNorm, "BatchNorm", moving_average_fraction=moving_average_fraction, eps=eps
     )
 
 
 def test_forward_BatchNorm():
-    """ BatchNorm """
+    """BatchNorm"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_batchnorm(data)
     _test_batchnorm(data, moving_average_fraction=0.88, eps=1e-4)
@@ -287,12 +287,12 @@ def test_forward_BatchNorm():
 
 
 def _test_concat(data_list, axis=1):
-    """ One iteration of Concat """
+    """One iteration of Concat"""
     _test_op(data_list, L.Concat, "Concat", axis=axis)
 
 
 def test_forward_Concat():
-    """ Concat """
+    """Concat"""
     _test_concat([np.random.rand(1, 3, 10, 10), np.random.rand(1, 2, 10, 10)], axis=1)
     _test_concat([np.random.rand(3, 10, 10), np.random.rand(2, 10, 10)], axis=0)
     _test_concat([np.random.rand(3, 10), np.random.rand(2, 10)], axis=0)
@@ -304,12 +304,12 @@ def test_forward_Concat():
 
 
 def _test_convolution(data, **kwargs):
-    """ One iteration of Convolution """
+    """One iteration of Convolution"""
     _test_op(data, L.Convolution, "Convolution", **kwargs)
 
 
 def test_forward_Convolution():
-    """ Convolution """
+    """Convolution"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_convolution(
         data,
@@ -378,12 +378,12 @@ def test_forward_Convolution():
 
 
 def _test_crop(data, **kwargs):
-    """ One iteration of Crop """
+    """One iteration of Crop"""
     _test_op(data, L.Crop, "Crop", **kwargs)
 
 
 def test_forward_Crop():
-    """ Crop """
+    """Crop"""
     _test_crop([np.random.rand(10, 10, 120, 120), np.random.rand(10, 5, 50, 60)])
     _test_crop([np.random.rand(10, 10, 120, 120), np.random.rand(10, 5, 50, 60)], axis=1)
     _test_crop([np.random.rand(10, 10, 120, 120), np.random.rand(10, 5, 50, 60)], axis=1, offset=2)
@@ -403,12 +403,12 @@ def test_forward_Crop():
 
 
 def _test_deconvolution(data, **kwargs):
-    """ One iteration of Deconvolution """
+    """One iteration of Deconvolution"""
     _test_op(data, L.Deconvolution, "Deconvolution", **kwargs)
 
 
 def test_forward_Deconvolution():
-    """ Deconvolution """
+    """Deconvolution"""
     data = np.random.rand(1, 16, 32, 32).astype(np.float32)
     _test_deconvolution(
         data,
@@ -460,12 +460,12 @@ def test_forward_Deconvolution():
 
 
 def _test_dropout(data, **kwargs):
-    """ One iteration of Dropout """
+    """One iteration of Dropout"""
     _test_op(data, L.Dropout, "Dropout", **kwargs)
 
 
 def test_forward_Dropout():
-    """ Dropout """
+    """Dropout"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_dropout(data)
     _test_dropout(data, dropout_ratio=0.7)
@@ -477,12 +477,12 @@ def test_forward_Dropout():
 
 
 def _test_eltwise(data_list, **kwargs):
-    """ One iteration of Eltwise """
+    """One iteration of Eltwise"""
     _test_op(data_list, L.Eltwise, "Eltwise", **kwargs)
 
 
 def test_forward_Eltwise():
-    """ Eltwise """
+    """Eltwise"""
     _test_eltwise(
         [
             np.random.rand(1, 3, 10, 11).astype(np.float32),
@@ -520,12 +520,12 @@ def test_forward_Eltwise():
 
 
 def _test_flatten(data, axis=1):
-    """ One iteration of Flatten """
+    """One iteration of Flatten"""
     _test_op(data, L.Flatten, "Flatten", axis=axis)
 
 
 def test_forward_Flatten():
-    """ Flatten """
+    """Flatten"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_flatten(data)
     _test_flatten(data, axis=1)
@@ -537,12 +537,12 @@ def test_forward_Flatten():
 
 
 def _test_inner_product(data, **kwargs):
-    """ One iteration of InnerProduct"""
+    """One iteration of InnerProduct"""
     _test_op(data, L.InnerProduct, "InnerProduct", **kwargs)
 
 
 def test_forward_InnerProduct():
-    """ InnerProduct """
+    """InnerProduct"""
     data = np.random.rand(1, 3, 10, 10)
     _test_inner_product(data, num_output=20, bias_term=False, weight_filler=dict(type="xavier"))
     _test_inner_product(
@@ -567,12 +567,12 @@ def test_forward_InnerProduct():
 
 
 def _test_lrn(data, local_size=5, alpha=1.0, beta=0.75, k=1.0):
-    """ One iteration of LRN """
+    """One iteration of LRN"""
     _test_op(data, L.LRN, "LRN", local_size=local_size, alpha=alpha, beta=beta, k=k)
 
 
 def test_forward_LRN():
-    """ LRN """
+    """LRN"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_lrn(data)
     _test_lrn(data, local_size=3)
@@ -592,12 +592,12 @@ def test_forward_LRN():
 
 
 def _test_pooling(data, **kwargs):
-    """ One iteration of Pooling. """
+    """One iteration of Pooling."""
     _test_op(data, L.Pooling, "Pooling", **kwargs)
 
 
 def test_forward_Pooling():
-    """ Pooing """
+    """Pooing"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     # MAX Pooling
     _test_pooling(data, kernel_size=2, stride=2, pad=0, pool=P.Pooling.MAX)
@@ -620,12 +620,12 @@ def test_forward_Pooling():
 
 
 def _test_prelu(data, **kwargs):
-    """ One iteration of PReLU. """
+    """One iteration of PReLU."""
     _test_op(data, L.PReLU, "PReLU", **kwargs)
 
 
 def test_forward_PReLU():
-    """ PReLU """
+    """PReLU"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_prelu(data, filler=dict(type="constant", value=0.5))
     _test_prelu(data)
@@ -638,12 +638,12 @@ def test_forward_PReLU():
 
 
 def _test_relu(data, **kwargs):
-    """ One iteration of ReLU. """
+    """One iteration of ReLU."""
     _test_op(data, L.ReLU, "ReLU", **kwargs)
 
 
 def test_forward_ReLU():
-    """ ReLU """
+    """ReLU"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_relu(data)
     _test_relu(np.random.rand(10, 20).astype(np.float32))
@@ -655,12 +655,12 @@ def test_forward_ReLU():
 
 
 def _test_reshape(data, **kwargs):
-    """ One iteration of Reshape. """
+    """One iteration of Reshape."""
     _test_op(data, L.Reshape, "Reshape", **kwargs)
 
 
 def test_forward_Reshape():
-    """ Reshape """
+    """Reshape"""
     data = np.random.rand(1, 8, 6).astype(np.float32)
     _test_reshape(data, reshape_param={"shape": {"dim": [4, 3, 4]}})
     _test_reshape(data, reshape_param={"shape": {"dim": [2, 0, 3]}})
@@ -681,12 +681,12 @@ def test_forward_Reshape():
 
 
 def _test_scale(data, **kwargs):
-    """ One iteration of Scale. """
+    """One iteration of Scale."""
     _test_op(data, L.Scale, "Scale", **kwargs)
 
 
 def test_forward_Scale():
-    """ Scale """
+    """Scale"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_scale(data, filler=dict(type="xavier"))
     _test_scale(data, filler=dict(type="xavier"), bias_term=True, bias_filler=dict(type="xavier"))
@@ -698,12 +698,12 @@ def test_forward_Scale():
 
 
 def _test_sigmoid(data, **kwargs):
-    """ One iteration of Sigmoid. """
+    """One iteration of Sigmoid."""
     _test_op(data, L.Sigmoid, "Sigmoid", **kwargs)
 
 
 def test_forward_Sigmoid():
-    """ Sigmoid """
+    """Sigmoid"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_sigmoid(data)
 
@@ -714,12 +714,12 @@ def test_forward_Sigmoid():
 
 
 def _test_slice(data, **kwargs):
-    """ One iteration of Slice """
+    """One iteration of Slice"""
     _test_op(data, L.Slice, "Slice", **kwargs)
 
 
 def test_forward_Slice():
-    """ Slice """
+    """Slice"""
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_slice(data, ntop=2, slice_param=dict(axis=1, slice_point=[1]))
     _test_slice(data, ntop=2, slice_param=dict(axis=-1, slice_point=[1]))
@@ -733,12 +733,12 @@ def test_forward_Slice():
 
 
 def _test_softmax(data, **kwargs):
-    """ One iteration of Softmax """
+    """One iteration of Softmax"""
     _test_op(data, L.Softmax, "Softmax", **kwargs)
 
 
 def test_forward_Softmax():
-    """ Softmax"""
+    """Softmax"""
     _test_softmax(np.random.rand(1, 3, 10, 10).astype(np.float32))
     _test_softmax(np.random.rand(1, 3, 10, 10).astype(np.float32), axis=2)
     _test_softmax(np.random.rand(10, 10).astype(np.float32), axis=0)
@@ -751,12 +751,12 @@ def test_forward_Softmax():
 
 
 def _test_tanh(data, **kwargs):
-    """ One iteration of TanH """
+    """One iteration of TanH"""
     _test_op(data, L.TanH, "TanH", **kwargs)
 
 
 def test_forward_TanH():
-    """ TanH """
+    """TanH"""
     _test_tanh(np.random.rand(1, 3, 10, 10).astype(np.float32))
     _test_tanh(np.random.rand(3, 10, 10).astype(np.float32))
     _test_tanh(np.random.rand(10, 10).astype(np.float32))
@@ -769,7 +769,7 @@ def test_forward_TanH():
 
 
 def _test_mobilenetv2(data):
-    """ One iteration of Mobilenetv2 """
+    """One iteration of Mobilenetv2"""
     mean_val = np.array([103.939, 116.779, 123.68], dtype=np.float32)
     mean_val = np.reshape(mean_val, (1, 3, 1, 1))
     mean_val = np.tile(mean_val, (1, 1, 224, 224))
@@ -789,7 +789,7 @@ def _test_mobilenetv2(data):
 
 
 def test_forward_Mobilenetv2():
-    """ Mobilenetv2 """
+    """Mobilenetv2"""
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)
     _test_mobilenetv2(data)
 
@@ -800,7 +800,7 @@ def test_forward_Mobilenetv2():
 
 
 def _test_alexnet(data):
-    """ One iteration of Alexnet """
+    """One iteration of Alexnet"""
     mean_val = np.array([103.939, 116.779, 123.68], dtype=np.float32)
     mean_val = np.reshape(mean_val, (1, 3, 1, 1))
     mean_val = np.tile(mean_val, (1, 1, 227, 227))
@@ -817,7 +817,7 @@ def _test_alexnet(data):
 
 
 def test_forward_Alexnet():
-    """ Alexnet """
+    """Alexnet"""
     data = np.random.randint(0, 256, size=(1, 3, 227, 227)).astype(np.float32)
     _test_alexnet(data)
 
@@ -828,7 +828,7 @@ def test_forward_Alexnet():
 
 
 def _test_resnet50(data):
-    """ One iteration of Resnet50 """
+    """One iteration of Resnet50"""
     mean_val = np.array([103.939, 116.779, 123.68], dtype=np.float32)
     mean_val = np.reshape(mean_val, (1, 3, 1, 1))
     mean_val = np.tile(mean_val, (1, 1, 224, 224))
@@ -849,7 +849,7 @@ def _test_resnet50(data):
 
 
 def test_forward_Resnet50():
-    """ Resnet50 """
+    """Resnet50"""
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)
     _test_resnet50(data)
 
@@ -860,7 +860,7 @@ def test_forward_Resnet50():
 
 
 def _test_inceptionv1(data):
-    """ One iteration of Inceptionv4 """
+    """One iteration of Inceptionv4"""
     mean_val = np.array([103.939, 116.779, 123.68], dtype=np.float32)
     mean_val = np.reshape(mean_val, (1, 3, 1, 1))
     mean_val = np.tile(mean_val, (1, 1, 224, 224))
@@ -878,7 +878,7 @@ def _test_inceptionv1(data):
 
 
 def test_forward_Inceptionv1():
-    """ Inceptionv4 """
+    """Inceptionv4"""
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)
     _test_inceptionv1(data)
 

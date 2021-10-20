@@ -26,7 +26,7 @@ import tvm.testing
 from tvm import topi
 from tvm import auto_scheduler, te
 
-from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler import get_tiled_matmul, matmul_auto_scheduler_test
 
 
 def test_apply_steps_with_layout_rewrite():
@@ -49,9 +49,24 @@ def test_apply_steps_with_layout_rewrite():
     assert bufs[1].shape[1] == 512
 
 
+def test_apply_steps_with_layout_rewrite_corner_case():
+    A, B, C = matmul_auto_scheduler_test(1, 1, 1)
+    dag = auto_scheduler.ComputeDAG([A, B, C])
+
+    s = dag.get_init_state()
+
+    s.compute_root(C)
+    i_j_fused = s.fuse(C, [s[C].iters[0], s[C].iters[1]])
+    s.parallel(C, i_j_fused)
+
+    _, bufs = dag.apply_steps_from_state(
+        s, layout_rewrite=auto_scheduler.LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+    )
+
+
 @tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_rewrite_for_preTransformed():
-    N = 128
+    N = 16
     target = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(func=matmul_auto_scheduler_test, args=(N, N, N), target=target)
     dag = task.compute_dag
@@ -63,9 +78,10 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
 
         measure_ctx = auto_scheduler.LocalRPCMeasureContext()
         tuning_options = auto_scheduler.TuningOptions(
-            num_measure_trials=2,
+            num_measure_trials=100,
             runner=measure_ctx.runner,
             verbose=2,
+            early_stopping=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         task.tune(tuning_options, search_policy=search_policy)
@@ -103,19 +119,19 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         func = tvm.build(s, bufs, target=target)
         func_ref = tvm.build(s_ref, bufs_ref, target=target)
 
-        ctx = tvm.context(str(target))
-        ctx_ref = tvm.cpu()
+        dev = tvm.device(str(target))
+        dev_ref = tvm.cpu()
 
-        args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
-        args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args_ref]
-        ctx.sync()
+        args = [tvm.nd.array(x, device=dev) for x in np_args]
+        args_ref = [tvm.nd.array(x, device=dev_ref) for x in np_args_ref]
+        dev.sync()
 
         func(*args)
         func_ref(*args_ref)
-        ctx.sync()
+        dev.sync()
 
-        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), atol=1e-3, rtol=1e-3)
-        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[0].numpy(), args_ref[0].numpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[2].numpy(), args_ref[2].numpy(), atol=1e-3, rtol=1e-3)
         del measure_ctx
 
 
@@ -150,24 +166,25 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         func = tvm.build(s, bufs, target=target)
         func_ref = tvm.build(s_ref, bufs_ref, target=target)
 
-        ctx = tvm.context(str(target))
-        ctx_ref = tvm.cpu()
+        dev = tvm.device(str(target))
+        dev_ref = tvm.cpu()
 
-        args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
-        args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args]
-        ctx.sync()
+        args = [tvm.nd.array(x, device=dev) for x in np_args]
+        args_ref = [tvm.nd.array(x, device=dev_ref) for x in np_args]
+        dev.sync()
 
         func(*args)
         func_ref(*args_ref)
-        ctx.sync()
+        dev.sync()
 
-        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), atol=1e-3, rtol=1e-3)
-        tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy(), atol=1e-3, rtol=1e-3)
-        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[0].numpy(), args_ref[0].numpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[1].numpy(), args_ref[1].numpy(), atol=1e-3, rtol=1e-3)
+        tvm.testing.assert_allclose(args[2].numpy(), args_ref[2].numpy(), atol=1e-3, rtol=1e-3)
         del measure_ctx
 
 
 if __name__ == "__main__":
     test_apply_steps_with_layout_rewrite()
+    test_apply_steps_with_layout_rewrite_corner_case()
     test_correctness_layout_rewrite_rewrite_for_preTransformed()
     test_correctness_layout_rewrite_insert_transform_stage()

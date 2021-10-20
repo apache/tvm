@@ -50,6 +50,12 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
 
+  /*!
+   * \brief A CPU-specific function to create the FuncRegistry.
+   * \param func_names List of functions to be included, in order.
+   */
+  void DefineFunctionRegistry(Array<String> func_names);
+
  protected:
   void AddStartupFunction() final;
   // meta data
@@ -57,7 +63,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // TVM related data types
   llvm::Type* t_tvm_shape_index_{nullptr};
   llvm::Type* t_tvm_func_handle_{nullptr};
-  llvm::StructType* t_tvm_context_{nullptr};
+  llvm::StructType* t_tvm_device_{nullptr};
   llvm::StructType* t_tvm_type_{nullptr};
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
@@ -99,13 +105,17 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
   llvm::Value* GetPackedFuncHandle(const std::string& str);
-  llvm::Value* PackClosureData(const Array<Var>& fields, uint64_t* num_bytes);
-  llvm::Value* CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
-  void UnpackClosureData(llvm::Value* cdata, const Array<Var>& fields,
+  TypedPointer PackClosureData(const Array<Var>& fields, uint64_t* num_bytes);
+  TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
+  void UnpackClosureData(TypedPointer cdata, const Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
-  llvm::BasicBlock* MakeCallPacked(const Array<PrimExpr>& args, llvm::Value** rvalue,
-                                   llvm::Value** ret_tcode, const DataType& r_type,
+  struct PackedCall {
+    llvm::Value* ret_value;
+    llvm::Value* ret_tcode;
+    llvm::BasicBlock* end_block;
+  };
+  PackedCall MakeCallPackedLowered(const Array<PrimExpr>& args, const DataType& r_type,
                                    const int64_t begin, const int64_t end);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);

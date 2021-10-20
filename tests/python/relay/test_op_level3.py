@@ -16,40 +16,54 @@
 # under the License.
 """ Support level3 operator test cases.
 """
+import sys
+from typing import Callable, Optional
+
 import numpy as np
 import pytest
+
 import tvm
-from tvm import te
-from tvm import relay
+import tvm.testing
+
+from tvm import relay, te
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
-import tvm.testing
+
+from utils import ref_funcs
 
 
-def test_zeros_ones():
-    for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
+executor_kind = tvm.testing.parameter("graph", "debug")
+
+
+class TestZerosOnes:
+    config = {"zeros": (relay.zeros, np.zeros), "ones": (relay.ones, np.ones)}
+    op, ref = tvm.testing.parameters(*config.values(), ids=config.keys())
+
+    def test_zeros_ones(self, op, ref):
         y = op(shape=(124, 50), dtype="float64")
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((124, 50), "float64")
-        intrp = create_executor()
-        intrp_res = intrp.evaluate(y).asnumpy()
+        intrp_res = create_executor().evaluate(y).numpy()
         np.testing.assert_allclose(intrp_res, ref((124, 50), "float64"))
 
 
-def test_unary_identity():
-    for op, ref in [
-        (relay.zeros_like, np.zeros_like),
-        (relay.ones_like, np.ones_like),
-        (relay.ceil, np.ceil),
-        (relay.floor, np.floor),
-        (relay.trunc, np.trunc),
-        (relay.round, np.round),
-        (relay.abs, np.abs),
-        (relay.copy, None),  # np.copy
-        (relay.negative, np.negative),
-        (relay.sign, np.sign),
-    ]:
+class TestUnaryIdentity:
+    config = {
+        "zeros_like": (relay.zeros_like, np.zeros_like),
+        "ones_like": (relay.ones_like, np.ones_like),
+        "ceil": (relay.ceil, np.ceil),
+        "floor": (relay.floor, np.floor),
+        "trunc": (relay.trunc, np.trunc),
+        "round": (relay.round, np.round),
+        "abs": (relay.abs, np.abs),
+        "copy": (relay.copy, None),  # np.copy
+        "negative": (relay.negative, np.negative),
+        "sign": (relay.sign, np.sign),
+    }
+    op, ref = tvm.testing.parameters(*config.values(), ids=config.keys())
+
+    def test_unary_identity(self, op, ref):
         shape = (8, 9, 4)
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = op(x)
@@ -58,10 +72,9 @@ def test_unary_identity():
 
         if ref is not None:
             data = np.random.rand(*shape).astype("float32")
-            intrp = create_executor()
-            op_res = intrp.evaluate(y, {x: relay.const(data)})
+            op_res = create_executor().evaluate(y, {x: relay.const(data)})
             ref_res = ref(data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
 def test_cast():
@@ -85,10 +98,9 @@ def test_clip():
     assert yy.checked_type == relay.TensorType((10, 4), "float32")
 
     data = np.random.rand(10, 4).astype("float32")
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
     ref_res = np.clip(data, 1.0, 4.0)
-    np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+    np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
 def test_fixed_point_multiply():
@@ -103,10 +115,9 @@ def test_fixed_point_multiply():
     assert yy.checked_type == relay.TensorType((10, 4), "int32")
 
     data = 23 * np.ones((10, 4)).astype("int32")
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
     ref_res = np.ones((10, 4)).astype("int32")
-    np.testing.assert_allclose(op_res.asnumpy(), ref_res, atol=1)
+    np.testing.assert_allclose(op_res.numpy(), ref_res, atol=1)
 
 
 def test_reinterpret():
@@ -116,10 +127,9 @@ def test_reinterpret():
     assert yy.checked_type == relay.TensorType((1000, 4), "int32")
 
     data = np.random.randn(1000, 4).astype("float32") * 1000
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
     ref_res = data.view("int32")
-    np.testing.assert_equal(op_res.asnumpy(), ref_res)
+    np.testing.assert_equal(op_res.numpy(), ref_res)
 
 
 def test_approximate_transcendental():
@@ -153,43 +163,42 @@ def test_approximate_transcendental():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((1000,), "float32")
     data = np.linspace(-5, 5, 1000).astype("float32")
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
 
     def reference_sigmoid(x):
         return np.exp(-np.logaddexp(0, -x))
 
-    np.testing.assert_allclose(op_res.asnumpy(), reference_sigmoid(data), atol=2e-5, rtol=1e-9)
+    np.testing.assert_allclose(op_res.numpy(), reference_sigmoid(data), atol=2e-5, rtol=1e-9)
 
     y = approximate_tanh(a)
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((1000,), "float32")
     data = np.linspace(-5, 5, 1000).astype("float32")
-    intrp = create_executor()
-    op_res = intrp.evaluate(y, {a: relay.const(data)})
+    op_res = create_executor().evaluate(y, {a: relay.const(data)})
 
     def reference_tanh(x):
         return np.tanh(x)
 
-    np.testing.assert_allclose(op_res.asnumpy(), reference_tanh(data), atol=4e-5, rtol=1e-9)
+    np.testing.assert_allclose(op_res.numpy(), reference_tanh(data), atol=4e-5, rtol=1e-9)
 
 
-def test_squeeze():
-    def verify_squeeze(shape, dtype, axis):
+class TestSqueeze:
+    shape, dtype, axis = tvm.testing.parameters(
+        ((1, 3, 2, 5), "float32", None),
+        ((1, 3, 1), "float32", [0]),
+        ((1, 2, 1, 2, 1), "float32", [0, 2]),
+    )
+
+    def test_squeeze(self, shape, dtype, axis):
         x = relay.var("x", relay.TensorType(shape, dtype))
         squeeze = relay.squeeze(x, axis=axis)
 
         np_axis = tuple(axis) if axis is not None else None
 
         data = np.random.random_sample(shape).astype(dtype)
-        intrp = create_executor()
-        op_res = intrp.evaluate(squeeze, {x: relay.const(data)})
+        op_res = create_executor().evaluate(squeeze, {x: relay.const(data)})
         ref_res = np.squeeze(data, axis=np_axis)
-        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
-
-    verify_squeeze((1, 3, 2, 5), "float32", None)
-    verify_squeeze((1, 3, 1), "float32", [0])
-    verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
+        np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
 def test_transpose_infer_type():
@@ -206,23 +215,19 @@ def test_transpose_infer_type():
     assert yy.checked_type == relay.TensorType((100, t, n), "float32")
 
 
-@tvm.testing.uses_gpu
-def test_transpose():
-    def verify_transpose(dshape, axes):
-        x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.transpose(x, axes=axes)
+def test_transpose(target, dev, executor_kind):
+    dshape = (2, 3, 4)
+    axes = (0, 2, 1)
 
-        func = relay.Function([x], z)
-        x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
-        ref_res = np.transpose(x_data, axes=axes)
+    x = relay.var("x", relay.TensorType(dshape, "float32"))
+    z = relay.transpose(x, axes=axes)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    func = relay.Function([x], z)
+    x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
+    ref_res = np.transpose(x_data, axes=axes)
 
-    verify_transpose((2, 3, 4), (0, 2, 1))
+    op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(x_data)
+    tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 def test_squeeze_infer_type():
@@ -258,9 +263,26 @@ def test_reshape_infer_type():
     assert yy.checked_type == relay.TensorType((n, t, 2000), "float32")
 
 
-@tvm.testing.uses_gpu
-def test_reshape():
-    def verify_reshape(shape, newshape, oshape):
+class TestReshape:
+    shape, newshape, oshape = tvm.testing.parameters(
+        ((2, 3, 4), (8, 3), (8, 3)),
+        ((4, 7), (2, 7, 2), (2, 7, 2)),
+        ((2, 3, 4), (4, 0, 2), (4, 3, 2)),
+        ((2, 3, 4), (2, 0, 0), (2, 3, 4)),
+        ((2, 3, 4), (0, -1), (2, 12)),
+        ((2, 3, 4), (-1, 0), (8, 3)),
+        ((2, 3, 4), (2, -2), (2, 3, 4)),
+        ((2, 3, 4), (-2, 1, 1), (2, 3, 4, 1, 1)),
+        ((2, 3, 4), (-3, 4), (6, 4)),
+        ((2, 3, 4, 5), (-3, -3), (6, 20)),
+        ((2, 3, 4), (0, -3), (2, 12)),
+        ((2, 3, 4), (-3, -2), (6, 4)),
+        ((2, 3, 4), (-4, 1, 2, -2), (1, 2, 3, 4)),
+        ((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4)),
+        ((1,), (), ()),
+    )
+
+    def test_reshape(self, target, dev, executor_kind, shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.reshape(x, newshape=newshape)
         zz = run_infer_type(z)
@@ -271,26 +293,10 @@ def test_reshape():
         check_grad(func)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-
-    verify_reshape((2, 3, 4), (8, 3), (8, 3))
-    verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
-    verify_reshape((2, 3, 4), (4, 0, 2), (4, 3, 2))
-    verify_reshape((2, 3, 4), (2, 0, 0), (2, 3, 4))
-    verify_reshape((2, 3, 4), (0, -1), (2, 12))
-    verify_reshape((2, 3, 4), (-1, 0), (8, 3))
-    verify_reshape((2, 3, 4), (2, -2), (2, 3, 4))
-    verify_reshape((2, 3, 4), (-2, 1, 1), (2, 3, 4, 1, 1))
-    verify_reshape((2, 3, 4), (-3, 4), (6, 4))
-    verify_reshape((2, 3, 4, 5), (-3, -3), (6, 20))
-    verify_reshape((2, 3, 4), (0, -3), (2, 12))
-    verify_reshape((2, 3, 4), (-3, -2), (6, 4))
-    verify_reshape((2, 3, 4), (-4, 1, 2, -2), (1, 2, 3, 4))
-    verify_reshape((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 def test_reshape_fail():
@@ -343,9 +349,16 @@ def test_reshape_like_infer_type():
     assert w.checked_type == relay.TensorType((5, 6, 4), "float32")
 
 
-@tvm.testing.uses_gpu
-def test_reshape_like():
-    def verify_reshape_like(shape, oshape, shape_like=None, reshape_like_kwargs={}):
+class TestReshapeLike:
+    shape, oshape, shape_like, reshape_like_kwargs = tvm.testing.parameters(
+        ((2, 3, 4), (1, 8, 3), None, {}),
+        ((4, 7), (2, 7, 2), None, {}),
+        ((1, 2, 3, 4), (1, 6, 4), (1, 6, 5), dict(lhs_begin=1, lhs_end=3, rhs_begin=1, rhs_end=2)),
+    )
+
+    def test_reshape_like(
+        self, target, dev, executor_kind, shape, oshape, shape_like=None, reshape_like_kwargs={}
+    ):
         if shape_like is None:
             shape_like = oshape
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
@@ -360,40 +373,56 @@ def test_reshape_like():
 
         func = relay.Function([x, y], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data, y_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
-    verify_reshape_like((2, 3, 4), (1, 8, 3))
-    verify_reshape_like((4, 7), (2, 7, 2))
-    verify_reshape_like(
-        (1, 2, 3, 4), (1, 6, 4), (1, 6, 5), dict(lhs_begin=1, lhs_end=3, rhs_begin=1, rhs_end=2)
+
+class TestTakeInferType:
+    d1, d2, d3 = te.var("d1"), te.var("d2"), te.var("d3")
+    d4, d5, d6 = te.var("d4"), te.var("d5"), te.var("d6")
+    dshape, indices_shape, oshape, axis = tvm.testing.parameters(
+        ((d1,), (1,), (1,), 0),
+        ((4,), (d1, d2), (d1, d2), None),
+        ((3, 3, 3), (1, d2), (1, d2), None),
+        ((d1, d2), (d3, d4, d5), (d3, d4, d5, d2), 0),
+        ((d1, d2), (d3, d4, d5), (d1, d3, d4, d5), 1),
+        ((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2),
     )
 
-
-def test_take_infer_type():
-    def verify_take(dshape, indices_shape, oshape, axis=None):
+    def test_take(self, dshape, indices_shape, oshape, axis):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         indices = relay.var("indices", relay.TensorType(indices_shape, "int32"))
         y = relay.take(x, indices, axis=axis)
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType(oshape, "float32")
 
-    d1, d2, d3 = te.var("d1"), te.var("d2"), te.var("d3")
-    d4, d5, d6 = te.var("d4"), te.var("d5"), te.var("d6")
-    verify_take((d1,), (1,), (1,), 0)
-    verify_take((4,), (d1, d2), (d1, d2))
-    verify_take((3, 3, 3), (1, d2), (1, d2))
-    verify_take((d1, d2), (d3, d4, d5), (d3, d4, d5, d2), 0)
-    verify_take((d1, d2), (d3, d4, d5), (d1, d3, d4, d5), 1)
-    verify_take((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2)
 
+class TestTake:
+    src_shape, indices_src, axis, mode = tvm.testing.parameters(
+        ((4,), [1], None, "clip"),
+        ((4,), [[0, 1, 2, 3]], None, "clip"),
+        ((3, 3, 3), [[11, 25]], None, "clip"),
+        ((4,), [[0, 1], [2, 3]], None, "clip"),
+        ((4,), [1], 0, "clip"),
+        ((2, 2), [[[1, 0], [0, 1]]], 0, "clip"),
+        ((2, 2), [[[1, 0], [0, 1]]], 1, "clip"),
+        ((4, 3, 5, 6), [[2, 1, 0, 0]], -2, "clip"),
+        ((3, 4), [-5, 20], None, "clip"),
+        ((3, 4), [-5, 20], None, "wrap"),
+        ((3, 4), [-1, 2], 0, "clip"),
+        ((3, 4), [-1, 2], 0, "wrap"),
+        ((3, 4), [-1, 2], 1, "clip"),
+        ((3, 4), [-1, 2], 1, "wrap"),
+        ((3, 3, 3), [[11, 25]], None, "fast"),
+        ((3, 4), [0, 2], 0, "fast"),
+        ((3, 4), [0, 2], 1, "fast"),
+    )
 
-@tvm.testing.uses_gpu
-def test_take():
-    def verify_take(src_shape, indices_src, axis=None, mode="clip"):
+    # Incorrect numeric output in some cases on vulkan
+    @tvm.testing.known_failing_targets("vulkan")
+    def test_take(self, target, dev, executor_kind, src_shape, indices_src, axis, mode):
         src_dtype = "float32"
         indices_dtype = "int32"
         indices_src = np.array(indices_src, dtype=indices_dtype)
@@ -406,117 +435,116 @@ def test_take():
         np_mode = "raise" if mode == "fast" else mode
         ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=np_mode)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data, indices_src)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-
-    verify_take((4,), [1])
-    verify_take((4,), [[0, 1, 2, 3]])
-    verify_take((3, 3, 3), [[11, 25]])
-    verify_take((4,), [[0, 1], [2, 3]])
-    verify_take((4,), [1], 0)
-    verify_take((2, 2), [[[1, 0], [0, 1]]], 0)
-    verify_take((2, 2), [[[1, 0], [0, 1]]], 1)
-    verify_take((4, 3, 5, 6), [[2, 1, 0, 0]], -2)
-    verify_take((3, 4), [-5, 20])
-    verify_take((3, 4), [-5, 20], mode="wrap")
-    verify_take((3, 4), [-1, 2], axis=0)
-    verify_take((3, 4), [-1, 2], axis=0, mode="wrap")
-    verify_take((3, 4), [-1, 2], axis=1)
-    verify_take((3, 4), [-1, 2], axis=1, mode="wrap")
-    verify_take((3, 3, 3), [[11, 25]], mode="fast")
-    verify_take((3, 4), [0, 2], axis=0, mode="fast")
-    verify_take((3, 4), [0, 2], axis=1, mode="fast")
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data, indices_src
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
-def test_split_infer_type():
-    def verify_split(dshape, indices_or_sections, ret_type, axis=None):
-        x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
-        y = relay.split(x, indices_or_sections, axis=axis)
-        yy = run_infer_type(y.astuple())
-        assert yy.checked_type == ret_type
-
+class TestSplitInferType:
     idxd = tvm.tir.indexdiv
 
     d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     axis = te.var("axis")
-    verify_split(
-        (5, 5, 2, 2),
-        5,
-        relay.ty.TupleType(
-            tvm.runtime.convert(
-                [
-                    relay.ty.TensorType((5, 1, 2, 2), "float32"),
-                    relay.ty.TensorType((5, 1, 2, 2), "float32"),
-                    relay.ty.TensorType((5, 1, 2, 2), "float32"),
-                    relay.ty.TensorType((5, 1, 2, 2), "float32"),
-                    relay.ty.TensorType((5, 1, 2, 2), "float32"),
-                ]
-            )
+
+    dshape, indices_or_sections, ret_type, axis = tvm.testing.parameters(
+        (
+            (5, 5, 2, 2),
+            5,
+            relay.ty.TupleType(
+                tvm.runtime.convert(
+                    [
+                        relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                        relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                        relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                        relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                        relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                    ]
+                )
+            ),
+            1,
         ),
-        axis=1,
-    )
-    verify_split(
-        (5, 5, 2, 2),
-        5,
-        relay.ty.TupleType(
-            tvm.runtime.convert(
-                [
-                    relay.ty.TensorType((1, 5, 2, 2), "float32"),
-                    relay.ty.TensorType((1, 5, 2, 2), "float32"),
-                    relay.ty.TensorType((1, 5, 2, 2), "float32"),
-                    relay.ty.TensorType((1, 5, 2, 2), "float32"),
-                    relay.ty.TensorType((1, 5, 2, 2), "float32"),
-                ]
-            )
+        (
+            (5, 5, 2, 2),
+            5,
+            relay.ty.TupleType(
+                tvm.runtime.convert(
+                    [
+                        relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                        relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                        relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                        relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                        relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                    ]
+                )
+            ),
+            0,
         ),
-        axis=0,
-    )
-    verify_split(
-        (d1, d2, d3, d4),
-        4,
-        relay.ty.TupleType(
-            tvm.runtime.convert(
-                [
-                    relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
-                    relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
-                    relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
-                    relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
-                ]
-            )
+        (
+            (d1, d2, d3, d4),
+            4,
+            relay.ty.TupleType(
+                tvm.runtime.convert(
+                    [
+                        relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
+                        relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
+                        relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
+                        relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
+                    ]
+                )
+            ),
+            2,
         ),
-        axis=2,
-    )
-    verify_split(
-        (d1, d2, d3, d4),
-        2,
-        relay.ty.TupleType(
-            tvm.runtime.convert(
-                [
-                    relay.ty.TensorType((idxd(d1, 2), d2, d3, d4), "float32"),
-                    relay.ty.TensorType((idxd(d1, 2), d2, d3, d4), "float32"),
-                ]
-            )
+        (
+            (d1, d2, d3, d4),
+            2,
+            relay.ty.TupleType(
+                tvm.runtime.convert(
+                    [
+                        relay.ty.TensorType((idxd(d1, 2), d2, d3, d4), "float32"),
+                        relay.ty.TensorType((idxd(d1, 2), d2, d3, d4), "float32"),
+                    ]
+                )
+            ),
+            0,
         ),
-        axis=0,
-    )
-    verify_split(
-        (d1, d2, d3, d4),
-        (2, 4, 7),
-        relay.ty.TupleType(
-            tvm.runtime.convert(
-                [
-                    relay.ty.TensorType((d1, 2, d3, d4), "float32"),
-                    relay.ty.TensorType((d1, 2, d3, d4), "float32"),
-                    relay.ty.TensorType((d1, 3, d3, d4), "float32"),
-                    relay.ty.TensorType((d1, (d2 - 7), d3, d4), "float32"),
-                ]
-            )
+        (
+            (d1, d2, d3, d4),
+            (2, 4, 7),
+            relay.ty.TupleType(
+                tvm.runtime.convert(
+                    [
+                        relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                        relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                        relay.ty.TensorType((d1, 3, d3, d4), "float32"),
+                        relay.ty.TensorType((d1, (d2 - 7), d3, d4), "float32"),
+                    ]
+                )
+            ),
+            1,
         ),
-        axis=1,
+        (
+            (d1, d2, d3, d4),
+            tuple(np.array([2, 4, 7]).astype(np.int64)),
+            relay.ty.TupleType(
+                tvm.runtime.convert(
+                    [
+                        relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                        relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                        relay.ty.TensorType((d1, 3, d3, d4), "float32"),
+                        relay.ty.TensorType((d1, (d2 - 7), d3, d4), "float32"),
+                    ]
+                )
+            ),
+            1,
+        ),
     )
+
+    def test_split(self, dshape, indices_or_sections, ret_type, axis):
+        x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
+        y = relay.split(x, indices_or_sections, axis=axis)
+        yy = run_infer_type(y.astuple())
+        assert yy.checked_type == ret_type
 
 
 def test_full_infer_type():
@@ -534,22 +562,36 @@ def test_full_infer_type():
     assert yy.checked_type == relay.TensorType((1, 2), "int8")
 
 
-@tvm.testing.uses_gpu
-def test_full():
-    def verify_full(fill_value, src_shape, dtype):
-        x = relay.var("x", relay.scalar_type(dtype))
-        z = relay.full(x, src_shape, dtype)
-        func = relay.Function([x], z)
-        ref_res = np.full(src_shape, fill_value)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(np.array(fill_value, dtype))
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+class TestFull:
+    fill_value, arr_shape, dtype = tvm.testing.parameters(
+        (4, (1, 3, 4, 4), "int32"),
+        (4, (1, 3, 4, 4), "int64"),
+        (4.0, (1, 4), "float32"),
+    )
 
-    verify_full(4, (1, 3, 4, 4), "int32")
-    # verify_full(4, (1, 3, 4, 4), "int64") # This does not pass, python int32 is not upcast to int64, not sure how to fix it.
-    verify_full(4.0, (1, 4), "float32")
+    def test_full(self, target, dev, executor_kind, fill_value, arr_shape, dtype):
+        x = relay.var("x", relay.scalar_type(dtype))
+        z = relay.full(x, arr_shape, dtype)
+        func = relay.Function([x], z)
+        ref_res = np.full(arr_shape, fill_value, dtype=dtype)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            np.array(fill_value, dtype)
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+
+    def test_full_like(self, target, dev, executor_kind, arr_shape, fill_value, dtype):
+        x_data = np.random.uniform(low=-1, high=1, size=arr_shape).astype(dtype)
+        x = relay.var("x", relay.TensorType(arr_shape, dtype))
+        y = relay.var("y", relay.scalar_type(dtype))
+        z = relay.full_like(x, y)
+
+        func = relay.Function([x, y], z)
+        ref_res = np.full_like(x_data, fill_value)
+
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data, np.array(fill_value, dtype)
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 def test_full_like_infer_type():
@@ -569,29 +611,7 @@ def test_full_like_infer_type():
     assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
 
 
-@tvm.testing.uses_gpu
-def test_full_like():
-    def verify_full_like(base, fill_value, dtype):
-        x_data = np.random.uniform(low=-1, high=1, size=base).astype(dtype)
-        x = relay.var("x", relay.TensorType(base, dtype))
-        y = relay.var("y", relay.scalar_type(dtype))
-        z = relay.full_like(x, y)
-
-        func = relay.Function([x, y], z)
-        ref_res = np.full_like(x_data, fill_value)
-
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data, np.array(fill_value, dtype))
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-
-    verify_full_like((1, 3, 4, 4), 4, "int32")
-    verify_full_like((1, 1), 44.0, "float32")
-
-
-@tvm.testing.uses_gpu
-def test_infer_type_leaky_relu():
+def test_infer_type_leaky_relu(target, dev):
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.leaky_relu(x, alpha=0.1)
@@ -610,69 +630,83 @@ def test_infer_type_leaky_relu():
     x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
     ref_res = np.where(x_data > 0, x_data, x_data * 0.1)
 
-    for target, ctx in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data)
-        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+    op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(x_data)
+    tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
+    op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(x_data)
+    tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
-def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
-    x = relay.var("data", relay.TensorType(data, dtype))
-    if alpha:
-        y = relay.var("alpha", relay.TensorType(alpha, dtype))
-    else:
-        y = relay.var("alpha", relay.IncompleteType())
-    z = relay.nn.prelu(x, y, axis=axis)
-    zz = run_infer_type(z)
-    if axis != 1:
-        assert "axis" in z.astext()
-    assert zz.checked_type == relay.ty.TensorType(output, dtype)
-    if not alpha:
-        axis = axis if axis else 1
-        alpha_shape = (data[axis],)
-        assert zz.args[1].checked_type == relay.TensorType(alpha_shape, "float32")
+class TestInferTypePrelu:
+    dtype = tvm.testing.parameter("float32")
 
-    if all(isinstance(v, tvm.tir.Var) == 1 for v in data) or not alpha:
-        return
-
-    func = relay.Function([x, y], z)
-    x_data = np.random.uniform(low=-1, high=1, size=data).astype(dtype)
-    a_data = np.random.uniform(low=-1, high=1, size=alpha).astype(dtype)
-
-    if axis == 1:
-        ref_res = (x_data < 0) * (x_data * a_data.reshape(3, 1, 1)) + (x_data >= 0) * x_data
-    else:
-        ref_res = (x_data < 0) * (x_data * a_data.reshape(1, 1, 3)) + (x_data >= 0) * x_data
-
-    for target, ctx in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data, a_data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data, a_data)
-        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
-
-
-@tvm.testing.uses_gpu
-def test_infer_type_prelu():
     n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
-    verify_infer_type_prelu((n, c, h, w), (c,), 1, (n, c, h, w))
-    verify_infer_type_prelu((n, h, w, c), (c,), 3, (n, h, w, c))
-    verify_infer_type_prelu((n, c, h, w), None, 1, (n, c, h, w))
-    verify_infer_type_prelu((n, h, w, c), None, 3, (n, h, w, c))
-    verify_infer_type_prelu((1, 3, 2, 2), (3,), 1, (1, 3, 2, 2))
-    verify_infer_type_prelu((1, 2, 2, 3), (3,), 3, (1, 2, 2, 3))
-    verify_infer_type_prelu((1, 3, 2, 2), None, 1, (1, 3, 2, 2))
-    verify_infer_type_prelu((1, 2, 2, 3), None, 3, (1, 2, 2, 3))
+    data, alpha, axis, output = tvm.testing.parameters(
+        ((n, c, h, w), (c,), 1, (n, c, h, w)),
+        ((n, h, w, c), (c,), 3, (n, h, w, c)),
+        ((n, c, h, w), None, 1, (n, c, h, w)),
+        ((n, h, w, c), None, 3, (n, h, w, c)),
+        ((1, 3, 2, 2), (3,), 1, (1, 3, 2, 2)),
+        ((1, 2, 2, 3), (3,), 3, (1, 2, 2, 3)),
+        ((1, 3, 2, 2), None, 1, (1, 3, 2, 2)),
+        ((1, 2, 2, 3), None, 3, (1, 2, 2, 3)),
+    )
+
+    def test_infer_type_prelu(self, target, dev, data, alpha, axis, output, dtype):
+        x = relay.var("data", relay.TensorType(data, dtype))
+        if alpha:
+            y = relay.var("alpha", relay.TensorType(alpha, dtype))
+        else:
+            y = relay.var("alpha", relay.IncompleteType())
+        z = relay.nn.prelu(x, y, axis=axis)
+        zz = run_infer_type(z)
+        if axis != 1:
+            assert "axis" in z.astext()
+        assert zz.checked_type == relay.ty.TensorType(output, dtype)
+        if not alpha:
+            axis = axis if axis else 1
+            alpha_shape = (data[axis],)
+            assert zz.args[1].checked_type == relay.TensorType(alpha_shape, "float32")
+
+        if all(isinstance(v, tvm.tir.Var) == 1 for v in data) or not alpha:
+            return
+
+        func = relay.Function([x, y], z)
+        x_data = np.random.uniform(low=-1, high=1, size=data).astype(dtype)
+        a_data = np.random.uniform(low=-1, high=1, size=alpha).astype(dtype)
+
+        if axis == 1:
+            ref_res = (x_data < 0) * (x_data * a_data.reshape(3, 1, 1)) + (x_data >= 0) * x_data
+        else:
+            ref_res = (x_data < 0) * (x_data * a_data.reshape(1, 1, 3)) + (x_data >= 0) * x_data
+
+        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+            x_data, a_data
+        )
+        tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5)
+        op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
+            x_data, a_data
+        )
+        tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_arange():
-    def verify_arange(start, stop, step):
-        dtype = "float32"
+class TestArange:
+    dtype = tvm.testing.parameter("float32")
+
+    start, stop, step = tvm.testing.parameters(
+        (None, 20, None),
+        (None, 20, 2),
+        (1, 20, None),
+        (1, 20, 2),
+        # arange doesnt' support floating point right now, see type relation
+        # (1, 20, 1.5),
+        (1, 20.5, None),
+        (1, 20, 3),
+        (20, 1, -1),
+        # arange doesnt' support floating point right now, see type relation
+        # (20, 1, -1.5),
+    )
+
+    def test_arange(self, target, dev, executor_kind, start, stop, step, dtype):
         if start is None and step is None:
             x = relay.arange(relay.const(stop, dtype=dtype))
             ref_res = np.arange(stop).astype(dtype)
@@ -691,28 +725,21 @@ def test_arange():
             ref_res = np.arange(start, stop, step).astype(dtype)
 
         func = relay.Function([], x)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)()
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-
-    verify_arange(None, 20, None)
-    verify_arange(None, 20, 2)
-    verify_arange(1, 20, None)
-    verify_arange(1, 20, 2)
-    # arange doesnt' support floating point right now, see type relation
-    # verify_arange(1, 20, 1.5)
-    verify_arange(1, 20.5, None)
-    verify_arange(1, 20, 3)
-    verify_arange(20, 1, -1)
-    # arange doesnt' support floating point right now, see type relation
-    # verify_arange(20, 1, -1.5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)()
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_meshgrid():
-    def verify_meshgrid(lengths, indexing="ij"):
+class TestMeshgrid:
+    lengths, indexing = tvm.testing.parameters(
+        ([3, 5], "ij"),
+        ([4, 2], "xy"),
+        ([3, 5, 2], "ij"),
+        ([3, 1, 5], "xy"),
+        # Length 0 signifies scalar.
+        ([3, 5, 0], "ij"),
+    )
+
+    def test_meshgrid(self, target, dev, executor_kind, lengths, indexing="ij"):
         input_vars = []
         input_data = []
         for i, length in enumerate(lengths):
@@ -730,25 +757,22 @@ def test_meshgrid():
         # Get ref
         ref_res = np.meshgrid(*input_data, indexing=indexing)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(*input_data)
-                assert len(op_res) == len(ref_res)
-                for i in range(len(op_res)):
-                    tvm.testing.assert_allclose(op_res[i].asnumpy(), ref_res[i], rtol=1e-5)
-
-    verify_meshgrid([3, 5])
-    verify_meshgrid([4, 2], indexing="xy")
-    verify_meshgrid([3, 5, 2])
-    verify_meshgrid([3, 1, 5], indexing="xy")
-    # Length 0 signifies scalar.
-    verify_meshgrid([3, 5, 0])
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            *input_data
+        )
+        assert len(op_res) == len(ref_res)
+        for i in range(len(op_res)):
+            tvm.testing.assert_allclose(op_res[i].numpy(), ref_res[i], rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_tile():
-    def verify_tile(dshape, reps):
+class TestTile:
+    dshape, reps = tvm.testing.parameters(
+        ((2, 3, 4), (3, 2, 1)),
+        ((2, 3, 4), (1, 2)),
+        ((2, 3), (3, 2, 1)),
+    )
+
+    def test_tile(self, target, dev, executor_kind, dshape, reps):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.tile(x, reps=reps)
 
@@ -756,64 +780,91 @@ def test_tile():
         x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
         ref_res = np.tile(x_data, reps=reps)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-
-    verify_tile((2, 3, 4), (3, 2, 1))
-    verify_tile((2, 3, 4), (1, 2))
-    verify_tile((2, 3), (3, 2, 1))
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_repeat():
-    def verify_repeat(dshape, repeats, axis):
+class TestRepeat:
+    dshape, repeats, axis = tvm.testing.parameters(
+        ((3,), 2, 0),
+        ((3, 10), 2, -1),
+        ((3, 2, 4), 3, 1),
+    )
+
+    def test_repeat(self, target, dev, executor_kind, dshape, repeats, axis):
         x = relay.Var("x", relay.TensorType(dshape, "float32"))
         func = relay.Function([x], relay.repeat(x, repeats, axis))
         data = np.random.uniform(size=dshape).astype("float32")
         ref_res = np.repeat(data, repeats, axis)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-
-    verify_repeat((3,), 2, 0)
-    verify_repeat((3, 10), 2, -1)
-    verify_repeat((3, 2, 4), 3, 1)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_stack():
-    def verify_stack(dshapes, axis):
-        y = []
-        for shape in dshapes:
-            y.append(relay.var("input", relay.TensorType(shape, "float32")))
-        x = relay.Tuple(y)
-        z = relay.stack(x, axis=axis)
+class TestStack:
+    dshapes, axis = tvm.testing.parameters(
+        ([(2,), (2,), (2,)], -1),
+        ([(2,), (2,), (2,)], 0),
+        ([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1),
+        ([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1),
+        ([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], 4),
+    )
 
-        func = relay.Function(y, z)
-        x_data = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
-        ref_res = np.stack(x_data, axis=axis)
+    expr_type = tvm.testing.parameter("tuple", "list", "tuple_expr")
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(*x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    @tvm.testing.fixture
+    def ref_data(self, dshapes, axis):
+        np_in = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
+        np_out = np.stack(np_in, axis=axis)
+        return np_in, np_out
 
-    verify_stack([(2,), (2,), (2,)], -1)
-    verify_stack([(2,), (2,), (2,)], 0)
-    verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
-    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
-    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], 4)
+    @tvm.testing.fixture
+    def input_expr(self, dshapes, axis, expr_type, ref_data):
+        input_vars = [relay.var("input", relay.TensorType(shape, "float32")) for shape in dshapes]
+
+        if expr_type == "tuple":
+            input_expr = relay.Tuple(input_vars)
+
+        elif expr_type == "list":
+            input_expr = input_vars
+
+        elif expr_type == "tuple_expr":
+            # expression that evaluates to a tuple
+            # but is not a tuple literal
+            np_in, np_out = ref_data
+            x = relay.Var("x")
+            input_expr = relay.Let(x, relay.Tuple([relay.const(inp) for inp in np_in]), x)
+
+        else:
+            raise ValueError(f"Unknown expr_type '{expr_type}'")
+
+        return input_expr
+
+    def test_stack(self, target, dev, executor_kind, input_expr, ref_data, axis):
+        z = relay.stack(input_expr, axis=axis)
+        inp_vars = relay.analysis.free_vars(z)
+        func = relay.Function(inp_vars, z)
+
+        np_in, np_out = ref_data
+        relay_args = np_in if inp_vars else []
+
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            *relay_args
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), np_out, rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_reverse():
-    def verify_reverse(dshape, axis):
+class TestReverse:
+    dshape, axis = tvm.testing.parameters(
+        ((2, 3, 4), 1),
+        ((4, 7), 0),
+        ((2, 3, 4), -1),
+    )
+
+    def test_reverse(self, target, dev, executor_kind, dshape, axis):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.reverse(x, axis=axis)
         zz = run_infer_type(z)
@@ -821,19 +872,13 @@ def test_reverse():
         func = relay.Function([x], z)
         x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
         ref_res = np.flip(x_data, axis)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-
-    verify_reverse((2, 3, 4), 1)
-    verify_reverse((4, 7), 0)
-    verify_reverse((2, 3, 4), -1)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_reverse_sequence():
+def test_reverse_sequence(target, dev, executor_kind):
     def verify_reverse_sequence(x_data, seq_lengths, batch_axis, seq_axis, ref_res):
         seq_lengths_data = np.array(seq_lengths).astype("int32")
         x = relay.var("x", relay.TensorType(x_data.shape, str(x_data.dtype)))
@@ -842,11 +887,10 @@ def test_reverse_sequence():
         assert zz.checked_type == x.type_annotation
         func = relay.Function([x], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
     result = [[0, 5, 10, 15], [4, 1, 6, 11], [8, 9, 2, 7], [12, 13, 14, 3]]
@@ -909,19 +953,19 @@ def test_reverse_sequence():
     )
 
 
-@tvm.testing.uses_gpu
-def test_scatter():
-    def ref_scatter(data, indices, updates, axis=0):
-        idx = np.indices(indices.shape).reshape(indices.ndim, -1)
+def ref_scatter(data, indices, updates, axis=0):
+    idx = np.indices(indices.shape).reshape(indices.ndim, -1)
 
-        updated_idx = np.copy(idx)
-        indices = indices.reshape(-1)
-        for i in range(len(indices)):
-            updated_idx[axis, i] = indices[i]
-        scattered = np.copy(data)
-        scattered[tuple(updated_idx)] = updates[tuple(idx)]
-        return scattered
+    updated_idx = np.copy(idx)
+    indices = indices.reshape(-1)
+    for i in range(len(indices)):
+        updated_idx[axis, i] = indices[i]
+    scattered = np.copy(data)
+    scattered[tuple(updated_idx)] = updates[tuple(idx)]
+    return scattered
 
+
+def test_scatter(target, dev, executor_kind):
     def verify_scatter(dshape, ishape, axis=0):
         d = relay.var("d", relay.TensorType(dshape, "float32"))
         i = relay.var("i", relay.TensorType(ishape, "int64"))
@@ -936,32 +980,10 @@ def test_scatter():
 
         ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-
-    def verify_dynamic_scatter(dshape, ishape, axis=0):
-        d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
-        i = relay.var("i", relay.TensorType([relay.Any() for i in range(len(ishape))], "int64"))
-        u = relay.var("u", relay.TensorType([relay.Any() for i in range(len(ishape))], "float32"))
-        z = relay.op.scatter(d, i, u, axis)
-
-        func = relay.Function([d, i, u], z)
-
-        data_np = np.random.uniform(size=dshape).astype("float32")
-        updates_np = np.random.uniform(size=ishape).astype("float32")
-        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
-
-        ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
-
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(data_np, indices_np, updates_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            data_np, indices_np, updates_np
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_scatter((10,), (10,), 0)
     verify_scatter((10, 5), (10, 5), -2)
@@ -977,177 +999,315 @@ def test_scatter():
     verify_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
     verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
 
-    verify_dynamic_scatter((10,), (10,), 0)
-    verify_dynamic_scatter((10, 5), (10, 5), -2)
-    verify_dynamic_scatter((10, 5), (10, 5), -1)
-    verify_dynamic_scatter((10, 5), (3, 5), 0)
-    verify_dynamic_scatter((12, 4), (7, 2), 1)
-    verify_dynamic_scatter((2, 3, 4), (1, 3, 4), 0)
-    verify_dynamic_scatter((2, 3, 4), (2, 1, 4), 1)
-    verify_dynamic_scatter((2, 3, 4), (2, 3, 1), 2)
-    verify_dynamic_scatter((4, 2, 1), (1, 1, 1), 0)
-    verify_dynamic_scatter((2, 3, 4, 5), (1, 3, 4, 5), 0)
-    verify_dynamic_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
-    verify_dynamic_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
-    verify_dynamic_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
 
+class TestDynamicScatter:
+    dshape, ishape, axis = tvm.testing.parameters(
+        ((10,), (10,), 0),
+        ((10, 5), (10, 5), -2),
+        ((10, 5), (10, 5), -1),
+        ((10, 5), (3, 5), 0),
+        ((12, 4), (7, 2), 1),
+        ((2, 3, 4), (1, 3, 4), 0),
+        ((2, 3, 4), (2, 1, 4), 1),
+        ((2, 3, 4), (2, 3, 1), 2),
+        ((4, 2, 1), (1, 1, 1), 0),
+        ((2, 3, 4, 5), (1, 3, 4, 5), 0),
+        ((6, 3, 4, 5), (2, 3, 4, 5), 1),
+        ((2, 3, 8, 5), (2, 3, 1, 1), 2),
+        ((16, 16, 4, 5), (16, 16, 4, 5), 3),
+    )
 
-@tvm.testing.uses_gpu
-def test_scatter_add():
-    def ref_scatter_add(data, indices, updates, axis=0):
-        output = np.copy(data)
-        for index in np.ndindex(*indices.shape):
-            new_index = list(index)
-            new_index[axis] = indices[index]
-            output[tuple(new_index)] += updates[index]
-        return output
-
-    def verify_scatter_add(dshape, ishape, axis=0, dtype="float32"):
-        d = relay.var("d", relay.TensorType(dshape, dtype))
-        i = relay.var("i", relay.TensorType(ishape, "int64"))
-        u = relay.var("u", relay.TensorType(ishape, dtype))
-        z = relay.op.scatter_add(d, i, u, axis)
+    @pytest.mark.parametrize("executor_kind", ["vm", "debug"])
+    def test_dynamic_scatter(self, target, dev, executor_kind, dshape, ishape, axis):
+        d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
+        i = relay.var("i", relay.TensorType([relay.Any() for i in range(len(ishape))], "int64"))
+        u = relay.var("u", relay.TensorType([relay.Any() for i in range(len(ishape))], "float32"))
+        z = relay.op.scatter(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
+        data_np = np.random.uniform(size=dshape).astype("float32")
+        updates_np = np.random.uniform(size=ishape).astype("float32")
+        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
+
+        ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
+
+        mod = tvm.ir.IRModule.from_expr(func)
+        op_res = relay.create_executor(
+            executor_kind, mod=mod, device=dev, target=target
+        ).evaluate()(data_np, indices_np, updates_np)
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+
+
+class TestScatterAdd:
+    dshape, ishape, axis, dtype = tvm.testing.parameters(
+        ((10,), (10,), 0, "int32"),
+        ((1000,), (1000,), 0, "int32"),
+        ((10, 5), (10, 5), -2, "float32"),
+        ((10, 5), (10, 5), -1, "float32"),
+        ((10, 5), (3, 5), 0, "float32"),
+        ((12, 4), (7, 2), 1, "float32"),
+        ((2, 3, 4), (1, 3, 4), 0, "float32"),
+        ((2, 3, 4), (2, 1, 4), 1, "float32"),
+        ((2, 3, 4), (2, 3, 1), 2, "float32"),
+        ((2, 3, 4, 5), (1, 3, 4, 5), 0, "float32"),
+        ((6, 3, 4, 5), (2, 3, 4, 5), 1, "float32"),
+        ((2, 3, 8, 5), (2, 3, 1, 1), 2, "float32"),
+        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32"),
+    )
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def ref_data(self, dshape, ishape, axis, dtype):
         data_np = np.random.uniform(size=dshape).astype(dtype)
         updates_np = np.random.uniform(size=ishape).astype(dtype)
         indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
 
-        ref_res = ref_scatter_add(data_np, indices_np, updates_np, axis)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                if target == "nvptx" and dtype == "float32" and len(dshape) == 1:
-                    # scatter_add 1D on GPU is implemented via atomic.
-                    # Floating point atomic requires LLVM 9 or newer for nvptx backend.
-                    # But LLVM on CI is LLVM 8.
-                    continue
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        out_np = np.copy(data_np)
+        for index in np.ndindex(*indices_np.shape):
+            new_index = list(index)
+            new_index[axis] = indices_np[index]
+            out_np[tuple(new_index)] += updates_np[index]
+        return data_np, updates_np, indices_np, out_np
 
-    verify_scatter_add((10,), (10,), 0, dtype="int32")
-    verify_scatter_add((1000,), (1000,))
-    verify_scatter_add((1000,), (1000,), 0, dtype="int32")
-    verify_scatter_add((10, 5), (10, 5), -2)
-    verify_scatter_add((10, 5), (10, 5), -1)
-    verify_scatter_add((10, 5), (3, 5), 0)
-    verify_scatter_add((12, 4), (7, 2), 1)
-    verify_scatter_add((2, 3, 4), (1, 3, 4), 0)
-    verify_scatter_add((2, 3, 4), (2, 1, 4), 1)
-    verify_scatter_add((2, 3, 4), (2, 3, 1), 2)
-    verify_scatter_add((2, 3, 4, 5), (1, 3, 4, 5), 0)
-    verify_scatter_add((6, 3, 4, 5), (2, 3, 4, 5), 1)
-    verify_scatter_add((2, 3, 8, 5), (2, 3, 1, 1), 2)
-    verify_scatter_add((16, 16, 4, 5), (16, 16, 4, 5), 3)
+    # Optimization can produce tir.atomic_add, not currently supported
+    # on vulkan runtime.
+    @tvm.testing.known_failing_targets("vulkan")
+    def test_scatter_add(self, target, dev, ref_data, dshape, ishape, axis, dtype):
+        d = relay.var("d", relay.TensorType(shape=[relay.Any() for _ in dshape], dtype=dtype))
+        i = relay.var("i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype="int64"))
+        u = relay.var("u", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=dtype))
+        z = relay.op.scatter_add(d, i, u, axis)
+
+        func = relay.Function([d, i, u], z)
+
+        data_np, updates_np, indices_np, out_np = ref_data
+
+        verify_func(target, dev, func, [data_np, indices_np, updates_np], out_np)
 
 
-@tvm.testing.uses_gpu
-def test_gather():
+@pytest.mark.parametrize(
+    "data, axis, indices, ref_res",
+    [
+        ([[1, 2], [3, 4]], 1, [[0, 0], [1, 0]], [[1, 1], [4, 3]]),
+        ([[1, 2], [3, 4]], -1, [[0, 0], [1, 0]], [[1, 1], [4, 3]]),
+        (
+            [[[0, 1, 2], [3, 4, 5]], [[6, 7, 8], [9, 10, 11]]],
+            0,
+            [[[1, 0, 1], [1, 1, 0]]],
+            [[[6, 1, 8], [9, 10, 5]]],
+        ),
+        (
+            [[[0, 1, 2], [3, 4, 5]], [[6, 7, 8], [9, 10, 11]]],
+            -3,
+            [[[1, 0, 1], [1, 1, 0]]],
+            [[[6, 1, 8], [9, 10, 5]]],
+        ),
+        (
+            [
+                [
+                    [-0.2321, -0.2024, -1.7624],
+                    [-0.3829, -0.4246, 0.2448],
+                    [0.1822, 0.2360, -0.8965],
+                    [0.4497, -0.2224, 0.6103],
+                ],
+                [
+                    [0.0408, -0.7667, -0.4303],
+                    [-0.3216, 0.7489, -0.1502],
+                    [0.0144, -0.4699, -0.0064],
+                    [-0.0768, -1.6064, 1.3390],
+                ],
+            ],
+            1,
+            [[[2, 2, 0], [1, 0, 3]], [[3, 2, 0], [1, 0, 0]]],
+            [
+                [[0.1822, 0.2360, -1.7624], [-0.3829, -0.2024, 0.6103]],
+                [[-0.0768, -0.4699, -0.4303], [-0.3216, -0.7667, -0.4303]],
+            ],
+        ),
+        (
+            [
+                [
+                    [-0.2321, -0.2024, -1.7624],
+                    [-0.3829, -0.4246, 0.2448],
+                    [0.1822, 0.2360, -0.8965],
+                    [0.4497, -0.2224, 0.6103],
+                ],
+                [
+                    [0.0408, -0.7667, -0.4303],
+                    [-0.3216, 0.7489, -0.1502],
+                    [0.0144, -0.4699, -0.0064],
+                    [-0.0768, -1.6064, 1.3390],
+                ],
+            ],
+            -2,
+            [[[2, 2, 0], [1, 0, 3]], [[3, 2, 0], [1, 0, 0]]],
+            [
+                [[0.1822, 0.2360, -1.7624], [-0.3829, -0.2024, 0.6103]],
+                [[-0.0768, -0.4699, -0.4303], [-0.3216, -0.7667, -0.4303]],
+            ],
+        ),
+        (
+            [
+                [
+                    [-0.2321, -0.2024, -1.7624],
+                    [-0.3829, -0.4246, 0.2448],
+                    [0.1822, 0.2360, -0.8965],
+                    [0.4497, -0.2224, 0.6103],
+                ],
+                [
+                    [0.0408, -0.7667, -0.4303],
+                    [-0.3216, 0.7489, -0.1502],
+                    [0.0144, -0.4699, -0.0064],
+                    [-0.0768, -1.6064, 1.3390],
+                ],
+            ],
+            -2,
+            [[[2, 2, 0], [1, 0, 3]], [[3, 2, 0], [1, 0, 0]]],
+            [
+                [[0.1822, 0.2360, -1.7624], [-0.3829, -0.2024, 0.6103]],
+                [[-0.0768, -0.4699, -0.4303], [-0.3216, -0.7667, -0.4303]],
+            ],
+        ),
+        (
+            [
+                [
+                    [0.3050, 1.6986, 1.1034],
+                    [0.7020, -0.6960, -2.1818],
+                    [0.3116, -0.5773, -0.9912],
+                    [0.0835, -1.3915, -1.0720],
+                ],
+                [
+                    [0.1694, -0.6091, -0.6539],
+                    [-0.5234, -0.1218, 0.5084],
+                    [0.2374, -1.9537, -2.0078],
+                    [-0.5700, -1.0302, 0.1558],
+                ],
+            ],
+            2,
+            [
+                [[1, 1, 0, 1], [0, 0, 2, 2], [1, 2, 1, 2], [2, 2, 1, 0]],
+                [[0, 0, 1, 2], [2, 2, 1, 0], [1, 2, 0, 0], [0, 2, 0, 2]],
+            ],
+            [
+                [
+                    [1.6986, 1.6986, 0.3050, 1.6986],
+                    [0.7020, 0.7020, -2.1818, -2.1818],
+                    [-0.5773, -0.9912, -0.5773, -0.9912],
+                    [-1.0720, -1.0720, -1.3915, 0.0835],
+                ],
+                [
+                    [0.1694, 0.1694, -0.6091, -0.6539],
+                    [0.5084, 0.5084, -0.1218, -0.5234],
+                    [-1.9537, -2.0078, 0.2374, 0.2374],
+                    [-0.5700, 0.1558, -0.5700, 0.1558],
+                ],
+            ],
+        ),
+        (
+            [
+                [
+                    [0.3050, 1.6986, 1.1034],
+                    [0.7020, -0.6960, -2.1818],
+                    [0.3116, -0.5773, -0.9912],
+                    [0.0835, -1.3915, -1.0720],
+                ],
+                [
+                    [0.1694, -0.6091, -0.6539],
+                    [-0.5234, -0.1218, 0.5084],
+                    [0.2374, -1.9537, -2.0078],
+                    [-0.5700, -1.0302, 0.1558],
+                ],
+            ],
+            -1,
+            [
+                [[1, 1, 0, 1], [0, 0, 2, 2], [1, 2, 1, 2], [2, 2, 1, 0]],
+                [[0, 0, 1, 2], [2, 2, 1, 0], [1, 2, 0, 0], [0, 2, 0, 2]],
+            ],
+            [
+                [
+                    [1.6986, 1.6986, 0.3050, 1.6986],
+                    [0.7020, 0.7020, -2.1818, -2.1818],
+                    [-0.5773, -0.9912, -0.5773, -0.9912],
+                    [-1.0720, -1.0720, -1.3915, 0.0835],
+                ],
+                [
+                    [0.1694, 0.1694, -0.6091, -0.6539],
+                    [0.5084, 0.5084, -0.1218, -0.5234],
+                    [-1.9537, -2.0078, 0.2374, 0.2374],
+                    [-0.5700, 0.1558, -0.5700, 0.1558],
+                ],
+            ],
+        ),
+    ],
+)
+def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
     def verify_gather(data, axis, indices, ref_res):
         data = np.asarray(data, dtype="float32")
         indices = np.asarray(indices, dtype="int32")
         ref_res = np.asarray(ref_res)
-
         d = relay.var("x", relay.TensorType(data.shape, "float32"))
         i = relay.var("y", relay.TensorType(indices.shape, "int32"))
         z = relay.gather(d, axis, i)
 
         func = relay.Function([d, i], z)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(data, indices)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            data, indices
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
-    verify_gather([[1, 2], [3, 4]], 1, [[0, 0], [1, 0]], [[1, 1], [4, 3]])
-    verify_gather(
-        [[[0, 1, 2], [3, 4, 5]], [[6, 7, 8], [9, 10, 11]]],
-        0,
-        [[[1, 0, 1], [1, 1, 0]]],
-        [[[6, 1, 8], [9, 10, 5]]],
-    )
-    verify_gather(
-        [
-            [
-                [-0.2321, -0.2024, -1.7624],
-                [-0.3829, -0.4246, 0.2448],
-                [0.1822, 0.2360, -0.8965],
-                [0.4497, -0.2224, 0.6103],
-            ],
-            [
-                [0.0408, -0.7667, -0.4303],
-                [-0.3216, 0.7489, -0.1502],
-                [0.0144, -0.4699, -0.0064],
-                [-0.0768, -1.6064, 1.3390],
-            ],
-        ],
-        1,
-        [[[2, 2, 0], [1, 0, 3]], [[3, 2, 0], [1, 0, 0]]],
-        [
-            [[0.1822, 0.2360, -1.7624], [-0.3829, -0.2024, 0.6103]],
-            [[-0.0768, -0.4699, -0.4303], [-0.3216, -0.7667, -0.4303]],
-        ],
-    )
-    verify_gather(
-        [
-            [
-                [0.3050, 1.6986, 1.1034],
-                [0.7020, -0.6960, -2.1818],
-                [0.3116, -0.5773, -0.9912],
-                [0.0835, -1.3915, -1.0720],
-            ],
-            [
-                [0.1694, -0.6091, -0.6539],
-                [-0.5234, -0.1218, 0.5084],
-                [0.2374, -1.9537, -2.0078],
-                [-0.5700, -1.0302, 0.1558],
-            ],
-        ],
-        2,
-        [
-            [[1, 1, 0, 1], [0, 0, 2, 2], [1, 2, 1, 2], [2, 2, 1, 0]],
-            [[0, 0, 1, 2], [2, 2, 1, 0], [1, 2, 0, 0], [0, 2, 0, 2]],
-        ],
-        [
-            [
-                [1.6986, 1.6986, 0.3050, 1.6986],
-                [0.7020, 0.7020, -2.1818, -2.1818],
-                [-0.5773, -0.9912, -0.5773, -0.9912],
-                [-1.0720, -1.0720, -1.3915, 0.0835],
-            ],
-            [
-                [0.1694, 0.1694, -0.6091, -0.6539],
-                [0.5084, 0.5084, -0.1218, -0.5234],
-                [-1.9537, -2.0078, 0.2374, 0.2374],
-                [-0.5700, 0.1558, -0.5700, 0.1558],
-            ],
-        ],
-    )
+    verify_gather(data, axis, indices, ref_res)
 
 
-@tvm.testing.uses_gpu
-def test_gather_nd():
-    def verify_gather_nd(xshape, yshape, y_data):
+def test_gather_nd(target, dev, executor_kind):
+    def verify_gather_nd(xshape, yshape, y_data, batch_dims=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
         y = relay.var("y", relay.TensorType(yshape, "int32"))
-        z = relay.gather_nd(x, y)
+        z = relay.gather_nd(x, y, batch_dims)
 
         func = relay.Function([x, y], z)
-        x_data = np.random.uniform(size=xshape).astype("float32")
-        ref_res = x_data[tuple(y_data)]
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        x_data = np.random.uniform(size=xshape).astype("float32")
+
+        if y_data:
+            y_data = np.array(y_data, dtype="int32")
+        else:
+            y_data = np.random.randint(low=0, high=2, size=yshape, dtype="int32")
+
+        ref_res = ref_funcs.gather_nd(x_data, y_data, batch_dims)
+
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data, y_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_gather_nd((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
     verify_gather_nd((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
+
+    # Examples from tensorflow gather_nd doc
+    # https://www.tensorflow.org/api_docs/python/tf/gather_nd
+    verify_gather_nd((2, 2, 2), (1, 2), [[1, 0]], 1)
+    verify_gather_nd((2, 2, 2), (1, 2, 1), [[[1], [0]]], 1)
+    verify_gather_nd((2, 2, 2), (2, 2, 1), [[[1], [0]], [[0], [1]]], 1)
+
+    # Test cases from tensorflow gather_nd tests kernel_tests/array_ops_test.py
+    verify_gather_nd((2, 2, 2), (1, 2), None, 1)
+    verify_gather_nd((2, 2, 2), (2, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (3, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (2, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (1, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (3, 2, 1), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (2, 2, 2), None, 1)
+    verify_gather_nd((2, 2, 3, 2), (1, 2, 3), None, 1)
+
+    verify_gather_nd((3, 2, 2, 3, 4), (3, 3, 2), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (2, 3, 2), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (3, 3, 2, 1), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (2, 3, 2, 2), None, 2)
+    verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2, 3), None, 2)
 
 
 def _verify_infiniteness_ops(relay_op, ref_op):
@@ -1165,10 +1325,9 @@ def _verify_infiniteness_ops(relay_op, ref_op):
             ] = np.infty
             data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
 
-        intrp = create_executor()
-        op_res = intrp.evaluate(y, {x: data})
+        op_res = create_executor().evaluate(y, {x: data})
         ref_res = ref_op(data)
-        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+        np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
 def test_isfinite():
@@ -1179,8 +1338,7 @@ def test_isinf():
     _verify_infiniteness_ops(relay.isinf, np.isinf)
 
 
-@tvm.testing.uses_gpu
-def test_unravel_index():
+def test_unravel_index(target, dev, executor_kind):
     def verify_unravel_index(indices, shape, dtype):
         x_data = np.array(indices).astype(dtype)
         y_data = np.array(shape).astype(dtype)
@@ -1198,11 +1356,10 @@ def test_unravel_index():
 
         func = relay.Function([x, y], z)
         ref_res = np.unravel_index(x_data, y_data)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data, y_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data, y_data
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     for dtype in ["int64", "int32"]:
         verify_unravel_index([0, 1, 2, 3], [2, 2], dtype)
@@ -1217,8 +1374,7 @@ def test_unravel_index():
         # verify_unravel_index([0, 1, 2, 5], [2, 2], dtype)
 
 
-@tvm.testing.uses_gpu
-def test_sparse_to_dense():
+def test_sparse_to_dense(target, dev, executor_kind):
     def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape, xpected):
         sparse_indices_data = np.array(sparse_indices)
         sparse_values_data = np.array(sparse_values)
@@ -1244,16 +1400,12 @@ def test_sparse_to_dense():
         assert zz.checked_type == relay.ty.TensorType(output_shape, str(sparse_values_data.dtype))
 
         func = relay.Function(args, d)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                if default_value is None:
-                    op_res = intrp.evaluate(func)(sparse_indices_data, sparse_values_data)
-                else:
-                    op_res = intrp.evaluate(func)(
-                        sparse_indices_data, sparse_values_data, default_value_data
-                    )
-                tvm.testing.assert_allclose(op_res.asnumpy(), xpected, rtol=1e-5)
+        f = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)
+        if default_value is None:
+            op_res = f(sparse_indices_data, sparse_values_data)
+        else:
+            op_res = f(sparse_indices_data, sparse_values_data, default_value_data)
+        tvm.testing.assert_allclose(op_res.numpy(), xpected, rtol=1e-5)
 
     verify_sparse_to_dense(1, 3, 0, [5], [0, 3, 0, 0, 0])  # scalar
     verify_sparse_to_dense([0, 1, 4], [3, 3, 3], 0, [5], [3, 3, 0, 0, 3])  # vector
@@ -1281,7 +1433,334 @@ def test_sparse_to_dense():
     # verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[[3.1, 3.1, 3.1]]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
 
-def test_adv_index():
+class TestSparseReshape:
+
+    sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np = tvm.testing.parameters(
+        (
+            np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int32),
+            np.array([7, 5, 6, 3, 9], dtype=np.int32),
+            np.array([2, 3, 6], dtype=np.int32),
+            np.array([9, -1], dtype=np.int32),
+        ),
+        (
+            np.array(
+                [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]],
+                dtype=np.int64,
+            ),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6, 7], dtype=np.int64),
+            np.array([9, -1, 7], dtype=np.int64),
+        ),
+        (
+            np.array(
+                [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 1, 2, 3],
+                    [0, 1, 0, 3, 5],
+                    [1, 0, 0, 4, 6],
+                    [1, 2, 3, 6, 8],
+                ],
+                dtype=np.int64,
+            ),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([2, 3, 6, 7, 9], dtype=np.int64),
+            np.array([9, -1, 7], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32),
+            np.array([7, 5, 6, 3, 9], dtype=np.int32),
+            np.array([9, 4], dtype=np.int32),
+            np.array([2, -1, 6], dtype=np.int32),
+        ),
+        (
+            np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([9, 4], dtype=np.int64),
+            np.array([-1], dtype=np.int64),
+        ),
+        (
+            np.array([[0], [5], [10], [20], [24]], dtype=np.int32),
+            np.array([7, 5, 6, 3, 9], dtype=np.int32),
+            np.array([25], dtype=np.int32),
+            np.array([5, 5], dtype=np.int32),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int32),
+            np.array([7, 5, 6, 3, 9], dtype=np.int32),
+            np.array([500, 20], dtype=np.int32),
+            np.array([500, -1], dtype=np.int32),
+        ),
+        (
+            np.array([[0, 100], [200, 100], [300, 400], [50, 20], [400, 50]], dtype=np.int64),
+            np.array([7, 5, 6, 3, 9], dtype=np.int64),
+            np.array([500, 20], dtype=np.int64),
+            np.array([250, 40], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int32),
+            np.array([], dtype=np.int32),
+            np.array([4], dtype=np.int32),
+            np.array([2, -1], dtype=np.int32),
+        ),
+        (
+            np.ones((0, 1), dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([4], dtype=np.int64),
+            np.array([2, 2], dtype=np.int64),
+        ),
+        (
+            np.ones((0, 2), dtype=np.int32),
+            np.array([], dtype=np.int32),
+            np.array([3, 6], dtype=np.int32),
+            np.array([-1, 2], dtype=np.int32),
+        ),
+    )
+
+    use_dyn = tvm.testing.parameter(True, False, ids=["dyn", "static"])
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def ref_res(
+        self,
+        sparse_indices_np: np.ndarray,
+        prev_shape_np: np.ndarray,
+        new_shape_np: np.ndarray,
+    ):
+        """
+        This function calculates the expected output of sparseshape operator given the inputs.
+        """
+
+        new_sparse_indices = np.ones(
+            (sparse_indices_np.shape[0], new_shape_np.shape[0]), dtype=sparse_indices_np.dtype
+        )
+        multipliers = np.ones(prev_shape_np.shape[0])
+        dividers = np.ones(new_shape_np.shape[0])
+        total_ele = np.prod(prev_shape_np)
+        division_total_ele = 1
+        for i in range(new_shape_np.shape[0]):
+            if new_shape_np[i] == -1:
+                continue
+            division_total_ele *= new_shape_np[i]
+        for i in range(prev_shape_np.shape[0] - 2, -1, -1):
+            multipliers[i] = prev_shape_np[i + 1] * multipliers[i + 1]
+
+        for i in range(len(new_shape_np)):
+            if new_shape_np[i] == -1:
+                new_shape_np[i] = total_ele // division_total_ele
+
+        if np.array_equal(prev_shape_np, new_shape_np):
+            return sparse_indices_np, prev_shape_np
+
+        for i in range(new_shape_np.shape[0] - 2, -1, -1):
+            dividers[i] = new_shape_np[i + 1] * dividers[i + 1]
+
+        for row_num, sparse_row in enumerate(sparse_indices_np):
+            flat_idx = 0
+            if len(sparse_indices_np.shape) != 1:
+                for i, ele in enumerate(sparse_row):
+                    flat_idx += sparse_row[i] * multipliers[i]
+            else:
+                flat_idx += sparse_row
+            if len(new_sparse_indices.shape) != 1:
+                for i in range(new_sparse_indices.shape[1]):
+                    new_sparse_indices[row_num][i] = flat_idx // dividers[i]
+                    flat_idx = flat_idx % dividers[i]
+            else:
+                new_sparse_indices[row_num] = flat_idx
+
+        return new_sparse_indices, new_shape_np
+
+    @tvm.testing.known_failing_targets("vulkan")
+    def test_sparse_reshape(
+        self,
+        target,
+        dev,
+        ref_res,
+        sparse_indices_np,
+        sparse_values_np,
+        prev_shape_np,
+        new_shape_np,
+        use_dyn,
+    ):
+        if use_dyn:
+            sparse_indices = relay.var(
+                "sparse_indices",
+                shape=[relay.Any(), relay.Any()],
+                dtype=str(sparse_indices_np.dtype),
+            )
+            prev_shape = relay.var(
+                "prev_shape",
+                shape=[relay.Any()],
+                dtype=str(prev_shape_np.dtype),
+            )
+            new_shape = relay.var(
+                "new_shape",
+                shape=[relay.Any()],
+                dtype=str(new_shape_np.dtype),
+            )
+        else:
+            sparse_indices = relay.var(
+                "sparse_indices",
+                relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
+            )
+            prev_shape = relay.var(
+                "prev_shape", relay.TensorType(prev_shape_np.shape, str(prev_shape_np.dtype))
+            )
+            new_shape = relay.var(
+                "new_shape", relay.TensorType(new_shape_np.shape, str(new_shape_np.dtype))
+            )
+        z = relay.op.sparse_reshape(sparse_indices, prev_shape, new_shape).astuple()
+
+        func = relay.Function([sparse_indices, prev_shape, new_shape], z)
+
+        outputs = run_infer_type(z)
+        new_sparse_indices_infer_type, new_shape_infer_type = (
+            outputs.checked_type.fields[0].dtype,
+            outputs.checked_type.fields[1].dtype,
+        )
+
+        assert new_sparse_indices_infer_type == sparse_indices_np.dtype
+        assert new_shape_infer_type == new_shape_np.dtype
+        verify_func(
+            target,
+            dev,
+            func,
+            [sparse_indices_np, prev_shape_np, new_shape_np],
+            ref_res,
+        )
+
+
+class TestSegmentSum:
+    data_np, segment_ids_np, num_segments = tvm.testing.parameters(
+        (
+            np.array([5, 1, 7, 2, 3, 4], dtype=np.float32),
+            np.array([0, 0, 1, 1, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([2, 0, 1, 0, 3, 2], dtype=np.int64),
+            None,
+        ),
+        (
+            np.array([[[1, 7]], [[3, 8]], [[2, 9]]], dtype=np.float32),
+            np.array([0, 0, 1], dtype=np.int32),
+            None,
+        ),
+        (
+            np.random.random((9, 4, 5, 7)),
+            np.array([5, 0, 1, 0, 3, 6, 8, 7, 7], dtype=np.int64),
+            9,
+        ),
+        (
+            np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float64),
+            np.array([0, 2], dtype=np.int32),
+            4,
+        ),
+        (
+            np.random.random((6, 4, 5)),
+            np.array([0, 0, 1, 5, 5], dtype=np.int32),
+            100,
+        ),
+    )
+
+    use_dyn = tvm.testing.parameter(True, False, ids=["dyn", "static"])
+
+    @tvm.testing.fixture(cache_return_value=True)
+    def ref_res(
+        self,
+        data_np: np.ndarray,
+        segment_ids_np: np.ndarray,
+        num_segments: Optional[int],
+    ):
+        """
+        This function calculates the expected output of segment_sum operator given the inputs.
+        """
+        if not num_segments:
+            num_segments = np.unique(segment_ids_np).shape[0]
+
+        result = np.zeros((num_segments,) + data_np.shape[1:], data_np.dtype)
+        for i, index in enumerate(segment_ids_np):
+            result[index] += data_np[i]
+        return result
+
+    # Optimization can produce tir.atomic_add, not currently supported
+    # on vulkan runtime.
+    @tvm.testing.known_failing_targets("vulkan")
+    def test_segment_sum(
+        self,
+        target,
+        dev,
+        ref_res: np.ndarray,
+        data_np: np.ndarray,
+        segment_ids_np: np.ndarray,
+        num_segments: Optional[int],
+        use_dyn: bool,
+    ):
+        """
+        This function verifies the relay output of segment_sum with its expected output.
+        """
+        if use_dyn:
+            data = relay.var(
+                "data",
+                shape=[relay.Any() for _ in data_np.shape],
+                dtype=str(data_np.dtype),
+            )
+            segment_ids = relay.var(
+                "segment_ids",
+                shape=[relay.Any()],
+                dtype=str(segment_ids_np.dtype),
+            )
+        else:
+            data = relay.var(
+                "data",
+                relay.TensorType(data_np.shape, str(data_np.dtype)),
+            )
+            segment_ids = relay.var(
+                "segment_ids", relay.TensorType(segment_ids_np.shape, str(segment_ids_np.dtype))
+            )
+        z = relay.op.segment_sum(data, segment_ids, num_segments)
+
+        func = relay.Function([data, segment_ids], z)
+        segment_sum_result = run_infer_type(z)
+        assert segment_sum_result.checked_type.dtype == data_np.dtype
+        verify_func(
+            target,
+            dev,
+            func,
+            [data_np, segment_ids_np],
+            ref_res,
+        )
+
+
+def verify_func(target, dev, func, data, ref_res):
+    assert isinstance(data, list)
+    for kind in ["vm"]:
+        mod = tvm.ir.IRModule.from_expr(func)
+        op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(*data)
+        if isinstance(op_res, tvm.runtime.container.ADT):
+            assert len(op_res) == len(
+                ref_res
+            ), "Outputs from TVM and Python implementation must be equal "
+
+            for op_result, ref_result in zip(op_res, ref_res):
+                tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
+        else:
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+        relay.backend.compile_engine.get().clear()
+
+
+def test_adv_index(target, dev, executor_kind):
     def verify_adv_index(data_shape, index_shapes):
         dtype = "float32"
         inputs = [relay.var("data", relay.TensorType(data_shape, dtype))]
@@ -1296,11 +1775,10 @@ def test_adv_index():
         out = relay.op.adv_index(inputs)
 
         func = relay.Function(inputs, out)
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(*np_args)
-                tvm.testing.assert_allclose(op_res.asnumpy(), np_out, rtol=1e-5)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            *np_args
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), np_out, rtol=1e-5)
 
     verify_adv_index((10, 5), [(3, 4), (3, 1)])
     verify_adv_index(
@@ -1312,40 +1790,237 @@ def test_adv_index():
     verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)])
 
 
+# Helper for testing binop functions
+scanops_supported = {"cumsum": relay.op.cumsum, "cumprod": relay.op.cumprod}
+
+
+def run_binop_tests(
+    target,
+    dev,
+    executor_kind,
+    binop_type: str,
+    gt_func: Callable[..., np.array],
+    identity_value: int,
+):
+    def assert_relay_scanop(
+        data_np: np.array,
+        np_out: np.array,
+        axis: int = None,
+        out_dtype: str = None,
+        rtol: float = 1e-5,
+        atol: float = 1e-5,
+        exclusive: bool = False,
+    ):
+        inp = relay.var("data", relay.TensorType(data_np.shape, str(data_np.dtype)))
+
+        if binop_type not in scanops_supported.keys():
+            raise ValueError(f"Unknown function {binop_type}. Options: {scanops_supported.keys()}")
+        out = scanops_supported[binop_type](inp, axis, out_dtype, exclusive=exclusive)
+        func = relay.Function([inp], out)
+
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            data_np
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), np_out, rtol=rtol, atol=atol)
+
+    data = np.array([2, 3, 0])
+    assert_relay_scanop(data, gt_func(data))
+    assert_relay_scanop(data, gt_func(data), out_dtype="int64")
+
+    data = np.random.randn(10, 10)
+    assert_relay_scanop(data, gt_func(data))
+    assert_relay_scanop(data, gt_func(data, axis=0), axis=0)
+    assert_relay_scanop(data, gt_func(data, axis=1), axis=1)
+
+    data = np.random.randn(10, 5, 10).astype("float32")
+    assert_relay_scanop(data, gt_func(data), rtol=1e-4, atol=1e-4)
+    assert_relay_scanop(data, gt_func(data, axis=0), axis=0, rtol=1e-4, atol=1e-4)
+    assert_relay_scanop(data, gt_func(data, axis=1), axis=1, rtol=1e-4, atol=1e-4)
+    assert_relay_scanop(data, gt_func(data, axis=-1), axis=-1, rtol=1e-4, atol=1e-4)
+
+    data = np.random.rand(10) > 0.5
+    data = data.astype(np.int32)
+    assert_relay_scanop(data, gt_func(data, dtype=np.int32))
+    assert_relay_scanop(data, gt_func(data, dtype="int64"), out_dtype="int64")
+
+    # Test exclusivity operations
+    data = np.random.randint(-100, 100, size=(10, 10)).astype("int64")
+    expected_result = np.roll(gt_func(data), 1)
+    expected_result[0] = identity_value
+    assert_relay_scanop(data, expected_result, exclusive=True)
+
+    expected_result = np.roll(gt_func(data, axis=0), 1, axis=0)
+    expected_result[0, :] = identity_value
+    assert_relay_scanop(data, expected_result, exclusive=True, axis=0)
+
+    expected_result = np.roll(gt_func(data, axis=1), 1, axis=1)
+    expected_result[:, 0] = identity_value
+    assert_relay_scanop(data, expected_result, exclusive=True, axis=1)
+
+
+@tvm.testing.parametrize_targets
+def test_cumsum(target, dev, executor_kind):
+    run_binop_tests(
+        target, dev, executor_kind, binop_type="cumsum", gt_func=np.cumsum, identity_value=0
+    )
+
+
+@tvm.testing.parametrize_targets
+def test_cumprod(target, dev, executor_kind):
+    run_binop_tests(
+        target, dev, executor_kind, binop_type="cumprod", gt_func=np.cumprod, identity_value=1
+    )
+
+
+@tvm.testing.parametrize_targets
+def test_scatter_nd(target, dev, executor_kind):
+    def verify_scatter_nd(
+        data_np, indices_np, updates_np, ref_res, mode="add", rtol=1e-5, atol=1e-5
+    ):
+        data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
+        indices = relay.var("indices", shape=indices_np.shape, dtype=str(indices_np.dtype))
+        updates = relay.var("updates", shape=updates_np.shape, dtype=str(updates_np.dtype))
+
+        out = relay.op.scatter_nd(data, indices, updates, mode)
+        func = relay.Function([data, indices, updates], out)
+
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            data_np, indices_np, updates_np
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
+
+    def verify_scatter_nd_with_stack(
+        data_np, indices_np, updates_np, ref_res, mode="add", rtol=1e-5, atol=1e-5
+    ):
+        data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
+        indices_vars = [
+            relay.var("ind%d" % i, shape=v.shape, dtype=str(v.dtype))
+            for i, v in enumerate(indices_np)
+        ]
+        updates = relay.var("updates", shape=updates_np.shape, dtype=str(updates_np.dtype))
+
+        # test if scatter_nd works in case indices are prepared by another Relay operator
+        indices = relay.op.stack(indices_vars, axis=0)
+        out = relay.op.scatter_nd(data, indices, updates, mode)
+        func = relay.Function(
+            [data, updates] + indices_vars,
+            out,
+        )
+
+        fargs = [data_np, updates_np]
+        for a in indices_np:
+            fargs.append(a)
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            *fargs
+        )
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
+
+    data = np.zeros((2, 2)).astype("int64")
+    indices = np.array([[1, 1, 0], [0, 1, 0]])
+    updates = np.array([2, 3, 0])
+    out = np.array([[0, 0], [2, 3]])
+    verify_scatter_nd(data, indices, updates, out)
+    verify_scatter_nd_with_stack(data, indices, updates, out)
+
+    data = np.zeros((2, 2, 2, 2)).astype("int64")
+    indices = np.array([[0, 1], [1, 1]])
+    updates = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+    out = np.array([[[[0, 0], [0, 0]], [[1, 2], [3, 4]]], [[[0, 0], [0, 0]], [[5, 6], [7, 8]]]])
+    verify_scatter_nd(data, indices, updates, out)
+    verify_scatter_nd_with_stack(data, indices, updates, out)
+
+    indices = np.array([[1, 0, 0]])
+    updates = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
+    shape = (2, 1560)
+    data = np.zeros(shape).astype("float32")
+    out = data.copy()
+    out[1, :] += updates[0, :]
+    out[0, :] += updates[1, :]
+    out[0, :] += updates[2, :]
+    verify_scatter_nd(data, indices, updates, out, mode="add")
+    verify_scatter_nd_with_stack(data, indices, updates, out)
+
+    for mode in ["add", "update"]:
+        indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
+            "int64"
+        )
+        updates = np.ones((5, 3)).astype("float64")
+        shape = (2, 7, 3)
+        data = np.random.random(shape).astype("float64")
+        out = data.copy()
+        for i in range(indices.shape[1]):
+            for j in range(updates.shape[1]):
+                if mode == "add":
+                    out[indices[0, i], indices[1, i], j] += updates[i, j]
+                elif mode == "update":
+                    out[indices[0, i], indices[1, i], j] = updates[i, j]
+        verify_scatter_nd(data, indices, updates, out, mode)
+        verify_scatter_nd_with_stack(data, indices, updates, out, mode)
+
+
+def test_unique(target, dev):
+    def calc_numpy_unique(data, is_sorted=False):
+        uniq, index, inverse, counts = np.unique(
+            data, return_index=True, return_inverse=True, return_counts=True
+        )
+        num_uniq = np.array([len(uniq)]).astype("int32")
+        if not is_sorted:
+            order = np.argsort(index)
+            reverse_order = np.argsort(order)
+            uniq = uniq[order].astype(data.dtype)
+            inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
+            counts = counts[order].astype("int32")
+            index = np.sort(index)  # In unsorted case, need to sort the index of first occurence
+        return [
+            uniq.astype(data.dtype),
+            index.astype("int32"),
+            inverse.astype("int32"),
+            num_uniq,
+            counts,
+        ]
+
+    def verify_unique(n, dtype, is_dyn=False, is_sorted=False, return_counts=False):
+        if is_dyn:
+            x = relay.var("x", relay.TensorType([relay.Any()], dtype))
+        else:
+            x = relay.var("x", relay.TensorType([n], dtype))
+        outs = relay.unique(x, is_sorted, return_counts)
+        outs = outs.astuple()
+        func = relay.Function([x], outs)
+        x_data = np.random.randint(50, size=n).astype(dtype)
+
+        if is_dyn:
+            backends = ["vm", "debug"]
+        else:
+            backends = ["graph", "debug"]
+
+        for kind in backends:
+            mod = tvm.ir.IRModule.from_expr(func)
+            tvm_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
+                x_data
+            )  # unique, indices, inverse_indices, num_unique, (counts)
+            np_res = calc_numpy_unique(
+                x_data, is_sorted
+            )  # unique, indices, inverse_indices, num_unique, counts
+            num_unique = np_res[3][0]
+
+            # num_unique
+            assert num_unique == tvm_res[3].numpy()[0]
+            # unique
+            tvm.testing.assert_allclose(tvm_res[0].numpy()[:num_unique], np_res[0], rtol=1e-5)
+            # indices
+            tvm.testing.assert_allclose(tvm_res[1].numpy()[:num_unique], np_res[1], rtol=1e-5)
+            # inverse_indices
+            tvm.testing.assert_allclose(tvm_res[2].numpy(), np_res[2], rtol=1e-5)
+            # counts
+            if return_counts:
+                tvm.testing.assert_allclose(tvm_res[4].numpy()[:num_unique], np_res[4], rtol=1e-5)
+
+    for dtype in ["int32", "int64"]:
+        for i in range(8):
+            is_dyn, is_sorted, return_counts = bool(i & 1), bool(i & 2), bool(i & 4)
+            verify_unique(10, dtype, is_dyn, is_sorted, return_counts)
+
+
 if __name__ == "__main__":
-    test_cast()
-    test_zeros_ones()
-    test_unary_identity()
-    test_clip()
-    test_transpose_infer_type()
-    test_transpose()
-    test_reshape_infer_type()
-    test_reshape()
-    test_reshape_fail()
-    test_reshape_like_infer_type()
-    test_reshape_like()
-    test_take_infer_type()
-    test_take()
-    test_full_infer_type()
-    test_full()
-    test_full_like_infer_type()
-    test_full_like()
-    test_infer_type_leaky_relu()
-    test_infer_type_prelu()
-    test_squeeze()
-    test_squeeze_infer_type()
-    test_squeeze_bad_axes_infer_type()
-    test_split_infer_type()
-    test_arange()
-    test_meshgrid()
-    test_reverse()
-    test_stack()
-    test_tile()
-    test_repeat()
-    test_gather_nd()
-    test_isfinite()
-    test_isinf()
-    test_unravel_index()
-    test_sparse_to_dense()
-    test_fixed_point_multiply()
-    test_adv_index()
+    sys.exit(pytest.main(sys.argv))

@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 from tvm import auto_scheduler
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
 
 
 @tvm.testing.requires_llvm
@@ -50,7 +50,7 @@ def test_task_scheduler_round_robin():
             num_measures_per_round=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        task_scheduler = auto_scheduler.TaskScheduler(tasks, strategy="round-robin")
+        task_scheduler = auto_scheduler.TaskScheduler(tasks, strategy="round-robin", callbacks=[])
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
         # Check the result of round robin
@@ -66,7 +66,7 @@ def test_task_scheduler_round_robin():
 
         # test continuous tuning (restoring the status)
         task_scheduler = auto_scheduler.TaskScheduler(
-            tasks, strategy="round-robin", load_log_file=log_file
+            tasks, strategy="round-robin", load_log_file=log_file, callbacks=[]
         )
         tune_option = auto_scheduler.TuningOptions(
             num_measure_trials=len(tasks),
@@ -116,7 +116,9 @@ def test_task_scheduler_gradient():
             num_measures_per_round=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func=objective_func)
+        task_scheduler = auto_scheduler.TaskScheduler(
+            tasks, objective_func=objective_func, callbacks=[]
+        )
 
         # Forcely rewrite the initial values.
         # This can make this test more stable on the slow CI machines

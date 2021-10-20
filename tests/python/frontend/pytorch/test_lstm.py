@@ -217,15 +217,13 @@ def assert_equal(tvm_result, torch_result):
         for tvm_res, pt_res in zip(tvm_result, torch_result):
             assert_equal(tvm_res, pt_res)
     elif isinstance(torch_result, torch.Tensor):
-        tvm.testing.assert_allclose(
-            tvm_result.asnumpy(), torch_result.numpy(), rtol=1e-4, atol=1e-4
-        )
+        tvm.testing.assert_allclose(tvm_result.numpy(), torch_result.numpy(), rtol=1e-4, atol=1e-4)
 
 
-def run_and_compare(mod, params, pt_result, target, ctx):
-    executor = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
-    evaluator = executor.evaluate()
-    exec_res = evaluator(**params)
+def run_and_compare(mod, params, pt_result, target, device):
+    exec_res = relay.create_executor("vm", mod=mod, device=device, target=target).evaluate()(
+        **params
+    )
 
     def flatten(nested):
         res = []
@@ -249,7 +247,7 @@ def run_and_compare(mod, params, pt_result, target, ctx):
 
 def convert_list_to_vmobj(py_lst):
     def wrap_nd_array(arr):
-        return tvm.nd.array(arr, ctx=tvm.cpu(0))
+        return tvm.nd.array(arr, device=tvm.cpu(0))
 
     mod = tvm.IRModule()
     prelude = Prelude(mod)
@@ -365,6 +363,6 @@ def test_custom_lstm():
         else:
             params[states_name] = states_np
 
-        for tgt, ctx in tvm.testing.enabled_targets():
+        for tgt, dev in tvm.testing.enabled_targets():
             print("Running %s on target %s" % (name, tgt))
-            run_and_compare(mod, params, pt_result, target=tgt, ctx=ctx)
+            run_and_compare(mod, params, pt_result, target=tgt, device=dev)

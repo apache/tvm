@@ -36,7 +36,7 @@ function testArrayCopy(dtype, arrayType) {
   let data = [1, 2, 3, 4, 5, 6];
   let a = tvm.empty([2, 3], dtype).copyFrom(data);
 
-  assert(a.context.toString() == "cpu(0)");
+  assert(a.device.toString() == "cpu(0)");
   assert(a.shape[0] == 2 && a.shape[1] == 3);
 
   let ret = a.toArray();

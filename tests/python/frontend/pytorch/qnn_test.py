@@ -40,17 +40,22 @@ def torch_version_check():
     return version.parse(torch.__version__) > version.parse("1.4.0")
 
 
-def get_tvm_runtime(script_module, input_name, ishape):
-
+def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False):
     input_shapes = [(input_name, ishape)]
-    mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    mod, params = relay.frontend.from_pytorch(
+        script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
+    )
+
+    if keep_quantized_weight:
+        for p in params.values():
+            assert p.dtype in ["int8", "int32"]
 
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
         # also not to make CI too slow
         lib = relay.build(mod, target="llvm", params=params)
 
-    runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.cpu(0)))
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
     return runtime
 
 
@@ -93,6 +98,20 @@ class ConvBn(nn.Module):
         fuse_modules(self.conv, indices, inplace=True)
 
 
+class ConvTranspose(nn.Module):
+    def __init__(self):
+        super().__init__()
+        layers = [nn.ConvTranspose2d(3, 32, 3, bias=True)]
+        self.conv = nn.Sequential(*layers)
+        self.quant_wrap = QuantWrapper(self.conv)
+
+    def forward(self, x):
+        return self.quant_wrap(x)
+
+    def fuse_model(self):
+        pass
+
+
 class Linear(nn.Module):
     def __init__(self, with_relu=False):
         super().__init__()
@@ -125,43 +144,40 @@ class ReLU(nn.Module):
 
 # Mobilenet V3 related modules
 class Hsigmoid(nn.Module):
-    def __init__(self, inplace=True, add_stub=False):
+    def __init__(self, add_stub=False):
         super().__init__()
-        self.float_op = nn.quantized.FloatFunctional()
-        self.relu6 = nn.ReLU6(inplace=inplace)
         self.quant = QuantStub()
         self.dequant = DeQuantStub()
         self.add_stub = add_stub
+        self.hsigmoid = nn.Hardsigmoid()
 
     def forward(self, x):
         if self.add_stub:
             x = self.quant(x)
-        relu6 = self.relu6(self.float_op.add_scalar(x, 3.0))
-        mul = self.float_op.mul_scalar(relu6, 1 / 6.0)
+        x = self.hsigmoid(x)
         if self.add_stub:
-            mul = self.dequant(mul)
-        return mul
+            x = self.dequant(x)
+        return x
 
     def fuse_model(self):
         pass
 
 
 class Hswish(nn.Module):
-    def __init__(self, inplace=True, add_stub=False):
-        super(Hswish, self).__init__()
-        self.float_op = nn.quantized.FloatFunctional()
-        self.hsigmoid = Hsigmoid(inplace, add_stub=False)
+    def __init__(self, add_stub=False):
+        super().__init__()
         self.quant = QuantStub()
         self.dequant = DeQuantStub()
         self.add_stub = add_stub
+        self.hswish = nn.Hardswish()
 
     def forward(self, x):
         if self.add_stub:
             x = self.quant(x)
-        mul = self.float_op.mul(x, self.hsigmoid(x))
+        x = self.hswish(x)
         if self.add_stub:
-            mul = self.dequant(mul)
-        return mul
+            x = self.dequant(x)
+        return x
 
     def fuse_model(self):
         pass
@@ -274,24 +290,27 @@ def test_quantized_modules():
             ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
             ("linear" + postfix, (16, 16), Linear(), per_channel),
             ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
-        ]
-
-    if torch_version_check():
-        qmodules += [
+            ("conv_transpose", imagenet_ishape, ConvTranspose(), False),
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
             ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
             ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
             ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
         ]
-    else:
-        print("Skipping tests that require torch > 1.4")
 
     for (module_name, ishape, raw_module, per_channel) in qmodules:
         raw_module.eval()
         inp = torch.rand(ishape)
 
-        quantize_model(raw_module, inp, per_channel=per_channel)
+        # quantized conv_transpose2d is supported only with qnnpack engine before torch v1.8.0.
+        if module_name == "conv_transpose" and not is_version_greater_than("1.7.1"):
+            prev_engine = torch.backends.quantized.engine
+            torch.backends.quantized.engine = "qnnpack"
+            quantize_model(raw_module, inp, per_channel=per_channel)
+            torch.backends.quantized.engine = prev_engine
+        else:
+            quantize_model(raw_module, inp, per_channel=per_channel)
+
         script_module = torch.jit.trace(raw_module, inp).eval()
 
         with torch.no_grad():
@@ -301,7 +320,7 @@ def test_quantized_modules():
         runtime = get_tvm_runtime(script_module, input_name, ishape)
         runtime.set_input(input_name, inp.numpy().copy())
         runtime.run()
-        tvm_result = runtime.get_output(0).asnumpy()
+        tvm_result = runtime.get_output(0).numpy()
 
         max_abs_diff = np.max(np.abs(tvm_result - pt_result))
         mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
@@ -318,6 +337,7 @@ def test_quantized_modules():
         conv_bn_relu 0.3700896 0.010921672 0.7489366477964451
         linear 0.15987062 0.009231662 0.794921875
         linear_relu 0.14180502 0.0053220326 0.8828125
+        conv_transpose 0.0033792555 4.4658788e-07 0.9998678439971806
         conv_bn, per_channel 0.01654929 2.9486866e-06 0.9998218235127019
         conv_bn_relu, per_channel 0.009089053 1.4926576e-06 0.9998357732732732
         linear, per_channel 0.0 0.0 1.0
@@ -372,6 +392,13 @@ def test_quantized_imagenet():
             # ("googlenet", qgooglenet(pretrained=True), per_channel),
         ]
 
+    if is_version_greater_than("1.7.1"):
+        from torchvision.models.quantization import mobilenet_v3_large as qmobilenet_v3_large
+
+        qmodels.append(
+            ("mobilenet_v3_large", qmobilenet_v3_large(pretrained=True, quantize=True).eval(), True)
+        )
+
     results = []
 
     for (model_name, raw_model, per_channel) in qmodels:
@@ -385,7 +412,10 @@ def test_quantized_imagenet():
         inp = get_imagenet_input()
         pt_inp = torch.from_numpy(inp)
 
-        quantize_model(raw_model, pt_inp, per_channel=per_channel)
+        if "mobilenet_v3_large" not in model_name:
+            # mv3 was qat-ed, quantize=True option above makes it already quantized
+            quantize_model(raw_model, pt_inp, per_channel=per_channel)
+
         script_module = torch.jit.trace(raw_model, pt_inp).eval()
 
         with torch.no_grad():
@@ -396,7 +426,7 @@ def test_quantized_imagenet():
         runtime.set_input(input_name, inp)
         runtime.run()
 
-        tvm_result = runtime.get_output(0).asnumpy()
+        tvm_result = runtime.get_output(0).numpy()
 
         results.append((model_name, pt_result[0], tvm_result[0]))
 
@@ -496,7 +526,7 @@ def test_serialized_modules():
     runtime = get_tvm_runtime(loaded, input_name, ishape)
     runtime.set_input(input_name, inp.numpy().copy())
     runtime.run()
-    tvm_result = runtime.get_output(0).asnumpy()
+    tvm_result = runtime.get_output(0).numpy()
 
     # with 0.5ish results, 1e-2 is relative accuracy close to 2**-6.
     # for simple layers like here this should be achievable
@@ -538,7 +568,7 @@ def test_quantize_dynamic():
             runtime = get_tvm_runtime(script_module, "input", inp.shape)
             runtime.set_input(input_name, inp.numpy().copy())
             runtime.run()
-            tvm_result = runtime.get_output(0).asnumpy()
+            tvm_result = runtime.get_output(0).numpy()
 
             # Only compare with the PyTorch result for version v1.6 or newer
             # Have seen a strange accuracy problem from PyTorch 1.4 and 1.5
@@ -609,3 +639,36 @@ def test_qnn_mergecomposite():
 
     input_name = "image"
     run_qnn_mergecomposite(script_module, input_name, inp.shape)
+
+
+def test_keep_quantized_weight():
+    qmodules = []
+
+    for per_channel in [False, True]:
+        qmodules += [
+            ((1, 3, 224, 224), ConvBn(), per_channel),
+            ((16, 16), Linear(), per_channel),
+        ]
+
+    for (ishape, raw_module, per_channel) in qmodules:
+        raw_module.eval()
+        inp = torch.rand(ishape)
+
+        quantize_model(raw_module, inp, per_channel=per_channel)
+        script_module = torch.jit.trace(raw_module, inp).eval()
+
+        input_name = "input"
+
+        runtime = get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False)
+        runtime.set_input(input_name, inp.numpy().copy())
+        runtime.run()
+        tvm_result = runtime.get_output(0).numpy()
+
+        runtime_int8_weight = get_tvm_runtime(
+            script_module, input_name, ishape, keep_quantized_weight=True
+        )
+        runtime_int8_weight.set_input(input_name, inp.numpy().copy())
+        runtime_int8_weight.run()
+        tvm_result_int8_weight = runtime_int8_weight.get_output(0).numpy()
+
+        tvm.testing.assert_allclose(tvm_result, tvm_result_int8_weight)

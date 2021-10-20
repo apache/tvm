@@ -113,8 +113,8 @@ func TestArrayShape(t *testing.T) {
     }
 }
 
-// Create an array and check created Context.
-func TestArrayCtx(t *testing.T) {
+// Create an array and check created Device.
+func TestArrayDevice(t *testing.T) {
     // TODO: Could some test cases for other targets
     arr, err := Empty([]int64{4}, CPU(0))
     if err != nil {
@@ -122,13 +122,13 @@ func TestArrayCtx(t *testing.T) {
         return
     }
 
-    ctx := arr.GetCtx()
-    if ctx.DeviceType != KDLCPU {
-        t.Errorf("Ctx DeviceType expected: %v Got :%v\n", KDLCPU, ctx.DeviceType)
+    dev := arr.GetDevice()
+    if dev.DeviceType != KDLCPU {
+        t.Errorf("Dev DeviceType expected: %v Got :%v\n", KDLCPU, dev.DeviceType)
         return
     }
-    if ctx.DeviceID != 0 {
-        t.Errorf("Ctx DeviceID expected: %v Got :%v\n", KDLCPU, ctx.DeviceID)
+    if dev.DeviceID != 0 {
+        t.Errorf("Dev DeviceID expected: %v Got :%v\n", KDLCPU, dev.DeviceID)
         return
     }
 
@@ -138,13 +138,13 @@ func TestArrayCtx(t *testing.T) {
         return
     }
 
-    ctx = arr.GetCtx()
-    if ctx.DeviceType != KDLCPU {
-        t.Errorf("Ctx DeviceType expected: %v Got :%v\n", KDLCPU, ctx.DeviceType)
+    dev = arr.GetDevice()
+    if dev.DeviceType != KDLCPU {
+        t.Errorf("Dev DeviceType expected: %v Got :%v\n", KDLCPU, dev.DeviceType)
         return
     }
-    if ctx.DeviceID != 2 {
-        t.Errorf("Ctx DeviceID expected: %v Got :%v\n", KDLCPU, ctx.DeviceID)
+    if dev.DeviceID != 2 {
+        t.Errorf("Dev DeviceID expected: %v Got :%v\n", KDLCPU, dev.DeviceID)
         return
     }
 }

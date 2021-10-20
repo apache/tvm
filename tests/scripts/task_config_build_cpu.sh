@@ -26,11 +26,10 @@ cp ../cmake/config.cmake .
 echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
-echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
-echo set\(USE_VM_PROFILER ON\) >> config.cmake
+echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_DNNL_CODEGEN ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-10\) >> config.cmake
+echo set\(USE_LLVM llvm-config-11\) >> config.cmake
 echo set\(USE_NNPACK ON\) >> config.cmake
 echo set\(NNPACK_PATH /NNPACK/build/\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
@@ -44,4 +43,9 @@ echo set\(USE_TENSORFLOW_PATH \"/tensorflow\"\) >> config.cmake
 echo set\(USE_FLATBUFFERS_PATH \"/flatbuffers\"\) >> config.cmake
 echo set\(USE_ETHOSN /opt/arm/ethosn-driver\) >> config.cmake
 echo set\(USE_ETHOSN_HW OFF\) >> config.cmake
+echo set\(USE_CMSISNN ON\) >> config.cmake
 echo set\(USE_VITIS_AI ON\) >> config.cmake
+echo set\(USE_VERILATOR ON\) >> config.cmake
+echo set\(USE_LIBBACKTRACE ON\) >> config.cmake
+echo set\(USE_CCACHE OFF\) >> config.cmake
+echo set\(USE_ETHOSU ON\) >> config.cmake

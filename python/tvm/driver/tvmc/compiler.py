@@ -19,17 +19,18 @@ Provides support to compile networks both AOT and JIT.
 """
 import logging
 import os.path
-import tarfile
+from typing import Any, Optional, Dict, List, Union, Callable
 from pathlib import Path
 
 import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
-from tvm.contrib import cc
-from tvm.contrib import utils
+from tvm.target import Target
 
-from . import common, frontends
+from . import common, composite_target, frontends
+from .model import TVMCModel, TVMCPackage
 from .main import register_parser
+from .target import generate_target_args, reconstruct_target_args
 
 
 # pylint: disable=invalid-name
@@ -38,55 +39,85 @@ logger = logging.getLogger("TVMC")
 
 @register_parser
 def add_compile_parser(subparsers):
-    """ Include parser for 'compile' subcommand """
+    """Include parser for 'compile' subcommand"""
 
-    parser = subparsers.add_parser("compile", help="compile a model")
+    parser = subparsers.add_parser("compile", help="compile a model.")
     parser.set_defaults(func=drive_compile)
     parser.add_argument(
         "--cross-compiler",
         default="",
-        help="the cross compiler to generate target libraries, e.g. 'aarch64-linux-gnu-gcc'",
+        help="the cross compiler to generate target libraries, e.g. 'aarch64-linux-gnu-gcc'.",
+    )
+    parser.add_argument(
+        "--cross-compiler-options",
+        default="",
+        help="the cross compiler options to generate target libraries, e.g. '-mfpu=neon-vfpv4'.",
     )
     parser.add_argument(
         "--desired-layout",
         choices=["NCHW", "NHWC"],
         default=None,
-        help="change the data layout of the whole graph",
+        help="change the data layout of the whole graph.",
     )
     parser.add_argument(
         "--dump-code",
         metavar="FORMAT",
         default="",
-        help="comma separarated list of formats to export, e.g. 'asm,ll,relay' ",
+        help="comma separated list of formats to export the input model, e.g. 'asm,ll,relay'.",
     )
     parser.add_argument(
         "--model-format",
         choices=frontends.get_frontend_names(),
-        help="specify input model format",
+        help="specify input model format.",
     )
     parser.add_argument(
         "-o",
         "--output",
         default="module.tar",
-        help="output the compiled module to an archive",
+        help="output the compiled module to a specifed archive. Defaults to 'module.tar'.",
     )
     parser.add_argument(
-        "--target",
-        help="compilation target as plain string, inline JSON or path to a JSON file",
-        required=True,
+        "-f",
+        "--output-format",
+        choices=["so", "mlf"],
+        default="so",
+        help="output format. Use 'so' for shared object or 'mlf' for Model Library Format "
+        "(only for microTVM targets). Defaults to 'so'.",
     )
+    parser.add_argument(
+        "--pass-config",
+        action="append",
+        metavar=("name=value"),
+        help="configurations to be used at compile time. This option can be provided multiple "
+        "times, each one to set one configuration value, "
+        "e.g. '--pass-config relay.backend.use_auto_scheduler=0'.",
+    )
+    generate_target_args(parser)
     parser.add_argument(
         "--tuning-records",
         metavar="PATH",
         default="",
         help="path to an auto-tuning log file by AutoTVM. If not presented, "
-        "the fallback/tophub configs will be used",
+        "the fallback/tophub configs will be used.",
     )
-    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
-    parser.add_argument("FILE", help="path to the input model file")
+    parser.add_argument("FILE", help="path to the input model file.")
+    parser.add_argument(
+        "--input-shapes",
+        help="specify non-generic shapes for model to run, format is "
+        '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]".',
+        type=common.parse_shape_string,
+        default=None,
+    )
+    parser.add_argument(
+        "--disabled-pass",
+        help="disable specific passes, comma-separated list of pass names.",
+        type=common.parse_pass_list_str,
+        default="",
+    )
 
 
 def drive_compile(args):
@@ -98,87 +129,117 @@ def drive_compile(args):
         Arguments from command line parser.
 
     Returns
-    --------
+    -------
     int
         Zero if successfully completed
 
     """
+    tvmc_model = frontends.load_model(args.FILE, args.model_format, args.input_shapes)
 
-    graph, lib, params, dumps = compile_model(
-        args.FILE,
+    dump_code = [x.strip() for x in args.dump_code.split(",")] if args.dump_code else None
+
+    compile_model(
+        tvmc_model,
         args.target,
-        args.dump_code,
-        None,
-        args.model_format,
-        args.tuning_records,
-        args.desired_layout,
+        tuning_records=args.tuning_records,
+        package_path=args.output,
+        cross=args.cross_compiler,
+        cross_options=args.cross_compiler_options,
+        output_format=args.output_format,
+        dump_code=dump_code,
+        target_host=None,
+        desired_layout=args.desired_layout,
+        disabled_pass=args.disabled_pass,
+        pass_context_configs=args.pass_config,
+        additional_target_options=reconstruct_target_args(args),
     )
 
-    if dumps:
-        save_dumps(args.output, dumps)
-
-    save_module(args.output, graph, lib, params, args.cross_compiler)
     return 0
 
 
 def compile_model(
-    path,
-    target,
-    dump_code=None,
-    target_host=None,
-    model_format=None,
-    tuning_records=None,
-    alter_layout=None,
+    tvmc_model: TVMCModel,
+    target: str,
+    tuning_records: Optional[str] = None,
+    package_path: Optional[str] = None,
+    cross: Optional[Union[str, Callable]] = None,
+    cross_options: Optional[str] = None,
+    output_format: str = "so",
+    dump_code: Optional[List[str]] = None,
+    target_host: Optional[str] = None,
+    desired_layout: Optional[str] = None,
+    disabled_pass: Optional[str] = None,
+    pass_context_configs: Optional[List[str]] = None,
+    additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
     This function takes a union of the arguments of both frontends.load_model
     and compiler.compile_relay. The resulting TVM module can be executed using
-    the graph runtime.
+    the graph executor.
 
     Parameters
     ----------
-    path: str
-        Path to a file
+    tvmc_model : TVMCModel
+        The model object that should be compiled.
     target : str
         The target for which to compile. Can be a plain string or
         a path.
+    tuning_records : str
+        A path to tuning records produced using tvmc.tune. When provided,
+        compilation will use more optimized kernels leading to better results.
+    package_path : str, optional
+        The path to export the compiled model to. If not provided it will
+        be saved in a temporary directory.
+    cross : str or callable object, optional
+        Function that performs the actual compilation
+    cross_options : str, optional
+        Command line options to be passed to the cross compiler.
+    output_format : str
+        What format to use when saving the function library. Must be one of "so" or "tar".
+        When compiling for a remote device without a cross compiler, "tar" will likely work better.
     dump_code : list, optional
         Dump the generated code for the specified source types, on
         the requested target.
     target_host : str, optional
         The target of the host machine if host-side code
         needs to be generated.
-    model_format: str, optional
-        A string representing a name of a frontend to be used
-    tuning_records: str, optional
-        Path to the file produced by the tuning to be used during
-        compilation.
-    alter_layout: str, optional
+    desired_layout: str, optional
         The layout to convert the graph to. Note, the convert layout
         pass doesn't currently guarantee the whole of the graph will
         be converted to the chosen layout.
+    disabled_pass: str, optional
+        Comma-separated list of passes which needs to be disabled
+        during compilation
+    pass_context_configs: list[str], optional
+        List of strings containing a set of configurations to be passed to the
+        PassContext.
+    additional_target_options: Optional[Dict[str, Dict[str, Any]]]
+        Additional target options in a dictionary to combine with initial Target arguments
+
 
     Returns
     -------
-    graph : str
-        A JSON-serialized TVM execution graph.
-    lib : tvm.module.Module
-        A TVM module containing the compiled functions.
-    params : dict
-        The parameters (weights) for the TVM module.
-    dumps : dict
-        Dictionary containing the dumps specified.
+    compiled_model : TVMCPackage
+        The compiled TVMCModel ready to be run.
 
     """
-    dump_code = [x.strip() for x in dump_code.split(",")] if dump_code else None
-    mod, params = frontends.load_model(path, model_format)
+    mod, params = tvmc_model.mod, tvmc_model.params
 
-    if alter_layout:
-        mod = common.convert_graph_layout(mod, alter_layout)
+    config = common.parse_configs(pass_context_configs)
 
-    tvm_target = common.target_from_cli(target)
-    target_host = tvm_target if not target_host else target_host
+    if desired_layout:
+        mod = common.convert_graph_layout(mod, desired_layout)
+
+    tvm_target, extra_targets = common.target_from_cli(target, additional_target_options)
+    tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
+
+    for codegen_from_cli in extra_targets:
+        codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
+        partition_function = codegen["pass_pipeline"]
+        mod = partition_function(mod, params, **codegen_from_cli["opts"])
+        if codegen["config_key"] is not None:
+            config[codegen["config_key"]] = codegen_from_cli["opts"]
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
@@ -191,27 +252,29 @@ def compile_model(
 
         if use_autoscheduler:
             with auto_scheduler.ApplyHistoryBest(tuning_records):
+                config["relay.backend.use_auto_scheduler"] = True
                 with tvm.transform.PassContext(
-                    opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+                    opt_level=3, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with autoscheduler")
-                    graph_module = relay.build(
-                        mod, target=target, params=params, target_host=target_host
-                    )
+                    graph_module = relay.build(mod, target=tvm_target, params=params)
         else:
             with autotvm.apply_history_best(tuning_records):
-                with tvm.transform.PassContext(opt_level=3):
+                with tvm.transform.PassContext(
+                    opt_level=3, config=config, disabled_pass=disabled_pass
+                ):
                     logger.debug("building relay graph with tuning records")
-                    graph_module = relay.build(
-                        mod, tvm_target, params=params, target_host=target_host
-                    )
+                    graph_module = relay.build(mod, target=tvm_target, params=params)
     else:
-        with tvm.transform.PassContext(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3, config=config, disabled_pass=disabled_pass):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(mod, tvm_target, params=params, target_host=target_host)
+            graph_module = relay.build(mod, target=tvm_target, params=params)
 
     # Generate output dump files with sources
-    dump_code = dump_code or []
+    if dump_code is None:
+        dump_code = []
+    if not isinstance(dump_code, list):
+        dump_code = [dump_code]
     dumps = {}
     for source_type in dump_code:
         lib = graph_module.get_lib()
@@ -220,59 +283,23 @@ def compile_model(
         source = str(mod) if source_type == "relay" else lib.get_source(source_type)
         dumps[source_type] = source
 
-    # TODO we need to update this return to use the updated graph module APIs
-    #      as these getter functions will be deprecated in the next release (@leandron)
-    return graph_module.get_json(), graph_module.get_lib(), graph_module.get_params(), dumps
+    # Create a new tvmc model package object from the graph definition.
+    package_path = tvmc_model.export_package(
+        graph_module,
+        package_path,
+        cross,
+        cross_options,
+        output_format,
+    )
+
+    # Write dumps to file.
+    if dumps:
+        save_dumps(package_path, dumps)
+
+    return TVMCPackage(package_path)
 
 
-def save_module(module_path, graph, lib, params, cross=None):
-    """
-    Create a tarball containing the generated TVM graph,
-    exported library and parameters
-
-    Parameters
-    ----------
-    module_path : str
-        path to the target tar.gz file to be created,
-        including the file name
-    graph : str
-        A JSON-serialized TVM execution graph.
-    lib : tvm.module.Module
-        A TVM module containing the compiled functions.
-    params : dict
-        The parameters (weights) for the TVM module.
-    cross : str or callable object, optional
-        Function that performs the actual compilation
-
-    """
-    lib_name = "mod.so"
-    graph_name = "mod.json"
-    param_name = "mod.params"
-    temp = utils.tempdir()
-    path_lib = temp.relpath(lib_name)
-    if not cross:
-        logger.debug("exporting library to %s", path_lib)
-        lib.export_library(path_lib)
-    else:
-        logger.debug("exporting library to %s , using cross compiler %s", path_lib, cross)
-        lib.export_library(path_lib, cc.cross_compiler(cross))
-
-    with open(temp.relpath(graph_name), "w") as graph_file:
-        logger.debug("writing graph to file to %s", graph_file.name)
-        graph_file.write(graph)
-
-    with open(temp.relpath(param_name), "wb") as params_file:
-        logger.debug("writing params to file to %s", params_file.name)
-        params_file.write(relay.save_param_dict(params))
-
-    logger.debug("saving module as tar file to %s", module_path)
-    with tarfile.open(module_path, "w") as tar:
-        tar.add(path_lib, lib_name)
-        tar.add(temp.relpath(graph_name), graph_name)
-        tar.add(temp.relpath(param_name), param_name)
-
-
-def save_dumps(module_name, dumps, dump_root="."):
+def save_dumps(module_name: str, dumps: Dict[str, str], dump_root: str = "."):
     """
     Serialize dump files to the disk.
 
@@ -285,7 +312,6 @@ def save_dumps(module_name, dumps, dump_root="."):
         The output contents to be saved into the files
     dump_root : str, optional
         Path in which dump files will be created
-
     """
 
     for dump_format in dumps:

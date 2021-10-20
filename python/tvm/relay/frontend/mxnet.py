@@ -495,6 +495,19 @@ def _mx_layer_norm(inputs, attrs):
     return _op.nn.layer_norm(*inputs, **new_attrs)
 
 
+def _mx_group_norm(inputs, attrs):
+    assert len(inputs) == 3
+    if attrs.get_bool("output_mean_var", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "output_mean_var" is not supported for operator Group Norm.'
+        )
+    new_attrs = {}
+    new_attrs["axis"] = 1
+    new_attrs["num_groups"] = attrs.get_int("num_groups", 1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.group_norm(*inputs, **new_attrs)
+
+
 def _mx_slice(inputs, attrs):
     new_attrs = {}
     begin = list(attrs.get_int_tuple("begin", None))
@@ -898,7 +911,7 @@ def _mx_take(inputs, attrs):
     if mode == "raise":
         raise tvm.error.OpAttributeUnimplemented("take with raise mode is not supported yet")
     axis = attrs.get_int("axis", 0)
-    return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode)
+    return _op.take(inputs[0], inputs[1].astype("int32"), axis=axis, mode=mode)
 
 
 def _mx_gather_nd(inputs, attrs):
@@ -950,7 +963,7 @@ def _mx_resize(inputs, attrs):
     if scale_width is not None:
         width = (scale_width * shape[3]).astype("int32")
     size = (height, width)
-    return _op.image.resize(inputs[0], size, coordinate_transformation_mode="align_corners")
+    return _op.image.resize2d(inputs[0], size, coordinate_transformation_mode="align_corners")
 
 
 def _mx_amp_multicast(inputs, attrs):
@@ -1091,12 +1104,19 @@ def _mx_box_decode(inputs, attrs):
 def _mx_l2_normalize(inputs, attrs):
     new_attrs = {}
     mode = attrs.get_str("mode", "instance")
-    if mode != "channel":
+    if mode == "channel":
+        new_attrs["axis"] = [1]
+    elif mode == "instance":
+        ndim = len(_infer_type(inputs[0]).checked_type.shape)
+        new_attrs["axis"] = list(range(1, ndim))
+    elif mode == "spatial":
+        ndim = len(_infer_type(inputs[0]).checked_type.shape)
+        new_attrs["axis"] = list(range(2, ndim))
+    else:
         raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "mode" must equal "channel" for operator l2_normalize.'
+            'Mode "{}" is not supported for operator l2_normalize.'.format(mode)
         )
     new_attrs["eps"] = attrs.get_float("eps", 1e-10)
-    new_attrs["axis"] = [1]
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
 
 
@@ -1214,7 +1234,7 @@ def _mx_topk(inputs, attrs):
     new_attrs = {}
     new_attrs["k"] = attrs.get_int("k", 1)
     new_attrs["axis"] = attrs.get_int("axis", -1)
-    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
+    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", False)
     ret_type = attrs.get_str("ret_typ", "indices")
     if ret_type == "mask":
         raise tvm.error.OpAttributeUnimplemented(
@@ -1663,7 +1683,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return has_fused_activation
 
     def _get_data_scale_and_zp(_data, _inputs, _data_min_idx, _data_max_idx):
-        """ Finds the Qnn params for the data expr. """
+        """Finds the Qnn params for the data expr."""
         data_min = _inputs[_data_min_idx]
         data_max = _inputs[_data_max_idx]
         assert data_min <= data_max
@@ -1682,7 +1702,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return _data_scale, _data_zero_point
 
     def _get_bn_alpha_coeff(_bn_gamma_idx, _bn_beta_idx, _bn_running_mean_idx, _bn_running_var_idx):
-        """ Extract the BN coeff. These will be use later for BN folding into convolution. """
+        """Extract the BN coeff. These will be use later for BN folding into convolution."""
         # Extract relevant attrs from bn.
         bn_attrs = _get_subgraph_op(subgraphs, "BatchNorm")["attrs"]
         bn_epsilon_param = float(bn_attrs["eps"])
@@ -1710,7 +1730,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         return _bn_scale, _bn_shift
 
     def _fold_bn(_bn_scale, _bn_shift, _has_bias, _has_bn):
-        """ Fold BN into kernel and bias. Get new kernel and bias. """
+        """Fold BN into kernel and bias. Get new kernel and bias."""
         _kernel = inputs[1]
         if _bn_scale:
             assert attrs.get_bool("with_bn", False)
@@ -1733,13 +1753,13 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
 
     def _get_quantized_kernel(_kernel, _bias, _data_scale):
         # For quantizing, we need min/max of kernel. So, we have to pre compute this expr.
-        np_kernel = _infer_value(_kernel, params).asnumpy()
+        np_kernel = _infer_value(_kernel, params).numpy()
         kernel_channel_min = np.amin(np_kernel, axis=(1, 2, 3))
         kernel_channel_max = np.amax(np_kernel, axis=(1, 2, 3))
 
         np_bias = None
         if _bias is not None:
-            np_bias = _infer_value(_bias, params).asnumpy()
+            np_bias = _infer_value(_bias, params).numpy()
         return quantize_conv_weights_bias_channel_mkldnn_from_var(
             _kernel, np_bias, kernel_channel_min, kernel_channel_max, _data_scale
         )
@@ -1783,7 +1803,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         )
 
     def _get_sum(_res, _output_scale, out_dtype):
-        """ Handles sum of the second quantized tensor. """
+        """Handles sum of the second quantized tensor."""
         # This is done in following steps
         #   1) rhs is the add's second operand. First rhs will be requantized to output scale with
         #   dtype int32. The int32 dtype is to keep precision high before adding.
@@ -2071,15 +2091,15 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
             )
 
         if isinstance(_kernel, tvm.relay.Call) and _kernel.op.name == "qnn.quantize":
-            _kernel_scale = _kernel.args[1].data.asnumpy()
-            _kernel_zp = _kernel.args[2].data.asnumpy()
+            _kernel_scale = _kernel.args[1].data.numpy()
+            _kernel_zp = _kernel.args[2].data.numpy()
             return _kernel_scale, _kernel_zp
 
         kernel_min_idx, kernel_max_idx = (5, 6) if _has_bias else (4, 5)
         kernel_min_name = _get_name(_inputs[kernel_min_idx])
-        kernel_min = params[kernel_min_name].asnumpy()[0]
+        kernel_min = params[kernel_min_name].numpy()[0]
         kernel_max_name = _get_name(_inputs[kernel_max_idx])
-        kernel_max = params[kernel_max_name].asnumpy()[0]
+        kernel_max = params[kernel_max_name].numpy()[0]
         _kernel_scale = (
             get_mkldnn_uint8_scale(kernel_min, kernel_max)
             if kernel_dtype == "uint8"
@@ -2096,13 +2116,13 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
             )
 
         # Get the FP32 values, calculate min/max and then channel quantize them
-        np_kernel = _infer_value(_kernel, params).asnumpy()
+        np_kernel = _infer_value(_kernel, params).numpy()
         kernel_channel_min = np.amin(np_kernel, axis=(1,))
         kernel_channel_max = np.amax(np_kernel, axis=(1,))
 
         np_bias = None
         if _bias is not None:
-            np_bias = _infer_value(_bias, params).asnumpy()
+            np_bias = _infer_value(_bias, params).numpy()
         return quantize_conv_weights_bias_channel_mkldnn_from_var(
             _kernel, np_bias, kernel_channel_min, kernel_channel_max, _data_scale
         )
@@ -2110,15 +2130,15 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
     def _get_bias_requantize_scale(_inputs, _data_scale, _kernel_scale):
         _bias = _inputs[2]
         if isinstance(_bias, tvm.relay.Call) and _bias.op.name == "qnn.quantize":
-            _bias_scale = _bias.args[1].data.asnumpy()
+            _bias_scale = _bias.args[1].data.numpy()
             _bias_requantize_scale = _bias_scale / (_data_scale * _kernel_scale)
             _bias_requantize_scale = _expr.const(_bias_requantize_scale, dtype="float32")
             return _bias_requantize_scale
 
         bias_min_name = _get_name(_inputs[7])
-        bias_min = params[bias_min_name].asnumpy()[0]
+        bias_min = params[bias_min_name].numpy()[0]
         bias_max_name = _get_name(_inputs[8])
-        bias_max = params[bias_max_name].asnumpy()[0]
+        bias_max = params[bias_max_name].numpy()[0]
         bias_scale = get_mkldnn_int8_scale(bias_min, bias_max)
         _bias_requantize_scale = bias_scale / (_data_scale * _kernel_scale)
         _bias_requantize_scale = _expr.const(_bias_requantize_scale, dtype="float32")
@@ -2326,6 +2346,14 @@ def _mx_npi_concatenate(inputs, attrs):
         return _op.reshape(_op.concatenate(tuple(inputs), axis=0), (-1,))
     else:
         return _op.concatenate(tuple(inputs), axis=int(axis))
+
+
+def _mx_npi_stack(inputs, attrs):
+    axis = attrs.get_str("axis", "0")
+    if axis == "None":
+        return _op.reshape(_op.stack(tuple(inputs), axis=0), (-1,))
+    else:
+        return _op.stack(tuple(inputs), axis=int(axis))
 
 
 def _mx_npx_reshape(inputs, attrs):
@@ -2584,6 +2612,7 @@ _convert_map = {
     "_contrib_SyncBatchNorm": _mx_batch_norm,
     "InstanceNorm": _mx_instance_norm,
     "LayerNorm": _mx_layer_norm,
+    "GroupNorm": _mx_group_norm,
     "LRN": _mx_lrn,
     "L2Normalization": _mx_l2_normalize,
     "slice": _mx_slice,
@@ -2686,11 +2715,14 @@ _convert_map = {
     "_npi_multiply_scalar": _binop_scalar(_op.multiply),
     "_npi_add": _rename(_op.add),
     "_npi_add_scalar": _binop_scalar(_op.add),
+    "_npi_subtract": _rename(_op.subtract),
+    "_npi_subtract_scalar": _binop_scalar(_op.subtract),
     "_npi_where_rscalar": _mx_npi_where_rscalar,
     "_npi_less": _rename(_op.less),
     "_npi_less_equal": _mx_compare(_op.less_equal, _rename),
     "_npi_tanh": _rename(_op.tanh),
     "_npi_true_divide_scalar": _binop_scalar(_op.divide),
+    "_npi_stack": _mx_npi_stack,
 }
 
 # set identity list

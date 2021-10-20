@@ -16,20 +16,23 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument
 """Unit tests for various models and operators"""
-from time import time
 import os
 import sys
-from scipy.stats import t as tdistr
+from time import time
+
 import numpy as np
 import torch
 import torchvision
-from torch.nn import Module
 import tvm
-from tvm import relay
-from tvm.contrib import graph_runtime
-from tvm.contrib.nvcc import have_fp16
 import tvm.testing
 from packaging import version as package_version
+from scipy.stats import t as tdistr
+from torch.nn import Module
+from torch.nn import functional as F
+from tvm import relay
+from tvm.contrib import graph_executor
+from tvm.contrib.nvcc import have_fp16
+import pytest
 
 sys.setrecursionlimit(10000)
 
@@ -161,7 +164,9 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
                 return est
 
 
-def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5):
+def verify_model(
+    model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5, expected_ops=[]
+):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
     if isinstance(model_name, str):
@@ -181,14 +186,14 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
         baseline_input = [inp.cuda() for inp in baseline_input]
 
     with torch.no_grad():
-        baseline_outputs = baseline_model(*baseline_input)
+        baseline_outputs = baseline_model(*[input.clone() for input in baseline_input])
 
     if isinstance(baseline_outputs, tuple):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
         baseline_outputs = (baseline_outputs.cpu().numpy(),)
 
-    trace = torch.jit.trace(baseline_model, baseline_input)
+    trace = torch.jit.trace(baseline_model, [input.clone() for input in baseline_input])
     if isinstance(baseline_model, torch.nn.Module):
         trace = trace.float().eval()
 
@@ -200,22 +205,37 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
-    compiled_input = dict(zip(input_names, [inp.cpu().numpy() for inp in baseline_input]))
+    for arg in mod["main"].params[: len(input_names)]:
+        assert arg.name_hint in input_names
+    compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
-        for target, ctx in tvm.testing.enabled_targets():
+        for target, dev in tvm.testing.enabled_targets():
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
-            relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+            relay_model = graph_executor.create(relay_graph, relay_lib, dev)
             relay_model.set_input(**relay_params)
             for name, inp in compiled_input.items():
                 relay_model.set_input(name, inp)
             relay_model.run()
 
             for i, baseline_output in enumerate(baseline_outputs):
-                compiled_output = relay_model.get_output(i).asnumpy()
+                compiled_output = relay_model.get_output(i).numpy()
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
+
+    if expected_ops:
+
+        def visit(op):
+            if isinstance(op, tvm.ir.op.Op):
+                if op.name in expected_ops:
+                    expected_ops.remove(op.name)
+
+        tvm.relay.analysis.post_order_visit(mod["main"].body, visit)
+
+        if expected_ops:
+            msg = "TVM Relay do not contain expected ops {}"
+            raise AssertionError(msg.format(expected_ops))
 
     del model_name
     del baseline_model
@@ -447,8 +467,16 @@ def test_forward_unsqueeze():
         def forward(self, *args):
             return args[0].unsqueeze(2)
 
+    class Unsqueeze2(Module):
+        def forward(self, *args):
+            _ = args[0].unsqueeze_(2)
+            # Check whether operations after inplace unsqueeze works as expected
+            y = args[0].squeeze(2)
+            return torch.add(y, y)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Unsqueeze1().float().eval(), input_data=input_data)
+    verify_model(Unsqueeze2().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -615,6 +643,10 @@ def test_forward_prelu():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.PReLU(num_parameters=3).eval(), input_data=input_data)
+    # Test when input channel > 1 and num parameters = 1
+    verify_model(torch.nn.PReLU(num_parameters=1).eval(), input_data=input_data)
+    # Test when input dims < 2
+    verify_model(torch.nn.PReLU(num_parameters=1).eval(), input_data=torch.randn(2))
 
 
 @tvm.testing.uses_gpu
@@ -634,7 +666,7 @@ def test_forward_leakyrelu():
 def test_forward_elu():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-    input_data = torch.rand(input_shape).float()
+    input_data = torch.randn(input_shape).float()
     verify_model(torch.nn.ELU().eval(), input_data=input_data)
     verify_model(torch.nn.ELU(alpha=0.3).eval(), input_data=input_data)
     verify_model(torch.nn.ELU(alpha=1.0).eval(), input_data=input_data)
@@ -666,6 +698,14 @@ def test_forward_selu():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.SELU().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_silu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.SiLU().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -710,6 +750,7 @@ def test_forward_maxpool2d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[2, 2], dilation=[2, 3]).eval(), input_data)
     verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(), input_data)
     verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4], padding=2, stride=2).eval(), input_data)
 
@@ -729,7 +770,16 @@ def test_forward_maxpool2d():
             output, indices = self.pool(args[0])
             return output
 
+    class MaxPool2DWithIntStrides(Module):
+        def forward(self, *args):
+            # Makes kernel_size and strides a Relay expr to test converting back to int
+            x_shape = args[0].shape
+            kernel_size = [torch.tensor(x_shape[1]).int(), torch.tensor(x_shape[1]).int()]
+            strides = [torch.tensor(x_shape[0]).int(), torch.tensor(x_shape[0]).int()]
+            return torch.nn.functional.max_pool2d(args[0], kernel_size=[4, 4], stride=strides)
+
     verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
+    verify_model(MaxPool2DWithIntStrides().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -739,6 +789,7 @@ def test_forward_maxpool1d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(), input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=2, dilation=[1]).eval(), input_data)
     verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(), input_data)
     verify_model(torch.nn.MaxPool1d(kernel_size=4, padding=2, stride=2).eval(), input_data)
 
@@ -757,6 +808,7 @@ def test_forward_maxpool3d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[2, 2, 2], dilation=[1, 2, 3]).eval(), input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(), input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4], padding=2, stride=2).eval(), input_data)
 
@@ -790,7 +842,24 @@ def test_forward_split():
 
 
 @tvm.testing.uses_gpu
-def test_forward_avgpool():
+def test_forward_avgpool1d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10]
+
+    class AvgPool1D2(Module):
+        def forward(self, *args):
+            return torch.nn.functional.avg_pool1d(args[0], kernel_size=[10])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.AvgPool1d(kernel_size=[10]).eval(), input_data=input_data)
+    verify_model(AvgPool1D2().float().eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool1d(kernel_size=[5], stride=2, padding=2).eval(), input_data=input_data
+    )
+
+
+@tvm.testing.uses_gpu
+def test_forward_avgpool2d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
 
@@ -801,6 +870,9 @@ def test_forward_avgpool():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AvgPool2d(kernel_size=[10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu
@@ -815,6 +887,9 @@ def test_forward_avgpool3d():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AvgPool3d(kernel_size=[10, 10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool3D1().float().eval(), input_data=input_data)
+    verify_model(
+        torch.nn.AvgPool3d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
+    )
 
 
 @tvm.testing.uses_gpu
@@ -903,17 +978,142 @@ def test_forward_conv():
 
 
 @tvm.testing.uses_gpu
-def test_forward_conv_transpose():
-    torch.set_grad_enabled(False)
-    conv2d_input_shape = [1, 3, 10, 10]
-    conv2d_input_data = torch.rand(conv2d_input_shape).float()
-    verify_model(torch.nn.ConvTranspose2d(3, 6, 7, bias=True), input_data=conv2d_input_data)
-    verify_model(torch.nn.ConvTranspose2d(3, 12, 3, bias=False), input_data=conv2d_input_data)
+@pytest.mark.parametrize("in_channels", [3], ids=lambda x: "in_channels=" + str(x))
+@pytest.mark.parametrize("out_channels", [5], ids=lambda x: "out_channels=" + str(x))
+@pytest.mark.parametrize("kernel_size", [3], ids=lambda x: "kernel_size=" + str(x))
+@pytest.mark.parametrize("output_padding", [0, 1, 2], ids=lambda x: "output_padding=" + str(x))
+@pytest.mark.parametrize("groups", [1], ids=lambda x: "groups=" + str(x))
+@pytest.mark.parametrize("bias", [True, False], ids=lambda x: "bias=" + str(x))
+def test_forward_conv_transpose(
+    in_channels, out_channels, kernel_size, output_padding, bias, groups
+):
+    # Note we do not test with groups  > 1 because that is not supported
+    # in tvm for conv transpose operations
 
-    conv1d_input_shape = [1, 3, 10]
+    # Output padding must be smaller than either stride or dilation so we
+    # opt to make the stride 1 + output padding
+    stride = output_padding + 1
+
+    # Conv 3D Transpose Tests
+    conv3d_input_shape = [1, in_channels, 16, 16, 16]
+    conv3d_input_data = torch.rand(conv3d_input_shape).float()
+    conv3d_transpose = torch.nn.ConvTranspose3d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv3d_transpose, conv3d_input_data)
+
+    # Conv 2D Transpose Tests
+    conv2d_input_shape = [1, in_channels, 128, 256]
+    conv2d_input_data = torch.rand(conv2d_input_shape).float()
+    conv2d_transpose = torch.nn.ConvTranspose2d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv2d_transpose, conv2d_input_data)
+
+    # # Conv 1D Transpose Tests
+    conv1d_input_shape = [1, in_channels, 10]
     conv1d_input_data = torch.rand(conv1d_input_shape).float()
-    verify_model(torch.nn.ConvTranspose1d(3, 6, 7, bias=True), input_data=conv1d_input_data)
-    verify_model(torch.nn.ConvTranspose1d(3, 12, 3, bias=False), input_data=conv1d_input_data)
+    conv1d_transpose = torch.nn.ConvTranspose1d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        output_padding=output_padding,
+        groups=groups,
+        bias=bias,
+    ).eval()
+    verify_model(conv1d_transpose, conv1d_input_data)
+
+
+def test_forward_deform_conv():
+    torch.set_grad_enabled(False)
+
+    def test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    ):
+        input_shape = [batch_size, in_channels, in_height, in_width]
+        offset_shape = [batch_size, 2 * offset_groups * kh * kw, out_height, out_width]
+        weight_shape = [out_channels, in_channels // groups, kh, kw]
+        input_data = torch.rand(input_shape)
+        offset_data = torch.rand(offset_shape)
+        weight_data = torch.rand(weight_shape)
+
+        class DeformConv2D(Module):
+            def forward(self, *args):
+                return torchvision.ops.deform_conv2d(args[0], args[1], args[2])
+
+        verify_model(
+            DeformConv2D().float().eval(),
+            input_data=[input_data, offset_data, weight_data],
+            rtol=1e-4,
+            atol=1e-4,
+        )
+
+    batch_size = 4
+    in_channels, out_channels = 4, 6
+    in_height, in_width = 10, 10
+    out_height, out_width = 8, 8
+    offset_groups = 2
+    kh, kw = 3, 3
+    groups = 1
+
+    test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    )
+
+    batch_size = 5
+    in_channels, out_channels = 4, 6
+    in_height, in_width = 10, 10
+    out_height, out_width = 8, 8
+    offset_groups = 1
+    kh, kw = 3, 3
+    groups = 1
+
+    test_run(
+        batch_size,
+        in_channels,
+        out_channels,
+        in_height,
+        in_width,
+        out_height,
+        out_width,
+        offset_groups,
+        kh,
+        kw,
+        groups,
+    )
 
 
 @tvm.testing.uses_gpu
@@ -1099,7 +1299,7 @@ def test_type_as():
         check_fp16 = False
         try:
             # Only check half precision on supported hardwares.
-            if have_fp16(tvm.gpu(0).compute_version):
+            if have_fp16(tvm.cuda(0).compute_version):
                 check_fp16 = True
         except Exception as e:
             # If GPU is not enabled in TVM, skip the fp16 test.
@@ -1139,7 +1339,7 @@ def test_forward_view():
 @tvm.testing.uses_gpu
 def test_forward_select():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
+    input_shape = [5, 3, 10, 10]
 
     class Select1(Module):
         def forward(self, *args):
@@ -1158,6 +1358,9 @@ def test_forward_select():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Select1().float().eval(), input_data=input_data)
+
+    # test negative indexing
+    verify_model(lambda x: x[-1], input_data=input_data)
 
     x = torch.randn(3, 4)
     indices = torch.tensor([0, 2])
@@ -1362,6 +1565,56 @@ def test_forward_dense():
 
 
 @tvm.testing.uses_gpu
+def test_forward_linear():
+    torch.set_grad_enabled(False)
+
+    class Linear(Module):
+        def forward(self, input, weight, bias):
+            return F.linear(input, weight, bias)
+
+    class LinearNoBias(Module):
+        def forward(self, input, weight):
+            return F.linear(input, weight)
+
+    class LinearNested(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y, z):
+            return F.linear(x, F.linear(y, z))
+
+    input2d = torch.rand([2, 2]).float()
+    input3d = torch.rand([4, 3, 2]).float()
+    weight1d = torch.rand([2]).float()
+    weight2d = torch.rand([2, 2]).float()
+    weight3x2 = torch.rand([3, 2]).float()
+    bias1d = torch.rand([2]).float()
+    bias2d = torch.rand([2, 2]).float()
+    # 2D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input2d, weight2d, bias1d])
+    # 2D input, 2D weight, 2D bias
+    verify_model(Linear(), input_data=[input2d, weight2d, bias2d])
+    # 2D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input2d, weight2d])
+    verify_model(LinearNoBias(), input_data=[input2d, weight3x2])
+    # 2D input, 1D weight, 1D bias is not supported by torch.linear()
+    # 2D input, 1D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input2d, weight1d])
+    # 3D input, 2D weight, no bias
+    verify_model(LinearNoBias(), input_data=[input3d, weight3x2])
+    # 3D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input3d, weight2d, bias1d])
+
+    verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
+
+    # TODO: Add the following cases when matmul(1D, _) is supported by TVM
+    # 1D input, 2D weight, 1D bias
+    # 1D input, 2D weight, no bias
+    # 1D input, 1D weight, scalar bias
+    # 1D input, 1D weight, no bias
+
+
+@tvm.testing.uses_gpu
 def test_forward_dropout():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -1399,12 +1652,46 @@ def test_forward_slice():
         def forward(self, x):
             return x[0::2, 0::2] + x[1::2, 1::2]
 
+    class DynamicLengthSlice(torch.nn.Module):
+        def forward(self, values, length):
+            return values[0:length]
+
     input_data = torch.rand(input_shape).float()
     verify_model(Slice1(), input_data=input_data)
     verify_model(Slice2(), input_data=input_data)
     verify_model(Slice3(), input_data=input_data)
     verify_model(SliceWithStride(), input_data=torch.randn(1, 4))
     verify_model(SliceWithStride2(), input_data=torch.randn(4, 4))
+
+    inp = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    slice_len = torch.tensor(2)
+    targets = ["llvm", "cuda"]
+    verify_trace_model(DynamicLengthSlice(), [inp, slice_len], targets)
+
+
+@tvm.testing.uses_gpu
+def test_forward_narrow():
+    torch.set_grad_enabled(False)
+    input_shape = [3, 3]
+
+    class Narrow1(Module):
+        def forward(self, *args):
+            return torch.narrow(args[0], 0, 0, 2)
+
+    class Narrow2(Module):
+        def forward(self, *args):
+            return torch.narrow(args[0], 1, 1, 2)
+
+    class Narrow3(Module):
+        def forward(self, *args):
+            begin = torch.tensor(2) - torch.tensor(1)
+            length = torch.tensor(1) * torch.tensor(2)
+            return torch.narrow(args[0], 1, begin, length)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Narrow1(), input_data=input_data)
+    verify_model(Narrow2(), input_data=input_data)
+    verify_model(Narrow3(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1494,11 +1781,14 @@ def test_upsample():
     verify_model(Upsample(size=(64, 64), mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(scale=2, mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(size=(50, 50), mode="bilinear", align_corners=True), inp)
+    verify_model(Upsample(size=(64, 64), mode="bicubic", align_corners=True), inp)
+    verify_model(Upsample(scale=2, mode="bicubic", align_corners=True), inp)
+    verify_model(Upsample(size=(50, 50), mode="bicubic", align_corners=True), inp)
 
 
 @tvm.testing.uses_gpu
 def test_to():
-    """ test for aten::to(...) """
+    """test for aten::to(...)"""
 
     class ToCPU(Module):
         def forward(self, x):
@@ -1675,10 +1965,11 @@ def test_forward_nms():
         boxes = torch.rand(num_boxes, box_len, dtype=torch.float) * 0.5
         boxes[:, 2] += boxes[:, 0]
         boxes[:, 3] += boxes[:, 1]
-        scores = torch.rand(num_boxes, dtype=torch.float)
-        return boxes, scores
+        scores = np.linspace(0, 1, num=num_boxes).astype("float32")
+        np.random.shuffle(scores)
+        return boxes, torch.from_numpy(scores)
 
-    targets = ["llvm"]  # dynamic nms does not work on gpu
+    targets = ["llvm", "cuda"]
 
     for num_boxes, iou_thres in [(10, 0.3), (100, 0.5), (500, 0.9)]:
         in_boxes, in_scores = _gen_rand_inputs(num_boxes)
@@ -1689,7 +1980,7 @@ def test_forward_roi_align():
     """ROI align"""
     torch.set_grad_enabled(False)
 
-    class ROIAlgin(Module):
+    class ROIAlign(Module):
         def __init__(self, output_sizes, spatial_scale=1.0, sampling_ratio=-1):
             super().__init__()
             self.spatial_scale = spatial_scale
@@ -1710,9 +2001,9 @@ def test_forward_roi_align():
     in_batch = torch.zeros((35, 1), dtype=torch.float)
     in_boxes = torch.cat([in_batch, in_boxes], dim=1)
 
-    verify_model(ROIAlgin(7), [in_data, in_boxes])
-    verify_model(ROIAlgin((10, 10), 0.7, 5), [in_data, in_boxes])
-    verify_model(ROIAlgin(15, 0.9, 3), [in_data, in_boxes])
+    verify_model(ROIAlign(7), [in_data, in_boxes])
+    verify_model(ROIAlign((10, 10), 0.7, 5), [in_data, in_boxes])
+    verify_model(ROIAlign(15, 0.9, 3), [in_data, in_boxes])
 
 
 @tvm.testing.uses_gpu
@@ -1859,7 +2150,7 @@ def test_custom_conversion_map():
 
 
 @tvm.testing.uses_gpu
-def test_segmentaton_models():
+def test_segmentation_models():
     class SegmentationModelWrapper(Module):
         def __init__(self, model):
             super().__init__()
@@ -1889,9 +2180,10 @@ def _get_default_vm_targets():
     return [tgt for (tgt, _) in tvm.testing.enabled_targets()]
 
 
-def verify_script_model(pt_model, ishapes, targets):
+def verify_script_model(pt_model, ishapes, targets, idtype=None):
     script_module = torch.jit.script(pt_model)
-    verify_model_vm(script_module, ishapes, targets=targets)
+
+    verify_model_vm(script_module, ishapes, idtype=idtype, targets=targets)
 
 
 def verify_trace_model(pt_model, idata, targets):
@@ -1900,19 +2192,68 @@ def verify_trace_model(pt_model, idata, targets):
     verify_model_vm(traced_model, ishapes, idata=idata, targets=targets)
 
 
-def verify_model_vm(input_model, ishapes, idtype=torch.float, idata=None, targets=["llvm"]):
+def convert_pt_to_tvm_type(idtype):
+    """Accepts a pytorch dtype and returns string TVM dtype."""
+    # TVM does not support PyTorch complex dtypes
+    if idtype == torch.float64:
+        curr_dtype = "float64"
+    elif idtype == torch.float32:
+        curr_dtype = "float32"
+    elif idtype == torch.float16:
+        curr_dtype = "float16"
+    elif idtype == torch.bfloat16:
+        curr_dtype = "bfloat16"
+    elif idtype == torch.int64:
+        curr_dtype = "int64"
+    elif idtype == torch.int32:
+        curr_dtype = "int32"
+    elif idtype == torch.int16:
+        curr_dtype = "int16"
+    elif idtype == torch.int8:
+        curr_dtype = "int8"
+    elif idtype == torch.uint8:
+        curr_dtype = "uint8"
+    elif idtype == torch.bool:
+        curr_dtype = "bool"
+    else:
+        raise NotImplementedError("Unsupported dtype: {}".format(idtype))
+    return curr_dtype
+
+
+def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llvm"]):
+    if not idtype:
+        idtype = torch.float
+
     input_names = ["i{}".format(idx) for idx, ish in enumerate(ishapes)]
-    input_shapes = list(zip(input_names, ishapes))
-    input_data = idata if idata else [torch.randn(shape, dtype=idtype) for shape in ishapes]
+    tvm_dtype = convert_pt_to_tvm_type(idtype)
+    input_dtypes = [tvm_dtype] * len(input_names)
+    input_shapes = list(zip(input_names, list(zip(ishapes, input_dtypes))))
+
+    if idata:
+        input_data = idata
+    # If no input_data provided, generate random data of specified dtype
+    else:
+        if idtype == torch.bool:
+            input_data = [
+                torch.Tensor.bool(torch.randint(low=0, high=2, size=shape)) for shape in ishapes
+            ]
+        # Torch dtype can be float, complex, int, or Bool. Complex not supported, so if not float or Bool,
+        # dtype must be int!
+        elif not idtype.is_floating_point:
+            input_data = [
+                torch.randint(low=0, high=10, size=shape, dtype=idtype) for shape in ishapes
+            ]
+        else:
+            input_data = [torch.randn(shape, dtype=idtype) for shape in ishapes]
+
     # Compile via VM
     mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
 
     for tgt in targets:
         print("Running on target", tgt)
-        ctx = tvm.context(tgt, 0)
+        dev = tvm.device(tgt, 0)
 
-        executor = relay.create_executor("vm", mod=mod, ctx=ctx, target=tgt)
-        evaluator = executor.evaluate()
+        evaluator = relay.create_executor("vm", mod=mod, device=dev, target=tgt).evaluate()
 
         # Inference
         for name, inp in zip(input_names, input_data):
@@ -1924,11 +2265,16 @@ def verify_model_vm(input_model, ishapes, idtype=torch.float, idata=None, target
             pt_result = input_model(*input_data)
 
         # Verify the accuracy
-        if not isinstance(pt_result, torch.Tensor):
-            tvm_res = vm_res.asnumpy().item()
+        if isinstance(pt_result, tuple):
+            # handle multiple outputs
+            for i in range(len(pt_result)):
+                tvm_res = vm_res[i].numpy()
+                tvm.testing.assert_allclose(tvm_res, pt_result[i].numpy(), rtol=1e-5, atol=1e-5)
+        elif not isinstance(pt_result, torch.Tensor):
+            tvm_res = vm_res.numpy().item()
             assert pt_result == tvm_res
         else:
-            tvm.testing.assert_allclose(vm_res.asnumpy(), pt_result.numpy(), rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(vm_res.numpy(), pt_result.numpy(), rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -2398,10 +2744,17 @@ def test_forward_clamp():
         def forward(self, *args):
             return torch.clamp(args[0], max=1.0)
 
+    class Clamp_MinExpr_MaxConstant(Module):
+        def forward(self, *args):
+            h, w = args[0].shape[2:]
+            amin = h / 100.0
+            return torch.clamp(args[0], min=amin, max=w)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Clamp1().float().eval(), input_data=input_data)
     verify_model(Clamp2().float().eval(), input_data=input_data)
     verify_model(Clamp3().float().eval(), input_data=input_data)
+    verify_model(Clamp_MinExpr_MaxConstant().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -2593,6 +2946,8 @@ def test_forward_take():
     input_data = torch.tensor([[1, 2], [3, 4]])
     verify_model(Take1().float().eval(), input_data=input_data)
     indices = torch.tensor([[0, 0], [1, 0]])
+    verify_model(Take2().float().eval(), input_data=[input_data, indices])
+    indices = torch.tensor([0, -1])
     verify_model(Take2().float().eval(), input_data=[input_data, indices])
 
 
@@ -2951,6 +3306,29 @@ def test_forward_true_divide():
 
 
 @tvm.testing.uses_gpu
+def test_forward_is_floating_point():
+    torch.set_grad_enabled(False)
+
+    class IsFloatingPoint(Module):
+        def forward(self, arg):
+            # `torch.jit.trace` cannot accept something that outputs
+            # a Bool, so `torch.jit.script` will be used instead
+            return torch.is_floating_point(arg)
+
+    targets = _get_default_vm_targets()
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.float64)
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.float32)
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.float16)
+    # todo(dvisnty): Run the test for bfloat16 when full bfloat16 support is implemented
+    # verify_script_model(IsFloatingPoint(), [(1,1)], targets, idtype=torch.bfloat16)
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.int64)
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.int32)
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.int16)
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.int8)
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.uint8)
+
+
+@tvm.testing.uses_gpu
 def test_forward_traced_function():
     def fn(t1, t2):
         return t1 + t2
@@ -3025,17 +3403,24 @@ def test_forward_matmul():
     # matrix x matrix
     tensor1 = torch.randn(10, 4)
     tensor2 = torch.randn(4, 10)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # batched matrix x batched matrix
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(10, 4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(
+        MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.batch_matmul"]
+    )
 
     # batched matrix x broadcasted matrix
     tensor1 = torch.randn(10, 3, 4)
     tensor2 = torch.randn(4, 5)
-    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
+
+    # broadcasted matrix x batched matrix
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(3, 4, 5)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2], expected_ops=["nn.dense"])
 
     # batched matrix x batched matrix
     tensor1 = torch.randn(1, 12, 14, 64)
@@ -3162,6 +3547,38 @@ def test_forward_scatter():
     verify_trace_model(test_fn_scatter_add(1), [in_data, in_index, in_src], targets)
 
 
+def test_forward_index_put():
+    # torch.index_put for 2D tensor and default accumulate (False)
+    def test_fn_index_put2():
+        return lambda data, xidx, yidx, values: torch.index_put(
+            data, indices=[xidx, yidx], values=values
+        )
+
+    # torch.index_put for 3D tensor and accumulate=True
+    def test_fn_index_put3a():
+        return lambda data, xidx, yidx, zidx, values: torch.index_put(
+            data, indices=[xidx, yidx, zidx], values=values, accumulate=True
+        )
+
+    shape = (3, 5)
+    in_data = torch.zeros(shape)
+    xidx = torch.tensor([0, 1, 2, 2])
+    yidx = torch.tensor([0, 1, 3, 4])
+    values = torch.tensor([2.0, 4.0, 7.0, 9.0])
+
+    targets = ["llvm", "cuda"]
+    verify_trace_model(test_fn_index_put2(), [in_data, xidx, yidx, values], targets)
+
+    shape = (3, 5, 3)
+    in_data = torch.zeros(shape)
+    xidx = torch.tensor([0, 1, 2, 2, 0])
+    yidx = torch.tensor([0, 1, 3, 4, 0])
+    zidx = torch.tensor([0, 1, 1, 2, 0])
+    values = torch.tensor([2.0, 4.0, 7.0, 9.0, 1.0])
+
+    verify_trace_model(test_fn_index_put3a(), [in_data, xidx, yidx, zidx, values], targets)
+
+
 def test_numel():
     class Numel(Module):
         def forward(self, data):
@@ -3189,7 +3606,7 @@ def test_forward_pretrained_bert_base_uncased():
     """
 
     try:
-        from pytorch_pretrained_bert import BertTokenizer, BertForMaskedLM
+        from pytorch_pretrained_bert import BertForMaskedLM, BertTokenizer
     except:
         print("Torch pretrained bert package must be installed to run this script.")
         return
@@ -3278,13 +3695,13 @@ def test_forward_pretrained_bert_base_uncased():
     # Execute on TVM
     # --------------
 
-    ctx = tvm.context(target, 0)
-    relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+    dev = tvm.device(target, 0)
+    relay_model = graph_executor.create(relay_graph, relay_lib, dev)
     relay_model.set_input(**relay_params)
     relay_model.set_input(input_1, tokens_tensor)
     relay_model.set_input(input_2, segments_tensors)
     relay_model.run()
-    compiled_output = relay_model.get_output(0).asnumpy()
+    compiled_output = relay_model.get_output(0).numpy()
 
     ######################################################################
     # Validate the outputs
@@ -3363,168 +3780,187 @@ def test_bincount():
     verify_trace_model(test_fn, [inp, weights], targets)
 
 
+def test_hard_swish():
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
+    for input in examples:
+        verify_model(torch.nn.Hardswish().eval(), input_data=input)
+        verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
+
+
+def test_hard_sigmoid():
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
+    for input in examples:
+        verify_model(torch.nn.Hardsigmoid().eval(), input_data=input)
+        verify_model(torch.nn.Hardsigmoid(inplace=True).eval(), input_data=input)
+
+
+def test_cumsum():
+    def test_fn(dim, dtype=None):
+        return lambda x: torch.cumsum(x, dim=dim, dtype=dtype)
+
+    inp = torch.randint(0, 100, (10000,), dtype=torch.int32)
+    verify_model(test_fn(0), [inp])
+    verify_model(test_fn(0), [inp.to(torch.int64)])
+    verify_model(test_fn(0, dtype=torch.int64), [inp.to(torch.int64)])
+
+    inp = torch.randn((100, 100), dtype=torch.float32)
+    verify_model(test_fn(dim=0, dtype=torch.float64), [inp])
+    verify_model(test_fn(dim=1), [inp])
+
+    inp = torch.randn((100, 100), dtype=torch.float32) > 0.5
+    verify_model(test_fn(dim=0, dtype=torch.int32), [inp])
+
+
+def test_masked_fill():
+    def test_fn(x, mask):
+        return torch.masked_fill(x, mask, 0.0)
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn, [inp, inp > 0.5])
+    verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
+
+
+def test_transformer():
+    model = torch.nn.Transformer(d_model=256, nhead=8, num_encoder_layers=6, num_decoder_layers=6)
+    model = model.eval()
+    src = torch.rand((10, 32, 256))
+    tgt = torch.rand((20, 32, 256))
+    verify_model(model.eval(), input_data=[src, tgt])
+
+
+def test_argsort():
+    def test_fn(dim, descending):
+        return lambda x: torch.argsort(x, dim=dim, descending=descending)
+
+    inp = torch.randn(100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(0, False), [inp])
+    verify_model(test_fn(1, True), [inp])
+    verify_model(test_fn(1, False), [inp])
+
+
+def test_sort():
+    def test_fn(dim, descending):
+        return lambda x: torch.sort(x, dim=dim, descending=descending)
+
+    inp = torch.randn(100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(-1, False), [inp])
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn(0, True), [inp])
+    verify_model(test_fn(-2, False), [inp])
+    verify_model(test_fn(1, True), [inp])
+    verify_model(test_fn(-1, False), [inp])
+
+
+def test_logical_and():
+    def test_fn(x, y):
+        return torch.logical_and(x, y)
+
+    a = torch.tensor([0, 1, 10, 0], dtype=torch.int8)
+    b = torch.tensor([4, 0, 1, 0], dtype=torch.int8)
+    verify_model(test_fn, [a, b])
+
+    a = torch.tensor([True, False, True])
+    b = torch.tensor([True, False, False])
+    verify_model(test_fn, [a, b])
+
+
+def test_masked_select():
+    def test_fn(x, mask):
+        return torch.masked_select(x, mask)
+
+    for shape in [(10,), (3, 4), (16, 32, 64)]:
+        x = torch.randn(*shape)
+        mask = x.ge(0.5)
+        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
+
+
+def test_unique():
+    def test_fn(is_sorted, return_inverse, return_counts):
+        return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)
+
+    in_data = torch.randint(0, 20, (10,), dtype=torch.int32)
+    targets = ["llvm", "cuda", "nvptx"]
+    verify_trace_model(test_fn(True, True, True), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    verify_trace_model(test_fn(True, True, False), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    in_data = torch.randint(0, 20, (20,), dtype=torch.int64)
+    verify_trace_model(test_fn(True, True, True), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+    verify_trace_model(test_fn(True, True, False), [in_data], targets)
+    verify_trace_model(test_fn(True, False, True), [in_data], targets)
+
+
+def test_forward_nll_loss():
+    torch.set_grad_enabled(False)
+    N, C = 10, 3
+    predictions = torch.rand((N, C)).float()
+    targets = torch.randint(0, 3, (N,))
+    weights = torch.tensor([1, 2, 3]).float()
+    verify_model(torch.nn.NLLLoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(weight=weights).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+    # multidimension nll loss (aten::nll_loss2d)
+    d1, d2 = 2, 3
+    predictions = torch.rand((N, C, d1, d2)).float()
+    targets = torch.randint(0, 3, (N, d1, d2))
+    verify_model(torch.nn.NLLLoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(weight=weights).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+
+@tvm.testing.uses_gpu
+def test_forward_flip():
+    torch.set_grad_enabled(False)
+
+    class Flip(Module):
+        def __init__(self, axis=0):
+            super().__init__()
+            self.axis = axis
+
+        def forward(self, x):
+            return x.flip([self.axis])
+
+    input = torch.randn(2, 3, 4)
+    verify_model(Flip(axis=0), input_data=input)
+    verify_model(Flip(axis=1), input_data=input)
+    verify_model(Flip(axis=2), input_data=input)
+    verify_model(Flip(axis=-1), input_data=input)
+
+
+def test_annotate_span():
+    model = torchvision.models.resnet18().eval()
+    inp = torch.randn([1, 3, 224, 224])
+    trace = torch.jit.trace(model, inp).eval()
+    mod, params = relay.frontend.from_pytorch(
+        trace, [("input", inp.shape)], use_parser_friendly_name=True
+    )
+    relay.transform.AnnotateSpans()(mod)
+
+
+@tvm.testing.uses_gpu
+def test_all_any():
+    def test_fn(f, dim=None, keepdim=False):
+        return lambda x: f(x, dim=dim, keepdim=keepdim)
+
+    for f in [torch.all, torch.any]:
+        verify_model(test_fn(f, 0), [torch.rand(1, 2).bool()])
+        verify_model(test_fn(f, 0), [torch.arange(0, 3).to(torch.uint8)])
+        verify_model(test_fn(f, 1), [torch.rand(4, 2).bool()])
+        verify_model(test_fn(f, 0, keepdim=True), [torch.rand(4, 2).bool()])
+
+
 if __name__ == "__main__":
-    # some structural tests
-    test_forward_traced_function()
-    test_forward_dtypes()
-    test_weight_names()
-    test_duplicate_weight_use()
-
-    # Single operator tests
-    test_forward_pixel_shuffle()
-    test_forward_add()
-    test_forward_subtract()
-    test_forward_multiply()
-    test_forward_matmul()
-    test_forward_rsub()
-    test_forward_onehot()
-    test_forward_embedding()
-    test_forward_reshape()
-    test_forward_reciprocal()
-    test_forward_repeat()
-    test_forward_repeat_interleave()
-    test_forward_squeeze()
-    test_forward_unsqueeze()
-    test_forward_concatenate()
-    test_forward_reduce_sum()
-    test_forward_reduce_prod()
-    test_forward_argmin()
-    test_forward_argmax()
-    test_forward_norm()
-    test_forward_frobenius_norm()
-    test_forward_std()
-    test_forward_variance()
-    test_forward_relu()
-    test_forward_prelu()
-    test_forward_leakyrelu()
-    test_forward_elu()
-    test_forward_celu()
-    test_forward_gelu()
-    test_forward_selu()
-    test_forward_log_sigmoid()
-    test_forward_adaptiveavgpool()
-    test_forward_maxpool2d()
-    test_forward_maxpool1d()
-    test_forward_maxpool3d()
-    test_forward_hardtanh()
-    test_forward_conv()
-    test_forward_conv_transpose()
-    test_forward_threshold()
-    test_forward_contiguous()
-    test_forward_batchnorm()
-    test_forward_instancenorm()
-    test_forward_layernorm()
-    test_forward_groupnorm()
-    test_forward_transpose()
-    test_forward_size()
-    test_forward_view()
-    test_forward_select()
-    test_forward_take()
-    test_forward_topk()
-    test_forward_where()
-    test_forward_addcdiv()
-    test_forward_addcmul()
-    test_forward_true_divide()
-    test_forward_clone()
-    test_forward_softplus()
-    test_forward_softsign()
-    test_forward_logsoftmax()
-    test_forward_sigmoid()
-    test_forward_dense()
-    test_forward_avgpool()
-    test_forward_avgpool3d()
-    test_forward_dropout()
-    test_forward_slice()
-    test_forward_mean()
-    test_forward_expand()
-    test_forward_pow()
-    test_forward_unary()
-    test_forward_clamp()
-    test_forward_clamp_()
-    test_forward_logical_not()
-    test_forward_bitwise_not()
-    test_forward_bitwise_xor()
-    test_forward_logical_xor()
-    test_forward_isfinite()
-    test_forward_isnan()
-    test_forward_isinf()
-    test_forward_ones()
-    test_forward_ones_like()
-    test_forward_zeros()
-    test_forward_zeros_like()
-    test_forward_full()
-    test_forward_full_like()
-    test_forward_linspace()
-    test_forward_arange()
-    test_forward_mesh_grid()
-    test_forward_chunk()
-    test_forward_split()
-    test_forward_gather()
-    test_upsample()
-    test_forward_upsample3d()
-    test_forward_nms()
-    test_forward_roi_align()
-    test_to()
-    test_flatten()
-    test_type_as()
-    test_forward_functional_pad()
-    test_forward_zero_pad2d()
-    test_forward_constant_pad1d()
-    test_forward_constant_pad2d()
-    test_forward_constant_pad3d()
-    test_forward_reflection_pad1d()
-    test_forward_reflection_pad2d()
-    test_forward_replication_pad1d()
-    test_forward_replication_pad2d()
-    test_forward_replication_pad3d()
-    test_adaptive_pool3d()
-    test_conv3d()
-    test_conv3d_transpose()
-    test_forward_index()
-    test_min_max()
-    test_logsumexp()
-    test_stack()
-    test_stack_dynamic()
-    test_forward_unbind()
-    test_forward_nonzero()
-    test_forward_scatter()
-    test_numel()
-    test_bincount()
-
-    # Model tests
-    test_resnet18()
-    test_squeezenet1_0()
-    test_squeezenet1_1()
-    test_densenet121()
-    # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
-    # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
-    # test_inception_v3()
-    test_googlenet()
-    test_mnasnet0_5()
-    test_mobilenet_v2()
-
-    test_custom_conversion_map()
-
-    test_segmentaton_models()
-    test_3d_models()
-
-    # Quantization test
-    from qnn_test import test_quantized_imagenet, test_quantized_modules
-
-    test_quantized_modules()
-    test_quantized_imagenet()
-
-    # Test simple conditionals and loop
-    test_control_flow()
-    test_simple_rnn()
-
-    # More complex recurrent models
-    from test_lstm import test_custom_lstm
-
-    test_custom_lstm()
-
-    # Test bert model
-    test_forward_pretrained_bert_base_uncased()
-
-    # Test convert torch script(jit) with specific inputs' types
-    test_convert_torch_script_with_input_types()
+    pytest.main([__file__])

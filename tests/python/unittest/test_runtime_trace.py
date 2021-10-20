@@ -52,9 +52,9 @@ def test_trace_expr_assign():
         znd = tvm.nd.array(np.zeros((n, n, n), dtype=z.dtype))
         f(xnd, ynd, znd)
 
-        assert np.array_equal(xnd.asnumpy(), np.ones((n, n, n)))
-        assert np.array_equal(ynd.asnumpy(), np.ones((n, n, n)))
-        assert np.array_equal(znd.asnumpy(), np.ones((n, n, n)))
+        assert np.array_equal(xnd.numpy(), np.ones((n, n, n)))
+        assert np.array_equal(ynd.numpy(), np.ones((n, n, n)))
+        assert np.array_equal(znd.numpy(), np.ones((n, n, n)))
 
     for t in ["float64", "float32", "int64", "int32"]:
         check_assign(t)
@@ -80,7 +80,7 @@ def test_trace_expr_sum_generated():
         ynd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=b.dtype)))
         znd = tvm.nd.array(np.zeros((n, n, n), dtype=c.dtype))
         f(xnd, ynd, znd)
-        assert np.array_equal(znd.asnumpy(), xnd.asnumpy() + ynd.asnumpy())
+        assert np.array_equal(znd.numpy(), xnd.numpy() + ynd.numpy())
 
     for t in ["float64", "float32", "int64", "int32"]:
         check_expr_sum(t)
@@ -114,7 +114,7 @@ def test_trace_expr_sum_args():
         c_nd = tvm.nd.array(np.zeros((n, n, n), dtype=c.dtype))
         f(a_nd, b_nd, d_nd, e_nd, c_nd)
         assert np.array_equal(
-            c_nd.asnumpy(), a_nd.asnumpy() + b_nd.asnumpy() + d_nd.asnumpy() + e_nd.asnumpy()
+            c_nd.numpy(), a_nd.numpy() + b_nd.numpy() + d_nd.numpy() + e_nd.numpy()
         )
 
     for t in ["float64", "float32", "int64", "int32"]:
@@ -143,7 +143,7 @@ def test_trace_expr_sum_custom():
         ynd = tvm.nd.array(npb)
         znd = tvm.nd.array(np.zeros((n, n), dtype=c.dtype))
         f(xnd, ynd, znd)
-        assert np.array_equal(znd.asnumpy(), npa + npb)
+        assert np.array_equal(znd.numpy(), npa + npb)
 
     for t in ["float64", "float32", "int64", "int32"]:
         check_expr_sum_custom(t)
@@ -172,8 +172,8 @@ def test_trace_can_change_traced_value_int():
         f(xnd, ynd, znd)
         check_array_first = np.array([13, 13, 13, 13])
         check_array_second = np.array([14, 14, 14, 14])
-        assert np.array_equal(ynd.asnumpy(), check_array_first)
-        assert np.array_equal(znd.asnumpy(), check_array_second)
+        assert np.array_equal(ynd.numpy(), check_array_first)
+        assert np.array_equal(znd.numpy(), check_array_second)
 
     for t in ["int64", "int32"]:
         check_assign(t)
@@ -204,8 +204,8 @@ def test_trace_can_change_traced_value_float():
         f(xnd, ynd, znd)
         check_array_first = np.array([13.0, 13.0, 13.0, 13.0])
         check_array_second = np.array([14.0, 14.0, 14.0, 14.0])
-        assert np.array_equal(ynd.asnumpy(), check_array_first)
-        assert np.array_equal(znd.asnumpy(), check_array_second)
+        assert np.array_equal(ynd.numpy(), check_array_first)
+        assert np.array_equal(znd.numpy(), check_array_second)
 
     for t in ["float64", "float32"]:
         check_assign(t)

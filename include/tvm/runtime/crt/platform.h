@@ -64,20 +64,58 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
  * and the caller is not obligated to call TVMPlatformMemoryFree in order to avoid a memory leak.
  *
  * \param num_bytes Number of bytes requested.
- * \param ctx Execution context that will be used with the allocated memory. Fixed to {kDLCPU, 0}.
+ * \param dev Execution device that will be used with the allocated memory. Fixed to {kDLCPU, 0}.
  * \param out_ptr A pointer to which is written a pointer to the newly-allocated memory.
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr);
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr);
 
 /*!
  * \brief Free memory used by TVM.
  *
  * \param ptr A pointer returned from TVMPlatformMemoryAllocate which should be free'd.
- * \param ctx Execution context passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
+ * \param dev Execution device passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx);
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev);
+
+/*! \brief Start a device timer.
+ *
+ * The device timer used must not be running.
+ *
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformTimerStart();
+
+/*! \brief Stop the running device timer and get the elapsed time (in microseconds).
+ *
+ * The device timer used must be running.
+ *
+ * \param elapsed_time_seconds Pointer to write elapsed time into.
+ *
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds);
+
+/*! \brief Fill a buffer with random data.
+ *
+ * Cryptographically-secure random data is NOT required. This function is intended for use
+ * cases such as filling autotuning input tensors and choosing the nonce used for microTVM RPC.
+ *
+ * This function does not need to be implemented for inference tasks. It is used only by
+ * AutoTVM and the RPC server. When not implemented, an internal weak-linked stub is provided.
+ *
+ * Please take care that across successive resets, this function returns different sequences of
+ * values. If e.g. the random number generator is seeded with the same value, it may make it
+ * difficult for a host to detect device resets during autotuning or host-driven inference.
+ *
+ * \param buffer Pointer to the 0th byte to write with random data. `num_bytes` of random data
+ * should be written here.
+ * \param num_bytes Number of bytes to write.
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

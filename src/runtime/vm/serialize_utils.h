@@ -24,13 +24,14 @@
 #ifndef TVM_RUNTIME_VM_SERIALIZE_UTILS_H_
 #define TVM_RUNTIME_VM_SERIALIZE_UTILS_H_
 
-#include <dmlc/common.h>
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/vm/executable.h>
 
 #include <functional>
 #include <string>
 #include <vector>
+
+#include "../../support/utils.h"
 
 namespace tvm {
 namespace runtime {
@@ -40,9 +41,9 @@ namespace vm {
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
 
 template <typename T>
-static inline size_t VectorHash(size_t key, const std::vector<T>& values) {
+static inline uint64_t VectorHash(uint64_t key, const std::vector<T>& values) {
   for (const auto& it : values) {
-    key = dmlc::HashCombine(key, it);
+    key = support::HashCombine(key, it);
   }
   return key;
 }
@@ -58,13 +59,13 @@ struct VMFunctionSerializer {
   /*! \brief The parameters of the VMFunction. */
   std::vector<std::string> params;
   /*! \brief The device type of each parameter of the VMFunction. */
-  std::vector<Index> params_device_type;
+  std::vector<DLDeviceType> params_device_type;
 
   VMFunctionSerializer() = default;
 
   VMFunctionSerializer(const std::string& name, Index register_file_size, size_t num_instructions,
                        const std::vector<std::string>& params,
-                       const std::vector<Index>& params_device_type)
+                       const std::vector<DLDeviceType>& params_device_type)
       : name(name),
         register_file_size(register_file_size),
         num_instructions(num_instructions),
@@ -122,7 +123,7 @@ struct VMInstructionSerializer {
    * instruction.
    */
   Index Hash() const {
-    size_t key = static_cast<size_t>(opcode);
+    uint64_t key = static_cast<uint64_t>(opcode);
     key = VectorHash(key, fields);
     return key;
   }

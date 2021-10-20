@@ -56,6 +56,11 @@ class Object(ObjectBase):
         return sorted([fnames(i) for i in range(size)] + class_names)
 
     def __getattr__(self, name):
+        # specially check handle since
+        # this is required for PackedFunc calls
+        if name == "handle":
+            raise AttributeError("handle is not set")
+
         try:
             return _ffi_node_api.NodeGetAttr(self, name)
         except AttributeError:
