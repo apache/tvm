@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""TODO"""
+"""Various type definitions to help instantiate CUTLASS kernels."""
 import re
 import enum
 from enum import auto as enum_auto
@@ -117,7 +117,7 @@ class Target(enum.Enum):
 
 
 def substitute_template(template, values):
-    """TODO"""
+    """Instantiate a kernel template using `values`."""
     text = template
     changed = True
     while changed:
@@ -171,7 +171,7 @@ SwizzlingFunctorTag = {
 
 
 class MathInstruction:
-    """TODO"""
+    """Describe characteristics of a math instruction."""
 
     def __init__(
         self,
@@ -191,7 +191,7 @@ class MathInstruction:
 
 
 class TileDescription:
-    """TODO"""
+    """Describe characteristics of a GEMM tile."""
 
     def __init__(
         self, threadblock_shape, stages, warp_count, math_instruction, min_compute, max_compute

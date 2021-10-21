@@ -122,56 +122,20 @@ def create_gemm_operator(
     return ret
 
 
-def generate_sm75_tensor_op_1688():
+def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions):
     """TODO"""
     ops = []
     layouts = [
         (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
     ]
-
-    math_instructions = [
-        MathInstruction(
-            [16, 8, 8],
-            DataType.f16,
-            DataType.f16,
-            DataType.f32,
-            OpcodeClass.TensorOp,
-            MathOperation.multiply_add,
-        ),
-        MathInstruction(
-            [16, 8, 8],
-            DataType.f16,
-            DataType.f16,
-            DataType.f16,
-            OpcodeClass.TensorOp,
-            MathOperation.multiply_add,
-        ),
-    ]
-
-    min_cc = 80
-    max_cc = 1024
-
-    alignment_constraints = [8, 4, 2, 1]
-
     for math_inst in math_instructions:
-        tile_descriptions = [
-            TileDescription([256, 128, 32], 2, [4, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 256, 32], 2, [2, 4, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 64, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 64, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 64], 2, [1, 2, 2], math_inst, min_cc, max_cc),
-        ]
-
+        tile_descriptions = get_tile_descriptions(math_inst)
         data_type = [
             math_inst.element_a,
             math_inst.element_b,
             math_inst.element_accumulator,
             math_inst.element_accumulator,
         ]
-
-        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
 
         if math_inst.element_a != math_inst.element_accumulator:
             data_type_mixed = [
@@ -183,18 +147,55 @@ def generate_sm75_tensor_op_1688():
             out = create_gemm_operator(
                 layouts, tile_descriptions, data_type_mixed, alignment_constraints
             )
+        else:
+            out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
 
         ops.extend(out)
+
     return ops
+
+
+def generate_sm75_tensor_op_1688():
+    """TODO"""
+    math_instructions = [
+        MathInstruction(
+            [16, 8, 8],
+            DataType.f16,
+            DataType.f16,
+            DataType.f32,
+            OpcodeClass.TensorOp,
+            MathOperation.multiply_add,
+        ),
+        MathInstruction(
+            [16, 8, 8],
+            DataType.f16,
+            DataType.f16,
+            DataType.f16,
+            OpcodeClass.TensorOp,
+            MathOperation.multiply_add,
+        ),
+    ]
+
+    alignment_constraints = [8, 4, 2, 1]
+
+    def get_tile_descriptions(math_inst):
+        min_cc = 75
+        max_cc = 1024
+        return [
+            TileDescription([256, 128, 32], 2, [4, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 256, 32], 2, [2, 4, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([64, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([128, 64, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([64, 64, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription([64, 128, 64], 2, [1, 2, 2], math_inst, min_cc, max_cc),
+        ]
+
+    return generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions)
 
 
 def generate_sm80_tensor_op_16816():
     """TODO"""
-    ops = []
-    layouts = [
-        (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
-    ]
-
     math_instructions = [
         MathInstruction(
             [16, 8, 16],
@@ -214,14 +215,13 @@ def generate_sm80_tensor_op_16816():
         ),
     ]
 
-    min_cc = 80
-    max_cc = 1024
-    max_cc_smem_limited = 80
-
     alignment_constraints = [8, 4, 2]
 
-    for math_inst in math_instructions:
-        tile_descriptions = [
+    def get_tile_descriptions(math_inst):
+        min_cc = 80
+        max_cc = 1024
+        max_cc_smem_limited = 80
+        return [
             TileDescription([256, 128, 32], 3, [4, 2, 1], math_inst, min_cc, max_cc),
             TileDescription([128, 256, 32], 3, [2, 4, 1], math_inst, min_cc, max_cc),
             TileDescription([256, 64, 32], 4, [4, 1, 1], math_inst, min_cc, max_cc),
@@ -242,30 +242,7 @@ def generate_sm80_tensor_op_16816():
             TileDescription([64, 64, 64], 5, [2, 2, 1], math_inst, min_cc, max_cc),
         ]
 
-        data_type = [
-            math_inst.element_a,
-            math_inst.element_b,
-            math_inst.element_accumulator,
-            math_inst.element_accumulator,
-        ]
-
-        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
-
-        if math_inst.element_a != math_inst.element_accumulator:
-
-            data_type_mixed = [
-                math_inst.element_a,
-                math_inst.element_b,
-                math_inst.element_a,
-                math_inst.element_accumulator,
-            ]
-
-            out = create_gemm_operator(
-                layouts, tile_descriptions, data_type_mixed, alignment_constraints
-            )
-
-        ops.extend(out)
-    return ops
+    return generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions)
 
 
 GENERATOR_FUNC_TABLE = {
