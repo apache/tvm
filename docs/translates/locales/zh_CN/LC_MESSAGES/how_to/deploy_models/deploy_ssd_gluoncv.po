@@ -4,7 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# juzi, 2021
+# 孟鑫, 2021
 # HLearning, 2021
 # 
 #, fuzzy
