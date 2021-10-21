@@ -417,13 +417,15 @@ class Module(object):
                     object_format = "o"
                 else:
                     assert module.type_key == "c"
-                    object_format = "c"
-                    assert module.format in [
-                        "c",
-                        "cc",
-                        "cpp",
-                    ], "The module.format needs to be either c, cc or cpp"
-                    object_format = module.format
+                    if len(module.format) > 0:
+                        assert module.format in [
+                            "c",
+                            "cc",
+                            "cpp",
+                        ], "The module.format needs to be either c, cc or cpp"
+                        object_format = module.format
+                    else:
+                        object_format = "c"
                     if "cc" in kwargs:
                         if kwargs["cc"] == "nvcc":
                             object_format = "cu"
