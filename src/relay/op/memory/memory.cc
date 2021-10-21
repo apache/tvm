@@ -91,12 +91,7 @@ RELAY_REGISTER_OP("memory.alloc_storage")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 Expr AllocTensor(Expr storage, Expr offset, Expr shape, DataType dtype,
                  Array<IndexExpr> assert_shape) {
@@ -206,12 +201,7 @@ RELAY_REGISTER_OP("memory.alloc_tensor")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 bool KillRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
@@ -230,12 +220,7 @@ RELAY_REGISTER_OP("memory.kill")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 static void FlattenTupleTypeAux(const Type& type, std::vector<TensorType>* out) {
   if (auto tt = type.as<TensorTypeNode>()) {
