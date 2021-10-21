@@ -18,13 +18,13 @@
 """Vitis-AI codegen annotation of supported operators"""
 
 import warnings
-import numpy as np
 
-from tvm import relay
+import numpy as np
 import tvm._ffi
+from tvm import relay
 from tvm.relay import transform
-from tvm.relay.expr import Tuple, TupleGetItem
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.expr import Tuple, TupleGetItem
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 
 # Placeholder for PyXIR module
@@ -164,11 +164,13 @@ def partition_for_vitis_ai(mod, params=None, dpu=None, **opts):
 
     desired_layouts_in_partition = {
         "nn.conv2d": ["NHWC", "default"],
+        "nn.conv2d_transpose": ["NHWC", "default"],
         "nn.upsampling": ["NHWC"],
         "image.resize2d": ["NHWC"],
     }
     desired_layouts_in_main = {
         "nn.conv2d": ["NCHW", "default"],
+        "nn.conv2d_transpose": ["NCHW", "default"],
         "nn.upsampling": ["NCHW"],
         "image.resize2d": ["NCHW"],
     }
