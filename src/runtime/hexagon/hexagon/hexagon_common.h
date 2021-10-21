@@ -24,7 +24,7 @@
 #define TVM_RUNTIME_HEXAGON_HEXAGON_COMMON_H_
 
 #include <dlpack/dlpack.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/c_backend_api.h>
 
 #if defined(__hexagon__)
 #include <HAP_farf.h>
@@ -42,7 +42,20 @@
     }                                                                   \
   } while (0)
 
+namespace tvm {
+namespace runtime {
+namespace hexagon {
 
+/*! \brief Unpack HexagonBuffers in packed functions
+ *  prior to invoking.
+ *  \param faddr The function address.
+ *  \param mptr The module pointer node.
+ *  \return A packed function wrapping the requested function.
+ */
+PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
+}
+}
+}
 inline bool IsHexagonDevice(DLDevice dev) {
   return TVMDeviceExtType(dev.device_type) == kDLHexagon;
 }

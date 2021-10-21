@@ -27,6 +27,43 @@
 #include <string>
 #include <sstream>
 
+#include "hexagon_buffer.h"
+
+namespace tvm {
+namespace runtime {
+namespace hexagon {
+
+PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
+  return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
+    TVMValue ret_value;
+    int ret_type_code = kTVMNullptr;
+
+    TVMValue* arg_values = const_cast<TVMValue*>(args.values);
+    std::vector<std::pair<size_t, HexagonBuffer*>> buffer_args;
+    for(size_t i=0; i < args.num_args; i++) {
+      if (args.type_codes[i] == kTVMDLTensorHandle) {
+        DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
+        buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
+        tensor->data = buffer_args.back().second->GetPointer();
+      }
+    }
+    int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
+                       args.num_args, &ret_value, &ret_type_code, nullptr);
+    ICHECK_EQ(ret, 0) << TVMGetLastError();
+
+    for (auto& arg : buffer_args) {
+      DLTensor* tensor = static_cast<DLTensor*>(arg_values[arg.first].v_handle);
+      tensor->data = arg.second;
+    }
+
+
+    if (ret_type_code != kTVMNullptr) {
+      *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
+    }
+  });
+}
+}  // namespace hexagon
+
 namespace {
 std::vector<std::string> SplitString(const std::string& str, char delim) {
   std::vector<std::string> lines;
@@ -45,8 +82,6 @@ void HexagonLog(const std::string& file, int lineno, const std::string& message)
 }
 }  // namespace
 
-namespace tvm {
-namespace runtime {
 namespace detail {
 void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   HexagonLog(file, lineno, message);
