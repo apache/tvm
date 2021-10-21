@@ -241,6 +241,10 @@ def test_upsampling(dpu_target):
     verify_codegen(mod, dpu_target=dpu_target)
 
 
+@pytest.mark.skip(
+    reason="I and O used to be mixed up in kernel layouts in TVM."
+    "This is fixed, but vitis needs to adopt the new convention"
+)
 @pytest.mark.parametrize(
     "dpu_target",
     ["DPUCADF8H", "DPUCAHX8H-u50", "DPUCAHX8L", "DPUCVDX8H", "DPUCVDX8G", "DPUCZDX8G-zcu104"],
@@ -253,7 +257,14 @@ def test_conv2d_transpose(dpu_target):
     x = relay.var("x", shape=dshape)
     w = relay.const(np.zeros(kshape, dtype="float32"))
     y = relay.nn.conv2d_transpose(
-        x, w, channels=10, kernel_size=(3, 3), strides=(1, 1), padding=(1, 1)
+        x,
+        w,
+        channels=10,
+        kernel_size=(3, 3),
+        strides=(1, 1),
+        padding=(1, 1),
+        data_layout="NCHW",
+        kernel_layout="IOHW",
     )
     func = relay.Function([x], y)
     params = {}
