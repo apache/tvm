@@ -186,7 +186,8 @@ def conv2d_transpose_legalize(attrs, inputs, types):
         # Convert back to original NHWC layout.
         out = relay.transpose(deconv, axes=(0, 2, 3, 1))
         return out
-    elif attrs["data_layout"] == "NCHW":
+
+    if attrs["data_layout"] == "NCHW":
         kernel = layout_transform(kernel, kernel_layout, "IOHW")
         new_attrs = {k: attrs[k] for k in attrs.keys()}
 

@@ -159,6 +159,7 @@ def conv2d(expr, type_map):
 
 @register_fake_quantization_to_integer("nn.conv2d_transpose")
 def conv2d_transpose(expr, type_map):
+    """Rewrite a conv2d_transpose op"""
     attrs = {**expr.attrs}
     attrs.pop("out_dtype")
     x, weight = expr.args
