@@ -387,7 +387,7 @@ def conv2d_transpose(
     kernel_layout="IOHW",
     out_layout="",
     output_padding=(0, 0),
-    out_dtype="",
+    out_dtype="int32",
 ):
     """This operator deconvolves quantized data with quantized kernel. The scale of
     the output quantized tensor is the product of the kernel_scale and

@@ -105,7 +105,7 @@ def test_fake_quantize_transposeconv():
         op = relay.qnn.op.quantize(op, one, zero, out_dtype=out_dtype)
 
         x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
-        w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
+        w_np = np.random.randint(-128, 127, size=[3, 16, 5, 5], dtype="int8")
 
         compare_fq_to_int(op, [x_np, w_np])
 
