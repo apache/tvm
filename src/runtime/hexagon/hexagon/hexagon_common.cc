@@ -22,16 +22,53 @@
  */
 
 #include "hexagon_common.h"
-#include <tvm/runtime/logging.h>
 
-#include <string>
+#include <tvm/runtime/logging.h>
+#include <tvm/runtime/registry.h>
+
 #include <sstream>
+#include <string>
 
 #include "hexagon_buffer.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
+
+void HexagonLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
+  Module mod = args[0];
+  int64_t storage_id = args[1];
+  DLTensor* template_tensor = args[2];
+  Device dev = args[3];
+  auto lookup_linked_param = mod.GetFunction(::tvm::runtime::symbol::tvm_lookup_linked_param, true);
+  if (lookup_linked_param == nullptr) {
+    *rv = nullptr;
+    return;
+  }
+
+  TVMRetValue opaque_handle = lookup_linked_param(storage_id);
+  if (opaque_handle.type_code() == kTVMNullptr) {
+    *rv = nullptr;
+    return;
+  }
+
+  std::vector<int64_t> shape_vec{template_tensor->shape,
+                                 template_tensor->shape + template_tensor->ndim};
+
+  auto* param_buffer = new HexagonBuffer(static_cast<void*>(opaque_handle));
+  auto* container = new NDArray::Container(static_cast<void*>(param_buffer), shape_vec,
+                                           template_tensor->dtype, dev);
+  container->SetDeleter([](Object* container) {
+    // The NDArray::Container needs to be deleted
+    // along with the HexagonBuffer wrapper. However the
+    // buffer's data points to global const memory and
+    // so should not be deleted.
+    auto* ptr = static_cast<NDArray::Container*>(container);
+    delete static_cast<HexagonBuffer*>(ptr->dl_tensor.data);
+    delete ptr;
+  });
+  *rv = NDArray(GetObjectPtr<Object>(container));
+}
 
 PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
   return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
@@ -90,7 +127,8 @@ void LogFatalImpl(const std::string& file, int lineno, const std::string& messag
 void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
   HexagonLog(file, lineno, message);
 }
-
 }  // namespace detail
+
+TVM_REGISTER_GLOBAL("tvm.runtime.hexagon.lookup_linked_params").set_body(hexagon::HexagonLookupLinkedParam);
 }  // namespace runtime
 }  // namespace tvm
