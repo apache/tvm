@@ -77,9 +77,10 @@ inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int in
 std::string DenseOp(std::string id, const Str2StrMap& attrs,
                     const std::vector<std::string>& func_args) {
   bool has_bias = false;
+  bool is_gelu =
+      attrs.at("op_type").find("cutlass.dense_bias_gelu") != std::string::npos;  // fp32 or fp16
   if (attrs.at("op_type") == "cutlass.dense_bias" ||
-      attrs.at("op_type") == "cutlass.dense_bias_relu" ||
-      attrs.at("op_type") == "cutlass.dense_bias_gelu") {
+      attrs.at("op_type") == "cutlass.dense_bias_relu" || is_gelu) {
     has_bias = true;
   }
   std::ostringstream gemm_decl;
@@ -98,7 +99,8 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
   // Initialize alpha for dot product computation
   CutlassPrint(gemm_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
-  if (attrs.at("op_type") == "cutlass.dense_bias_gelu") {
+  if (is_gelu) {
+    // GeLU epilogue does not compile with NoBetaScaling, so we explicitly specify the scale.
     CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(1);\n");
   } else {
     CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
@@ -128,13 +130,10 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
     CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
   }
   CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
-  if (has_bias) {
-    if (attrs.at("op_type") == "cutlass.dense_bias_gelu") {
-      CutlassPrint(gemm_decl, " {alpha, beta},\n");
-    } else {
-      CutlassPrint(gemm_decl, " {alpha},\n");
-    }
+  if (has_bias && !is_gelu) {
+    CutlassPrint(gemm_decl, " {alpha},\n");
   } else {
+    // For GeLU, we explicitly specify the scale.
     CutlassPrint(gemm_decl, " {alpha, beta},\n");
   }
   CutlassPrint(gemm_decl, " split_k_slices};\n");
@@ -224,12 +223,20 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
           GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.relu"});
       return GenerateBody(dense_call, "cutlass_dense_bias_relu", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.dense_bias_gelu") {
+    } else if (pattern_name == "cutlass.dense_bias_gelu_fp16") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->args[1].as<CallNode>()->op.as<OpNode>()->name;
       const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 8,
                                            {"nn.dense", add_or_bias_add, "multiply", "cast", "erf",
                                             "cast", "multiply", "add", "multiply"});
+      return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
+                          DenseArgs(std::ref(attrs_)));
+    } else if (pattern_name == "cutlass.dense_bias_gelu_fp32") {
+      const CallNode* current_call = callee->body.as<CallNode>();
+      std::string add_or_bias_add = current_call->args[1].as<CallNode>()->op.as<OpNode>()->name;
+      const auto* dense_call = GetRootCall(
+          callee->body.as<CallNode>(), 6,
+          {"nn.dense", add_or_bias_add, "multiply", "erf", "multiply", "add", "multiply"});
       return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
     }

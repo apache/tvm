@@ -139,44 +139,38 @@ def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile
             math_inst.element_accumulator,
         ]
 
-        if math_inst.element_a != math_inst.element_accumulator:
-            data_type_mixed = [
-                math_inst.element_a,
-                math_inst.element_b,
-                math_inst.element_a,
-                math_inst.element_accumulator,
-            ]
-            out = create_gemm_operator(
-                layouts, tile_descriptions, data_type_mixed, alignment_constraints
-            )
-        else:
-            out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
+        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
 
         ops.extend(out)
 
     return ops
 
 
-def generate_sm75_tensor_op_1688():
+def generate_sm75_tensor_op_1688(out_dtype):
     """Generate GEMM kernels for Turing."""
-    math_instructions = [
-        MathInstruction(
-            [16, 8, 8],
-            DataType.f16,
-            DataType.f16,
-            DataType.f32,
-            OpcodeClass.TensorOp,
-            MathOperation.multiply_add,
-        ),
-        MathInstruction(
-            [16, 8, 8],
-            DataType.f16,
-            DataType.f16,
-            DataType.f16,
-            OpcodeClass.TensorOp,
-            MathOperation.multiply_add,
-        ),
-    ]
+    assert out_dtype in ["float32", "float16"]
+    math_instructions = {
+        "float32": [
+            MathInstruction(
+                [16, 8, 8],
+                DataType.f16,
+                DataType.f16,
+                DataType.f32,
+                OpcodeClass.TensorOp,
+                MathOperation.multiply_add,
+            )
+        ],
+        "float16": [
+            MathInstruction(
+                [16, 8, 8],
+                DataType.f16,
+                DataType.f16,
+                DataType.f16,
+                OpcodeClass.TensorOp,
+                MathOperation.multiply_add,
+            )
+        ],
+    }[out_dtype]
 
     alignment_constraints = [8, 4, 2, 1]
 
@@ -198,26 +192,31 @@ def generate_sm75_tensor_op_1688():
     )
 
 
-def generate_sm80_tensor_op_16816():
+def generate_sm80_tensor_op_16816(out_dtype):
     """Generate GEMM kernels for Ampere."""
-    math_instructions = [
-        MathInstruction(
-            [16, 8, 16],
-            DataType.f16,
-            DataType.f16,
-            DataType.f32,
-            OpcodeClass.TensorOp,
-            MathOperation.multiply_add,
-        ),
-        MathInstruction(
-            [16, 8, 16],
-            DataType.f16,
-            DataType.f16,
-            DataType.f16,
-            OpcodeClass.TensorOp,
-            MathOperation.multiply_add,
-        ),
-    ]
+    assert out_dtype in ["float32", "float16"]
+    math_instructions = {
+        "float32": [
+            MathInstruction(
+                [16, 8, 16],
+                DataType.f16,
+                DataType.f16,
+                DataType.f32,
+                OpcodeClass.TensorOp,
+                MathOperation.multiply_add,
+            )
+        ],
+        "float16": [
+            MathInstruction(
+                [16, 8, 16],
+                DataType.f16,
+                DataType.f16,
+                DataType.f16,
+                OpcodeClass.TensorOp,
+                MathOperation.multiply_add,
+            )
+        ],
+    }[out_dtype]
 
     alignment_constraints = [8, 4, 2]
 
@@ -325,9 +324,9 @@ class CutlassGemmProfiler(object):
             return False
         return True
 
-    def profile(self, M, N, K):
+    def profile(self, M, N, K, out_dtype):
         """Profile and select the best kernel from `op_generators`."""
-        ops = GENERATOR_FUNC_TABLE[self.sm]()
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
         for op in ops:
             if self.check_align(op["name"], M):
                 out = self.engine.evaluate(op["name"], op["src"], [M, N, K])

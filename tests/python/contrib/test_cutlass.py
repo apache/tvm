@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import math
+import pytest
 import tvm
 from tvm import relay
 import numpy as np
@@ -51,27 +52,32 @@ def get_dense_bias_relu(M, N, K, out_dtype="float16"):
     return relay.nn.relu(get_dense_bias(M, N, K, out_dtype="float16"))
 
 
-def get_dense_bias_gelu(M, N, K):
-    bias_add = get_dense_bias(M, N, K)
-    mul = bias_add * relay.const((1.0 / math.sqrt(2.0)), dtype="float16")
-    erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
-    mul_half = erf * relay.const(0.5, dtype="float16")
-    add = mul_half + relay.const(0.5, dtype="float16")
+def get_dense_bias_gelu(M, N, K, out_dtype="float16"):
+    bias_add = get_dense_bias(M, N, K, out_dtype)
+    mul = bias_add * relay.const((1.0 / math.sqrt(2.0)), dtype=out_dtype)
+    if out_dtype == "float16":
+        erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
+    else:
+        erf = relay.op.erf(mul)
+    mul_half = erf * relay.const(0.5, dtype=out_dtype)
+    add = mul_half + relay.const(0.5, dtype=out_dtype)
     return add * bias_add
 
 
-def verify(func, M, N, K, sm=80, atol=1e-5, rtol=1e-5):
+def verify(func, M, N, K, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False):
     if not tvm.get_global_func("relay.ext.cutlass", True):
         return
     mod = tvm.IRModule.from_expr(func)
+    typ = relay.transform.InferType()(mod)
+    out_dtype = typ["main"].body.checked_type.dtype
     np_data = np.random.uniform(-1, 1, (M, K)).astype("float16")
     np_weight = np.random.uniform(-1, 1, (N, K)).astype("float16")
-    np_bias = np.random.uniform(-1, 1, (N,)).astype("float16")
+    np_bias = np.random.uniform(-1, 1, (N,)).astype(out_dtype)
 
     params = {"weight": np_weight, "bias": np_bias}
 
     rt_mod_ref, dev = get_ref_rt_mod(mod, params)
-    rt_mod, dev, num_partition = profile_and_build(mod, params, 80, tmp_dir="tmp")
+    rt_mod, dev, num_partition = profile_and_build(mod, params, sm, tmp_dir="tmp")
     assert num_partition > 0
 
     x = tvm.nd.array(np_data, device=dev)
@@ -81,8 +87,9 @@ def verify(func, M, N, K, sm=80, atol=1e-5, rtol=1e-5):
 
     np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
 
-    print("CUTLASS:", rt_mod.benchmark(dev, number=1, repeat=600))
-    print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
+    if run_benchmark:
+        print("CUTLASS:", rt_mod.benchmark(dev, number=1, repeat=600))
+        print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
 
 
 M = 1820
@@ -91,20 +98,24 @@ K = 768
 
 
 def test_dense():
-    # verify(get_dense(M, N, K), M, N, K)
+    verify(get_dense(M, N, K), M, N, K)
     verify(get_dense(M, N, K, out_dtype="float32"), M, N, K)
 
 
 def test_dense_bias():
     verify(get_dense_bias(M, N, K), M, N, K)
+    verify(get_dense_bias(M, N, K, out_dtype="float32"), M, N, K)
 
 
 def test_dense_bias_relu():
     verify(get_dense_bias_relu(M, N, K), M, N, K)
+    verify(get_dense_bias_relu(M, N, K, out_dtype="float32"), M, N, K)
 
 
 def test_dense_bias_gelu():
     verify(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3)
+    verify(get_dense_bias_gelu(M, N, K, out_dtype="float32"), M, N, K, atol=1e-3, rtol=1e-3)
 
 
-test_dense()
+if __name__ == "__main__":
+    pytest.main([__file__])

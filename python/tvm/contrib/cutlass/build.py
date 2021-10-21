@@ -95,14 +95,14 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
             MM = arg0_shape[0]
             KK = arg0_shape[1]
             NN = arg1_shape[0]
-            out = cutlass_profiler.profile(MM, NN, KK)
+            out = cutlass_profiler.profile(MM, NN, KK, annotator.signature["ret_dtype"])
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]
             elif new_attrs["op_type"] == "cutlass.dense_bias":
                 new_attrs["cutlass_op_def"] = out["opdef_bias"]
             elif new_attrs["op_type"] == "cutlass.dense_bias_relu":
                 new_attrs["cutlass_op_def"] = out["opdef_bias_relu"]
-            elif new_attrs["op_type"] == "cutlass.dense_bias_gelu":
+            elif "cutlass.dense_bias_gelu" in new_attrs["op_type"]:
                 new_attrs["cutlass_op_def"] = out["opdef_bias_gelu"]
             else:
                 raise ValueError("%s pattern is not implemented." % new_attrs["op_type"])
