@@ -1070,19 +1070,29 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
 
   auto dshape_nchw = trans_in_layout.ForwardShape(data->shape);
+  if (param->groups > 1) {
+    ICHECK(weight->shape.defined())
+        << "Weight shape must be specified when groups is greater than 1.";
+  }
 
   // infer weight if the kernel_size and channels are defined
   if (param->kernel_size.defined() && param->channels.defined()) {
     ICHECK_EQ(param->kernel_size.size(), 2);
     ICHECK_EQ(param->dilation.size(), 2);
 
-    Array<IndexExpr> wshape({dshape_nchw[1], indexdiv(param->channels, param->groups),
-                             param->kernel_size[0], param->kernel_size[1]});
-
+    tvm::tir::ExprDeepEqual expr_equal;
+    Array<IndexExpr> wshape;
+    if (expr_equal(param->channels, 1)) {
+      wshape = {{dshape_nchw[1], param->channels, param->kernel_size[0], param->kernel_size[1]}};
+      channels = param->groups;
+    } else {
+      wshape = {{dshape_nchw[1], indexdiv(param->channels, param->groups), param->kernel_size[0],
+                 param->kernel_size[1]}};
+      channels = param->channels;
+    }
     wshape = trans_kernel_layout.BackwardShape(wshape);
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
-    channels = param->channels;
 
     DataType weight_dtype = data->dtype;
     if (weight != nullptr) {
@@ -1108,7 +1118,8 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
           << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
     }
     if (!dshape_nchw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
-      ICHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[0]));
+      ICHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups),
+                                indexdiv(wshape[0], param->groups)));
     }
     channels = wshape[1];
     dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];

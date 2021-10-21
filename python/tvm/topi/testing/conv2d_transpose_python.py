@@ -22,7 +22,7 @@ import tvm.topi.testing
 from tvm.topi.nn.utils import get_pad_tuple
 
 
-def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
+def _conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
     """Transposed convolution operator in NCHW layout.
 
     Parameters
@@ -141,3 +141,41 @@ def conv2d_transpose_nhwc_python(
     )
     res_nhwc = np.transpose(res_nchw, (0, 2, 3, 1))
     return res_nhwc
+
+
+def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding, groups=1):
+    """Convolution operator in NCHW layout.
+
+    Parameters
+    ----------
+    a_np : numpy.ndarray
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    w_np : numpy.ndarray
+        4-D with shape [num_filter, in_channel // groups, filter_height, filter_width]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    output_padding : int or a list/tuple of two ints
+        Use to disambiguate the output shape.
+
+    groups : int
+        Number of groups
+
+    Returns
+    -------
+    b_np : np.ndarray
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    a_slices = np.array_split(a_np, groups, axis=1)
+    w_slices = np.array_split(w_np, groups, axis=0)
+    b_slices = [
+        _conv2d_transpose_nchw_python(a_slice, w_slice, stride, padding, output_padding)
+        for a_slice, w_slice in zip(a_slices, w_slices)
+    ]
+    b_np = np.concatenate(b_slices, axis=1)
+    return b_np
