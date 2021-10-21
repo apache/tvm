@@ -26,6 +26,16 @@ tvm.tir
    :autosummary:
 
 
+.. _python_api_tir_schedule:
+
+tvm.tir.schedule
+----------------
+.. automodule:: tvm.tir.schedule
+   :members:
+   :imported-members:
+   :autosummary:
+
+
 tvm.tir.transform
 -----------------
 .. automodule:: tvm.tir.transform

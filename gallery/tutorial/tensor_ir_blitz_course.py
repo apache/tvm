@@ -23,29 +23,53 @@ Blitz Course to TensorIR
 
 TensorIR is a domain specific languages for deep learning programs serving two broad purposes:
 
-- An implement for transforming and optimizing programs on various hardware backends.
+- An implementation for transforming and optimizing programs on various hardware backends.
 
 - An abstraction for automatic tensorized program optimization.
 
 """
 
 import tvm
+from tvm.ir.module import IRModule
 from tvm.script import tir as T
 import numpy as np
 
 ################################################################################################
 # IRModule
 # --------
-# An IRModule is the central data structure in TensorIR, which contains deep learning programs.
+# An IRModule is the central data structure in TVM, which contains deep learning programs.
 # It is the basic object of interest of IR transformation and model building.
 #
+# .. image:: https://raw.githubusercontent.com/Hzfengsy/web-data/main/images/design/tvm_life_of_irmodule.png
+#    :align: center
+#    :width: 85%
+#
+# This is the life cycle of an IRModule, which can be created from TVM Script. TensorIR schedule
+# primitives and passes are two major ways to transform an IRModule. Also, a sequence of
+# transformations on an IRModule is acceptable. Note that we can print an IRModule at **ANY** stage
+# to TVMScript. After all transformations and optimizations are complete, we can build the IRModule
+# to a runnable module to deploy on target devices.
+#
+# Based on the design of TensorIR and IRModule, we are able to create a new programming method:
+#
+# 1. Write a program by TVMScript (just like write python codes)
+#
+# 2. Transform and optimize a program with python api (by schedule primitives and passes)
+#
+# 3. Interactively inspect and try the performance (print or build at any stage of IRModule)
 
 
 ################################################################################################
 # Create an IRModule
 # ------------------
-# IRModule can be created by writing TVMScript, which is a script syntax for TVM IR. (see the ref)
-# Here is a simple module for vector add.
+# IRModule can be created by writing TVMScript, which is a round-trippable syntax for TVM IR.
+#
+# Different than creating an computational expression by Tensor Expression
+# (:ref:`tutorial-tensor-expr-get-started`). TensorIR allow user to write native programs, which
+# is similar with writing a Python program with for loops and computational body. The new method
+# makes it possible to write complex programs and further schedule and optimize it.
+#
+# Following is an simple example for vector addition.
 #
 
 
@@ -69,6 +93,19 @@ class MyModule:
 ir_module = MyModule
 print(type(ir_module))
 print(ir_module.script())
+
+################################################################################################
+# Besides, Tensor Expression (TE) is a really good abstraction for simple operators. TensorIR still
+# allow users to create IRModule from TE.
+#
+
+from tvm import te
+A = te.placeholder((8, ), dtype="float32", name="A")
+B = te.compute((8, ), lambda *i : A(*i) + 1.0, name="B")
+func = te.create_prim_func([A, B])
+ir_module_1 = IRModule({"main": func})
+print(ir_module_1.script())
+
 
 ################################################################################################
 # Build and Run an IRModule
@@ -95,9 +132,19 @@ print(b)
 # ---------------------
 # The IRModule is the central data structure for program optimization, which can be transformed
 # by :code:`Schedule`.
-# Schedule is consist of primitives. Each primitive does a simple job on IR transformation,
-# such as loop tiling or make computation parallel. (Please see ref)
+# Schedule consists of primitives. Each primitive does a simple job on IR transformation,
+# such as loop tiling or make computation parallel. (Please see :ref:`python_api_tir_schedule`)
 #
+# .. image:: https://raw.githubusercontent.com/Hzfengsy/web-data/main/images/design/tvm_tensor_ir_opt_flow.png
+#    :align: center
+#    :width: 100%
+#
+# The image above is a typical workflow for optimization a tensor program. First, we need to create
+# schedule on the initial IRModule created from either TVMScript or Tensor Expression. Then, a
+# sequence of schedule primitives will help to improve the performance. And at last, we can lower
+# and build it into a runnable module.
+#
+# Here we just demostrate a very simple tranformation. First we create schedule on the input ir_module.
 
 sch = tvm.tir.Schedule(ir_module)
 print(type(sch))
