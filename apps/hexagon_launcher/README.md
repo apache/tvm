@@ -40,29 +40,32 @@ tvm_runtime, as well as the Hexagon launcher shared library and its correspondin
 tvm_runtime. As described in the [Manual compilation](#Manual compilation) section 
 each component requires Hexagon and android dependencies. When building the launcher 
 along with TVM these configurations must be providing when invoking cmake. A minimal 
-example invocation for compiling TVM along with the Hexagon launcher is included below,
+example invocation for compiling TVM along with the Hexagon launcher is included below:
 
 ```
-cmake -DCMAKE_MAKE_PROGRAM=make \
-      -DCMAKE_C_COMPILER=clang \
-      -DCMAKE_CXX_COMPILER=clang++ \
+cmake -DCMAKE_C_COMPILER=/path/to/clang \
+      -DCMAKE_CXX_COMPILER=/path/to/clang++ \
       -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
       -DCMAKE_CXX_STANDARD=14 \
-      -DUSE_LLVM=/path/to/hexagon/llvm/bin/llvm-config \
+      -DUSE_LLVM=/path/to/llvm/bin/llvm-config \
+      -DUSE_HEXAGON_ARCH=v65|v66|v68 \
       -DUSE_HEXAGON_LAUNCHER=ON \
-      -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
-      -DANDROID_PLATFORM=android-28 \
-      -DANDROID_ABI=arm64-v8a \
-      -DUSE_HEXAGON_ARCH=v68 \
       -DUSE_HEXAGON_SDK=/path/to/hexagon/SDK \
-      -DUSE_HEXAGON_TOOLCHAIN=/path/to/hexagon/Toolchain/ ..
+      -DUSE_HEXAGON_TOOLCHAIN=/path/to/hexagon/toolchain/ ..
+      -DANDROID_ABI=arm64-v8a \
+      -DANDROID_PLATFORM=android-28 \
+      -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
+      ..
 ```
 
+where `v65|v66|v68` means "one of" these architecture versions.
 The Hexagon launcher application is an android binary and thus requires the use 
 of an android toolchain for compilation. Similarly, the Hexagon tvm runtime 
 requires the use of the Hexagon toolchain and depends on the Hexagon SDK. The 
 resulting hexagon launcher binaries can be found in the `launcher` subdirectory 
-of the cmake build directory. 
+of the cmake build directory. Please note that the above command will not build
+the support for Hexagon codegen into the TVM, for that please additionally define
+the `USE_HEXAGON_DEVICE` variable.
 
 ### Manual compilation
 
@@ -72,43 +75,44 @@ code first.
 
 #### Compilation of the Hexagon part
 
-1. Build the static version of TVM runtime for Hexagon. Use Hexagon clang
-   from the Hexagon SDK. This step is the same as building the shared version,
-   except at the cmake step, add `-DBUILD_STATIC_RUNTIME=ON`. The compilation
-   step should create `libtvm_runtime.a`.
+Create a subdirectory for the build files, and run `cmake` with the
+following variables set:
 
-2. Create a subdirectory for the build files, and run `cmake` with the
-   following variables set:
-   - `FASTRPC_LIBS=SKEL`
-   - `USE_HEXAGON_SDK` to the path to the Hexagon SDK
-   - `CMAKE_C_COMPILER=hexagon-clang`
-   - `CMAKE_CXX_COMPILER=hexagon-clang++`
-   - `USE_HEXAGON_ARCH` to one of v65, v66, v68
-   - `TVM_RUNTIME_HEXAGON=/path/to/libtvm_runtime.a` _statically_ linked
-     TVM runtime
+```
+cmake -DCMAKE_C_COMPILER=/path/to/hexagon-clang \
+      -DCMAKE_CXX_COMPILER=/path/to/hexagon-clang++ \
+      -DUSE_HEXAGON_ARCH=v65|v66|v68 \
+      -DUSE_HEXAGON_SDK=/path/to/hexagon/SDK \
+      /path/to/apps/hexagon_launcher/cmake/hexagon
+```
 
-   Make sure to provide the path to launcher's `CMakeLists.txt` directory
-   in `cmake` invocation.
-
-3. Run `make`. This will create `liblauncher_rpc_skel.so`.
+Run `make`. This will create `liblauncher_rpc_skel.so`. The static version of
+the TVM runtime for Hexagon will be built as a part of the process.
 
 #### Compilation of the Android part
 
-1. Build TVM runtime for Android, using clang for AArch64 from the Android
-   NDK. Unlike in the Hexagon case, this should be the dynamic library (which
-   is the default), i.e. `libtvm_runtime.so`.
-
 2. Create a subdirectory for the build files (different from the one used for
    Hexagon files), and run `cmake` with the following variables set:
-   - `FASTRPC_LIBS=STUB`
-   - `USE_HEXAGON_SDK` to the path to the Hexagon SDK
-   - `CMAKE_C_COMPILER=aarch64-linux-android28-clang` (or later)
-   - `CMAKE_CXX_COMPILER=aarch64-linux-android28-clang++` (or later)
-   - `USE_HEXAGON_ARCH` to one of v65, v66, v68 (same as for the Hexagon part)
-   - `TVM_RUNTIME_ANDROID=/path/to/libtvm_runtime.so` dynamically or
-     statically linked TVM runtime
 
-3. Run `make`. This will create `launcher_android`.
+```
+cmake -DCMAKE_TOOLCHAIN_FILE=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
+      -DANDROID_ABI=arm64-v8a \
+      -DANDROID_PLATFORM=android-28 \
+      -DUSE_HEXAGON_SDK=/p/Hexagon_SDK/4.3.0.0
+      -DUSE_HEXAGON_ARCH=v65|v66|v68
+      /path/to/apps/hexagon_launcher/cmake/android
+```
+
+Run `make`. This will create `launcher_android`. The TVM runtime for Android will
+be built as a part of the process. Depending on the version of cmake that you are
+using, you may see the following warnings---they can be ignored.
+
+```
+An old version of CMake is being used that cannot automatically detect
+compiler attributes.  Compiler identification is being bypassed.  Some
+values may be wrong or missing.  Update to CMake 3.19 or newer to use
+CMake's built-in compiler identification.
+```
 
 ## Execution
 
