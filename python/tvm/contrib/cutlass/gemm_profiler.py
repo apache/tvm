@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-outside-toplevel, invalid-name
-"""TODO"""
+"""Instantiate a C++ source for profiling CUTLASS kernels."""
 
 
-class GemmProfiler(object):
-    """TODO"""
+class GemmProfilerEmitter(object):
+    """Emit a C++ source for profiling CUTLASS kernels."""
 
     def __init__(self):
         from jinja2 import Template

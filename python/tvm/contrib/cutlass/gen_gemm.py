@@ -21,7 +21,7 @@ import re
 import tempfile
 import subprocess
 from .gemm_operation import GemmOperation, EmitGemmInstance
-from .gemm_profiler import GemmProfiler
+from .gemm_profiler import GemmProfilerEmitter
 from .library import (
     EpilogueFunctor,
     SwizzlingFunctor,
@@ -46,8 +46,8 @@ def create_gemm_operator(
 ):
     """TODO"""
     ret = []
-    emiter = EmitGemmInstance()
-    profiler = GemmProfiler()
+    kernel_emitter = EmitGemmInstance()
+    profiler_emitter = GemmProfilerEmitter()
 
     element_a, element_b, element_c, element_epilogue = data_type
 
@@ -102,14 +102,14 @@ def create_gemm_operator(
                     swizzling_functor,
                 )
 
-                emiter = EmitGemmInstance()
+                kernel_emitter = EmitGemmInstance()
                 op_entry["op"] = op
                 op_entry["name"] = op.procedural_name()
-                op_entry["opdef"] = emiter.emit(op)
-                op_entry["opdef_bias"] = emiter.emit(op_bias, no_beta_scaling=True)
-                op_entry["opdef_bias_relu"] = emiter.emit(op_bias_relu, no_beta_scaling=True)
-                op_entry["opdef_bias_gelu"] = emiter.emit(op_bias_gelu)
-                op_entry["src"] = profiler.emit(
+                op_entry["opdef"] = kernel_emitter.emit(op)
+                op_entry["opdef_bias"] = kernel_emitter.emit(op_bias, no_beta_scaling=True)
+                op_entry["opdef_bias_relu"] = kernel_emitter.emit(op_bias_relu, no_beta_scaling=True)
+                op_entry["opdef_bias_gelu"] = kernel_emitter.emit(op_bias_gelu)
+                op_entry["src"] = profiler_emitter.emit(
                     op.procedural_name(),
                     op_entry["opdef"],
                     DataTypeTag[element_a],
