@@ -170,7 +170,7 @@ Constructor IRModuleNode::GetConstructor(const String& adt, const String& cons) 
   }
 
   LOG(FATAL) << adt << " does not contain constructor " << cons;
-  throw std::runtime_error("Constructor Not Found.");
+  return {};
 }
 
 tvm::Array<GlobalTypeVar> IRModuleNode::GetGlobalTypeVars() const {
