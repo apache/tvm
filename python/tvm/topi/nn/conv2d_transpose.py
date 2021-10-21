@@ -146,8 +146,8 @@ def layout_transform(tensor: "relay.Expr", current_layout: str, desired_layout: 
     desired_layout_map = {c: i for i, c in enumerate(desired_layout)}
 
     axes = [None] * len(current_layout)
-    for c, i in current_layout_map.items():
-        axes[i] = desired_layout_map[c]
+    for c, i in desired_layout_map.items():
+        axes[i] = current_layout_map[c]
     return relay.transpose(tensor, axes=axes)
 
 
@@ -169,6 +169,7 @@ def conv2d_transpose_legalize(attrs, inputs, types):
     result : tvm.relay.Expr
         The legalized expr
     """
+
     data, kernel = inputs
     kernel_layout = attrs["kernel_layout"]
     if attrs["data_layout"] == "NHWC":
@@ -177,7 +178,7 @@ def conv2d_transpose_legalize(attrs, inputs, types):
         # Set new attrs for conv2d_transpose.
         new_attrs = {k: attrs[k] for k in attrs.keys()}
         new_attrs["data_layout"] = "NCHW"
-        # layout of kernel should be IOHW, but kernel_layout should be swapped - OIHW
+        # layout of kernel should be IOHW, but kernel_layout will be swapped - OIHW
         new_attrs["kernel_layout"] = "IOHW"
 
         # Convert data to NCHW.
@@ -191,7 +192,7 @@ def conv2d_transpose_legalize(attrs, inputs, types):
         kernel = layout_transform(kernel, kernel_layout, "IOHW")
         new_attrs = {k: attrs[k] for k in attrs.keys()}
 
-        # layout of kernel should be IOHW, but kernel_layout should be swapped - OIHW
+        # layout of kernel should be IOHW, but kernel_layout will be swapped - OIHW
         new_attrs["kernel_layout"] = "IOHW"
         return relay.nn.conv2d_transpose(data, kernel, **new_attrs)
 
