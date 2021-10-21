@@ -187,7 +187,7 @@ class Module(object):
 
     @property
     def format(self):
-        """Get format of the module."""
+        """Get the format of the module."""
         return _ffi_api.ModuleGetFormat(self)
 
     def get_source(self, fmt=""):
@@ -418,9 +418,9 @@ class Module(object):
                 else:
                     assert module.type_key == "c"
                     object_format = "c"
-                    if module.format in ["cc", "cpp"]:
-                        object_format = module.format
-                    elif "cc" in kwargs:
+                    assert module.format in ["c", "cc", "cpp"], "The module.format needs to be either c, cc or cpp"
+                    object_format = module.format
+                    if "cc" in kwargs:
                         if kwargs["cc"] == "nvcc":
                             object_format = "cu"
                     has_c_module = True

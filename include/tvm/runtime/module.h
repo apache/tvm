@@ -157,7 +157,7 @@ class TVM_DLL ModuleNode : public Object {
    */
   virtual std::string GetSource(const std::string& format = "");
   /*!
-   * \brief Get the format of module, when available.
+   * \brief Get the format of the module, when available.
    * \return Possible format when available.
    */
   virtual std::string GetFormat();
