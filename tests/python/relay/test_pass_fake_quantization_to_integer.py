@@ -23,7 +23,6 @@ from tvm import relay
 
 def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod = tvm.IRModule.from_expr(expr)
-    breakpoint()
     mod = tvm.relay.transform.InferType()(mod)
 
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
