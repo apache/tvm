@@ -107,7 +107,9 @@ def create_gemm_operator(
                 op_entry["name"] = op.procedural_name()
                 op_entry["opdef"] = kernel_emitter.emit(op)
                 op_entry["opdef_bias"] = kernel_emitter.emit(op_bias, no_beta_scaling=True)
-                op_entry["opdef_bias_relu"] = kernel_emitter.emit(op_bias_relu, no_beta_scaling=True)
+                op_entry["opdef_bias_relu"] = kernel_emitter.emit(
+                    op_bias_relu, no_beta_scaling=True
+                )
                 op_entry["opdef_bias_gelu"] = kernel_emitter.emit(op_bias_gelu)
                 op_entry["src"] = profiler_emitter.emit(
                     op.procedural_name(),
@@ -191,7 +193,9 @@ def generate_sm75_tensor_op_1688():
             TileDescription([64, 128, 64], 2, [1, 2, 2], math_inst, min_cc, max_cc),
         ]
 
-    return generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions)
+    return generate_tensor_op_common(
+        math_instructions, alignment_constraints, get_tile_descriptions
+    )
 
 
 def generate_sm80_tensor_op_16816():
@@ -242,7 +246,9 @@ def generate_sm80_tensor_op_16816():
             TileDescription([64, 64, 64], 5, [2, 2, 1], math_inst, min_cc, max_cc),
         ]
 
-    return generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions)
+    return generate_tensor_op_common(
+        math_instructions, alignment_constraints, get_tile_descriptions
+    )
 
 
 GENERATOR_FUNC_TABLE = {
