@@ -19,24 +19,23 @@
 """Vitis-AI codegen tests"""
 
 import sys
-import numpy as np
 
+import numpy as np
 import pytest
 
 pytest.importorskip("pyxir")
 import pyxir.contrib.target.DPUCADF8H
 import pyxir.contrib.target.DPUCAHX8H
 import pyxir.contrib.target.DPUCAHX8L
-import pyxir.contrib.target.DPUCVDX8H
 import pyxir.contrib.target.DPUCVDX8G
+import pyxir.contrib.target.DPUCVDX8H
 import pyxir.contrib.target.DPUCZDX8G
-
 import tvm
 from tvm import relay
-from tvm.relay import transform
-from tvm.relay.op.contrib.vitis_ai import annotation
-from tvm.relay.build_module import bind_params_by_name
 from tvm.contrib.target import vitis_ai
+from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.op.contrib.vitis_ai import annotation
 
 from .infrastructure import skip_test, verify_codegen
 
@@ -243,7 +242,10 @@ def test_upsampling(dpu_target):
 
 @pytest.mark.skip(
     reason="I and O used to be mixed up in kernel layouts in TVM."
-    "This is fixed, but vitis needs to adopt the new convention"
+    "This is fixed, but vitis needs to adopt the new convention."
+    "To change, simply remove this line:"
+    "https://github.com/Xilinx/pyxir/blob/bef661d6d77adcdbd2cf4163f2cf3a1d31d40406/"
+    "python/pyxir/frontend/tvm/relay_tools/relay_l2_convolution.py#L380"
 )
 @pytest.mark.parametrize(
     "dpu_target",
