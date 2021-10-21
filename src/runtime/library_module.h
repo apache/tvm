@@ -66,11 +66,11 @@ class Library : public Object {
 };
 
 /*!
-* \brief Default virtual functor that provides an interface to
-* wrap a TVMBackendPackedCFunc. Virtual interface allows derivative
-* runtime's that utilize a library module to to provide custom
-* function wrapping. By default WrapPackedFunc is used.
-*/
+ * \brief Default virtual functor that provides an interface to
+ * wrap a TVMBackendPackedCFunc. Virtual interface allows derivative
+ * runtime's that utilize a library module to to provide custom
+ * function wrapping. By default WrapPackedFunc is used.
+ */
 class PackedFuncWrapper : public Object {
  public:
   /*

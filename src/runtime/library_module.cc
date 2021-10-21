@@ -38,7 +38,7 @@ namespace runtime {
 class LibraryModuleNode final : public ModuleNode {
  public:
   explicit LibraryModuleNode(ObjectPtr<Library> lib, ObjectPtr<PackedFuncWrapper> wrapper)
-    : lib_(lib), packed_func_wrapper_(wrapper) {}
+      : lib_(lib), packed_func_wrapper_(wrapper) {}
 
   const char* type_key() const final { return "library"; }
 
@@ -71,7 +71,8 @@ class ModuleInternal {
   static std::vector<Module>* GetImportsAddr(ModuleNode* node) { return &(node->imports_); }
 };
 
-PackedFunc PackedFuncWrapper::operator()(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr) {
+PackedFunc PackedFuncWrapper::operator()(TVMBackendPackedCFunc faddr,
+                                         const ObjectPtr<Object>& mptr) {
   return WrapPackedFunc(faddr, mptr);
 }
 
@@ -136,8 +137,7 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
  */
 void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
                        ObjectPtr<PackedFuncWrapper> packed_func_wrapper,
-                       runtime::Module* root_module,
-                       runtime::ModuleNode** dso_ctx_addr = nullptr) {
+                       runtime::Module* root_module, runtime::ModuleNode** dso_ctx_addr = nullptr) {
   ICHECK(mblob != nullptr);
   uint64_t nbytes = 0;
   for (size_t i = 0; i < sizeof(nbytes); ++i) {
@@ -202,7 +202,8 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
   }
 }
 
-Module CreateModuleFromLibrary(ObjectPtr<Library> lib, ObjectPtr<PackedFuncWrapper> packed_func_wrapper) {
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib,
+                               ObjectPtr<PackedFuncWrapper> packed_func_wrapper) {
   InitContextFunctions([lib](const char* fname) { return lib->GetSymbol(fname); });
   if (packed_func_wrapper == nullptr) {
     packed_func_wrapper = make_object<PackedFuncWrapper>();
@@ -215,7 +216,7 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib, ObjectPtr<PackedFuncWrapp
   Module root_mod;
   runtime::ModuleNode* dso_ctx_addr = nullptr;
   if (dev_mblob != nullptr) {
-    ProcessModuleBlob(dev_mblob, lib, packed_func_wrapper, & root_mod, &dso_ctx_addr);
+    ProcessModuleBlob(dev_mblob, lib, packed_func_wrapper, &root_mod, &dso_ctx_addr);
   } else {
     // Only have one single DSO Module
     root_mod = Module(n);

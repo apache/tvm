@@ -65,8 +65,8 @@ void DSOLibrary::Unload() {
 
 void DSOLibrary::Load(const std::string& name) {
   lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
-  ICHECK(lib_handle_ != nullptr)
-    << "Failed to load dynamic shared library " << name << " " << dlerror();
+  ICHECK(lib_handle_ != nullptr) << "Failed to load dynamic shared library " << name << " "
+                                 << dlerror();
 }
 
 void* DSOLibrary::GetSymbol_(const char* name) { return dlsym(lib_handle_, name); }
