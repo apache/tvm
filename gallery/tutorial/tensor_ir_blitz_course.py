@@ -100,8 +100,9 @@ print(ir_module.script())
 #
 
 from tvm import te
-A = te.placeholder((8, ), dtype="float32", name="A")
-B = te.compute((8, ), lambda *i : A(*i) + 1.0, name="B")
+
+A = te.placeholder((8,), dtype="float32", name="A")
+B = te.compute((8,), lambda *i: A(*i) + 1.0, name="B")
 func = te.create_prim_func([A, B])
 ir_module_1 = IRModule({"main": func})
 print(ir_module_1.script())
@@ -133,7 +134,7 @@ print(b)
 # The IRModule is the central data structure for program optimization, which can be transformed
 # by :code:`Schedule`.
 # Schedule consists of primitives. Each primitive does a simple job on IR transformation,
-# such as loop tiling or make computation parallel. (Please see :ref:`python_api_tir_schedule`)
+# such as loop tiling or make computation parallel.
 #
 # .. image:: https://raw.githubusercontent.com/Hzfengsy/web-data/main/images/design/tvm_tensor_ir_opt_flow.png
 #    :align: center
