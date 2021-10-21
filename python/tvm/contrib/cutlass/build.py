@@ -41,7 +41,7 @@ class GemmAnnotator(tvm.relay.ExprVisitor):
 
 
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
-    """ Partition the given Relay module for CUTLASS, profile each workload to select which
+    """Partition the given Relay module for CUTLASS, profile each workload to select which
     kernels to emit and compile, and finally build the Relay module together with
     CUTLASS kernels to obtain a runtime module.
 
