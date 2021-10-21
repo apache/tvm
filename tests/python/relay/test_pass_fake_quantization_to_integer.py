@@ -17,13 +17,13 @@
 # pylint: disable=unused-wildcard-import
 import numpy as np
 import pytest
-
 import tvm
 from tvm import relay
 
 
 def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod = tvm.IRModule.from_expr(expr)
+    breakpoint()
     mod = tvm.relay.transform.InferType()(mod)
 
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
@@ -87,6 +87,28 @@ def test_fake_quantize_conv_per_channel():
         w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
 
         compare_fq_to_int(op, [x_np, w_np], allow_rounding_error=True)
+
+
+def test_fake_quantize_transposeconv():
+    for out_dtype in ["int8", "uint8"]:
+        x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+        w = relay.var("w", shape=[3, 16, 5, 5], dtype="int8")
+        one = relay.const(1.0)
+        zero = relay.const(0)
+
+        op = relay.op.nn.conv2d_transpose(
+            relay.qnn.op.dequantize(x, relay.const(2.0), zero),
+            relay.qnn.op.dequantize(w, relay.const(0.5), zero),
+            kernel_size=[5, 5],
+            data_layout="NCHW",
+            kernel_layout="IOHW",
+        )
+        op = relay.qnn.op.quantize(op, one, zero, out_dtype=out_dtype)
+
+        x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+        w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
+
+        compare_fq_to_int(op, [x_np, w_np])
 
 
 def test_fake_quantize_dense():

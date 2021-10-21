@@ -17,12 +17,12 @@
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 2D convolution operators (sometimes called Deconvolution)."""
 import tvm
-from tvm import te
-from tvm import relay
+from tvm import relay, te
+
+from ..utils import simplify
 from .dilate import dilate
 from .pad import pad
 from .utils import get_pad_tuple
-from ..utils import simplify
 
 
 def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype, output_padding):
@@ -116,6 +116,41 @@ def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype,
     return Output
 
 
+def layout_transform(tensor: "relay.Expr", current_layout: str, desired_layout: str):
+    """Transform a tensor with the current layout to the desired layout.
+
+    E.g. layout_transform(t, "NCHW", "CNHW") --> relay.transpose(t, [1, 0, 2, 3])
+
+    Parameters
+    ----------
+    tensor: relay.Expr
+        The Tensor to transpose
+
+    current_layout: str
+        The current layout e.g. NCHW or OIHW
+
+    desired_layout: str
+        The desired layout, must be compatible with current_layout
+
+    Returns
+    -------
+    The layout_transformed tensor.
+    """
+    if sorted(current_layout) != sorted(desired_layout):
+        raise ValueError(f"Incompatible layouts: {current_layout} vs {desired_layout}")
+
+    if current_layout == desired_layout:
+        return tensor
+
+    current_layout_map = {c: i for i, c in enumerate(current_layout)}
+    desired_layout_map = {c: i for i, c in enumerate(desired_layout)}
+
+    axes = [None] * len(current_layout)
+    for c, i in current_layout_map.items():
+        axes[i] = desired_layout_map[c]
+    return relay.transpose(tensor, axes=axes)
+
+
 @tvm.target.generic_func
 def conv2d_transpose_legalize(attrs, inputs, types):
     """Legalizes Transposed 2D convolution op.
@@ -134,36 +169,16 @@ def conv2d_transpose_legalize(attrs, inputs, types):
     result : tvm.relay.Expr
         The legalized expr
     """
+    data, kernel = inputs
+    kernel_layout = attrs["kernel_layout"]
     if attrs["data_layout"] == "NHWC":
-        data, kernel = inputs
-        kernel_layout = attrs["kernel_layout"]
-        # Convert Kernel layout to IOHW
-        # kernel_layout is different from input kernel layout - IO is swapped
-        if kernel_layout == "HWIO":
-            # input kernel layout is swapped to HWOI
-            # output kernel layout will be IOHW
-            kernel = relay.transpose(kernel, axes=(3, 2, 0, 1))
-        elif kernel_layout == "HWOI":
-            # input kernel layout is swapped to HWIO
-            # output kernel layout will be IOHW
-            kernel = relay.transpose(kernel, axes=(2, 3, 0, 1))
-        elif kernel_layout == "IOHW":
-            # input kernel layout is swapped to OIHW
-            # output kernel layout will be IOHW
-            kernel = relay.transpose(kernel, axes=(1, 0, 2, 3))
-        elif kernel_layout == "OIHW":
-            # input kernel layout is swapped to IOHW
-            # output kernel layout will be IOHW
-            pass
-        else:
-            # Skip legalize. Let relay.nn.conv2d_transpose to handle the case
-            return None
+        kernel = layout_transform(kernel, kernel_layout, "IOHW")
 
         # Set new attrs for conv2d_transpose.
         new_attrs = {k: attrs[k] for k in attrs.keys()}
         new_attrs["data_layout"] = "NCHW"
         # layout of kernel should be IOHW, but kernel_layout should be swapped - OIHW
-        new_attrs["kernel_layout"] = "OIHW"
+        new_attrs["kernel_layout"] = "IOHW"
 
         # Convert data to NCHW.
         data = relay.transpose(data, axes=(0, 3, 1, 2))
@@ -171,5 +186,12 @@ def conv2d_transpose_legalize(attrs, inputs, types):
         # Convert back to original NHWC layout.
         out = relay.transpose(deconv, axes=(0, 2, 3, 1))
         return out
+    elif attrs["data_layout"] == "NCHW":
+        kernel = layout_transform(kernel, kernel_layout, "IOHW")
+        new_attrs = {k: attrs[k] for k in attrs.keys()}
+
+        # layout of kernel should be IOHW, but kernel_layout should be swapped - OIHW
+        new_attrs["kernel_layout"] = "IOHW"
+        return relay.nn.conv2d_transpose(data, kernel, **new_attrs)
 
     return None

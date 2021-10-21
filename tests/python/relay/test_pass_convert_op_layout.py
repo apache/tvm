@@ -16,15 +16,12 @@
 # under the License.
 """Test alter op layout pass"""
 import pytest
-
 import tvm
-from tvm import te
-
-from tvm import relay
-from tvm.relay.op import register_alter_op_layout
-from tvm.relay import transform, analysis
-from tvm.relay.transform.infer_layout_utils import InferCorrectLayoutOutput
+from tvm import relay, te
+from tvm.relay import analysis, transform
 from tvm.relay.op import op as reg
+from tvm.relay.op import register_alter_op_layout
+from tvm.relay.transform.infer_layout_utils import InferCorrectLayoutOutput
 
 
 def run_opt_pass(expr, passes):
@@ -182,7 +179,7 @@ def test_conv_transpose_convert_layout():
         x = relay.var("x", shape=(1, 56, 56, 64))
         weight = relay.var("weight", shape=(3, 3, 64, 64))
         x = relay.layout_transform(x, "NHWC", "NCHW")
-        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        weight = relay.layout_transform(weight, "HWIO", "IOHW")
         y = relay.nn.conv2d_transpose(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         y = relay.nn.relu(y)
         y = relay.layout_transform(y, "NCHW", "NHWC")
@@ -190,7 +187,7 @@ def test_conv_transpose_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d_transpose": ["NCHW", "OIHW"]}))
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d_transpose": ["NCHW", "IOHW"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -1134,7 +1131,7 @@ def test_qnn_conv_transpose_requantize_convert_layout():
         x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
         weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
         x = relay.layout_transform(x, "NHWC", "NCHW")
-        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        weight = relay.layout_transform(weight, "HWIO", "IOHW")
         y = relay.qnn.op.conv2d_transpose(
             x,
             weight,
@@ -1164,7 +1161,6 @@ def test_qnn_conv_transpose_requantize_convert_layout():
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d_transpose": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
-
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 

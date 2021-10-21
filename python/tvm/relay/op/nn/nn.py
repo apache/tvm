@@ -522,7 +522,7 @@ def conv2d_transpose(
     channels=None,
     kernel_size=None,
     data_layout="NCHW",
-    kernel_layout="OIHW",
+    kernel_layout="IOHW",
     out_layout="",
     output_padding=(0, 0),
     out_dtype="",

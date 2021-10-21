@@ -18,13 +18,15 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
+
 from tvm import relay
 from tvm.relay.expr import Tuple, TupleWrapper
 from tvm.relay.op.nn.utils import get_pad_tuple2d
 from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
-from . import _make
+
 from ... import op as reg
 from ...op import OpPattern
+from . import _make
 
 
 def requantize(
@@ -382,7 +384,7 @@ def conv2d_transpose(
     channels=None,
     kernel_size=None,
     data_layout="NCHW",
-    kernel_layout="OIHW",
+    kernel_layout="IOHW",
     out_layout="",
     output_padding=(0, 0),
     out_dtype="",
