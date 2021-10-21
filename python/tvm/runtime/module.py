@@ -418,7 +418,11 @@ class Module(object):
                 else:
                     assert module.type_key == "c"
                     object_format = "c"
-                    assert module.format in ["c", "cc", "cpp"], "The module.format needs to be either c, cc or cpp"
+                    assert module.format in [
+                        "c",
+                        "cc",
+                        "cpp",
+                    ], "The module.format needs to be either c, cc or cpp"
                     object_format = module.format
                     if "cc" in kwargs:
                         if kwargs["cc"] == "nvcc":
