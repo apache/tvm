@@ -21,6 +21,7 @@ import sys
 from time import time
 
 import numpy as np
+import pytest
 import torch
 import torchvision
 import tvm
@@ -32,7 +33,6 @@ from torch.nn import functional as F
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
-import pytest
 
 sys.setrecursionlimit(10000)
 
@@ -994,20 +994,6 @@ def test_forward_conv_transpose(
     # opt to make the stride 1 + output padding
     stride = output_padding + 1
 
-    # Conv 3D Transpose Tests
-    conv3d_input_shape = [1, in_channels, 16, 16, 16]
-    conv3d_input_data = torch.rand(conv3d_input_shape).float()
-    conv3d_transpose = torch.nn.ConvTranspose3d(
-        in_channels=in_channels,
-        out_channels=out_channels,
-        kernel_size=kernel_size,
-        stride=stride,
-        output_padding=output_padding,
-        groups=groups,
-        bias=bias,
-    ).eval()
-    verify_model(conv3d_transpose, conv3d_input_data)
-
     # Conv 2D Transpose Tests
     conv2d_input_shape = [1, in_channels, 128, 256]
     conv2d_input_data = torch.rand(conv2d_input_shape).float()
@@ -1021,20 +1007,6 @@ def test_forward_conv_transpose(
         bias=bias,
     ).eval()
     verify_model(conv2d_transpose, conv2d_input_data)
-
-    # # Conv 1D Transpose Tests
-    conv1d_input_shape = [1, in_channels, 10]
-    conv1d_input_data = torch.rand(conv1d_input_shape).float()
-    conv1d_transpose = torch.nn.ConvTranspose1d(
-        in_channels=in_channels,
-        out_channels=out_channels,
-        kernel_size=kernel_size,
-        stride=stride,
-        output_padding=output_padding,
-        groups=groups,
-        bias=bias,
-    ).eval()
-    verify_model(conv1d_transpose, conv1d_input_data)
 
 
 def test_forward_deform_conv():
