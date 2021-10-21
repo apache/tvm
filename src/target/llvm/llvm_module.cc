@@ -292,7 +292,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     Bool fast_math_afn = target->GetAttr<Bool>("fast-math-afn").value_or(Bool(false));
     Bool fast_math_reassoc = target->GetAttr<Bool>("fast-math-reassoc").value_or(Bool(false));
     if (fast_math_contract) {
-      fmf.setAllowContract();
+      fmf.setAllowContract(true);
     }
     if (fast_math_afn) {
       fmf.setApproxFunc();
