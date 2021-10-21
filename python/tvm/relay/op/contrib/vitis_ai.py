@@ -164,13 +164,11 @@ def partition_for_vitis_ai(mod, params=None, dpu=None, **opts):
 
     desired_layouts_in_partition = {
         "nn.conv2d": ["NHWC", "default"],
-        "nn.conv2d_transpose": ["NHWC", "default"],
         "nn.upsampling": ["NHWC"],
         "image.resize2d": ["NHWC"],
     }
     desired_layouts_in_main = {
         "nn.conv2d": ["NCHW", "default"],
-        "nn.conv2d_transpose": ["NCHW", "default"],
         "nn.upsampling": ["NCHW"],
         "image.resize2d": ["NCHW"],
     }
