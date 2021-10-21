@@ -35,20 +35,20 @@ def get_output(rt_mod, x):
     return rt_mod.get_output(0).asnumpy()
 
 
-def get_dense(M, N, K):
+def get_dense(M, N, K, out_dtype="float16"):
     data = relay.var("data", shape=(M, K), dtype="float16")
     weight = relay.var("weight", shape=(N, K), dtype="float16")
-    return relay.nn.dense(data, weight)
+    return relay.nn.dense(data, weight, out_dtype=out_dtype)
 
 
-def get_dense_bias(M, N, K):
-    dense = get_dense(M, N, K)
-    bias = relay.var("bias", shape=(N,), dtype="float16")
+def get_dense_bias(M, N, K, out_dtype="float16"):
+    dense = get_dense(M, N, K, out_dtype=out_dtype)
+    bias = relay.var("bias", shape=(N,), dtype=out_dtype)
     return relay.nn.bias_add(dense, bias)
 
 
-def get_dense_bias_relu(M, N, K):
-    return relay.nn.relu(get_dense_bias(M, N, K))
+def get_dense_bias_relu(M, N, K, out_dtype="float16"):
+    return relay.nn.relu(get_dense_bias(M, N, K, out_dtype="float16"))
 
 
 def get_dense_bias_gelu(M, N, K):
@@ -60,7 +60,7 @@ def get_dense_bias_gelu(M, N, K):
     return add * bias_add
 
 
-def verify(func, M, N, K, atol=1e-5, rtol=1e-5):
+def verify(func, M, N, K, sm=80, atol=1e-5, rtol=1e-5):
     if not tvm.get_global_func("relay.ext.cutlass", True):
         return
     mod = tvm.IRModule.from_expr(func)
@@ -91,7 +91,8 @@ K = 768
 
 
 def test_dense():
-    verify(get_dense(M, N, K), M, N, K)
+    # verify(get_dense(M, N, K), M, N, K)
+    verify(get_dense(M, N, K, out_dtype="float32"), M, N, K)
 
 
 def test_dense_bias():
@@ -106,4 +107,4 @@ def test_dense_bias_gelu():
     verify(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3)
 
 
-test_dense_bias_gelu()
+test_dense()
