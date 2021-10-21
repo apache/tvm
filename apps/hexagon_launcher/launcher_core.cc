@@ -153,7 +153,7 @@ void reset_device_api() {
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {
-  static const tvm::runtime::PackedFunc loader = get_runtime_func("runtime.module.loadfile_so");
+  static const tvm::runtime::PackedFunc loader = get_runtime_func("runtime.module.loadfile_hexagon");
   tvm::runtime::TVMRetValue rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
     return rv.operator tvm::runtime::Module();
