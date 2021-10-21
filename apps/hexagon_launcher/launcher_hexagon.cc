@@ -106,7 +106,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_set_input)(remote_handle64 handle, int inpu
 
   DLTensor tensor{
       const_cast<unsigned char*>(input_value),
-      Model::device(),
+      Model::external(),
       meta->ndim,
       meta->dtype,
       const_cast<int64_t*>(meta->shape),
