@@ -19,8 +19,8 @@
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
 # pylint: disable=missing-function-docstring
 """PT: PyTorch frontend."""
-import itertools
 import functools
+import itertools
 import logging
 import math
 import sys
@@ -40,11 +40,11 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op, unbind, lstm_cell, gru_cell
-from .common import infer_value as _infer_value
+from .common import AttrCvt, get_relay_op, gru_cell
 from .common import infer_shape as _infer_shape
+from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from .common import try_infer_value
+from .common import lstm_cell, try_infer_value, unbind
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -1022,6 +1022,9 @@ class PyTorchOpConverter:
         elif len(kernel_size) == 2:
             data_layout = "NCHW"
             kernel_layout = "OIHW"
+            if use_transpose:
+                # Transposed convolutions have IOHW layout.
+                kernel_layout = "IOHW"
         else:
             data_layout = "NCW"
             kernel_layout = "OIW"
