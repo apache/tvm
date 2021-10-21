@@ -16,7 +16,8 @@
 # under the License.
 """Test task extraction for autotvm"""
 import tvm.relay.testing
-from tvm import autotvm, relay
+from tvm import relay
+from tvm import autotvm
 
 
 def get_network(name, batch_size):
