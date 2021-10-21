@@ -25,6 +25,8 @@ from unittest import mock
 import pytest
 
 import tvm
+
+pytest.importorskip("tvm.micro")
 from tvm.micro import project_api
 
 

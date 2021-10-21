@@ -32,18 +32,24 @@ def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 @T.prim_func
 def elementwise_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
 # pylint: enable=no-member,invalid-name,unused-variable

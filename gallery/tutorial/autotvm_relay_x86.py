@@ -81,10 +81,9 @@ from tvm.contrib import graph_executor
 #
 # .. note:: Working with Other Model Formats
 #
-#   TVM supports many popular model formats. A list can be found in the `Compile
-#   Deep Learning Models
-#   <https://tvm.apache.org/docs/tutorials/index.html#compile-deep-learning-models>`_
-#   section of the TVM Documentation.
+#   TVM supports many popular model formats. A list can be found in the
+#   :ref:`Compile Deep Learning Models <tutorial-frontend>` section of the TVM
+#   Documentation.
 
 model_url = "".join(
     [
@@ -150,9 +149,8 @@ target = "llvm"
 #
 #   Specifying the correct target can have a huge impact on the performance of
 #   the compiled module, as it can take advantage of hardware features
-#   available on the target. For more information, please refer to `Auto-tuning
-#   a convolutional network for x86 CPU
-#   <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html#define-network>`_.
+#   available on the target. For more information, please refer to
+#   :ref:`Auto-tuning a convolutional network for x86 CPU <tune_relay_x86>`.
 #   We recommend identifying which CPU you are running, along with optional
 #   features, and set the target appropriately. For example, for some
 #   processors ``target = "llvm -mcpu=skylake"``, or ``target = "llvm

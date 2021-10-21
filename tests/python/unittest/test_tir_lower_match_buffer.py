@@ -39,7 +39,7 @@ def buffer_load_store(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16))
     C = T.match_buffer(c, (16, 16))
     for i, j, k in T.grid(4, 16, 8):
-        with T.block([]):
+        with T.block():
             T.reads(C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2])
             T.writes(A[i * 4 : i * 4 + 4, j, k * 2 : k * 2 + 2])
             sub_A = T.match_buffer(
@@ -55,7 +55,7 @@ def transformed_buffer_load_store(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16))
     C = T.match_buffer(c, (16, 16))
     for i, j, k in T.grid(4, 16, 8):
-        with T.block([]):
+        with T.block():
             T.reads(C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2])
             T.writes(A[i * 4 : i * 4 + 4, j, k * 2 : k * 2 + 2])
             for ii, kk in T.grid(4, 2):
@@ -72,7 +72,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (32, 64, 128))
     B = T.match_buffer(b, (64, 64, 64))
     for i, j, k in T.grid(2, 64, 8):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(A[i * 16 : i * 16 + 16, j, k * 16 : k * 16 + 16])
             sub_A = T.match_buffer(
@@ -93,7 +93,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
                 )
             )
     for i, j, k in T.grid(64, 2, 8):
-        with T.block([]):
+        with T.block():
             Bs_0 = T.var("int32")
             Bs_1 = T.var("int32")
             T.reads([])
@@ -122,7 +122,7 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (32, 64, 128))
     B = T.match_buffer(b, (64, 64, 64))
     for i, j, k in T.grid(2, 64, 8):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(A[i * 16 : i * 16 + 16, j, k * 16 : k * 16 + 16])
             T.evaluate(
@@ -137,7 +137,7 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
                 )
             )
     for i, j, k in T.grid(64, 2, 8):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(B[i, j * 32 : j * 32 + 32, k * 8 : k * 8 + 8])
             T.evaluate(
@@ -157,7 +157,7 @@ def transformed_opaque_access(a: T.handle, b: T.handle) -> None:
 def high_dim_opaque_access(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64))
     for i, j, k in T.grid(16, 2, 4):
-        with T.block([]):
+        with T.block():
             As_0 = T.var("int32")
             As_1 = T.var("int32")
             T.reads([])
@@ -185,7 +185,7 @@ def high_dim_opaque_access(a: T.handle) -> None:
 def transformed_high_dim_opaque_access(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64))
     for i, j, k in T.grid(16, 2, 4):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
             T.evaluate(
@@ -205,7 +205,7 @@ def transformed_high_dim_opaque_access(a: T.handle) -> None:
 def high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64), strides=[2576, 80, 1])
     for i, j, k in T.grid(16, 2, 4):
-        with T.block([]):
+        with T.block():
             As_0 = T.var("int32")
             As_1 = T.var("int32")
             T.reads([])
@@ -233,7 +233,7 @@ def high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
 def transformed_high_dim_opaque_access_with_source_strides(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 32, 64), strides=[2576, 80, 1])
     for i, j, k in T.grid(16, 2, 4):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
             T.evaluate(
@@ -254,7 +254,7 @@ def recursive_match(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (64, 64, 64))
     B = T.match_buffer(b, (64, 64, 64))
     for i, j, k in T.grid(64, 4, 4):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(
                 [
@@ -276,7 +276,7 @@ def recursive_match(a: T.handle, b: T.handle) -> None:
                 offset_factor=1,
             )
             for jj, kk in T.grid(4, 4):
-                with T.block([]):
+                with T.block():
                     T.reads([])
                     T.writes(
                         [
@@ -317,7 +317,7 @@ def transformed_recursive_match(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (64, 64, 64))
     B = T.match_buffer(b, (64, 64, 64))
     for i, j, k in T.grid(64, 4, 4):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(
                 [
@@ -326,7 +326,7 @@ def transformed_recursive_match(a: T.handle, b: T.handle) -> None:
                 ]
             )
             for jj, kk in T.grid(4, 4):
-                with T.block([]):
+                with T.block():
                     T.reads([])
                     T.writes(
                         [
@@ -362,7 +362,7 @@ def symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32) -> None:
     A = T.match_buffer(a, (n * m, m))
     B = T.match_buffer(b, (n * 2, m * 4))
     for i in range(0, n):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes([A[i * m : i * m + n, 0:m], B[i * n : i * n + 2, 0 : m * 4]])
             Bs_0 = T.var("int32")
@@ -392,7 +392,7 @@ def transformed_symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32)
     A = T.match_buffer(a, (n * m, m))
     B = T.match_buffer(b, (n * 2, m * 4))
     for i in range(0, n):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes([A[i * m : i * m + n, 0:m], B[i * n : i * n + 2, 0 : m * 4]])
             for ii, jj in T.grid(m, m):
@@ -416,7 +416,7 @@ def rank0_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     B = T.match_buffer(b, (8, 8))
     for i, j in T.grid(8, 8):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes([A[i, j], B[i, j]])
             sub_A = T.match_buffer(A[i, j], (), offset_factor=1)
@@ -440,7 +440,7 @@ def transformed_rank0_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     B = T.match_buffer(b, (8, 8))
     for i, j in T.grid(8, 8):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes([A[i, j], B[i, j]])
             A[i, j] = 1
@@ -461,7 +461,7 @@ def transformed_rank0_buffer(a: T.handle, b: T.handle) -> None:
 def fail_match_load(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 8):
-        with T.block([]):
+        with T.block():
             T.reads(A[i, j])
             T.writes([])
             sub_A = T.match_buffer(A[i, j], ())
@@ -472,7 +472,7 @@ def fail_match_load(a: T.handle) -> None:
 def fail_match_store(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 8):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(A[i, j])
             sub_A = T.match_buffer(A[i, j], ())
@@ -483,7 +483,7 @@ def fail_match_store(a: T.handle) -> None:
 def fail_buffer_bind(a: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
-        with T.block([]):
+        with T.block():
             stride = T.var("int32")
             sub_A = T.match_buffer(
                 A[i, j * 4 : j * 4 + 4], (1, 4), strides=[stride, stride], offset_factor=1
@@ -496,7 +496,7 @@ def fail_buffer_bind(a: T.handle) -> None:
 def fail_match_func_param(a: T.handle, m: T.handle, n: T.handle) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
-        with T.block([]):
+        with T.block():
             sub_A = T.match_buffer(A[i, j * 4 : j * 4 + 4], (1, 4), strides=[m, n], offset_factor=1)
             for jj in range(0, 4):
                 sub_A[i, j * 4 + jj] = 1
