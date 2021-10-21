@@ -107,7 +107,6 @@ def make_model(
         padding=p,
         out_dtype="int32",
     )
-<<<<<<< HEAD
     b = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
     bias_const = relay.const(b, "int32")
     last_op = relay.nn.bias_add(conv, bias_const, axis=3) if enable_bias else conv
