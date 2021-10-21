@@ -24,6 +24,10 @@ from tvm.runtime import Object
 from tvm.target import Target
 from . import _ffi_api
 
+
+# The allocate node attribute to indicate candidate memory pools.
+# This needs to be kept in sync with CANDIDATE_MEMORY_POOL_ATTR in
+# include/tvm/tir/usmp/utils.h
 CANDIDATE_MEMORY_POOL_ATTR = "candidate_memory_pools"
 
 
@@ -50,11 +54,20 @@ class PoolInfo(Object):
 
     """
 
+    # The string parameter to indicate read and write access to a pool
+    # This needs to be kept in sync with kTargetPoolReadWriteAccess in
+    # include/tvm/tir/usmp/utils.h
     READ_WRITE_ACCESS = "rw"
+    # The string parameter to indicate read only access to a pool
+    # This needs to be kept in sync with kTargetPoolReadOnlyAccess in
+    # include/tvm/tir/usmp/utils.h
     READ_ONLY_ACCESS = "ro"
 
     def __init__(
-        self, pool_name: str, target_access: Dict[Target, str], size_hint_bytes: Optional[int] = -1
+        self,
+        pool_name: str,
+        target_access: Dict[Target, str],
+        size_hint_bytes: Optional[int] = None,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.PoolInfo,  # type: ignore # pylint: disable=no-member

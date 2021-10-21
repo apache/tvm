@@ -18,8 +18,12 @@
  */
 
 /*!
- * \file tir/analysis/usmp/convert_for_loops_serial.cc
- * \brief Convert all for loops to serial for lesser memory consumption
+ * \file tir/analysis/usmp/extract_buffer_info.cc
+ *
+ * \brief This analysis pass consumes a TIR IRModule with a main function
+ * that defines a ordering in the calles to operators and produces BufferInfo
+ * objects that contains information about tir.allocate nodes and liveness
+ * conflicts between other tir.allocate nodes.
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/device_api.h>
@@ -33,6 +37,12 @@
 namespace tvm {
 namespace tir {
 namespace usmp {
+
+/*! \brief This class takes a TIR IRModule and a main PrimFunc that contains
+ * that defines a ordering in the calles to operators and produces BufferInfo
+ * objects that contains information about tir.allocate nodes and liveness
+ * conflicts between other tir.allocate nodes.
+ */
 
 class BufferInfoExtractor : public StmtExprVisitor {
  public:
@@ -63,6 +73,11 @@ class BufferInfoExtractor : public StmtExprVisitor {
 
   std::unordered_set<Stmt, ObjectPtrHash, ObjectPtrEqual> currently_live_allocates;
   int current_stmt_idx_ = 0;
+  // This structure is supposed to contain information
+  // around the scope the visitor is currently in.
+  // We only check whether the current scope belong to
+  // a Serial ForKind. We are not planning for Parallel
+  // ForKind just yet.
   struct ScopeInfo {
     For for_loop;
   };
@@ -77,7 +92,7 @@ void BufferInfoExtractor::VisitStmt(const Stmt& n) {
   StmtExprVisitor::VisitStmt(n);
 }
 
-static size_t CalculateExtentsSize(const AllocateNode* op) {
+static Integer CalculateExtentsSize(const AllocateNode* op) {
   size_t element_size_bytes = op->dtype.bytes();
   size_t num_elements = 1;
   for (const auto& ext : op->extents) {
@@ -85,10 +100,10 @@ static size_t CalculateExtentsSize(const AllocateNode* op) {
       num_elements *= Downcast<IntImm>(ext)->value;
     } else {
       // We can't statically calculate workspace for dynamic shapes
-      num_elements = 0;
+      return Integer();
     }
   }
-  return (num_elements * element_size_bytes);
+  return Integer(num_elements * element_size_bytes);
 }
 
 void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
@@ -96,20 +111,25 @@ void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
   const auto& type = Downcast<PointerType>(op->buffer_var->type_annotation);
   const auto& storage_scope = type->storage_scope;
 
-  // If the allocate is in a for loop,
-  // USMP currently only looks at serial for loops.
+  // If the allocate is in a for loop, USMP currently only looks at serial for loops.
+  // If its not a serial for loop, then memory planner will omit them in the current memory planning
+  // process leaving them to as tir.allocate nodes for codegen. Additionally, the USMP can only work
+  // with buffers that have global storage_scope
   if ((!currect_scope_info.for_loop.defined()) ||
       (currect_scope_info.for_loop.defined() &&
        currect_scope_info.for_loop->kind == ForKind::kSerial && storage_scope == "global")) {
-    // USMP can only work with buffers that have global storage_scope
     auto size_bytes = CalculateExtentsSize(op);
     // We only statically memory plan only allocates with known
     // compile time sizes.
-    if (size_bytes) {
+    if (size_bytes.defined()) {
       // By default, the core compiler is assumed to attach the a default pool to each allocate.
-      ICHECK(op->annotations.count(kPoolCandidatesIRModAttr))
+      ICHECK(op->annotations.count(kPoolCandidatesAllocateAttr))
           << "Every statically sized allocate node needs an pool candidate attribute";
-      auto pool_candidates = Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesIRModAttr]);
+      auto pool_candidates =
+          Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
+
+      // TODO(@manupa-arm): improve the error when the responsible component for attaching a single
+      // pool is added
       ICHECK(pool_candidates.size() > 0)
           << "The core compiler should at least attach a single PoolInfo. If there were no "
              "user-given arguments for memory pools, the default behaviour is a single size "
@@ -203,6 +223,13 @@ void BufferInfoExtractor::VisitExpr_(const CallNode* op) {
 Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_func) {
   this->VisitStmt(main_func->body);
 
+  // A liveness event is an event that when
+  // traversing the tir.Stmts where tir.allocate node
+  // begins or ceases to be Live. This particular struct
+  // is used to solve interval overlap problem using
+  // a sweep-line algorithm. For that, we need to record
+  // where the liveness event occurred in a chronological
+  // order.
   enum LivenessEventType { START = 0, END = 1 };
   struct LivenessEvent {
     size_t tick;
@@ -216,6 +243,8 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
     }
   };
 
+  // Create a vector of liveness events
+  // associated with each BufferNodes.
   std::vector<LivenessEvent> le_events;
   for (const auto& kv : buffer_info_map_) {
     if (!kv.second->IsInstance<AllocateNode>()) {
@@ -240,6 +269,9 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
     le_events.push_back(le_event_end);
   }
 
+  // Sort the liveness events based on the chronological
+  // ordering. For events that are simultaneous, START event
+  // takes precedence.
   std::sort(le_events.begin(), le_events.end(),
             [](const LivenessEvent& lhs, const LivenessEvent& rhs) {
               if (lhs.tick < rhs.tick) {
@@ -249,6 +281,9 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
               }
               return false;
             });
+
+  // Traverse the liveness events using a open set to track what
+  // is live while updating the conflicts through out the linear traversal
   std::unordered_set<BufferInfo, ObjectPtrHash, ObjectPtrEqual> open_set;
   for (const auto& le_event : le_events) {
     if (le_event.le_type == START) {
@@ -258,7 +293,6 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
       }
       open_set.insert(le_event.buffer_info);
     } else {
-      ICHECK(le_event.le_type == END);
       open_set.erase(le_event.buffer_info);
     }
   }

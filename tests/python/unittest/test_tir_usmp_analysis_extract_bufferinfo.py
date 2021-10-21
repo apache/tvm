@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import sys
 
 import tvm
 from tvm import tir, script
@@ -78,6 +79,9 @@ def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
             ret[global_var] = _assign_poolinfos_to_allocates_in_primfunc(basefunc, pool_infos)
     return ret
 
+
+# These are test IRModules that contains varied topologies of operator graphs
+# that includes a main TIR function that includes call to such operators.
 
 # fmt: off
 @tvm.script.ir_module
@@ -846,4 +850,4 @@ def test_inception_structure():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    pytest.main([__file__] + sys.argv[1:])

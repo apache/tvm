@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import sys
 
 import tvm
 from tvm.script import tir as T
@@ -188,4 +189,4 @@ def test_create_array_buffer_info():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    pytest.main([__file__] + sys.argv[1:])

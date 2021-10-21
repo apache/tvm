@@ -78,7 +78,10 @@ TVM_REGISTER_NODE_TYPE(PoolInfoNode);
 TVM_REGISTER_GLOBAL("tir.usmp.PoolInfo")
     .set_body_typed([](String pool_name, Map<Target, String> target_access,
                        Integer size_hint_bytes) {
-      return PoolInfo(pool_name, target_access, size_hint_bytes);
+      if (size_hint_bytes.defined()) {
+        return PoolInfo(pool_name, target_access, size_hint_bytes);
+      }
+      return PoolInfo(pool_name, target_access);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

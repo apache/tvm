@@ -33,7 +33,17 @@ namespace tvm {
 namespace tir {
 namespace usmp {
 
+/*!
+ * \brief The string parameter to indicate read and write access to a pool
+ * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
+ * python/tvm/tir/usmp/utils.py
+ */
 static constexpr const char* kTargetPoolReadWriteAccess = "rw";
+/*!
+ * \brief The string parameter to indicate read only access to a pool
+ * This needs to be kept in sync with PoolInfo.READ_ONLY_ACCESS in
+ * python/tvm/tir/usmp/utils.py
+ */
 static constexpr const char* kTargetPoolReadOnlyAccess = "ro";
 
 /*!
@@ -43,8 +53,8 @@ struct PoolInfoNode : public Object {
   /*! \brief The name of the memory pool */
   String pool_name;
   /*! \brief The expected size hint to be used by the allocator.
-   * The size_hint is defaulted to -1 to indicate the pool is not
-   * size restricted.
+   * The size_hint_bytes is defaulted to kUnrestrictedPoolSizeHint
+   * to indicate the pool is not size restricted.
    */
   Integer size_hint_bytes;
   /*! \brief The accessibility from each Target*/
@@ -71,10 +81,15 @@ struct PoolInfoNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoNode, Object);
 };
 
+/*!
+ * \brief The PoolSize is unrestricted for the memory planner
+ */
+static const int kUnrestrictedPoolSizeHint = -1;
+
 class PoolInfo : public ObjectRef {
  public:
   TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access,
-                   Integer size_hint_bytes = -1);
+                   Integer size_hint_bytes = kUnrestrictedPoolSizeHint);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
 };
 
@@ -172,7 +187,12 @@ class PoolAllocation : public ObjectRef {
  */
 Array<BufferInfo> CreateArrayBufferInfo(const Map<Stmt, BufferInfo>& buffer_info_map);
 
-static constexpr const char* kPoolCandidatesIRModAttr = "candidate_memory_pools";
+/*!
+ * \brief The allocate node attribute to indicate candidate memory pools.
+ * This needs to be kept in sync with CANDIDATE_MEMORY_POOL_ATTR in
+ * python/tvm/tir/usmp/utils.py.
+ */
+static constexpr const char* kPoolCandidatesAllocateAttr = "candidate_memory_pools";
 
 }  // namespace usmp
 }  // namespace tir
