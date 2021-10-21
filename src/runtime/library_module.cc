@@ -37,7 +37,7 @@ namespace runtime {
 // Library module that exposes symbols from a library.
 class LibraryModuleNode final : public ModuleNode {
  public:
-  explicit LibraryModuleNode(ObjectPtr<Library> lib, ObjectPtr<PackedFuncWrapper> wrapper)
+  explicit LibraryModuleNode(ObjectPtr<Library> lib, PackedFuncWrapper wrapper)
       : lib_(lib), packed_func_wrapper_(wrapper) {}
 
   const char* type_key() const final { return "library"; }
@@ -54,12 +54,12 @@ class LibraryModuleNode final : public ModuleNode {
       faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(name.c_str()));
     }
     if (faddr == nullptr) return PackedFunc();
-    return packed_func_wrapper_->operator()(faddr, sptr_to_self);
+    return packed_func_wrapper_(faddr, sptr_to_self);
   }
 
  private:
   ObjectPtr<Library> lib_;
-  ObjectPtr<PackedFuncWrapper> packed_func_wrapper_;
+  PackedFuncWrapper packed_func_wrapper_;
 };
 
 /*!
@@ -70,11 +70,6 @@ class ModuleInternal {
   // Get mutable reference of imports.
   static std::vector<Module>* GetImportsAddr(ModuleNode* node) { return &(node->imports_); }
 };
-
-PackedFunc PackedFuncWrapper::operator()(TVMBackendPackedCFunc faddr,
-                                         const ObjectPtr<Object>& mptr) {
-  return WrapPackedFunc(faddr, mptr);
-}
 
 PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
   return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
@@ -136,8 +131,8 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
  * \param dso_ctx_addr the output dso module
  */
 void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
-                       ObjectPtr<PackedFuncWrapper> packed_func_wrapper,
-                       runtime::Module* root_module, runtime::ModuleNode** dso_ctx_addr = nullptr) {
+                       PackedFuncWrapper packed_func_wrapper, runtime::Module* root_module,
+                       runtime::ModuleNode** dso_ctx_addr = nullptr) {
   ICHECK(mblob != nullptr);
   uint64_t nbytes = 0;
   for (size_t i = 0; i < sizeof(nbytes); ++i) {
@@ -202,12 +197,8 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
   }
 }
 
-Module CreateModuleFromLibrary(ObjectPtr<Library> lib,
-                               ObjectPtr<PackedFuncWrapper> packed_func_wrapper) {
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_func_wrapper) {
   InitContextFunctions([lib](const char* fname) { return lib->GetSymbol(fname); });
-  if (packed_func_wrapper == nullptr) {
-    packed_func_wrapper = make_object<PackedFuncWrapper>();
-  }
   auto n = make_object<LibraryModuleNode>(lib, packed_func_wrapper);
   // Load the imported modules
   const char* dev_mblob =

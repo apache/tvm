@@ -66,23 +66,6 @@ class Library : public Object {
 };
 
 /*!
- * \brief Default virtual functor that provides an interface to
- * wrap a TVMBackendPackedCFunc. Virtual interface allows derivative
- * runtime's that utilize a library module to to provide custom
- * function wrapping. By default WrapPackedFunc is used.
- */
-class PackedFuncWrapper : public Object {
- public:
-  /*
-   * \brief Virtual interface for wrapping a library function
-   * \param faddr The function address.
-   * \param mptr The module pointer node.
-   * \return A packed function wrapping the requested function.
-   */
-  virtual PackedFunc operator()(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
-};
-
-/*!
  * \brief Wrap a TVMBackendPackedCFunc to packed function.
  * \param faddr The function address
  * \param mptr The module pointer node.
@@ -96,16 +79,23 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
 
 /*!
+ * \brief Type alias for funcion to wrap a TVMBackendPackedCFunc.
+ */
+using PackedFuncWrapper =
+    std::function<PackedFunc(TVMBackendPackedCFunc, const ObjectPtr<Object>&)>;
+
+/*!
  * \brief Create a module from a library.
  *
  * \param lib The library.
+ * \param wrapper Optional function used to wrap a TVMBackendPackedCFunc,
+ * by default WrapPackedFunc is used.
  * \return The corresponding loaded module.
  *
  * \note This function can create multiple linked modules
  *       by parsing the binary blob section of the library.
  */
-Module CreateModuleFromLibrary(ObjectPtr<Library> lib,
-                               ObjectPtr<PackedFuncWrapper> wrapper = nullptr);
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper wrapper = WrapPackedFunc);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_LIBRARY_MODULE_H_
