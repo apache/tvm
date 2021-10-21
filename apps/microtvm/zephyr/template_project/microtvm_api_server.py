@@ -44,7 +44,7 @@ import yaml
 from tvm.micro.project_api import server
 
 
-_LOG = logging.getLogger("MicroTVM API Server")
+_LOG = logging.getLogger(__name__)
 
 
 API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
@@ -61,7 +61,8 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
-
+# Used to check Zephyr version installed on the host.
+# We only check two levels of the version.
 ZEPHYR_VERSION = 2.5
 
 
@@ -272,7 +273,7 @@ PROJECT_OPTIONS = [
     server.ProjectOption(
         "warning_as_error",
         choices=(True, False),
-        help="Treat warnings as errors.",
+        help="Treat warnings as errors and raise an Exception.",
     ),
 ]
 
@@ -369,7 +370,7 @@ class Handler(server.ProjectAPIHandler):
         if version != ZEPHYR_VERSION:
             message = f"Zephyr version found is not supported: found {version}, expected {ZEPHYR_VERSION}."
             if options.get("warning_as_error") is not None and options["warning_as_error"]:
-                raise ValueError(message)
+                raise server.ServerError(message=message)
             _LOG.warning(message)
 
         project_dir = pathlib.Path(project_dir)

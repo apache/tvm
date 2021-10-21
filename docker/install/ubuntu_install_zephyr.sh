@@ -44,6 +44,9 @@ sudo apt-get install -y cmake
 pip3 install west
 
 # Init ZephyrProject
+# To keep in sync with the version 
+# defined in apps/microtvm/zephyr/template_project/microtvm_api_server.py
+# We use `-branch` tag since it tracks the same version with extra patches for bugs.
 ZEPHYR_VERSION="v2.5-branch"
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
 ZEPHYR_INIT_SCRIPT=$(find -name "ubuntu_init_zephyr_project.sh")

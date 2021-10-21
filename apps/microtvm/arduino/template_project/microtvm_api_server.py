@@ -36,7 +36,7 @@ import serial
 import serial.tools.list_ports
 from tvm.micro.project_api import server
 
-_LOG = logging.getLogger("MicroTVM API Server")
+_LOG = logging.getLogger(__name__)
 
 MODEL_LIBRARY_FORMAT_RELPATH = pathlib.Path("src") / "model" / "model.tar"
 API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
@@ -45,6 +45,8 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
+# Used to check Arduino CLI version installed on the host.
+# We only check two levels of the version.
 ARDUINO_CLI_VERSION = 0.18
 
 
@@ -145,7 +147,7 @@ PROJECT_OPTIONS = [
     server.ProjectOption(
         "warning_as_error",
         choices=(True, False),
-        help="Treat warnings as errors.",
+        help="Treat warnings as errors and raise an Exception.",
     ),
 ]
 
@@ -360,7 +362,7 @@ class Handler(server.ProjectAPIHandler):
         if version != ARDUINO_CLI_VERSION:
             message = f"Arduino CLI version found is not supported: found {version}, expected {ARDUINO_CLI_VERSION}."
             if options.get("warning_as_error") is not None and options["warning_as_error"]:
-                raise ValueError(message)
+                raise server.ServerError(message=message)
             _LOG.warning(message)
 
         # Reference key directories with pathlib
