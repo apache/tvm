@@ -277,7 +277,6 @@ def test_reorder_fail_not_affine_bindings():
     i, j, k, l = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError) as msg:
         sch.reorder(l, i)
-    print(str(msg.value))
 
 
 def test_reorder_fail_error_msg():
