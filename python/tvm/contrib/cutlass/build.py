@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""TODO"""
+"""Driver for partitioning and building a Relay module for CUTLASS offload."""
 import tvm
 from tvm import runtime, relay
 from tvm.relay.op.contrib.cutlass import partition_for_cutlass
 from .gen_gemm import CutlassGemmProfiler
 
 
-class GemmCollector(tvm.relay.ExprVisitor):
-    """TODO"""
+class GemmAnnotator(tvm.relay.ExprVisitor):
+    """Annotates partitioned functions with shape and dtype information."""
 
     def __init__(self):
         super().__init__()
@@ -47,12 +47,12 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     for var in mod.get_global_vars():
         fun_name = var.name_hint
         func = mod[fun_name]
-        collector = GemmCollector()
+        annotator = GemmAnnotator()
         if "cutlass" in fun_name:
-            collector.visit(func)
+            annotator.visit(func)
             # call cutlass profiler to find best settings, update attr
             new_attrs = {}
-            new_attrs.update(collector.signature)
+            new_attrs.update(annotator.signature)
             for key in func.attrs.keys():
                 new_attrs[key] = func.attrs[key]
             # call profiler

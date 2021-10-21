@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-wildcard-import, wildcard-import
-"""TODO"""
+"""Generator for CUTLASS GEMM kernels."""
 from .library import *
 
 
 class GemmOperation:
-    """TODO"""
+    """Describes various attributes for instantiating GEMM kernels."""
 
     def __init__(
         self,
@@ -154,7 +154,7 @@ class GemmOperation:
 
 
 class EmitGemmInstance:
-    """ Responsible for emitting a CUTLASS template definition"""
+    """ Responsible for emitting a CUTLASS template definition."""
 
     def __init__(self):
         self.epilogue_default = """
@@ -196,7 +196,7 @@ class EmitGemmInstance:
 """
 
     def emit(self, operation, no_beta_scaling=False):
-        """TODO"""
+        """Instantiate a GEMM kernel from given `operation`."""
         warp_shape = [
             operation.tile_description.threadblock_shape[idx]
             // operation.tile_description.warp_count[idx]

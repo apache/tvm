@@ -274,7 +274,7 @@ GENERATOR_FUNC_TABLE = {
 }
 
 
-class CompileEngine(object):
+class ProfilerEngine(object):
     """TODO"""
 
     def __init__(self, cuda_arch, cutlass_path, binary_prefix):
@@ -329,7 +329,7 @@ class CutlassGemmProfiler(object):
     """TODO"""
 
     def __init__(self, cuda_arch, cutlass_path, binary_path):
-        self.engine = CompileEngine(cuda_arch, cutlass_path, binary_path)
+        self.engine = ProfilerEngine(cuda_arch, cutlass_path, binary_path)
 
     # find out kernels that cannot be supported
     def check_align(self, op_name, M):
