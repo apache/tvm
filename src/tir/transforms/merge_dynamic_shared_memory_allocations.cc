@@ -340,8 +340,6 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   }
 
   using StmtEntry = DynSharedMemLinearAccessPatternFinder::StmtEntry;
-  
-  
   struct StorageEntry {
     // The constant size of the buffer in bits, only used if it is constant
     uint64_t const_nbits{0};
