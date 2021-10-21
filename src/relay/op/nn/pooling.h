@@ -35,13 +35,14 @@ namespace relay {
 template <typename T>
 inline Expr MakeMaxPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
                         Array<IndexExpr> dilation, Array<IndexExpr> padding, String layout,
-                        bool ceil_mode, String op_name) {
+                        String out_layout, bool ceil_mode, String op_name) {
   auto attrs = make_object<T>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
   attrs->dilation = std::move(dilation);
   attrs->padding = std::move(padding);
   attrs->layout = std::move(layout);
+  attrs->out_layout = std::move(out_layout);
   attrs->ceil_mode = ceil_mode;
   static const Op& op = Op::Get(op_name);
   return Call(op, {data}, Attrs(attrs), {});
@@ -50,13 +51,14 @@ inline Expr MakeMaxPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> 
 template <typename T>
 inline Expr MakeAvgPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
                         Array<IndexExpr> dilation, Array<IndexExpr> padding, String layout,
-                        bool ceil_mode, bool count_include_pad, String op_name) {
+                        String out_layout, bool ceil_mode, bool count_include_pad, String op_name) {
   auto attrs = make_object<T>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
   attrs->dilation = std::move(dilation);
   attrs->padding = std::move(padding);
   attrs->layout = std::move(layout);
+  attrs->out_layout = std::move(out_layout);
   attrs->ceil_mode = ceil_mode;
   attrs->count_include_pad = count_include_pad;
   static const Op& op = Op::Get(op_name);
