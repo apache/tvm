@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""TODO"""
+"""Kernel generator and profiler for CUTLASS."""
 import os
 import re
 import tempfile
@@ -44,7 +44,7 @@ def create_gemm_operator(
     epilogue_functor=EpilogueFunctor.LinearCombination,
     swizzling_functor=SwizzlingFunctor.Identity8,
 ):
-    """TODO"""
+    """Exhaustively instantiate all kernels from a given configuration."""
     ret = []
     kernel_emitter = EmitGemmInstance()
     profiler_emitter = GemmProfilerEmitter()
@@ -125,7 +125,7 @@ def create_gemm_operator(
 
 
 def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions):
-    """TODO"""
+    """Common kernel generator to be used by archtecture specific generators."""
     ops = []
     layouts = [
         (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
@@ -158,7 +158,7 @@ def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile
 
 
 def generate_sm75_tensor_op_1688():
-    """TODO"""
+    """Generate GEMM kernels for Turing."""
     math_instructions = [
         MathInstruction(
             [16, 8, 8],
@@ -199,7 +199,7 @@ def generate_sm75_tensor_op_1688():
 
 
 def generate_sm80_tensor_op_16816():
-    """TODO"""
+    """Generate GEMM kernels for Ampere."""
     math_instructions = [
         MathInstruction(
             [16, 8, 16],
@@ -252,13 +252,13 @@ def generate_sm80_tensor_op_16816():
 
 
 GENERATOR_FUNC_TABLE = {
-    "sm75": generate_sm75_tensor_op_1688,
-    "sm80": generate_sm80_tensor_op_16816,
+    75: generate_sm75_tensor_op_1688,
+    80: generate_sm80_tensor_op_16816,
 }
 
 
 class ProfilerEngine(object):
-    """TODO"""
+    """Compile and run a given profiler executable."""
 
     def __init__(self, cuda_arch, cutlass_path, binary_prefix):
         self.cuda_arch = cuda_arch
@@ -309,13 +309,15 @@ class ProfilerEngine(object):
 
 
 class CutlassGemmProfiler(object):
-    """TODO"""
+    """Profile all candidate kernels and select the best one."""
 
-    def __init__(self, cuda_arch, cutlass_path, binary_path):
-        self.engine = ProfilerEngine(cuda_arch, cutlass_path, binary_path)
+    def __init__(self, sm, cutlass_path, binary_path):
+        assert sm in GENERATOR_FUNC_TABLE, "sm%d not supported yet." % sm
+        self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
+        self.sm = sm
 
-    # find out kernels that cannot be supported
     def check_align(self, op_name, M):
+        """Filter out kernels that cannot be supported."""
         aligns = re.findall(r"align[1|2|4|8]", op_name)
         assert len(aligns) == 1
         align = int(aligns[0][-1])
@@ -323,13 +325,9 @@ class CutlassGemmProfiler(object):
             return False
         return True
 
-    def profile(self, op_geneators, M, N, K):
-        """TODO"""
-        ops = []
-        if isinstance(op_geneators, str):
-            op_geneators = [op_geneators]
-        for gen in op_geneators:
-            ops += GENERATOR_FUNC_TABLE[gen]()
+    def profile(self, M, N, K):
+        """Profile and select the best kernel from `op_generators`."""
+        ops = GENERATOR_FUNC_TABLE[self.sm]()
         for op in ops:
             if self.check_align(op["name"], M):
                 out = self.engine.evaluate(op["name"], op["src"], [M, N, K])

@@ -70,14 +70,19 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
 
     dev : Device
         The device context used to create `rt_mod` above.
+
+    num_cutlass_partition : int
+        The number of partitioned functions created for CUTLASS.
     """
     cutlass_profiler = CutlassGemmProfiler(sm, "../../../3rdparty/cutlass", tmp_dir)
     mod = partition_for_cutlass(mod)
+    num_cutlass_partition = 0
     for var in mod.get_global_vars():
         fun_name = var.name_hint
         func = mod[fun_name]
         annotator = GemmAnnotator()
         if "cutlass" in fun_name:
+            num_cutlass_partition += 1
             annotator.visit(func)
             # call cutlass profiler to find best settings, update attr
             new_attrs = {}
@@ -90,7 +95,7 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
             MM = arg0_shape[0]
             KK = arg0_shape[1]
             NN = arg1_shape[0]
-            out = cutlass_profiler.profile("sm%d" % sm, MM, NN, KK)
+            out = cutlass_profiler.profile(MM, NN, KK)
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]
             elif new_attrs["op_type"] == "cutlass.dense_bias":
@@ -147,4 +152,4 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     lib = runtime.load_module(lib_path)
     dev = tvm.device("cuda", 0)
     rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
-    return rt_mod, dev
+    return rt_mod, dev, num_cutlass_partition

@@ -71,7 +71,8 @@ def verify(func, M, N, K, atol=1e-5, rtol=1e-5):
     params = {"weight": np_weight, "bias": np_bias}
 
     rt_mod_ref, dev = get_ref_rt_mod(mod, params)
-    rt_mod, dev = profile_and_build(mod, params, 80, tmp_dir="tmp")
+    rt_mod, dev, num_partition = profile_and_build(mod, params, 80, tmp_dir="tmp")
+    assert num_partition > 0
 
     x = tvm.nd.array(np_data, device=dev)
 
