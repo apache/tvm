@@ -62,10 +62,11 @@ where `v65|v66|v68` means "one of" these architecture versions.
 The Hexagon launcher application is an android binary and thus requires the use 
 of an android toolchain for compilation. Similarly, the Hexagon tvm runtime 
 requires the use of the Hexagon toolchain and depends on the Hexagon SDK. The 
-resulting hexagon launcher binaries can be found in the `launcher` subdirectory 
-of the cmake build directory. Please note that the above command will not build
-the support for Hexagon codegen into the TVM, for that please additionally define
-the `USE_HEXAGON_DEVICE` variable.
+resulting hexagon launcher binaries can be found in the `apps_hexagon_launcher`
+subdirectory of the cmake build directory. Please note that the above command
+will not build support for Hexagon codegen in the TVM library, for that please
+additionally define the `USE_HEXAGON_DEVICE` variable. Also, the LLVM used in
+`USE_LLVM` should have Hexagon target built in.
 
 ### Manual compilation
 
