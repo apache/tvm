@@ -19,7 +19,6 @@
 from __future__ import absolute_import
 
 import tvm
-
 from ..utils import get_const_int
 
 
