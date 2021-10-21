@@ -250,6 +250,7 @@ def test_dyn_shared_reuse_and_merge():
     # merged allocation
     # allocate(buf_dyn_shmem: Pointer(shared.dyn uint8), uint8, [((n_dyn*4) + 256)]);
     verify_single_allocation(mod["main"].body)
+
     def check_target(target):
         if not tvm.testing.device_enabled(target):
             return
@@ -262,9 +263,7 @@ def test_dyn_shared_reuse_and_merge():
         c = tvm.nd.array(np.random.uniform(size=n).astype(C.dtype), dev)
         d = tvm.nd.array(np.zeros((n,), dtype=D.dtype), dev)
         fadd(a, b, c, d)
-        tvm.testing.assert_allclose(
-            d.numpy(), a.numpy() + b.numpy() +c.numpy(), 1e-4, 1e-4
-        )
+        tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + c.numpy(), 1e-4, 1e-4)
 
     for target in ["cuda", "nvptx"]:
         check_target(target)
