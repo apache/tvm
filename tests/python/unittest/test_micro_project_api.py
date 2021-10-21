@@ -27,11 +27,15 @@ import pytest
 import tvm
 
 
+# Implementing as a fixture so that the tvm.micro import doesn't occur
+# until fixture setup time.  This is necessary for pytest's collection
+# phase to work when USE_MICRO=OFF, while still explicitly listing the
+# tests as skipped.
 @tvm.testing.fixture
 def BaseTestHandler():
     from tvm.micro import project_api
 
-    class BaseTestHandler(project_api.server.ProjectAPIHandler):
+    class BaseTestHandler_Impl(project_api.server.ProjectAPIHandler):
 
         DEFAULT_TEST_SERVER_INFO = project_api.server.ServerInfo(
             platform_name="platform_name",
@@ -67,7 +71,7 @@ def BaseTestHandler():
         def write_transport(self, data, timeout_sec):
             assert False, "write_transport is not implemented for this test"
 
-    return BaseTestHandler
+    return BaseTestHandler_Impl
 
 
 class Transport:
