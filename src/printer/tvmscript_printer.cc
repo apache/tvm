@@ -1385,8 +1385,8 @@ Doc TVMScriptPrinterWithDiagnostic::VisitStmt_(const ForNode* op) {
   loop_var_map_[op->loop_var.get()] = GetRef<For>(op);
   const auto* body = op->body.as<ForNode>();
 
-  bool simple_loop = IsSimpleLoop(op) && body != nullptr && IsSimpleLoop(body);
-  if (simple_loop) {
+  bool simple_loop = IsSimpleLoop(op);
+  if (simple_loop && body != nullptr && IsSimpleLoop(body)) {
     simple_loop_stack_.push_back(GetRef<For>(op));
   }
   // It is a loop that can be compressed, let the loops below print it out
