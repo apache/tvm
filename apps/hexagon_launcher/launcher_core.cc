@@ -169,7 +169,10 @@ tvm::runtime::Module create_graph_executor(const std::string& graph_json,
   uint64_t device_type = device.device_type;
   uint64_t device_id = device.device_id;
 
+  std::string linked_params = "tvm.runtime.hexagon.lookup_linked_params";
+  const tvm::runtime::PackedFunc lookup_linked_params = get_runtime_func(linked_params);
   // Use default param lookup function (linked into the module).
-  tvm::runtime::TVMRetValue rv = create_executor(graph_json, graph_module, device_type, device_id);
+  tvm::runtime::TVMRetValue rv = create_executor(graph_json, graph_module,
+                                                 lookup_linked_params, device_type, device_id);
   return rv.operator tvm::runtime::Module();
 }
