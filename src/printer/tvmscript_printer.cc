@@ -1383,9 +1383,9 @@ class TVMScriptPrinterWithDiagnostic : public TVMScriptPrinter {
       : TVMScriptPrinter(tir_prefix, show_meta, annotate) {}
 
  protected:
-  Doc PrintBlockName(const BlockNode* block_op);
+  Doc PrintBlockName(const BlockNode* block_op) override;
   Doc PrintUnderline(const Stmt& stmt, int length);
-  Doc PrintLoop(const For& loop);
+  Doc PrintLoop(const For& loop) override;
 };
 
 Doc TVMScriptPrinterWithDiagnostic::PrintBlockName(const BlockNode* block_op) {
