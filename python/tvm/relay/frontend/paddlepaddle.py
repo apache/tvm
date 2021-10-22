@@ -32,68 +32,18 @@ from .. import function as _function
 from .. import ty as _ty
 from .. import op as _op
 from .common import (
+    autopad,
     fold_constant,
     get_relay_op,
     infer_shape,
     infer_type,
     infer_value,
+    shape_of,
     try_infer_value,
     new_var,
 )
 
 __all__ = ["from_paddle"]
-
-
-def _autopad(
-    data,
-    strides,
-    kernel_shape,
-    dilations=(1, 1),
-    pad_type="constant",
-    pad_value=0.0,
-):
-    """Perform padding under SAME mode for dynamic and fixed input shapes.
-    This implementation refers to ONNX frontend.
-    """
-
-    # get attributes as constants
-    strides = _op.const(np.array(strides), dtype="int64")
-    dilated_kernel_shape = _op.const(
-        np.array(
-            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
-        ),
-        dtype="int64",
-    )
-    # get input shape
-    ndim = len(infer_shape(data))
-    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
-
-    # set up integer constants
-    zero = _op.const(0, dtype="int64")
-    two = _op.const(2, dtype="int64")
-
-    # Calculate total padding
-    mod = _op.mod(shape, strides)
-
-    left = _op.maximum(dilated_kernel_shape - strides, zero)
-    right = _op.maximum(dilated_kernel_shape - mod, zero)
-
-    total_pad = _op.where(_op.equal(mod, zero), left, right)
-
-    # split total padding into before and after
-    pad_before = _op.floor_divide(total_pad, two)
-    pad_after = total_pad - pad_before
-
-    pad = _op.concatenate(
-        [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
-    )
-
-    # pad N and C with zeros
-    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
-
-    if isinstance(pad_value, (float, int)):
-        pad_value = _op.const(pad_value)
-    return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
 
 
 def _dtype_shape_promotion(inputs):
@@ -115,16 +65,6 @@ def _dtype_shape_promotion(inputs):
         if infer_type(input_op).checked_type.dtype != max_dtype:
             inputs[i] = input_op.astype(max_dtype)
     return inputs
-
-
-def shape_of(x, dtype="int32"):
-    """Get shape of a tensor."""
-
-    ttype = infer_type(x).checked_type
-    if not _ty.is_dynamic(ttype):
-        shape = list(ttype.shape)
-        return _expr.const(np.array(shape), dtype)
-    return _op.shape_of(x, dtype)
 
 
 def _convert_dtype_value(val):
@@ -288,7 +228,7 @@ def convert_conv2d(g, op, block):
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
         dilations = [1, 1]
-        input_x = _autopad(input_x, strides, [k_h, k_w], dilations)
+        input_x = autopad(input_x, strides, [k_h, k_w], dilations)
         paddings = [0, 0]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
@@ -587,9 +527,9 @@ def convert_matmul(g, op, block):
 
     # This implemention almost keeps same with ONNX
     # Need to check input shape as batch matmul must be supported.
-    a_shape = shape_of(inputs[0])
+    a_shape = shape_of(inputs[0], dtype="int32")
     a_rank = infer_shape(a_shape)[0]
-    b_shape = shape_of(inputs[1])
+    b_shape = shape_of(inputs[1], dtype="int32")
     b_rank = infer_shape(b_shape)[0]
     # When performing a batch matmul, we need to properly handle N-dim shapes.
     if a_rank > 2 or b_rank > 2:
@@ -676,8 +616,8 @@ def convert_mul(g, op, block):
     y = g.get_node(op.input("Y")[0])
     x_num_col_dims = op.attr("x_num_col_dims")
     y_num_col_dims = op.attr("y_num_col_dims")
-    x_shape = shape_of(x)
-    y_shape = shape_of(y)
+    x_shape = shape_of(x, dtype="int32")
+    y_shape = shape_of(y, dtype="int32")
     x_dim = infer_shape(x_shape)[0]
     y_dim = infer_shape(y_shape)[0]
     if x_num_col_dims < 0:
@@ -781,7 +721,7 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        input_x = _autopad(input_x, strides, ksize)
+        input_x = autopad(input_x, strides, ksize)
         paddings = [0, 0]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
@@ -877,7 +817,7 @@ def convert_shape(g, op, block):
     """Operator converter for shape."""
 
     x = g.get_node(op.input("Input")[0])
-    out = shape_of(x)
+    out = shape_of(x, dtype="int32")
     g.add_node(op.output("Out")[0], out)
 
 
