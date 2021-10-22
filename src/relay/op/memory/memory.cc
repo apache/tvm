@@ -101,13 +101,9 @@ Expr AllocTensor(Expr storage, Expr offset, Expr shape, DataType dtype,
     attrs->assert_shape = assert_shape;
   } else {
     // Look through any on_device for the shape argument expression.
-    Expr literal_shape = shape;
-    auto props = GetOnDeviceProps(literal_shape);
-    if (props.body.defined()) {
-      // See through on_device calls.
-      literal_shape = props.body;
-    }
-    attrs->const_shape = Downcast<Constant>(literal_shape);
+    const auto* constant_node = AsIgnoringOnDevice<ConstantNode>(shape);
+    ICHECK(constant_node);
+    attrs->const_shape = GetRef<Constant>(constant_node);
   }
   static const Op& op = Op::Get("memory.alloc_tensor");
   return Call(op, {storage, offset, shape}, Attrs(attrs), {});

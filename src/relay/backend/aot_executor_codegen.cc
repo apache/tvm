@@ -182,9 +182,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    * \return The corresponding token.
    */
   StorageInfo GetStorage(const Expr& expr) {
-    auto props = GetOnDeviceProps(expr);
     // See through "on_device" calls.
-    Expr true_expr = props.body.defined() ? props.body : expr;
+    Expr true_expr = IgnoreOnDevice(expr);
     VisitExpr(true_expr);
     auto it = storage_device_map_.find(true_expr);
     ICHECK(it != storage_device_map_.end());
