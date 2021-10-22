@@ -99,7 +99,7 @@ def build_module(
             ), "Got {} Vitis-AI partitions, expected {}".format(
                 partition_count, vitis_ai_partitions
             )
-        relay.backend.compile_engine.get().clear()
+        relay.backend.te_compiler.get().clear()
         return relay.build(mod, target, params=params)
 
 

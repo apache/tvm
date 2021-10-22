@@ -22,12 +22,14 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/../HexagonLauncher.cmake")
 
 add_custom_command(
   OUTPUT ${LAUNCHER_RPC_SKEL_C} ${LAUNCHER_RPC_H}
-  COMMAND ${QAIC_EXE} ${QAIC_FLAGS}
-  "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
+  COMMAND ${QAIC_EXE} ${QAIC_FLAGS} "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
   MAIN_DEPENDENCY "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
 )
 
-include_directories(SYSTEM ${HEXAGON_QURT_INCLUDES})
+include_directories(SYSTEM
+  ${HEXAGON_QURT_INCLUDES}
+  ${CMAKE_CURRENT_BINARY_DIR}   # Output of qaic will go here
+)
 
 link_directories(${HEXAGON_QURT_LIBS})
 
@@ -48,8 +50,9 @@ set(SKEL_SRCS
   "${LAUNCHER_SRC}/launcher_core.cc"
   "${LAUNCHER_SRC}/launcher_hexagon.cc"
 )
+
 add_library(launcher_rpc_skel SHARED
-  "${LAUNCHER_SRC}/${LAUNCHER_RPC_H}"
+  "${LAUNCHER_RPC_H}"
   "${LAUNCHER_RPC_SKEL_C}"
   "${SKEL_SRCS}"
 )
@@ -71,14 +74,10 @@ ExternalProject_Add(static_hexagon_tvm_runtime
   BUILD_ALWAYS ON
 )
 ExternalProject_Get_Property(static_hexagon_tvm_runtime BINARY_DIR)
-ExternalProject_Add_Step(static_hexagon_tvm_runtime copy_binaries
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${BINARY_DIR} ${CMAKE_INSTALL_PREFIX}
-  DEPENDEES install
-)
 
 add_dependencies(launcher_rpc_skel static_hexagon_tvm_runtime)
-add_library(static_tvm_runtime STATIC IMPORTED)
-set_target_properties(static_tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/libtvm_runtime.a")
+add_library(h_tvm_runtime STATIC IMPORTED)
+set_target_properties(h_tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/libtvm_runtime.a")
 
-target_link_libraries(launcher_rpc_skel -Wl,--whole-archive static_tvm_runtime -Wl,--no-whole-archive)
+target_link_libraries(launcher_rpc_skel -Wl,--whole-archive h_tvm_runtime -Wl,--no-whole-archive)
 
