@@ -285,29 +285,24 @@ class Store : public Stmt {
  */
 class BufferStoreNode : public StmtNode {
  public:
-  /*! \brief The buffer variable. */
-  Buffer buffer;
+  /*! \brief The buffer and location being accessed. */
+  BufferPointer pointer;
   /*! \brief The value to be stored. */
   PrimExpr value;
-  /*! \brief The indices location to be stored. */
-  Array<PrimExpr> indices;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
+    v->Visit("pointer", &pointer);
     v->Visit("value", &value);
-    v->Visit("indices", &indices);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(value, other->value) &&
-           equal(indices, other->indices);
+    return equal(pointer, other->pointer) && equal(value, other->value);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
+    hash_reduce(pointer);
     hash_reduce(value);
-    hash_reduce(indices);
   }
 
   static constexpr const char* _type_key = "tir.BufferStore";
@@ -320,6 +315,8 @@ class BufferStoreNode : public StmtNode {
  */
 class BufferStore : public Stmt {
  public:
+  TVM_DLL explicit BufferStore(BufferPointer pointer, PrimExpr value, Span span = Span());
+
   TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
                                Span span = Span());
 

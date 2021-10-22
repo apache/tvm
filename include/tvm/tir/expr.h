@@ -593,6 +593,68 @@ class Select : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(Select, PrimExpr, SelectNode);
 };
 
+/*! \brief Represents access of a location inside a buffer
+ *
+ * Identifies a location within a buffer, but does not do anything
+ * with that location.  Can be used either in `BufferLoadNode` to load
+ * from that location, or `BufferStoreNode` to store into that
+ * location.
+ *
+ * The equivalent in C, if a buffer `int x[128]` has been declared,
+ * would be `int* ptr = (x+indices[0])`.  The buffer access can then
+ * be used as a load (`*ptr`) or as a store (`*ptr = val;`), but
+ * itself represents only the pointer.
+ */
+class BufferPointerNode : public PrimExprNode {
+ public:
+  /*! \brief The buffer variable. */
+  Buffer buffer;
+
+  /*! \brief The indices specifying the access location. */
+  Array<PrimExpr> indices;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &(this->dtype));
+    v->Visit("buffer", &buffer);
+    v->Visit("indices", &indices);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const BufferPointerNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(buffer, other->buffer) &&
+           equal(indices, other->indices);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(buffer);
+    hash_reduce(indices);
+  }
+
+  /*! \brief The datatype of the location pointed to.
+   *
+   * Will have the same scalar type as `buffer->dtype`, but may have a
+   * different number of lanes.  This is because access of a buffer
+   * using an index with more than one lane, such as a RampNode,
+   * indicates more than one location in the buffer.
+   */
+  DataType value_dtype() const;
+
+  static constexpr const char* _type_key = "tir.BufferPointer";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BufferPointerNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to BufferPointerNode.
+ * \sa BufferPointerNode
+ */
+class BufferPointer : public PrimExpr {
+ public:
+  TVM_DLL explicit BufferPointer(Buffer buffer, Array<PrimExpr> indices, Span span = Span());
+  TVM_DEFINE_OBJECT_REF_METHODS(BufferPointer, PrimExpr, BufferPointerNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferPointerNode);
+};
+
 /*!
  * \brief Load value from the high dimension buffer.
  *
@@ -605,27 +667,22 @@ class Select : public PrimExpr {
  */
 class BufferLoadNode : public PrimExprNode {
  public:
-  /*! \brief The buffer variable. */
-  Buffer buffer;
-  /*! \brief The indices location to be loaded. */
-  Array<PrimExpr> indices;
+  /*! \brief The pointer to the location in the buffer being accessed. */
+  BufferPointer pointer;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &(this->dtype));
-    v->Visit("buffer", &buffer);
-    v->Visit("indices", &indices);
+    v->Visit("pointer", &pointer);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferLoadNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(buffer, other->buffer) &&
-           equal(indices, other->indices);
+    return equal(dtype, other->dtype) && equal(pointer, other->pointer);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(dtype);
-    hash_reduce(buffer);
-    hash_reduce(indices);
+    hash_reduce(pointer);
   }
 
   static constexpr const char* _type_key = "tir.BufferLoad";
@@ -638,7 +695,9 @@ class BufferLoadNode : public PrimExprNode {
  */
 class BufferLoad : public PrimExpr {
  public:
+  TVM_DLL explicit BufferLoad(BufferPointer pointer, Span span = Span());
   TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };

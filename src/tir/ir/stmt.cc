@@ -587,14 +587,22 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // BufferStore
-BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {
+BufferStore::BufferStore(BufferPointer pointer, PrimExpr value, Span span) {
+  ICHECK(pointer.get() != nullptr);
+
+  ICHECK_EQ(pointer->value_dtype(), value->dtype)
+      << "Value being stored to a buffer must match the buffer's type.";
+
   ObjectPtr<BufferStoreNode> node = make_object<BufferStoreNode>();
-  node->buffer = std::move(buffer);
+  node->pointer = std::move(pointer);
   node->value = std::move(value);
-  node->indices = std::move(indices);
   node->span = std::move(span);
   data_ = std::move(node);
 }
+
+BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span)
+    : BufferStore(BufferPointer(std::move(buffer), std::move(indices)), std::move(value),
+                  std::move(span)) {}
 
 TVM_REGISTER_GLOBAL("tir.BufferStore")
     .set_body_typed([](Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {

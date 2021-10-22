@@ -1054,15 +1054,68 @@ TVM_REGISTER_NODE_TYPE(AnyNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<AnyNode>([](const ObjectRef& node, ReprPrinter* p) { p->stream << "?"; });
 
-// BufferLoad
-BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
-  ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
-  node->dtype = buffer->dtype;
+// BufferPointer
+BufferPointer::BufferPointer(Buffer buffer, Array<PrimExpr> indices, Span span) {
+  ICHECK(buffer.get() != nullptr);
+
+  ICHECK_EQ(buffer->shape.size(), indices.size())
+      << "Dimension of buffer must match number of indices used to access it.";
+
+  ObjectPtr<BufferPointerNode> node = make_object<BufferPointerNode>();
+  node->dtype = DataType::Handle();
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
   node->span = std::move(span);
   data_ = std::move(node);
 }
+
+DataType BufferPointerNode::value_dtype() const {
+  ICHECK(buffer.get() != nullptr);
+
+  int index_lanes = 1;
+  for (const auto& index : indices) {
+    index_lanes *= index->dtype.lanes();
+  }
+  return buffer->dtype.with_lanes(buffer->dtype.lanes() * index_lanes);
+}
+
+TVM_REGISTER_GLOBAL("tir.BufferPointer_value_dtype").set_body_typed([](BufferPointer pointer) {
+  return pointer->value_dtype();
+});
+
+TVM_REGISTER_GLOBAL("tir.BufferPointer")
+    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, Span span) {
+      return BufferPointer(buffer, indices, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(BufferPointerNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<BufferPointerNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const BufferPointerNode*>(node.get());
+      p->stream << "&" << op->buffer->name << "[";
+      for (size_t i = 0; i < op->indices.size(); ++i) {
+        p->Print(op->indices[i]);
+        if (i < op->indices.size() - 1) {
+          p->stream << ", ";
+        }
+      }
+      p->stream << "]";
+    });
+
+// BufferLoad
+BufferLoad::BufferLoad(BufferPointer pointer, Span span) {
+  ICHECK(pointer.get() != nullptr);
+
+  ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
+  node->dtype = pointer->value_dtype();
+  node->pointer = std::move(pointer);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span)
+    : BufferLoad(BufferPointer(std::move(buffer), std::move(indices)), span) {}
 
 TVM_REGISTER_GLOBAL("tir.BufferLoad")
     .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, Span span) {
