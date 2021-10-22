@@ -47,9 +47,11 @@ make test_dynamic test_static
 cd ../..
 
 # Test Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU demo app
-if test -f "/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/FVP_Corstone_SSE-300_Ethos-U55" && pip3 list | grep vela; then
+FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
+VELA_INSTALLED=$(pip3 list | grep vela)
+if [ -d $FVP_PATH ] && [ -n "$VELA_INSTALLED" ]; then
     sudo pip3 install -e python
     cd apps/microtvm/ethosu
-    ./run_demo.sh --fvp_path /opt/arm/FVP_Corstone_SSE-300_Ethos-U55 --cmake_path /opt/arm/cmake/bin/cmake
+    ./run_demo.sh --fvp_path $FVP_PATH --cmake_path /opt/arm/cmake/bin/cmake
+    cd ../../..
 fi
-cd ../..
