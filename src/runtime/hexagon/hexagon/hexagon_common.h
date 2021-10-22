@@ -34,12 +34,12 @@
 #define HEXAGON_PRINT(level, ...) printf(__VA_ARGS__)
 #endif
 
-#define HEXAGON_SAFE_CALL(api_call)                                     \
-  do {                                                                  \
-    int result = api_call;                                               \
-    if (result != 0) {                                                  \
+#define HEXAGON_SAFE_CALL(api_call)                                               \
+  do {                                                                            \
+    int result = api_call;                                                        \
+    if (result != 0) {                                                            \
       HEXAGON_PRINT(ERROR, "ERROR: " #api_call " failed with error %d.", result); \
-    }                                                                   \
+    }                                                                             \
   } while (0)
 
 namespace tvm {
@@ -53,9 +53,9 @@ namespace hexagon {
  *  \return A packed function wrapping the requested function.
  */
 PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
-}
-}
-}
+}  // namespace hexagon
+}  // namespace runtime
+}  // namespace tvm
 inline bool IsHexagonDevice(DLDevice dev) {
   return TVMDeviceExtType(dev.device_type) == kDLHexagon;
 }

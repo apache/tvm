@@ -32,8 +32,8 @@
 #include <vector>
 
 #include "../../dso_library.h"
-#include "hexagon_common.h"
 #include "hexagon_buffer.h"
+#include "hexagon_common.h"
 
 namespace tvm {
 namespace runtime {

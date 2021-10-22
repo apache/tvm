@@ -68,10 +68,12 @@ HexagonBuffer::~HexagonBuffer() {
 }
 
 HexagonBuffer::HexagonBuffer(HexagonBuffer&& other)
-  : allocations_(other.allocations_), managed_(other.managed_), storage_scope_(other.storage_scope_) {
-    other.allocations_.clear();
-    other.managed_ = false;
-    other.storage_scope_ = StorageScope::kDDR;
+    : allocations_(other.allocations_),
+      managed_(other.managed_),
+      storage_scope_(other.storage_scope_) {
+  other.allocations_.clear();
+  other.managed_ = false;
+  other.storage_scope_ = StorageScope::kDDR;
 }
 
 HexagonBuffer& HexagonBuffer::operator=(HexagonBuffer&& other) {
@@ -82,7 +84,9 @@ HexagonBuffer& HexagonBuffer::operator=(HexagonBuffer&& other) {
 }
 
 void* HexagonBuffer::GetPointer() {
-  if (!allocations_.size()) { return nullptr; }
+  if (!allocations_.size()) {
+    return nullptr;
+  }
   return (allocations_.size() > 1) ? allocations_.data() : allocations_[0];
 }
 

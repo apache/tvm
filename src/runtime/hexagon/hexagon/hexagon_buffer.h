@@ -49,8 +49,7 @@ class HexagonBuffer {
    * space in which to allocate. Defaults to global system
    * memory (DDR).
    */
-  HexagonBuffer(int ndim, const int64_t* shape, DLDataType dtype,
-                Optional<String> scope);
+  HexagonBuffer(int ndim, const int64_t* shape, DLDataType dtype, Optional<String> scope);
 
   /* \brief Allocate memory within hexagon accessible memory
    * scopes.

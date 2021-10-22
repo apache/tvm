@@ -77,7 +77,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 
     TVMValue* arg_values = const_cast<TVMValue*>(args.values);
     std::vector<std::pair<size_t, HexagonBuffer*>> buffer_args;
-    for(size_t i=0; i < args.num_args; i++) {
+    for (size_t i = 0; i < args.num_args; i++) {
       if (args.type_codes[i] == kTVMDLTensorHandle) {
         DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
         buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
@@ -92,7 +92,6 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
       DLTensor* tensor = static_cast<DLTensor*>(arg_values[arg.first].v_handle);
       tensor->data = arg.second;
     }
-
 
     if (ret_type_code != kTVMNullptr) {
       *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
@@ -129,6 +128,7 @@ void LogMessageImpl(const std::string& file, int lineno, const std::string& mess
 }
 }  // namespace detail
 
-TVM_REGISTER_GLOBAL("tvm.runtime.hexagon.lookup_linked_params").set_body(hexagon::HexagonLookupLinkedParam);
+TVM_REGISTER_GLOBAL("tvm.runtime.hexagon.lookup_linked_params")
+    .set_body(hexagon::HexagonLookupLinkedParam);
 }  // namespace runtime
 }  // namespace tvm

@@ -50,13 +50,13 @@ void HexagonDeviceAPIv2::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* r
   }
 }
 
-void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                                         Optional<String> mem_scope) {
-  return new HexagonBuffer(ndim, shape, dtype,
-                           mem_scope.defined() ? mem_scope : String("global"));
+void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* shape,
+                                         DLDataType dtype, Optional<String> mem_scope) {
+  return new HexagonBuffer(ndim, shape, dtype, mem_scope.defined() ? mem_scope : String("global"));
 }
 
-void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) {
+void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
+                                         DLDataType type_hint) {
   return new HexagonBuffer(nbytes, alignment, String("global"));
 }
 
@@ -106,15 +106,16 @@ void HexagonDeviceAPIv2::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamH
   } else if (from->device.device_type == kDLCPU && IsHexagonDevice(to->device)) {
     HexagonBuffer* buffer_dst = static_cast<HexagonBuffer*>(to->data);
     memcpy(static_cast<char*>(buffer_dst->GetPointer()) + to->byte_offset,
-           static_cast<const char*>(from->data) + from->byte_offset,
-           GetDataSize(*from));
+           static_cast<const char*>(from->data) + from->byte_offset, GetDataSize(*from));
   } else {
-    CHECK(false) << "Expect copy between DLTensor devices of types kDLHexagon and kDLCPU (external) only.";
+    CHECK(false)
+        << "Expect copy between DLTensor devices of types kDLHexagon and kDLCPU (external) only.";
   }
 }
 
-void HexagonDeviceAPIv2::CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                                        Device dev_from, Device dev_to, DLDataType type_hint,
+void HexagonDeviceAPIv2::CopyDataFromTo(const void* from, size_t from_offset, void* to,
+                                        size_t to_offset, size_t size, Device dev_from,
+                                        Device dev_to, DLDataType type_hint,
                                         TVMStreamHandle stream) {
   memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
 }

@@ -45,10 +45,10 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
    */
-  void SetDevice(Device dev) final {};
+  void SetDevice(Device dev) final{};
 
   //! \brief Return the queried Hexagon device attribute.
-  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue * rv) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
 
   //! \brief Currently unimplemented interface to synchronize a device stream.
   void StreamSync(Device dev, TVMStreamHandle stream) final {}
@@ -89,11 +89,13 @@ class HexagonDeviceAPIv2 final : public DeviceAPI {
    * \param stream Optional stream object.
    */
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
+
  protected:
   //! Standard Device API interface to copy data from one storage to another.
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                      size_t size, Device dev_from, Device dev_to, DLDataType type_hint,
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final;
+
  private:
   //! Lookup table for the HexagonBuffer managing a workspace allocation.
   std::unordered_map<void*, HexagonBuffer*> workspace_allocations_;
