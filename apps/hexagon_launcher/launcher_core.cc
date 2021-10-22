@@ -153,7 +153,8 @@ void reset_device_api() {
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {
-  static const tvm::runtime::PackedFunc loader = get_runtime_func("runtime.module.loadfile_hexagon");
+  static const tvm::runtime::PackedFunc loader =
+      get_runtime_func("runtime.module.loadfile_hexagon");
   tvm::runtime::TVMRetValue rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
     return rv.operator tvm::runtime::Module();
@@ -172,7 +173,7 @@ tvm::runtime::Module create_graph_executor(const std::string& graph_json,
   std::string linked_params = "tvm.runtime.hexagon.lookup_linked_params";
   const tvm::runtime::PackedFunc lookup_linked_params = get_runtime_func(linked_params);
   // Use default param lookup function (linked into the module).
-  tvm::runtime::TVMRetValue rv = create_executor(graph_json, graph_module,
-                                                 lookup_linked_params, device_type, device_id);
+  tvm::runtime::TVMRetValue rv =
+      create_executor(graph_json, graph_module, lookup_linked_params, device_type, device_id);
   return rv.operator tvm::runtime::Module();
 }

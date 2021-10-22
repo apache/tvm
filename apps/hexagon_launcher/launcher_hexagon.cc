@@ -155,12 +155,10 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
   tvm::runtime::PackedFunc get_output = get_module_func(TheModel->graph_executor, "get_output");
   tvm::runtime::NDArray output = get_output(output_idx);
 
+  std::vector<int64_t> shape_vec{output->shape, output->shape + output->ndim};
 
-  std::vector<int64_t> shape_vec{output->shape,
-                                 output->shape + output->ndim};
-
-  auto* container = new tvm::runtime::NDArray::Container(static_cast<void*>(output_value), shape_vec,
-                                                         output->dtype, Model::external());
+  auto* container = new tvm::runtime::NDArray::Container(
+      static_cast<void*>(output_value), shape_vec, output->dtype, Model::external());
   container->SetDeleter([](tvm::Object* container) {
     delete static_cast<tvm::runtime::NDArray::Container*>(container);
   });
