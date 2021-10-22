@@ -547,7 +547,9 @@ def test_reorder_fail_block():
     with pytest.raises(tvm.tir.ScheduleError) as execinfo:
         sch.reorder(l, i)
     expected_sub_error_message = (
-        "# tir.Block#0\n" '            with tir.block("B"):\n' "            ^^^^^^^^^^^^^^^^^^^^\n"
+        "            # tir.Block#0\n"
+        '            with tir.block("B"):\n'
+        "            ^^^^^^^^^^^^^^^^^^^^\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 
