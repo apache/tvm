@@ -41,28 +41,22 @@ $(error X_CUBE_TOOL_PATH must be set and point at your STM32 Cube Programmer ins
 endif
 
 #
-# Choose a board from the list below
+# Choose a board from the list below and setup the firmware path
 #
 
+# -----------------------------------
 # Disco
-BOARD = disco-h747i
-#VID=0x0483
-#PID=0x374e
-SERIAL_NUMBER = 003500193137511439383538
-#
-# Setup the firmware path
-#
-X_CUBE_PATH = /prj/p_mcd_ais/users/stoutchi/tvm-apps-stm32/STM32Cube_FW_H7_V1.8.0
+# -----------------------------------
+#BOARD = disco-h747i
+#SERIAL_NUMBER = 
+#X_CUBE_PATH = 
 
+# -----------------------------------
 # Nucleao
+# -----------------------------------
 #BOARD = nucleo-f412zg
-#VID=0x0483
-#PID=0x374b
-#SERIAL_NUMBER = 0674FF535752877167073836
-#
-# Setup the firmware path
-#
-#X_CUBE_PATH = /prj/p_mcd_ais/users/stoutchi/tvm-apps-stm32/STM32Cube_FW_F4_V1.26.0
+#SERIAL_NUMBER = 
+#X_CUBE_PATH = 
 
 # Indicate the revision of the board (if necessary)
 #  xyy with x:1 for A, 2 for B ...
@@ -70,10 +64,6 @@ X_CUBE_PATH = /prj/p_mcd_ais/users/stoutchi/tvm-apps-stm32/STM32Cube_FW_H7_V1.8.
 # ex: MB1361-L552ZEQ-C02	-> 302
 #     MB1361-L552ZEQ-A02    -> 102
 # BOARD_VERSION ?= 102
-
-#ifeq ($(BOARD),$(filter $(BOARD), "stm32h743" "stm32h747"))
-#  BOARD_NAME = stm32h7xx
-#endif
 
 ifeq ($(BOARD), disco-h747i)
   EXTLOAD = "${X_CUBE_TOOL_PATH}/ExternalLoader/MT25TL01G_STM32H747I-DISCO.stldr"
