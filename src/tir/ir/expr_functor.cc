@@ -39,9 +39,11 @@ void ExprVisitor::VisitExpr_(const LoadNode* op) {
   this->VisitExpr(op->predicate);
 }
 
-void ExprVisitor::VisitExpr_(const BufferLoadNode* op) {
+void ExprVisitor::VisitExpr_(const BufferPointerNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
+
+void ExprVisitor::VisitExpr_(const BufferLoadNode* op) { this->VisitExpr(op->pointer); }
 
 void ExprVisitor::VisitExpr_(const ProducerLoadNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
@@ -136,13 +138,24 @@ PrimExpr ExprMutator::VisitExpr_(const LoadNode* op) {
   }
 }
 
-PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
+PrimExpr ExprMutator::VisitExpr_(const BufferPointerNode* op) {
   auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
   Array<PrimExpr> indices = MutateArray(op->indices, fmutate);
+
   if (indices.same_as(op->indices)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return BufferLoad(op->buffer, indices);
+    return BufferPointer(op->buffer, indices);
+  }
+}
+
+PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
+  BufferPointer pointer = Downcast<BufferPointer>(this->VisitExpr(op->pointer));
+
+  if (pointer.same_as(op->pointer)) {
+    return GetRef<PrimExpr>(op);
+  } else {
+    return BufferLoad(pointer);
   }
 }
 
