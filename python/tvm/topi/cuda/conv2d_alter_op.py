@@ -46,7 +46,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
-    impl, outs = relay.backend.compile_engine.select_implementation(
+    impl, outs = relay.backend.te_compiler.select_implementation(
         relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
     )
     workload = autotvm.task.get_workload(outs)
