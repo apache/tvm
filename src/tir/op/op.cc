@@ -804,6 +804,16 @@ PrimExpr nearbyint(PrimExpr x, Span span) {
 
 TIR_REGISTER_PURE_UNARY_OP("tir.nearbyint");
 
+// lower_bound
+PrimExpr lower_bound(Var arr, PrimExpr val, PrimExpr l, PrimExpr r, Span span) {
+  return tir::Call({kDLInt, 32, 1}, builtin::tvm_lower_bound(), {arr, val, l, r}, span);
+}
+
+// upper_bound
+PrimExpr upper_bound(Var arr, PrimExpr val, PrimExpr l, PrimExpr r, Span span) {
+  return tir::Call({kDLInt, 32, 1}, builtin::tvm_upper_bound(), {arr, val, l, r}, span);
+}
+
 // trunc
 PrimExpr trunc(PrimExpr x, Span span) {
   if (x.dtype().is_int() || x.dtype().is_uint()) {
@@ -917,6 +927,10 @@ TVM_REGISTER_GLOBAL("tir.nearbyint").set_body_typed(tvm::nearbyint);
 TVM_REGISTER_GLOBAL("tir.trunc").set_body_typed(tvm::trunc);
 
 TVM_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
+
+TVM_REGISTER_GLOBAL("tir.lower_bound").set_body_typed(tvm::lower_bound);
+
+TVM_REGISTER_GLOBAL("tir.upper_bound").set_body_typed(tvm::upper_bound);
 
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                                                \

@@ -112,6 +112,16 @@ def max_value(dtype, span):
 
 
 @register
+def lower_bound(arr, val, l, r, span):
+    return tvm.tir.lower_bound(arr, val, l, r, span)
+
+
+@register
+def upper_bound(arr, val, l, r, span):
+    return tvm.tir.upper_bound(arr, val, l, r, span)
+
+
+@register
 def floordiv(x, y, span):
     return tvm.tir.floordiv(x, y, span)
 

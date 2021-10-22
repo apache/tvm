@@ -253,6 +253,55 @@ def test_fma():
     assert mod["test_tir_fma"].body.body.value.op.name == "tir.call_llvm_pure_intrin"
 
 
+@tvm.script.tir
+def binary_search(a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle) -> None:
+    n = tir.var('int32')
+    m = tir.var('int32')
+    A = tir.match_buffer(a, (n,), dtype='int32')
+    B = tir.match_buffer(b, (m,), dtype='int32')
+    C = tir.match_buffer(c, (m,), dtype='int32')
+    D = tir.match_buffer(d, (m,), dtype='int32')
+    with tir.block([m], 'search') as [vi]:
+        tir.reads([A[0:n], B[vi]])
+        tir.writes([C[vi], D[vi]])
+        C[vi] = tir.lower_bound(A.data, B[vi], 0, n)
+        D[vi] = tir.upper_bound(A.data, B[vi], 0, n)
+
+
+def test_binary_search():
+    sch = tir.Schedule(binary_search)
+    b = sch.get_block('search')
+    i, = sch.get_loops(b)
+    io, ii = sch.split(i, [1, None])
+    sch.bind(io, 'threadIdx.x')
+    sch.bind(ii, 'blockIdx.x')
+    f = tvm.build(sch.mod['main'], target='cuda')
+    # print(f.imported_modules[0].get_source())
+
+    x = np.arange(-128, 128).astype(np.int32)
+    y = np.random.randint(-200, 200, size=1024).astype(np.int32) 
+    a = np.zeros((1024,)).astype(np.int32)
+    b = np.zeros((1024,)).astype(np.int32)
+
+    # numpy results
+    np_a = np.searchsorted(x, y, side='left').astype(np.int32)
+    np_b = np.searchsorted(x, y, side='right').astype(np.int32)
+
+    # tvm results
+    dev = tvm.cuda(0)
+    x_array = tvm.nd.array(x, device=dev)
+    y_array = tvm.nd.array(y, device=dev)
+    a_array = tvm.nd.array(a, device=dev) 
+    b_array = tvm.nd.array(b, device=dev)
+    f(x_array, y_array, a_array, b_array)
+    tvm_a = a_array.numpy()
+    tvm_b = b_array.numpy()
+
+    # verify result
+    tvm.testing.assert_allclose(np_a, tvm_a)
+    tvm.testing.assert_allclose(np_b, tvm_b)
+
+
 if __name__ == "__main__":
     test_nearbyint()
     test_unary_intrin()
@@ -261,3 +310,4 @@ if __name__ == "__main__":
     test_ldexp()
     test_clz()
     test_fma()
+    test_binary_search()
