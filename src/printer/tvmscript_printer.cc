@@ -1390,13 +1390,8 @@ class TVMScriptPrinterWithDiagnostic : public TVMScriptPrinter {
 
 Doc TVMScriptPrinterWithDiagnostic::PrintBlockName(const BlockNode* block_op) {
   Doc doc = PrintOptionalInfo(GetRef<Stmt>(block_op));
-  auto optional_info_size = doc.str().size();
-  doc << "with " << tir_prefix_ << ".block(";
-  if (!block_op->name_hint.empty()) {
-    doc << Doc::StrLiteral(block_op->name_hint);
-  }
-  doc << "):";
-  doc << PrintUnderline(GetRef<Stmt>(block_op), doc.str().size() - optional_info_size);
+  Doc block_name = TVMScriptPrinter::PrintBlockName(block_op);
+  doc << block_name << PrintUnderline(GetRef<Stmt>(block_op), block_name.str().size());
   return doc;
 }
 
