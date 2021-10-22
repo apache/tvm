@@ -35,14 +35,6 @@ ifndef TVM_PATH
 $(error TVM_PATH must be set and point at your TVM stack installation)
 endif
 
-#
-# Set the path to your CubeMX installation
-#
-#export X_CUBE_PATH ?= 
-#ifndef X_CUBE_PATH
-#$(error X_CUBE_PATH must be set and point at your STM32 Cube Firmware installation)
-#endif
-
 #export X_CUBE_TOOL_PATH ?= 
 ifndef X_CUBE_TOOL_PATH
 $(error X_CUBE_TOOL_PATH must be set and point at your STM32 Cube Programmer installation)
@@ -85,8 +77,6 @@ X_CUBE_PATH = /prj/p_mcd_ais/users/stoutchi/tvm-apps-stm32/STM32Cube_FW_H7_V1.8.
 
 ifeq ($(BOARD), disco-h747i)
   EXTLOAD = "${X_CUBE_TOOL_PATH}/ExternalLoader/MT25TL01G_STM32H747I-DISCO.stldr"
-#else ifeq ($(BOARD), nucleo-f412)
-#  EXTLOAD = "${X_CUBE_TOOL_PATH}/ExternalLoader/N25Q128A_STM32412G-DISCO.stldr" 
 endif
 
 # 115200
@@ -95,7 +85,6 @@ endif
 STM32_PROG ?= ${X_CUBE_TOOL_PATH}/STM32_Programmer_CLI
 
 ifdef EXTLOAD
-#STM32_PROG += --extload "${X_CUBE_TOOL_PATH}/ExternalLoader/MT25TL01G_STM32H747I-DISCO.stldr"
 STM32_PROG += --extload $(EXTLOAD)
 endif
 
@@ -108,7 +97,6 @@ debug:
 	@echo " === Board: $(BOARD) ..."
 
 check:
-#	$(if $(strip $(TARGET)), @echo " === Target: $(TARGET) ...", $(error BOARD $(BOARD) not supported))
 	$(if $(strip $(MODEL_PATH)), @echo " === Model path: $(MODEL_PATH)", $(error MODEL_PATH must be set and point at your model implementation generated with the TVM compiler))
 	@if [ ! -d "$(MODEL_PATH)" ]; then \
 		echo "$(MODEL_PATH) does not exist!"; \

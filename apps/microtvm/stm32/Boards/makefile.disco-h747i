@@ -70,10 +70,4 @@ endif
 LDFLAGS += $(LDFLAGS-$(CORE))
 LDFLAGS += -T$(LDSCRIPTS)
 
-#ifeq ($(strip $(STM32_PROG_STM32H747I_EXT)),)
-#$(error STM32_PROG_STM32H747I_EXT should be defined)
-#endif
-
-#STM32_PROG_EXT ?= ${STM32_PROG_STM32H747I_EXT}
-
 include mk/common.mk

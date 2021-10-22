@@ -30,10 +30,6 @@
 /* Entry Point */
 ENTRY(Reset_Handler)
 
-/* Highest address of the user mode stack */
-/* _estack = 0x24080000; */   /* end of AXIRAM */
-/* _estack = 0x20020000; */  /* end of DTCMRAM */
-/* Generate a link error if heap and stack don't fit into RAM */
 _Min_Heap_Size = 0x12000;      /* required amount of heap  */
 _Min_Stack_Size = 0x8000; /* required amount of stack */
 
@@ -124,18 +120,6 @@ SECTIONS
     __models_section_end__ = .;
   } >FLASH
 
-  /* User_heap_stack section, used to check that there is enough RAM left */
-/*
-  ._user_stack :
-  {
-    . = ALIGN(8);
-    _sstack = .;
-    . = . + _Min_Stack_Size;
-    _estack = .;
-    . = ALIGN(8);
-  } >DTCMRAM
-*/
-
     /* used by the startup to initialize data */
   _sidata = LOADADDR(.data);
 
@@ -167,18 +151,6 @@ SECTIONS
     _ebss = .;         /* define a global symbol at bss end */
     __bss_end__ = _ebss;
   } >DTCMRAM
-
-  /* Warning: looks like there is no heap overlow check in sbrk */
-/*
-  ._user_heap :
-  {
-    . = ALIGN(8);
-    PROVIDE ( end = . );
-    PROVIDE ( _end = . );
-    . = . + _Min_Heap_Size;
-    . = ALIGN(8);
-  } >DTCMRAM
-*/
 
   /* User_heap_stack section, used to check that there is enough "RAM" type memory left */
   ._user_heap_stack :

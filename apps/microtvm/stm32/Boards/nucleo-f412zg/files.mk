@@ -1,14 +1,28 @@
 
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Source files specific for this target
+
 # APP files
 C_SRC_APP += ${BOARDS_DIR}/${BOARD}/Src/main.c
 C_SRC_APP += ${BOARDS_DIR}/${BOARD}/Src/stm32f4xx_hal_msp.c
 C_SRC_APP += ${BOARDS_DIR}/${BOARD}/Src/stm32f4xx_it.c
 C_SRC_APP += ${BOARDS_DIR}/${BOARD}/Src/system_stm32f4xx.c
-
-#C_SRC_APP += ${BOARDS_DIR}/${BOARD}/Src/sysmem.c
-#C_SRC_APP += ${BOARDS_DIR}/${BOARD}/Src/syscalls.c
-
-#CFLAGS += -I${BOARDS_DIR}/${BOARD}/Inc
 
 CFLAGS += -DUSE_HAL_DRIVER
 

@@ -79,36 +79,6 @@
 #endif
 
 /******************************************************************************/
-#if 0
-#if defined(_MSC_VER)
-  #define AI_API_ENTRY          __declspec(dllexport)
-  #define AI_ALIGNED(x)         /* AI_ALIGNED(x) */
-#elif defined(__ICCARM__) || defined(__IAR_SYSTEMS_ICC__)
-  #define AI_API_ENTRY          /* AI_API_ENTRY */
-  #define AI_ALIGNED(x)         AI_CONCAT(AI_ALIGNED_, x)
-  #define AI_ALIGNED_1          _Pragma("data_alignment = 1")
-  #define AI_ALIGNED_2          _Pragma("data_alignment = 2")
-  #define AI_ALIGNED_4          _Pragma("data_alignment = 4")
-  #define AI_ALIGNED_8          _Pragma("data_alignment = 8")
-  #define AI_ALIGNED_16         _Pragma("data_alignment = 16")
-  #define AI_ALIGNED_32         _Pragma("data_alignment = 32")
-#elif defined(__CC_ARM)
-  #define AI_API_ENTRY          __attribute__((visibility("default")))
-  #define AI_ALIGNED(x)         __attribute__((aligned (x)))
-  /* Keil disallows anonymous union initialization by default */
-  #pragma anon_unions
-#elif defined(__GNUC__)
-  #define AI_API_ENTRY          __attribute__((visibility("default")))
-  #define AI_ALIGNED(x)         __attribute__((aligned(x)))
-#else
-  /* Dynamic libraries are not supported by the compiler */
-  #define AI_API_ENTRY                /* AI_API_ENTRY */
-  #define AI_ALIGNED(x)               /* AI_ALIGNED(x) */
-#endif
-#endif // 0
-
-//#define AI_HANDLE_PTR(ptr_)           ((ai_handle)(ptr_))
-//#define AI_HANDLE_NULL                AI_HANDLE_PTR(NULL)
 
 #define AI_HANDLE_FUNC_PTR(func)      ((ai_handle_func)(func))
 
@@ -118,7 +88,6 @@
 
 /*! ai_intq_info struct handlers **********************************************/
 #define INTQ_CONST    const
-// #define INTQ_CONST
 
 #define AI_INTQ_INFO_LIST(list_) \
   ((list_)->info)
@@ -289,8 +258,6 @@ enum {
 #define AIU32_FMT   "%" PRIu32
 
 typedef uint8_t ai_custom_type_signature;
-
-//typedef void* ai_handle;
 
 typedef void (*ai_handle_func)(void*);
 
