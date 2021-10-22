@@ -109,6 +109,13 @@ class TECompilerNode : public Object {
    */
   virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
 
+  /*!
+   * \brief Get C Device API context mapping
+   * \return Map of GlobalVar to associated C Device API context name (either Target or kCompiler
+   * annotated)
+   */
+  virtual Map<GlobalVar, String> GetDeviceContexts() = 0;
+
   virtual std::unordered_map<std::string, int> GetOpWeights() = 0;
 
   /*! \brief clear the cache. */

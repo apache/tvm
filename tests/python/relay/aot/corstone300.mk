@@ -40,6 +40,7 @@ CC_OPTS = CC=$(CC) AR=$(AR) RANLIB=$(RANLIB)
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	${CFLAGS} \
 	-I$(build_dir)/../include \
+	-I${TVM_ROOT}/src/runtime/contrib/ethosu/bare_metal \
 	-I$(CODEGEN_ROOT)/host/include \
 	-I${PLATFORM_PATH} \
 	-I${DRIVER_PATH}/include \
@@ -70,6 +71,7 @@ CMSIS_NN_LIBS = $(wildcard ${CMSIS_PATH}/CMSIS/NN/build/Source/*/*.a)
 
 ifdef ETHOSU_TEST_ROOT
 ETHOSU_DRIVER_LIBS = $(wildcard ${DRIVER_PATH}/build/*.a)
+ETHOSU_RUNTIME=$(build_dir)/tvm_ethosu_runtime.o
 ETHOSU_INCLUDE=-I$(ETHOSU_TEST_ROOT)
 endif
 
@@ -80,6 +82,10 @@ $(build_dir)/stack_allocator.o: $(TVM_ROOT)/src/runtime/crt/memory/stack_allocat
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
 
 $(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_backend_api.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
+
+$(build_dir)/tvm_ethosu_runtime.o: $(TVM_ROOT)/src/runtime/contrib/ethosu/bare_metal/tvm_ethosu_runtime.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
 
@@ -100,7 +106,7 @@ ${build_dir}/libuart.a: $(UART_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libuart.a) $(abspath $(build_dir))/libuart/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libuart.a)
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a $(CMSIS_NN_LIBS) $(ETHOSU_DRIVER_LIBS)
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a $(CMSIS_NN_LIBS) $(ETHOSU_DRIVER_LIBS) $(ETHOSU_RUNTIME)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) $(ETHOSU_INCLUDE) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
 
