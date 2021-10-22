@@ -79,6 +79,10 @@ AI_API_ENTRY ai_status ai_create(ai_model_info* nn, ai_ptr activations, ai_handl
   // Create internal network representation
   //
   ai_network_t* network = (ai_network_t*)malloc(sizeof(ai_network_t));
+  if (network == NULL) {
+    *handle = NULL;
+    return AI_STATUS_ERROR;
+  }
 
   network->info = nn;
 

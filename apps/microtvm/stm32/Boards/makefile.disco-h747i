@@ -1,0 +1,79 @@
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Makefile for the STM32 H747 Disco project.
+
+ROOT_DIR ?= .
+BOARDS_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+BOARD = disco-h747i
+
+#
+# Default options
+#
+include mk/default.mk
+
+#
+# TOOLS -----------------------------------------------------------
+#
+include mk/gcc.mk
+include mk/macros.mk
+
+#
+# Core/Device options ---------------------------------------------
+#
+CORE :=
+
+STM32 := STM32H7xx
+DEVICE := STM32H747xx
+DEVICE_CORE := cortex-m7-fpdp
+
+include mk/$(DEVICE_CORE).mk
+
+CFLAGS-${CORE} += -D${DEVICE} -DCORE_CM7
+
+CFLAGS += -DUSE_STM32H747I_DISCO
+CFLAGS += -DUSE_QSPI_CLK_90MHZ=0
+# CFLAGS += -DUSE_VOS0_480MHZ_OVERCLOCK=1
+CFLAGS += -DUSE_WEIGHTS_IN_SDRAM=0
+
+# Indicate the used configuration memory (1: all in internal)
+USE_CONFIG_MEM ?= 4
+
+ifeq ($(strip $(USE_CONFIG_MEM)),1)
+LDSCRIPTS ?= $(BOARDS_DIR)/$(BOARD)/STM32H747XIHx_CM7_config1.ld
+endif
+
+ifeq ($(strip $(USE_CONFIG_MEM)),4)
+LDSCRIPTS ?= $(BOARDS_DIR)/$(BOARD)/STM32H747XIHx_CM7_config4.ld
+endif
+
+ifeq ($(strip $(LDSCRIPTS)),)
+$(error No LDSCRIPT is defined for the disco-h747i - supported USE_CONFIG_MEM = 1 or 4)
+endif
+
+LDFLAGS += $(LDFLAGS-$(CORE))
+LDFLAGS += -T$(LDSCRIPTS)
+
+#ifeq ($(strip $(STM32_PROG_STM32H747I_EXT)),)
+#$(error STM32_PROG_STM32H747I_EXT should be defined)
+#endif
+
+#STM32_PROG_EXT ?= ${STM32_PROG_STM32H747I_EXT}
+
+include mk/common.mk

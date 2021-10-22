@@ -1299,11 +1299,8 @@ class CodeEmitter(object):
         """ Emits the C code implementing the model. """
 
         # Build the directory structure
-        if os.path.exists(dest_dir):
-            raise ValueError(f"emit_code.Error: {dest_dir} exists.")
-
-        # Make a new one
-        os.makedirs(dest_dir)
+        if not os.path.exists(dest_dir):
+            raise ValueError(f"emit_code.Error: {dest_dir} does not exist.")
 
         # Fix the model name
         model_name = re.sub("[^0-9a-zA-Z_]+", "_", model_name)
