@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=len-as-condition,no-else-return,invalid-name
-"""Backend code generation engine."""
+"""TE compiler engine (replacing legacy compile_engine)."""
 from __future__ import absolute_import
 
 import logging
-import numpy as np
 import tvm
 from tvm import te, autotvm
 from tvm.ir.transform import PassContext
@@ -31,7 +30,7 @@ from .. import function as _function
 from .. import ty as _ty
 from . import _backend
 
-logger = logging.getLogger("compile_engine")
+logger = logging.getLogger("te_compiler")
 autotvm_logger = logging.getLogger("autotvm")
 
 _first_warning = True
@@ -47,7 +46,7 @@ class LoweredOutput(Object):
 
 @tvm._ffi.register_object("relay.CCacheKey")
 class CCacheKey(Object):
-    """Key in the CompileEngine.
+    """Key in the TE Compiler.
 
     Parameters
     ----------
@@ -64,7 +63,7 @@ class CCacheKey(Object):
 
 @tvm._ffi.register_object("relay.CCacheValue")
 class CCacheValue(Object):
-    """Value in the CompileEngine, including usage statistics."""
+    """Value in the TE Compiler, including usage statistics."""
 
 
 def _get_cache_key(source_func, target):
@@ -77,24 +76,6 @@ def _get_cache_key(source_func, target):
     if not isinstance(source_func, CCacheKey):
         raise TypeError("Expect source_func to be CCacheKey")
     return source_func
-
-
-def get_shape(shape):
-    """Convert the shape to correct dtype and vars."""
-    ret = []
-    for dim in shape:
-        if isinstance(dim, tvm.tir.IntImm):
-            if libinfo()["INDEX_DEFAULT_I64"] == "ON":
-                ret.append(dim)
-            else:
-                val = int(dim)
-                assert val <= np.iinfo(np.int32).max
-                ret.append(tvm.tir.IntImm("int32", val))
-        elif isinstance(dim, tvm.tir.Any):
-            ret.append(te.var("any_dim", "int32"))
-        else:
-            ret.append(dim)
-    return ret
 
 
 def get_valid_implementations(op, attrs, inputs, out_type, target):
@@ -275,6 +256,24 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     return best_plevel_impl, outputs[best_plevel_impl]
 
 
+def get_shape(shape):
+    """Convert the shape to correct dtype and vars."""
+    ret = []
+    for dim in shape:
+        if isinstance(dim, tvm.tir.IntImm):
+            if libinfo()["INDEX_DEFAULT_I64"] == "ON":
+                ret.append(dim)
+            else:
+                val = int(dim)
+                assert val <= np.iinfo(np.int32).max
+                ret.append(tvm.tir.IntImm("int32", val))
+        elif isinstance(dim, tvm.tir.Any):
+            ret.append(te.var("any_dim", "int32"))
+        else:
+            ret.append(dim)
+    return ret
+
+
 @tvm._ffi.register_func("relay.backend.lower_call")
 def lower_call(call, inputs, target):
     """Lower the call expression to op implementation and tensor outputs."""
@@ -322,12 +321,12 @@ def lower_call(call, inputs, target):
     return LoweredOutput(outputs, best_impl)
 
 
-@tvm._ffi.register_object("relay.CompileEngine")
-class CompileEngine(Object):
-    """CompileEngine to get lowered code."""
+@tvm._ffi.register_object("relay.TECompiler")
+class TECompiler(Object):
+    """TECompiler to get lowered code."""
 
     def __init__(self):
-        raise RuntimeError("Cannot construct a CompileEngine")
+        raise RuntimeError("Cannot construct a TECompiler")
 
     def lower(self, source_func, target=None, mod_name="default"):
         """Lower a source_func to a CachedFunc.
@@ -349,7 +348,7 @@ class CompileEngine(Object):
         try:
             mod_name = mangle_module_name(mod_name)
             key = _get_cache_key(source_func, target)
-            return _backend._CompileEngineLower(self, key, mod_name)
+            return _backend._TECompilerLower(self, key, mod_name)
         except Exception:
             import traceback
 
@@ -359,10 +358,6 @@ class CompileEngine(Object):
             msg += source_func.astext(show_meta_data=False)
             msg += "--------------------------\n"
             raise RuntimeError(msg)
-
-    def lower_shape_func(self, source_func, target=None):
-        key = _get_cache_key(source_func, target)
-        return _backend._CompileEngineLowerShapeFunc(self, key)
 
     def jit(self, source_func, target=None):
         """JIT a source_func to a tvm.runtime.PackedFunc.
@@ -381,87 +376,30 @@ class CompileEngine(Object):
             The result of jited function.
         """
         key = _get_cache_key(source_func, target)
-        return _backend._CompileEngineJIT(self, key)
+        return _backend._TECompilerJIT(self, key)
 
     def clear(self):
         """clear the existing cached functions"""
-        _backend._CompileEngineClear(self)
+        _backend._TECompilerClear(self)
 
     def items(self):
         """List items in the cache.
-
         Returns
         -------
         item_list : List[Tuple[CCacheKey, CCacheValue]]
             The list of items.
         """
-        res = _backend._CompileEngineListItems(self)
+        res = _backend._TECompilerListItems(self)
         assert len(res) % 2 == 0
         return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
-
-    def shape_func_items(self):
-        """List items in the shape_func_cache.
-
-        Returns
-        -------
-        item_list : List[Tuple[CCacheKey, CCacheValue]]
-            The list of shape_func_items.
-        """
-        res = _backend._CompileEngineListShapeFuncItems(self)
-        assert len(res) % 2 == 0
-        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
-
-    def get_current_ccache_key(self):
-        return _backend._CompileEngineGetCurrentCCacheKey(self)
-
-    def dump(self):
-        """Return a string representation of engine dump.
-
-        Returns
-        -------
-        dump : str
-            The dumped string representation
-        """
-        items = self.items()
-        res = "====================================\n"
-        res += "CompilerEngine dump, %d items cached\n" % len(items)
-        for k, v in items:
-            res += "------------------------------------\n"
-            res += "target={}\n".format(k.target)
-            res += "use_count={}\n".format(v.use_count)
-            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
-            res += "----relay function----\n"
-            res += k.source_func.astext() + "\n"
-            res += "----tir function----- \n"
-            res += "inputs={}\n".format(v.cached_func.inputs)
-            res += "outputs={}\n".format(v.cached_func.outputs)
-            res += "function: \n"
-            res += v.cached_func.funcs.astext() + "\n"
-        res += "===================================\n"
-        shape_func_items = self.shape_func_items()
-        res += "%d shape_func_items cached\n" % len(shape_func_items)
-        for k, v in shape_func_items:
-            res += "------------------------------------\n"
-            res += "target={}\n".format(k.target)
-            res += "use_count={}\n".format(v.use_count)
-            res += "func_name={}\n".format(v.cached_func.prim_fn_var.name_hint)
-            res += "----relay function----\n"
-            res += k.source_func.astext() + "\n"
-            res += "----tir function----- \n"
-            res += "inputs={}\n".format(v.cached_func.inputs)
-            res += "outputs={}\n".format(v.cached_func.outputs)
-            res += "function: \n"
-            res += v.cached_func.funcs.astext() + "\n"
-        res += "===================================\n"
-        return res
 
 
 def get():
-    """Get the global compile engine.
+    """Get the global TE Compiler.
 
     Returns
     -------
-    engine : tvm.relay.backend.CompileEngine
-        The compile engine.
+    engine : tvm.relay.backend.TECompiler
+        The TE Compiler.
     """
-    return _backend._CompileEngineGlobal()
+    return _backend._TECompilerGlobal()

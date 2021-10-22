@@ -21,6 +21,7 @@ import tvm.testing
 from tvm import relay
 from tvm import autotvm
 from tvm import topi
+from tvm.relay.backend import te_compiler
 from tvm.relay.testing import run_infer_type
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 import tvm.testing
@@ -98,7 +99,7 @@ def test_get_valid_implementations():
         weight = relay.var("wshape", shape=wshape)
         out = relay.nn.conv2d(data, weight, padding=(1, 1))
         out = run_infer_type(out)
-        return relay.backend.compile_engine.get_valid_implementations(
+        return relay.backend.te_compiler.get_valid_implementations(
             relay.op.get("nn.conv2d"),
             out.attrs,
             [te.placeholder(dshape), te.placeholder(wshape)],
@@ -121,7 +122,7 @@ def test_select_implementation():
         weight = relay.var("wshape", shape=wshape)
         out = relay.nn.conv2d(data, weight, padding=(1, 1))
         out = run_infer_type(out)
-        return relay.backend.compile_engine.select_implementation(
+        return relay.backend.te_compiler.select_implementation(
             relay.op.get("nn.conv2d"),
             out.attrs,
             [te.placeholder(dshape), te.placeholder(wshape)],
@@ -161,8 +162,8 @@ def test_select_implementation():
                 assert impl.name == "conv2d_1"
 
 
-def test_compile_engine():
-    engine = relay.backend.compile_engine.get()
+def test_te_compiler():
+    tec = relay.backend.te_compiler.get()
 
     def get_func(shape):
         x = relay.var("x", shape=shape)
@@ -173,31 +174,30 @@ def test_compile_engine():
         mod = relay.transform.InferType()(mod)
         return mod["main"]
 
-    z1 = engine.lower(get_func((10,)), "llvm")
-    z2 = engine.lower(get_func((10,)), "llvm")
-    z3 = engine.lower(get_func(()), "llvm")
+    z1 = tec.lower(get_func((10,)), "llvm")
+    z2 = tec.lower(get_func((10,)), "llvm")
+    z3 = tec.lower(get_func(()), "llvm")
     assert z1.same_as(z2)
     assert not z3.same_as(z1)
     if tvm.testing.device_enabled("cuda"):
-        z4 = engine.lower(get_func(()), "cuda")
+        z4 = tec.lower(get_func(()), "cuda")
         assert not z3.same_as(z4)
 
     # Test JIT target
     for target in ["llvm"]:
         dev = tvm.device(target)
         if tvm.testing.device_enabled(target):
-            f = engine.jit(get_func((10,)), target)
+            f = tec.jit(get_func((10,)), target)
             x = tvm.nd.array(np.ones(10).astype("float32"), device=dev)
             y = tvm.nd.empty((10,), device=dev)
             f(x, y)
             tvm.testing.assert_allclose(y.numpy(), x.numpy() * 3)
-    engine.dump()
 
 
-# Note: Once compile engine is removed, we should keep this test so that
+# Note: Once the te compiler is removed, we should keep this test so that
 # we make sure that opt_level=0 passes are being called correctly.
 def test_compile_placeholder_bypass():
-    engine = relay.backend.compile_engine.get()
+    te_compiler = relay.backend.te_compiler.get()
     x = relay.var("x", shape=(2, 3))
     y = relay.var("y", shape=(2, 3))
     z = relay.var("z", shape=(2, 3))
@@ -264,7 +264,7 @@ def test_compile_nhwc_pack():
 if __name__ == "__main__":
     test_get_valid_implementations()
     test_select_implementation()
-    test_compile_engine()
+    test_te_compiler()
     test_compile_placeholder_bypass()
     test_compile_injective_with_tuple()
     test_compile_tuple_dup()

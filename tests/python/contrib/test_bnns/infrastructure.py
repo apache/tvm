@@ -142,7 +142,7 @@ def build_module(mod, target, params=None, enable_bnns=True, tvm_ops=0):
     with tvm.transform.PassContext(opt_level=3):
         if enable_bnns:
             mod = partition_for_bnns(mod)
-        relay.backend.compile_engine.get().clear()
+        relay.backend.te_compiler.get().clear()
         return relay.build(mod, target=target, target_host=target, params=params)
 
 
