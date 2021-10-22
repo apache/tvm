@@ -263,7 +263,22 @@ def convert_conv1d(attrs, inputs, tinfos, desired_layouts):
 
     new_attrs = dict(attrs)
 
-    return relay.nn.conv1d(data, weight, **attrs)
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv1d's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs["data_layout"] = desired_data_layout
+    new_attrs["kernel_layout"] = desired_kernel_layout
+
+    if desired_kernel_layout == "default":
+        if desired_data_layout == "NCW":
+            new_attrs["kernel_layout"] = "OIW"
+        elif desired_data_layout == "NWC":
+            new_attrs["kernel_layout"] = "WIO"
+        else:
+            raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+
+    return relay.nn.conv1d(data, weight, **new_attrs)
 
 
 @reg.register_convert_op_layout("nn.conv2d")
