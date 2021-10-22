@@ -41,25 +41,13 @@ import test_utils
 @tvm.testing.requires_micro
 def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     """Testing a TFLite model."""
-
-    if board not in [
-        "qemu_x86",
-        "mps2_an521",
-        "nrf5340dk_nrf5340_cpuapp",
-        "nucleo_l4r5zi",
-        "qemu_cortex_r5",
-        "qemu_riscv32",
-        "qemu_riscv64",
-    ]:
-        pytest.skip(msg="Model does not fit.")
-
     model = test_utils.ZEPHYR_BOARDS[board]
-    input_shape = (1, 32, 32, 3)
-    output_shape = (1, 10)
+    input_shape = (1, 49, 10, 1)
+    output_shape = (1, 12)
     build_config = {"debug": tvm_debug}
 
-    model_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/image_classification_fp32.tflite"
-    model_path = download_testdata(model_url, "image_classification_fp32.tflite", module="model")
+    model_url = "https://github.com/tlc-pack/web-data/raw/25fe99fb00329a26bd37d3dca723da94316fd34c/testdata/microTVM/model/keyword_spotting_quant.tflite"
+    model_path = download_testdata(model_url, "keyword_spotting_quant.tflite", module="model")
 
     # Import TFLite model
     tflite_model_buf = open(model_path, "rb").read()
@@ -74,7 +62,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
     # Load TFLite model and convert to Relay
     relay_mod, params = relay.frontend.from_tflite(
-        tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "float32"}
+        tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "int8"}
     )
 
     target = tvm.target.target.micro(
@@ -84,9 +72,9 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
         lowered = relay.build(relay_mod, target, params=params)
 
     # Load sample and generate input/output header files
-    sample_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/testdata_image_classification_fp32_8.npy"
+    sample_url = "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
     sample_path = download_testdata(
-        sample_url, "testdata_image_classification_fp32_8.npy", module="data"
+        sample_url, "keyword_spotting_int8_6.pyc.npy", module="data"
     )
     sample = np.load(sample_path)
 
@@ -102,7 +90,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
             test_utils.create_header_file("input_data", sample, "include", tf)
             test_utils.create_header_file(
-                "output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf
+                "output_data", np.zeros(shape=output_shape, dtype="int8"), "include", tf
             )
 
         project, _ = test_utils.build_project(
@@ -125,7 +113,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     result = int(result_line[1])
     time = int(result_line[2])
     logging.info(f"Result: {result}\ttime: {time} ms")
-    assert result == 8
+    assert result == 6
 
 
 @tvm.testing.requires_micro
