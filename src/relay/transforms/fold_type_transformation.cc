@@ -19,8 +19,10 @@
 
 /*!
  * \file src/relay/transforms/fold_type_transformation.cc
- * \brief A pass for taking transforming relay graph function
- * signatures.
+ * \brief A pass for transforming relay graph function
+ * signatures such that when a function-level inputs is
+ * transformed by a subsequent cast or quantize operation,
+ * that operation is folded into the signature itself.
  */
 
 #include <tvm/relay/expr.h>
@@ -28,21 +30,37 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/qnn/attrs.h>
 
-#include <tvm/ir/type.h>
-
-
 namespace tvm {
 namespace relay {
 
-/* Description of FoldTypeTransformation
-TODO
-*/
-
-// class HeaderMutator : public ExprMutator {
-
-// }
-using namespace tvm::tir;
-
+/*! \brief This class transforms a relay module's function signature
+ * such that when a function-level input is transformed by a subsequent
+ * "cast" or "qnn.quantize" operation, that operation is folded into
+ * the signature itself. For example,
+ * 
+ * def @main(%data: Tensor[(1, 3, 224, 224), float32]) {
+ *   %0 = qnn.quantize(%data, 2f, 0, out_dtype="uint8");
+ *   add(%0, %0)
+ * }
+ * 
+ * would be transformed to
+ * 
+ * def @main(%data: Tensor[(1, 3, 224, 224), uint8]) {
+ *   add(%0, %0)
+ * }
+ * 
+ * Note that now it is the user's responsibility to modify their
+ * input pre-processing pipeline to satisfy the new signature's
+ * constraints. 
+ * 
+ * For this pass to fold a type transformation, the following conditions
+ * must be met:
+ *   - The relay module must contain only a single function.
+ *   - The type of each function-level input is transformed only once
+ *     per program.
+ *   - The type transformation operation must be either a "cast"
+ *     or "qnn.quantize".
+ */
 class FoldTypeTransformationRewriter : public MixedModeMutator {
   int count = 0;
  protected:
@@ -50,27 +68,18 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
     const CallNode* post_call_node = post.as<CallNode>();
     CHECK(post_call_node) << "Expected a CallNode, but got " << post;
 
-    // std::cout << "pre call node " << pre_call_node->op << std::endl;
-    // std::cout << "pre call node " << pre_call_node->args << std::endl;
-    // std::cout << "post expr " << post << std::endl;
-    // CHECK(false) << "temp";
-
-    Expr cur_op = post_call_node->op;
-
+    Expr cur_op = pre_call_node->op;
     for (auto arg : pre_call_node->args) {
       auto maybe_var_node = arg.as<VarNode>();
       if (maybe_var_node) {
-        std::string var_name = maybe_var_node->name_hint();
-
-        std::cout << "num map elements START " << input_transform_map_.size() << std::endl;
         auto var = Downcast<Var>(arg);
-        input_transform_map_.insert(std::pair<Var, const CallNode*>(var, pre_call_node));
-
         auto it = input_transform_map_.find(var);
         if (it != input_transform_map_.end()) {
           // Checks that the function-level input var hasn't been an arg
           // to a CallNode yet.
-          CHECK(!it->second) << "input with name '" << var->name_hint() << "' is fed into more than one call, aborting transformation";
+          CHECK(!it->second) << "Function input with name '" << var->name_hint()
+                             << "' is fed into more than one call; "
+                             << "aborting transformation";
 
           it->second = pre_call_node;
 
@@ -83,7 +92,8 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
             auto attrs = pre_call_node->attrs.as<qnn::QuantizeAttrs>();
             out_dtype = attrs->out_dtype;
           } else {
-            CHECK(false) << "FoldTypeTransformation will only fold cast and quantize type transformations for function inputs.";
+            CHECK(false) << "FoldTypeTransformation will only fold cast and "
+                         << "quantize type transformations";
           }
 
           // Mutate the var node type
@@ -93,14 +103,10 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
           auto shape = anno->shape;
           mut_anno->dtype = out_dtype;
 
-          // TODO: Instead of mutating the var node in-place, create a new var node.
-          // This also requires updating the function signature. Need to store the var node
-          // in the input_transform_map_ probably, then update the function once all
-          // Rewrite_ calls are complete.
-
           return GetRef<Expr>(var_node);
         } else {
-          std::cout << "Did not find var with name " << var->name_hint() << " in the map" << std::endl;
+          LOG(WARNING) << "Variable '" << var->name_hint() << "' encountered"
+                       << " but wasn't registered as a function-level input";
         }
       }
     }
@@ -108,121 +114,27 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
     return Call(cur_op, post_call_node->args, pre_call_node->attrs, pre_call_node->type_args, pre_call_node->span);
   }
 
-
-  // Expr VisitExpr_(const CallNode* node) {
-  //   // this iterates from the bottom of the program up
-  //   Op op = Downcast<Op>(node->op);
-  //   std::cout << "op name " << op->name << std::endl;
-
-  //   for (auto arg : pre_call_node->args) {
-  //     auto maybe_var_node = arg.as<VarNode>();
-  //     if (maybe_var_node) {
-  //       std::string var_name = maybe_var_node->name_hint();
-  //       auto it = unvisited_input_names_.find(var_name);
-  //       if (it != unvisited_input_names_.end()) {
-  //         CHECK(cur_op == cast_op_) << "Expected a cast op, but got " << cur_op;
-
-  //         std::cout << "call attrs " << pre_call_node->attrs << std::endl;
-  //         auto attrs = pre_call_node->attrs.as<CastAttrs>();
-  //         auto dtype = attrs->dtype;
-
-  //         auto this_is_a_thing = DataType::Int(32);
-
-  //         unvisited_input_names_.erase(it);
-  //         std::cout << "Removing " << var_name << " from unvisited input names" << std::endl;
-  //       }
-  //     }
-  //   }
-
-  //   Expr expr;
-  //   if (op == quantize_op_) {// || op == cast_op_) {
-  //     expr = GetRef<Expr>(node);
-  //     std::cout << "at a quantize op" << std::endl;
-  //     // Get the type input names of the op
-  //     auto inputs = node->args;
-  //     std::cout << "INPUTS SI<<<<<<<<<<<<<<<<<<<<<z " << inputs.size() << std::endl;
-  //     auto expr = inputs[0];
-
-  //     auto tensor_node = expr.as<TensorTypeNode>();
-  //     // auto node = expr.as<CallNode>();
-
-  //     std::cout << "node ptr " << tensor_node << std::endl;
-
-  //     expr = ExprMutator::VisitExpr_(node);
-  //   } else {
-  //     expr = ExprMutator::VisitExpr_(node);
-  //   }
-
-  //   // static const Op& op = Op::Get("nn.batch_flatten");
-  //   // return Call(oexpr
-  // }
-
   Expr VisitExpr_(const FunctionNode* node) {
     function_count_++;
     if (function_count_ > 1) {
       CHECK(false) << "FoldTypeTransformation is supported for only single-function graphs";
     }
 
-    tvm::Array<TypeVar> ty_params;
-    bool all_ty_params_unchanged = true;
-
-    for (auto ty_param : node->type_params) {
-      TypeVar new_ty_param = Downcast<TypeVar>(VisitType(ty_param));
-      ty_params.push_back(new_ty_param);
-      all_ty_params_unchanged &= new_ty_param.same_as(ty_param);
-
-      std::cout << "type param" << ty_param << std::endl;
-      std::cout << "all params unchanged " << all_ty_params_unchanged << std::endl;
-    }
-
-    tvm::Array<Var> params;
-    bool all_params_unchanged = true;
     for (auto param : node->params) {
-      Var new_param = Downcast<Var>(this->Mutate(param));
-      params.push_back(new_param);
-      all_params_unchanged &= param.same_as(new_param);
-      // std::cout << "param " << param << std::endl;
-      std::string name = param->name_hint();
-      unvisited_input_names_.insert(name);
-
       input_transform_map_.insert(std::pair<Var, const CallNode*>(param, NULL));
-
-      std::cout << "all params unchanked " << all_params_unchanged << std::endl;
     }
-
-    auto ret_type = this->VisitType(node->ret_type);
     auto body = this->Mutate(node->body);
 
-    // std::cout << "ret type" << node->ret_type << std::endl;
-    // std::cout << "num type params" << params.size() << std::endl;
-    // std::cout << "num type params" << node->params.size() << std::endl;
-
-    std::cout << "params unchanged ? " << all_params_unchanged << "  " << all_ty_params_unchanged << std::endl;
-      std::cout << "body same? " << body.same_as(node->body) << std::endl;
-    if (all_ty_params_unchanged && all_params_unchanged && ret_type.same_as(node->ret_type) &&
-        body.same_as(node->body)) {
-      return GetRef<Expr>(node);
-    } else {
-      auto f = Function(params, body, ret_type, ty_params, node->attrs, node->span);
-      std::cout << "are we in here" << std::endl;
-      return f;
-    }
+    return Function(node->params, body, node->ret_type, node->type_params, node->attrs, node->span);
   }
 
   const Op cast_op_ = Op::Get("cast");
   const Op quantize_op_ = Op::Get("qnn.quantize");
-  const Op dequantize_op_ = Op::Get("qnn.dequantize");
 
  private:
-  // An input name is removed from this set when we visit a call node that
-  // references the corresponding input. For this pass, we expect that
-  // program-level inputs are only referenced once. 
-  std::unordered_set<std::string> unvisited_input_names_;
- 
   // Maps function-level input to the first-encountered call node within
   // the function that takes in that input.
   std::map<Var, const CallNode*> input_transform_map_;
-  // std::map<Var, std::tuple<const CallNode*, const VarNode*>> input_transform_map_;
 
   // Tracks number of functions in this program.
   int function_count_;
