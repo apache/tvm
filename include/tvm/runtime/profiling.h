@@ -198,13 +198,20 @@ class ReportNode : public Object {
    */
   String AsCSV() const;
   /*! \brief Create a human readable table of profiling metrics.
-   *  \param aggregate Whether or not to join multiple calls to the same op into a single line.
-   *  \param sort Whether or not to sort call frames by descending duration. If
-   *  false and if `aggregate` is false, frames will be sorted by order of
-   *  appearance in the program. Order is undefined if `sort` is false and
-   *  `aggregate` is true.
+   *
+   *  \param aggregate Whether or not to join multiple calls to the
+   *      same op into a single line.
+   *
+   *  \param sort Whether or not to sort call frames by descending
+   *      duration. If false and if `aggregate` is false, frames will
+   *      be sorted by order of appearance in the program. Order is
+   *      undefined if `sort` is false and `aggregate` is true.
+   *
+   *  \param compute_col_sums Whether or not to include sum totals for
+   *      the Count, Duation, and Percent columns.
+   *
    */
-  String AsTable(bool sort = true, bool aggregate = true) const;
+  String AsTable(bool sort = true, bool aggregate = true, bool compute_col_sums = true) const;
   /*! \brief Convert this report to JSON.
    *
    * Output JSON will be of this format:

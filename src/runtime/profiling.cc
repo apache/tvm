@@ -30,6 +30,7 @@
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -342,7 +343,7 @@ String ReportNode::AsJSON() const {
   return s.str();
 }
 
-String ReportNode::AsTable(bool sort, bool aggregate) const {
+String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) const {
   // aggregate calls by op hash (or op name if hash is not set) + argument shapes
   std::vector<Map<String, ObjectRef>> aggregated_calls;
   if (aggregate) {
@@ -414,36 +415,38 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
   }
 
   // compute columnwise sums
-  std::unordered_map<String, ObjectRef> col_sums;
-  for (auto call : aggregated_calls) {
-    for (auto p : call) {
-      if (p.second.as<CountNode>()) {
-        int64_t val = p.second.as<CountNode>()->value;
-        auto it = col_sums.find(p.first);
-        if (it != col_sums.end()) {
-          val += it->second.as<CountNode>()->value;
+  if (compute_col_sums) {
+    std::unordered_map<String, ObjectRef> col_sums;
+    for (auto call : aggregated_calls) {
+      for (auto p : call) {
+        if (p.second.as<CountNode>()) {
+          int64_t val = p.second.as<CountNode>()->value;
+          auto it = col_sums.find(p.first);
+          if (it != col_sums.end()) {
+            val += it->second.as<CountNode>()->value;
+          }
+          col_sums[p.first] = ObjectRef(make_object<CountNode>(val));
+        } else if (p.second.as<DurationNode>()) {
+          double val = p.second.as<DurationNode>()->microseconds;
+          auto it = col_sums.find(p.first);
+          if (it != col_sums.end()) {
+            val += it->second.as<DurationNode>()->microseconds;
+          }
+          col_sums[p.first] = ObjectRef(make_object<DurationNode>(val));
+        } else if (p.second.as<PercentNode>()) {
+          double val = p.second.as<PercentNode>()->percent;
+          auto it = col_sums.find(p.first);
+          if (it != col_sums.end()) {
+            val += it->second.as<PercentNode>()->percent;
+          }
+          col_sums[p.first] = ObjectRef(make_object<PercentNode>(val));
         }
-        col_sums[p.first] = ObjectRef(make_object<CountNode>(val));
-      } else if (p.second.as<DurationNode>()) {
-        double val = p.second.as<DurationNode>()->microseconds;
-        auto it = col_sums.find(p.first);
-        if (it != col_sums.end()) {
-          val += it->second.as<DurationNode>()->microseconds;
-        }
-        col_sums[p.first] = ObjectRef(make_object<DurationNode>(val));
-      } else if (p.second.as<PercentNode>()) {
-        double val = p.second.as<PercentNode>()->percent;
-        auto it = col_sums.find(p.first);
-        if (it != col_sums.end()) {
-          val += it->second.as<PercentNode>()->percent;
-        }
-        col_sums[p.first] = ObjectRef(make_object<PercentNode>(val));
       }
     }
+    col_sums["Name"] = String("Sum");
+    aggregated_calls.push_back({{String("Name"), String("----------")}});  // separator
+    aggregated_calls.push_back(col_sums);
   }
-  col_sums["Name"] = String("Sum");
-  aggregated_calls.push_back({{String("Name"), String("----------")}});  // separator
-  aggregated_calls.push_back(col_sums);
 
   // per-device metrics
   for (auto p : device_metrics) {
@@ -454,7 +457,6 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
 
   // Table formatting
   std::set<std::string> unique_headers;
-
   for (auto row : aggregated_calls) {
     for (auto p : row) {
       unique_headers.insert(p.first);
@@ -666,6 +668,7 @@ TVM_REGISTER_OBJECT_TYPE(ReportNode);
 TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
 TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
 
+TVM_REGISTER_GLOBAL("runtime.profiling.AsTable").set_body_method<Report>(&ReportNode::AsTable);
 TVM_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) { return n->AsCSV(); });
 TVM_REGISTER_GLOBAL("runtime.profiling.AsJSON").set_body_typed([](Report n) {
   return n->AsJSON();
