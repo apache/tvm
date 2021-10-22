@@ -275,7 +275,7 @@ def test_reorder_fail_not_affine_bindings():
     sch = tir.Schedule(elementwise_not_affine, debug_mask="all")
     block_b = sch.get_block("B")
     i, j, k, l = sch.get_loops(block_b)
-    with pytest.raises(tvm.tir.ScheduleError) as msg:
+    with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(l, i)
 
 
