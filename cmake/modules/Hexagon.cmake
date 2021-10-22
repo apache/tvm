@@ -76,7 +76,6 @@ if(NOT USE_HEXAGON_SDK)
 endif()
 
 if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
-
   if(DEFINED USE_ANDROID_TOOLCHAIN)
     if(NOT DEFINED ANDROID_PLATFORM)
       message(SEND_ERROR "Please set ANDROID_PLATFORM "
@@ -91,7 +90,7 @@ if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
       " launcher for hexagon.")
   endif()
 
-  set(LAUNCHER_BINARY_DIR "${CMAKE_BINARY_DIR}/launcher")
+  set(LAUNCHER_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/apps_hexagon_launcher")
   ExternalProject_Add(launcher_android
     SOURCE_DIR "${CMAKE_SOURCE_DIR}/apps/hexagon_launcher/cmake/android"
     INSTALL_DIR "${LAUNCHER_BINARY_DIR}"
@@ -101,14 +100,15 @@ if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
     "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
     "-DANDROID_ABI=${ANDROID_ABI}"
     "-DFASTRPC_LIBS=STUB"
-    "-DUSE_HEXAGON_ARCH=v68"
+    "-DUSE_HEXAGON_ARCH=${USE_HEXAGON_ARCH}"
     "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
-    "-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>"
     INSTALL_COMMAND ""
   )
   ExternalProject_Get_Property(launcher_android BINARY_DIR)
   ExternalProject_Add_Step(launcher_android copy_binaries
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${BINARY_DIR} ${LAUNCHER_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${BINARY_DIR}/launcher_android ${BINARY_DIR}/libtvm_runtime.so
+      ${LAUNCHER_BINARY_DIR}
     DEPENDEES install
   )
   ExternalProject_Add(launcher_hexagon
@@ -119,14 +119,15 @@ if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
     "-DCMAKE_C_COMPILER=${USE_HEXAGON_TOOLCHAIN}/Tools/bin/hexagon-clang"
     "-DCMAKE_CXX_COMPILER=${USE_HEXAGON_TOOLCHAIN}/Tools/bin/hexagon-clang++"
     "-DFASTRPC_LIBS=SKEL"
-    "-DUSE_HEXAGON_ARCH=v68"
+    "-DUSE_HEXAGON_ARCH=${USE_HEXAGON_ARCH}"
     "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
-    "-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>"
     INSTALL_COMMAND ""
   )
   ExternalProject_Get_Property(launcher_hexagon BINARY_DIR)
   ExternalProject_Add_Step(launcher_hexagon copy_binaries
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${BINARY_DIR} ${LAUNCHER_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${BINARY_DIR}/liblauncher_rpc_skel.so
+      ${LAUNCHER_BINARY_DIR}
     DEPENDEES install
   )
 
