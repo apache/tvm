@@ -354,11 +354,14 @@ def _convert_convolution(inexpr, keras_layer, etab):
         else:
             kernel_layout = "HWIO"
     else:
-        kernel_layout = "OIHW"
+        if is_deconv:
+            kernel_layout = "IOHW"
+        else:
+            kernel_layout = "OIHW"
 
     if is_deconv:
         kernel_h, kernel_w, n_filters, in_channels = weight.shape
-        if kernel_layout == "OIHW":
+        if kernel_layout == "IOHW":
             weight = weight.transpose([3, 2, 0, 1])
     elif is_depthconv:
         kernel_h, kernel_w, in_channels, depth_mult = weight.shape
