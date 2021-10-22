@@ -208,6 +208,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBlockVars(const BlockRealizeNode* op);
   Doc PrintBlockAttr(const BlockRealizeNode* op);
   Doc PrintBlockBody(const BlockNode* op);
+  virtual Doc PrintBlockName(const BlockNode* block_op);
   Doc PrintBufferRegion(const BufferRegionNode* op);
   Doc PrintMatchBufferRegion(const MatchBufferRegionNode* op);
   Doc PrintAnnotations(const Map<String, ObjectRef>& annotations);
@@ -224,7 +225,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * \brief Print a single for loop
    * \param loop The for loop to be printed
    */
-  Doc PrintLoop(const For& loop);
+  virtual Doc PrintLoop(const For& loop);
   /*! \brief Print all simple loops in stack into one line using tir_prefix_.grid(). */
   Doc PrintLoopStack();
   /*!
@@ -852,10 +853,10 @@ Doc TVMScriptPrinter::VisitStmt_(const ForNode* op) {
   var_not_in_headers_.insert(op->loop_var.get());
   loop_var_map_[op->loop_var.get()] = GetRef<For>(op);
   const auto* body = op->body.as<ForNode>();
-  bool simple_loop = IsSimpleLoop(op) && body != nullptr && IsSimpleLoop(body);
+  bool simple_loop = IsSimpleLoop(op);
   if (simple_loop) simple_loop_stack_.push_back(GetRef<For>(op));
   // It is a loop that can be compressed, let the loops below print it out
-  if (simple_loop && body != nullptr) {
+  if (simple_loop && body != nullptr && IsSimpleLoop(body)) {
     doc << Print(GetRef<For>(body));
     TryDeallocVar(op->loop_var);
     loop_var_map_.erase(op->loop_var.get());
@@ -933,6 +934,7 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferStoreNode* op) {
   return doc;
 }
 
+/*! Helper functions for block printing. */
 Doc TVMScriptPrinter::PrintBlockVar(const IterVar& iter_var, const PrimExpr& value) {
   Doc doc;
   doc << Print(iter_var->var) << " = " << tir_prefix_ << ".axis.";
@@ -1066,15 +1068,24 @@ Doc TVMScriptPrinter::PrintBlockBody(const BlockNode* op) {
   return body;
 }
 
-Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
-  const auto* block_op = op->block.as<BlockNode>();
-  // print block name and block vars
+/*!
+ * \brief Print the name of a block
+ * \param block_op The block node to be printed
+ */
+Doc TVMScriptPrinter::PrintBlockName(const BlockNode* block_op) {
   Doc doc;
   doc << "with " << tir_prefix_ << ".block(";
   if (!block_op->name_hint.empty()) {
     doc << Doc::StrLiteral(block_op->name_hint);
   }
   doc << "):";
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
+  const auto* block_op = op->block.as<BlockNode>();
+  // print block name and block vars
+  Doc doc = PrintBlockName(block_op);
   Doc block_var = PrintBlockVars(op);
   // print predicate, binding, read/write tensor region, annotations
   Doc block_attr_doc = PrintBlockAttr(op);
@@ -1372,74 +1383,20 @@ class TVMScriptPrinterWithDiagnostic : public TVMScriptPrinter {
       : TVMScriptPrinter(tir_prefix, show_meta, annotate) {}
 
  protected:
-  Doc VisitStmt_(const ForNode* op) override;
-  Doc VisitStmt_(const BlockRealizeNode* op) override;
+  Doc PrintBlockName(const BlockNode* block_op);
   Doc PrintUnderline(const Stmt& stmt, int length);
   Doc PrintLoop(const For& loop);
-  Doc PrintLoopStack();
 };
 
-Doc TVMScriptPrinterWithDiagnostic::VisitStmt_(const ForNode* op) {
-  Doc doc;
-  var_not_in_headers_.insert(op->loop_var.get());
-  loop_var_map_[op->loop_var.get()] = GetRef<For>(op);
-  const auto* body = op->body.as<ForNode>();
-
-  bool simple_loop = IsSimpleLoop(op);
-  if (simple_loop && body != nullptr && IsSimpleLoop(body)) {
-    simple_loop_stack_.push_back(GetRef<For>(op));
-  }
-  // It is a loop that can be compressed, let the loops below print it out
-  if (simple_loop && body != nullptr) {
-    doc << Print(GetRef<For>(body));
-    TryDeallocVar(op->loop_var);
-    loop_var_map_.erase(op->loop_var.get());
-    return doc;
-  }
-  // It is a loop that can not be compressed
-  bool print_above = !simple_loop_stack_.empty();
-  // print loops above if needed
-  if (print_above) {
-    doc << PrintLoopStack();
-  }
-  if (!simple_loop) {
-    // print current loop if needed
-    Doc current_loop;
-    current_loop << PrintLoop(GetRef<For>(op));
-    current_loop << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
-    doc << (print_above ? Doc::Indent(4, Doc::NewLine() << current_loop) : current_loop);
-  } else {
-    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
-  }
-  TryDeallocVar(op->loop_var);
-  loop_var_map_.erase(op->loop_var.get());
-  return doc;
-}
-
-Doc TVMScriptPrinterWithDiagnostic::VisitStmt_(const BlockRealizeNode* op) {
-  const auto* block_op = op->block.as<BlockNode>();
-  // print block name
-  // we want to print the option info for its BlockNode body first
-  // as it wouldn't be picked up by PrintOptionalInfo(BlockRealizeNode& op)
+Doc TVMScriptPrinterWithDiagnostic::PrintBlockName(const BlockNode* block_op) {
   Doc doc = PrintOptionalInfo(GetRef<Stmt>(block_op));
-  std::size_t option_info_size = doc.str().size();
+  auto optional_info_size = doc.str().size();
   doc << "with " << tir_prefix_ << ".block(";
   if (!block_op->name_hint.empty()) {
     doc << Doc::StrLiteral(block_op->name_hint);
   }
   doc << "):";
-  // annotation
-  doc << PrintUnderline(GetRef<Stmt>(block_op), doc.str().size() - option_info_size);
-  // print block vars
-  Doc block_var = PrintBlockVars(op);
-  // print predicate, binding, read/write tensor region, annotations
-  Doc block_attr_doc = PrintBlockAttr(op);
-  // print body
-  Doc body = PrintBlockBody(block_op);
-  doc << Doc::Indent(4, block_var << block_attr_doc << Doc::NewLine() << body);
-  for (const auto& iter_var : block_op->iter_vars) {
-    TryDeallocVar(iter_var->var);
-  }
+  doc << PrintUnderline(GetRef<Stmt>(block_op), doc.str().size() - optional_info_size);
   return doc;
 }
 
@@ -1454,38 +1411,8 @@ Doc TVMScriptPrinterWithDiagnostic::PrintUnderline(const Stmt& stmt, int length)
 }
 
 Doc TVMScriptPrinterWithDiagnostic::PrintLoop(const For& loop) {
-  Doc res;
-  res << "for " << Print(loop->loop_var) << " in " << tir_prefix_
-      << "." + std::string(ForKind2String(loop->kind)) + "(" << Print(loop->min) << ", "
-      << Print(loop->min + loop->extent);
-  if (loop->thread_binding.defined()) {
-    res << ", thread=";
-    res << Print(loop->thread_binding.value()->thread_tag);
-  }
-  if (!loop->annotations.empty()) {
-    res << ", annotations={";
-    res << PrintAnnotations(loop->annotations);
-    res << "}";
-  }
-  res << "):";
+  Doc res = TVMScriptPrinter::PrintLoop(loop);
   res << PrintUnderline(loop, res.str().size());
-  return res;
-}
-
-Doc TVMScriptPrinterWithDiagnostic::PrintLoopStack() {
-  Doc res;
-  if (simple_loop_stack_.size() == 1) {
-    res << PrintLoop(simple_loop_stack_[0]);
-  } else if (simple_loop_stack_.size() > 1) {
-    std::vector<Doc> vars, extents;
-    for (const auto& loop : simple_loop_stack_) {
-      vars.push_back(Print(loop->loop_var));
-      extents.push_back(Print(loop->extent));
-    }
-    res << "for " << PrintSep(vars, Doc::Text(", ")) << " in " << tir_prefix_ << ".grid("
-        << PrintSep(extents, Doc::Text(", ")) << "):";
-  }
-  simple_loop_stack_.clear();
   return res;
 }
 

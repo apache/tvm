@@ -18,6 +18,7 @@
 import pytest
 import sys
 import tvm
+from tvm import tir
 from tvm.script import tir as T
 from tvm.ir.diagnostics import override_renderer
 import inspect
@@ -510,6 +511,76 @@ def check_error(func, rel_lineno):
 
 
 # TODO(Siyuan): block iter errors.
+
+
+@T.prim_func
+def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for i, j, k, l in T.grid(128, 128, 128, 8):
+        with T.block("B"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            vl = T.axis.S(128, l * 16)
+            B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
+
+
+@T.prim_func
+def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128))
+    C = T.alloc_buffer((128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128))
+    for i, j in T.grid(128, 128):
+        for k in T.serial(0, 128):
+            with T.block("C"):
+                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                C[vi, vj, vk] = A[vi, vj, vk] * 2.0
+        for k in T.serial(0, 128):
+            with T.block("B"):
+                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                B[vi, vj, vk] = C[vi, vj, vk] * 2.0
+
+
+def test_reorder_fail_block():
+    sch = tir.Schedule(elementwise_not_affine, debug_mask="all")
+    block_b = sch.get_block("B")
+    i, j, k, l = sch.get_loops(block_b)
+    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
+        sch.reorder(l, i)
+    expected_sub_error_message = (
+        "# tir.Block#0\n" '            with tir.block("B"):\n' "            ^^^^^^^^^^^^^^^^^^^^\n"
+    )
+    assert expected_sub_error_message in str(execinfo.value)
+
+
+def test_reorder_fail_nested_loop_inner():
+    sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
+    block_b = sch.get_block("B")
+    i, j, k = sch.get_loops(block_b)
+    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
+        sch.reorder(k, i)
+    expected_sub_error_message = (
+        "        for i in tir.serial(0, 128):\n"
+        "            # tir.For#0\n"
+        "            for j in tir.serial(0, 128):\n"
+        "            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+    )
+    assert expected_sub_error_message in str(execinfo.value)
+
+
+def test_reorder_fail_nested_loop_outer():
+    sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
+    block_b = sch.get_block("B")
+    i, j, k = sch.get_loops(block_b)
+    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
+        sch.fuse(k, i)
+    expected_sub_error_message = (
+        "        # tir.For#1\n"
+        "        for i in tir.serial(0, 128):\n"
+        "        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "            for j in tir.serial(0, 128):\n"
+    )
+    assert expected_sub_error_message in str(execinfo.value)
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

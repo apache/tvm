@@ -279,34 +279,5 @@ def test_reorder_fail_not_affine_bindings():
         sch.reorder(l, i)
 
 
-def test_reorder_fail_error_msg():
-    sch = tir.Schedule(elementwise_not_affine, debug_mask="all")
-    block_b = sch.get_block("B")
-    i, j, k, l = sch.get_loops(block_b)
-    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
-        sch.reorder(l, i)
-    expected_sub_error_message = (
-        "                # tir.Block#0\n"
-        '                with tir.block("B"):\n'
-        "                ^^^^^^^^^^^^^^^^^^^^\n"
-    )
-    assert expected_sub_error_message in str(execinfo.value)
-
-
-def test_reorder_fail_nested_loop():
-    sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
-    block_b = sch.get_block("B")
-    i, j, k = sch.get_loops(block_b)
-    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
-        sch.reorder(k, i)
-    expected_sub_error_message = (
-        "        for i in tir.serial(0, 128):\n"
-        "            # tir.For#0\n"
-        "            for j in tir.serial(0, 128):\n"
-        "            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
-    )
-    assert expected_sub_error_message in str(execinfo.value)
-
-
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
