@@ -118,6 +118,7 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
 - [Leandro Nunes](https://github.com/leandron): @leandron
+- [Jiawei Liu](https://github.com/ganler): @ganler
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
