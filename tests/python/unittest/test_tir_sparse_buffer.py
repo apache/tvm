@@ -14,9 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.tir"""
-import tvm._ffi
+import tvm
+import tvm.tir as tir
+
+def test_format_tree_creation():
+    i = tir.sparse.DenseFixedAxis('i', 128)
+    j = tir.sparse.DenseFixedAxis('j', 128)
+    k = tir.sparse.DenseFixedAxis('k', 128)
+    tree = tir.sparse.AxisTree({
+        i: None,
+        j: None,
+        k: None
+    })
+    print(tree)
 
 
-tvm._ffi._init_api("tir", __name__)
-tvm._ffi._init_api("tir.sparse", __name__)
+if __name__ == "__main__":
+    test_format_tree_creation()

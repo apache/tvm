@@ -16,7 +16,7 @@
 # under the License.
 """SparseTIR axes and SparseBuffer
 """
-from typing import List
+from typing import List, Dict, Optional
 import tvm._ffi
 from tvm.ir import PrimExpr
 from tvm.runtime import Object, const
@@ -146,9 +146,23 @@ class SparseVariableAxis(DenseAxis):
 
 
 @tvm._ffi.register_object("tir.sparse.AxisTree")
-class AxisTree:
-    # Todo(@ruihang): to do later
-    pass
+class AxisTree(Object):
+    """AxisTree node
+
+    Parameters
+    ----------
+    axis_parent_map: Dict
+        A dictionary that maps Axis to parent axis name, value is None if there is not parent axis.
+    """
+
+    axis_parent_map: Dict[Axis, Optional[str]]
+
+    def __init__(self, axis_parent_map) -> None:
+        keys = list(axis_parent_map.keys())
+        values = list(axis_parent_map.values())
+        self.__init_handle_by_constructor__(
+            _ffi_api.AxisTree, keys, values  # type:ignore
+        )
 
 
 @tvm._ffi.register_object("tir.sparse.SparseBuffer")
@@ -157,8 +171,8 @@ class SparseBuffer:
 
     Parameters
     ----------
-    root : AxisTree
-        The root of the axis dependency tree of the sparse buffer
+    tree : AxisTree
+        The axis dependency tree of the sparse buffer
 
     axes : List[Axis]
         The axes of the sparse buffer
@@ -170,12 +184,12 @@ class SparseBuffer:
         The data of the sparse buffer
     """
 
-    root: AxisTree
+    tree: AxisTree
     axes: List[Axis]
     ndim: int
     data: Buffer
 
-    def __init__(self, root, axes, ndim, data):
+    def __init__(self, tree, axes, ndim, data):
         self.__init_handle_by_constructor__(
             _ffi_api.SparseBuffer, root, axes, ndim, data  # type: ignore
         )

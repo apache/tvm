@@ -268,15 +268,23 @@ class SparseVariableAxis : public SparseAxis {
   TVM_DEFINE_OBJECT_REF_METHODS(SparseVariableAxis, SparseAxis, SparseVariableAxisNode);
 };
 
+
 /*!
  * \brief Axis Dependency Tree.
  */
 class AxisTreeNode : public Object {
  public:
-  // parent refers to the parent axis of current axis tree.
-  Optional<AxisTree> parent;
-  Axis axis;
-  Array<AxisTree> children;
+  // mapping from names to axes.
+  std::unordered_map<String, Axis> axis_map;
+  // unordered map that stores the parent relationship between axes.
+  std::unordered_map<Axis, Axis, ObjectPtrHash, ObjectPtrEqual> parent;
+  // unordered map that stores the children relationship between axes.
+  std::unordered_map<Axis, Array<Axis>, ObjectPtrHash, ObjectPtrEqual> children;
+  // The root axis.
+  Axis root;
+
+  void VisitAttrs(AttrVisitor* v) {}
+
   static constexpr const char* _type_key = "tir.sparse.AxisTree";
   TVM_DECLARE_FINAL_OBJECT_INFO(AxisTreeNode, Object);
 };
@@ -287,6 +295,7 @@ class AxisTreeNode : public Object {
  */
 class AxisTree : public ObjectRef {
  public:
+  TVM_DLL AxisTree(Array<Axis> axes, Array<Optional<String>> axis_parent_names);
   TVM_DEFINE_OBJECT_REF_METHODS(AxisTree, ObjectRef, AxisTreeNode);
 };
 
@@ -296,7 +305,7 @@ class AxisTree : public ObjectRef {
 class SparseBufferNode : public Object {
  public:
   /* Root of Axis Dependency Tree. */
-  AxisTree root;
+  AxisTree tree;
   /* Axes */
   Array<Axis> axes;
   /* Number of dimensions */
@@ -305,25 +314,25 @@ class SparseBufferNode : public Object {
   Buffer data;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &root);
+    v->Visit("name", &tree);
     v->Visit("length", &axes);
     v->Visit("indptr", &ndim);
     v->Visit("num_cols", &data);
   }
 
   bool SEqualReduce(const SparseBufferNode* other, SEqualReducer equal) const {
-    return equal(root, other->root) && equal(axes, other->axes) && equal(ndim, other->ndim) &&
+    return equal(tree, other->tree) && equal(axes, other->axes) && equal(ndim, other->ndim) &&
            equal(data, other->data);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(root);
+    hash_reduce(tree);
     hash_reduce(axes);
     hash_reduce(ndim);
     hash_reduce(data);
   }
 
-  static constexpr const char* _type_key = "tir.sparse.SparseBufferNode";
+  static constexpr const char* _type_key = "tir.sparse.SparseBuffer";
   TVM_DECLARE_FINAL_OBJECT_INFO(SparseBufferNode, Object);
 };
 
@@ -333,7 +342,7 @@ class SparseBufferNode : public Object {
  */
 class SparseBuffer : public ObjectRef {
  public:
-  TVM_DLL explicit SparseBuffer(AxisTree root, Array<Axis> axes, int ndim, Buffer data);
+  TVM_DLL explicit SparseBuffer(AxisTree tree, Array<Axis> axes, int ndim, Buffer data);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SparseBuffer, ObjectRef, SparseBufferNode);
 };
