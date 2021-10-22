@@ -19,8 +19,6 @@
 # Default options
 #
 
-#APP_NAME = valid
-
 # Indicates how to build the AI lib (see ../Nucleo-Lib/GCC/Makefile)
 #
 #   AI_DEBUG,AI_RELEASE
