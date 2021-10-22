@@ -43,13 +43,13 @@
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 tvm_workspace_t app_workspace;
 
-// Wakeup sequence used to wake up QEMU on the host.
+// Transport Commands.
+// Commands on host end with `\n`
+// Commands on microTVM device end with `%`
 const unsigned char CMD_WAKEUP[] = "wakeup\n";
 const unsigned char CMD_READY[] = "ready\n";
 const unsigned char CMD_INIT[] = "init";
 const unsigned char CMD_INFER[] = "infer";
-
-// #define g_start_cmd[] = "start\n";
 
 #define CMD_SIZE 80u
 #define CMD_TERMINATOR '%'
@@ -204,6 +204,7 @@ void TVMInfer() {
   TVMLogf("result:%d:%d\n", max_ind, (uint32_t)(elapsed_time * 1000));
 }
 
+// Execute functions based on received command
 void command_ready(char* command) {
   if (strncmp(command, CMD_INIT, CMD_SIZE) == 0) {
     TVMPlatformWriteSerial(CMD_WAKEUP, sizeof(CMD_WAKEUP));
@@ -214,9 +215,10 @@ void command_ready(char* command) {
   }
 }
 
+// Append received characters to buffer and check for termination character.
 void serial_callback(char* message, int len_bytes) {
-  for (int i=0; i<len_bytes; i++) {
-    if(message[i] == CMD_TERMINATOR) {
+  for (int i = 0; i < len_bytes; i++) {
+    if (message[i] == CMD_TERMINATOR) {
       g_cmd_buf[g_cmd_buf_ind] = (char)0;
       command_ready(g_cmd_buf);
       g_cmd_buf_ind = 0;
@@ -232,25 +234,12 @@ void main(void) {
   memset((char*)g_cmd_buf, 0, sizeof(g_cmd_buf));
   TVMPlatformUARTInit();
   k_timer_init(&g_microtvm_timer, NULL, NULL);
-  // Wake up host side.
-  TVMPlatformWriteSerial(CMD_WAKEUP, sizeof(CMD_WAKEUP));
 
-  // Wait for start command
   while (true) {
     int bytes_read = TVMPlatformUartRxRead(main_rx_buf, sizeof(main_rx_buf));
     if (bytes_read > 0) {
-      // memcpy((char*)cmd_buf + g_cmd_buf_ind, main_rx_buf, bytes_read);
-      // g_cmd_buf_ind += bytes_read;
       serial_callback(main_rx_buf, bytes_read);
     }
-    // if (g_cmd_buf_ind >= 6) {
-    //   if (!strcmp((char*)(cmd_buf), g_start_cmd)) {
-    //     break;
-    //   } else {
-    //     memset((char*)cmd_buf, 0, sizeof(cmd_buf));
-    //     g_cmd_buf_ind = 0;
-    //   }
-    // }
   }
 
 #ifdef CONFIG_ARCH_POSIX

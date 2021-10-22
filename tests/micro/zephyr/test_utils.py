@@ -154,6 +154,17 @@ def get_message(fd, expr: str, timeout_sec: int):
             return data
 
 
+def aot_transport_init(transport):
+    """Send init message to microTVM device until it receives wakeup sequence."""
+    timeout = 5
+    while True:
+        try:
+            get_message(transport, "wakeup", timeout_sec=timeout)
+            break
+        except:
+            transport.write(b"init%", timeout_sec=timeout)
+
+
 # TODO move CMSIS integration to microtvm_api_server.py
 # see https://discuss.tvm.apache.org/t/tvm-capturing-dependent-libraries-of-code-generated-tir-initially-for-use-in-model-library-format/11080
 def loadCMSIS(temp_dir):

@@ -113,20 +113,9 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
     project.flash()
     with project.transport() as transport:
-        timeout_read = 5
-        while True:
-            logging.info("mehrdad: checking for message")
-            try:
-                message = test_utils.get_message(transport, "wakeup", timeout_sec=timeout_read)
-                logging.info(f"mehrdad: data: {message}")
-                break
-            except:
-                transport.write(b"init%", timeout_sec=5)
-            
-
-        # transport.write(b"init%", timeout_sec=5)
+        test_utils.aot_transport_init(transport)
         transport.write(b"infer%", timeout_sec=5)
-        result_line = test_utils.get_message(transport, "result", timeout_sec=100)
+        result_line = test_utils.get_message(transport, "result", timeout_sec=60)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")

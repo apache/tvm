@@ -145,9 +145,9 @@ def _run_model(temp_dir, board, west_cmd, lowered, build_config, sample, output_
     project.flash()
 
     with project.transport() as transport:
-        timeout_read = 60
-        transport.write(b"start\n", timeout_sec=5)
-        result_line = test_utils.get_message(transport, "#result", timeout_sec=timeout_read)
+        test_utils.aot_transport_init(transport)
+        transport.write(b"infer%", timeout_sec=5)
+        result_line = test_utils.get_message(transport, "result", timeout_sec=60)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
