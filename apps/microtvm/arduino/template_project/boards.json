@@ -1,0 +1,59 @@
+{
+    "due": {
+        "package": "arduino",
+        "architecture": "sam",
+        "board": "arduino_due_x_dbg",
+        "model": "sam3x8e"
+    },
+    "feathers2": {
+        "package": "esp32",
+        "architecture": "esp32",
+        "board": "feathers2",
+        "model": "esp32",
+        "note": "Due to the way the Feather S2 bootloader works, compilation behaves fine but uploads cannot be done automatically."
+    },
+    "metrom4": {
+        "package": "adafruit",
+        "architecture": "samd",
+        "board": "adafruit_metro_m4",
+        "model": "atsamd51"
+    },
+    "spresense": {
+        "package": "SPRESENSE",
+        "architecture": "spresense",
+        "board": "spresense",
+        "model": "cxd5602gg",
+        "note": "Spresense only works as of its v2.3.0 sdk."
+    },
+    "nano33ble": {
+        "package": "arduino",
+        "architecture": "mbed_nano",
+        "board": "nano33ble",
+        "model": "nrf52840"
+    },
+    "pybadge": {
+        "package": "adafruit",
+        "architecture": "samd",
+        "board": "adafruit_pybadge_m4",
+        "model": "atsamd51"
+    },
+    "teensy40": {
+        "package": "teensy",
+        "architecture": "avr",
+        "board": "teensy40",
+        "model": "imxrt1060",
+        "note": "The Teensy boards are listed here for completeness, but they won't work until https://github.com/arduino/arduino-cli/issues/700 is finished."
+    },
+    "teensy41": {
+        "package": "teensy",
+        "architecture": "avr",
+        "board": "teensy41",
+        "model": "imxrt1060"
+    },
+    "wioterminal": {
+        "package": "Seeeduino",
+        "architecture": "samd",
+        "board": "seeed_wio_terminal",
+        "model": "atsamd51"
+    }
+}

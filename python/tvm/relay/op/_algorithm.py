@@ -41,6 +41,10 @@ register_shape_func("argsort", False, elemwise_shape_func)
 register_strategy("topk", strategy.topk_strategy)
 register_pattern("topk", OpPattern.OPAQUE)
 
+# searchsorted
+register_strategy("searchsorted", strategy.searchsorted_strategy)
+register_pattern("searchsorted", OpPattern.OPAQUE)
+
 
 @script
 def _topk_shape_func_input_shape(data_shape, k, axis):
