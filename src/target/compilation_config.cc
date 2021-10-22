@@ -84,6 +84,7 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
               << "' of device type " << default_primitive_device_type
               << " as the default device type for all primitive operations";
   } else {
+    // Fallback.
     default_primitive_device_type = kDLCPU;
     LOG(WARNING) << "Using " << default_primitive_device_type
                  << " as the default device type for all primitive operations";
@@ -110,11 +111,21 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
       LOG(INFO) << "Using the given host target '" << host_target->str() << "' of device type "
                 << host_device_type << " for all host operations and data";
     }
+  } else if (primitive_targets.size() == 1 &&
+             primitive_targets.front()->kind->device_type == kDLCPU) {
+    // In the homogenous case without an explicit host target just use the given target so long as
+    // it's a CPU.
+    host_device_type = kDLCPU;
+    host_target =
+        FindPrimitiveTargetOrFail(host_device_type);  // ie just primitive_targets.front()!
+    LOG(INFO) << "Using the unique target '" << host_target->str() << "' of device type "
+              << host_device_type << " for all host operations and data";
   } else {
+    // Fallback.
     host_device_type = kDLCPU;
     // Even if the list of available targets already includes one for kDLCPU we won't use it
-    // since it's options may not be appropriate for host code (eg shape functions). Instead
-    // create a default.
+    // since its options may not be appropriate for host code (eg shape functions). Instead,
+    // create a fresh default Target.
     host_target = MakeDefaultTarget(host_device_type);
     LOG(WARNING) << "Using the default host target '" << host_target->str() << "' of device type "
                  << host_device_type << " for all host operations and data";
@@ -186,7 +197,7 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
   // Legacy: Some passes only support homogenous compilation and expect the target to be
   // given by the global target context.
   node->optional_homogeneous_target =
-      node->legacy_target_map.size() == 1 ? (*node->legacy_target_map.begin()).second : Target();
+      node->primitive_targets.size() == 1 ? *node->primitive_targets.begin() : Target();
 
   for (const auto& target : node->primitive_targets) {
     VLOG(0) << "Established primitive target " << target->kind->device_type << " = '"
