@@ -25,8 +25,6 @@ import tempfile
 import pytest
 import numpy as np
 
-import test_utils
-
 import tvm
 import tvm.rpc
 import tvm.micro
@@ -35,12 +33,11 @@ from tvm import relay
 
 from tvm.contrib.download import download_testdata
 from tvm.micro.model_library_format import generate_c_interface_header
+from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
-import conftest
-
+import test_utils
 
 _LOG = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def _open_tflite_model():
@@ -145,15 +142,15 @@ def _run_model(temp_dir, board, west_cmd, lowered, build_config, sample, output_
     project.flash()
 
     with project.transport() as transport:
-        test_utils.aot_transport_init(transport)
+        aot_transport_init_wait(transport)
         transport.write(b"infer%", timeout_sec=5)
-        result_line = test_utils.get_message(transport, "result", timeout_sec=60)
+        result_line = aot_transport_find_message(transport, "result", timeout_sec=60)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
     result = int(result_line[1])
     time = int(result_line[2])
-    logging.info(f"Result: {result}\ttime: {time} ms")
+    _LOG.info(f"Result: {result}\ttime: {time} ms")
 
     return result, time
 

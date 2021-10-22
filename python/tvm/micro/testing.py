@@ -19,6 +19,7 @@
 
 import pathlib
 import json
+import logging
 from typing import Union
 
 
@@ -31,3 +32,39 @@ def check_tune_log(log_path: Union[pathlib.Path, str]):
         if len(line) > 0:
             tune_result = json.loads(line)
             assert tune_result["result"][0][0] < 1000000000.0
+
+
+def aot_transport_init_wait(transport):
+    """Send init message to microTVM device until it receives wakeup sequence."""
+    timeout = 5
+    while True:
+        try:
+            aot_transport_find_message(transport, "wakeup", timeout_sec=timeout)
+            break
+        except:
+            transport.write(b"init%", timeout_sec=timeout)
+
+
+def aot_transport_find_message(transport, expr: str, timeout_sec: int):
+    while True:
+        data = _read_line(transport, timeout_sec)
+        logging.debug(f"new line: {data}")
+        if expr in data:
+            return data
+
+
+def _read_line(fd, timeout_sec: int):
+    data = ""
+    new_line = False
+    while True:
+        if new_line:
+            break
+        new_data = fd.read(1, timeout_sec=timeout_sec)
+        logging.debug(f"read data: {new_data}")
+        for item in new_data:
+            new_c = chr(item)
+            data = data + new_c
+            if new_c == "\n":
+                new_line = True
+                break
+    return data

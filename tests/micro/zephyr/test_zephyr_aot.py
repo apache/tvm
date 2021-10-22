@@ -33,6 +33,7 @@ import tvm.relay as relay
 
 from tvm.contrib.download import download_testdata
 from tvm.micro.model_library_format import generate_c_interface_header
+from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
 import test_utils
 
@@ -113,9 +114,9 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
     project.flash()
     with project.transport() as transport:
-        test_utils.aot_transport_init(transport)
+        aot_transport_init_wait(transport)
         transport.write(b"infer%", timeout_sec=5)
-        result_line = test_utils.get_message(transport, "result", timeout_sec=60)
+        result_line = aot_transport_find_message(transport, "result", timeout_sec=60)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")

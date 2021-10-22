@@ -129,42 +129,6 @@ def create_header_file(tensor_name, npy_data, output_path, tar_file):
     tar_file.addfile(ti, io.BytesIO(header_file_bytes))
 
 
-def _read_line(fd, timeout_sec: int):
-    data = ""
-    new_line = False
-    while True:
-        if new_line:
-            break
-        new_data = fd.read(1, timeout_sec=timeout_sec)
-        logging.debug(f"read data: {new_data}")
-        for item in new_data:
-            new_c = chr(item)
-            data = data + new_c
-            if new_c == "\n":
-                new_line = True
-                break
-    return data
-
-
-def get_message(fd, expr: str, timeout_sec: int):
-    while True:
-        data = _read_line(fd, timeout_sec)
-        logging.debug(f"new line: {data}")
-        if expr in data:
-            return data
-
-
-def aot_transport_init(transport):
-    """Send init message to microTVM device until it receives wakeup sequence."""
-    timeout = 5
-    while True:
-        try:
-            get_message(transport, "wakeup", timeout_sec=timeout)
-            break
-        except:
-            transport.write(b"init%", timeout_sec=timeout)
-
-
 # TODO move CMSIS integration to microtvm_api_server.py
 # see https://discuss.tvm.apache.org/t/tvm-capturing-dependent-libraries-of-code-generated-tir-initially-for-use-in-model-library-format/11080
 def loadCMSIS(temp_dir):
