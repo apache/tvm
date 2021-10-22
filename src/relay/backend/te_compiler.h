@@ -110,13 +110,24 @@ class TECompilerNode : public Object {
   virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
 
   /*!
+   * \brief Update \p module to remove functions marked with the "Compiler" attribute and replace
+   * them with their 'external' representation using the "ExternalSymbol" attribute.
+   *
+   * TODO(mbs): This is a stepping stone while we migrate to a more official representation
+   * of 'external functions' in the IRModule and allow lowering to incrementally updatethe
+   * module stead of forcing everything via the cache.
+   *
+   */
+  virtual void AddExterns(IRModule module) = 0;
+
+  /*!
    * \brief Get C Device API context mapping
    * \return Map of GlobalVar to associated C Device API context name (either Target or kCompiler
    * annotated)
    */
   virtual Map<GlobalVar, String> GetDeviceContexts() = 0;
 
-  virtual std::unordered_map<std::string, int> GetOpWeights() = 0;
+  virtual Map<String, Integer> GetOpWeights() const = 0;
 
   /*! \brief clear the cache. */
   virtual void Clear() = 0;
@@ -130,7 +141,7 @@ class TECompilerNode : public Object {
 /*! \brief cache entry used in compile engine */
 class TECompiler : public ObjectRef {
  public:
-  TECompiler();
+  explicit TECompiler(Optional<IRModule> opt_mod = {});
   explicit TECompiler(ObjectPtr<Object> n) : ObjectRef(n) {}
   TECompilerNode* operator->() { return static_cast<TECompilerNode*>(get_mutable()); }
   using ContainerType = TECompilerNode;
@@ -169,7 +180,8 @@ Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets);
 backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
                                               Map<Expr, backend::StorageInfo> storage_info_map);
 
-/*! \brief Utility to separate the functions in an IRModule by Target.
+/*! \brief Returns all the global \p PrimFunc functions in \p mod, but separated into an \p IRModule
+ * per \p Target.
  *
  * \param mod The IRModule to extract the per target module from
  * \return The map from Target to IRModule
@@ -201,9 +213,10 @@ IRModule LowerTE(
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
- * \returns The pass which lowers primitive functions to TIR
+ * \param host_se_scope \p SEScope for host data and computations
+ * \returns The pass which lowers primative functions to TIR
  */
-transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn);
+transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn, SEScope host_se_scope);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

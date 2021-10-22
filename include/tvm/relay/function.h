@@ -148,6 +148,20 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params = Optiona
                     Optional<DictAttrs> opt_attrs = Optional<DictAttrs>(),
                     Optional<Span> opt_span = Optional<Span>());
 
+/*
+ * \brief Returns the Relay FunctionNode represented by base_func if it should be optimized,
+ * otherwise returns nullptr.
+ *
+ * This means returns nullptr:
+ *  - For PrimFuncs, since not Relay Functions.
+ *  - For Functions marked for external compilation (with "Compiler").
+ *  - For Functions marked as already having an external definition (with "ExternalSymbol").
+ *  - For Functions marked as not to be optimized (with "SkipOptimization").
+ *
+ * TODO(mbs): Audit all enumerations of IRModule::functions to use this or some family of such.
+ */
+const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func);
+
 /*!
  * \brief namespace of the attributes that can be attached to a relay::Function.
  */

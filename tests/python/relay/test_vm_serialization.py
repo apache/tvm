@@ -103,9 +103,9 @@ def test_serializer():
     assert "main" in glbs
 
     prim_ops = exe.primitive_ops
-    assert any(item.startswith("fused_add") for item in prim_ops)
-    assert any(item.startswith("fused_subtract") for item in prim_ops)
-    assert any(item.startswith("fused_multiply") for item in prim_ops)
+    assert any(item.startswith("vm_mod_fused_add") for item in prim_ops)
+    assert any(item.startswith("vm_mod_fused_subtract") for item in prim_ops)
+    assert any(item.startswith("vm_mod_fused_multiply") for item in prim_ops)
 
     code = exe.bytecode
     assert "main(x1, y1)" in code

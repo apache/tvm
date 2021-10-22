@@ -39,6 +39,7 @@
 
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
+#include "../op/memory/device_copy.h"
 #include "../transforms/device_aware_visitors.h"
 #include "./te_compiler.h"
 #include "./utils.h"
@@ -189,9 +190,8 @@ class GraphOpNode : public GraphNode {
  */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets) : mod_(mod) {
-    targets_ = targets;
-  }
+  GraphExecutorCodegen(runtime::Module* mod, const TargetMap& targets)
+      : mod_(mod), targets_(targets) {}
 
   StorageInfo GetStorageInfo(const Expr& e) {
     size_t count = memory_plan_->expr_to_storage_info.count(e);
@@ -215,24 +215,37 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     if (memory_plan_.defined()) {
       // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
-      func_info =
-          relay::tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan_->expr_to_storage_info);
+      // Switch from Map<Integer, Target> to undordered_map<DLDeviceType, Target> representation.
+      // TODO(mbs): Plumb CompilationConfig through.
+      tec::TargetMap tec_target_map;
+      for (const auto& pair : targets_) {
+        tec_target_map.emplace(static_cast<DLDeviceType>(pair.first->value), pair.second);
+      }
+      func_info = relay::tec::UpdateMainWorkspaceSize(mod, tec_target_map,
+                                                      memory_plan_->expr_to_storage_info);
       mod = WithAttr(mod, "main_func_info", func_info);
     }
 
-    IRModule lowered_mod = tec::LowerTEPass(mod_name_, [this](BaseFunc func) {
-      // We need to maintain the constant map for external
-      // functions so we pass this processing function which
-      // allows us to process each function as we lower it.
-      if (func->GetAttr<String>(attr::kCompiler).defined()) {
-        UpdateConstants(func, &params_);
-      }
+    // TODO(mbs): Plumb instead of reconstruct
+    CompilationConfig config(transform::PassContext::Current(), targets_,
+                             /*optional_host_target_arg=*/{});
 
-      // TODO(@areusch, @jroesch): We should refactor this to
-      // execute as a further pass, instead writing data to the
-      // lowering process directly.
-      tec::UpdateFunctionMetadata(func, this->function_metadata_);
-    })(mod);
+    IRModule lowered_mod = tec::LowerTEPass(
+        mod_name_,
+        [this](BaseFunc func) {
+          // We need to maintain the constant map for external
+          // functions so we pass this processing function which
+          // allows us to process each function as we lower it.
+          if (func->GetAttr<String>(attr::kCompiler).defined()) {
+            UpdateConstants(func, &params_);
+          }
+
+          // TODO(@areusch, @jroesch): We should refactor this to
+          // execute as a further pass, instead writing data to the
+          // lowering process directly.
+          tec::UpdateFunctionMetadata(func, this->function_metadata_);
+        },
+        config->host_se_scope)(mod);
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
@@ -407,8 +420,18 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     std::vector<GraphNodeRef> inputs;
     std::string func_name;
 
+    DeviceCopyProps device_copy_props = GetDeviceCopyProps(call_node);
     CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
-    if (call_lowered_props.lowered_func.defined()) {
+    if (device_copy_props.body.defined()) {
+      // The graph executor expects to see a normal call to the undefined @__copy function.
+      // The source and destination device annotations are no longer needed since they have
+      // been captured in the StorageInfos for both input and output.
+      // TODO(mbs): device_copy cleanup
+      func_name = "__copy";
+      for (const auto& n : VisitExpr(device_copy_props.body)) {
+        inputs.push_back(n);
+      }
+    } else if (call_lowered_props.lowered_func.defined()) {
       // Extract function and arguments from the call_lowered op
 
       func_name = call_lowered_props.lowered_func->name_hint;
@@ -428,13 +451,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           }
         }
       }
-      bool reshape_only = false;
-      if (call_lowered_props.attrs.metadata.count(attr::kReshapeOnly) &&
-          Downcast<tvm::Integer>(call_lowered_props.attrs.metadata[attr::kReshapeOnly])->value ==
-              1) {
-        reshape_only = true;
-      }
-      if (reshape_only &&
+      // TODO(mbs): "reshape" cleanup.
+      if (IsReshapeOnly(call_lowered_props) &&
           ShareSameStorage(GetRef<Expr>(call_node), call_lowered_props.arguments[0])) {
         auto node = GraphOpNode::make_node_ptr("reshape_nop", GraphAttrs(), "__nop", inputs, attrs);
         return AddNode(node, call);
@@ -603,7 +621,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   /*! \brief variable map */
   std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
   /*! \brief target device */
-  tec::TargetMap targets_;
+  TargetMap targets_;
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
    * These are take as inputs to the GraphExecutor.
@@ -631,15 +649,9 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
                                     << "runtime::Module mod and Map<int, Target> targets";
         void* mod = args[0];
-        TargetMap tmp = args[1];
-        tec::TargetMap targets;
-        for (const auto& it : tmp) {
-          auto dev_type = it.first.as<tir::IntImmNode>();
-          ICHECK(dev_type);
-          targets[static_cast<DLDeviceType>(dev_type->value)] = it.second;
-        }
+        TargetMap target_map = args[1];
         codegen_ = std::make_shared<GraphExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod),
-                                                          targets);
+                                                          target_map);
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

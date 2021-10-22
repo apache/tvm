@@ -299,8 +299,8 @@ class SEScope : public ObjectRef {
 
   /*! \brief Returns the \p SEScope for \p target. */
   static SEScope ForTarget(Target target) {
-    return SEScope(static_cast<DLDeviceType>(target->kind->device_type), /*virtual_device_id=*/0,
-                   std::move(target));
+    DLDeviceType device_type = static_cast<DLDeviceType>(target->kind->device_type);
+    return SEScope(device_type, /*virtual_device_id=*/0, std::move(target));
   }
 
   /*! \brief Returns the \p SEScope for \p device, \p target and \p memory_scope. */
