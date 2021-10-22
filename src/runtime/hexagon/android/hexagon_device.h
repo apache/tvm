@@ -17,12 +17,13 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_H_
+#ifndef TVM_RUNTIME_HEXAGON_ANDROID_HEXAGON_DEVICE_H_
+#define TVM_RUNTIME_HEXAGON_ANDROID_HEXAGON_DEVICE_H_
 
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 
+#include <memory>
 #include <string>
 
 #include "../../meta_data.h"
@@ -131,4 +132,4 @@ class Device {
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_DEVICE_H_
+#endif  // TVM_RUNTIME_HEXAGON_ANDROID_HEXAGON_DEVICE_H_

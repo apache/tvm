@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_SIM_DRIVER_SCHED_H_
-#define TVM_RUNTIME_HEXAGON_SIM_DRIVER_SCHED_H_
+#ifndef TVM_RUNTIME_HEXAGON_ANDROID_SIM_DRIVER_SCHED_H_
+#define TVM_RUNTIME_HEXAGON_ANDROID_SIM_DRIVER_SCHED_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,4 +28,4 @@ int sched_yield(void);
 }
 #endif
 
-#endif  // TVM_RUNTIME_HEXAGON_SIM_DRIVER_SCHED_H_
+#endif  // TVM_RUNTIME_HEXAGON_ANDROID_SIM_DRIVER_SCHED_H_
