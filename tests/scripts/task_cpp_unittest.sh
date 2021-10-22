@@ -48,9 +48,8 @@ cd ../..
 
 # Test Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU demo app
 FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
-VELA_INSTALLED=$(pip3 list | grep vela)
-if [ -d $FVP_PATH ] && [ -n "$VELA_INSTALLED" ]; then
-    sudo pip3 install -e python
+VELA_INSTALLED="$(pip3 list | grep vela)"
+if test -d $FVP_PATH && test -n "$VELA_INSTALLED"; then
     cd apps/microtvm/ethosu
     ./run_demo.sh --fvp_path $FVP_PATH --cmake_path /opt/arm/cmake/bin/cmake
     cd ../../..

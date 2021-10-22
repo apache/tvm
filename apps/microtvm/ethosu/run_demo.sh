@@ -128,7 +128,9 @@ mobilenet_url='https://storage.googleapis.com/download.tensorflow.org/models/mob
 curl --retry 64 -sSL ${mobilenet_url} | gunzip | tar -xvf - ./mobilenet_v1_1.0_224_quant.tflite
 
 # Compile model for Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
-tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, \
+# An alternative to using "python3 -m tvm.driver.tvmc" is to call
+# "tvmc" directly once TVM has been pip installed.
+python3 -m tvm.driver.tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, \
     c -runtime=c --link-params -mcpu=cortex-m55 -executor=aot -interface-api=c -unpacked-api=1" \
     --pass-config tir.disable_vectorize=1 ./mobilenet_v1_1.0_224_quant.tflite --output-format=mlf
 tar -xvf module.tar
