@@ -23,7 +23,7 @@ tvm.relay.backend
 .. automodule:: tvm.relay.backend.interpreter
     :members:
 
-.. automodule:: tvm.relay.backend.compile_engine
+.. automodule:: tvm.relay.backend.te_compiler
     :members:
 
 .. automodule:: tvm.relay.backend.graph_executor_codegen

@@ -41,7 +41,7 @@ def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()
                     tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
             else:
                 tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
 
 
 @tvm.testing.uses_gpu
@@ -251,7 +251,8 @@ def test_dyn_sparse_to_dense():
     verify_sparse_to_dense(
         [0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1]
     )  # floats
-    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+    # default value not specified
+    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])
 
 
 @pytest.mark.parametrize(

@@ -149,7 +149,7 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     npu_partitions : int, optional
         The number of Ethos-N partitions expected.
     """
-    relay.backend.compile_engine.get().clear()
+    relay.backend.te_compiler.get().clear()
     with tvm.transform.PassContext(
         opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
     ):
@@ -262,7 +262,7 @@ def test_error(mod, params, err_msg):
             except tvm.error.TVMError as e:
                 caught = e.args[0]
             finally:
-                relay.backend.compile_engine.get().clear()
+                relay.backend.te_compiler.get().clear()
 
     assert caught is not None
     assert err_msg in caught, caught
