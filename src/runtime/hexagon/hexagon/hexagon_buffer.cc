@@ -21,6 +21,9 @@
 
 #include <tvm/runtime/module.h>
 
+#include <string>
+#include <utility>
+
 #include "hexagon_common.h"
 
 namespace tvm {

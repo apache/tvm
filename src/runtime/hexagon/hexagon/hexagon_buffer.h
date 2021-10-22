@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_BUFFER_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_BUFFER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -73,7 +73,7 @@ class HexagonBuffer {
    * space in the external allocation belongs. Assumes global system
    * memory if not provided.
    */
-  HexagonBuffer(void* data, Optional<String> scope = Optional<String>());
+  explicit HexagonBuffer(void* data, Optional<String> scope = Optional<String>());
 
   //! \brief Destruction deallocates the underlying allocations.
   ~HexagonBuffer();
@@ -132,4 +132,4 @@ HexagonBuffer* IsHexagonBuffer(DLTensor* tensor);
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_BUFFER_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_BUFFER_H_

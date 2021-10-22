@@ -20,8 +20,8 @@
 /*!
  * \file hexagon_utils.h
  */
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_COMMON_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_COMMON_H_
+#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_COMMON_H_
+#define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_COMMON_H_
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/c_backend_api.h>
@@ -60,4 +60,4 @@ inline bool IsHexagonDevice(DLDevice dev) {
   return TVMDeviceExtType(dev.device_type) == kDLHexagon;
 }
 
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_UTILS_H_
+#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_COMMON_H_
