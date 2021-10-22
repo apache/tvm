@@ -1073,7 +1073,7 @@ Doc TVMScriptPrinter::PrintBlockBody(const BlockNode* op) {
  * \param block_op The block node to be printed
  */
 Doc TVMScriptPrinter::PrintBlockName(const BlockNode* block_op) {
-  Doc doc;
+  Doc doc = PrintOptionalInfo(GetRef<Stmt>(block_op));
   doc << "with " << tir_prefix_ << ".block(";
   if (!block_op->name_hint.empty()) {
     doc << Doc::StrLiteral(block_op->name_hint);
@@ -1389,9 +1389,9 @@ class TVMScriptPrinterWithDiagnostic : public TVMScriptPrinter {
 };
 
 Doc TVMScriptPrinterWithDiagnostic::PrintBlockName(const BlockNode* block_op) {
-  Doc doc = PrintOptionalInfo(GetRef<Stmt>(block_op));
-  Doc block_name = TVMScriptPrinter::PrintBlockName(block_op);
-  doc << block_name << PrintUnderline(GetRef<Stmt>(block_op), block_name.str().size());
+  Doc doc = TVMScriptPrinter::PrintBlockName(block_op);
+  Doc optional_info = PrintOptionalInfo(GetRef<Stmt>(block_op));
+  doc << PrintUnderline(GetRef<Stmt>(block_op), doc.str().size() - optional_info.str().size());
   return doc;
 }
 

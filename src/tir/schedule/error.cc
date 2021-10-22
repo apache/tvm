@@ -45,9 +45,9 @@ String ScheduleError::RenderReport(const String& primitive) const {
   runtime::TypedPackedFunc<std::string(Stmt)> annotate =
       runtime::TypedPackedFunc<std::string(Stmt)>(
           [&loc_obj_to_name](const Stmt& expr) -> std::string {
-            auto search = loc_obj_to_name.find(Downcast<ObjectRef>(expr));
-            if (search == loc_obj_to_name.end()) return "";
-            return search->second;
+            auto it = loc_obj_to_name.find(Downcast<ObjectRef>(expr));
+            if (it == loc_obj_to_name.end()) return "";
+            return it->second;
           });
 
   os << "ScheduleError: An error occurred in the schedule primitive '" << primitive

@@ -569,7 +569,7 @@ def test_reorder_fail_nested_loop_inner():
     assert expected_sub_error_message in str(execinfo.value)
 
 
-def test_reorder_fail_nested_loop_outer():
+def test_fuse_fail_nested_loop_outer():
     sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
     block_b = sch.get_block("B")
     i, j, k = sch.get_loops(block_b)
