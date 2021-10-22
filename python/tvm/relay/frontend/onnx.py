@@ -4230,8 +4230,8 @@ class Trilu(OnnxOpConverter):
     """Operator converter for Trilu"""
     
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        upper = attr.get("upper")
+    def _impl_v14(cls, inputs, attr, params):
+        upper = attr.get("upper", 1)
         input_shape = shape_of(inputs[0])
         input_dims = infer_shape(input_shape)[0]
         data_type = infer_type(inputs[0]).checked_type.dtype

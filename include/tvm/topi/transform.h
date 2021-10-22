@@ -1759,9 +1759,9 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<PrimExpr
  * \param tag output tensor tag.
  * \return new tensor with given diagonal values.
  */
-inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
-                              const Tensor& k1, const Tensor& k2,
-                              bool super_diag_right_align, bool sub_diag_right_align,
+inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, const Tensor& k1,
+                              const Tensor& k2, bool super_diag_right_align,
+                              bool sub_diag_right_align,
                               const std::string name = "T_matrix_set_diag",
                               const std::string tag = kInjective) {
   size_t ndim = input->shape.size() - 1;
