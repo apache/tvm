@@ -16,23 +16,24 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
 """Tensorflow lite frontend."""
-import math
 import itertools
+import math
+
 import numpy as np
 import tvm
+from tvm import relay
 from tvm.ir import IRModule
 
-from tvm import relay
+from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
-from ... import nd as _nd
 from .common import ExprTable
-from .common import infer_shape as _infer_shape, to_int_list
+from .common import infer_shape as _infer_shape
+from .common import to_int_list
 from .tflite_flexbuffer import FlexBufferDecoder
-
 
 __all__ = ["from_tflite"]
 
@@ -53,9 +54,9 @@ class OperatorConverter(object):
     def __init__(self, model, subgraph, exp_tab):
 
         try:
+            from tflite.ActivationFunctionType import ActivationFunctionType
             from tflite.BuiltinOperator import BuiltinOperator
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -1061,8 +1062,8 @@ class OperatorConverter(object):
     def convert_concatenation(self, op):
         """Convert TFLite concatenation"""
         try:
-            from tflite.ConcatenationOptions import ConcatenationOptions
             from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ConcatenationOptions import ConcatenationOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -1248,10 +1249,10 @@ class OperatorConverter(object):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.AddOptions import AddOptions
-            from tflite.SubOptions import SubOptions
-            from tflite.MulOptions import MulOptions
-            from tflite.DivOptions import DivOptions
             from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.DivOptions import DivOptions
+            from tflite.MulOptions import MulOptions
+            from tflite.SubOptions import SubOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -1810,9 +1811,9 @@ class OperatorConverter(object):
     def _convert_arg_min_max(self, relay_op, op):
         """Generic method converting TFLite arg_min_max"""
         try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ArgMinOptions import ArgMinOptions
             from tflite.ArgMaxOptions import ArgMaxOptions
+            from tflite.ArgMinOptions import ArgMinOptions
+            from tflite.BuiltinOptions import BuiltinOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -1859,8 +1860,8 @@ class OperatorConverter(object):
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
         try:
-            from tflite.FullyConnectedOptions import FullyConnectedOptions
             from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.FullyConnectedOptions import FullyConnectedOptions
             from tflite.TensorType import TensorType
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -2030,10 +2031,10 @@ class OperatorConverter(object):
         """convolution implementation."""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.TensorType import TensorType
             from tflite.Conv2DOptions import Conv2DOptions
             from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
             from tflite.Padding import Padding
+            from tflite.TensorType import TensorType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -2440,8 +2441,8 @@ class OperatorConverter(object):
         """pool2d implementation."""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.Pool2DOptions import Pool2DOptions
             from tflite.Padding import Padding
+            from tflite.Pool2DOptions import Pool2DOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -2856,9 +2857,9 @@ class OperatorConverter(object):
         """Convert TFLite TRANSPOSE_CONV"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Padding import Padding
             from tflite.TensorType import TensorType
             from tflite.TransposeConvOptions import TransposeConvOptions
-            from tflite.Padding import Padding
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -2952,7 +2953,7 @@ class OperatorConverter(object):
                 channels=int(out_channels),
                 kernel_size=(int(kernel_h), int(kernel_w)),
                 data_layout="NHWC",
-                kernel_layout="OIHW",
+                kernel_layout="IOHW",
                 out_dtype="int32",
             )
         else:
@@ -2964,7 +2965,7 @@ class OperatorConverter(object):
                 channels=int(out_channels),
                 kernel_size=(int(kernel_h), int(kernel_w)),
                 data_layout="NHWC",
-                kernel_layout="OIHW",
+                kernel_layout="IOHW",
                 out_dtype=output_tensor_type_str,
             )
 
@@ -3723,8 +3724,8 @@ def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorCo
         The parameter dict to be used by relay
     """
     try:
-        import tflite.SubGraph
         import tflite.BuiltinOperator
+        import tflite.SubGraph
     except ImportError:
         raise ImportError("The tflite package must be installed")
 
