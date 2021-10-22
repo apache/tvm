@@ -18,8 +18,9 @@ import io
 import os
 import json
 import pathlib
-import logging
 import tarfile
+import tempfile
+from typing import Union
 
 import numpy as np
 
@@ -29,6 +30,7 @@ import json
 import requests
 
 import tvm.micro
+from tvm.micro import export_model_library_format
 
 
 TEMPLATE_PROJECT_DIR = (
@@ -74,22 +76,40 @@ def has_fpu(board: str):
     fpu_boards = [name for name, board in board_properties.items() if board["fpu"]]
     return board in fpu_boards
 
+def extract_workspace_size_bytes(tar_path: Union[pathlib.Path, str], extract_path: Union[pathlib.Path, str]):
+    tar_file = str(tar_path)
+    base_path = str(extract_path)
+    t = tarfile.open(tar_file)
+    t.extractall(base_path)
+
+    with open(os.path.join(base_path, "metadata.json")) as json_f:
+        metadata = json.load(json_f)
+        return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
 def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     project_dir = temp_dir / "project"
-    project = tvm.micro.generate_project(
-        str(TEMPLATE_PROJECT_DIR),
-        mod,
-        project_dir,
-        {
-            "extra_files_tar": extra_files_tar,
-            "project_type": "aot_demo",
-            "west_cmd": west_cmd,
-            "verbose": bool(build_config.get("debug")),
-            "zephyr_board": zephyr_board,
-        },
-    )
-    project.build()
+    
+    with tempfile.TemporaryDirectory() as tar_temp_dir:
+        model_tar_path = pathlib.Path(tar_temp_dir) / "model.tar" 
+        export_model_library_format(mod, model_tar_path)
+
+        workspace_size = extract_workspace_size_bytes(model_tar_path, tar_temp_dir)
+        project = tvm.micro.project.generate_project_from_mlf(
+            str(TEMPLATE_PROJECT_DIR),
+            project_dir,
+            model_tar_path,
+            {
+                "extra_files_tar": extra_files_tar,
+                "project_type": "aot_demo",
+                "west_cmd": west_cmd,
+                "verbose": bool(build_config.get("debug")),
+                "zephyr_board": zephyr_board,
+                "compile_definitions": [
+                    f"-DWORKSPACE_SIZE={workspace_size}",
+                ],
+            },
+        )
+        project.build()
     return project, project_dir
 
 

@@ -38,7 +38,7 @@
 #include "posix_board_if.h"
 #endif
 
-#define WORKSPACE_SIZE (270 * 1024)
+// WORKSPACE_SIZE defined in Project API Makefile
 
 static uint8_t g_aot_memory[WORKSPACE_SIZE];
 tvm_workspace_t app_workspace;
