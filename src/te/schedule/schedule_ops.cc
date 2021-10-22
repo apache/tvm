@@ -40,9 +40,11 @@ namespace te {
 
 using namespace tir;
 
-// Annotate the statement with the physical layout of the stage.  This
-// annotation is removed during SchedulePostProcToPrimFunc, where it
-// becomes part of the PrimFunc attrs.
+// Annotate the statement with the layout transforms and axis
+// separators of the stage.  These annotations are removed during
+// SchedulePostProcToPrimFunc.  Afterwards, layout transforms are
+// specified in the PrimFunc attrs, and the axis_separators are
+// specified in the BufferNode.
 Stmt WrapLayoutTransformationAttrs(const Stage& stage, Stmt body) {
   if (stage->layout_transforms.size()) {
     for (int i = 0; i < stage->op->num_outputs(); i++) {
@@ -50,6 +52,14 @@ Stmt WrapLayoutTransformationAttrs(const Stage& stage, Stmt body) {
                       tir::attr::layout_transforms, 1, body);
     }
   }
+
+  if (stage->axis_separators.size()) {
+    for (int i = 0; i < stage->op->num_outputs(); i++) {
+      body = AttrStmt(Array<ObjectRef>{stage->op.output(i), stage->axis_separators},
+                      tir::attr::axis_separators, 1, body);
+    }
+  }
+
   return body;
 }
 

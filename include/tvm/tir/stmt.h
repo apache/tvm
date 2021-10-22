@@ -1290,6 +1290,14 @@ constexpr const char* prefetch_scope = "prefetch_scope";
  */
 constexpr const char* layout_transforms = "layout_transforms";
 /*!
+ * \brief Marks the physical axis separators
+ *
+ * Only applies to a DataProducer, as it should be made part of the
+ * Buffer definition in a PrimFunc.  See `BufferNode::axis_separators`
+ * for more details.
+ */
+constexpr const char* axis_separators = "axis_separators";
+/*!
  * \brief Marks production of double buffer data
  */
 constexpr const char* double_buffer_scope = "double_buffer_scope";
