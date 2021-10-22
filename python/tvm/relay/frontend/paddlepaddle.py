@@ -227,6 +227,9 @@ def convert_conv2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
+        # Handle history issue of PaddlePaddle
+        # while padding_algorithm == "SAME"
+        # dilations will be set to [1, 1]
         dilations = [1, 1]
         input_x = autopad(input_x, strides, [k_h, k_w], dilations)
         paddings = [0, 0]
