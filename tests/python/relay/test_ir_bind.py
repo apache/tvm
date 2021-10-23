@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """ test bind function."""
+import pytest
 import tvm
 from tvm import te
 from tvm import relay
+from tvm import TVMError
 
 
 def test_bind_params():
@@ -34,5 +36,16 @@ def test_bind_params():
     assert tvm.ir.structural_equal(zbinded, zexpected)
 
 
+def test_bind_duplicated_params():
+    a = relay.var('a', shape=(1,))
+    aa = relay.var('a', shape=(1,))
+    s = a + aa
+    func = relay.Function([a, aa], s)
+
+    with pytest.raises(TVMError):
+        relay.build_module.bind_params_by_name(func, {'a': [1.0]})
+
+
 if __name__ == "__main__":
     test_bind_params()
+    test_bind_duplicated_params()
