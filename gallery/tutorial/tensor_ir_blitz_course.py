@@ -163,8 +163,8 @@ print(sch.mod.script())
 
 
 ################################################################################################
-# We can also reorder the loops. Now we move loop `i_2` to outside of `i_0` and `i_1`.
-sch.reorder(i_2, i_0, i_1)
+# We can also reorder the loops. Now we move loop `i_2` to outside of `i_1`.
+sch.reorder(i_0, i_2, i_1)
 print(sch.mod.script())
 
 
@@ -176,7 +176,7 @@ print(sch.mod.script())
 #
 
 sch.bind(i_0, "blockIdx.x")
-sch.bind(i_1, "threadIdx.x")
+sch.bind(i_2, "threadIdx.x")
 print(sch.mod.script())
 
 
