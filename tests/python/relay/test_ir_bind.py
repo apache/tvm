@@ -37,13 +37,13 @@ def test_bind_params():
 
 
 def test_bind_duplicated_params():
-    a = relay.var('a', shape=(1,))
-    aa = relay.var('a', shape=(1,))
+    a = relay.var("a", shape=(1,))
+    aa = relay.var("a", shape=(1,))
     s = a + aa
     func = relay.Function([a, aa], s)
 
     with pytest.raises(TVMError):
-        relay.build_module.bind_params_by_name(func, {'a': [1.0]})
+        relay.build_module.bind_params_by_name(func, {"a": [1.0]})
 
 
 if __name__ == "__main__":
