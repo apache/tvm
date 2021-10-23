@@ -1084,6 +1084,36 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "]";
     });
 
+// SparseBufferLoad
+SparseBufferLoad::SparseBufferLoad(SparseBuffer buffer, Array<PrimExpr> indices, Span span) {
+  ObjectPtr<SparseBufferLoadNode> node = make_object<SparseBufferLoadNode>();
+  node->dtype = buffer->dtype;
+  node->buffer = std::move(buffer);
+  node->indices = std::move(indices);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.SparseBufferLoad")
+    .set_body_typed([](SparseBuffer buffer, Array<PrimExpr> indices, Span span) {
+      return SparseBufferLoad(buffer, indices, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(SparseBufferLoadNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SparseBufferLoadNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SparseBufferLoadNode*>(node.get());
+      p->stream << op->buffer->name << "[";
+      for (size_t i = 0; i < op->indices.size(); ++i) {
+        p->Print(op->indices[i]);
+        if (i < op->indices.size() - 1) {
+          p->stream << ", ";
+        }
+      }
+      p->stream << "]";
+    });
+
 // ProducerLoad
 ProducerLoad::ProducerLoad(DataProducer producer, Array<PrimExpr> indices, Span span) {
   ObjectPtr<ProducerLoadNode> node = make_object<ProducerLoadNode>();

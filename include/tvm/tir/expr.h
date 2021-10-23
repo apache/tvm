@@ -34,6 +34,7 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/sparse.h>
 #include <tvm/tir/var.h>
 
 #include <algorithm>
@@ -641,6 +642,58 @@ class BufferLoad : public PrimExpr {
   TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
+};
+
+/*!
+ * \brief Load value from the high dimension sparse buffer.
+ *
+ * \code
+ *
+ *  value = buffer[i, j];
+ *
+ * \endcode
+ * \sa SparseBufferStore
+ */
+class SparseBufferLoadNode : public PrimExprNode {
+ public:
+  /*! \brief The buffer variable. */
+  SparseBuffer buffer;
+  /*! \brief The indices location to be loaded. */
+  Array<PrimExpr> indices;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &(this->dtype));
+    v->Visit("buffer", &buffer);
+    v->Visit("indices", &indices);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const SparseBufferLoadNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(buffer, other->buffer) &&
+           equal(indices, other->indices);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(buffer);
+    hash_reduce(indices);
+  }
+
+  static constexpr const char* _type_key = "tir.SparseBufferLoad";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SparseBufferLoadNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to SparseBufferLoadNode.
+ * \sa SparseBufferLoadNode
+ */
+class SparseBufferLoad : public PrimExpr {
+ public:
+  TVM_DLL explicit SparseBufferLoad(SparseBuffer buffer, Array<PrimExpr> indices,
+                                    Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SparseBufferLoad, PrimExpr, SparseBufferLoadNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SparseBufferLoadNode);
 };
 
 /*!

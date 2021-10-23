@@ -618,6 +618,39 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << '\n';
     });
 
+// SparseBufferStore
+SparseBufferStore::SparseBufferStore(SparseBuffer buffer, PrimExpr value, Array<PrimExpr> indices,
+                                     Span span) {
+  ObjectPtr<SparseBufferStoreNode> node = make_object<SparseBufferStoreNode>();
+  node->buffer = std::move(buffer);
+  node->value = std::move(value);
+  node->indices = std::move(indices);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.SparseBufferStore")
+    .set_body_typed([](SparseBuffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {
+      return SparseBufferStore(buffer, value, indices, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(SparseBufferStoreNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SparseBufferStoreNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const BufferStoreNode*>(node.get());
+      p->PrintIndent();
+      p->stream << op->buffer->name << "[";
+      for (size_t i = 0; i < op->indices.size(); ++i) {
+        p->Print(op->indices[i]);
+        if (i < op->indices.size() - 1) p->stream << ", ";
+      }
+      p->stream << "]";
+      p->stream << " = ";
+      p->Print(op->value);
+      p->stream << '\n';
+    });
+
 // BufferRealize
 BufferRealize::BufferRealize(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
                              Span span) {

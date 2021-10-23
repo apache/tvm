@@ -32,7 +32,6 @@
 
 namespace tvm {
 namespace tir {
-namespace sparse {
 
 /*!
  * \brief Base type for axis in sparse formats.
@@ -308,28 +307,36 @@ class SparseBufferNode : public Object {
   AxisTree tree;
   /* Axes */
   Array<Axis> axes;
-  /* Number of dimensions */
-  int ndim;
   /* Buffer corresponding to flattened value */
   Buffer data;
+  /* Buffer Name */
+  String name;
+  /* Data type */
+  runtime::DataType dtype;
+
+  inline int ndim() const {
+    return static_cast<int>(axes.size());
+  }
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &tree);
     v->Visit("length", &axes);
-    v->Visit("indptr", &ndim);
     v->Visit("num_cols", &data);
+    v->Visit("name", &name);
+    v->Visit("dtype", &dtype);
   }
 
   bool SEqualReduce(const SparseBufferNode* other, SEqualReducer equal) const {
-    return equal(tree, other->tree) && equal(axes, other->axes) && equal(ndim, other->ndim) &&
-           equal(data, other->data);
+    return equal(tree, other->tree) && equal(axes, other->axes) && equal(data, other->data) &&
+           equal(name, other->name) && equal(dtype, other->dtype);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(tree);
     hash_reduce(axes);
-    hash_reduce(ndim);
     hash_reduce(data);
+    hash_reduce(name);
+    hash_reduce(dtype);
   }
 
   static constexpr const char* _type_key = "tir.sparse.SparseBuffer";
@@ -342,12 +349,12 @@ class SparseBufferNode : public Object {
  */
 class SparseBuffer : public ObjectRef {
  public:
-  TVM_DLL explicit SparseBuffer(AxisTree tree, Array<Axis> axes, int ndim, Buffer data);
+  TVM_DLL explicit SparseBuffer(AxisTree tree, Array<Axis> axes, Buffer data, String name,
+                                DataType dtype);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SparseBuffer, ObjectRef, SparseBufferNode);
 };
 
-}  // namespace sparse
 }  // namespace tir
 }  // namespace tvm
 

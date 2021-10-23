@@ -328,6 +328,60 @@ class BufferStore : public Stmt {
 };
 
 /*!
+ * \brief Store value to the high dimension sparse buffer.
+ *
+ * \code
+ *
+ *  buffer[i, j] = value;
+ *
+ * \endcode
+ * \sa SparseBufferLoad
+ */
+class SparseBufferStoreNode : public StmtNode {
+ public:
+  /*! \brief The buffer variable. */
+  SparseBuffer buffer;
+  /*! \brief The value to be stored. */
+  PrimExpr value;
+  /*! \brief The indices location to be stored. */
+  Array<PrimExpr> indices;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer", &buffer);
+    v->Visit("value", &value);
+    v->Visit("indices", &indices);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const SparseBufferStoreNode* other, SEqualReducer equal) const {
+    return equal(buffer, other->buffer) && equal(value, other->value) &&
+           equal(indices, other->indices);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer);
+    hash_reduce(value);
+    hash_reduce(indices);
+  }
+
+  static constexpr const char* _type_key = "tir.SparseBufferStore";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SparseBufferStoreNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to SparseBufferStoreNode.
+ * \sa SparseBufferStoreNode
+ */
+class SparseBufferStore : public Stmt {
+ public:
+  TVM_DLL explicit SparseBufferStore(SparseBuffer buffer, PrimExpr value, Array<PrimExpr> indices,
+                                     Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SparseBufferStore, Stmt, SparseBufferStoreNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SparseBufferStoreNode);
+};
+
+/*!
  * \brief Annotate the region where the buffer need to
  *  be read and write in the body.
  *  We only need to allocate the space for the corresponding region.
