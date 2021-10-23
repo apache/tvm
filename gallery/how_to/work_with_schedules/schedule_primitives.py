@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _schedule_primitives:
+
 Schedule Primitives in TVM
 ==========================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang>`_

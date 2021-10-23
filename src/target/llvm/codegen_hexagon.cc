@@ -644,7 +644,7 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
     } else {
       ICHECK(t.is_handle());
       buf = builder_->CreatePointerCast(buf, t_tvm_value_->getPointerTo());
-      buf = builder_->CreateInBoundsGEP(t_void_p_, buf, index);
+      buf = builder_->CreateInBoundsGEP(t_tvm_value_, buf, index);
       return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, t_void_p_->getPointerTo()));
     }
   }

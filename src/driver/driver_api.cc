@@ -42,15 +42,25 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.detect_global_barrier", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_bound_checkers", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 
 using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
+using tvm::Array;
+using tvm::transform::Pass;
 
 bool LLVMEnabled() {
   const runtime::PackedFunc* pf = runtime::Registry::Get("target.build.llvm");
   return pf != nullptr;
+}
+
+bool ShouldAnnotateEntryFunc(const Target target, const IRModule mod) {
+  const bool aot_executor = (target->GetAttr<String>("executor").value_or("") == "aot");
+  const bool single_entry_func = (mod->functions.size() == 1);
+  return single_entry_func && !aot_executor;
 }
 
 /*! \return The default host target for a given device target */
@@ -155,6 +165,13 @@ transform::Pass BindTarget(Target target) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "BindTarget", {});
 }
 
+static transform::Pass AnnotateEntryFunc(bool b) {
+  auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+    return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
+  };
+  return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
+}
+
 template <typename FCond>
 transform::Pass Filter(FCond fcond) {
   auto fpass = [fcond](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
@@ -184,7 +201,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   Array<transform::Pass> user_lower_phase2 = Array<transform::Pass>();
   Array<transform::Pass> user_lower_phase3 = Array<transform::Pass>();
 
-  // phase pasees is of the form
+  // phase passes is of the form
   // [[phase_number, pass], [phase_number, pass]... ]
   for (Array<ObjectRef> phase_pass : add_lower_pass) {
     const IntImmNode* phase_num = phase_pass[0].as<IntImmNode>();
@@ -266,24 +283,29 @@ IRModule LowerWithPassList(IRModule mod, Array<tvm::transform::Pass> pass_list) 
   return mod;
 }
 
+IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
+  mod = seq(std::move(mod));
+  return mod;
+}
+
+// Convert te schedule to IRModule
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                           const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
-  // Convert te schedule to IRModule
-  Array<ObjectRef> out_arg_list;
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-
   sch = sch.normalize();
 
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  bool debug_keep_trivial_loop =
+      pass_ctx->GetConfig<Bool>("tir.debug_keep_trivial_loop", Bool(false)).value();
+
   // Before TIR transformation.
-  Map<tir::IterVar, Range> bounds = te::InferBound(sch);
-  tir::Stmt stmt = te::ScheduleOps(sch, std::move(bounds), false);
+  tir::Stmt stmt = te::ScheduleOps(sch, te::InferBound(sch), debug_keep_trivial_loop);
   bool compact = te::VerifyCompactBuffer(stmt);
 
   Map<te::Tensor, tir::Buffer> out_binds;
+  Array<ObjectRef> out_arg_list;
   GetBinds(args, compact, binds, &out_binds, &out_arg_list);
 
-  // Build the function
-  // At this point binds is only te::Tensors
+  // Build the function, converting from te::Tensor to tir::Buffer
   tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
   f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
@@ -304,7 +326,7 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
                        const Map<te::Tensor, tir::Buffer>& binds) {
       std::unordered_map<te::Tensor, tir::Buffer> c_binds;
       // Check to make sure binds is not null before doing the conversion;
-      if (binds.get() != nullptr) {
+      if (binds.defined()) {
         for (auto kv : binds) {
           c_binds.insert({kv.first, kv.second});
         }
@@ -373,97 +395,97 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
       return LowerSchedule(std::move(sch), args, name, c_binds, simple_mode);
     });
 
-std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target& target_arg,
-                                                const Target& target_host_arg,
-                                                const transform::PassContext& pass_ctx) {
+/**
+ * This function takes the input module that contains both the device and host opts.
+ * Then, it applies transformation on the original module before splitting into separate modules for
+ * device and host. Then it also applies transformations on the new splitted modules.
+ */
+std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target& target_arg,
+                                               const Target& target_host_arg) {
   Target target = target_arg, target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&target, &target_host);
-  Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target),
-                                                 tir::transform::VerifyMemory()};
 
-  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
-  if (pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value()) {
-    mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
-  }
-  mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
-  mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
-  mixed_pass_list.push_back(tir::transform::InferFragment());
-  mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
-
-  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
-    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
-  } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
-  }
-
-  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
-
-  auto opt_mixed = transform::Sequential(mixed_pass_list);
-  mod_mixed = opt_mixed(std::move(mod_mixed));
-
-  // We make an assumption here that the overriden host target
-  // can be used alongside the default host codegen based on device type
-  // this is so the correct code generator is used later instead of overriding the target.
-  // We need better support for inserting multiple kDLCPU targets as our current options
-  // are kDeviceKernelLaunch or not
-  Target overriden_host_target = target_host;
-  if (target->kind->device_type == target_host->kind->device_type) {
-    overriden_host_target = target;
-  }
-  auto host_pass_list = {
-      Filter([](const tir::PrimFunc& f) {
-        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
-               CallingConv::kDeviceKernelLaunch;
-      }),
-      BindTarget(overriden_host_target),
-      tir::transform::LowerTVMBuiltin(),
-      tir::transform::LowerCustomDatatypes(),
-      tir::transform::LowerIntrin(),
-      tir::transform::LowerDeviceStorageAccessInfo(),
-      tir::transform::CombineContextCall(),
-  };
-  auto opt_host = transform::Sequential(host_pass_list);
   ICHECK(mod_mixed.defined()) << "This module must be defined";
-  auto mhost = opt_host(mod_mixed);
 
-  // device pipeline
-  auto device_pass_list = {
-      Filter([](const tir::PrimFunc& f) {
-        return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
-               CallingConv::kDeviceKernelLaunch;
-      }),
-      BindTarget(target),
-      tir::transform::LowerWarpMemory(),
-      tir::transform::Simplify(),
-      tir::transform::LowerCustomDatatypes(),
-      tir::transform::LowerIntrin(),
-      tir::transform::LowerDeviceStorageAccessInfo(),
-  };
-  auto opt_device = transform::Sequential(device_pass_list);
-  auto mdevice = opt_device(mod_mixed);
+  mod_mixed = ApplyPasses(mod_mixed, MixedModulePassManager(mod_mixed, target));
 
-  // some final misc checks.
+  IRModule host_mod = ApplyPasses(mod_mixed, HostModulePassManager(mod_mixed, target_host));
+
+  IRModule device_mod = ApplyPasses(mod_mixed, DeviceModulePassManager(mod_mixed, target));
+
   auto keys = target->GetKeys();
+
+  CheckAndUpdateHostConsistency(&target, &target_host);
+
   bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
-  if (target_is_gpu && mdevice->functions.size() == 0) {
-    LOG(WARNING) << "Specified target " << target->str()
-                 << " but cannot find device code. Did you forget to bind?";
+  if (target_is_gpu && device_mod->functions.size() == 0) {
+    DLOG(WARNING) << "Specified target " << target->str()
+                  << " but cannot find device code. Did you forget to bind?";
   }
 
-  if (target->kind->device_type == kDLCPU && target_host == target) {
-    // TODO(@jroesch): This check is no longer true we need to figure out if we care about this.
-    // We need to relax this check for just TIR functions.
-    // ICHECK(mdevice->functions.empty()) << "No device code should be generated when target "
-    //                                   << "and host_target are both llvm target."
-    //                                   << "\n";
-  }
-
-  return {mhost, mdevice};
+  return {host_mod, device_mod};
 }
 
-// Can we make this take one annotated IRModule?
-//
-// Build for heterogeneous execution.
+runtime::Module PreProcessModuleForBuild(const Map<Target, IRModule>& inputs_arg,
+                                         const Target& host_target) {
+  std::vector<runtime::Module> device_modules;
+  Map<Target, IRModule> inputs = inputs_arg;
+  Target target_host = host_target;
+
+  CheckAndUpdateHostConsistency(&inputs, &target_host);
+
+  if (!target_host.defined()) {
+    for (const auto& it : inputs) {
+      if (it.first->kind->device_type == kDLCPU || it.first->kind->device_type == kDLMicroDev) {
+        target_host = it.first;
+        break;
+      }
+    }
+  }
+
+  if (!target_host.defined()) {
+    target_host = DefaultTargetHost(target_host);
+  }
+
+  // Update target host for all targets
+  CheckAndUpdateHostConsistency(&inputs, &target_host);
+
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
+
+  ICHECK(mhost_all.defined()) << "The host module must be defined";
+
+  for (const auto& it : inputs) {
+    if (it.second.defined()) {
+      auto pair = SplitMixedModule(it.second, it.first, target_host);
+      auto& host_mod = pair.first;
+      auto& device_mod = pair.second;
+
+      ICHECK(host_mod.defined()) << "The split host module must be defined";
+
+      ICHECK(mhost_all.defined()) << "The host module must be defined";
+
+      mhost_all->Update(host_mod);
+
+      if (device_mod->functions.size() != 0) {
+        device_modules.push_back(codegen::Build(device_mod, it.first));
+      }
+    }
+  }
+
+  runtime::Module complete_mod = codegen::Build(mhost_all, target_host);
+  for (const auto& it : device_modules) {
+    if (it.operator->()) {
+      complete_mod.Import(it);
+    }
+  }
+  return complete_mod;
+}
+
+TVM_REGISTER_GLOBAL("driver.preprocess_module")
+    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target host_target) {
+      return PreProcessModuleForBuild(inputs_arg, host_target);
+    });
+
 runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& target_host_arg) {
   auto pass_ctx = transform::PassContext::Current();
 
@@ -498,11 +520,11 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
     if (it.second.defined()) {
       const Target& target = it.first;
       const IRModule& ir_module = it.second;
-      auto pair = SplitDevHostFuncs(ir_module, target, target_host, pass_ctx);
-      auto& mhost = pair.first;
-      auto& mdevice = pair.second;
+      auto pair = SplitMixedModule(ir_module, target, target_host);
+      auto& host_mod = pair.first;
+      auto& device_mod = pair.second;
 
-      ICHECK(mhost.defined()) << "The split host module must be defined";
+      ICHECK(host_mod.defined()) << "The split host module must be defined";
 
       ICHECK(mhost_all.defined()) << "The host module must be defined";
 
@@ -513,19 +535,18 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
       bool overrides_host_target = target->kind->device_type == target_host->kind->device_type;
       bool non_host_target_kind = target->kind != target_host->kind;
       if (overrides_host_target && non_host_target_kind) {
-        device_modules.push_back(codegen::Build(mhost, it.first));
+        device_modules.push_back(codegen::Build(host_mod, it.first));
       } else {
-        mhost_all->Update(mhost);
+        mhost_all->Update(host_mod);
       }
 
-      if (mdevice->functions.size() != 0) {
-        device_modules.push_back(codegen::Build(mdevice, it.first));
+      if (device_mod->functions.size() != 0) {
+        device_modules.push_back(codegen::Build(device_mod, it.first));
       }
     }
   }
 
   runtime::Module mhost = codegen::Build(mhost_all, target_host);
-  // Import all modules
   for (const auto& it : device_modules) {
     if (it.operator->()) {
       mhost.Import(it);
@@ -556,8 +577,97 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
                       const Target& target_host_arg) {
   auto target = target_arg, target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&target, &target_host);
+  // More maps of target and target host
   Map<Target, IRModule> inputs = {{target, funcs}};
   return build(inputs, target_host);
 }
+
+transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+
+  Array<Pass> mixed_pass_list;
+
+  mixed_pass_list.push_back(BindTarget(target));
+
+  mixed_pass_list.push_back(tir::transform::VerifyMemory());
+  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
+
+  if (ShouldAnnotateEntryFunc(target, mixed_mod)) {
+    mixed_pass_list.push_back(AnnotateEntryFunc(true));
+  }
+
+  bool detect_global_barrier =
+      pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
+  if (detect_global_barrier) {
+    mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
+  }
+
+  mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
+  mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
+  mixed_pass_list.push_back(tir::transform::InferFragment());
+  mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
+
+  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
+  } else {
+    mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));
+  }
+  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+
+  return transform::Sequential(mixed_pass_list);
+}
+
+TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
+    .set_body_typed([](IRModule mixed_mod, Target target) {
+      return MixedModulePassManager(mixed_mod, target);
+    });
+
+transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host) {
+  Array<tvm::transform::Pass> host_pass_list;
+  host_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
+    return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) !=
+           CallingConv::kDeviceKernelLaunch;
+  }));
+
+  ICHECK(mixed_mod.defined()) << "This module must be defined";
+
+  host_pass_list.push_back(BindTarget(target_host));
+
+  host_pass_list.push_back(tir::transform::LowerTVMBuiltin());
+  host_pass_list.push_back(tir::transform::LowerCustomDatatypes());
+  host_pass_list.push_back(tir::transform::LowerIntrin());
+  host_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
+  host_pass_list.push_back(tir::transform::CombineContextCall());
+
+  return transform::Sequential(host_pass_list);
+}
+
+TVM_REGISTER_GLOBAL("driver.host_mod_passes")
+    .set_body_typed([](IRModule mixed_mod, Target target_host) {
+      return HostModulePassManager(mixed_mod, target_host);
+    });
+
+transform::Sequential DeviceModulePassManager(IRModule mixed_mod, Target target) {
+  Array<Pass> device_pass_list;
+  device_pass_list.push_back(Filter([](const tir::PrimFunc& f) {
+    return f->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+           CallingConv::kDeviceKernelLaunch;
+  }));
+
+  device_pass_list.push_back(BindTarget(target));
+
+  device_pass_list.push_back(tir::transform::LowerWarpMemory());
+  device_pass_list.push_back(tir::transform::Simplify());
+  device_pass_list.push_back(tir::transform::LowerCustomDatatypes());
+  device_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
+  device_pass_list.push_back(tir::transform::LowerIntrin());
+
+  return transform::Sequential(device_pass_list);
+}
+
+TVM_REGISTER_GLOBAL("driver.device_mod_passes")
+    .set_body_typed([](IRModule mixed_mod, Target target_host) {
+      return DeviceModulePassManager(mixed_mod, target_host);
+    });
 
 }  // namespace tvm

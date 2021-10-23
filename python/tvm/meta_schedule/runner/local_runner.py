@@ -239,13 +239,11 @@ class LocalRunner(PyRunner):
                 result: List[float] = future.result()
                 error_message: str = None
             except TimeoutError as exception:
-                result: List[float] = None
-                error_message: str = (
-                    f"LocalRunner: Timeout, killed after {self.timeout_sec} seconds\n"
-                )
+                result = None
+                error_message = f"LocalRunner: Timeout, killed after {self.timeout_sec} seconds\n"
             except Exception as exception:  # pylint: disable=broad-except
-                result: List[float] = None
-                error_message: str = "LocalRunner: An exception occurred\n" + str(exception)
+                result = None
+                error_message = "LocalRunner: An exception occurred\n" + str(exception)
             local_future = LocalRunnerFuture(res=result, error_message=error_message)
             results.append(local_future)
         return results

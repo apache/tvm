@@ -37,7 +37,7 @@
 
 #include "../op/annotation/annotation.h"
 #include "../transforms/pass_utils.h"
-#include "./te_compiler.h"
+#include "te_compiler.h"
 
 namespace tvm {
 namespace relay {

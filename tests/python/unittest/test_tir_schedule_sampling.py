@@ -32,8 +32,10 @@ from tvm.tir.schedule import Trace
 def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
-    with T.block([128, 128, 128], "B") as [vi, vj, vk]:
-        B[vi, vj, vk] = A[vi, vj, vk] * 2.0
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
 # pylint: enable=no-member,invalid-name,unused-variable

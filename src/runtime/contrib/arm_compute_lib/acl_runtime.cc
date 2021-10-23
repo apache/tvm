@@ -499,7 +499,7 @@ class ACLRuntime : public JSONRuntimeBase {
       layer->outputs.push_back(
           MakeACLTensorFromJSONNode(node, &node.GetInputs()[6], &node.GetInputs()[7]));
     } else {
-      throw std::runtime_error("Unsupported form of add op: " + op_name);
+      LOG(FATAL) << "Unsupported form of add op: " + op_name;
     }
 
     auto f = std::make_shared<arm_compute::NEArithmeticAddition>();
