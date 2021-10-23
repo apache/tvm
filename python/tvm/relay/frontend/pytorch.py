@@ -152,7 +152,6 @@ class PyTorchOpConverter:
             return node.type_annotation
 
         tf = _TypeFinder(types=self.types)
-        print("tf.visit", node)
         new_node = tf.visit(node)
         fn = _function.Function(list(tf.vars.values()), new_node)
         new_mod = IRModule({"main": fn})
@@ -409,12 +408,13 @@ class PyTorchOpConverter:
         ):
             return data
 
+        if target_begin is None and target_end is None:
+            return data
         # Process begin
         begin = [0] * ndim
-        begin[dim] = target_begin
+        begin[dim] = target_begin if target_begin is not None else 0
 
-        print("slice target begin", target_begin)
-        if not isinstance(begin[dim], int):
+        if target_begin is not None and not isinstance(begin[dim], int):
             tmp = []
             for b in begin:
                 if isinstance(b, int):
@@ -457,7 +457,7 @@ class PyTorchOpConverter:
                     )
         else:
             end = _op.cast(_op.shape_of(data), axis_dtype)
-            if not isinstance(target_end, tvm.tir.Any):
+            if target_end is not None and not isinstance(target_end, tvm.tir.Any):
                 ttype = self.infer_type(target_end).dtype
                 if str(ttype) != axis_dtype:
                     target_end = _op.cast(target_end, axis_dtype)
@@ -3245,8 +3245,6 @@ class PyTorchOpConverter:
     def convert_operators(self, operators, outputs, ret_names):
         """Convert each Torch IR operators to Relay equivalent"""
         for node_name, op_node in operators:
-            print("converting")
-            print(op_node)
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
 
