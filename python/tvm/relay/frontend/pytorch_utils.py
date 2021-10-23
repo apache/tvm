@@ -31,6 +31,7 @@ from ..dataflow_pattern import (
 
 
 def is_version_greater_than(ver):
+    return True
     import torch
     import re
 

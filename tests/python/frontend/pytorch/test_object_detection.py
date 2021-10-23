@@ -19,6 +19,9 @@
 import numpy as np
 import cv2
 
+import torch
+import torchvision
+
 import tvm
 
 import tvm.testing
@@ -30,9 +33,6 @@ from tvm.relay.frontend.pytorch_utils import (
     rewrite_scatter_to_gather,
 )
 from tvm.contrib.download import download
-
-import torch
-import torchvision
 
 in_size = 300
 
@@ -84,7 +84,9 @@ def generate_jit_model(index):
     with torch.no_grad():
         out = model(inp)
 
+        print("tracing")
         script_module = do_trace(model, inp)
+        print("done")
         script_out = script_module(inp)
 
         assert len(out[0]) > 0 and len(script_out[0]) > 0
@@ -162,3 +164,6 @@ def test_detection_models():
     # Results should be equivalent after rewriting
     for res1, res2 in zip(tvm_res, tvm_res_after_rewrite):
         tvm.testing.assert_allclose(res1.numpy(), res2.numpy())
+
+
+test_detection_models()

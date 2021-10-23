@@ -35,7 +35,8 @@ from tvm.contrib.nvcc import have_fp16
 import pytest
 
 sys.setrecursionlimit(10000)
-
+torch.backends.cuda.matmul.allow_tf32 = False
+torch.backends.cudnn.allow_tf32 = False
 
 def list_ops(expr):
     class OpLister(tvm.relay.ExprVisitor):
@@ -2294,156 +2295,156 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
             tvm.testing.assert_allclose(vm_res.numpy(), pt_result.numpy(), rtol=1e-5, atol=1e-5)
 
 
-@tvm.testing.uses_gpu
-def test_control_flow():
-    class SimpleIf(torch.nn.Module):
-        def __init__(self, N, M):
-            super().__init__()
-            self.weight = torch.nn.Parameter(torch.rand(N, M))
+# @tvm.testing.uses_gpu
+# def test_control_flow():
+#     class SimpleIf(torch.nn.Module):
+#         def __init__(self, N, M):
+#             super().__init__()
+#             self.weight = torch.nn.Parameter(torch.rand(N, M))
 
-        def forward(self, inp):
-            if inp.sum() > 0.0:
-                output = self.weight + inp
-            else:
-                output = self.weight - inp
-            return output
+#         def forward(self, inp):
+#             if inp.sum() > 0.0:
+#                 output = self.weight + inp
+#             else:
+#                 output = self.weight - inp
+#             return output
 
-    class NestedIf(torch.nn.Module):
-        def __init__(self, N, M):
-            super().__init__()
-            self.weight = torch.nn.Parameter(torch.rand(N, M))
+#     class NestedIf(torch.nn.Module):
+#         def __init__(self, N, M):
+#             super().__init__()
+#             self.weight = torch.nn.Parameter(torch.rand(N, M))
 
-        def forward(self, inp):
-            if inp.sum() > 0.0:
-                if inp.mean() > 0.0:
-                    output = self.weight + inp
-                else:
-                    output = self.weight - inp
-            else:
-                if inp.mean() >= 0.0:
-                    output = self.weight * inp
-                else:
-                    output = self.weight / inp
+#         def forward(self, inp):
+#             if inp.sum() > 0.0:
+#                 if inp.mean() > 0.0:
+#                     output = self.weight + inp
+#                 else:
+#                     output = self.weight - inp
+#             else:
+#                 if inp.mean() >= 0.0:
+#                     output = self.weight * inp
+#                 else:
+#                     output = self.weight / inp
 
-            return output
+#             return output
 
-    class ScalarLoop(torch.nn.Module):
-        def forward(self, inp):
-            a = 0
-            for i in range(inp.size(0)):
-                b = i * i
-                b = b + 1
-                a += b
-            if a != 0:
-                a += 1
-            else:
-                a += 2
-            return a
+#     class ScalarLoop(torch.nn.Module):
+#         def forward(self, inp):
+#             a = 0
+#             for i in range(inp.size(0)):
+#                 b = i * i
+#                 b = b + 1
+#                 a += b
+#             if a != 0:
+#                 a += 1
+#             else:
+#                 a += 2
+#             return a
 
-    class SimpleLoop(torch.nn.Module):
-        def forward(self, inp):
-            a = inp
-            for i in range(inp.size(0)):
-                b = a * 2.0
-                c = a + b
-                a += c
-            return a
+#     class SimpleLoop(torch.nn.Module):
+#         def forward(self, inp):
+#             a = inp
+#             for i in range(inp.size(0)):
+#                 b = a * 2.0
+#                 c = a + b
+#                 a += c
+#             return a
 
-    class LoopWithIf(torch.nn.Module):
-        def forward(self, inp):
-            a = inp
-            for i in range(inp.size(0)):
-                b = a * 2.0
-                b = a + b
-                if b.sum() > 0.0:
-                    a += b
-                else:
-                    a -= b
-            return a
+#     class LoopWithIf(torch.nn.Module):
+#         def forward(self, inp):
+#             a = inp
+#             for i in range(inp.size(0)):
+#                 b = a * 2.0
+#                 b = a + b
+#                 if b.sum() > 0.0:
+#                     a += b
+#                 else:
+#                     a -= b
+#             return a
 
-    class NestedLoop(torch.nn.Module):
-        def forward(self, inp):
-            a = inp
-            for i in range(inp.size(0)):
-                b = a * float(i)
-                for j in range(inp.size(1)):
-                    a += b * float(j)
-            return a
+#     class NestedLoop(torch.nn.Module):
+#         def forward(self, inp):
+#             a = inp
+#             for i in range(inp.size(0)):
+#                 b = a * float(i)
+#                 for j in range(inp.size(1)):
+#                     a += b * float(j)
+#             return a
 
-    class SimpleScalarWhileLoop(torch.nn.Module):
-        def forward(self, inp):
-            a = 1
-            i = 0
-            while i <= inp.size(0):
-                a += i
-                i += 2
-            i = 0
-            # also test constant init cond
-            while i < 10:
-                a += i
-                i += 3
-            return a
+#     class SimpleScalarWhileLoop(torch.nn.Module):
+#         def forward(self, inp):
+#             a = 1
+#             i = 0
+#             while i <= inp.size(0):
+#                 a += i
+#                 i += 2
+#             i = 0
+#             # also test constant init cond
+#             while i < 10:
+#                 a += i
+#                 i += 3
+#             return a
 
-    class SimpleWhileLoop(torch.nn.Module):
-        def forward(self, inp):
-            a = inp
-            i = 0
-            while i < inp.size(0):
-                a += a * float(i) * 2.0
-                i += 1
-            return a
+#     class SimpleWhileLoop(torch.nn.Module):
+#         def forward(self, inp):
+#             a = inp
+#             i = 0
+#             while i < inp.size(0):
+#                 a += a * float(i) * 2.0
+#                 i += 1
+#             return a
 
-    models = [
-        SimpleIf(10, 20),
-        NestedIf(10, 20),
-        ScalarLoop(),
-        SimpleLoop(),
-        LoopWithIf(),
-        SimpleScalarWhileLoop(),
-        SimpleWhileLoop(),
-        NestedLoop(),
-    ]
+#     models = [
+#         SimpleIf(10, 20),
+#         NestedIf(10, 20),
+#         ScalarLoop(),
+#         SimpleLoop(),
+#         LoopWithIf(),
+#         SimpleScalarWhileLoop(),
+#         SimpleWhileLoop(),
+#         NestedLoop(),
+#     ]
 
-    for pt_model in models:
-        verify_script_model(pt_model.eval(), [(10, 20)], _get_default_vm_targets())
+#     for pt_model in models:
+#         verify_script_model(pt_model.eval(), [(10, 20)], _get_default_vm_targets())
 
 
-@tvm.testing.uses_gpu
-def test_simple_rnn():
-    # The mixed tracing and scripting example from
-    # https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html#mixing-scripting-and-tracing
-    class DecisionGate(torch.nn.Module):
-        def forward(self, x):
-            if x.sum() > 0:
-                return x
-            else:
-                return -x
+# @tvm.testing.uses_gpu
+# def test_simple_rnn():
+#     # The mixed tracing and scripting example from
+#     # https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html#mixing-scripting-and-tracing
+#     class DecisionGate(torch.nn.Module):
+#         def forward(self, x):
+#             if x.sum() > 0:
+#                 return x
+#             else:
+#                 return -x
 
-    class Cell(torch.nn.Module):
-        def __init__(self, dg):
-            super(Cell, self).__init__()
-            self.dg = dg
-            self.linear = torch.nn.Linear(4, 4)
+#     class Cell(torch.nn.Module):
+#         def __init__(self, dg):
+#             super(Cell, self).__init__()
+#             self.dg = dg
+#             self.linear = torch.nn.Linear(4, 4)
 
-        def forward(self, x, h):
-            new_h = torch.tanh(self.dg(self.linear(x)) + h)
-            return new_h, new_h
+#         def forward(self, x, h):
+#             new_h = torch.tanh(self.dg(self.linear(x)) + h)
+#             return new_h, new_h
 
-    class RNNLoop(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            x = torch.rand(10, 4, dtype=torch.float)
-            h = torch.rand(10, 4, dtype=torch.float)
-            self.cell = torch.jit.trace(Cell(DecisionGate()), (x, h))
+#     class RNNLoop(torch.nn.Module):
+#         def __init__(self):
+#             super().__init__()
+#             x = torch.rand(10, 4, dtype=torch.float)
+#             h = torch.rand(10, 4, dtype=torch.float)
+#             self.cell = torch.jit.trace(Cell(DecisionGate()), (x, h))
 
-        def forward(self, xs):
-            h = torch.zeros(10, 4, dtype=torch.float)
-            y = torch.zeros(10, 4, dtype=torch.float)
-            for i in range(xs.size(0)):
-                y, h = self.cell(xs[i], h)
-            return y
+#         def forward(self, xs):
+#             h = torch.zeros(10, 4, dtype=torch.float)
+#             y = torch.zeros(10, 4, dtype=torch.float)
+#             for i in range(xs.size(0)):
+#                 y, h = self.cell(xs[i], h)
+#             return y
 
-    verify_script_model(RNNLoop().eval(), [(10, 10, 4)], _get_default_vm_targets())
+#     verify_script_model(RNNLoop().eval(), [(10, 10, 4)], _get_default_vm_targets())
 
 
 @tvm.testing.uses_gpu
@@ -3895,7 +3896,7 @@ def test_masked_select():
     for shape in [(10,), (3, 4), (16, 32, 64)]:
         x = torch.randn(*shape)
         mask = x.ge(0.5)
-        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
+        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda"])
 
 
 def test_unique():
@@ -4033,4 +4034,6 @@ def test_einsum():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    torch.backends.cuda.matmul.allow_tf32 = False
+    # pytest.main([__file__])
+    test_forward_dense()
