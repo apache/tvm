@@ -76,7 +76,10 @@ def has_fpu(board: str):
     fpu_boards = [name for name, board in board_properties.items() if board["fpu"]]
     return board in fpu_boards
 
-def extract_workspace_size_bytes(tar_path: Union[pathlib.Path, str], extract_path: Union[pathlib.Path, str]):
+
+def extract_workspace_size_bytes(
+    tar_path: Union[pathlib.Path, str], extract_path: Union[pathlib.Path, str]
+):
     tar_file = str(tar_path)
     base_path = str(extract_path)
     t = tarfile.open(tar_file)
@@ -86,11 +89,12 @@ def extract_workspace_size_bytes(tar_path: Union[pathlib.Path, str], extract_pat
         metadata = json.load(json_f)
         return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
+
 def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     project_dir = temp_dir / "project"
-    
+
     with tempfile.TemporaryDirectory() as tar_temp_dir:
-        model_tar_path = pathlib.Path(tar_temp_dir) / "model.tar" 
+        model_tar_path = pathlib.Path(tar_temp_dir) / "model.tar"
         export_model_library_format(mod, model_tar_path)
 
         workspace_size = extract_workspace_size_bytes(model_tar_path, tar_temp_dir)
@@ -105,7 +109,8 @@ def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_fil
                 "verbose": bool(build_config.get("debug")),
                 "zephyr_board": zephyr_board,
                 "compile_definitions": [
-                    f"-DWORKSPACE_SIZE={workspace_size}",
+                    # TODO(mehrdadh): It fails without offset.
+                    f"-DWORKSPACE_SIZE={workspace_size + 16}",
                 ],
             },
         )

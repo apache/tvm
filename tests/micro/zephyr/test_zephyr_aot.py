@@ -66,16 +66,21 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     )
 
     target = tvm.target.target.micro(
-        model, options=["-link-params=1", "--executor=aot", "--unpacked-api=1", "--interface-api=c"]
+        model,
+        options=[
+            "-link-params=1",
+            "--executor=aot",
+            "--unpacked-api=1",
+            "--interface-api=c",
+            "--workspace-byte-alignment=4",
+        ],
     )
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
 
     # Load sample and generate input/output header files
     sample_url = "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
-    sample_path = download_testdata(
-        sample_url, "keyword_spotting_int8_6.pyc.npy", module="data"
-    )
+    sample_path = download_testdata(sample_url, "keyword_spotting_int8_6.pyc.npy", module="data")
     sample = np.load(sample_path)
 
     with tempfile.NamedTemporaryFile() as tar_temp_file:
