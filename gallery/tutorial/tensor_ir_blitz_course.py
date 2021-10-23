@@ -52,11 +52,11 @@ import numpy as np
 #
 # Based on the design of TensorIR and IRModule, we are able to create a new programming method:
 #
-# 1. Write a program by TVMScript (just like write python codes)
+# 1. Write a program by TVMScript in a python-AST based syntax.
 #
-# 2. Transform and optimize a program with python api (by schedule primitives and passes)
+# 2. Transform and optimize a program with python api.
 #
-# 3. Interactively inspect and try the performance (print or build at any stage of IRModule)
+# 3. Interactively inspect and try the performance with an imperative style transformation API.
 
 
 ################################################################################################
@@ -65,9 +65,9 @@ import numpy as np
 # IRModule can be created by writing TVMScript, which is a round-trippable syntax for TVM IR.
 #
 # Different than creating an computational expression by Tensor Expression
-# (:ref:`tutorial-tensor-expr-get-started`). TensorIR allow user to write native programs, which
-# is similar with writing a Python program with for loops and computational body. The new method
-# makes it possible to write complex programs and further schedule and optimize it.
+# (:ref:`tutorial-tensor-expr-get-started`). TensorIR allow user to  programs through tvm script,
+# a language embedded in python AST. The new method makes it possible to write complex programs
+# and further schedule and optimize it.
 #
 # Following is an simple example for vector addition.
 #
@@ -95,8 +95,8 @@ print(type(ir_module))
 print(ir_module.script())
 
 ################################################################################################
-# Besides, Tensor Expression (TE) is a really good abstraction for simple operators. TensorIR still
-# allow users to create IRModule from TE.
+# Besides, we can also use tensor expression DSL to write simple operators, and convert them
+# to an IRModule.
 #
 
 from tvm import te
@@ -104,8 +104,8 @@ from tvm import te
 A = te.placeholder((8,), dtype="float32", name="A")
 B = te.compute((8,), lambda *i: A(*i) + 1.0, name="B")
 func = te.create_prim_func([A, B])
-ir_module_1 = IRModule({"main": func})
-print(ir_module_1.script())
+ir_module_from_te = IRModule({"main": func})
+print(ir_module_from_te.script())
 
 
 ################################################################################################
@@ -133,8 +133,8 @@ print(b)
 # ---------------------
 # The IRModule is the central data structure for program optimization, which can be transformed
 # by :code:`Schedule`.
-# Schedule consists of primitives. Each primitive does a simple job on IR transformation,
-# such as loop tiling or make computation parallel.
+# A schedule contains multiple primitive methods to interactively transform the program.
+# Each primitive transforms the program in certain ways to bring additional performance optimizations.
 #
 # .. image:: https://raw.githubusercontent.com/Hzfengsy/web-data/main/images/design/tvm_tensor_ir_opt_flow.png
 #    :align: center
@@ -151,7 +151,7 @@ sch = tvm.tir.Schedule(ir_module)
 print(type(sch))
 
 ################################################################################################
-# Tile the loops 8 into 3 loops and print the result.
+# Tile the loop into 3 loops and print the result.
 
 # Get block by its name
 block_b = sch.get_block("B")
@@ -163,7 +163,15 @@ print(sch.mod.script())
 
 
 ################################################################################################
-# If you want to deploy your module on GPUs, threads binding is necessary. Fortunately, we can
+# We can also reorder the loops. Now we move loop `i_2` to outside of `i_0` and `i_1`.
+sch.reorder(i_2, i_0, i_1)
+print(sch.mod.script())
+
+
+################################################################################################
+# Transform to a GPU program
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# If we want to deploy models on GPUs, thread binding is necessary. Fortunately, we can
 # also use primitives and do incrementally transformation.
 #
 
