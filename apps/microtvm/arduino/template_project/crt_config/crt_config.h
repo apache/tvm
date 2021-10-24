@@ -36,7 +36,9 @@
 /*! Maximum supported string length in dltype, e.g. "int8", "int16", "float32" */
 #define TVM_CRT_MAX_STRLEN_DLTYPE 10
 /*! Maximum supported string length in function names */
-#define TVM_CRT_MAX_STRLEN_FUNCTION_NAME 80
+#define TVM_CRT_MAX_STRLEN_FUNCTION_NAME 120
+/*! Maximum supported string length in parameter names */
+#define TVM_CRT_MAX_STRLEN_PARAM_NAME 80
 
 /*! Maximum number of registered modules. */
 #define TVM_CRT_MAX_REGISTERED_MODULES 2
