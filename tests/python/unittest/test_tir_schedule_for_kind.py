@@ -401,7 +401,7 @@ def test_bind_after_bind():
 
 def test_block_inside_init():
     s = tir.Schedule(block_inside_init, debug_mask="all")
-    i, = s.get_loops(s.get_block("outer"))
+    (i,) = s.get_loops(s.get_block("outer"))
     s.bind(i, "threadIdx.x")
     tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_block_inside_init)
     verify_trace_roundtrip(s, mod=block_inside_init)
