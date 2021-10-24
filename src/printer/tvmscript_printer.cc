@@ -450,10 +450,10 @@ Doc TVMScriptPrinter::PrintCommReducer(const CommReducerNode* op) {
 
   doc << tir_prefix_ << ".comm_reducer(lambda ";
   for (const Var& v_lhs : op->lhs) {
-    doc << v_lhs->name_hint << ", ";
+    doc << Print(v_lhs) << ", ";
   }
   for (int i = 0; i < n_var; ++i) {
-    doc << op->rhs[i]->name_hint << (i == n_var - 1 ? ": " : ", ");
+    doc << Print(op->rhs[i]) << (i == n_var - 1 ? ": " : ", ");
   }
   if (n_var == 1) {
     doc << Print(op->result[0]) << ", ";

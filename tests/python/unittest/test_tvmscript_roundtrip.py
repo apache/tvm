@@ -3098,38 +3098,42 @@ def test_primfunc_with_allocate_annotations():
 # fmt: off
 @T.prim_func
 def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
-    # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    # var definition
     threadIdx_x = T.env_thread("threadIdx.x")
     A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
-    # body
     for i in T.serial(0, 128):
         T.launch_thread(threadIdx_x, 128)
         reduce_temp0 = T.allocate([1], "float32", "local")
         with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
             T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
-        if threadIdx_x == 0:
-            T.store(B.data, i, T.load("float32", reduce_temp0, 0), True)
 
 
 @T.prim_func
 def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
-    # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    # var definition
     threadIdx_x = T.env_thread("threadIdx.x")
     A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
-    # body
     for i in T.serial(0, 128):
         T.launch_thread(threadIdx_x, 128)
         reduce_temp0 = T.allocate([1], "float32", "local")
         with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
             T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
-        if threadIdx_x == 0:
-            T.store(B.data, i, T.load("float32", reduce_temp0, 0), True)
+
+
+@T.prim_func
+def multiple_commreducer() -> None:
+    normal_reduce_temp0 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp1 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp1 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+    for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+        with T.block("T_softmax_maxelem_cross_thread_reduction"):
+            T.attr(T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp0[0], True, reduce_temp0.data, ax0_1, dtype="handle"))
+    for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+        with T.block("T_softmax_expsum_cross_thread_reduction"):
+            T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp1[0], True, reduce_temp1.data, ax0_1, dtype="handle"))
 # fmt: on
 
 
@@ -3141,6 +3145,12 @@ def test_primfunc_with_single_reduce_group_commreducer():
 
 def test_primfunc_with_multiple_reduce_group_commreducer():
     func = comm_reducer_multiple_reduce_groups
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+def test_primfunc_with_multiple_commreducer():
+    func = multiple_commreducer
     rt_func = tvm.script.from_source(func.script(show_meta=True))
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
