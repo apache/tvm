@@ -134,6 +134,8 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
     auto outputs = this->VisitExpr(prim_func->body);
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
+    // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
+    //          whenever the value of kMaxFuncNameLength changes
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
@@ -394,6 +396,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     // Generate a name.
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
+    // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
+    //          whenever the value of kMaxFuncNameLength changes
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
