@@ -21,7 +21,7 @@ Blitz Course to TensorIR
 ========================
 **Author**: `Siyuan Feng <https://github.com/Hzfengsy>`_
 
-TensorIR is a domain specific languages for deep learning programs serving two broad purposes:
+TensorIR is a domain specific language for deep learning programs serving two broad purposes:
 
 - An implementation for transforming and optimizing programs on various hardware backends.
 
