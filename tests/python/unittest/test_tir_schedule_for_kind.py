@@ -239,6 +239,44 @@ def opaque_block(a: T.handle) -> None:
             A[i + 1] = A[i + 1] + A[i]
 
 
+@T.prim_func
+def block_inside_init(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
+    B = T.match_buffer(b, [128, 128], dtype="float32")
+    for i in T.serial(0, 128):
+        with T.block("outer"):
+            vi = T.axis.S(128, i)
+            with T.init():
+                for j in T.serial(0, 128):
+                    with T.block("init"):
+                        vj = T.axis.S(128, j)
+                        B[vi, vj] = 0.0
+            for k in T.serial(0, 128):
+                for j in T.serial(0, 128):
+                    with T.block("inner"):
+                        vj, vk = T.axis.remap("SR", [j, k])
+                        B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
+
+
+@T.prim_func
+def thread_bound_block_inside_init(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
+    B = T.match_buffer(b, [128, 128], dtype="float32")
+    for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+        with T.block("outer"):
+            vi = T.axis.S(128, i)
+            with T.init():
+                for j in T.serial(0, 128):
+                    with T.block("init"):
+                        vj = T.axis.S(128, j)
+                        B[vi, vj] = 0.0
+            for k in T.serial(0, 128):
+                for j in T.serial(0, 128):
+                    with T.block("inner"):
+                        vj, vk = T.axis.remap("SR", [j, k])
+                        B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -359,6 +397,14 @@ def test_bind_after_bind():
     s.bind(i, "threadIdx.x")
     tvm.ir.assert_structural_equal(s.mod["main"], element_wise_i_bound)
     verify_trace_roundtrip(s, mod=element_wise)
+
+
+def test_block_inside_init():
+    s = tir.Schedule(block_inside_init, debug_mask="all")
+    i, = s.get_loops(s.get_block("outer"))
+    s.bind(i, "threadIdx.x")
+    tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_block_inside_init)
+    verify_trace_roundtrip(s, mod=block_inside_init)
 
 
 if __name__ == "__main__":
