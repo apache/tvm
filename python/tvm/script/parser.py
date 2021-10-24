@@ -493,7 +493,7 @@ class TVMScriptParser(Transformer):
     def transform_Lambda(self, node):
         """Lambda visitor
 
-        Return an array of input parameters, and the transformed lambda body.
+        Return an array of input parameters and the transformed lambda body.
         """
 
         self.context.enter_scope(nodes=[node.body])
