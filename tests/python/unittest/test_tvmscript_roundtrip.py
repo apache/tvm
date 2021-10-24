@@ -3126,7 +3126,7 @@ def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
     for i in T.serial(0, 128):
         T.launch_thread(threadIdx_x, 128)
         reduce_temp0 = T.allocate([1], "float32", "local")
-        with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (x0 + y0, x1 + y1), [T.float32(0), T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+        with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
             T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
         if threadIdx_x == 0:
             T.store(B.data, i, T.load("float32", reduce_temp0, 0), True)
