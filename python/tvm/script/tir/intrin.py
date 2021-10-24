@@ -216,6 +216,7 @@ class StoreIntrin(Intrin):
 
 @register
 def comm_reducer(lambda_io, identities, span):
+    """Create a CommReducer from lambda inputs/outputs and the identities"""
     lambda_input = lambda_io[0]
     lambda_output = lambda_io[1]
 
