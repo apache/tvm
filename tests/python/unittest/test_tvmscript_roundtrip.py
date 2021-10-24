@@ -3095,5 +3095,55 @@ def test_primfunc_with_allocate_annotations():
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
 
+# fmt: off
+@T.prim_func
+def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
+    # function attr dict
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    # var definition
+    threadIdx_x = T.env_thread("threadIdx.x")
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128], dtype="float32")
+    # body
+    for i in T.serial(0, 128):
+        T.launch_thread(threadIdx_x, 128)
+        reduce_temp0 = T.allocate([1], "float32", "local")
+        with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
+        if threadIdx_x == 0:
+            T.store(B.data, i, T.load("float32", reduce_temp0, 0), True)
+
+
+@T.prim_func
+def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
+    # function attr dict
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    # var definition
+    threadIdx_x = T.env_thread("threadIdx.x")
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128], dtype="float32")
+    # body
+    for i in T.serial(0, 128):
+        T.launch_thread(threadIdx_x, 128)
+        reduce_temp0 = T.allocate([1], "float32", "local")
+        with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (x0 + y0, x1 + y1), [T.float32(0), T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
+        if threadIdx_x == 0:
+            T.store(B.data, i, T.load("float32", reduce_temp0, 0), True)
+# fmt: on
+
+
+def test_primfunc_with_single_reduce_group_commreducer():
+    func = comm_reducer_single_reduce_group
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+def test_primfunc_with_multiple_reduce_group_commreducer():
+    func = comm_reducer_multiple_reduce_groups
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

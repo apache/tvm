@@ -490,6 +490,31 @@ class TVMScriptParser(Transformer):
         self.context.exit_scope()
         return func
 
+    def transform_Lambda(self, node):
+        """Lambda visitor
+
+        Return an array of input parameters, and the transformed lambda body.
+        """
+
+        self.context.enter_scope(nodes=[node.body])
+
+        # add parameters of the lambda
+        arg_vars = []
+        for arg in node.params:
+            arg_var = tvm.te.var(arg.name)
+            arg_vars.append(arg_var)
+            self.context.update_symbol(arg.name, arg_var, node)
+
+        # the body of a lambda must be an expr
+        if not isinstance(node.body, ast.Expr):
+            self.report_error("The body of a lambda must be an expression", node.span)
+
+        # transform the body of the lambda
+        body = self.transform(node.body)
+
+        self.context.exit_scope()
+        return arg_vars, body
+
     def transform_Assign(self, node):
         """Assign visitor
         AST abstract grammar:

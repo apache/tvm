@@ -119,8 +119,6 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
   /*! \brief Map from Buffer to Declaration Doc */
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_decl_;
-  /*! \brief Map from CommReducer to Doc */
-  std::unordered_map<const CommReducerNode*, Doc> memo_reducer_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief number of children of current node's parent */
@@ -211,6 +209,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   virtual Doc PrintBlockName(const BlockNode* block_op);
   Doc PrintBufferRegion(const BufferRegionNode* op);
   Doc PrintMatchBufferRegion(const MatchBufferRegionNode* op);
+  Doc PrintCommReducer(const CommReducerNode* op);
   Doc PrintAnnotations(const Map<String, ObjectRef>& annotations);
   static Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
 
@@ -445,6 +444,39 @@ Doc TVMScriptPrinter::PrintMatchBufferRegion(const MatchBufferRegionNode* op) {
   return doc;
 }
 
+Doc TVMScriptPrinter::PrintCommReducer(const CommReducerNode* op) {
+  Doc doc;
+  int n_var = static_cast<int>(op->rhs.size());
+
+  doc << tir_prefix_ << ".comm_reducer(lambda ";
+  for (const Var& v_lhs : op->lhs) {
+    doc << v_lhs->name_hint << ", ";
+  }
+  for (int i = 0; i < n_var; ++i) {
+    doc << op->rhs[i]->name_hint << (i == n_var - 1 ? ": " : ", ");
+  }
+  if (n_var == 1) {
+    doc << Print(op->result[0]) << ", ";
+  } else {
+    doc << "(";
+    for (int i = 0; i < n_var; ++i) {
+      doc << Print(op->result[i]);
+      if (i != n_var - 1) {
+        doc << ", ";
+      }
+    }
+    doc << "), ";
+  }
+  doc << Print(op->identity_element) << ")";
+
+  // Remove the vars in `lhs` and `rhs`, because they are the parameters of the printed lambda.
+  for (int i = 0; i < n_var; ++i) {
+    memo_var_.erase(op->lhs[i]);
+    memo_var_.erase(op->rhs[i]);
+  }
+  return doc;
+}
+
 Doc TVMScriptPrinter::Print(const ObjectRef& node) {
   if (!node.defined()) return Doc::Text("None");
   if (node->IsInstance<StmtNode>()) {
@@ -472,6 +504,8 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintBufferRegion(node.as<BufferRegionNode>());
   } else if (node->IsInstance<MatchBufferRegionNode>()) {
     return PrintMatchBufferRegion(node.as<MatchBufferRegionNode>());
+  } else if (node->IsInstance<CommReducerNode>()) {
+    return PrintCommReducer(node.as<CommReducerNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
     return Doc();
@@ -1153,7 +1187,6 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   memo_var_.clear();
   memo_buf_.clear();
   memo_buf_decl_.clear();
-  memo_reducer_.clear();
   var_not_in_headers_.clear();
   buf_not_in_headers_.clear();
   // print signature
@@ -1176,15 +1209,6 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     buf_not_in_headers_.insert((*it).second.get());
     body << Print((*it).second) << " = " << tir_prefix_ << ".match_buffer(";
     body << Print((*it).first) << ", " << memo_buf_decl_[(*it).second];
-    body << ")" << Doc::NewLine();
-  }
-  // print comm_reducer
-  for (const auto& it : memo_reducer_) {
-    body << it.second << " = .comm_reducer(";
-    var_not_in_headers_.insert(it.first->lhs[0].get());
-    var_not_in_headers_.insert(it.first->rhs[0].get());
-    body << "lambda " << Print(it.first->lhs[0]) << ", " << Print(it.first->rhs[0]) << ": "
-         << Print(it.first->result[0]) << ", " << Print(it.first->identity_element[0]);
     body << ")" << Doc::NewLine();
   }
   // print body

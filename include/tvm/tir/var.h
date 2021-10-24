@@ -109,6 +109,12 @@ class Var : public PrimExpr {
    * \return the new Var copy
    */
   TVM_DLL Var copy_with_suffix(const String& suffix) const;
+  /*!
+   * \brief Make a new copy of the variable with specified dtype
+   * \param dtype The specified dtype
+   * \return The new variable
+   */
+  TVM_DLL Var copy_with_dtype(DataType dtype) const;
 
   /*!
    * \brief Get pointer to the internal value.
