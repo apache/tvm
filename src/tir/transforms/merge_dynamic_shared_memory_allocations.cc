@@ -27,12 +27,11 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <list>
-#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
+#include "../../support/arena.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -91,7 +90,7 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   };
   // The scope of each allocation
   struct AllocEntry {
-    // scope level
+    // the level in the scope stack
     size_t level{0};
     // allocation stmt
     const AllocateNode* alloc{nullptr};
@@ -159,7 +158,7 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
-      ICHECK_LT(it->second.level, scope_.size()) << " buf=" << buf->name_hint;
+      ICHECK_LT(it->second.level, scope_.size());
       if (IsDynamicSharedMemory(GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
@@ -230,9 +229,9 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
 
   /*!
    * \brief plan the memory reuse for all the buffer allocated in the statement
-   * @param stmt the statement
+   * \param stmt the statement
    */
-  void PlanReuse(Stmt stmt) {
+  void PlanReuse(const Stmt& stmt) {
     DynSharedMemLinearAccessPatternFinder finder;
     finder(stmt);
     this->LivenessAnalysis(finder.linear_seq_);
@@ -335,7 +334,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
  private:
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
     auto it = buffer_byte_offsets_.find(buffer_var.get());
-    ICHECK(it != buffer_byte_offsets_.end()) << buffer_var;
+    ICHECK(it != buffer_byte_offsets_.end());
     return indexdiv(it->second, dtype.bytes());
   }
 
@@ -401,6 +400,15 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
 
     for (size_t i = 0; i < seq.size(); ++i) {
       auto it = event_map_.find(seq[i].stmt);
+      // scope_pair_offset <= 0 means it is either
+      // - leaf stmt(offset = 0)
+      // - end of scope(offset < 0)
+      // In both cases, we need to handle the kill event correctly
+      if (it != event_map_.end() && seq[i].scope_pair_offset <= 0) {
+        for (const VarNode* var : it->second.kill) {
+          this->Free(var);
+        }
+      }
       // scope_pair_offset >= 0 means it is either
       // - leaf stmt(offset = 0)
       // - beginning of scope(offset < 0)
@@ -411,15 +419,6 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
           const AllocateNode* alloc = dyn_shmem_allocs_[var];
           StorageEntry* dst_entry = FindAlloc(alloc);
           alloc_map_[var] = dst_entry;
-        }
-      }
-      // scope_pair_offset <= 0 means it is either
-      // - leaf stmt(offset = 0)
-      // - end of scope(offset < 0)
-      // In both cases, we need to handle the kill event correctly
-      if (it != event_map_.end() && seq[i].scope_pair_offset <= 0) {
-        for (const VarNode* var : it->second.kill) {
-          this->Free(var);
         }
       }
     }
@@ -433,12 +432,10 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   StorageEntry* NewAlloc(const AllocateNode* op, size_t const_nbits) {
     ICHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
-    std::unique_ptr<StorageEntry> entry(new StorageEntry());
+    StorageEntry* entry = arena_.make<StorageEntry>();
     entry->allocs.push_back({op->buffer_var.get()});
     entry->const_nbits = const_nbits;
-    StorageEntry* e = entry.get();
-    alloc_vec_.emplace_back(std::move(entry));
-    return e;
+    return entry;
   }
   /*!
    * \brief find the storage entry in the free list for the allocate
@@ -481,30 +478,29 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       uint64_t mem_ct = 0;
       for (auto it = mid; it != begin;) {
         --it;
-        if (mem_ct + it->second->const_nbits <= const_nbits) {
-          delete_it.push_back(it);
-          mem_ct += it->second->const_nbits;
-          int n = it->second->allocs.size();
-          if (n > static_cast<int>(reuse_allocs.size())) {
-            reuse_allocs.resize(n, {});
+        delete_it.push_back(it);
+        mem_ct += it->second->const_nbits;
+        int n = it->second->allocs.size();
+        if (n > static_cast<int>(reuse_allocs.size())) {
+          reuse_allocs.resize(n, {});
+        }
+        for (int i = 0; i < n; i++) {
+          for (const VarNode* alloc : it->second->allocs[i]) {
+            reuse_allocs[i].push_back(alloc);
           }
-          for (int i = 0; i < n; i++) {
-            for (const VarNode* alloc : it->second->allocs[i]) {
-              reuse_allocs[i].push_back(alloc);
-            }
-          }
+        }
+        if (mem_ct >= const_nbits) {
+          break;
         }
       }
       reuse_allocs.push_back({op->buffer_var.get()});
       if (mem_ct != 0) {
-        std::unique_ptr<StorageEntry> entry(new StorageEntry());
-        entry->const_nbits = std::max(const_nbits, mem_ct);
-        entry->allocs = reuse_allocs;
+        StorageEntry* e = arena_.make<StorageEntry>();
+        e->const_nbits = std::max(const_nbits, mem_ct);
+        e->allocs = reuse_allocs;
         for (auto it : delete_it) {
           const_free_map_.erase(it);
         }
-        StorageEntry* e = entry.get();
-        alloc_vec_.emplace_back(std::move(entry));
         return e;
       }
     } else {
@@ -557,8 +553,8 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   std::list<StorageEntry*> sym_free_list_;
   // The allocation assign map
   std::unordered_map<const VarNode*, StorageEntry*> alloc_map_;
-  // The allocations
-  std::vector<std::unique_ptr<StorageEntry>> alloc_vec_;
+  /*! \brief allocator of all the StorageEntry*/
+  support::Arena arena_;
 };
 
 Stmt MergeDynamicSharedMemoryAllocations(Stmt stmt) {

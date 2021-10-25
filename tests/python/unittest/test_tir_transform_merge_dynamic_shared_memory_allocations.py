@@ -269,7 +269,66 @@ def test_dyn_shared_reuse_and_merge():
         check_target(target)
 
 
+def test_dyn_shared_more_dtype():
+    """Test vectorized store into dynamic shared memory"""
+    n = 512
+    A = te.placeholder((n,), name="A", dtype="int8")
+    B = te.placeholder((n,), name="B", dtype="int16")
+
+    def test_device_ir(A, B, C):
+        n = A.shape[0]
+        ib = tvm.tir.ir_builder.create()
+
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(tx, "thread_extent", n)
+
+        A_sh = ib.allocate(A.dtype, (n,), scope="shared.dyn")  # i8
+        B_sh = ib.allocate(B.dtype, (n,), scope="shared.dyn")  # i16
+        C_sh = ib.allocate(C.dtype, (n,), scope="shared.dyn")  # i32
+
+        Aptr = ib.buffer_ptr(A)
+        Bptr = ib.buffer_ptr(B)
+        Cptr = ib.buffer_ptr(C)
+
+        A_sh[tx] = Aptr[tx]
+        B_sh[tx] = Bptr[tx]
+
+        C_sh[tx] = cast(A_sh[tx], "int32") + cast(B_sh[tx], "int32")
+        Cptr[tx] = C_sh[tx]
+        return ib.get()
+
+    C = te.extern(
+        (n,),
+        [A, B],
+        lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
+        name="vadd",
+        dtype="int32",
+    )
+    s = te.create_schedule(C.op)
+
+    mod = run_passes(s, [A, B, C])
+    print(mod["main"].body)
+    verify_single_allocation(mod["main"].body, n * 4)
+
+    def check_target(target):
+        if not tvm.testing.device_enabled(target):
+            return
+
+        fadd = tvm.build(s, [A, B, C], target)
+        dev = tvm.device(target, 0)
+
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), dev)
+        c = tvm.nd.array(np.zeros((n,), dtype=C.dtype), dev)
+        fadd(a, b, c)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy().astype("float32") + b.numpy(), 1e-4, 1e-4)
+
+    for target in ["cuda", "nvptx"]:
+        check_target(target)
+
+
 if __name__ == "__main__":
     test_matmul_dyn_shared()
     test_dyn_shared_vectorized_store()
     test_dyn_shared_reuse_and_merge()
+    test_dyn_shared_more_dtype()
