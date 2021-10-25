@@ -279,11 +279,18 @@ tvm_outputs, _ = runner.invoke(tvm_inputs)
 
 ### Tested Models
 
-The applications have been tested with following models.
+The *SystemPerformance* and the *Validation* applications have been tested
+with following models.
 
-The Discovery-H747: MNIST, [TinyML benchmarks](https://www.zdnet.com/article/to-measure-ultra-low-power-ai-mlperf-gets-a-tinyml-benchmark), Yolo, Squeezenet, Mobilenet, Inception, others.
+**The Discovery-H747**: This is a board with plenty of memory able to
+accomodate large models. MNIST, [TinyML benchmarks](https://www.zdnet.com/article/to-measure-ultra-low-power-ai-mlperf-gets-a-tinyml-benchmark), Yolo,
+Squeezenet, Mobilenet, Inception, others.
 
-The Nucleo-F412: MNIST quantized to 8 bits, TinyML: anomaly detection and keyword spotting.
+**The Nucleo-F412**: This is a small board with 1MB of the flash and 256KB
+of RAM. At this time, the TVM generates a relatively space-consuming code,
+thus only smaller models fit with the available memory. MNIST quantized to
+8 bits, TinyML: anomaly detection and keyword spotting. We are working on
+improving the TVM generated model code and data size.
 
 
 ## STM32 Runtime API
