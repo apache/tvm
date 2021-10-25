@@ -49,7 +49,8 @@ static inline Array<IndexExpr> get_shape(const Type& type) {
 static inline int32_t GetQmin(const DataType& dtype) {
   ICHECK_LE(dtype.bits(), 32) << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
-    auto* min_value = tir::as_const_int(tvm::min_value(dtype));
+    auto min_value_expr = tvm::min_value(dtype);
+    auto* min_value = tir::as_const_int(min_value_expr);
     ICHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
   } else {
@@ -61,7 +62,8 @@ static inline int32_t GetQmin(const DataType& dtype) {
 static inline int32_t GetQmax(const DataType& dtype) {
   ICHECK_LE(dtype.bits(), 32) << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
-    auto* max_value = tir::as_const_int(tvm::max_value(dtype));
+    auto max_value_expr = tvm::max_value(dtype);
+    auto* max_value = tir::as_const_int(max_value_expr);
     ICHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
   } else {
