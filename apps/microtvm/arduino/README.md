@@ -15,5 +15,4 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-This directory contains code to interface microTVM with the [Zephyr RTOS](https://zephyrproject.org/).
-
+This directory contains code to interface microTVM with [Arduino](https://www.arduino.cc/).
