@@ -150,6 +150,9 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/reference-vm/arduino/base-box/Vagrantfile.packer-template",
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
     "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",
+    # STM32 apps
+    "apps/microtvm/stm32/Boards/makefile.disco-h747i",
+    "apps/microtvm/stm32/Boards/makefile.nucleo-f412zg",
 }
 
 
