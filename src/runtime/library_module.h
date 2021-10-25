@@ -84,6 +84,14 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
 using PackedFuncWrapper =
     std::function<PackedFunc(TVMBackendPackedCFunc, const ObjectPtr<Object>&)>;
 
+/*! \brief Return a library object interface over dynamic shared
+ *  libraries in Windows and Linux providing support for
+ *  loading/unloading and symbol lookup.
+ *  \param Full path to shared library.
+ *  \return Returns pointer to the Library providing symbol lookup.
+ */
+ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path);
+
 /*!
  * \brief Create a module from a library.
  *

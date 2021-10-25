@@ -21,19 +21,70 @@
  * \file dso_libary.cc
  * \brief Create library module to load from dynamic shared library.
  */
-#include "dso_library.h"
-
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#if !defined(_WIN32)
+#include "library_module.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <dlfcn.h>
 #endif
 
 namespace tvm {
 namespace runtime {
+
+/*!
+ * \brief Dynamic shared library object used to load
+ * and retrieve symbols by name. This is the default
+ * module TVM uses for host-side AOT compilation.
+ */
+class DSOLibrary final : public Library {
+ public:
+  ~DSOLibrary();
+  /*!
+   * \brief Initialize by loading and storing
+   * a handle to the underlying shared library.
+   * \param name The string name/path to the
+   * shared library over which to initialize.
+   */
+  void Init(const std::string& name);
+  /*!
+   * \brief Returns the symbol address within
+   * the shared library for a given symbol name.
+   * \param name The name of the symbol.
+   * \return The symbol.
+   */
+  void* GetSymbol(const char* name) final;
+
+ private:
+  /*! \brief Private implementation of symbol lookup.
+   *  Implementation is operating system dependent.
+   *  \param The name of the symbol.
+   * \return The symbol.
+   */
+  void* GetSymbol_(const char* name);
+  /*! \brief Implementation of shared library load.
+   *  Implementation is operating system dependent.
+   *  \param The name/path of the shared library.
+   */
+  void Load(const std::string& name);
+  /*! \brief Implementation of shared library unload.
+   *  Implementation is operating system dependent.
+   */
+  void Unload();
+
+#if defined(_WIN32)
+  //! \brief Windows library handle
+  HMODULE lib_handle_{nullptr};
+#else
+  // \brief Linux library handle
+  void* lib_handle_{nullptr};
+#endif
+};
 
 DSOLibrary::~DSOLibrary() {
   if (lib_handle_) Unload();
@@ -78,10 +129,10 @@ void DSOLibrary::Unload() {
 
 #endif
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_so").set_body([](TVMArgs args, TVMRetValue* rv) {
+ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path) {
   auto n = make_object<DSOLibrary>();
-  n->Init(args[0]);
-  *rv = CreateModuleFromLibrary(n);
-});
+  n->Init(library_path);
+  return n;
+}
 }  // namespace runtime
 }  // namespace tvm

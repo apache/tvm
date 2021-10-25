@@ -221,5 +221,10 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_
 
   return root_mod;
 }
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_so").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
+  *rv = CreateModuleFromLibrary(n);
+});
 }  // namespace runtime
 }  // namespace tvm
