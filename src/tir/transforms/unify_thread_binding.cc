@@ -26,8 +26,8 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "ir_utils.h"
 #include "../../support/utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -44,15 +44,30 @@ class ThreadBindingUnifier : public StmtExprMutator {
   static Stmt Unify(Stmt stmt) { return ThreadBindingUnifier()(std::move(stmt)); }
 
  private:
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    // If this AttrStmt is not thread binding attribute, return as usual.
+    if (op->attr_key != attr::thread_extent && op->attr_key != attr::virtual_thread) {
+      return StmtMutator::VisitStmt_(op);
+    }
+    IterVar old_iter_var = Downcast<IterVar>(op->node);
+    return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var, old_iter_var->dom);
+  }
+
   Stmt VisitStmt_(const ForNode* op) final {
-    if (op->kind != ForKind::kThreadBinding || StartsWith(op->thread_binding.value()->thread_tag, "vthread")) {
+    // If this For is not thread binding attribute, return as usual.
+    if (op->kind != ForKind::kThreadBinding) {
       return StmtExprMutator::VisitStmt_(op);
     }
+    return UnifyThreadBindingImpl(op, op->loop_var, op->thread_binding.value(),
+                                  Range::FromMinExtent(op->min, op->extent));
+  }
 
-    // Step 1. Fetch the old IterVar and the thread tag.
-    IterVar old_iter_var = op->thread_binding.value();
+  template <typename Node>
+  Stmt UnifyThreadBindingImpl(const Node* op, const Var& old_var, const IterVar& old_iter_var,
+                              const Range& dom) {
+    // Step 1. Fetch the thread tag.
     IterVar new_iter_var{nullptr};
-    const String& thread_tag = op->thread_binding.value()->thread_tag;
+    const String& thread_tag = old_iter_var->thread_tag;
 
     // Step 2: Increase `thread_block_depth_` if the thread tag starts with "blockIdx". If the
     // thread block depth is 0 before the increasement, it means we are entering a new kernel, and
@@ -60,7 +75,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     // thread axes with different extents.
     bool is_kernel_launch_scope = false;
     int old_thread_block_depth = thread_block_depth_;
-    if (StartsWith(thread_tag, "blockIdx.") || (StartsWith(thread_tag, "threadIdx.") && !thread_block_depth_)) {
+    if (StartsWith(thread_tag, "blockIdx.") || !thread_block_depth_) {
       if (!thread_block_depth_) {
         thread_tag2iter_var_map_.clear();
         is_kernel_launch_scope = true;
@@ -74,15 +89,15 @@ class ThreadBindingUnifier : public StmtExprMutator {
     Map<String, IterVar>::iterator it = thread_tag2iter_var_map_.find(thread_tag);
     if (it != thread_tag2iter_var_map_.end()) {
       new_iter_var = (*it).second;
-      CHECK(ana.CanProveEqual(op->extent, new_iter_var->dom->extent))
+      ICHECK(ana.CanProveEqual(dom->min, new_iter_var->dom->min));
+      CHECK(ana.CanProveEqual(dom->extent, new_iter_var->dom->extent))
           << "ValueError: All loops that are bound to `" << thread_tag
           << "` should have the same extent. However, there are two loops with extent "
-          << new_iter_var->dom->extent << " and " << op->extent
-          << ", which are not equal";
+          << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";
     } else {
       ObjectPtr<IterVarNode> p_new_iter_var = make_object<IterVarNode>(*old_iter_var.get());
       p_new_iter_var->var = Var(thread_tag);
-      p_new_iter_var->dom = Range::FromMinExtent(op->min, op->extent);
+      p_new_iter_var->dom = dom;
       new_iter_var = IterVar(p_new_iter_var);
       thread_tag2iter_var_map_.Set(thread_tag, new_iter_var);
       launch_threads_.push_back(new_iter_var);
@@ -90,23 +105,40 @@ class ThreadBindingUnifier : public StmtExprMutator {
 
     // Step 4. We will substitute the occurrences of the old variable in the old IterVar with the
     // new variable in further mutation. Thus, we store the mapping entry.
-    var_substitution_map_.Set(op->loop_var, new_iter_var->var);
+    var_substitution_map_.Set(old_var, new_iter_var->var);
 
-    // Step 5. Mutate recursively, update the AttrStmt with the new IterVar, and decrease the depth
-    // counter if the thread tag starts with "blockIdx".
-    For for_node = Downcast<For>(StmtMutator::VisitStmt_(op));
+    // Step 5. Mutate recursively, update the body with the new IterVar, and restore the depth
+    // counter. Emit for-loops to launch threads if current statement is the outermost thread
+    // binding of the kernel.
+    Stmt new_stmt = StmtMutator::VisitStmt_(op);
+    auto* new_node = new_stmt.as<Node>();
+    ICHECK(new_node);
     thread_block_depth_ = old_thread_block_depth;
     if (is_kernel_launch_scope) {
-      Stmt result = for_node->body;
-      while (!launch_threads_.empty()) {
-        const IterVar& thread_binding = launch_threads_.back();
-        result = For(thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent, ForKind::kThreadBinding, result, thread_binding);
-        launch_threads_.pop_back();
-      }
-      return result;
+      return EmitLaunchThreads(new_node->body);
     } else {
-      return for_node->body;
+      return new_node->body;
     }
+  }
+
+  /*!
+   * \brief Emit loop nests representing all thread bindings of the kernel
+   * \param body The body of the innermost loop of the thread bindings.
+   * \return The loop nests of the thread bindings.
+   */
+  Stmt EmitLaunchThreads(const Stmt& body) {
+    Stmt result = body;
+    while (!launch_threads_.empty()) {
+      const IterVar& thread_binding = launch_threads_.back();
+      // Recreate the IterVar as we don't duplicate `dom` in both For and IterVar. This is
+      // necessary for unit tests.
+      result = For(thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent,
+                   ForKind::kThreadBinding, result,
+                   IterVar(NullValue<Range>(), Var(""), IterVarType::kThreadIndex,
+                           thread_binding->thread_tag));
+      launch_threads_.pop_back();
+    }
+    return result;
   }
 
   PrimExpr VisitExpr_(const VarNode* var) final {
@@ -117,10 +149,14 @@ class ThreadBindingUnifier : public StmtExprMutator {
   }
 
   /*!
-   * \brief A mapping from a thread tag to its corresponding launching for-loop that is shared by all
+   * \brief A mapping from a thread tag to its corresponding IterVar that is shared by all
    * occurrences of the thread tag
-   * */
+   */
   Map<String, IterVar> thread_tag2iter_var_map_;
+  /*!
+   * \brief A list of IterVar corresponding to threads in current kernel. This will be used to
+   * generate for-loops to launch threads.
+   */
   Array<IterVar> launch_threads_;
   /*! \brief A mapping from old variables to new variables, which is used for substitution */
   Map<Var, Var> var_substitution_map_;
