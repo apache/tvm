@@ -185,6 +185,17 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     target = tvm.target.target.micro(
         model,
         options=[
+            "-keys=cpu",
+            "-link-params=1",
+            "--executor=aot",
+            "--unpacked-api=1",
+            "--interface-api=c",
+        ],
+    )
+
+    target_simd = tvm.target.target.micro(
+        model,
+        options=[
             "-keys=arm_cpu,cpu",
             "-link-params=1",
             "--executor=aot",
@@ -200,7 +211,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     os.makedirs(temp_dir_no_simd, exist_ok=True)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered_simd = relay.build(relay_mod_simd, target, params=params)
+        lowered_simd = relay.build(relay_mod_simd, target_simd, params=params)
         lowered_no_simd = relay.build(relay_mod_no_simd, target, params=params)
         result_simd, time_simd = _run_model(
             temp_dir_simd, board, west_cmd, lowered_simd, build_config, sample, output_shape
