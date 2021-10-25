@@ -112,7 +112,7 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
     }
 
     return Call(cur_op, post_call_node->args, pre_call_node->attrs, pre_call_node->type_args,
-		pre_call_node->span);
+                pre_call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* node) {
