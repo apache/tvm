@@ -41,26 +41,26 @@ def aot_transport_init_wait(transport):
         try:
             aot_transport_find_message(transport, "wakeup", timeout_sec=timeout)
             break
-        except:
+        except IOError:
             transport.write(b"init%", timeout_sec=timeout)
 
 
 def aot_transport_find_message(transport, expr: str, timeout_sec: int):
     while True:
         data = _read_line(transport, timeout_sec)
-        logging.debug(f"new line: {data}")
+        logging.debug("new line: %s", data)
         if expr in data:
             return data
 
 
-def _read_line(fd, timeout_sec: int):
+def _read_line(transport, timeout_sec: int):
     data = ""
     new_line = False
     while True:
         if new_line:
             break
-        new_data = fd.read(1, timeout_sec=timeout_sec)
-        logging.debug(f"read data: {new_data}")
+        new_data = transport.read(1, timeout_sec=timeout_sec)
+        logging.debug("read data: %s", new_data)
         for item in new_data:
             new_c = chr(item)
             data = data + new_c
