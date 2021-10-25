@@ -21,6 +21,7 @@ import pathlib
 import json
 import logging
 from typing import Union
+from tvm.micro.project_api.server import IoTimeoutError
 
 
 def check_tune_log(log_path: Union[pathlib.Path, str]):
@@ -41,7 +42,7 @@ def aot_transport_init_wait(transport):
         try:
             aot_transport_find_message(transport, "wakeup", timeout_sec=timeout)
             break
-        except IOError:
+        except IoTimeoutError:
             transport.write(b"init%", timeout_sec=timeout)
 
 
