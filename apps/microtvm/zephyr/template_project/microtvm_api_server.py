@@ -61,6 +61,11 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
+# Used to check Zephyr version installed on the host.
+# We only check two levels of the version.
+ZEPHYR_VERSION = 2.5
+
+
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
 try:
@@ -266,6 +271,11 @@ PROJECT_OPTIONS = [
         help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
     ),
     server.ProjectOption(
+        "warning_as_error",
+        choices=(True, False),
+        help="Treat warnings as errors and raise an Exception.",
+    ),
+    server.ProjectOption(
         "compile_definitions",
         help="Extra definitions added project compile.",
     ),
@@ -346,7 +356,27 @@ class Handler(server.ProjectAPIHandler):
         "aot_demo": "memory microtvm_rpc_common common",
     }
 
+    def _get_platform_version(self) -> float:
+        with open(pathlib.Path(os.getenv("ZEPHYR_BASE")) / "VERSION", "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                line = line.replace(" ", "").replace("\n", "").replace("\r", "")
+                if "VERSION_MAJOR" in line:
+                    version_major = line.split("=")[1]
+                if "VERSION_MINOR" in line:
+                    version_minor = line.split("=")[1]
+
+        return float(f"{version_major}.{version_minor}")
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
+        # Check Zephyr version
+        version = self._get_platform_version()
+        if version != ZEPHYR_VERSION:
+            message = f"Zephyr version found is not supported: found {version}, expected {ZEPHYR_VERSION}."
+            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+                raise server.ServerError(message=message)
+            _LOG.warning(message)
+
         project_dir = pathlib.Path(project_dir)
         # Make project directory.
         project_dir.mkdir()

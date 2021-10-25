@@ -106,7 +106,7 @@ onnx_model = onnx.load(model_path)
 # TVMC has adopted NumPy's ``.npz`` format for both input and output data.
 #
 # As input for this tutorial, we will use the image of a cat, but you can feel
-# free to substitute image for any of your choosing.
+# free to substitute this image for any of your choosing.
 #
 # .. image:: https://s3.amazonaws.com/model-server/inputs/kitten.jpg
 #    :height: 224px
@@ -278,6 +278,7 @@ import tvm.auto_scheduler as auto_scheduler
 from tvm.autotvm.tuner import XGBTuner
 from tvm import autotvm
 
+################################################################################
 # Set up some basic parameters for the runner. The runner takes compiled code
 # that is generated with a specific set of parameters and measures the
 # performance of it. ``number`` specifies the number of different
@@ -303,6 +304,7 @@ runner = autotvm.LocalRunner(
     enable_cpu_cache_flush=True,
 )
 
+################################################################################
 # Create a simple structure for holding tuning options. We use an XGBoost
 # algorithim for guiding the search. For a production job, you will want to set
 # the number of trials to be larger than the value of 10 used here. For CPU we
@@ -426,6 +428,7 @@ ranks = np.argsort(scores)[::-1]
 for rank in ranks[0:5]:
     print("class='%s' with probability=%f" % (labels[rank], scores[rank]))
 
+################################################################################
 # Verifying that the predictions are the same:
 #
 # .. code-block:: bash
