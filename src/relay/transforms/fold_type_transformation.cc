@@ -27,8 +27,8 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/transform.h>
 #include <tvm/relay/qnn/attrs.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
@@ -37,22 +37,22 @@ namespace relay {
  * such that when a function-level input is transformed by a subsequent
  * "cast" or "qnn.quantize" operation, that operation is folded into
  * the signature itself. For example,
- * 
+ *
  * def @main(%data: Tensor[(1, 3, 224, 224), float32]) {
  *   %0 = qnn.quantize(%data, 2f, 0, out_dtype="uint8");
  *   add(%0, %0)
  * }
- * 
+ *
  * would be transformed to
- * 
+ *
  * def @main(%data: Tensor[(1, 3, 224, 224), uint8]) {
  *   add(%0, %0)
  * }
- * 
+ *
  * Note that now it is the user's responsibility to modify their
  * input pre-processing pipeline to satisfy the new signature's
- * constraints. 
- * 
+ * constraints.
+ *
  * For this pass to fold a type transformation, the following conditions
  * must be met:
  *   - The relay module must contain only a single function.
@@ -161,4 +161,3 @@ TVM_REGISTER_GLOBAL("relay._transform.FoldTypeTransformation")
 
 }  // namespace relay
 }  // namespace tvm
-
