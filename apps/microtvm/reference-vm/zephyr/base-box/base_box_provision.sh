@@ -28,7 +28,8 @@ source ~/.profile
 # Init Zephyr
 cd ~
 # Using most recent commit that passes all the tests.
-~/ubuntu_init_zephyr_project.sh ~/zephyr v2.5-branch --commit dabf23758417fd041fec2a2a821d8f526afac29d
+ZEPHYR_VERSION="v2.5-branch"
+~/ubuntu_init_zephyr_project.sh ~/zephyr ${ZEPHYR_VERSION} --commit dabf23758417fd041fec2a2a821d8f526afac29d
 
 # Cleanup
 rm -f *.sh
