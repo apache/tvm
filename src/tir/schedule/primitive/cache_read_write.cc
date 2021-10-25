@@ -446,9 +446,13 @@ class CacheReadRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* load) final {
-    if (load->buffer.same_as(info_->read_buffer)) {
+    if (load->pointer->buffer.same_as(info_->read_buffer)) {
+      BufferPointer ptr = load->pointer;
+      auto ptr_writer = ptr.CopyOnWrite();
+      ptr_writer->buffer = info_->write_buffer;
+
       ObjectPtr<BufferLoadNode> n = make_object<BufferLoadNode>(*load);
-      n->buffer = info_->write_buffer;
+      n->pointer = ptr;
       return PrimExpr(n);
     }
     return ExprMutator::VisitExpr_(load);
@@ -555,19 +559,27 @@ class CacheWriteRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* store) final {
     BufferStore stmt = Downcast<BufferStore>(StmtMutator::VisitStmt_(store));
-    if (stmt->buffer.same_as(info_->write_buffer)) {
-      auto n = CopyOnWrite(stmt.get());
-      n->buffer = info_->read_buffer;
-      return Stmt(n);
+    if (stmt->pointer->buffer.same_as(info_->write_buffer)) {
+      BufferPointer ptr = stmt->pointer;
+      auto ptr_writer = ptr.CopyOnWrite();
+      ptr_writer->buffer = info_->read_buffer;
+
+      auto store_writer = CopyOnWrite(stmt.get());
+      store_writer->pointer = ptr;
+      return Stmt(store_writer);
     } else {
       return std::move(stmt);
     }
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* load) final {
-    if (load->buffer.same_as(info_->write_buffer)) {
+    if (load->pointer->buffer.same_as(info_->write_buffer)) {
+      BufferPointer ptr = load->pointer;
+      auto ptr_writer = ptr.CopyOnWrite();
+      ptr_writer->buffer = info_->read_buffer;
+
       ObjectPtr<BufferLoadNode> n = make_object<BufferLoadNode>(*load);
-      n->buffer = info_->read_buffer;
+      n->pointer = ptr;
       return PrimExpr(n);
     }
     return ExprMutator::VisitExpr_(load);

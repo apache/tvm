@@ -346,9 +346,15 @@ Doc TIRTextPrinter::VisitExpr_(const SelectNode* op) {
   return doc;
 }
 
+Doc TIRTextPrinter::VisitExpr_(const BufferPointerNode* op) {
+  Doc doc;
+  doc << "&" << Print(op->buffer) << Print(op->indices);
+  return doc;
+}
+
 Doc TIRTextPrinter::VisitExpr_(const BufferLoadNode* op) {
   Doc doc;
-  doc << Print(op->buffer) << Print(op->indices);
+  doc << Print(op->pointer->buffer) << Print(op->pointer->indices);
   return doc;
 }
 
@@ -455,7 +461,7 @@ Doc TIRTextPrinter::VisitStmt_(const StoreNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const BufferStoreNode* op) {
   Doc doc;
-  doc << Print(op->buffer) << Print(op->indices) << " = " << Print(op->value);
+  doc << Print(op->pointer->buffer) << Print(op->pointer->indices) << " = " << Print(op->value);
   return doc;
 }
 

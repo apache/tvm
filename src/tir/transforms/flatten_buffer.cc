@@ -109,7 +109,7 @@ class BufferFlattener : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
-    return store->buffer.vstore(store->indices, store->value);
+    return store->pointer->buffer.vstore(store->pointer->indices, store->value);
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -128,7 +128,7 @@ class BufferFlattener : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
-    return load->buffer.vload(load->indices, load->dtype);
+    return load->pointer->buffer.vload(load->pointer->indices, load->dtype);
   }
 
   static Stmt MakeAllocStmt(const Buffer& buffer, Stmt body) {

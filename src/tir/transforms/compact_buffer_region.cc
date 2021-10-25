@@ -84,11 +84,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /**************** Visitor overload ****************/
 
   void VisitStmt_(const BufferStoreNode* op) final {
-    VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+    VisitBufferAccess(BufferRegion::FromPoint(op->pointer->buffer, op->pointer->indices));
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+    VisitBufferAccess(BufferRegion::FromPoint(op->pointer->buffer, op->pointer->indices));
   }
 
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(GetRef<Var>(op)); }
@@ -341,15 +341,25 @@ class BufferCompactor : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
+
+    BufferPointer ptr = store->pointer;
+    auto ptr_writer = ptr.CopyOnWrite();
+    RewriteBufferAccess(&ptr_writer->buffer, &ptr_writer->indices);
+
     BufferStoreNode* op = store.CopyOnWrite();
-    RewriteBufferAccess(&op->buffer, &op->indices);
+    op->pointer = std::move(ptr);
     return std::move(store);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
+
+    BufferPointer ptr = load->pointer;
+    auto ptr_writer = ptr.CopyOnWrite();
+    RewriteBufferAccess(&ptr_writer->buffer, &ptr_writer->indices);
+
     BufferLoadNode* op = load.CopyOnWrite();
-    RewriteBufferAccess(&op->buffer, &op->indices);
+    op->pointer = std::move(ptr);
     return std::move(load);
   }
 

@@ -347,7 +347,7 @@ class BufferAccessExtractor : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    BufferAccess& acc = buf_accesses[op->buffer];
+    BufferAccess& acc = buf_accesses[op->pointer->buffer];
     switch (acc.acc_type) {
       case BufferAccessType::kRead:
         break;
@@ -366,8 +366,8 @@ class BufferAccessExtractor : public StmtExprVisitor {
       // If a buffer is both read and written, in the tvm DSL, it must be a update,
       // so the indices should be the same. Then we can skip appending indices for it.
       // Otherwise we do the following.
-      buf_accesses[op->buffer].indices.push_back(
-          std::vector<PrimExpr>(op->indices.begin(), op->indices.end()));
+      buf_accesses[op->pointer->buffer].indices.push_back(
+          std::vector<PrimExpr>(op->pointer->indices.begin(), op->pointer->indices.end()));
     }
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -690,7 +690,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   // Extract computation related features (group 1)
   void ExtractComputationFeature(const BufferStoreNode* node,
                                  const MathOpCounter& math_op_counter) {
-    FeatureSet& fea = buffer_features[node->buffer];
+    FeatureSet& fea = buffer_features[node->pointer->buffer];
 
     // Computation related features
     fea.float_mad = outer_loop_prod_ * math_op_counter.float_mad;
@@ -765,12 +765,13 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   void ExtractBufferAccessFeature(const BufferStoreNode* node, const MathOpCounter& math_op_counter,
                                   double* cur_compute_ops, std::vector<float>* compute_ops_list,
                                   std::vector<float>* mem_bytes_list) {
-    FeatureSet& fea = buffer_features[node->buffer];
+    FeatureSet& fea = buffer_features[node->pointer->buffer];
 
     // Extract all buffer accesses
     std::vector<BufferAccessFeature> acc_feas;
     BufferAccessExtractor buf_extractor;
-    buf_extractor.InsertAccess(node->buffer, BufferAccessType::kWrite, node->indices);
+    buf_extractor.InsertAccess(node->pointer->buffer, BufferAccessType::kWrite,
+                               node->pointer->indices);
     buf_extractor.ExtractReads(node->value);
 
     // Compute touched region for all outer loops
@@ -918,7 +919,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   void ExtractArithmeticIntensityFeature(const BufferStoreNode* node, double cur_compute_ops,
                                          const std::vector<float>& compute_ops_list,
                                          const std::vector<float>& mem_bytes_list) {
-    FeatureSet& fea = buffer_features[node->buffer];
+    FeatureSet& fea = buffer_features[node->pointer->buffer];
 
     // Compute arithmetic intensity curve (y axis : arithmetic intensity, x axis : flops).
     // We use piecewise linear interpolation to fit this curve.
@@ -966,7 +967,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
   // Extract outer scope related features (group 5)
   void ExtractOuterScopeFeature(const BufferStoreNode* node) {
-    FeatureSet& fea = buffer_features[node->buffer];
+    FeatureSet& fea = buffer_features[node->pointer->buffer];
 
     fea.outer_prod = outer_loop_prod_;
     fea.num_loops = for_loop_stack_.size();

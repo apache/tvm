@@ -421,8 +421,8 @@ class InitBodyNotSameBufferAccessError : public ScheduleError {
     const auto* update = block_->body.as<BufferStoreNode>();
     os << "The `init` and `body` of the block {0} is required to have the same buffer access "
           "pattern. However, in block {0} the `init` writes to "
-       << init->buffer->name << init->indices << ", and the `body` writes to "
-       << update->buffer->name << update->indices;
+       << init->pointer->buffer->name << init->pointer->indices << ", and the `body` writes to "
+       << update->pointer->buffer->name << update->pointer->indices;
     return os.str();
   }
 
@@ -606,12 +606,12 @@ std::pair<BufferStore, BufferStore> GetBufferStoreNodes(const ScheduleState& sel
   if (!(init && body)) {
     throw InitBodyNotBufferStoreError(self->mod, block, init != nullptr, body != nullptr);
   }
-  if (!init->buffer.same_as(body->buffer)) {
+  if (!init->pointer->buffer.same_as(body->pointer->buffer)) {
     throw InitBodyNotSameBufferAccessError(self->mod, block);
   }
-  int ndim = static_cast<int>(init->buffer->shape.size());
+  int ndim = static_cast<int>(init->pointer->buffer->shape.size());
   for (int i = 0; i < ndim; ++i) {
-    if (!ExprDeepEqual()(init->indices[i], body->indices[i])) {
+    if (!ExprDeepEqual()(init->pointer->indices[i], body->pointer->indices[i])) {
       throw InitBodyNotSameBufferAccessError(self->mod, block);
     }
   }
@@ -715,8 +715,8 @@ class BaseBlockCreator {
         /*name_hint=*/new_block_name,
         /*body=*/new_reduction_update_,
         /*init=*/
-        BufferStore(new_reduction_update_->buffer, reducer_->identity_element[0],
-                    new_reduction_update_->indices));
+        BufferStore(new_reduction_update_->pointer->buffer, reducer_->identity_element[0],
+                    new_reduction_update_->pointer->indices));
     new_block_realize_ = BlockRealize(iter_values_, predicate, new_block_);
   }
 
@@ -853,7 +853,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
   }
 
   void CreateReductionUpdate() final {
-    rf_buf_access_indices_ = old_reduction_update_->indices;
+    rf_buf_access_indices_ = old_reduction_update_->pointer->indices;
     rf_buf_access_indices_.insert(rf_buf_access_indices_.begin() + factor_axis_,
                                   additional_iter_->var);
     new_reduction_update_ = BufferStore(
@@ -873,7 +873,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
     Array<BufferRegion> new_regions;
     new_regions.reserve(old_regions.size());
     for (const BufferRegion& buffer_region : old_regions) {
-      if (buffer_region->buffer.same_as(old_reduction_update_->buffer)) {
+      if (buffer_region->buffer.same_as(old_reduction_update_->pointer->buffer)) {
         Array<Range> region = buffer_region->region;
         region.insert(region.begin() + factor_axis_,
                       Range::FromMinExtent(additional_iter_->var, 1));
@@ -952,9 +952,9 @@ class WriteBackBlockCreator : public BaseBlockCreator {
     wb_lhs_ = Downcast<BufferLoad>(Substitute(combiner_lhs_, var_map_));
     wb_rhs_ =
         Downcast<BufferLoad>(Substitute(BufferLoad(rf_buffer_, rf_buf_access_indices_), var_map_));
-    new_reduction_update_ =
-        BufferStore(old_reduction_update_->buffer, (*reducer_.get())({wb_lhs_}, {wb_rhs_})[0],
-                    old_reduction_update_->indices);
+    new_reduction_update_ = BufferStore(old_reduction_update_->pointer->buffer,
+                                        (*reducer_.get())({wb_lhs_}, {wb_rhs_})[0],
+                                        old_reduction_update_->pointer->indices);
     new_reduction_update_ = Downcast<BufferStore>(Substitute(new_reduction_update_, var_map_));
   }
 
@@ -966,11 +966,11 @@ class WriteBackBlockCreator : public BaseBlockCreator {
 
   static BufferRegion CreateRegion(const BufferLoad& load) {
     Array<Range> region;
-    region.reserve(load->indices.size());
-    for (const PrimExpr& index : load->indices) {
+    region.reserve(load->pointer->indices.size());
+    for (const PrimExpr& index : load->pointer->indices) {
       region.push_back(Range::FromMinExtent(index, 1));
     }
-    return BufferRegion(load->buffer, std::move(region));
+    return BufferRegion(load->pointer->buffer, std::move(region));
   }
 
  private:
@@ -1183,7 +1183,8 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
 
   // Step 6. Check whether `factor_axis` is in a correct range, and convert it to non-negative if it
   // is negative.
-  factor_axis = FactorAxisOutOfRangeError::CheckAndUpdate(self->mod, update->buffer, factor_axis);
+  factor_axis =
+      FactorAxisOutOfRangeError::CheckAndUpdate(self->mod, update->pointer->buffer, factor_axis);
 
   // *****************************************************
   // *                 IR Manipulation                   *
@@ -1193,7 +1194,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
 
   // Step 1. Create the intermediate buffer (a.k.a. rfactor buffer), which has an additional
   // dimension that specified by `factor_axis` and `rf_loop`.
-  Buffer rf_buffer = CreateRFactorBuffer(update->buffer, factor_axis, rf_loop);
+  Buffer rf_buffer = CreateRFactorBuffer(update->pointer->buffer, factor_axis, rf_loop);
 
   // Step 2. Create the rfactor block.
   RFactorBlockCreator rf_block_creator(block_realize, GetRef<For>(rf_loop), update, reducer,

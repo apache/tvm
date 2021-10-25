@@ -305,10 +305,10 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
       return false;
     }
     if (const auto* store = obj.as<BufferStoreNode>()) {
-      ICHECK(buffer_written.count(store->buffer.get()))
-          << "ValueError: The buffer \"" << store->buffer
+      ICHECK(buffer_written.count(store->pointer->buffer.get()))
+          << "ValueError: The buffer \"" << store->pointer->buffer
           << "\" is written in the block but is not in the block's signature";
-      for (const PrimExpr& index : store->indices) {
+      for (const PrimExpr& index : store->pointer->indices) {
         if (UsesVar(index, [&reduction_block_vars](const VarNode* var) {
               return reduction_block_vars.count(var);
             })) {
@@ -1093,13 +1093,14 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (!op->buffer.same_as(ptr->buffer) || op->indices.size() != ptr->indices.size()) {
+      if (!op->pointer->buffer.same_as(ptr->pointer->buffer) ||
+          op->pointer->indices.size() != ptr->pointer->indices.size()) {
         match_success_ = false;
       } else {
         PrimExpr tmp = expr_to_match_;
-        for (size_t i = 0; i < op->indices.size(); ++i) {
-          expr_to_match_ = ptr->indices[i];
-          VisitExpr(op->indices[i]);
+        for (size_t i = 0; i < op->pointer->indices.size(); ++i) {
+          expr_to_match_ = ptr->pointer->indices[i];
+          VisitExpr(op->pointer->indices[i]);
         }
         std::swap(expr_to_match_, tmp);
       }
@@ -1151,7 +1152,7 @@ bool MatchReducer(const CommReducer& reducer, const PrimExpr& identity, const Pr
 
 bool FromIdentityCombiner(const PrimExpr& identity, const BufferStore& combiner,
                           CommReducer* result_reducer, PrimExpr* lhs, PrimExpr* rhs) {
-  BufferLoad load(combiner->buffer, combiner->indices);
+  BufferLoad load(combiner->pointer->buffer, combiner->pointer->indices);
   // Check reduction patterns.
   for (const TypedPackedFunc<CommReducer(DataType)>& reducer_getter : GetReducerGetters()) {
     CommReducer reducer = reducer_getter(identity.dtype());

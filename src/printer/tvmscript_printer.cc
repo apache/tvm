@@ -642,10 +642,10 @@ Doc TVMScriptPrinter::VisitExpr_(const ProducerLoadNode* op, ExprPrecedence* out
 Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  if (op->indices.size() == 0) {
-    doc << Print(op->buffer) << "[()]";
+  if (op->pointer->indices.size() == 0) {
+    doc << Print(op->pointer->buffer) << "[()]";
   } else {
-    doc << Print(op->buffer) << Print(op->indices);
+    doc << Print(op->pointer->buffer) << Print(op->pointer->indices);
   }
   return doc;
 }
@@ -960,10 +960,10 @@ Doc TVMScriptPrinter::VisitType_(const TupleTypeNode* node) {
 
 Doc TVMScriptPrinter::VisitStmt_(const BufferStoreNode* op) {
   Doc doc;
-  if (op->indices.size() == 0) {
-    doc << Print(op->buffer) << "[()] = " << Print(op->value);
+  if (op->pointer->indices.size() == 0) {
+    doc << Print(op->pointer->buffer) << "[()] = " << Print(op->value);
   } else {
-    doc << Print(op->buffer) << Print(op->indices) << " = " << Print(op->value);
+    doc << Print(op->pointer->buffer) << Print(op->pointer->indices) << " = " << Print(op->value);
   }
   return doc;
 }

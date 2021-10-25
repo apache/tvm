@@ -615,10 +615,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<BufferStoreNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const BufferStoreNode*>(node.get());
       p->PrintIndent();
-      p->stream << op->buffer->name << "[";
-      for (size_t i = 0; i < op->indices.size(); ++i) {
-        p->Print(op->indices[i]);
-        if (i < op->indices.size() - 1) p->stream << ", ";
+      p->stream << op->pointer->buffer->name << "[";
+      for (size_t i = 0; i < op->pointer->indices.size(); ++i) {
+        p->Print(op->pointer->indices[i]);
+        if (i < op->pointer->indices.size() - 1) p->stream << ", ";
       }
       p->stream << "]";
       p->stream << " = ";

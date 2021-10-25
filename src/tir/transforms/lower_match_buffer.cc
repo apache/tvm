@@ -87,17 +87,22 @@ class MatchBufferLower : public StmtExprMutator {
     op = stmt.as<BufferStoreNode>();
     ICHECK(op != nullptr);
 
-    auto it = match_buffers_.find(op->buffer);
+    auto it = match_buffers_.find(op->pointer->buffer);
     if (it == match_buffers_.end()) {
       return stmt;
     } else {
       const Buffer& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
 
-      auto n = CopyOnWrite(op);
-      n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      n->buffer = source->buffer;
-      return Stmt(n);
+      BufferPointer pointer = op->pointer;
+      auto p_wtr = pointer.CopyOnWrite();
+      p_wtr->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->pointer->indices);
+      p_wtr->buffer = source->buffer;
+
+      BufferStore store = GetRef<BufferStore>(op);
+      auto store_writer = store.CopyOnWrite();
+      store_writer->pointer = pointer;
+      return std::move(store);
     }
   }
 
@@ -106,14 +111,22 @@ class MatchBufferLower : public StmtExprMutator {
     op = expr.as<BufferLoadNode>();
     ICHECK(op != nullptr);
 
-    auto it = match_buffers_.find(op->buffer);
+    auto it = match_buffers_.find(op->pointer->buffer);
     if (it == match_buffers_.end()) {
       return expr;
     } else {
       const Buffer& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
-      Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      return BufferLoad(source->buffer, indices);
+
+      BufferPointer pointer = op->pointer;
+      auto p_wtr = pointer.CopyOnWrite();
+      p_wtr->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->pointer->indices);
+      p_wtr->buffer = source->buffer;
+
+      BufferLoad load = GetRef<BufferLoad>(op);
+      auto load_writer = load.CopyOnWrite();
+      load_writer->pointer = pointer;
+      return std::move(load);
     }
   }
 

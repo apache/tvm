@@ -146,13 +146,18 @@ class PrimFuncSpecializer : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
     ICHECK(op != nullptr);
-    auto it = buffer_map_.find(op->buffer);
+    auto it = buffer_map_.find(op->pointer->buffer);
     if (it == buffer_map_.end()) {
       return GetRef<BufferStore>(op);
     } else {
-      auto n = CopyOnWrite(op);
-      n->buffer = it->second;
-      return Stmt(n);
+      BufferPointer ptr = op->pointer;
+      auto ptr_writer = ptr.CopyOnWrite();
+      ptr_writer->buffer = it->second;
+
+      BufferStore store = GetRef<BufferStore>(op);
+      auto store_writer = store.CopyOnWrite();
+      store_writer->pointer = ptr;
+      return std::move(store);
     }
   }
 
@@ -160,13 +165,18 @@ class PrimFuncSpecializer : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
     ICHECK(op != nullptr);
-    auto it = buffer_map_.find(op->buffer);
+    auto it = buffer_map_.find(op->pointer->buffer);
     if (it == buffer_map_.end()) {
       return GetRef<BufferLoad>(op);
     } else {
-      auto n = make_object<BufferLoadNode>(*op);
-      n->buffer = it->second;
-      return PrimExpr(n);
+      BufferPointer ptr = op->pointer;
+      auto ptr_writer = ptr.CopyOnWrite();
+      ptr_writer->buffer = it->second;
+
+      BufferLoad load = GetRef<BufferLoad>(op);
+      auto load_writer = load.CopyOnWrite();
+      load_writer->pointer = ptr;
+      return std::move(load);
     }
   }
 

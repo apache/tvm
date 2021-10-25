@@ -125,10 +125,10 @@ class TextureFlattener : public TextureLoweringBase {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
-    std::string storage_scope = GetStorageScope(op->buffer);
+    std::string storage_scope = GetStorageScope(op->pointer->buffer);
     // Lower to two dimensional access
     if (IsTextureStorage(storage_scope)) {
-      Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
+      Array<PrimExpr> args = GetTextureAccessArgs(op, op->pointer->buffer);
       args.push_back(op->value);
       stmt = Evaluate(Call(args[0]->dtype, builtin::texture2d_store(), args));
     }
@@ -140,11 +140,11 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
     // Lower to two dimensional access
-    std::string storage_scope = GetStorageScope(op->buffer);
+    std::string storage_scope = GetStorageScope(op->pointer->buffer);
     if (IsTextureStorage(storage_scope)) {
-      Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
-      args.push_back(op->indices.back());
-      expr = Call(op->buffer->dtype, builtin::texture2d_load(), args);
+      Array<PrimExpr> args = GetTextureAccessArgs(op, op->pointer->buffer);
+      args.push_back(op->pointer->indices.back());
+      expr = Call(op->pointer->buffer->dtype, builtin::texture2d_load(), args);
     }
 
     return expr;
@@ -154,19 +154,20 @@ class TextureFlattener : public TextureLoweringBase {
   template <typename T>
   Array<PrimExpr> GetTextureAccessArgs(const T* op, const Buffer& buffer) {
     Array<PrimExpr> args;
-    if (let_binding_.count(op->buffer->data)) {
-      args.push_back(let_binding_[op->buffer->data]);
+    if (let_binding_.count(op->pointer->buffer->data)) {
+      args.push_back(let_binding_[op->pointer->buffer->data]);
     } else {
       args.push_back(buffer->data);
     }
     Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
-    for (size_t i = 0; i < op->buffer->shape.size() - 1; i++) {
-      if (i < DefaultTextureLayoutSeparator(op->buffer->shape.size(), GetStorageScope(buffer))) {
-        col_dims.push_back(op->buffer->shape[i]);
-        col_indices.push_back(op->indices[i]);
+    for (size_t i = 0; i < op->pointer->buffer->shape.size() - 1; i++) {
+      if (i < DefaultTextureLayoutSeparator(op->pointer->buffer->shape.size(),
+                                            GetStorageScope(buffer))) {
+        col_dims.push_back(op->pointer->buffer->shape[i]);
+        col_indices.push_back(op->pointer->indices[i]);
       } else {
-        row_dims.push_back(op->buffer->shape[i]);
-        row_indices.push_back(op->indices[i]);
+        row_dims.push_back(op->pointer->buffer->shape[i]);
+        row_indices.push_back(op->pointer->indices[i]);
       }
     }
     PrimExpr row_offset = SimplifyOffset(row_dims, row_indices);

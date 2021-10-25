@@ -78,15 +78,15 @@ class BufferTouchedDomain final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    if (consider_loads_ && buffer_.same_as(op->buffer)) {
-      Touch(op->indices);
+    if (consider_loads_ && buffer_.same_as(op->pointer->buffer)) {
+      Touch(op->pointer->indices);
     }
     StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
-    if (consider_stores_ && buffer_.same_as(op->buffer)) {
-      Touch(op->indices);
+    if (consider_stores_ && buffer_.same_as(op->pointer->buffer)) {
+      Touch(op->pointer->indices);
     }
     StmtExprVisitor::VisitStmt_(op);
   }

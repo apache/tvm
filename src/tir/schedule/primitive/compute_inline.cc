@@ -398,7 +398,7 @@ class ComputeInliner : public BaseInliner {
       return false;
     }
     int n_vars = UndefinedVars(GetRef<Stmt>(inlined_store_), {}).size();
-    if (!UpdateAndCheckIndexVars(inlined_store_->indices, n_vars)) {
+    if (!UpdateAndCheckIndexVars(inlined_store_->pointer->indices, n_vars)) {
       return false;
     }
     return true;
@@ -410,14 +410,14 @@ class ComputeInliner : public BaseInliner {
 
   PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
-    if (!load->buffer.same_as(inlined_buffer_)) {
+    if (!load->pointer->buffer.same_as(inlined_buffer_)) {
       return std::move(load);
     }
     return ReplaceInlinedBuffer(std::move(load));
   }
 
   PrimExpr ReplaceInlinedBuffer(BufferLoad load) {
-    SetIndexSubstitution(load->indices);
+    SetIndexSubstitution(load->pointer->indices);
     return Substitute(inlined_store_->value, idx_sub_);
   }
 };
@@ -443,7 +443,7 @@ class ReverseComputeInliner : public BaseInliner {
 
     PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
       BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
-      return load->buffer.same_as(self_->inlined_buffer_) ? self_->producer_rhs_ : load;
+      return load->pointer->buffer.same_as(self_->inlined_buffer_) ? self_->producer_rhs_ : load;
     }
 
     ReverseComputeInliner* self_;
@@ -466,7 +466,7 @@ class ReverseComputeInliner : public BaseInliner {
     }
     int n_vars = UndefinedVars(GetRef<BufferStore>(inlined_store_), {}).size();
     for (const BufferLoadNode* load : loads) {
-      if (!UpdateAndCheckIndexVars(load->indices, n_vars)) {
+      if (!UpdateAndCheckIndexVars(load->pointer->indices, n_vars)) {
         // Failure: incorrect of inconsistent index vars
         return false;
       }
@@ -480,14 +480,14 @@ class ReverseComputeInliner : public BaseInliner {
 
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_store));
-    if (!store->buffer.same_as(inlined_buffer_)) {
+    if (!store->pointer->buffer.same_as(inlined_buffer_)) {
       return std::move(store);
     }
     return ReplaceInlinedBuffer(std::move(store));
   }
 
   Stmt ReplaceInlinedBuffer(BufferStore producer) {
-    SetIndexSubstitution(producer->indices);
+    SetIndexSubstitution(producer->pointer->indices);
     producer_rhs_ = producer->value;
     return Substituter(this)(GetRef<BufferStore>(inlined_store_));
   }
@@ -502,7 +502,7 @@ class ReverseComputeInliner : public BaseInliner {
                                                               const BufferStoreNode* from) {
     struct Extractor : public ExprVisitor {
       void VisitExpr_(const BufferLoadNode* load) final {
-        if (load->buffer.get() == buffer) {
+        if (load->pointer->buffer.get() == buffer) {
           result.push_back(load);
         }
         ExprVisitor::VisitExpr_(load);
@@ -511,7 +511,7 @@ class ReverseComputeInliner : public BaseInliner {
       std::vector<const BufferLoadNode*> result;
     } extractor;
     extractor.buffer = buffer.get();
-    for (const PrimExpr& expr : from->indices) {
+    for (const PrimExpr& expr : from->pointer->indices) {
       extractor(expr);
     }
     extractor(from->value);

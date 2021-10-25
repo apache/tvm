@@ -101,12 +101,12 @@ class LCADetector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    UpdateBufferLCA(op->buffer.get());
+    UpdateBufferLCA(op->pointer->buffer.get());
     StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
-    UpdateBufferLCA(op->buffer.get());
+    UpdateBufferLCA(op->pointer->buffer.get());
     StmtExprVisitor::VisitStmt_(op);
   }
 

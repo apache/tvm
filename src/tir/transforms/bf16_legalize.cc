@@ -230,9 +230,9 @@ class BF16LowerRewriter : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<BufferStoreNode>();
 
-    auto it = buffer_remap_.find(op->buffer);
+    auto it = buffer_remap_.find(op->pointer->buffer);
     if (it != buffer_remap_.end()) {
-      return BufferStore(it->second, op->value, op->indices);
+      return BufferStore(it->second, op->value, op->pointer->indices);
     } else {
       return ret;
     }
@@ -285,9 +285,9 @@ class BF16LowerRewriter : public StmtExprMutator {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op);
     op = ret.as<BufferLoadNode>();
 
-    auto it = buffer_remap_.find(op->buffer);
+    auto it = buffer_remap_.find(op->pointer->buffer);
     if (it != buffer_remap_.end()) {
-      return BufferLoad(it->second, op->indices);
+      return BufferLoad(it->second, op->pointer->indices);
     } else {
       return ret;
     }
