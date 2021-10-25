@@ -62,7 +62,6 @@ namespace relay {
  *     or "qnn.quantize".
  */
 class FoldTypeTransformationRewriter : public MixedModeMutator {
-
  protected:
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
     const CallNode* post_call_node = post.as<CallNode>();
