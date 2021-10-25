@@ -110,7 +110,7 @@ def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_fil
                 "zephyr_board": zephyr_board,
                 "compile_definitions": [
                     # TODO(mehrdadh): It fails without offset.
-                    f"-DWORKSPACE_SIZE={workspace_size + 16}",
+                    f"-DWORKSPACE_SIZE={workspace_size + 128}",
                 ],
             },
         )

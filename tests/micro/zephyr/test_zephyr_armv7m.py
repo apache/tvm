@@ -43,7 +43,7 @@ _LOG = logging.getLogger(__name__)
 def _open_tflite_model():
     # Import TFLite model
 
-    model_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/mnist_model_quant.tflite"
+    model_url = "https://github.com/tlc-pack/web-data/raw/b2f3c02427b67267a00fd968ba1fce28fc833028/testdata/microTVM/model/mnist_model_quant.tflite"
     model_path = download_testdata(model_url, "mnist_model_quant.tflite", module="model")
 
     tflite_model_buf = open(model_path, "rb").read()
