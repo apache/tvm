@@ -3722,7 +3722,7 @@ bool MatrixSetDiagRel(const Array<Type>& types, int num_inputs, const Attrs& att
   const auto* k2 = types[3].as<TensorTypeNode>();
   ICHECK(k2);
 
-  int d_ndims = diagonal->shape.size(); 
+  int d_ndims = diagonal->shape.size();
   for (int i = 0; i < d_ndims - 2; i++) {
     reporter->AssertEQ(input->shape[i], diagonal->shape[i]);
   }
