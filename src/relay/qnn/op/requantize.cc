@@ -291,8 +291,6 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
 
-  std::cout << "data shape:" << data->shape << std::endl;
-
   int axis = requantize_attrs->axis;
   auto rank = static_cast<int>(data->shape.size());
   axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
