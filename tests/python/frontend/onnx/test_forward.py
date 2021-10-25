@@ -3970,6 +3970,7 @@ def test_resize(target, dev):
             make_constant_node("scales", onnx.TensorProto.FLOAT, (len(scales),), scales),
         ]
         input_names = ["X", "roi", "scales"]
+
         if oshape != []:
             nodes.append(
                 make_constant_node("sizes", onnx.TensorProto.INT64, (len(oshape),), oshape)
@@ -4941,7 +4942,6 @@ unsupported_onnx_tests = [
     "test_mvn",
     # This test fails llvm with a lowering error:
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
-    "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
     "test_range_int32_type_negative_delta_expanded",
@@ -4955,15 +4955,7 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
-    "test_resize_downsample_sizes_cubic",
-    "test_resize_downsample_sizes_linear_pytorch_half_pixel",
-    "test_resize_downsample_sizes_nearest",
     "test_resize_tf_crop_and_resize",
-    "test_resize_upsample_sizes_cubic",
-    "test_resize_upsample_sizes_nearest",
-    "test_resize_upsample_sizes_nearest_ceil_half_pixel",
-    "test_resize_upsample_sizes_nearest_floor_align_corners",
-    "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric",
     "test_rnn_seq_length",
     "test_round",
     "test_scan9_sum",

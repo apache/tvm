@@ -35,7 +35,7 @@ def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
 
-    _, outs = relay.backend.compile_engine.select_implementation(
+    _, outs = relay.backend.te_compiler.select_implementation(
         relay.op.get("nn.conv3d"), attrs, tinfos, out_type, target
     )
     workload = autotvm.task.get_workload(outs)

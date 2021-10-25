@@ -54,10 +54,12 @@ def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
 
-    with T.block([128, 128, T.reduce_axis(0, 128)]) as [i, j, k]:
-        with T.init():
-            C[i, j] = 0.0
-        C[i, j] += A[i, k] * B[j, k]
+    for i0, j0, k0 in T.grid(128, 128, 128):
+        with T.block():
+            i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+            with T.init():
+                C[i, j] = 0.0
+            C[i, j] += A[i, k] * B[j, k]
 
 
 def test_matmul():
@@ -77,10 +79,14 @@ def tir_element_wise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128))
     B = T.alloc_buffer((128, 128))
 
-    with T.block([128, 128]) as [i, j]:
-        B[i, j] = A[i, j] * 2.0
-    with T.block([128, 128]) as [i, j]:
-        C[i, j] = B[i, j] + 1.0
+    for i0, j0 in T.grid(128, 128):
+        with T.block():
+            i, j = T.axis.remap("SS", [i0, j0])
+            B[i, j] = A[i, j] * 2.0
+    for i0, j0 in T.grid(128, 128):
+        with T.block():
+            i, j = T.axis.remap("SS", [i0, j0])
+            C[i, j] = B[i, j] + 1.0
 
 
 def test_element_wise():
@@ -125,19 +131,21 @@ def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [16, 32, 14, 14])
     Apad = T.alloc_buffer([16, 16, 16, 16])
 
-    with T.block([16, 16, 16, 16], "Apad") as [nn, cc, yy, xx]:
-        Apad[nn, cc, yy, xx] = T.if_then_else(
-            yy >= 1 and yy - 1 < 14 and xx >= 1 and xx - 1 < 14,
-            A[nn, cc, yy - 1, xx - 1],
-            0.0,
-            dtype="float32",
-        )
-    with T.block(
-        [16, 32, 14, 14, T.reduce_axis(0, 16), T.reduce_axis(0, 3), T.reduce_axis(0, 3)], "B"
-    ) as [nn, ff, yy, xx, rc, ry, rx]:
-        with T.init():
-            B[nn, ff, yy, xx] = 0.0
-        B[nn, ff, yy, xx] += Apad[nn, rc, yy + ry, xx + rx] * W[rc, ry, rx, ff]
+    for n, c, y, x in T.grid(16, 16, 16, 16):
+        with T.block("Apad"):
+            nn, cc, yy, xx = T.axis.remap("SSSS", [n, c, y, x])
+            Apad[nn, cc, yy, xx] = T.if_then_else(
+                yy >= 1 and yy - 1 < 14 and xx >= 1 and xx - 1 < 14,
+                A[nn, cc, yy - 1, xx - 1],
+                0.0,
+                dtype="float32",
+            )
+    for n, f, y, x, kc, ky, kx in T.grid(16, 32, 14, 14, 16, 3, 3):
+        with T.block("B"):
+            nn, ff, yy, xx, rc, ry, rx = T.axis.remap("SSSSRRR", [n, f, y, x, kc, ky, kx])
+            with T.init():
+                B[nn, ff, yy, xx] = 0.0
+            B[nn, ff, yy, xx] += Apad[nn, rc, yy + ry, xx + rx] * W[rc, ry, rx, ff]
 
 
 def test_conv2d():
@@ -163,9 +171,11 @@ def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> 
     B1 = T.match_buffer(b1, (m, n))
 
     for i0, i1 in T.grid(m, n):
-        with T.block([m, n], "B.v0") as [i, j]:
+        with T.block("B.v0"):
+            i, j = T.axis.remap("SS", [i0, i1])
             B0[i, j] = A0[i, j] + 2.0
-        with T.block([m, n], "B.v1") as [i, j]:
+        with T.block("B.v1"):
+            i, j = T.axis.remap("SS", [i0, i1])
             B1[i, j] = A1[i, j] * 3.0
 
 
@@ -193,7 +203,7 @@ def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
     # body
-    with T.block([], "C"):
+    with T.block("C"):
         T.reads([A[0:128, 0:128], B[0:128, 0:128]])
         T.writes([C[0:128, 0:128]])
         T.evaluate(
@@ -251,10 +261,12 @@ def tir_reordered_matmul(c: T.handle, a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
 
-    with T.block([128, 128, T.reduce_axis(0, 128)]) as [i, j, k]:
-        with T.init():
-            C[i, j] = 0.0
-        C[i, j] += A[i, k] * B[j, k]
+    for i0, j0, k0 in T.grid(128, 128, 128):
+        with T.block():
+            i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+            with T.init():
+                C[i, j] = 0.0
+            C[i, j] += A[i, k] * B[j, k]
 
 
 def test_arg_order():

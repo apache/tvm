@@ -505,15 +505,15 @@ def schedule_conv2d_nchw_winograd_nnpack_without_weight_transform(cfg, outs):
     return s
 
 
-@autotvm.register_topi_compute("conv2d_direct_simd.arm_cpu")
-def conv2d_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    """Compute conv2d with SIMD (v7e-m)."""
-    return direct_simd.conv2d_direct_simd_compute(
+@autotvm.register_topi_compute("conv2d_nhwc_direct_simd.arm_cpu")
+def conv2d_nhwc_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d_nhwc with SIMD (v7e-m)."""
+    return direct_simd.conv2d_nhwc_direct_simd_compute(
         cfg, data, kernel, strides, padding, dilation, out_dtype
     )
 
 
-@autotvm.register_topi_schedule("conv2d_direct_simd.arm_cpu")
-def schedule_conv2d_direct_simd(cfg, outs):
-    """Create schedule for conv2d_direct_simd"""
-    return direct_simd.conv2d_direct_simd_nhwc_schedule(cfg, outs)
+@autotvm.register_topi_schedule("conv2d_nhwc_direct_simd.arm_cpu")
+def schedule_conv2d_nhwc_direct_simd(cfg, outs):
+    """Create schedule for conv2d_nhwc_direct_simd"""
+    return direct_simd.conv2d_nhwc_direct_simd_schedule(cfg, outs)

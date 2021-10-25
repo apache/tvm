@@ -21,7 +21,7 @@ import os.path
 import logging
 import time
 from copy import deepcopy
-from typing import Optional, Dict, List, Union
+from typing import Any, Optional, Dict, List, Union
 
 from urllib.parse import urlparse
 
@@ -38,6 +38,7 @@ from . import common, composite_target, frontends
 from .common import TVMCException
 from .main import register_parser
 from .model import TVMCModel
+from .target import generate_target_args, reconstruct_target_args
 
 
 # pylint: disable=invalid-name
@@ -106,16 +107,14 @@ def add_tune_parser(subparsers):
         help="hostname (required) and port (optional, defaults to 9090) of the RPC tracker, "
         "e.g. '192.168.0.100:9999'",
     )
-    parser.add_argument(
-        "--target",
-        help="compilation target as plain string, inline JSON or path to a JSON file",
-        required=True,
-    )
+
+    generate_target_args(parser)
     parser.add_argument(
         "--target-host",
         help="the host compilation target, defaults to 'llvm'",
         default="llvm",
     )
+
     parser.add_argument("--timeout", type=int, default=10, help="compilation timeout, in seconds")
     parser.add_argument(
         "--trials",
@@ -286,6 +285,7 @@ def drive_tune(args):
         hardware_params=hardware_params,
         include_simple_tasks=args.include_simple_tasks,
         log_estimated_latency=args.log_estimated_latency,
+        additional_target_options=reconstruct_target_args(args),
     )
 
 
@@ -311,6 +311,7 @@ def tune_model(
     hardware_params: Optional[HardwareParams] = None,
     include_simple_tasks: bool = False,
     log_estimated_latency: bool = False,
+    additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
 ):
     """Use tuning to automatically optimize the functions in a model.
 
@@ -367,13 +368,15 @@ def tune_model(
         the autoscheduler.
     log_estimated_latency : bool, optional
         If using the autoscheduler, write the estimated latency at each step of tuning to file.
+    additional_target_options: Optional[Dict[str, Dict[str, Any]]]
+        Additional target options in a dictionary to combine with initial Target arguments
 
     Returns
     -------
     tuning_records : str
         The path to the produced tuning log file.
     """
-    target, extra_targets = common.target_from_cli(target)
+    target, extra_targets = common.target_from_cli(target, additional_target_options)
     target, target_host = Target.check_and_update_host_consist(target, target_host)
     # TODO(jwfromm) Remove this deepcopy once AlterOpLayout bug that mutates source
     # model is fixed. For now, creating a clone avoids the issue.

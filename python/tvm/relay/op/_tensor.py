@@ -89,9 +89,6 @@ register_injective_schedule("device_copy")
 register_broadcast_schedule("fast_exp")
 register_broadcast_schedule("fast_tanh")
 register_broadcast_schedule("fast_erf")
-# a fake on_device schedule.
-# this will not be used in actual computation
-register_injective_schedule("on_device")
 
 
 # zeros

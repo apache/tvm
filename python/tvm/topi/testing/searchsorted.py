@@ -14,22 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import argparse
-import pytest
-from tvm.driver import tvmc
+"""The reference implementation of searchsorted in Numpy."""
+import numpy as np
 
 
-def test_common_parse_pass_list_str():
-    assert [""] == tvmc.common.parse_pass_list_str("")
-    assert ["FoldScaleAxis", "FuseOps"] == tvmc.common.parse_pass_list_str("FoldScaleAxis,FuseOps")
+def searchsorted_ref(sorted_sequence, values, right, out_dtype):
+    """Run Numpy searchsorted on 1-D or N-D sorted_sequence."""
+    side = "right" if right else "left"
+    if len(sorted_sequence.shape) == 1 and len(values.shape) > 1:
+        sorted_sequence_2d = np.tile(sorted_sequence, (np.prod(values.shape[:-1]), 1))
+    else:
+        sorted_sequence_2d = np.reshape(sorted_sequence, (-1, sorted_sequence.shape[-1]))
 
-    with pytest.raises(argparse.ArgumentTypeError) as ate:
-        tvmc.common.parse_pass_list_str("MyYobaPass,MySuperYobaPass,FuseOps")
+    values_2d = np.reshape(values, (-1, values.shape[-1]))
+    indices = np.zeros(values_2d.shape, dtype=out_dtype)
 
-    assert "MyYobaPass" in str(ate.value)
-    assert "MySuperYobaPass" in str(ate.value)
-    assert "FuseOps" in str(ate.value)
+    for i in range(indices.shape[0]):
+        indices[i] = np.searchsorted(sorted_sequence_2d[i], values_2d[i], side=side)
 
-
-if __name__ == "__main__":
-    pytest.main([__file__])
+    return np.reshape(indices, values.shape)

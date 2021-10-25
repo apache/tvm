@@ -594,8 +594,9 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    auto offset_register = last_register_;
 
                    // If the shape is constant then we will emit a static tensor allocation
-                   // instruction.
-                   auto const_shape = args[2].as<ConstantNode>();
+                   // instruction. It may be wrapped by an on_device, but it will be on the host
+                   // which is assumed by the alloc_tensor instruction anyway.
+                   auto const_shape = AsIgnoringOnDevice<ConstantNode>(args[2]);
 
                    if (const_shape) {
                      NDArray shape = const_shape->data;
@@ -619,7 +620,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    this->VisitExpr(args[0]);
                    auto size_register = last_register_;
 
-                   ICHECK(args[1].as<ConstantNode>());
+                   ICHECK(args[1].as<ConstantNode>());  // Always a literal.
                    NDArray alignment_arr = args[1].as<ConstantNode>()->data;
                    ICHECK_EQ(alignment_arr->dtype.code, 0U)
                        << "The dtype of constant shape must be int32 or int64, but got "
@@ -824,7 +825,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
   /*!
    * \brief Compile a pattern match expression
-   * It first converts the pattern match expression into a desicision tree, the condition
+   * It first converts the pattern match expression into a decision tree, the condition
    * could be object comparison or variable binding. If any of the condition fails in a clause,
    * the decision tree switches to check the conditions of next clause and so on. If no clause
    * matches the value, a fatal node is inserted.

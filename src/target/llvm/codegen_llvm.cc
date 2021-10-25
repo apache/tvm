@@ -77,6 +77,8 @@ void CodeGenLLVM::Init(const std::string& module_name, llvm::TargetMachine* tm,
   this->InitTarget(tm);
 }
 
+void CodeGenLLVM::SetFastMathFlag(llvm::FastMathFlags fmf) { builder_->setFastMathFlags(fmf); }
+
 void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
   module_->setTargetTriple(tm->getTargetTriple().str());
   module_->setDataLayout(tm->createDataLayout());
@@ -343,7 +345,26 @@ void CodeGenLLVM::Optimize() {
 
   // place optimization pass
   llvm::PassManagerBuilder builder;
-  builder.OptLevel = 3;
+
+  // Use the same opt-level as specified in TargetMachine for running passes
+  llvm::CodeGenOpt::Level opt_level = target_machine_->getOptLevel();
+
+  switch (opt_level) {
+    case llvm::CodeGenOpt::Level::None:
+      builder.OptLevel = 0;
+      break;
+    case llvm::CodeGenOpt::Level::Less:
+      builder.OptLevel = 1;
+      break;
+
+    case llvm::CodeGenOpt::Level::Default:
+      builder.OptLevel = 2;
+      break;
+
+    default:
+      // CodeGenOpt::Level::Aggressive
+      builder.OptLevel = 3;
+  }
 
 #if TVM_LLVM_VERSION >= 50
   builder.Inliner = llvm::createFunctionInliningPass(builder.OptLevel, 0, false);
@@ -410,7 +431,7 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
   } else {
     return etype;
   }
-}
+}  // namespace codegen
 
 llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
   if (auto* ptr = type.as<PrimTypeNode>()) {
@@ -626,6 +647,20 @@ llvm::Value* CodeGenLLVM::CreateVecPad(llvm::Value* vec, int target_lanes) {
 }
 
 llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
+  // To allow creating vectors from scalars, convert any scalars in "vecs" to single-lane
+  // LLVM vector types.
+  for (size_t i = 0, e = vecs.size(); i != e; ++i) {
+    llvm::Value* v = vecs[i];
+    if (!v->getType()->isVectorTy()) {
+#if TVM_LLVM_VERSION >= 110
+      llvm::Type* vec_ty = llvm::FixedVectorType::get(v->getType(), 1);
+#else
+      llvm::Type* vec_ty = llvm::VectorType::get(v->getType(), 1);
+#endif
+      vecs[i] = builder_->CreateInsertElement(llvm::UndefValue::get(vec_ty), v, ConstInt32(0));
+    }
+  }
+
   // concat vector, tree shape reduction
   int total_lanes = 0;
 

@@ -86,6 +86,32 @@ OnDeviceProps GetOnDeviceProps(const CallNode* call_node);
 OnDeviceProps GetOnDeviceProps(const Expr& expr);
 
 /*!
+ * \brief Returns the body of \p expr if it is an "on_device" annotation, otherwise returns
+ * \p expr directly.
+ */
+inline Expr IgnoreOnDevice(const Expr& expr) {
+  OnDeviceProps props = GetOnDeviceProps(expr);
+  return props.body.defined() ? props.body : expr;
+}
+
+/*!
+ * \brief Returns \p expr as \p NodeType, or null if it is not of that type. Looks through
+ * any "on_device" annotations.
+ */
+template <typename NodeType>
+const NodeType* AsIgnoringOnDevice(const Expr& expr) {
+  const auto* node = expr.as<NodeType>();
+  if (node != nullptr) {
+    return node;
+  }
+  OnDeviceProps props = GetOnDeviceProps(expr);
+  if (!props.body.defined()) {
+    return nullptr;
+  }
+  return props.body.as<NodeType>();
+}
+
+/*!
  * \brief Returns \p function annotated with "param_device_types" and "result_device_type"
  * attributes capturing parameter and result devices types respectively.
  */

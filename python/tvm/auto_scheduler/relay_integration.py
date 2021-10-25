@@ -58,7 +58,6 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         opt_level=opt_level,
         config={
             "relay.backend.use_auto_scheduler": True,
-            "relay.backend.disable_compile_engine_cache": True,
         },
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
@@ -165,7 +164,8 @@ class TracingMode:
     """Two modes for tracing"""
 
     EXTRACT_TASK = 0  # trace all topi calls to extract tasks
-    EXTRACT_COMPLEX_TASK_ONLY = 1  # same as EXTRACT_TASK but ignore the task without complex ops
+    # same as EXTRACT_TASK but ignore the task without complex ops
+    EXTRACT_COMPLEX_TASK_ONLY = 1
     PREPARE_LAYOUT_REWRITE = 2  # trace topi calls to prepare layout rewrite
 
 

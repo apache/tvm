@@ -47,6 +47,35 @@ class Report(Object):
         """
         return _ffi_api.AsCSV(self)
 
+    def table(self, sort=True, aggregate=True, col_sums=True):
+        """Generate a human-readable table
+
+        Parameters
+        ----------
+        sort : bool
+
+            If aggregate is true, whether to sort call frames by
+            descending duration.  If aggregate is False, whether to
+            sort frames by order of appearancei n the program.
+
+        aggregate : bool
+
+            Whether to join multiple calls to the same op into a
+            single line.
+
+        col_sums : bool
+
+            Whether to include the sum of each column.
+
+        Returns
+        -------
+        table : str
+
+            A human-readable table
+
+        """
+        return _ffi_api.AsTable(self, sort, aggregate, col_sums)
+
     def json(self):
         """Convert this profiling report into JSON format.
 
