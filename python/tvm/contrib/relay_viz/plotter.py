@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Abstract class for plotters."""
+"""Abstract class used by :py:class:`tvm.contrib.relay_viz.RelayVisualizer`."""
 import abc
 from typing import Union
 
@@ -28,9 +28,14 @@ class Graph(abc.ABC):
 
         Parameters
         ----------
-        node_id : Union[int, str], Serve as the ID to the node.
-        node_type : str, the type of the node.
-        node_detail : str, the description of the node.
+        node_id : Union[int, str]
+            Serve as the ID to the node.
+
+        node_type : str
+            the type of the node.
+
+        node_detail : str
+            the description of the node.
         """
 
     @abc.abstractmethod
@@ -39,8 +44,11 @@ class Graph(abc.ABC):
 
         Parameters
         ----------
-        id_start : Union[int, str], the ID to the starting node.
-        id_end : Union[int, str], the ID to the ending node.
+        id_start : Union[int, str]
+            the ID to the starting node.
+
+        id_end : Union[int, str]
+            the ID to the ending node.
         """
 
 
@@ -53,11 +61,12 @@ class Plotter(abc.ABC):
 
         Parameters
         ----------
-        name : string, the name of the graph
+        name : str
+            the name of the graph
 
         Return
         ------
-        Graph instance.
+        rv1: class Graph
         """
 
     @abc.abstractmethod
@@ -66,5 +75,6 @@ class Plotter(abc.ABC):
 
         Parameters
         ----------
-        filename : string, see the definition of implemented class.
+        filename : str
+            see the definition of implemented class.
         """

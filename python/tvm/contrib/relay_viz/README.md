@@ -28,6 +28,10 @@ This tool target to visualize Relay IR.
 
 ## Requirement
 
+### Terminal Backend
+1. TVM
+
+### Bokeh Backend
 1. TVM
 2. graphviz
 2. pydot
@@ -66,9 +70,9 @@ This utility is composed of two parts: `node_edge_gen.py` and `plotter.py`.
 
 `plotter.py` define interfaces of `Graph` and `Plotter`. `Plotter` is responsible to render a collection of `Graph`.
 
-`node_edge_gen.py` define interfaces of converting Relay IR modules to nodes/edges consumed by `Graph`. Further, this python module also provide a default implementation for common relay types.
+`node_edge_gen.py` define interfaces of converting Relay IR modules to nodes and edges. Further, this python module provide a default implementation for common relay types.
 
 If customization is wanted for a certain relay type, we can implement the `NodeEdgeGenerator` interface, handling that relay type accordingly, and delegate other types to the default implementation. See `_terminal.py` for an example usage.
 
-These two interfaces are glued by the top level class `RelayVisualizer`, which passes a relay module to `NodeEdgeGenerator` and add nodes/edges to `Graph`.
-Then, it render the plot by `Plotter.render()`.
+These two interfaces are glued by the top level class `RelayVisualizer`, which passes a relay module to `NodeEdgeGenerator` and add nodes and edges to `Graph`.
+Then, it render the plot by calling `Plotter.render()`.

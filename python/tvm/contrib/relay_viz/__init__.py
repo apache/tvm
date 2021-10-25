@@ -28,14 +28,26 @@ from .node_edge_gen import NodeEdgeGenerator
 
 
 class PlotterBackend(Enum):
-    """Enumeration for available plotters."""
+    """Enumeration for available plotter backends."""
 
     BOKEH = "bokeh"
     TERMINAL = "terminal"
 
 
 class RelayVisualizer:
-    """Relay IR Visualizer"""
+    """Relay IR Visualizer
+
+    Parameters
+    ----------
+    relay_mod : tvm.IRModule
+        Relay IR module.
+    relay_param: None | Dict[str, tvm.runtime.NDArray]
+        Relay parameter dictionary. Default `None`.
+    backend: PlotterBackend | Tuple[Plotter, NodeEdgeGenerator]
+        The backend used to render graphs. It can be a tuple of an implemented Plotter instance and
+        NodeEdgeGenerator instance to introduce customized parsing and visualization logics.
+        Default ``PlotterBackend.TERMINAL``.
+    """
 
     def __init__(
         self,
@@ -43,14 +55,6 @@ class RelayVisualizer:
         relay_param: Union[None, Dict[str, tvm.runtime.NDArray]] = None,
         backend: Union[PlotterBackend, Tuple[Plotter, NodeEdgeGenerator]] = PlotterBackend.TERMINAL,
     ):
-        """Visualize Relay IR.
-
-        Parameters
-        ----------
-        relay_mod : tvm.IRModule, Relay IR module
-        relay_param: None | Dict[str, tvm.runtime.NDArray], Relay parameter dictionary. Default `None`.
-        backend: PlotterBackend | Tuple[Plotter, NodeEdgeGenerator], Default `PlotterBackend.TERMINAL`.
-        """
 
         self._plotter, self._ne_generator = get_plotter_and_generator(backend)
         self._relay_param = relay_param if relay_param is not None else {}
@@ -83,8 +87,10 @@ class RelayVisualizer:
 
         Parameters
         ----------
-        graph : `plotter.Graph`
+        graph : plotter.Graph
+
         node_to_id : Dict[relay.expr, str | int]
+
         relay_param : Dict[str, tvm.runtime.NDarray]
         """
         for node in node_to_id:
@@ -102,11 +108,11 @@ def get_plotter_and_generator(backend):
     """Specify the Plottor and its NodeEdgeGenerator"""
     if isinstance(backend, (tuple, list)) and len(backend) == 2:
         if not isinstance(backend[0], Plotter):
-            raise ValueError(f"First element of backend should be derived from {type(Plotter)}")
+            raise ValueError(f"First element should be an instance derived from {type(Plotter)}")
 
         if not isinstance(backend[1], NodeEdgeGenerator):
             raise ValueError(
-                f"Second element of backend should be derived from {type(NodeEdgeGenerator)}"
+                f"Second element should be an instance derived from {type(NodeEdgeGenerator)}"
             )
 
         return backend
@@ -118,7 +124,7 @@ def get_plotter_and_generator(backend):
     # Basically we want to keep them optional. Users can choose plotters they want to install.
     if backend == PlotterBackend.BOKEH:
         # pylint: disable=import-outside-toplevel
-        from ._bokeh import (
+        from .bokeh import (
             BokehPlotter,
             BokehNodeEdgeGenerator,
         )
@@ -127,7 +133,7 @@ def get_plotter_and_generator(backend):
         ne_generator = BokehNodeEdgeGenerator()
     elif backend == PlotterBackend.TERMINAL:
         # pylint: disable=import-outside-toplevel
-        from ._terminal import (
+        from .terminal import (
             TermPlotter,
             TermNodeEdgeGenerator,
         )

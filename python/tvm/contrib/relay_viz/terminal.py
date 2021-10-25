@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Visualize Relay IR in AST text-form"""
+"""Visualize Relay IR in AST text-form."""
 
 from collections import deque
 from typing import (
@@ -33,8 +33,8 @@ from .plotter import (
 )
 
 from .node_edge_gen import (
-    Node,
-    Edge,
+    VizNode,
+    VizEdge,
     NodeEdgeGenerator,
     DefaultNodeEdgeGenerator,
 )
@@ -51,7 +51,7 @@ class TermNodeEdgeGenerator(NodeEdgeGenerator):
         node: relay.Expr,
         relay_param: Dict[str, tvm.runtime.NDArray],
         node_to_id: Dict[relay.Expr, Union[int, str]],
-    ) -> Tuple[Union[Node, None], List[Edge]]:
+    ) -> Tuple[Union[VizNode, None], List[VizEdge]]:
         """Generate node and edges consumed by TermGraph interfaces"""
         if isinstance(node, relay.Call):
             return self._call_node(node, node_to_id)
@@ -76,50 +76,50 @@ class TermNodeEdgeGenerator(NodeEdgeGenerator):
 
     def _call_node(self, node, node_to_id):
         node_id = node_to_id[node]
-        node_info = Node(node_id, "Call", "")
-        edge_info = [Edge(node_to_id[node.op], node_id)]
+        node_info = VizNode(node_id, "Call", "")
+        edge_info = [VizEdge(node_to_id[node.op], node_id)]
         for arg in node.args:
             arg_nid = node_to_id[arg]
-            edge_info.append(Edge(arg_nid, node_id))
+            edge_info.append(VizEdge(arg_nid, node_id))
         return node_info, edge_info
 
     def _let_node(self, node, node_to_id):
         node_id = node_to_id[node]
-        node_info = Node(node_id, "Let", "(var, val, body)")
+        node_info = VizNode(node_id, "Let", "(var, val, body)")
         edge_info = [
-            Edge(node_to_id[node.var], node_id),
-            Edge(node_to_id[node.value], node_id),
-            Edge(node_to_id[node.body], node_id),
+            VizEdge(node_to_id[node.var], node_id),
+            VizEdge(node_to_id[node.value], node_id),
+            VizEdge(node_to_id[node.body], node_id),
         ]
         return node_info, edge_info
 
     def _global_var_node(self, node, node_to_id):
         node_id = node_to_id[node]
-        node_info = Node(node_id, "GlobalVar", node.name_hint)
+        node_info = VizNode(node_id, "GlobalVar", node.name_hint)
         edge_info = []
         return node_info, edge_info
 
     def _if_node(self, node, node_to_id):
         node_id = node_to_id[node]
-        node_info = Node(node_id, "If", "(cond, true, false)")
+        node_info = VizNode(node_id, "If", "(cond, true, false)")
         edge_info = [
-            Edge(node_to_id[node.cond], node_id),
-            Edge(node_to_id[node.true_branch], node_id),
-            Edge(node_to_id[node.false_branch], node_id),
+            VizEdge(node_to_id[node.cond], node_id),
+            VizEdge(node_to_id[node.true_branch], node_id),
+            VizEdge(node_to_id[node.false_branch], node_id),
         ]
         return node_info, edge_info
 
     def _op_node(self, node, node_to_id):
         node_id = node_to_id[node]
         op_name = node.name
-        node_info = Node(node_id, op_name, "")
+        node_info = VizNode(node_id, op_name, "")
         edge_info = []
         return node_info, edge_info
 
     def _function_node(self, node, node_to_id):
         node_id = node_to_id[node]
-        node_info = Node(node_id, "Func", str(node.params))
-        edge_info = [Edge(node_to_id[node.body], node_id)]
+        node_info = VizNode(node_id, "Func", str(node.params))
+        edge_info = [VizEdge(node_to_id[node.body], node_id)]
         return node_info, edge_info
 
 

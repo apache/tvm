@@ -92,6 +92,16 @@ tvm.contrib.random
 .. automodule:: tvm.contrib.random
     :members:
 
+tvm.contrib.relay_viz
+~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.relay_viz
+    :members: RelayVisualizer
+.. autoattribute:: tvm.contrib.relay_viz.PlotterBackend.BOKEH
+.. autoattribute:: tvm.contrib.relay_viz.PlotterBackend.TERMINAL
+.. automodule:: tvm.contrib.relay_viz.plotter
+    :members:
+.. automodule:: tvm.contrib.relay_viz.node_edge_gen
+    :members:
 
 tvm.contrib.rocblas
 ~~~~~~~~~~~~~~~~~~~

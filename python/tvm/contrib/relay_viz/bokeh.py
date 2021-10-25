@@ -19,22 +19,9 @@ import html
 import functools
 import logging
 
-_LOGGER = logging.getLogger(__name__)
-
 import numpy as np
-
-try:
-    import pydot
-except ImportError:
-    _LOGGER.critical("pydot library is required. You might want to run pip install pydot.")
-    raise
-
-try:
-    from bokeh.io import output_file, save
-except ImportError:
-    _LOGGER.critical("bokeh library is required. You might want to run pip install bokeh.")
-    raise
-
+import pydot
+from bokeh.io import output_file, save
 from bokeh.models import (
     ColumnDataSource,
     CustomJS,
@@ -62,6 +49,8 @@ from .plotter import (
 )
 
 from .node_edge_gen import DefaultNodeEdgeGenerator
+
+_LOGGER = logging.getLogger(__name__)
 
 # Use default node/edge generator
 BokehNodeEdgeGenerator = DefaultNodeEdgeGenerator
