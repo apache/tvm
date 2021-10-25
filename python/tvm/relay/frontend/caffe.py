@@ -21,11 +21,12 @@
 import numpy as np
 import tvm
 from tvm.ir import IRModule
+
+from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from ... import nd as _nd
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
@@ -513,6 +514,9 @@ class OperatorConverter(object):
             weight_shape = [-1, conv_params.num_output, kh, kw]
             weight_value = np.asarray(weight.data, np.float32)
             weight_value = np.reshape(weight_value, weight_shape)
+
+            # weight shape is in relay's IOHW format rn, we need it to be OIHW
+            weight_value = np.transpose(weight_value, [1, 0, 2, 3])
         else:
             raise Exception("No weight value of layer {} in caffemodel".format(op.name))
 
@@ -520,7 +524,6 @@ class OperatorConverter(object):
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.nn.conv2d_transpose(data=in_expr, weight=weight_expr, **params)
         if bias:
-
             bias_value = np.asarray(bias.data, np.float32)
             bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
             out = _op.nn.bias_add(out, bias_expr)
