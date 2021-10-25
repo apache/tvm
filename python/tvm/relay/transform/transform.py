@@ -1255,3 +1255,4 @@ def FoldTypeTransformation():
     Automatic function signature transformation
     """
     return _ffi_api.FoldTypeTransformation()
+

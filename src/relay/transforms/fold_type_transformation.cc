@@ -62,7 +62,7 @@ namespace relay {
  *     or "qnn.quantize".
  */
 class FoldTypeTransformationRewriter : public MixedModeMutator {
-  int count = 0;
+
  protected:
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
     const CallNode* post_call_node = post.as<CallNode>();
@@ -97,9 +97,9 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
           }
 
           // Mutate the var node type
-          VarNode* var_node = (VarNode*)maybe_var_node;
+          VarNode* var_node = reinterpret_cast<VarNode*>(maybe_var_node);
           const TensorTypeNode* anno = var_node->type_annotation.as<TensorTypeNode>();
-          auto mut_anno = (TensorTypeNode*) anno;
+          auto mut_anno = reinterpret_cast<TensorTypeNode*>(anno);
           auto shape = anno->shape;
           mut_anno->dtype = out_dtype;
 
@@ -111,7 +111,8 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
       }
     }
 
-    return Call(cur_op, post_call_node->args, pre_call_node->attrs, pre_call_node->type_args, pre_call_node->span);
+    return Call(cur_op, post_call_node->args, pre_call_node->attrs, pre_call_node->type_args,
+		pre_call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* node) {
@@ -161,3 +162,4 @@ TVM_REGISTER_GLOBAL("relay._transform.FoldTypeTransformation")
 
 }  // namespace relay
 }  // namespace tvm
+
