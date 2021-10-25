@@ -68,10 +68,12 @@ class MatmulModule:
         A = T.match_buffer(a, (16, 16), "float32")
         B = T.match_buffer(b, (16, 16), "float32")
         C = T.match_buffer(c, (16, 16), "float32")
-        with T.block([16, 16, T.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j, k in T.grid(16, 16, 16):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
 @tvm.script.ir_module
@@ -83,12 +85,16 @@ class MatmulReluModule:
         B = T.match_buffer(b, (16, 16), "float32")
         D = T.match_buffer(d, (16, 16), "float32")
         C = T.alloc_buffer((16, 16), "float32")
-        with T.block([16, 16, T.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-        with T.block([16, 16], "relu") as [vi, vj]:
-            D[vi, vj] = T.max(C[vi, vj], 0.0)
+        for i, j, k in T.grid(16, 16, 16):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j in T.grid(16, 16):
+            with T.block("relu"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
 @tvm.script.ir_module
@@ -99,10 +105,12 @@ class BatchMatmulModule:
         A = T.match_buffer(a, [16, 32, 32])
         B = T.match_buffer(b, [16, 32, 32])
         C = T.match_buffer(c, [16, 32, 32])
-        with T.block([16, 32, 32, T.reduce_axis(0, 32)], "update") as [vn, vi, vj, vk]:
-            with T.init():
-                C[vn, vi, vj] = 0.0
-            C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
+        for n, i, j, k in T.grid(16, 32, 32, 32):
+            with T.block("update"):
+                vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
+                with T.init():
+                    C[vn, vi, vj] = 0.0
+                C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
 @tvm.script.ir_module
@@ -113,8 +121,10 @@ class AddModule:
         A = T.match_buffer(a, [32], "float32")
         B = T.match_buffer(b, [32], "float32")
         C = T.match_buffer(c, [32], "float32")
-        with T.block([32], "add") as [vi]:
-            C[vi] = A[vi] + B[vi]
+        for i in range(32):
+            with T.block("add"):
+                vi = T.axis.S(32, i)
+                C[vi] = A[vi] + B[vi]
 
 
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring

@@ -21,17 +21,15 @@ project(HexagonAndroidLauncher C CXX)
 include("${CMAKE_CURRENT_SOURCE_DIR}/../HexagonLauncher.cmake")
 
 add_custom_command(
-  OUTPUT ${LAUNCHER_RPC_STUB_C}
-  COMMAND ${QAIC_EXE} ${QAIC_FLAGS}
-  "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
-  COMMAND ${CMAKE_COMMAND} -E rename "${LAUNCHER_RPC_H}"
-  "${LAUNCHER_SRC}/${LAUNCHER_RPC_H}"
+  OUTPUT ${LAUNCHER_RPC_STUB_C} ${LAUNCHER_RPC_H}
+  COMMAND ${QAIC_EXE} ${QAIC_FLAGS} "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
   MAIN_DEPENDENCY "${LAUNCHER_SRC}/${LAUNCHER_RPC_IDL}"
 )
 
 include_directories(SYSTEM
   "${HEXAGON_SDK_INCLUDES}"
   "${HEXAGON_RPCMEM_ROOT}/inc"
+  "${CMAKE_CURRENT_BINARY_DIR}"   # Output of qaic will go here
 )
 
 link_directories(${HEXAGON_REMOTE_ROOT})
@@ -46,8 +44,9 @@ set(STUB_SRCS
 )
 
 add_executable(launcher_android
-  "${STUB_SRCS}"
+  "${LAUNCHER_RPC_H}"
   "${LAUNCHER_RPC_STUB_C}"
+  "${STUB_SRCS}"
 )
 
 ExternalProject_Add(android_tvm_runtime
@@ -66,12 +65,14 @@ ExternalProject_Add(android_tvm_runtime
 )
 ExternalProject_Get_Property(android_tvm_runtime BINARY_DIR)
 ExternalProject_Add_Step(android_tvm_runtime copy_binaries
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${BINARY_DIR} ${CMAKE_INSTALL_PREFIX}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${BINARY_DIR}/libtvm_runtime.so
+    ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDEES install
 )
 
 add_dependencies(launcher_android android_tvm_runtime)
-add_library(tvm_runtime SHARED IMPORTED)
-set_target_properties(tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/libtvm_runtime.so")
+add_library(a_tvm_runtime SHARED IMPORTED)
+set_target_properties(a_tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/libtvm_runtime.so")
 
-target_link_libraries(launcher_android cdsprpc log tvm_runtime)
+target_link_libraries(launcher_android cdsprpc log a_tvm_runtime)

@@ -22,8 +22,10 @@ import synr
 
 import tvm
 from tvm.ir import Span
+from tvm.ir.expr import Range
 from tvm.tir import Var, Buffer, PrimExpr, Stmt, MatchBufferRegion
 from tvm.runtime import Object
+from tvm.tir.expr import IterVar
 from .tir.node import BufferSlice
 
 
@@ -41,10 +43,10 @@ class BlockInfo:
             C = T.match_buffer(a, (16, 16), "float32")
 
             for i, j, k in T.grid(16, 16, 16):
-                with T.block([16, 16, T.reduce_axis(16)], "matmul") as [vi, vj, vk]:
-                    T.bind(vi, i)
-                    T.bind(vj, j)
-                    T.bind(vk, k)         # iter_bindings = {vj: i, vj: j, vk: k}
+                with T.block("matmul"):
+                    vi = T.axis.S(16, i)
+                    vj = T.axis.S(16, j)
+                    vk = T.axis.R(16, k)         # iter_bindings = {vj: i, vj: j, vk: k}
 
                     T.where(True)         # predicate of the block_realize
 
@@ -72,8 +74,10 @@ class BlockInfo:
     """List[Buffer]: list of T.alloc_buffer statements in the block signature"""
     match_buffers: List[MatchBufferRegion] = []
     """List[MatchBufferRegion]: list of T.match_buffer statements in the block signature"""
-    iter_bindings: Mapping[Var, PrimExpr] = {}
-    """Mapping[Var, PrimExpr]: map of block iter var to its values"""
+    iter_values: List[PrimExpr] = []
+    """List[PrimExpr]: list of binding values for iter vars"""
+    iter_vars: List[IterVar] = []
+    """List[PrimExpr]: list of iter vars in the block"""
     reads: Optional[List[BufferSlice]] = None
     """Optional[List[BufferSlice]]:
     list of T.reads statements in the block signature, None for not-visited"""
@@ -91,7 +95,8 @@ class BlockInfo:
     def __init__(self):
         self.alloc_buffers = []
         self.match_buffers = []
-        self.iter_bindings = {}
+        self.iter_values = []
+        self.iter_vars = []
         self.reads = None
         self.writes = None
         self.annotations = None
@@ -112,8 +117,8 @@ class ContextMaintainer:
     """List[List[synr.ast.Node]]: The ast nodes insides the current scope"""
     block_info_stack: List[BlockInfo] = []
     """List[BlockInfo]: The block info for the current block scope"""
-    loop_stack: List[List[Var]] = []
-    """List[List[Var]]: List of loop vars inside the current block scope"""
+    loop_stack: Dict[Var, Range] = {}
+    """Dict[Var, Range]: The dict from loop var to its domain outside the block"""
     symbols: List[Dict[str, Union[Var, Buffer]]] = []
     """List[Dict[str, Union[Var, Buffer]]]: Symbol map from name to object for the current scope"""
 
@@ -137,7 +142,7 @@ class ContextMaintainer:
         # scope context
         self.node_stack = []
         self.block_info_stack = []
-        self.loop_stack = []
+        self.loop_stack = {}
         self.symbols = []
         # function context
         self.func_params = []
@@ -183,8 +188,6 @@ class ContextMaintainer:
             The synr AST nodes in new scope
         """
         self.enter_scope(nodes)
-        # Create a new loop stack for the new block
-        self.loop_stack.append([])
         # Create a new BlockInfo for the new block
         self.block_info_stack.append(BlockInfo())
 
@@ -196,8 +199,6 @@ class ContextMaintainer:
     def exit_block_scope(self):
         """Pop the inner most block scope, the function will call `exit_scope` implicitly"""
         self.exit_scope()
-        # Pop loop stack
-        self.loop_stack.pop()
         # Pop block_info
         self.block_info_stack.pop()
 

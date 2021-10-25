@@ -355,6 +355,34 @@ def test_tensorrt_serialize_vm(run_module):
         assert_result_dict_holds(result_dict)
 
 
+def test_conv1d(run_module):
+    def get_graph(
+        x_shape=((1, 3, 224)),
+        k_shape=(10, 3, 3),
+        groups=1,
+        padding=(1, 1),
+        strides=(1),
+        dilation=(1),
+        channels=None,
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
+        out = relay.nn.conv1d(
+            x,
+            kernel,
+            kernel_size=k_shape[2:3],
+            groups=groups,
+            padding=padding,
+            strides=strides,
+            dilation=dilation,
+            channels=channels,
+        )
+        f = relay.Function([x, kernel], out)
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
+
+    run_and_verify_func(get_graph(channels=10), run_module=run_module)
+
+
 def test_conv2d(run_module):
     def get_graph(
         x_shape=(1, 32, 8, 8),

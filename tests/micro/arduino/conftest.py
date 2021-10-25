@@ -29,6 +29,8 @@ TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("ar
 
 BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
 
+BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
+
 
 def arduino_boards() -> dict:
     """Returns a dict mapping board to target model"""
