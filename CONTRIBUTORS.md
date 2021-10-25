@@ -111,12 +111,14 @@ We do encourage everyone to work anything they are interested in.
 - [Andrew Z. Luo](https://github.com/AndrewZhaoLuo): @AndrewZhaoLuo
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
+- [Andrey Malyshev](https://github.com/elvin-n): @elvin-n
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
 - [Thierry Moreau](https://github.com/tmoreau89): @tmoreau89
 - [Kazutaka Morita](https://github.com/kazum): @kazum
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
 - [Leandro Nunes](https://github.com/leandron): @leandron
+- [Jiawei Liu](https://github.com/ganler): @ganler
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic

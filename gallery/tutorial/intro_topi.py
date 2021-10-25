@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tutorial-topi:
+
 Introduction to TOPI
 ====================
 **Author**: `Ehsan M. Kermani <https://github.com/ehsanmok>`_

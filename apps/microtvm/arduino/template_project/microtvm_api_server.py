@@ -44,82 +44,20 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 
+BOARDS = API_SERVER_DIR / "boards.json"
+
+# Data structure to hold the information microtvm_api_server.py needs
+# to communicate with each of these boards.
+try:
+    with open(BOARDS) as boards:
+        BOARD_PROPERTIES = json.load(boards)
+except FileNotFoundError:
+    raise FileNotFoundError(f"Board file {{{BOARDS}}} does not exist.")
+
+
 class BoardAutodetectFailed(Exception):
     """Raised when no attached hardware is found matching the requested board"""
 
-
-# Data structure to hold the information microtvm_api_server.py needs
-# to communicate with each of these boards. Currently just holds the
-# components of each board's FQBN, but might be extended in the future
-# to include the SRAM, PSRAM, flash, etc. on each board.
-BOARD_PROPERTIES = {
-    "due": {
-        "package": "arduino",
-        "architecture": "sam",
-        "board": "arduino_due_x_dbg",
-        "model": "sam3x8e",
-    },
-    # Due to the way the Feather S2 bootloader works, compilation
-    # behaves fine but uploads cannot be done automatically
-    "feathers2": {
-        "package": "esp32",
-        "architecture": "esp32",
-        "board": "feathers2",
-        "model": "esp32",
-    },
-    "metrom4": {
-        "package": "adafruit",
-        "architecture": "samd",
-        "board": "adafruit_metro_m4",
-        "model": "atsamd51",
-    },
-    # Spresense only works as of its v2.3.0 sdk
-    "spresense": {
-        "package": "SPRESENSE",
-        "architecture": "spresense",
-        "board": "spresense",
-        "model": "cxd5602gg",
-    },
-    "nano33ble": {
-        "package": "arduino",
-        "architecture": "mbed_nano",
-        "board": "nano33ble",
-        "model": "nrf52840",
-    },
-    "pybadge": {
-        "package": "adafruit",
-        "architecture": "samd",
-        "board": "adafruit_pybadge_m4",
-        "model": "atsamd51",
-    },
-    # The Teensy boards are listed here for completeness, but they
-    # won't work until https://github.com/arduino/arduino-cli/issues/700
-    # is finished
-    "teensy40": {
-        "package": "teensy",
-        "architecture": "avr",
-        "board": "teensy40",
-        "model": "imxrt1060",
-    },
-    "teensy41": {
-        "package": "teensy",
-        "architecture": "avr",
-        "board": "teensy41",
-        "model": "imxrt1060",
-    },
-    "wioterminal": {
-        "package": "Seeeduino",
-        "architecture": "samd",
-        "board": "seeed_wio_terminal",
-        "model": "atsamd51",
-    },
-    "nicla_sense": {
-        "package": "arduino",
-        "architecture": "mbed_nicla",
-        "board": "nicla_sense",
-        "model": "nrf52832",
-    },
-}
 
 PROJECT_TYPES = ["example_project", "host_driven"]
 
@@ -128,11 +66,6 @@ PROJECT_OPTIONS = [
         "arduino_board",
         choices=list(BOARD_PROPERTIES),
         help="Name of the Arduino board to build for",
-    ),
-    server.ProjectOption(
-        "arduino_model",
-        choices=[board["model"] for _, board in BOARD_PROPERTIES.items()],
-        help="Name of the model for each Arduino board.",
     ),
     server.ProjectOption("arduino_cli_cmd", help="Path to the arduino-cli tool."),
     server.ProjectOption("port", help="Port to use for connecting to hardware"),
@@ -172,8 +105,9 @@ class Handler(server.ProjectAPIHandler):
         so this file is copied separately in generate_project.
 
         """
-        project_types_folder = api_server_dir.parents[0]
-        for item in (project_types_folder / project_type / "src").iterdir():
+        for item in (API_SERVER_DIR / "src" / project_type).iterdir():
+            if item.name == "project.ino":
+                continue
             dest = project_dir / "src" / item.name
             if item.is_dir():
                 shutil.copytree(item, dest)
@@ -182,7 +116,7 @@ class Handler(server.ProjectAPIHandler):
 
         # Arduino requires the .ino file have the same filename as its containing folder
         shutil.copy2(
-            project_types_folder / project_type / "project.ino",
+            API_SERVER_DIR / "src" / project_type / "project.ino",
             project_dir / f"{project_dir.stem}.ino",
         )
 
@@ -350,11 +284,19 @@ class Handler(server.ProjectAPIHandler):
 
         # Copies files from the template folder to project_dir
         shutil.copy2(API_SERVER_DIR / "microtvm_api_server.py", project_dir)
+        shutil.copy2(BOARDS, project_dir / BOARDS.name)
         self._copy_project_files(API_SERVER_DIR, project_dir, options["project_type"])
 
         # Copy standalone_crt into src folder
         self._copy_standalone_crt(source_dir, standalone_crt_dir)
         self._remove_unused_components(source_dir, options["project_type"])
+
+        # Populate crt-config.h
+        crt_config_dir = project_dir / "src" / "standalone_crt" / "crt_config"
+        crt_config_dir.mkdir()
+        shutil.copy2(
+            API_SERVER_DIR / "crt_config" / "crt_config.h", crt_config_dir / "crt_config.h"
+        )
 
         # Unpack the MLF and copy the relevant files
         metadata = self._disassemble_mlf(model_library_format_path, source_dir)

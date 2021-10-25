@@ -473,15 +473,15 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return {vtuple[op->index]};
   }
   std::vector<GraphNodeRef> VisitExpr_(const OpNode* op) override {
-    throw std::runtime_error("can not compile op in non-eta expanded form");
+    LOG(FATAL) << "All OpNodes should have been expanded";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const GlobalVarNode* op) override {
-    throw std::runtime_error("");
+    LOG(FATAL) << "All GlobalVarNodes should be removed before graph executor's Codegen is called";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const IfNode* op) override {
-    throw std::invalid_argument("if not supported");
+    LOG(FATAL) << "Graph executor does not support control flow (found IfNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
@@ -490,23 +490,23 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefCreateNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "Graph executor does not support references (found RefCreateNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefReadNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "Graph executor does not support references (found RefReadNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefWriteNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "Graph executor does not support references (found RefWriteNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const ConstructorNode* op) override {
-    throw std::invalid_argument("ADT constructor case not yet implemented");
+    LOG(FATAL) << "Graph executor does not support ADTs (found ConstructorNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const MatchNode* op) override {
-    throw std::invalid_argument("match case not yet implemented");
+    LOG(FATAL) << "Graph executor does not support matching (found MatchNode)";
     return {};
   }
   /*!

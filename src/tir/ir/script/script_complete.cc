@@ -44,21 +44,11 @@ class ScriptCompleter : public StmtMutator {
   Map<Var, Buffer>* buffer_var_map_;
   Stmt VisitStmt_(const BlockRealizeNode* op) override {
     contains_block = true;
-    Stmt body = StmtMutator::VisitStmt_(op);
-    if (!op->iter_values.empty() && !op->iter_values[0].dtype().is_int()) {
-      auto block_with_binding = CopyOnWrite(Downcast<BlockRealize>(body).get());
-      std::vector<PrimExpr> bindings;
-      for (size_t i = 0; i < op->iter_values.size(); ++i) {
-        bindings.push_back(Var("i" + std::to_string(i)));
-      }
-      block_with_binding->iter_values = bindings;
-      body = BlockRealize(block_with_binding);
-      for (int i = op->iter_values.size() - 1; i >= 0; --i) {
-        body = For(Downcast<Var>(bindings[i]), op->block->iter_vars[i]->dom->min,
-                   op->block->iter_vars[i]->dom->extent, {}, body);
-      }
+    for (const PrimExpr& value : op->iter_values) {
+      CHECK(value.dtype().is_int())
+          << "BlockRealize iter_value expected a IntImm, but got " << value.dtype();
     }
-    return body;
+    return StmtMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const BlockNode* op) override {

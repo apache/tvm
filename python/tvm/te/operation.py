@@ -467,10 +467,12 @@ def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
             B = T.match_buffer(b, (128, 128))
             C = T.match_buffer(c, (128, 128))
 
-            with T.block([128, 128, T.reduce_axis(0, 128)]) as [i, j, k]:
-                with T.init():
-                    C[i, j] = 0.0
-                C[i, j] += A[i, k] * B[j, k]
+            for i, j, k in T.grip(128, 128, 128):
+                with T.block():
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] += A[vi, vk] * B[vj, vk]
 
     Returns
     -------
