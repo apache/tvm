@@ -686,6 +686,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<IndexExpr> padding;
   Array<IndexExpr> dilation;
   tvm::String layout;
+  tvm::String out_layout;
   bool ceil_mode;
 
   TVM_DECLARE_ATTRS(MaxPool2DAttrs, "relay.attrs.MaxPool2DAttrs") {
@@ -709,6 +710,13 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively. Pooling is applied on the 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
+            "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+            "dimensions respectively. Pooling is applied on the 'H' and"
+            "'W' dimensions.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false).describe(
         "When true, will use ceil instead of floor to compute the output shape.");
   }
@@ -721,6 +729,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
   Array<IndexExpr> padding;
   Array<IndexExpr> dilation;
   tvm::String layout;
+  tvm::String out_layout;
   bool ceil_mode;
   bool count_include_pad;
 
@@ -745,6 +754,13 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively. Pooling is applied on the 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
+            "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+            "dimensions respectively. Pooling is applied on the 'H' and"
+            "'W' dimensions.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false).describe(
         "When true, will use ceil instead of floor to compute the output shape.");
     TVM_ATTR_FIELD(count_include_pad)
@@ -756,6 +772,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
 /*! \brief Attributes for global pool operator */
 struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
   tvm::String layout;
+  tvm::String out_layout;
 
   TVM_DECLARE_ATTRS(GlobalPool2DAttrs, "relay.attrs.GlobalPool2DAttrs") {
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
@@ -763,6 +780,13 @@ struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively. Pooling is applied on the 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
+            "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+            "dimensions respectively. Pooling is applied on the 'H' and"
+            "'W' dimensions.");
   }
 };
 
@@ -770,6 +794,7 @@ struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
 struct AdaptivePool1DAttrs : public tvm::AttrsNode<AdaptivePool1DAttrs> {
   Array<IndexExpr> output_size;
   std::string layout;
+  tvm::String out_layout;
 
   TVM_DECLARE_ATTRS(AdaptivePool1DAttrs, "relay.attrs.AdaptivePool1DAttrs") {
     TVM_ATTR_FIELD(output_size).set_default(Array<IndexExpr>({})).describe("Output width.");
@@ -778,6 +803,13 @@ struct AdaptivePool1DAttrs : public tvm::AttrsNode<AdaptivePool1DAttrs> {
         "'N', 'C', 'W' stands for batch, channel, and width"
         "dimensions respectively. Pooling is applied on the"
         "'W' dimension.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
+            "'N', 'C', 'W' stands for batch, channel, and width"
+            "dimensions respectively. Pooling is applied on the"
+            "'W' dimension.");
   }
 };
 
@@ -785,6 +817,7 @@ struct AdaptivePool1DAttrs : public tvm::AttrsNode<AdaptivePool1DAttrs> {
 struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
   Array<IndexExpr> output_size;
   std::string layout;
+  tvm::String out_layout;
 
   TVM_DECLARE_ATTRS(AdaptivePool2DAttrs, "relay.attrs.AdaptivePool2DAttrs") {
     TVM_ATTR_FIELD(output_size)
@@ -795,6 +828,13 @@ struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively. Pooling is applied on the 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
+            "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+            "dimensions respectively. Pooling is applied on the 'H' and"
+            "'W' dimensions.");
   }
 };
 
@@ -802,6 +842,7 @@ struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
 struct AdaptivePool3DAttrs : public tvm::AttrsNode<AdaptivePool3DAttrs> {
   Array<IndexExpr> output_size;
   std::string layout;
+  tvm::String out_layout;
 
   TVM_DECLARE_ATTRS(AdaptivePool3DAttrs, "relay.attrs.AdaptivePool3DAttrs") {
     TVM_ATTR_FIELD(output_size)
@@ -812,6 +853,13 @@ struct AdaptivePool3DAttrs : public tvm::AttrsNode<AdaptivePool3DAttrs> {
         "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
         "dimensions respectively. Pooling is applied on 'D', 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+            "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+            "dimensions respectively. Pooling is applied on 'D', 'H' and"
+            "'W' dimensions.");
   }
 };
 
@@ -822,6 +870,7 @@ struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
   Array<IndexExpr> dilation;
   Array<IndexExpr> padding;
   std::string layout;
+  tvm::String out_layout;
   bool ceil_mode;
 
   TVM_DECLARE_ATTRS(MaxPool1DAttrs, "relay.attrs.MaxPool1DAttrs") {
@@ -844,6 +893,12 @@ struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
         "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
         "'N', 'C', 'W' stands for batch, channel, and width"
         "dimensions respectively. Pooling is applied on the 'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
+            "'N', 'C', 'W' stands for batch, channel, and width"
+            "dimensions respectively. Pooling is applied on the 'W' dimensions.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false).describe(
         "When true, will use ceil instead of floor to compute the output shape.");
   }
@@ -856,6 +911,7 @@ struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
   Array<IndexExpr> dilation;
   Array<IndexExpr> padding;
   std::string layout;
+  tvm::String out_layout;
   bool ceil_mode;
   bool count_include_pad;
 
@@ -879,6 +935,12 @@ struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
         "Dimension ordering of input data. Can be 'NCW', 'NHC', etc."
         "'N', 'C', 'W' stands for batch, channel, and width"
         "dimensions respectively. Pooling is applied on the 'W' dimension.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCW', 'NHC', etc."
+            "'N', 'C', 'W' stands for batch, channel, and width"
+            "dimensions respectively. Pooling is applied on the 'W' dimension.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false).describe(
         "When true, will use ceil instead of floor to compute the output shape.");
     TVM_ATTR_FIELD(count_include_pad)
@@ -894,6 +956,7 @@ struct MaxPool3DAttrs : public tvm::AttrsNode<MaxPool3DAttrs> {
   Array<IndexExpr> dilation;
   Array<IndexExpr> padding;
   std::string layout;
+  tvm::String out_layout;
   bool ceil_mode;
 
   TVM_DECLARE_ATTRS(MaxPool3DAttrs, "relay.attrs.MaxPool3DAttrs") {
@@ -917,6 +980,13 @@ struct MaxPool3DAttrs : public tvm::AttrsNode<MaxPool3DAttrs> {
         "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
         "dimensions respectively. Pooling is applied on the 'D', 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+            "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+            "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+            "'W' dimensions.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false).describe(
         "When true, will use ceil instead of floor to compute the output shape.");
   }
@@ -929,6 +999,7 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
   Array<IndexExpr> dilation;
   Array<IndexExpr> padding;
   std::string layout;
+  tvm::String out_layout;
   bool ceil_mode;
   bool count_include_pad;
 
@@ -953,6 +1024,13 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
         "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
         "dimensions respectively. Pooling is applied on the 'D', 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+            "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+            "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+            "'W' dimensions.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false).describe(
         "When true, will use ceil instead of floor to compute the output shape.");
     TVM_ATTR_FIELD(count_include_pad)

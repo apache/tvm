@@ -3970,6 +3970,7 @@ def test_resize(target, dev):
             make_constant_node("scales", onnx.TensorProto.FLOAT, (len(scales),), scales),
         ]
         input_names = ["X", "roi", "scales"]
+
         if oshape != []:
             nodes.append(
                 make_constant_node("sizes", onnx.TensorProto.INT64, (len(oshape),), oshape)
@@ -4939,26 +4940,8 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
     "test_mvn",
-    # When unsqueeze is fully supported, remaining nllloss tests should work:
-    "test_nllloss_NC_expanded",
-    "test_nllloss_NCd1_expanded",
-    "test_nllloss_NCd1_ii_expanded",
-    "test_nllloss_NCd1_mean_weight_negative_ii_expanded",
-    "test_nllloss_NCd1_weight_expanded",
-    "test_nllloss_NCd1_weight_ii_expanded",
-    "test_nllloss_NCd1d2_expanded",
-    "test_nllloss_NCd1d2_no_weight_reduction_mean_ii_expanded",
-    "test_nllloss_NCd1d2_reduction_mean_expanded",
-    "test_nllloss_NCd1d2_reduction_sum_expanded",
-    "test_nllloss_NCd1d2_with_weight_expanded",
-    "test_nllloss_NCd1d2_with_weight_reduction_mean_expanded",
-    "test_nllloss_NCd1d2_with_weight_reduction_sum_expanded",
-    "test_nllloss_NCd1d2_with_weight_reduction_sum_ii_expanded",
+    # This test fails llvm with a lowering error:
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
-    "test_nllloss_NCd1d2d3_sum_weight_high_ii_expanded",
-    "test_nllloss_NCd1d2d3d4d5_mean_weight_expanded",
-    "test_nllloss_NCd1d2d3d4d5_none_no_weight_expanded",
-    "test_qlinearmatmul_2D",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
     "test_range_int32_type_negative_delta_expanded",
@@ -4972,15 +4955,7 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
-    "test_resize_downsample_sizes_cubic",
-    "test_resize_downsample_sizes_linear_pytorch_half_pixel",
-    "test_resize_downsample_sizes_nearest",
     "test_resize_tf_crop_and_resize",
-    "test_resize_upsample_sizes_cubic",
-    "test_resize_upsample_sizes_nearest",
-    "test_resize_upsample_sizes_nearest_ceil_half_pixel",
-    "test_resize_upsample_sizes_nearest_floor_align_corners",
-    "test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric",
     "test_rnn_seq_length",
     "test_round",
     "test_scan9_sum",
@@ -5540,6 +5515,27 @@ def test_qlinearmul(target, dev):
     verify_qlinearmul([4, 2], [4, 2], [4, 2])
     verify_qlinearmul([4, 2], [2], [4, 2])
     verify_qlinearmul([5, 1, 7], [2, 7], [5, 2, 7])
+
+
+@tvm.testing.parametrize_targets
+def test_qlinearleakyrelu(target, dev):
+    def verify_qlinearleakyrelu(inshape, kwargs):
+
+        in_array = np.random.random(inshape).astype("float32")
+        node = helper.make_node("LeakyRelu", ["X"], ["Y"], **kwargs)
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearRelu_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(in_array.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(in_array.shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearRelu_test")
+        quantize_and_verify_with_ort(model, ["X"], [in_array.shape], target, dev)
+
+    verify_qlinearleakyrelu([2, 4, 5, 6], {"alpha": 0.25})
+    verify_qlinearleakyrelu([6, 5, 6, 7], {"alpha": 0.35})
+    verify_qlinearleakyrelu([5, 1, 4, 6], {"alpha": 0.65})
 
 
 @tvm.testing.parametrize_targets

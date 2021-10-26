@@ -18,15 +18,14 @@
 import pytest
 
 pytest.importorskip("ethosu.vela")
-import os
 import numpy as np
-import pathlib
+import tflite.Model
 
 import tvm
-import tvm.micro as micro
+import tensorflow as tf
 from tvm import relay
-from tvm.relay.backend.contrib import ethosu
 from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tests.python.relay.aot.aot_test_utils import generate_ref_data
 
 from . import relay_ir_builder
@@ -139,7 +138,7 @@ def test_ethosu_conv2d(accel_type):
     for test_case in test_cases:
         relay_module, conv_params = test_case[0](*test_case[1])
         input_tensor, input_shape, input_dtype = test_case[1]
-        mod = ethosu.partition_for_ethosu(relay_module)
+        mod = partition_for_ethosu(relay_module)
 
         # Generate reference data
         in_min, in_max = util.get_range_for_dtype_str(input_dtype)
@@ -151,10 +150,7 @@ def test_ethosu_conv2d(accel_type):
         output_data = generate_ref_data(relay_module, input_data)
 
         compiled_models = infra.build_source(
-            mod,
-            input_data,
-            output_data,
-            accel_type,
+            mod, input_data, output_data, accel_type, output_tolerance=1
         )
 
         # Assumes only two runtime.Modules are created -- i.e. single offload module
@@ -168,6 +164,94 @@ def test_ethosu_conv2d(accel_type):
         cmms = bytes.fromhex(cmms)
         infra.print_payload(cmms)
         infra.verify_source(compiled_models, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
+@pytest.mark.parametrize(
+    "kernel_shape, activation",
+    [((3, 3), "relu"), ((1, 2), None)],
+)
+@pytest.mark.parametrize("padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 2)), ((3, 2), (1, 1))])
+def test_tflite_depthwise_conv2d(
+    accel_type,
+    ifm_shape,
+    kernel_shape,
+    padding,
+    strides,
+    dilation,
+    activation,
+):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def depthwise_conv2d(self, x):
+                weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
+                weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+                # The input strides to the TensorFlow API needs to be of shape 1x4
+                tf_strides = [1, strides[0], strides[1], 1]
+                op = tf.nn.depthwise_conv2d(
+                    x, weight, strides=tf_strides, padding=padding, dilations=dilation
+                )
+                if activation:
+                    op = tf.nn.relu(op)
+                return op
+
+        model = Model()
+        concrete_func = model.depthwise_conv2d.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    relay_module, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod = partition_for_ethosu(relay_module, params)
+
+    # Generate reference data
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
+
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_models, accel_type)
 
 
 if __name__ == "__main__":

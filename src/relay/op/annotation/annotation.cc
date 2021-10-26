@@ -71,11 +71,10 @@ Expr MaybeOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
     // The device can be recovered from the binding site of the global or local variable.
     return expr;
   }
-  if (const auto* function_node = expr.as<FunctionNode>()) {
-    if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
-      // Primitive functions are device polymorphic, matching our interpretation for OpNode above.
-      return expr;
-    }
+  if (expr->IsInstance<FunctionNode>()) {
+    // If a primitive function then it is device polymorphic. Otherwise the device is captured
+    // by the function's attributes.
+    return expr;
   }
   return OnDevice(expr, device_type, is_fixed);
 }
@@ -95,12 +94,7 @@ RELAY_REGISTER_OP("on_device")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_type) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<TNonComputational>("TNonComputational", true);
 
 OnDeviceProps GetOnDeviceProps(const CallNode* call_node) {
   if (call_node->op == OnDeviceOp()) {

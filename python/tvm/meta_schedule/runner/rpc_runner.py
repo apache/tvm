@@ -17,13 +17,12 @@
 """RPC Runner"""
 import concurrent.futures
 from contextlib import contextmanager
-import itertools
 import os.path as osp
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.rpc import RPCSession
-from tvm.runtime import Device, Module, ndarray
+from tvm.runtime import Device, Module
 
 from ..utils import (
     get_global_func_on_rpc_session,
@@ -31,6 +30,12 @@ from ..utils import (
 )
 from .config import EvaluatorConfig, RPCConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
+from .utils import (
+    T_ARG_INFO_JSON_OBJ_LIST,
+    T_ARGUMENT_LIST,
+    alloc_argument_common,
+    run_evaluator_common,
+)
 
 
 class RPCRunnerFuture(RunnerFuture):
@@ -78,12 +83,6 @@ class RPCRunnerFuture(RunnerFuture):
                 error_msg="RPCRunner: An exception occurred\n" + str(exception),
             )
         return RunnerResult(run_secs, None)
-
-
-T_ARG_INFO_JSON_OBJ = List[Any]  # pylint: disable=invalid-name
-T_ARG_INFO_JSON_OBJ_LIST = List[T_ARG_INFO_JSON_OBJ]  # pylint: disable=invalid-name
-T_ARGUMENT = Any  # pylint: disable=invalid-name
-T_ARGUMENT_LIST = List[T_ARGUMENT]  # pylint: disable=invalid-name
 
 
 class RPCRunner(PyRunner):
@@ -236,7 +235,7 @@ class RPCRunner(PyRunner):
         f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None] = None,
         f_run_evaluator: Union[T_RUN_EVALUATOR, str, None] = None,
         f_cleanup: Union[T_CLEANUP, str, None] = None,
-        max_connections: Optional[int] = None,
+        max_workers: int = 1,
         initializer: Optional[Callable[[], None]] = None,
     ) -> None:
         """Constructor
@@ -261,8 +260,8 @@ class RPCRunner(PyRunner):
             The function name to run the evaluator or the function itself.
         f_cleanup: Union[T_CLEANUP, str, None]
             The function name to cleanup the session or the function itself.
-        max_connections: Optional[int]
-            The maximum number of connections.
+        max_workers: int = 1
+            The maximum number of connections. Defaults to 1.
         initializer: Optional[Callable[[], None]]
             The initializer function.
         """
@@ -276,15 +275,8 @@ class RPCRunner(PyRunner):
         self.f_alloc_argument = f_alloc_argument
         self.f_run_evaluator = f_run_evaluator
         self.f_cleanup = f_cleanup
-
-        num_servers = self.rpc_config.count_num_servers(allow_missing=False)
-        if max_connections is None:
-            max_connections = num_servers
-        else:
-            max_connections = min(max_connections, num_servers)
-
         self.pool = PopenPoolExecutor(
-            max_workers=max_connections,
+            max_workers=max_workers,
             timeout=rpc_config.session_timeout_sec,
             initializer=initializer,
         )
@@ -376,7 +368,7 @@ class RPCRunner(PyRunner):
             try:
                 yield
             finally:
-                # Step 5. Clean up
+                # Final step. Always clean up
                 f_cleanup(session, remote_path)
 
         with resource_handler():
@@ -461,10 +453,10 @@ def default_alloc_argument(
         The session to allocate the arguments
     device: Device
         The device to allocate the arguments
+    args_info: T_ARG_INFO_JSON_OBJ_LIST
+        The arguments info
     alloc_repeat: int
         The number of times to repeat the allocation
-    args_info: PyArgsInfo
-        The arguments info
 
     Returns
     -------
@@ -477,29 +469,7 @@ def default_alloc_argument(
         "Please make sure 'USE_RANDOM' is turned ON in the config.cmake on the RPC server.",
     )
 
-    def alloc_tensor(_, dtype, shape) -> ndarray.NDArray:
-        arg = ndarray.empty(shape=shape, dtype=dtype, device=device)
-        f_random_fill(arg)
-        return arg
-
-    def alloc_fail(*arg_info) -> None:
-        raise NotImplementedError(arg_info)
-
-    dispatcher: Dict[Any, Callable] = {
-        "TENSOR": alloc_tensor,
-        None: alloc_fail,
-    }
-
-    repeated_args: List[T_ARGUMENT_LIST] = []
-    for _ in range(alloc_repeat):
-        args: T_ARGUMENT_LIST = []
-        arg_info: T_ARG_INFO_JSON_OBJ
-        for arg_info in args_info:
-            arg_type = arg_info[0]
-            arg: Any = dispatcher.get(arg_type, None)(*arg_info)
-            args.append(arg)
-        repeated_args.append(args)
-    return repeated_args
+    return alloc_argument_common(f_random_fill, device, args_info, alloc_repeat)
 
 
 def default_run_evaluator(
@@ -521,7 +491,7 @@ def default_run_evaluator(
         The device to run the evaluator
     evaluator_config: EvaluatorConfig
         The evaluator config
-    repeated_args: List[Args]
+    repeated_args: List[T_ARGUMENT_LIST]
         The repeated arguments
 
     Returns
@@ -529,23 +499,7 @@ def default_run_evaluator(
     costs: List[float]
         The evaluator results
     """
-    evaluator = rt_mod.time_evaluator(
-        func_name=rt_mod.entry_name,
-        dev=device,
-        number=evaluator_config.number,
-        repeat=evaluator_config.repeat,
-        min_repeat_ms=evaluator_config.min_repeat_ms,
-        f_preproc="cache_flush_cpu_non_first_arg"
-        if evaluator_config.enable_cpu_cache_flush
-        else "",
-    )
-    repeated_costs: List[List[float]] = []
-    for args in repeated_args:
-        device.sync()
-        profile_result = evaluator(*args)
-        repeated_costs.append(profile_result.results)
-    costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
-    return costs
+    return run_evaluator_common(rt_mod, device, evaluator_config, repeated_args)
 
 
 def default_cleanup(

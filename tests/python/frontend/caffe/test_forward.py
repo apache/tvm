@@ -785,6 +785,94 @@ def test_forward_TanH():
 
 
 #######################################################################
+# Embed
+# -----------
+
+
+def _test_embed(data, **kwargs):
+    """One iteration of Embed"""
+    _test_op(data, L.Embed, "Embed", **kwargs)
+
+
+def test_forward_Embed():
+    k = 20
+    data = [i for i in range(k)]
+    np.random.shuffle(data)
+    # dimension is 1
+    data = np.asarray(data)
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=False,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    # dimension is 2
+    data = np.reshape(data, [4, 5])
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=False,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    # dimension is 3
+    data = np.reshape(data, [2, 2, 5])
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=False,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    # dimension is 4
+    data = np.reshape(data, [2, 2, 5, 1])
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=False,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+
+
+#######################################################################
 # Mobilenetv2
 # -----------
 

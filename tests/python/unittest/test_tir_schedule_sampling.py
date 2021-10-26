@@ -20,7 +20,7 @@ from collections import defaultdict
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 from tvm.tir.schedule import Trace
 
@@ -28,12 +28,14 @@ from tvm.tir.schedule import Trace
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def elementwise(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128))
-    with tir.block([128, 128, 128], "B") as [vi, vj, vk]:
-        B[vi, vj, vk] = A[vi, vj, vk] * 2.0
+@T.prim_func
+def elementwise(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128))
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
 # pylint: enable=no-member,invalid-name,unused-variable

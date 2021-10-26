@@ -273,6 +273,84 @@ def test_cross_compile_options_aarch64_onnx_module(onnx_resnet50):
     assert os.path.exists(dumps_path)
 
 
+def verify_compile_paddle_module(model, shape_dict=None):
+    pytest.importorskip("paddle")
+    tvmc_model = tvmc.load(model, "paddle", shape_dict=shape_dict)
+    tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="ll", desired_layout="NCHW")
+    dumps_path = tvmc_package.package_path + ".ll"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
+
+
+def test_compile_paddle_module(paddle_resnet50):
+    # some CI environments wont offer Paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+    # Check default compilation.
+    verify_compile_paddle_module(paddle_resnet50)
+    # Check with manual shape override
+    shape_string = "inputs:[1,3,224,224]"
+    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    verify_compile_paddle_module(paddle_resnet50, shape_dict)
+
+
+# This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
+@pytest.mark.skipif(
+    not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
+)
+def test_cross_compile_aarch64_paddle_module(paddle_resnet50):
+    # some CI environments wont offer paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+
+    tvmc_model = tvmc.load(paddle_resnet50, "paddle")
+    tvmc_package = tvmc.compile(
+        tvmc_model,
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+        dump_code="asm",
+        cross="aarch64-linux-gnu-gcc",
+    )
+    dumps_path = tvmc_package.package_path + ".asm"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
+
+
+# This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
+@pytest.mark.skipif(
+    not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
+)
+def test_cross_compile_options_aarch64_paddle_module(paddle_resnet50):
+    # some CI environments wont offer paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+
+    fake_sysroot_dir = utils.tempdir().relpath("")
+
+    tvmc_model = tvmc.load(paddle_resnet50, "paddle")
+    tvmc_package = tvmc.compile(
+        tvmc_model,
+        target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+        dump_code="asm",
+        cross="aarch64-linux-gnu-gcc",
+        cross_options="--sysroot=" + fake_sysroot_dir,
+    )
+    dumps_path = tvmc_package.package_path + ".asm"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
+
+
 @tvm.testing.requires_opencl
 def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     pytest.importorskip("tflite")
@@ -319,7 +397,7 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
 
     tvmc_package = tvmc.compiler.compile_model(
         tvmc_model,
-        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 --executor=aot",
+        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
         output_format="mlf",
         package_path=output_file_name,
         pass_context_configs=["tir.disable_vectorize=true"],
@@ -359,6 +437,45 @@ def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v
     assert type(tvmc_package.lib_path) is str
     assert type(tvmc_package.params) is bytearray
     assert os.path.exists(dumps_path)
+
+
+def test_compile_tflite_module_with_external_codegen_ethosu(
+    tmpdir_factory, tflite_mobilenet_v1_1_quant
+):
+    pytest.importorskip("tflite")
+    pytest.importorskip("ethosu.vela")
+    ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
+
+    output_dir = tmpdir_factory.mktemp("mlf")
+
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+
+    for accel_type in ACCEL_TYPES:
+        output_file_name = f"{output_dir}/file_{accel_type}.tar"
+
+        tvmc_package = tvmc.compiler.compile_model(
+            tvmc_model,
+            target=f"ethos-u -accelerator_config={accel_type}, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
+            output_format="mlf",
+            package_path=output_file_name,
+            pass_context_configs=["tir.disable_vectorize=true"],
+        )
+
+        # check whether an MLF package was created
+        assert os.path.exists(output_file_name)
+
+        # check whether the expected number of C sources are in the tarfile
+        with tarfile.open(output_file_name) as mlf_package:
+            c_source_files = [
+                name
+                for name in mlf_package.getnames()
+                if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
+            ]
+            # The number of c_source_files depends on the number of fused subgraphs that
+            # get offloaded to the NPU, e.g. conv2d->depthwise_conv2d->conv2d gets offloaded
+            # as a single subgraph if both of these operators are supported by the NPU.
+            # Currently there are two source files for CPU execution and two offload graphs
+            assert len(c_source_files) == 4
 
 
 @mock.patch("tvm.relay.build")

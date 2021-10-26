@@ -189,6 +189,8 @@ struct ConstantUpdater : public ExprVisitor {
  */
 inline void UpdateConstants(Function func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
+  VLOG_CONTEXT << "UpdateConstants";
+  VLOG(1) << "updating constants for:" << std::endl << PrettyPrint(func);
   auto codegen = func->GetAttr<String>(attr::kCompiler);
   ICHECK(codegen.defined()) << "No external codegen is set";
   std::string codegen_name = codegen.value();
@@ -210,6 +212,9 @@ inline void UpdateConstants(Function func,
           << "External constant names must start with compiler name";
       (*params)[const_name] = it.second;
     }
+  }
+  for (const auto& pair : *params) {
+    VLOG(1) << "Constants: " << pair.first << " = " << PrettyPrint(pair.second);
   }
 }
 
@@ -322,7 +327,7 @@ inline relay::Function BindParamsByName(
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
-      repeat_var.insert(arg);
+      repeat_var.insert(name_dict[name]);
     } else {
       name_dict[name] = arg;
     }
@@ -419,15 +424,6 @@ inline std::string GetExtSymbol(const Function& func) {
 inline bool IsAutoSchedulerEnabled() {
   return transform::PassContext::Current()
       ->GetConfig<Bool>("relay.backend.use_auto_scheduler", Bool(false))
-      .value();
-}
-
-/*!
- * \brief Return whether the compile engine cache is disabled in the pass context.
- */
-inline bool IsCompileEngineCacheDisabled() {
-  return transform::PassContext::Current()
-      ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
       .value();
 }
 

@@ -45,14 +45,18 @@ const Op& OnDeviceOp();
 Expr OnDevice(Expr expr, DLDeviceType device_type, bool is_fixed);
 
 /*!
- * \brief Wraps \p expr in an "on_device" CallNode for \p device_type and \p is_fixed. However
- * returns \p expr directly if:
+ * \brief Wraps \p expr in an "on_device" CallNode for \p device_type and \p is_fixed if the
+ * device for \p expr cannot otherwise be recovered by the lexical scoping convention. This means
+ * we will NOT wrap if:
  *  - \p device_type is \p kInvalidDeviceType, which signals there are no device annotations
  *    already in play.
  *  - \p expr is an operator or primitive function literal. These are device polymorphic.
- *  - \p expr is a global or local var. These already have an implied device.
- *  - \p expr is a constructor. There should probably be device polymorphic but are in an
- *    in-between state at the moment.
+ *  - \p expr is a non-primitive function literal. The device is captured by the
+ *    "result_device_type" attribute on the function itself.
+ *  - \p expr is a global var. The device is on the function attributes the global is bound to.
+ *  - \p expr is a local var. The device is tracked by the device aware visitors for us.
+ *  - \p expr is a constructor. These should eventually be device polymorphic but are currently
+ *    in an in-between state at the moment.
  */
 Expr MaybeOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed);
 
@@ -80,6 +84,32 @@ OnDeviceProps GetOnDeviceProps(const CallNode* call_node);
  * "on_device" CallNode. Otherwise returns the null expression, \p kInvalidDeviceType and \p false.
  */
 OnDeviceProps GetOnDeviceProps(const Expr& expr);
+
+/*!
+ * \brief Returns the body of \p expr if it is an "on_device" annotation, otherwise returns
+ * \p expr directly.
+ */
+inline Expr IgnoreOnDevice(const Expr& expr) {
+  OnDeviceProps props = GetOnDeviceProps(expr);
+  return props.body.defined() ? props.body : expr;
+}
+
+/*!
+ * \brief Returns \p expr as \p NodeType, or null if it is not of that type. Looks through
+ * any "on_device" annotations.
+ */
+template <typename NodeType>
+const NodeType* AsIgnoringOnDevice(const Expr& expr) {
+  const auto* node = expr.as<NodeType>();
+  if (node != nullptr) {
+    return node;
+  }
+  OnDeviceProps props = GetOnDeviceProps(expr);
+  if (!props.body.defined()) {
+    return nullptr;
+  }
+  return props.body.as<NodeType>();
+}
 
 /*!
  * \brief Returns \p function annotated with "param_device_types" and "result_device_type"

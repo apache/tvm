@@ -20,7 +20,7 @@ import sys
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -28,508 +28,594 @@ from tvm.tir.schedule.testing import verify_trace_roundtrip
 ########## Function before schedule ##########
 
 
-@tvm.script.tir
-def elementwise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+@T.prim_func
+def elementwise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def access_under_scope(b: ty.handle, c: ty.handle) -> None:
-    A = tir.alloc_buffer((128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
+@T.prim_func
+def access_under_scope(b: T.handle, c: T.handle) -> None:
+    A = T.alloc_buffer((128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
 
-    with tir.block([8, 8], "scope") as [i, j]:
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "A") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                A[vi, vj] = 1.0
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                B[vi, vj] = A[vi, vj] + 1.0
+    for i0, j0 in T.grid(8, 8):
+        with T.block("scope"):
+            i, j = T.axis.remap("SS", [i0, j0])
+            for x, y in T.grid(16, 16):
+                with T.block("A"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    A[vi, vj] = 1.0
+            for x, y in T.grid(16, 16):
+                with T.block("B"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    B[vi, vj] = A[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0
 
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0
 
+@T.prim_func
+def opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), dtype="float16")
+    B = T.match_buffer(b, (128, 128), dtype="float16")
+    C = T.match_buffer(c, (128, 128), dtype="float16")
+    D = T.match_buffer(d, (128, 128), dtype="float16")
 
-@tvm.script.tir
-def opaque_access(a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), dtype="float16")
-    B = tir.match_buffer(b, (128, 128), dtype="float16")
-    C = tir.match_buffer(c, (128, 128), dtype="float16")
-    D = tir.match_buffer(d, (128, 128), dtype="float16")
-
-    with tir.block([128, 128], "load_store") as [vi, vj]:
-        tir.reads(A[vi, vj])
-        tir.writes(D[vi, vj])
-        D.data[vi * 128 + vj] = tir.load("float16", A.data, vi * 128 + vj)
-    with tir.block([8, 8], "opaque") as [vi, vj]:
-        tir.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.writes(B[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.evaluate(
-            tir.tvm_load_matrix_sync(
-                B.data,
-                16,
-                16,
-                16,
-                vi * 8 + vj,
-                tir.tvm_access_ptr(
-                    tir.type_annotation(dtype="float16"),
-                    A.data,
-                    vi * 2048 + vj * 16,
+    for i, j in T.grid(128, 128):
+        with T.block("load_store"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi, vj])
+            T.writes(D[vi, vj])
+            D.data[vi * 128 + vj] = T.load("float16", A.data, vi * 128 + vj)
+    for i, j in T.grid(8, 8):
+        with T.block("opaque"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.writes(B[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.evaluate(
+                T.tvm_load_matrix_sync(
+                    B.data,
+                    16,
+                    16,
+                    16,
+                    vi * 8 + vj,
+                    T.tvm_access_ptr(
+                        T.type_annotation(dtype="float16"),
+                        A.data,
+                        vi * 2048 + vj * 16,
+                        128,
+                        1,
+                        dtype="handle",
+                    ),
                     128,
-                    1,
+                    "row_major",
                     dtype="handle",
-                ),
-                128,
-                "row_major",
-                dtype="handle",
+                )
             )
-        )
-    with tir.block([8, 8], "match_buffer") as [vi, vj]:
-        tir.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        A0 = tir.match_buffer(
-            A[
-                vi * 16 : vi * 16 + 16,
-                vj * 16 : vj * 16 + 16,
-            ],
-            (16, 16),
-            "float16",
-            strides=[128, 1],
-            offset_factor=1,
-        )
-        C0 = tir.match_buffer(
-            C[
-                vi * 16 : vi * 16 + 16,
-                vj * 16 : vj * 16 + 16,
-            ],
-            (16, 16),
-            "float16",
-            strides=[128, 1],
-            offset_factor=1,
-        )
-        tir.evaluate(
-            tir.tvm_load_matrix_sync(
-                C0.data,
-                16,
-                16,
-                16,
-                vi * 8 + vj,
-                tir.tvm_access_ptr(
-                    tir.type_annotation(dtype="float16"),
-                    A0.data,
-                    A0.elem_offset,
-                    A0.strides[0],
-                    1,
+    for i, j in T.grid(8, 8):
+        with T.block("match_buffer"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            A0 = T.match_buffer(
+                A[
+                    vi * 16 : vi * 16 + 16,
+                    vj * 16 : vj * 16 + 16,
+                ],
+                (16, 16),
+                "float16",
+                strides=[128, 1],
+                offset_factor=1,
+            )
+            C0 = T.match_buffer(
+                C[
+                    vi * 16 : vi * 16 + 16,
+                    vj * 16 : vj * 16 + 16,
+                ],
+                (16, 16),
+                "float16",
+                strides=[128, 1],
+                offset_factor=1,
+            )
+            T.evaluate(
+                T.tvm_load_matrix_sync(
+                    C0.data,
+                    16,
+                    16,
+                    16,
+                    vi * 8 + vj,
+                    T.tvm_access_ptr(
+                        T.type_annotation(dtype="float16"),
+                        A0.data,
+                        A0.elem_offset,
+                        A0.strides[0],
+                        1,
+                        dtype="handle",
+                    ),
+                    128,
+                    "row_major",
                     dtype="handle",
-                ),
-                128,
-                "row_major",
-                dtype="handle",
+                )
             )
-        )
 
 
-@tvm.script.tir
+@T.prim_func
 def func_multi_consumer() -> None:
-    A = tir.alloc_buffer((128))
-    B = tir.alloc_buffer((128))
-    C = tir.alloc_buffer((128))
-    for i in tir.grid(8):
-        for j in tir.grid(16):
-            with tir.block([128], "A") as [vi]:
-                tir.bind(vi, i * 16 + j)
+    A = T.alloc_buffer((128))
+    B = T.alloc_buffer((128))
+    C = T.alloc_buffer((128))
+    for i in T.grid(8):
+        for j in T.grid(16):
+            with T.block("A"):
+                vi = T.axis.S(128, i * 16 + j)
                 A[vi] = 1.0
-        for j in tir.grid(16):
-            with tir.block([128], "B") as [vi]:
-                tir.bind(vi, i * 16 + j)
+        for j in T.grid(16):
+            with T.block("B"):
+                vi = T.axis.S(128, i * 16 + j)
                 B[vi] = A[vi] + 1.0
-    for i in tir.grid(128):
-        with tir.block([128], "C") as [vi]:
+    for i in T.grid(128):
+        with T.block("C"):
+            vi = T.axis.S(128, i)
             C[vi] = A[vi]
 
 
-@tvm.script.tir
+@T.prim_func
 def func_multi_producer() -> None:
-    A = tir.alloc_buffer((128))
-    B = tir.alloc_buffer((128))
-    with tir.block([128], "A0") as [vi]:
-        A[vi] = 1.0
-    with tir.block([128], "A1") as [vi]:
-        A[vi] = 2.0
-    with tir.block([128], "B") as [vi]:
-        B[vi] = A[vi]
+    A = T.alloc_buffer((128))
+    B = T.alloc_buffer((128))
+    for i in range(128):
+        with T.block("A0"):
+            vi = T.axis.S(128, i)
+            A[vi] = 1.0
+    for i in range(128):
+        with T.block("A1"):
+            vi = T.axis.S(128, i)
+            A[vi] = 2.0
+    for i in range(128):
+        with T.block("B"):
+            vi = T.axis.S(128, i)
+            B[vi] = A[vi]
 
 
 ########## Expected function after cache_read ##########
 
 
-@tvm.script.tir
-def cache_read_elementwise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    A_global = tir.alloc_buffer((128, 128))
-    B_local = tir.alloc_buffer((128, 128), scope="local")
-    with tir.block([128, 128], "A_global") as [vi, vj]:
-        A_global[vi, vj] = A[vi, vj]
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A_global[vi, vj] * 2.0
-    with tir.block([128, 128], "B_local") as [vi, vj]:
-        B_local[vi, vj] = B[vi, vj]
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B_local[vi, vj] + 1.0
+@T.prim_func
+def cache_read_elementwise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    A_global = T.alloc_buffer((128, 128))
+    B_local = T.alloc_buffer((128, 128), scope="local")
+    for i, j in T.grid(128, 128):
+        with T.block("A_global"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            A_global[vi, vj] = A[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A_global[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("B_local"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B_local[vi, vj] = B[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B_local[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def cache_read_under_scope(b: ty.handle, c: ty.handle) -> None:
-    A = tir.alloc_buffer((128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    A_global = tir.alloc_buffer((128, 128))
+@T.prim_func
+def cache_read_under_scope(b: T.handle, c: T.handle) -> None:
+    A = T.alloc_buffer((128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    A_global = T.alloc_buffer((128, 128))
 
-    with tir.block([8, 8], "scope") as [i, j]:
-        A_local = tir.alloc_buffer((128, 128), scope="local")
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "A") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                A[vi, vj] = 1.0
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "A_local") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                A_local[vi, vj] = A[vi, vj]
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                B[vi, vj] = A_local[vi, vj] + 1.0
-    with tir.block([128, 128], "A_global") as [vi, vj]:
-        A_global[vi, vj] = A[vi, vj]
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A_global[vi, vj] * 2.0
+    for i0, j0 in T.grid(8, 8):
+        with T.block("scope"):
+            i, j = T.axis.remap("SS", [i0, j0])
+            A_local = T.alloc_buffer((128, 128), scope="local")
+            for x, y in T.grid(16, 16):
+                with T.block("A"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    A[vi, vj] = 1.0
+            for x, y in T.grid(16, 16):
+                with T.block("A_local"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    A_local[vi, vj] = A[vi, vj]
+            for x, y in T.grid(16, 16):
+                with T.block("B"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    B[vi, vj] = A_local[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("A_global"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            A_global[vi, vj] = A[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A_global[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def cache_read_opaque_access(a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), dtype="float16")
-    B = tir.match_buffer(b, (128, 128), dtype="float16")
-    C = tir.match_buffer(c, (128, 128), dtype="float16")
-    D = tir.match_buffer(d, (128, 128), dtype="float16")
-    A_global = tir.alloc_buffer((128, 128), dtype="float16")
+@T.prim_func
+def cache_read_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), dtype="float16")
+    B = T.match_buffer(b, (128, 128), dtype="float16")
+    C = T.match_buffer(c, (128, 128), dtype="float16")
+    D = T.match_buffer(d, (128, 128), dtype="float16")
+    A_global = T.alloc_buffer((128, 128), dtype="float16")
 
-    with tir.block([128, 128], "A_global") as [vi, vj]:
-        A_global[vi, vj] = A[vi, vj]
-    with tir.block([128, 128], "load_store") as [vi, vj]:
-        tir.reads(A_global[vi, vj])
-        tir.writes(D[vi, vj])
-        D.data[vi * 128 + vj] = tir.load("float16", A_global.data, vi * 128 + vj)
-    with tir.block([8, 8], "opaque") as [vi, vj]:
-        tir.reads(A_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.writes(B[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.evaluate(
-            tir.tvm_load_matrix_sync(
-                B.data,
-                16,
-                16,
-                16,
-                vi * 8 + vj,
-                tir.tvm_access_ptr(
-                    tir.type_annotation(dtype="float16"),
-                    A_global.data,
-                    vi * 2048 + vj * 16,
+    for i, j in T.grid(128, 128):
+        with T.block("A_global"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            A_global[vi, vj] = A[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("load_store"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A_global[vi, vj])
+            T.writes(D[vi, vj])
+            D.data[vi * 128 + vj] = T.load("float16", A_global.data, vi * 128 + vj)
+    for i, j in T.grid(8, 8):
+        with T.block("opaque"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.writes(B[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.evaluate(
+                T.tvm_load_matrix_sync(
+                    B.data,
+                    16,
+                    16,
+                    16,
+                    vi * 8 + vj,
+                    T.tvm_access_ptr(
+                        T.type_annotation(dtype="float16"),
+                        A_global.data,
+                        vi * 2048 + vj * 16,
+                        128,
+                        1,
+                        dtype="handle",
+                    ),
                     128,
-                    1,
+                    "row_major",
                     dtype="handle",
-                ),
-                128,
-                "row_major",
-                dtype="handle",
+                )
             )
-        )
-    with tir.block([8, 8], "match_buffer") as [vi, vj]:
-        tir.reads(A_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        A0 = tir.match_buffer(
-            A_global[
-                vi * 16 : vi * 16 + 16,
-                vj * 16 : vj * 16 + 16,
-            ],
-            (16, 16),
-            "float16",
-            strides=[128, 1],
-            offset_factor=1,
-        )
-        C0 = tir.match_buffer(
-            C[
-                vi * 16 : vi * 16 + 16,
-                vj * 16 : vj * 16 + 16,
-            ],
-            (16, 16),
-            "float16",
-            strides=[128, 1],
-            offset_factor=1,
-        )
-        tir.evaluate(
-            tir.tvm_load_matrix_sync(
-                C0.data,
-                16,
-                16,
-                16,
-                vi * 8 + vj,
-                tir.tvm_access_ptr(
-                    tir.type_annotation(dtype="float16"),
-                    A0.data,
-                    A0.elem_offset,
-                    A0.strides[0],
-                    1,
+    for i, j in T.grid(8, 8):
+        with T.block("match_buffer"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            A0 = T.match_buffer(
+                A_global[
+                    vi * 16 : vi * 16 + 16,
+                    vj * 16 : vj * 16 + 16,
+                ],
+                (16, 16),
+                "float16",
+                strides=[128, 1],
+                offset_factor=1,
+            )
+            C0 = T.match_buffer(
+                C[
+                    vi * 16 : vi * 16 + 16,
+                    vj * 16 : vj * 16 + 16,
+                ],
+                (16, 16),
+                "float16",
+                strides=[128, 1],
+                offset_factor=1,
+            )
+            T.evaluate(
+                T.tvm_load_matrix_sync(
+                    C0.data,
+                    16,
+                    16,
+                    16,
+                    vi * 8 + vj,
+                    T.tvm_access_ptr(
+                        T.type_annotation(dtype="float16"),
+                        A0.data,
+                        A0.elem_offset,
+                        A0.strides[0],
+                        1,
+                        dtype="handle",
+                    ),
+                    128,
+                    "row_major",
                     dtype="handle",
-                ),
-                128,
-                "row_major",
-                dtype="handle",
+                )
             )
-        )
 
 
-@tvm.script.tir
+@T.prim_func
 def cache_read_multi_consumer() -> None:
-    A = tir.alloc_buffer((128))
-    B = tir.alloc_buffer((128))
-    C = tir.alloc_buffer((128))
-    A_global = tir.alloc_buffer((128))
-    for i in tir.grid(8):
-        for j in tir.grid(16):
-            with tir.block([128], "A") as [vi]:
-                tir.bind(vi, i * 16 + j)
+    A = T.alloc_buffer((128))
+    B = T.alloc_buffer((128))
+    C = T.alloc_buffer((128))
+    A_global = T.alloc_buffer((128))
+    for i in T.grid(8):
+        for j in T.grid(16):
+            with T.block("A"):
+                vi = T.axis.S(128, i * 16 + j)
                 A[vi] = 1.0
-        for j in tir.grid(16):
-            with tir.block([128], "A") as [vi]:
-                tir.bind(vi, i * 16 + j)
+        for j in T.grid(16):
+            with T.block("A"):
+                vi = T.axis.S(128, i * 16 + j)
                 A_global[vi] = A[vi]
-        for j in tir.grid(16):
-            with tir.block([128], "B") as [vi]:
-                tir.bind(vi, i * 16 + j)
+        for j in T.grid(16):
+            with T.block("B"):
+                vi = T.axis.S(128, i * 16 + j)
                 B[vi] = A_global[vi] + 1.0
 
-    for i in tir.grid(128):
-        with tir.block([128], "C") as [vi]:
+    for i in T.grid(128):
+        with T.block("C"):
+            vi = T.axis.S(128, i)
             C[vi] = A_global[vi]
 
 
-@tvm.script.tir
-def continuous_cache_read(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    B_shared = tir.alloc_buffer((128, 128), scope="shared")
-    B_local = tir.alloc_buffer((128, 128), scope="local")
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "B_shared") as [vi, vj]:
-        B_shared[vi, vj] = B[vi, vj]
-    with tir.block([128, 128], "B_local") as [vi, vj]:
-        B_local[vi, vj] = B_shared[vi, vj]
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B_local[vi, vj] + 1.0
+@T.prim_func
+def continuous_cache_read(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    B_shared = T.alloc_buffer((128, 128), scope="shared")
+    B_local = T.alloc_buffer((128, 128), scope="local")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("B_shared"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B_shared[vi, vj] = B[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("B_local"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B_local[vi, vj] = B_shared[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B_local[vi, vj] + 1.0
 
 
 ########## Expected function after cache_write ##########
 
 
-@tvm.script.tir
-def cache_write_elementwise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    B_global = tir.alloc_buffer((128, 128), scope="local")
-    C_local = tir.alloc_buffer((128, 128))
-    with tir.block([128, 128], "B_global") as [vi, vj]:
-        B_global[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = B_global[vi, vj]
-    with tir.block([128, 128], "C_local") as [vi, vj]:
-        C_local[vi, vj] = B[vi, vj] + 1.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = C_local[vi, vj]
+@T.prim_func
+def cache_write_elementwise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    B_global = T.alloc_buffer((128, 128), scope="local")
+    C_local = T.alloc_buffer((128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B_global"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B_global[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = B_global[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C_local"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C_local[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = C_local[vi, vj]
 
 
-@tvm.script.tir
-def cache_write_under_scope(b: ty.handle, c: ty.handle) -> None:
-    A = tir.alloc_buffer((128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    A_global = tir.alloc_buffer((128, 128))
+@T.prim_func
+def cache_write_under_scope(b: T.handle, c: T.handle) -> None:
+    A = T.alloc_buffer((128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    A_global = T.alloc_buffer((128, 128))
 
-    with tir.block([8, 8], "scope") as [i, j]:
-        A_local = tir.alloc_buffer((128, 128), scope="local")
-        B_global = tir.alloc_buffer((128, 128))
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "A_local") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                A_local[vi, vj] = 1.0
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "A") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                A_global[vi, vj] = A_local[vi, vj]
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "B_global") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                B_global[vi, vj] = A_global[vi, vj] + 1.0
-        for x, y in tir.grid(16, 16):
-            with tir.block([128, 128], "B_global") as [vi, vj]:
-                tir.bind(vi, i * 16 + x)
-                tir.bind(vj, j * 16 + y)
-                B[vi, vj] = B_global[vi, vj]
-    with tir.block([128, 128], "A_global") as [vi, vj]:
-        A[vi, vj] = A_global[vi, vj]
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0
+    for i0, j0 in T.grid(8, 8):
+        with T.block("scope"):
+            i, j = T.axis.remap("SS", [i0, j0])
+            A_local = T.alloc_buffer((128, 128), scope="local")
+            B_global = T.alloc_buffer((128, 128))
+            for x, y in T.grid(16, 16):
+                with T.block("A_local"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    A_local[vi, vj] = 1.0
+            for x, y in T.grid(16, 16):
+                with T.block("A"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    A_global[vi, vj] = A_local[vi, vj]
+            for x, y in T.grid(16, 16):
+                with T.block("B_global"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    B_global[vi, vj] = A_global[vi, vj] + 1.0
+            for x, y in T.grid(16, 16):
+                with T.block("B_global"):
+                    vi = T.axis.S(128, i * 16 + x)
+                    vj = T.axis.S(128, j * 16 + y)
+                    B[vi, vj] = B_global[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("A_global"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            A[vi, vj] = A_global[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def cache_write_opaque_access(a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), dtype="float16")
-    B = tir.match_buffer(b, (128, 128), dtype="float16")
-    C = tir.match_buffer(c, (128, 128), dtype="float16")
-    D = tir.match_buffer(d, (128, 128), dtype="float16")
-    D_global = tir.alloc_buffer((128, 128), dtype="float16")
-    B_global = tir.alloc_buffer((128, 128), dtype="float16")
-    C_global = tir.alloc_buffer((128, 128), dtype="float16")
+@T.prim_func
+def cache_write_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), dtype="float16")
+    B = T.match_buffer(b, (128, 128), dtype="float16")
+    C = T.match_buffer(c, (128, 128), dtype="float16")
+    D = T.match_buffer(d, (128, 128), dtype="float16")
+    D_global = T.alloc_buffer((128, 128), dtype="float16")
+    B_global = T.alloc_buffer((128, 128), dtype="float16")
+    C_global = T.alloc_buffer((128, 128), dtype="float16")
 
-    with tir.block([128, 128], "load_store") as [vi, vj]:
-        tir.reads(A[vi, vj])
-        tir.writes(D_global[vi, vj])
-        D_global.data[vi * 128 + vj] = tir.load("float16", A.data, vi * 128 + vj)
-    with tir.block([8, 8], "opaque") as [vi, vj]:
-        tir.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.writes(B_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.evaluate(
-            tir.tvm_load_matrix_sync(
-                B_global.data,
-                16,
-                16,
-                16,
-                vi * 8 + vj,
-                tir.tvm_access_ptr(
-                    tir.type_annotation(dtype="float16"),
-                    A.data,
-                    vi * 2048 + vj * 16,
+    for i, j in T.grid(128, 128):
+        with T.block("load_store"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi, vj])
+            T.writes(D_global[vi, vj])
+            D_global.data[vi * 128 + vj] = T.load("float16", A.data, vi * 128 + vj)
+    for i, j in T.grid(8, 8):
+        with T.block("opaque"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.writes(B_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.evaluate(
+                T.tvm_load_matrix_sync(
+                    B_global.data,
+                    16,
+                    16,
+                    16,
+                    vi * 8 + vj,
+                    T.tvm_access_ptr(
+                        T.type_annotation(dtype="float16"),
+                        A.data,
+                        vi * 2048 + vj * 16,
+                        128,
+                        1,
+                        dtype="handle",
+                    ),
                     128,
-                    1,
+                    "row_major",
                     dtype="handle",
-                ),
-                128,
-                "row_major",
-                dtype="handle",
+                )
             )
-        )
-    with tir.block([8, 8], "match_buffer") as [vi, vj]:
-        tir.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        tir.writes(C_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-        A0 = tir.match_buffer(
-            A[
-                vi * 16 : vi * 16 + 16,
-                vj * 16 : vj * 16 + 16,
-            ],
-            (16, 16),
-            "float16",
-            strides=[128, 1],
-            offset_factor=1,
-        )
-        C0 = tir.match_buffer(
-            C_global[
-                vi * 16 : vi * 16 + 16,
-                vj * 16 : vj * 16 + 16,
-            ],
-            (16, 16),
-            "float16",
-            strides=[128, 1],
-            offset_factor=1,
-        )
-        tir.evaluate(
-            tir.tvm_load_matrix_sync(
-                C0.data,
-                16,
-                16,
-                16,
-                vi * 8 + vj,
-                tir.tvm_access_ptr(
-                    tir.type_annotation(dtype="float16"),
-                    A0.data,
-                    A0.elem_offset,
-                    A0.strides[0],
-                    1,
+    for i, j in T.grid(8, 8):
+        with T.block("match_buffer"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            T.writes(C_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+            A0 = T.match_buffer(
+                A[
+                    vi * 16 : vi * 16 + 16,
+                    vj * 16 : vj * 16 + 16,
+                ],
+                (16, 16),
+                "float16",
+                strides=[128, 1],
+                offset_factor=1,
+            )
+            C0 = T.match_buffer(
+                C_global[
+                    vi * 16 : vi * 16 + 16,
+                    vj * 16 : vj * 16 + 16,
+                ],
+                (16, 16),
+                "float16",
+                strides=[128, 1],
+                offset_factor=1,
+            )
+            T.evaluate(
+                T.tvm_load_matrix_sync(
+                    C0.data,
+                    16,
+                    16,
+                    16,
+                    vi * 8 + vj,
+                    T.tvm_access_ptr(
+                        T.type_annotation(dtype="float16"),
+                        A0.data,
+                        A0.elem_offset,
+                        A0.strides[0],
+                        1,
+                        dtype="handle",
+                    ),
+                    128,
+                    "row_major",
                     dtype="handle",
-                ),
-                128,
-                "row_major",
-                dtype="handle",
+                )
             )
-        )
 
-    with tir.block([128, 128], "D") as [vi, vj]:
-        D[vi, vj] = D_global[vi, vj]
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = B_global[vi, vj]
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = C_global[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("D"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = D_global[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = B_global[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = C_global[vi, vj]
 
 
-@tvm.script.tir
+@T.prim_func
 def cache_write_multi_consumer() -> None:
-    A = tir.alloc_buffer((128))
-    B = tir.alloc_buffer((128))
-    C = tir.alloc_buffer((128))
-    A_global = tir.alloc_buffer((128))
-    for i in tir.grid(8):
-        for j in tir.grid(16):
-            with tir.block([128], "A_global") as [vi]:
-                tir.bind(vi, i * 16 + j)
+    A = T.alloc_buffer((128))
+    B = T.alloc_buffer((128))
+    C = T.alloc_buffer((128))
+    A_global = T.alloc_buffer((128))
+    for i in T.grid(8):
+        for j in T.grid(16):
+            with T.block("A_global"):
+                vi = T.axis.S(128, i * 16 + j)
                 A_global[vi] = 1.0
-        for j in tir.grid(16):
-            with tir.block([128], "A") as [vi]:
-                tir.bind(vi, i * 16 + j)
+        for j in T.grid(16):
+            with T.block("A"):
+                vi = T.axis.S(128, i * 16 + j)
                 A[vi] = A_global[vi]
-        for j in tir.grid(16):
-            with tir.block([128], "B") as [vi]:
-                tir.bind(vi, i * 16 + j)
+        for j in T.grid(16):
+            with T.block("B"):
+                vi = T.axis.S(128, i * 16 + j)
                 B[vi] = A[vi] + 1.0
 
-    for i in tir.grid(128):
-        with tir.block([128], "C") as [vi]:
+    for i in T.grid(128):
+        with T.block("C"):
+            vi = T.axis.S(128, i)
             C[vi] = A[vi]
 
 
-@tvm.script.tir
-def continuous_cache_write(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B_shared = tir.alloc_buffer((128, 128), scope="shared")
-    B_local = tir.alloc_buffer((128, 128), scope="local")
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B_local[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B_shared[vi, vj] = B_local[vi, vj]
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = B_shared[vi, vj]
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+@T.prim_func
+def continuous_cache_write(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B_shared = T.alloc_buffer((128, 128), scope="shared")
+    B_local = T.alloc_buffer((128, 128), scope="local")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B_local[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B_shared[vi, vj] = B_local[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = B_shared[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 ########## Testcases for cache_read ##########

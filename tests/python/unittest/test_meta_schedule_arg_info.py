@@ -16,24 +16,24 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
-import tvm
-from tvm import tir
 from tvm.meta_schedule.arg_info import ArgInfo, TensorInfo
-from tvm.script import ty
+from tvm.script import tir as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
-@tvm.script.tir
-def Matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    tir.func_attr({"global_symbol": "main"})
-    A = tir.match_buffer(a, (128, 256), "float32")
-    B = tir.match_buffer(b, (256, 512), "float32")
-    C = tir.match_buffer(c, (128, 512), "float32")
-    with tir.block([128, 256, tir.reduce_axis(0, 512)], "matmul") as [vi, vj, vk]:
-        with tir.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+@T.prim_func
+def Matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({"global_symbol": "main"})
+    A = T.match_buffer(a, (128, 256), "float32")
+    B = T.match_buffer(b, (256, 512), "float32")
+    C = T.match_buffer(c, (128, 512), "float32")
+    for i, j, k in T.grid(128, 256, 512):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

@@ -20,6 +20,7 @@
 # pylint: disable=missing-function-docstring
 """PT: PyTorch frontend."""
 import itertools
+import functools
 import logging
 import math
 import sys
@@ -1468,7 +1469,7 @@ class PyTorchOpConverter:
         if isinstance(bias, _expr.Expr):
             bias_ndims = len(self.infer_shape_with_prelude(bias))
             if bias_ndims == 1:
-                return _op.nn.bias_add(mm_out, bias)
+                return _op.nn.bias_add(mm_out, bias, axis=-1)
             mm_dtype = self.infer_type_with_prelude(mm_out).dtype
             return self.add([mm_out, bias], [mm_dtype, input_types[2]])
         return mm_out
@@ -2763,6 +2764,36 @@ class PyTorchOpConverter:
 
         return (output, _op.stack(hy, 0), _op.stack(cy, 0))
 
+    def all_any_common(self, op, inputs, input_types):
+        dim = inputs[1]
+        keepdim = inputs[2]
+        if self.infer_type(inputs[0]).dtype != "bool":
+            # The input dtype can be uint8.
+            inp = _op.cast(inputs[0], "bool")
+        else:
+            inp = inputs[0]
+        return op(inp, axis=dim, keepdims=keepdim)
+
+    def searchsorted_common(self, sorted_sequence, values, out_int32, right):
+        dtype = "int32" if out_int32 else "int64"
+        values_shape = _infer_shape(values)
+
+        if len(values_shape) == 0:
+            values = _op.expand_dims(values, 0)
+
+        out = _op.searchsorted(sorted_sequence, values, right=right, dtype=dtype)
+
+        if len(values_shape) == 0:
+            return _op.squeeze(out)
+
+        return out
+
+    def searchsorted(self, inputs, input_types):
+        return self.searchsorted_common(*inputs)
+
+    def bucketize(self, inputs, input_types):
+        return self.searchsorted_common(inputs[1], inputs[0], inputs[2], inputs[3])
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2986,6 +3017,10 @@ class PyTorchOpConverter:
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
+            "aten::all": functools.partial(self.all_any_common, _op.all),
+            "aten::any": functools.partial(self.all_any_common, _op.any),
+            "aten::searchsorted": self.searchsorted,
+            "aten::bucketize": self.bucketize,
         }
 
     def update_convert_map(self, custom_map):

@@ -103,13 +103,15 @@ class PrimFunc(BaseFunc):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def mem_copy(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32) -> None:
-                A = tir.match_buffer(a, (m, n), "float32")
-                B = tir.match_buffer(b, (m, n), "float32")
+            @T.prim_func
+            def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
+                A = T.match_buffer(a, (m, n), "float32")
+                B = T.match_buffer(b, (m, n), "float32")
 
-                with tir.block([m, n], "") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj]
+                for i, j in T.grid(m, n):
+                    with T.block():
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj]
 
         Then we can make it specialized with given shapes or buffers.
 
@@ -124,13 +126,15 @@ class PrimFunc(BaseFunc):
 
         .. code-block:: python
 
-            @tvm.script.tir
-            def mem_copy_16_16(a: ty.handle, b: ty.handle) -> None:
-                A = tir.match_buffer(a, (16, 16), "float32")
-                B = tir.match_buffer(b, (16, 16), "float32")
+            @T.prim_func
+            def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (16, 16), "float32")
+                B = T.match_buffer(b, (16, 16), "float32")
 
-                with tir.block([16, 16], "") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj]
+                for i, j in T.grid(16, 16):
+                    with T.block():
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj]
 
         Returns
         -------
@@ -138,3 +142,23 @@ class PrimFunc(BaseFunc):
             The new function with parameter specialized
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore
+
+    def script(self, tir_prefix: str = "tir", show_meta: bool = False) -> str:
+        """Print IRModule into TVMScript
+
+        Parameters
+        ----------
+        tir_prefix : str
+            The tir namespace prefix
+
+        show_meta : bool
+            Whether to show meta information
+
+        Returns
+        -------
+        script : str
+            The TVM Script of the PrimFunc
+        """
+        return tvm._ffi.get_global_func("script.AsTVMScript")(
+            self, tir_prefix, show_meta
+        )  # type: ignore

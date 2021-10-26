@@ -388,8 +388,8 @@ TVM_DLL Pass ConvertBlocksToOpaque();
  *  \code
  *
  *  for i in range(0, 16):
- *      with tir.block([]):
- *          B = tir.alloc_buffer(16, 16)
+ *      with T.block():
+ *          B = T.alloc_buffer(16, 16)
  *          for j in range(0, 16):
  *              B[i, j] = A[i, j] + 1
  *          for j in range(0, 16):
@@ -404,8 +404,8 @@ TVM_DLL Pass ConvertBlocksToOpaque();
  *  \code
  *
  *  for i in range(0, 16):
- *      with tir.block([]):
- *          B = tir.alloc_buffer(1, 16)
+ *      with T.block():
+ *          B = T.alloc_buffer(1, 16)
  *          for j in range(0, 16):
  *              B[0, j] = A[i, j] + 1
  *          for j in range(0, 16):
@@ -462,6 +462,15 @@ TVM_DLL Pass UnifyThreadBinding();
  *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
  */
 TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
+
+/*!
+ * \brief This pass is post-scheduling pass to convert all
+ *        Parallel For loops to Serial ones. This is run
+ *        to attain lesser memory and/or executor/backend
+ *        does not support parallel launch of For loops.
+ * \return The pass.
+ */
+TVM_DLL Pass ConvertForLoopsToSerial();
 
 }  // namespace transform
 }  // namespace tir

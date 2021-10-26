@@ -24,6 +24,10 @@
 #ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_
 #define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <tvm/runtime/crt/graph_executor.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
 #include <tvm/runtime/crt/internal/graph_executor/load_json.h>
@@ -56,7 +60,7 @@ typedef struct TVMGraphExecutorNode {
   // operator type in string
   char op_type[16];
   // name of the op
-  char name[120];
+  char name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
   // parameters
   TVMOpParam param;
   // inputs
@@ -117,5 +121,10 @@ int TVMGraphExecutor_GetOutput(TVMGraphExecutor* executor, const int32_t idx, DL
 int32_t TVMGraphExecutor_CreateTVMOp(TVMGraphExecutor* executor, const TVMOpParam* param,
                                      DLTensorPtr* args, const uint32_t args_count,
                                      TVMPackedFunc* pf);
+int TVMGraphExecutor_Load(TVMGraphExecutor* executor, JSONReader* reader);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_EXECUTOR_GRAPH_EXECUTOR_H_

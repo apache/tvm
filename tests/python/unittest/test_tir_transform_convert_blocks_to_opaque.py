@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import tir, te
-from tvm.script import ty
+from tvm.script import tir as T
 
 
 def _check(original, transformed):
@@ -27,45 +27,45 @@ def _check(original, transformed):
     tvm.ir.assert_structural_equal(mod["main"], transformed)
 
 
-@tvm.script.tir
-def elementwise_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16), "float32")
-    C = tir.match_buffer(c, (16, 16), "float32")
+@T.prim_func
+def elementwise_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
     for i in range(0, 16):
-        with tir.block([]):
-            tir.reads(A[i, 0:16])
-            tir.writes(C[i, 0:16])
-            B = tir.alloc_buffer((16, 16), "float32")
+        with T.block():
+            T.reads(A[i, 0:16])
+            T.writes(C[i, 0:16])
+            B = T.alloc_buffer((16, 16), "float32")
             for j in range(0, 16):
-                with tir.block([16, 16]) as [vi, vj]:
-                    tir.bind(vi, i)
-                    tir.bind(vj, j)
+                with T.block():
+                    vi = T.axis.S(16, i)
+                    vj = T.axis.S(16, j)
                     B[vi, vj] = A[vi, vj] + 1.0
             for j in range(0, 16):
-                with tir.block([16, 16]) as [vi, vj]:
-                    tir.bind(vi, i)
-                    tir.bind(vj, j)
+                with T.block():
+                    vi = T.axis.S(16, i)
+                    vj = T.axis.S(16, j)
                     C[vi, vj] = B[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def substituted_elementwise_func(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16), "float32")
-    C = tir.match_buffer(c, (16, 16), "float32")
+@T.prim_func
+def substituted_elementwise_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (16, 16), "float32")
     for i in range(0, 16):
-        with tir.block([]):
-            tir.reads(A[i, 0:16])
-            tir.writes(C[i, 0:16])
-            B = tir.alloc_buffer([16, 16], "float32")
+        with T.block():
+            T.reads(A[i, 0:16])
+            T.writes(C[i, 0:16])
+            B = T.alloc_buffer([16, 16], "float32")
             for j in range(0, 16):
-                with tir.block() as []:
-                    tir.reads(A[i, j])
-                    tir.writes(B[i, j])
+                with T.block() as []:
+                    T.reads(A[i, j])
+                    T.writes(B[i, j])
                     B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with tir.block() as []:
-                    tir.reads(B[i, j])
-                    tir.writes(C[i, j])
+                with T.block() as []:
+                    T.reads(B[i, j])
+                    T.writes(C[i, j])
                     C[i, j] = B[i, j] * 2.0
 
 

@@ -36,7 +36,7 @@ struct TVMModule;
 
 /*! \brief operator attributes about tvm op */
 typedef struct TVMOpParam {
-  char func_name[120];
+  char func_name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
   uint32_t num_inputs;
   uint32_t num_outputs;
   uint32_t flatten_data;

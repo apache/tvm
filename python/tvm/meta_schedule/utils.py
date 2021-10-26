@@ -20,10 +20,11 @@ import os
 import shutil
 from typing import Any, Callable, List, Optional, Union
 
-import psutil
+import psutil  # type: ignore
+import tvm
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError
-from tvm.ir import Array, Map
+from tvm.ir import Array, Map, IRModule
 from tvm.rpc import RPCSession
 from tvm.runtime import PackedFunc, String
 from tvm.tir import FloatImm, IntImm
@@ -183,3 +184,24 @@ def batch_json_str2obj(json_strs: List[str]) -> List[Any]:
         for json_str in map(str.strip, json_strs)
         if json_str and (not json_str.startswith("#")) and (not json_str.startswith("//"))
     ]
+
+
+def structural_hash(mod: IRModule) -> str:
+    """Get the structural hash of a module.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The module to be hashed.
+
+    Returns
+    -------
+    result : str
+        The structural hash of the module.
+    """
+    shash = tvm.ir.structural_hash(mod)
+    if shash < 0:
+        # Workaround because `structural_hash` returns a size_t, i.e., unsigned integer
+        # but ffi can't handle unsigned integers properly so it's parsed into a negative number
+        shash += 1 << 64
+    return str(shash)

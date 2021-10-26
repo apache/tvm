@@ -25,12 +25,12 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import tir
 from tvm._ffi import register_func
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
 from tvm.meta_schedule.runner import (
     EvaluatorConfig,
+    LocalRunner,
     PyRunner,
     RPCConfig,
     RPCRunner,
@@ -39,12 +39,17 @@ from tvm.meta_schedule.runner import (
 )
 from tvm.meta_schedule.runner.rpc_runner import (
     default_alloc_argument as rpc_default_alloc_argument,
+    T_ARG_INFO_JSON_OBJ_LIST,
+    T_ARGUMENT_LIST,
+)
+from tvm.meta_schedule.runner.local_runner import (
+    default_alloc_argument as local_default_alloc_argument,
 )
 from tvm.meta_schedule.testing import LocalRPC
 from tvm.meta_schedule.utils import get_global_func_with_default_on_worker
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.target import Target
 import tvm.testing
 from tvm.tir import FloatImm
@@ -55,57 +60,71 @@ MATMUL_M = 32
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class MatmulModule:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, (16, 16), "float32")
-        B = tir.match_buffer(b, (16, 16), "float32")
-        C = tir.match_buffer(c, (16, 16), "float32")
-        with tir.block([16, 16, tir.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
-            with tir.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, (16, 16), "float32")
+        B = T.match_buffer(b, (16, 16), "float32")
+        C = T.match_buffer(c, (16, 16), "float32")
+        for i, j, k in T.grid(16, 16, 16):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class MatmulReluModule:
-    def main(a: ty.handle, b: ty.handle, d: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, (16, 16), "float32")
-        B = tir.match_buffer(b, (16, 16), "float32")
-        D = tir.match_buffer(d, (16, 16), "float32")
-        C = tir.alloc_buffer((16, 16), "float32")
-        with tir.block([16, 16, tir.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
-            with tir.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-        with tir.block([16, 16], "relu") as [vi, vj]:
-            D[vi, vj] = tir.max(C[vi, vj], 0.0)
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, (16, 16), "float32")
+        B = T.match_buffer(b, (16, 16), "float32")
+        D = T.match_buffer(d, (16, 16), "float32")
+        C = T.alloc_buffer((16, 16), "float32")
+        for i, j, k in T.grid(16, 16, 16):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j in T.grid(16, 16):
+            with T.block("relu"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class BatchMatmulModule:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, [16, 32, 32])
-        B = tir.match_buffer(b, [16, 32, 32])
-        C = tir.match_buffer(c, [16, 32, 32])
-        with tir.block([16, 32, 32, tir.reduce_axis(0, 32)], "update") as [vn, vi, vj, vk]:
-            with tir.init():
-                C[vn, vi, vj] = 0.0
-            C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, [16, 32, 32])
+        B = T.match_buffer(b, [16, 32, 32])
+        C = T.match_buffer(c, [16, 32, 32])
+        for n, i, j, k in T.grid(16, 32, 32, 32):
+            with T.block("update"):
+                vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
+                with T.init():
+                    C[vn, vi, vj] = 0.0
+                C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class AddModule:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:  # pylint: disable=no-self-argument
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, [32], "float32")
-        B = tir.match_buffer(b, [32], "float32")
-        C = tir.match_buffer(c, [32], "float32")
-        with tir.block([32], "add") as [vi]:
-            C[vi] = A[vi] + B[vi]
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, [32], "float32")
+        B = T.match_buffer(b, [32], "float32")
+        C = T.match_buffer(c, [32], "float32")
+        for i in range(32):
+            with T.block("add"):
+                vi = T.axis.S(32, i)
+                C[vi] = A[vi] + B[vi]
 
 
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
@@ -122,7 +141,7 @@ def _clean_build(artifact_path: str) -> None:
 def test_meta_schedule_rpc_single_run():
     """Test meta schedule rpc runner for a single run"""
     # Build the module
-    mod = MatmulModule()
+    mod = MatmulModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
@@ -165,13 +184,51 @@ def test_meta_schedule_rpc_single_run():
     _clean_build(builder_result.artifact_path)
 
 
+def test_meta_schedule_local_single_run():
+    """Test meta schedule local runner for a single run"""
+    # Build the module
+    mod = MatmulModule
+    builder = LocalBuilder()
+    (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
+    assert builder_result.artifact_path is not None
+    assert builder_result.error_msg is None
+
+    runner_input = RunnerInput(
+        builder_result.artifact_path,
+        "llvm",
+        [
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+        ],
+    )
+
+    evaluator_config = EvaluatorConfig(
+        number=1,
+        repeat=1,
+        min_repeat_ms=0,
+        enable_cpu_cache_flush=False,
+    )
+    runner = LocalRunner(timeout_sec=100, evaluator_config=evaluator_config)
+    # Run the module
+    (runner_future,) = runner.run([runner_input])
+    runner_result = runner_future.result()
+    assert runner_result.error_msg is None
+    for result in runner_result.run_secs:
+        if isinstance(result, FloatImm):
+            result = result.value
+        assert isinstance(result, float)
+        assert result >= 0.0
+    _clean_build(builder_result.artifact_path)
+
+
 def test_meta_schedule_rpc_multiple_runs():
     """Test meta schedule rpc runner for multiple runs"""
     # Build the module
     mods = [
-        MatmulModule(),
-        MatmulReluModule(),
-        BatchMatmulModule(),
+        MatmulModule,
+        MatmulReluModule,
+        BatchMatmulModule,
     ]
     builder = LocalBuilder()
     builder_inputs = [BuilderInput(mod, Target("llvm")) for mod in mods]
@@ -221,6 +278,69 @@ def test_meta_schedule_rpc_multiple_runs():
         # Run the module
         runner_futures = runner.run(runner_inputs)
         runner_results = [runner_future.result() for runner_future in runner_futures]
+
+    for runner_result in runner_results:
+        assert runner_result.error_msg is None
+        for result in runner_result.run_secs:
+            if isinstance(result, FloatImm):
+                result = result.value
+            assert isinstance(result, float)
+            assert result >= 0.0
+
+    for builder_result in builder_results:
+        _clean_build(builder_result.artifact_path)
+
+
+def test_meta_schedule_local_multiple_runs():
+    """Test meta schedule local runner for multiple runs"""
+    # Build the module
+    mods = [
+        MatmulModule,
+        MatmulReluModule,
+        BatchMatmulModule,
+    ]
+    builder = LocalBuilder()
+    builder_inputs = [BuilderInput(mod, Target("llvm")) for mod in mods]
+    builder_results = builder.build(builder_inputs)
+    for builder_result in builder_results:
+        assert builder_result.artifact_path is not None
+        assert builder_result.error_msg is None
+
+    args_infos = [
+        [
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+        ],
+        [
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+        ],
+        [
+            TensorInfo("float32", [16, MATMUL_M, MATMUL_M]),
+            TensorInfo("float32", [16, MATMUL_M, MATMUL_M]),
+            TensorInfo("float32", [16, MATMUL_M, MATMUL_M]),
+        ],
+    ]
+
+    runner_inputs = [
+        RunnerInput(builder_results[i].artifact_path, "llvm", args_infos[i])
+        for i in range(len(mods))
+    ]
+
+    evaluator_config = EvaluatorConfig(
+        number=1,
+        repeat=1,
+        min_repeat_ms=0,
+        enable_cpu_cache_flush=False,
+    )
+
+    runner = LocalRunner(timeout_sec=100, evaluator_config=evaluator_config)
+
+    # Run the module
+    runner_futures = runner.run(runner_inputs)
+    runner_results = [runner_future.result() for runner_future in runner_futures]
 
     for runner_result in runner_results:
         assert runner_result.error_msg is None
@@ -296,6 +416,58 @@ def test_meta_schedule_rpc_runner_time_out():
     assert runner_result.run_secs is None
 
 
+def test_meta_schedule_local_runner_time_out():
+    """Test meta schedule Local Runner time out"""
+    mod = MatmulModule
+    builder = LocalBuilder()
+    (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
+    assert builder_result.artifact_path is not None
+    assert builder_result.error_msg is None
+
+    runner_input = RunnerInput(
+        builder_result.artifact_path,
+        "llvm",
+        [
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+        ],
+    )
+
+    def initializer():
+        @register_func("meta_schedule.runner.test_time_out")
+        def timeout_session_creator(  # pylint: disable=unused-variable
+            device: Device,  # pylint: disable=unused-argument
+            args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
+            alloc_repeat: int,  # pylint: disable=unused-argument
+        ) -> RPCSession:
+            time.sleep(2)
+
+    evaluator_config = EvaluatorConfig(
+        number=1,
+        repeat=1,
+        min_repeat_ms=0,
+        enable_cpu_cache_flush=False,
+    )
+
+    runner = LocalRunner(
+        timeout_sec=1,
+        evaluator_config=evaluator_config,
+        initializer=initializer,
+        f_alloc_argument="meta_schedule.runner.test_time_out",
+    )
+
+    # Run the module
+    (runner_future,) = runner.run([runner_input])
+    runner_result = runner_future.result()
+
+    assert runner_result.error_msg is not None and runner_result.error_msg.startswith(
+        "LocalRunner: Timeout, killed after"
+    )
+    assert runner_result.run_secs is None
+    _clean_build(builder_result.artifact_path)
+
+
 def test_meta_schedule_rpc_runner_exception():
     """Test meta schedule RPC Runner exception"""
 
@@ -343,6 +515,57 @@ def test_meta_schedule_rpc_runner_exception():
         "RPCRunner: An exception occurred\n"
     )
     assert runner_result.run_secs is None
+
+
+def test_meta_schedule_local_runner_exception():
+    """Test meta schedule Local Runner exception"""
+    mod = MatmulModule
+    builder = LocalBuilder()
+    (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
+    assert builder_result.artifact_path is not None
+    assert builder_result.error_msg is None
+
+    runner_input = RunnerInput(
+        builder_result.artifact_path,
+        "llvm",
+        [
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+        ],
+    )
+
+    def initializer():
+        @register_func("meta_schedule.runner.test_exception")
+        def timeout_session_creator(  # pylint: disable=unused-variable
+            device: Device,  # pylint: disable=unused-argument
+            args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
+            alloc_repeat: int,  # pylint: disable=unused-argument
+        ) -> RPCSession:
+            raise Exception("Test")
+
+    evaluator_config = EvaluatorConfig(
+        number=1,
+        repeat=1,
+        min_repeat_ms=0,
+        enable_cpu_cache_flush=False,
+    )
+
+    runner = LocalRunner(
+        evaluator_config=evaluator_config,
+        initializer=initializer,
+        f_alloc_argument="meta_schedule.runner.test_exception",
+    )
+
+    # Run the module
+    (runner_future,) = runner.run([runner_input])
+    runner_result = runner_future.result()
+
+    assert runner_result.error_msg is not None and runner_result.error_msg.startswith(
+        "LocalRunner: An exception occurred\n"
+    )
+    assert runner_result.run_secs is None
+    _clean_build(builder_result.artifact_path)
 
 
 def test_meta_schedule_runner_matmul_test():
@@ -407,7 +630,7 @@ def test_meta_schedule_runner_matmul_test():
         return costs
 
     # Build the module
-    mod = MatmulModule()
+    mod = MatmulModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
@@ -519,7 +742,7 @@ def test_meta_schedule_runner_add_test():
         return costs
 
     # Build the module
-    mod = AddModule()
+    mod = AddModule
     builder = LocalBuilder()
     (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
     assert builder_result.artifact_path is not None
@@ -558,6 +781,100 @@ def test_meta_schedule_runner_add_test():
         # Run the module
         (runner_future,) = runner.run([runner_input])
         runner_result = runner_future.result()
+    assert runner_result.error_msg is None
+    for result in runner_result.run_secs:
+        if isinstance(result, FloatImm):
+            result = result.value
+        assert isinstance(result, float)
+        assert result >= 0.0
+    _clean_build(builder_result.artifact_path)
+
+
+def test_meta_schedule_local_runner_add_test():
+    """Test meta schedule local runner with add module"""
+
+    def _check_correct_add(args_before: List[np.array], args_after: List[np.array]) -> None:
+        a_before, b_before, c_before = args_before
+        a_after, b_after, c_after = args_after
+        c_before = a_before + b_before
+        assert (a_before == a_after).all()
+        assert (b_before == b_after).all()
+        assert (c_before == c_after).all()
+
+    def test_alloc_argument(
+        device: Device,
+        args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
+        alloc_repeat: int,
+    ) -> List[T_ARGUMENT_LIST]:
+        global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
+        repeated_args_before = []
+        repeated_args = local_default_alloc_argument(device, args_info, alloc_repeat)
+        for args in repeated_args:
+            repeated_args_before.append([arg.asnumpy() for arg in args])
+        return repeated_args
+
+    def test_run_evaluator(
+        rt_mod: Module,
+        device: Device,
+        evaluator_config: EvaluatorConfig,
+        repeated_args: List[Any],
+    ) -> List[float]:
+        global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
+        repeated_args_after = []
+        evaluator = rt_mod.time_evaluator(
+            func_name=rt_mod.entry_name,
+            dev=device,
+            number=evaluator_config.number,
+            repeat=evaluator_config.repeat,
+            min_repeat_ms=evaluator_config.min_repeat_ms,
+            f_preproc="cache_flush_cpu_non_first_arg"
+            if evaluator_config.enable_cpu_cache_flush
+            else "",
+        )
+        repeated_costs: List[List[float]] = []
+        for args in repeated_args:
+            device.sync()
+            profile_result = evaluator(*args)
+            repeated_costs.append(profile_result.results)
+            repeated_args_after.append([arg.asnumpy() for arg in args])
+        costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
+        for args_before, args_after in zip(repeated_args_before, repeated_args_after):
+            _check_correct_add(args_before, args_after)
+        del repeated_args_before
+        return costs
+
+    # Build the module
+    mod = AddModule
+    builder = LocalBuilder()
+    (builder_result,) = builder.build([BuilderInput(mod, Target("llvm"))])
+    assert builder_result.artifact_path is not None
+    assert builder_result.error_msg is None
+
+    runner_input = RunnerInput(
+        builder_result.artifact_path,
+        "llvm",
+        [
+            TensorInfo("float32", [MATMUL_M]),
+            TensorInfo("float32", [MATMUL_M]),
+            TensorInfo("float32", [MATMUL_M]),
+        ],
+    )
+
+    evaluator_config = EvaluatorConfig(
+        number=1,
+        repeat=1,
+        min_repeat_ms=0,
+        enable_cpu_cache_flush=False,
+    )
+    runner = LocalRunner(
+        timeout_sec=100,
+        evaluator_config=evaluator_config,
+        f_alloc_argument=test_alloc_argument,
+        f_run_evaluator=test_run_evaluator,
+    )
+    # Run the module
+    (runner_future,) = runner.run([runner_input])
+    runner_result = runner_future.result()
     assert runner_result.error_msg is None
     for result in runner_result.run_secs:
         if isinstance(result, FloatImm):

@@ -26,9 +26,9 @@ import tvm
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.space_generator import ScheduleFn
-from tvm.meta_schedule.search_strategy import SearchStrategy, ReplayTrace
+from tvm.meta_schedule.search_strategy import ReplayTrace
 
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule import Schedule, Trace
 
 
@@ -37,17 +37,20 @@ MATMUL_M = 32
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument, unbalanced-tuple-unpacking
 # fmt: off
 
-@tvm.script.tir
+@tvm.script.ir_module
 class Matmul:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-        tir.func_attr({"global_symbol": "main"})
-        A = tir.match_buffer(a, (32, 32), "float32")
-        B = tir.match_buffer(b, (32, 32), "float32")
-        C = tir.match_buffer(c, (32, 32), "float32")
-        with tir.block([32, 32, tir.reduce_axis(0, 32)], "matmul") as [vi, vj, vk]:
-            with tir.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"global_symbol": "main"})
+        A = T.match_buffer(a, (32, 32), "float32")
+        B = T.match_buffer(b, (32, 32), "float32")
+        C = T.match_buffer(c, (32, 32), "float32")
+        for i, j, k in T.grid(32, 32, 32):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -73,9 +76,9 @@ def test_meta_schedule_replay_trace():
     num_trials_per_iter = 7
     num_trials_total = 20
 
-    (example_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul())
+    (example_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
     replay = ReplayTrace(num_trials_per_iter=num_trials_per_iter, num_trials_total=num_trials_total)
-    tune_context = TuneContext(mod=Matmul())
+    tune_context = TuneContext(mod=Matmul)
     replay.initialize_with_tune_context(tune_context)
 
     num_trials_each_round: List[int] = []

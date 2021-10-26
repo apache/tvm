@@ -17,17 +17,22 @@
 
 """CMSIS-NN integration tests: softmax"""
 
-import platform
 import sys
-import os
-import pathlib
-import tvm
-from tvm import relay
-from tvm.relay.op.contrib import cmsisnn
-import numpy as np
-import pytest
 import itertools
 
+import numpy as np
+import pytest
+
+import tvm.testing
+from tvm import relay
+from tvm.relay.op.contrib import cmsisnn
+
+from utils import (
+    skip_if_no_reference_system,
+    make_module,
+    count_num_calls,
+    get_range_for_dtype_str,
+)
 from tests.python.relay.aot.aot_test_utils import (
     AOTTestModel,
     AOT_CORSTONE300_RUNNER,
@@ -36,61 +41,9 @@ from tests.python.relay.aot.aot_test_utils import (
 )
 
 
-def get_range_for_dtype_str(dtype):
-    """
-    Produce the min,max for a give data type.
-
-    Parameters
-    ----------
-    dtype : str
-        a type string (e.g., int8)
-
-    Returns
-    -------
-    type_info.min : int
-        the minimum of the range
-    type_info.max : int
-        the maximum of the range
-    """
-
-    try:
-        type_info = np.iinfo(dtype)
-    except ValueError:
-        type_info = np.finfo(dtype)
-    return type_info.min, type_info.max
-
-
-def count_num_calls(mod):
-    """Count number of CallNode in the IRModule"""
-
-    class CallCounter(relay.ExprVisitor):
-        def __init__(self):
-            super().__init__()
-            self.count = 0
-
-        def visit_call(self, call):
-            if isinstance(call.op, tvm.ir.Op):
-                self.count += 1
-
-            super().visit_call(call)
-
-    counter = CallCounter()
-    for var in mod.get_global_vars():
-        counter.visit(mod[var.name_hint])
-    return counter.count
-
-
-def make_module(func):
-    """Create IRModule from Function"""
-    func = relay.Function(relay.analysis.free_vars(func), func)
-    mod = tvm.IRModule.from_expr(func)
-    return relay.transform.InferType()(mod)
-
-
 def make_model(
     shape, in_dtype, out_dtype, in_zero_point, in_scale, out_zero_point=-128, out_scale=1.0 / 256
 ):
-
     """Create a Relay Function / network model"""
     a = relay.var("in0", shape=shape, dtype=in_dtype)
     dequantize = relay.qnn.op.dequantize(
@@ -108,10 +61,9 @@ def make_model(
     return model
 
 
-@pytest.mark.skipif(
-    platform.machine() == "i686", reason="Reference system unavailable in i386 container"
-)
+@skip_if_no_reference_system
 @pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
+@tvm.testing.requires_cmsisnn
 def test_softmax_int8(zero_point, scale):
     interface_api = "c"
     use_unpacked_api = True
@@ -182,6 +134,7 @@ def parameterize_for_invalid_model(test):
 
 
 @parameterize_for_invalid_model
+@tvm.testing.requires_cmsisnn
 def test_invalid_softmax(in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale):
     model = make_model(
         [1, 16, 16, 3], in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale

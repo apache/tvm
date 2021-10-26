@@ -773,15 +773,14 @@ def test_roi_align():
             mode=mode,
         )
         for target, dev in tvm.testing.enabled_targets():
-            print("test on", target)
             op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
                 np_data, np_rois
             )
-            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, atol=1e-6, rtol=1e-3)
             op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
                 np_data, np_rois
             )
-            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-4)
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, atol=1e-6, rtol=1e-3)
 
     def verify_roi_align_nchw(
         data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode

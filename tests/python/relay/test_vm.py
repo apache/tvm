@@ -766,6 +766,19 @@ def test_vm_reshape_tensor(target, dev):
     check_result(target, dev, [x_np, y_np], x_np.reshape([8, 2, 8]), mod)
 
 
+def test_vm_reshape_and_copy(target, dev):
+    """Make sure the compiler notices the reshape result shape is a literal and can use
+    the immediate-mode alloc_tensor instruction instead of alloc_tensor_reg."""
+    x_np = np.random.uniform(size=(1, 1)).astype("float32")
+    x = relay.var("x", shape=(1, 1), dtype="float32")
+    mod = tvm.IRModule.from_expr(relay.Function([x], relay.copy(relay.reshape(x, [0, 1]))))
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert "alloc_tensor" in exec.bytecode
+    assert not "alloc_tensor_reg" in exec.bytecode
+    check_result(target, dev, [x_np], x_np.reshape([1, 1]), mod)
+
+
 def test_vm_reshape_tuple(target, dev, x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
     tup = relay.var(
         "tup",
@@ -936,13 +949,13 @@ def test_benchmark_end_to_end(target, dev):
     assert result.mean > 0
 
 
-@tvm.testing.requires_llvm
+@tvm.testing.requires_cuda
 def test_benchmark_end_to_end_rpc():
     server = rpc.Server("127.0.0.1")
     remote = rpc.connect(server.host, server.port)
 
     mod, params = mlp.get_workload(1)
-    lib = vm.compile(mod, target="llvm", params=params)
+    lib = vm.compile(mod, target="cuda", params=params)
 
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
@@ -950,13 +963,17 @@ def test_benchmark_end_to_end_rpc():
     remote.upload(path)
     rlib = remote.load_module("vm_library.so")
 
-    exe = runtime.vm.VirtualMachine(rlib, remote.cpu())
-    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=remote.cpu())
+    exe = runtime.vm.VirtualMachine(rlib, remote.device("cuda"))
+    data = tvm.nd.array(
+        np.random.rand(1, 1, 28, 28).astype("float32"), device=remote.device("cuda")
+    )
     result = exe.benchmark(
-        remote.cpu(), data=data, func_name="main", repeat=2, number=1, end_to_end=True
+        remote.device("cuda"), data=data, func_name="main", repeat=2, number=1, end_to_end=True
     )
     assert result.mean > 0
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

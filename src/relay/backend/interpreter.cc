@@ -35,8 +35,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 
+#include "../op/annotation/annotation.h"
 #include "../transforms/pass_utils.h"
-#include "compile_engine.h"
 #include "te_compiler.h"
 
 namespace tvm {
@@ -439,7 +439,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                                    const Array<GlobalVar>& all_prim_shape_fn_vars,
                                    const Array<Integer>& prim_shape_fn_states,
                                    size_t num_shape_inputs, size_t num_shape_outputs,
-                                   const std::vector<ObjectRef>& args) {
+                                   Target prim_shape_target, const std::vector<ObjectRef>& args) {
     ICHECK(prim_shape_fn_var.defined());
     ICHECK(prim_shape_fn_states.defined());
     ICHECK(prim_shape_fn_var->checked_type().defined());
@@ -460,11 +460,10 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     Device shape_device;
     shape_device.device_type = kDLCPU;
     shape_device.device_id = 0;
-    Target shape_target("llvm");
 
     // 'Compile' the TIR shape function to appropriate callable form.
     PackedFunc packed_shape_func =
-        TIRToPackedFunc(prim_shape_fn_var, all_prim_shape_fn_vars, shape_target);
+        TIRToPackedFunc(prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_target);
 
     size_t arity = num_shape_inputs + num_shape_outputs;
     std::vector<TVMValue> values(arity);
@@ -481,13 +480,13 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       // flattened form of this arg. Does that match what lowering actually does?
       int64_t state = prim_shape_fn_states[i]->value;
       for (const auto& nd_array : FlattenADT(args[i])) {
-        if (state & kNeedInputData) {
+        if (state & tec::kNeedInputData) {
           auto arr = nd_array.CopyTo(shape_device);
           inputs[arg_counter] = arr;
           setter(arg_counter, arr);
           ++arg_counter;
         }
-        if (state & kNeedInputShape) {
+        if (state & tec::kNeedInputShape) {
           int64_t ndim = nd_array.Shape().size();
           NDArray shape_arr;
           if (ndim == 0) {
@@ -553,16 +552,17 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
    * @return Result of primitive.
    */
   ObjectRef InvokePrimitiveOp(const GlobalVar& prim_fn_var, const Array<GlobalVar> all_prim_fn_vars,
-                              const GlobalVar& prim_shape_fn_var,
+                              Target prim_target, const GlobalVar& prim_shape_fn_var,
                               const Array<GlobalVar>& all_prim_shape_fn_vars,
                               const Array<Integer>& prim_shape_fn_states, size_t num_shape_inputs,
-                              size_t num_shape_outputs, const std::vector<ObjectRef>& args) {
+                              size_t num_shape_outputs, Target prim_shape_target,
+                              const std::vector<ObjectRef>& args) {
     ICHECK(prim_fn_var->checked_type().defined());
     const FuncTypeNode* ftn = prim_fn_var->checked_type().as<FuncTypeNode>();
     ICHECK(ftn);
 
     // 'Compile' the TIR primitive to appropriate callable form (on the desired target).
-    PackedFunc packed_func = TIRToPackedFunc(prim_fn_var, all_prim_fn_vars, target_);
+    PackedFunc packed_func = TIRToPackedFunc(prim_fn_var, all_prim_fn_vars, prim_target);
 
     // Argument tuples are flattened.
     std::vector<NDArray> arg_nd_arrays = FlattenADTs(args);
@@ -596,7 +596,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       ICHECK(prim_shape_fn_states.defined());
       runtime_shapes =
           ComputeDynamicShape(prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
-                              num_shape_inputs, num_shape_outputs, args);
+                              num_shape_inputs, num_shape_outputs, prim_shape_target, args);
       ICHECK_EQ(runtime_shapes.size(), result_tensor_types.size());
     }
 
@@ -676,26 +676,33 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     return WithFrame<ObjectRef>(Frame(locals), [&]() { return Eval(func->body); });
   }
 
-  ObjectRef VisitExpr_(const CallNode* call) final {
+  ObjectRef VisitExpr_(const CallNode* call_node) final {
     std::vector<ObjectRef> args;
-    for (auto arg : call->args) {
+    for (auto arg : call_node->args) {
       args.push_back(Eval(arg));
     }
 
+    if (call_node->op == OnDeviceOp()) {
+      // Special case: The call 'on_device(expr)' denotes that expr should be executed on
+      // a particular device. We can ignore this during interpretation.
+      ICHECK_EQ(call_node->args.size(), 1UL);
+      return args[0];
+    }
+
     // We should not find calls to operators after running fusion and lowering.
-    if (const OpNode* op_node = call->op.as<OpNode>()) {
+    if (const OpNode* op_node = call_node->op.as<OpNode>()) {
       LOG(FATAL) << "found " << op_node->name
                  << "; operators should have been removed by previous passes; try "
                     "fusing and lowering";
     }
 
-    if (const ConstructorNode* con = call->op.as<ConstructorNode>()) {
+    if (const ConstructorNode* con = call_node->op.as<ConstructorNode>()) {
       // Special case: ADT constructor
       return ConstructorValue(con->tag, args, GetRef<Constructor>(con));
     }
 
-    if (const GlobalVarNode* gvn = call->op.as<GlobalVarNode>()) {
-      if (const TIRCallAttrs* attrs = call->attrs.as<TIRCallAttrs>()) {
+    if (const GlobalVarNode* gvn = call_node->op.as<GlobalVarNode>()) {
+      if (const TIRCallAttrs* attrs = call_node->attrs.as<TIRCallAttrs>()) {
         // Special case: Call a lowered TIR function.
         // TODO(mbs): Make calling convention first-class in Relay.
         Array<GlobalVar> all_prim_fn_vars;
@@ -727,15 +734,14 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
               Downcast<Integer>(attrs->metadata.at("prim_shape_fn_num_outputs"))->value);
         }
 
-        // Special case: Call TIR primitive.
-        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars, prim_shape_fn_var,
-                                 all_prim_shape_fn_vars, prim_shape_fn_states, num_shape_inputs,
-                                 num_shape_outputs, args);
+        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars, target_,
+                                 prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
+                                 num_shape_inputs, num_shape_outputs, cpu_target_, args);
       }
     }
 
     // Now we just evaluate and expect to find a closure.
-    ObjectRef fn_val = Eval(call->op);
+    ObjectRef fn_val = Eval(call_node->op);
     if (const InterpreterClosureObj* closure_node = fn_val.as<InterpreterClosureObj>()) {
       auto closure = GetRef<InterpreterClosure>(closure_node);
       return Invoke(closure, args);
@@ -883,6 +889,8 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   Device device_;
   // Unique target describing how to compile for primitives (but not shape functions).
   Target target_;
+  // Default 'CPU' target for shape primitives.
+  Target cpu_target_{"llvm"};
   // Call stack.
   Stack stack_;
   // The distinguished 'debug' operator, which is handled specially.
@@ -898,21 +906,27 @@ IRModule Prepare(IRModule mod, Device device, Target target) {
   // Things to initialize to pass into tec::LowerTEPass
   // We only have one device-specific target.
   tec::TargetMap targets = {{device.device_type, target}};
-
-  // All calls to primitives will use the unique target.
-  tec::DeviceMap device_map;
+  if (device.device_type != kDLCPU) {
+    // However some primitives (eg dynamic shape functions) must always execute on the CPU,
+    // so make sure we have a target for that.
+    targets.emplace(kDLCPU, Target("llvm"));
+  }
 
   // Run minimal transforms on module to establish invariants needed by interpreter.
-  transform::Sequential seq({transform::SimplifyInference(),
-                             // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
-                             // attribute.
-                             transform::FuseOps(/*fuse_opt_level=*/0), transform::ToANormalForm(),
-                             // eta expand to support constructors in argument position
-                             transform::EtaExpand(
-                                 /*expand_constructor=*/true, /*expand_global_var=*/false),
-                             transform::InferType(),
-                             tec::LowerTEPass(targets, device_map, /*module_name=*/"intrp",
-                                              [](Function func) { /* no-op */ })});
+  transform::Sequential seq(
+      {transform::SimplifyInference(),
+       // Figure out which devices should be used to execute.
+       transform::PlanDevices(device.device_type),
+       // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
+       // attribute.
+       transform::FuseOps(/*fuse_opt_level=*/0),
+       // Use ANF to reduce number of cases to handle.
+       transform::ToANormalForm(),
+       // eta expand to support constructors in argument position.
+       transform::EtaExpand(
+           /*expand_constructor=*/true, /*expand_global_var=*/false),
+       transform::InferType(),
+       tec::LowerTEPass(targets, /*module_name=*/"intrp", [](Function func) { /* no-op */ })});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);
@@ -964,6 +978,9 @@ class NeedsPreparationVisitor : public ExprVisitor {
 
 TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, Device device,
                                                      Target target) {
+  VLOG_CONTEXT << "EvalFunction";
+  VLOG(1) << "evaling module:\n" << PrettyPrint(mod) << "and expression:\n" << PrettyPrint(expr);
+
   //
   // Step 1: Prepare mod.
   //
@@ -1021,6 +1038,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     ICHECK(closure->func.defined());
 
     return TypedPackedFunc<ObjectRef(Array<Expr>)>([intrp, closure](Array<Expr> args) {
+      VLOG_CONTEXT << "EvalFunction::Apply";
+      VLOG(1) << "evaling closure with " << args.size() << " arguments";
       //
       // Step 3: Apply closure to arguments.
       //

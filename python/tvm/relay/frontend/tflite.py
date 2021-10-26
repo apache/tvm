@@ -66,6 +66,7 @@ class OperatorConverter(object):
         self.activation_fn_type = build_str_map(ActivationFunctionType())
         self.builtin_options = build_str_map(BuiltinOptions())
         self.prefetched_nodes = {}
+        self.allow_custom_ops = False
 
         # Add more operators
         self.convert_map = {
@@ -287,6 +288,10 @@ class OperatorConverter(object):
         if op_code_id == BuiltinOperator.CUSTOM:
             # Custom operator
             custom_op_code_str = self.model.OperatorCodes(op_code_list_idx).CustomCode()
+
+            if self.allow_custom_ops:
+                return "CUSTOM"
+
             if custom_op_code_str == b"TFLite_Detection_PostProcess":
                 return "DETECTION_POSTPROCESS"
 
@@ -1116,8 +1121,16 @@ class OperatorConverter(object):
 
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = relay_op(in_expr)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+        out = relay_op(in_expr)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
         return out
 
     def convert_abs(self, op):
@@ -1186,10 +1199,6 @@ class OperatorConverter(object):
 
     def convert_rsqrt(self, op):
         """Convert TFLite RSQRT"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized RSQRT operator is not supported yet."
-            )
         return self._convert_unary_elemwise(_op.rsqrt, op)
 
     def convert_neg(self, op):
@@ -3691,7 +3700,7 @@ def _input_type(model):
     return shape_dict, dtype_dict
 
 
-def from_tflite(model, shape_dict=None, dtype_dict=None):
+def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorConverter):
     """Convert from tflite model into compatible relay Function.
 
     Parameters
@@ -3751,7 +3760,7 @@ def from_tflite(model, shape_dict=None, dtype_dict=None):
         exp_tab.set_expr(model_input_name, _expr.var(model_input_name, shape=shape, dtype=dtype))
 
     # op code in model
-    op_converter = OperatorConverter(model, subgraph, exp_tab)
+    op_converter = op_converter(model, subgraph, exp_tab)
     op_converter.check_unsupported_ops()
     op_converter.convert_op_to_relay()
 
