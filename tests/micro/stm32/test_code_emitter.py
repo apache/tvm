@@ -326,15 +326,7 @@ def check_network(build_dir, target_name, model_path, image_path):
     #
     # Export model library format
     #
-    target_dir = os.path.join(build_dir, target_name + "_gen")
-
-    if os.path.exists(target_dir):
-        print(f'Removing existing "{target_dir}" directory')
-        try:
-            shutil.rmtree(target_dir)
-        except OSError as err:
-            raise ValueError(f"emit_code.Error: {target_dir} : {err.strerror}")
-
+    target_dir = build_dir
     mlf_tar_path = os.path.join(build_dir, target_name + "_lib.tar")
     import tvm.micro as micro
 
