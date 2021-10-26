@@ -2796,8 +2796,8 @@ class PyTorchOpConverter:
         step = _expr.const(1, "int64")
 
         out = x
-        for i in range(len(dims)):
-            roll_dim = _expr.const(shape[dims[i]], "int64")
+        for i, dim in enumerate(dims):
+            roll_dim = _expr.const(shape[i], "int64")
             indices_1d = _op.mod(
                 _op.transform.arange(start, roll_dim, step, "int64")
                 - _expr.const(shifts[i], "int64")
@@ -2807,11 +2807,11 @@ class PyTorchOpConverter:
             # First fill in the last axis with roll indices, and then do transpose to
             # bring the roll indices into the desired axis.
             indices = slide_axes(
-                _op.tile(indices_1d, shape[: dims[i]] + shape[dims[i] + 1 :] + (1,)),
+                _op.tile(indices_1d, shape[:dim] + shape[dim + 1 :] + (1,)),
                 shape,
-                dims[i],
+                dim,
             )
-            out = _op.gather(out, dims[i], indices)
+            out = _op.gather(out, dim, indices)
 
         return out
 
