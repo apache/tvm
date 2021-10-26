@@ -827,120 +827,38 @@ def convert_shape(g, op, block):
 def convert_slice(g, op, block):
     """Operator converter for slice."""
 
+    def parameter_process(starts, ends, axes, dshape):
+        new_axes = []
+        new_starts = []
+        new_ends = []
+        pop_index = 0
+        for i in range(max(axes) + 1):
+            new_axes.append(i)
+            if i in axes:
+                new_starts.append(starts[pop_index])
+                new_ends.append(ends[pop_index])
+                pop_index += 1
+            else:
+                new_starts.append(0)
+                new_ends.append(dshape[i])
+        return new_starts, new_ends, new_axes
+
     data = g.get_node(op.input("Input")[0])
-    dims = len(infer_shape(data))
-
+    dshape = infer_shape(data)
+    starts = op.attr("starts")
+    ends = op.attr("ends")
     axes = op.attr("axes")
-    indices = _expr.const(axes, dtype="int64")
-
     decrease_axis = op.attr("decrease_axis")
+    if isinstance(starts, int):
+        starts = [starts]
+    if isinstance(ends, int):
+        ends = [ends]
+    if isinstance(axes, int):
+        axes = [axes]
     if isinstance(decrease_axis, int):
         decrease_axis = [decrease_axis]
-
-    if op.input("StartsTensor"):
-        # if `starts` is a tensor
-        starts = g.get_node(op.input("StartsTensor")[0])
-        starts = _infer_value(starts, g.get_params())
-    elif op.input("StartsTensorList"):
-        # if `starts` is a list of tensor
-        starts = []
-        for start_index in op.input("StartsTensorList"):
-            start_index = g.get_node(start_index).astype("int64")
-            starts.append(start_index)
-        starts = _op.concatenate(starts, axis=0)
-        starts = _infer_value(starts, g.get_params())
-    else:
-        # if `starts` is constant value
-        starts = op.attr("starts")
-
-    if len(axes) < dims:
-        # make the numel of `starts` be same with the rank of input tensor
-        if isinstance(starts, _expr.Expr):
-            starts = _op.scatter(
-                _op.const([0] * dims, dtype=infer_type(starts).checked_type.dtype),
-                indices,
-                starts,
-                axis=0,
-            )
-        else:
-            base = [0] * dims
-            for i, axis in enumerate(axes):
-                base[axis] = starts[i]
-            starts = base
-
-    if op.input("EndsTensor"):
-        # if `ends` is a tensor
-        ends = g.get_node(op.input("EndsTensor")[0])
-        ends = _infer_value(ends, g.get_params())
-    elif op.input("EndsTensorList"):
-        # if `ends` is a list of tensor
-        ends = []
-        for end_index in op.input("EndsTensorList"):
-            end_index = g.get_node(end_index).astype("int64")
-            ends.append(end_index)
-        ends = _op.concatenate(ends, axis=0)
-        ends = _infer_value(ends, g.get_params())
-    else:
-        # if `ends` is constant value
-        ends = op.attr("ends")
-
-    if len(axes) < dims:
-        # make the numel of `ends` be same with the rank of input tensor
-        if isinstance(ends, _expr.Expr):
-            ends = _op.scatter(
-                _expr.const(
-                    np.array([np.iinfo(np.int32).max] * dims),
-                    dtype=infer_type(ends).checked_type.dtype,
-                ),
-                indices,
-                ends,
-                axis=0,
-            )
-        else:
-            base = [np.iinfo(np.int32).max] * dims
-            for i, axis in enumerate(axes):
-                base[axis] = ends[i]
-            ends = base
-
-    strides = None
-    if "StridesTensor" in op.input_names and op.input("StridesTensor"):
-        # if `strides` is a input tensor
-        strides = g.get_node(op.input("StridesTensor")[0])
-        strides = _infer_value(strides, g.get_params())
-    elif "StridesTensorList" in op.input_names and op.input("StridesTensorList"):
-        # if `strides` is a list of tensor
-        strides = []
-        for strides_index in op.input("StridesTensorList"):
-            strides_index = g.get_node(strides_index).astype("int64")
-            strides.append(strides_index)
-        strides = _op.concatenate(strides, axis=0)
-        strides = _infer_value(strides, g.get_params())
-    elif op.has_attr("strides"):
-        # if `strides` is constant value
-        strides = op.attr("strides")
-    else:
-        # default value for `strides`
-        strides = [1] * dims
-
-    if len(axes) < dims:
-        # make the numel of `strides` be same with the rank of input tensor
-        if isinstance(strides, _expr.Expr):
-            strides = _op.scatter(
-                _expr.const(
-                    np.array([1] * dims),
-                    dtype=infer_type(strides).checked_type.dtype,
-                ),
-                indices,
-                strides,
-                axis=0,
-            )
-        else:
-            base = [1] * dims
-            for i, axis in enumerate(axes):
-                base[axis] = strides[i]
-            strides = base
-
-    out = _op.strided_slice(data, begin=starts, end=ends, strides=strides)
+    starts, ends, axes = parameter_process(starts, ends, axes, dshape)
+    out = _op.strided_slice(data, begin=starts, end=ends)
     if decrease_axis:
         out = _op.squeeze(out, axis=decrease_axis)
     g.add_node(op.output("Out")[0], out)
