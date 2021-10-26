@@ -145,7 +145,7 @@ print(b)
 # sequence of schedule primitives will help to improve the performance. And at last, we can lower
 # and build it into a runnable module.
 #
-# Here we just demostrate a very simple tranformation. First we create schedule on the input ir_module.
+# Here we just demostrate a very simple tranformation. First we create schedule on the input `ir_module`.
 
 sch = tvm.tir.Schedule(ir_module)
 print(type(sch))
