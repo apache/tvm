@@ -13,20 +13,20 @@ def conv1d_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if layout == "NCW":
         strategy.add_implementation(
-            wrap_compute_conv1d(topi.nn.conv1d_ncw),
-            topi.pulp.schedule_conv1d_ncw,
+            wrap_compute_conv1d(topi.pulp.conv1d_ncw_pulp),
+            wrap_topi_schedule(topi.pulp.schedule_conv1d_ncw),
             name="conv1d_ncw.pulp"
         )
     elif layout == "NWC":
         if kernel_layout == "WIO":
             strategy.add_implementation(
-                wrap_compute_conv1d(topi.nn.conv1d_nwc),
+                wrap_compute_conv1d(topi.pulp.conv1d_nwc_pulp),
                 topi.pulp.schedule_conv1d_nwc,
                 name="conv1d_nwc.pulp"
             )
         elif kernel_layout == "OWI":
             strategy.add_implementation(
-                wrap_compute_conv1d(topi.nn.conv1d_nwc_owi),
+                wrap_compute_conv1d(topi.pulp.conv1d_nwc_owi),
                 topi.pulp.schedule_conv1d_nwc_owi,
                 name="conv1d_nwc_owi.pulp"
             )
