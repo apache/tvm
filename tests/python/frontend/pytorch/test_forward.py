@@ -3992,5 +3992,17 @@ def test_bucketize():
     verify_model(test_fn(out_int32=True, right=True), [values, boundaries])
 
 
+@tvm.testing.uses_gpu
+def test_roll():
+    def test_fn(shifts, dims):
+        return lambda x: torch.roll(x, shifts, dims)
+
+    x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8]).view(4, 2)
+    verify_model(test_fn(1, 0), [x])
+    verify_model(test_fn(-1, 0), [x])
+    verify_model(test_fn(shifts=(2, 1), dims=(0, 1)), [x])
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # pytest.main([__file__])
+    test_roll()
