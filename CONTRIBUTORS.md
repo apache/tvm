@@ -90,6 +90,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
+- [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh
 - [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Luke Hutton](https://github.com/lhutton1): @lhutton1
@@ -118,6 +119,7 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
 - [Leandro Nunes](https://github.com/leandron): @leandron
+- [Jiawei Liu](https://github.com/ganler): @ganler
 - [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
@@ -154,6 +156,7 @@ We do encourage everyone to work anything they are interested in.
 - [Hao Yu](https://github.com/comaniac): @comaniac
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
+- [Xiyou Zhou](https://github.com/zxybazh): @zxybazh
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)

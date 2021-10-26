@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 """Backend codegen modules for relay."""
-from . import compile_engine
+from . import te_compiler

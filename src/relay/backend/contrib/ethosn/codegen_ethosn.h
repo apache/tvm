@@ -287,6 +287,22 @@ class EthosnCompiler {
    */
   static runtime::Module CreateRuntimeModule(const ObjectRef& ref);
 
+  /*!
+   * \brief Initialise the is-supported functionality of the Ethos-N support library
+   * with the target variant.
+   * \return Error object
+   */
+  static EthosnError SupportedSetup();
+
+  /*!
+   * \brief Return the is-supported API of the Support Library
+   * \return A reference to the API.
+   */
+  static std::unique_ptr<sl::SupportQueries>& GetSupported() {
+    ICHECK(m_Queries != nullptr);
+    return m_Queries;
+  }
+
  private:
   /*!
    * \brief Compile a single Relay Ethos-N function into an ordered compiled network.
@@ -322,6 +338,8 @@ class EthosnCompiler {
    */
   static std::pair<std::vector<uint32_t>, std::vector<uint32_t>> GetInputOutputOrder(
       NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network);
+
+  static std::unique_ptr<sl::SupportQueries> m_Queries;
 };
 
 runtime::Module CompileEthosn(const ObjectRef& ref) {

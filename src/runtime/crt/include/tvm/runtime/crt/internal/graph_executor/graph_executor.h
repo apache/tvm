@@ -60,7 +60,7 @@ typedef struct TVMGraphExecutorNode {
   // operator type in string
   char op_type[16];
   // name of the op
-  char name[120];
+  char name[TVM_CRT_MAX_STRLEN_FUNCTION_NAME];
   // parameters
   TVMOpParam param;
   // inputs

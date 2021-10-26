@@ -564,6 +564,11 @@ class TopkAttrs(Attrs):
     """Attributes used in topk operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.SearchSortedAttrs")
+class SearchSortedAttrs(Attrs):
+    """Attributes used in searchsorted operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.TupleGetItemAttrs")
 class TupleGetItemAttrs(Attrs):
     """Attributes used in tuple item access operators"""
