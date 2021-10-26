@@ -2809,11 +2809,13 @@ class PyTorchOpConverter:
         roll_dim = _expr.const(shape[dims[0]], "int64")
         step = _expr.const(1, "int64")
         indices_1d = _op.mod(
-            _op.transform.arange(start, roll_dim, step, "int64") - _expr.const(shifts[0], "int64"),
+            _op.transform.arange(start, roll_dim, step, "int64") - _expr.const(shifts[0], "int64") + roll_dim,
             roll_dim,
         )
-        indices = swap_axes(_op.tile(indices_1d, shape[:-1] + (1,)), shape, roll_dim, -1)
-        return _op.gather(x, roll_dim, indices)
+        indices = swap_axes(_op.tile(indices_1d, shape[:dims[0]] + shape[dims[0]+1:] + (1,)), shape, dims[0], -1)
+        print("indices shape", self.infer_shape(indices), shape, roll_dim)
+        print(_infer_value(indices, {}))
+        return _op.gather(x, dims[0], indices)
 
     # Operator mappings
     def create_convert_map(self):
