@@ -383,6 +383,81 @@ def compacted_storage_align_func(a: T.handle, c: T.handle) -> None:
                     C[i, j] = B[0, j] * 2.0
 
 
+@T.prim_func
+def padding_pattern_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (20, 20), "float32")
+    with T.block() as []:
+        B = T.alloc_buffer((20, 20), dtypes="float32")
+        for i in range(0, 20):
+            for j in range(0, 20):
+                with T.block():
+                    B[i, j] = A[i, j]
+        for i in range(0, 20):
+            for j in range(0, 20):
+                with T.block():
+                    T.reads([])
+                    T.writes([])
+                    C[i, j] = T.if_then_else(
+                        2 <= i and i < 18 and 2 <= j and j < 18,
+                        B[i - 2, j - 2],
+                        0.0,
+                        dtype="float32",
+                    )
+
+
+@T.prim_func
+def mem_access_in_branch_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (224, 224), "float32")
+    C = T.match_buffer(c, (224, 224), "float32")
+    with T.block() as []:
+        B1 = T.alloc_buffer((224, 224), dtypes="float32")
+        B2 = T.alloc_buffer((224, 224), dtypes="float32")
+        for i in range(0, 224):
+            for j in range(0, 224):
+                with T.block():
+                    T.reads([])
+                    T.writes([])
+                    if i < 112 and j < 112:
+                        B1[i, j] = A[i, j] * 2.0
+                    else:
+                        B2[i, j] = A[i, j] + 3.0
+        for i in range(0, 224):
+            for j in range(0, 224):
+                with T.block():
+                    T.reads([])
+                    T.writes([])
+                    C[i, j] = T.if_then_else(
+                        i < 112 and j < 112, B1[i, j], B2[i, j], dtype="float32"
+                    )
+
+
+@T.prim_func
+def compacted_mem_access_in_branch_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (224, 224), "float32")
+    C = T.match_buffer(c, (224, 224), "float32")
+    with T.block() as []:
+        B1 = T.alloc_buffer((112, 112), dtypes="float32")
+        B2 = T.alloc_buffer((224, 224), dtypes="float32")
+        for i in range(0, 224):
+            for j in range(0, 224):
+                with T.block():
+                    T.reads([])
+                    T.writes([])
+                    if i < 112 and j < 112:
+                        B1[i, j] = A[i, j] * 2.0
+                    else:
+                        B2[i, j] = A[i, j] + 3.0
+        for i in range(0, 224):
+            for j in range(0, 224):
+                with T.block():
+                    T.reads([])
+                    T.writes([])
+                    C[i, j] = T.if_then_else(
+                        i < 112 and j < 112, B1[i, j], B2[i, j], dtype="float32"
+                    )
+
+
 def test_elementwise():
     _check(elementwise_func, compacted_elementwise_func)
 
@@ -428,6 +503,14 @@ def test_storage_align():
     _check(storage_align_func, compacted_storage_align_func)
 
 
+def test_padding_pattern():
+    _check(padding_pattern_func, padding_pattern_func)
+
+
+def test_mem_access_in_branch_func():
+    _check(mem_access_in_branch_func, compacted_mem_access_in_branch_func)
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_unschedulable_block()
@@ -439,3 +522,5 @@ if __name__ == "__main__":
     test_match_buffer()
     test_storage_align()
     test_lower_te()
+    test_padding_pattern()
+    test_mem_access_in_branch_func()

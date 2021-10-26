@@ -55,11 +55,17 @@ class OpaqueBlockConverter : public StmtExprMutator {
   Stmt VisitStmt_(const BlockNode* block) final {
     ICHECK(!block->init.defined())
         << "Block Init part is not allowed in pass ConvertBlocksToOpaque";
-    Block new_block = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
-    if (!new_block->iter_vars.empty()) {
-      new_block.CopyOnWrite()->iter_vars.clear();
+    bool is_opaque = block->iter_vars.empty();
+    if (is_opaque) {
+      return StmtExprMutator::VisitStmt_(block);
+    } else {
+      Block new_block = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
+      auto n = new_block.CopyOnWrite();
+      n->iter_vars.clear();
+      n->reads.clear();
+      n->writes.clear();
+      return std::move(new_block);
     }
-    return std::move(new_block);
   }
 
   Stmt VisitStmt_(const BlockRealizeNode* realize) final {

@@ -249,11 +249,19 @@ IntSet UnionLowerBound(const Array<IntSet>& sets);
 Array<IntSet> UnionRegionLowerBound(const Array<Array<IntSet>>& nd_int_sets);
 
 /*!
- * \brief Create an union set of all sets
+ * \brief Create an intersected set of all sets
  * \param sets The sets to be intersected
  * \return the set after intersected
  */
 IntSet Intersect(const Array<IntSet>& sets);
+
+/*!
+ * \brief Create a difference set of two sets, possibly relaxed
+ * \param a The first set.
+ * \param b The second set.
+ * \return The result set.
+ */
+IntSet Difference(const IntSet& a, const IntSet& b);
 
 /*!
  * \brief Analyze the region with affine map, given the domain of variables and their predicate

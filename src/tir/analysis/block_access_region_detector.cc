@@ -97,12 +97,14 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void UpdateOpaque(const Var& buffer_var);
 
   void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const BlockRealizeNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
   void VisitExpr_(const LoadNode* op) override;
   void VisitExpr_(const VarNode* op) override;
+  void VisitExpr_(const CallNode* op) override;
 };
 
 void BlockReadWriteDetector::operator()(const Stmt& stmt) {
@@ -152,6 +154,40 @@ void BlockReadWriteDetector::VisitStmt_(const ForNode* op) {
   dom_map_[op->loop_var.get()] = arith::IntSet::FromRange(range);
   StmtVisitor::VisitStmt_(op);
   dom_map_.erase(op->loop_var.get());
+}
+
+void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
+  VisitExpr(op->condition);
+  Map<Var, Range> bounds = GetVarBoundsFromCondition(op->condition, dom_map_);
+  {
+    // Visit then branch
+    With<ConditionalBoundsContext> ctx(&dom_map_, bounds, true);
+    StmtExprVisitor::VisitStmt(op->then_case);
+  }
+  if (op->else_case.defined()) {
+    // Visit else branch
+    With<ConditionalBoundsContext> ctx(&dom_map_, bounds, false);
+    StmtExprVisitor::VisitStmt(op->else_case);
+  }
+}
+
+void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
+  if (op->op.same_as(builtin::if_then_else())) {
+    VisitExpr(op->args[0]);
+    Map<Var, Range> bounds = GetVarBoundsFromCondition(op->args[0], dom_map_);
+    {
+      // Visit then branch
+      With<ConditionalBoundsContext> ctx(&dom_map_, bounds, true);
+      StmtExprVisitor::VisitExpr(op->args[1]);
+    }
+    {
+      // Visit else branch
+      With<ConditionalBoundsContext> ctx(&dom_map_, bounds, false);
+      StmtExprVisitor::VisitExpr(op->args[2]);
+    }
+    return;
+  }
+  StmtExprVisitor::VisitExpr_(op);
 }
 
 void BlockReadWriteDetector::VisitStmt_(const StoreNode* op) {

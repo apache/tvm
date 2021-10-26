@@ -63,6 +63,25 @@ class IntSet(Object):
         """
         return _ffi_api.intset_single_point(point)
 
+    @staticmethod
+    def difference(a, b):
+        """Create a difference set of two sets, possibly relaxed
+
+        Parameters
+        ----------
+        a : IntSet
+            The lhs oprand of set difference.
+
+        b : IntSet
+            The rhs oprand of set difference.
+
+        Returns
+        ----------
+        result : IntSet
+            The result set, possibly relaxed.
+        """
+        return _ffi_api.IntSetDifference(a, b)
+
 
 @tvm._ffi.register_object("arith.IntervalSet")
 class IntervalSet(IntSet):

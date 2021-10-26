@@ -71,9 +71,23 @@ IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
 }
 
 IntervalSet Union(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+  if (a->IsEmpty()) return b;
+  if (b->IsEmpty()) return a;
   PrimExpr max_value = max(a->max_value, b->max_value);
   PrimExpr min_value = min(a->min_value, b->min_value);
   return IntervalSet(min_value, max_value);
+}
+
+IntervalSet Difference(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+  PrimExpr upper_min = (b->max_value->dtype.is_int() || b->max_value->dtype.is_uint())
+                           ? b->max_value + 1
+                           : b->max_value;
+  IntervalSet upper = Intersect(analyzer, a, IntervalSet(upper_min, pos_inf()));
+  PrimExpr lower_max = (b->min_value->dtype.is_int() || b->min_value->dtype.is_uint())
+                           ? b->min_value - 1
+                           : b->min_value;
+  IntervalSet lower = Intersect(analyzer, a, IntervalSet(neg_inf(), lower_max));
+  return Union(analyzer, lower, upper);
 }
 
 // type traits
@@ -725,6 +739,13 @@ IntSet Intersect(const Array<IntSet>& sets) {
   return IntervalSet(ana.Simplify(x->min_value), ana.Simplify(x->max_value));
 }
 
+IntSet Difference(const IntSet& a, const IntSet& b) {
+  IntervalSet interval_a = ToIntervalSet(a);
+  IntervalSet interval_b = ToIntervalSet(b);
+  Analyzer ana;
+  return Difference(&ana, interval_a, interval_b);
+}
+
 Map<Var, IntSet> ConvertDomMap(const Map<IterVar, IntSet>& dom_map) {
   Map<Var, IntSet> dmap;
   for (auto kv : dom_map) {
@@ -898,6 +919,9 @@ TVM_REGISTER_GLOBAL("arith.EstimateRegionLowerBound")
 TVM_REGISTER_GLOBAL("arith.PosInf").set_body_typed([]() { return SymbolicLimits::pos_inf_; });
 TVM_REGISTER_GLOBAL("arith.NegInf").set_body_typed([]() { return SymbolicLimits::neg_inf_; });
 TVM_REGISTER_GLOBAL("arith.UnionLowerBound").set_body_typed(UnionLowerBound);
+TVM_REGISTER_GLOBAL("arith.IntSetDifference").set_body_typed([](const IntSet& a, const IntSet& b) {
+  return Difference(a, b);
+});
 
 }  // namespace arith
 }  // namespace tvm

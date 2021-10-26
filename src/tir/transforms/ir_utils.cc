@@ -24,6 +24,7 @@
 #include "ir_utils.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/arith/int_solver.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <unordered_map>
@@ -249,6 +250,83 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
 Bool IsFromLegacyTESchedule(PrimFunc f) {
   Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
   return from_legacy_te_schedule.value();
+}
+
+Map<Var, Range> GetVarBoundsFromCondition(
+    const PrimExpr& condition, const std::unordered_map<const VarNode*, arith::IntSet>& dom_map) {
+  // extract equations from condition expression
+  Array<PrimExpr> equations;
+  std::function<void(const PrimExpr&)> fvisit = [&equations, &fvisit](const PrimExpr& e) {
+    if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
+        e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
+      equations.push_back(Downcast<PrimExpr>(e));
+    } else if (e->IsInstance<AndNode>()) {
+      And op = Downcast<And>(e);
+      fvisit(op->a);
+      fvisit(op->b);
+    } else if (e->IsInstance<CallNode>()) {
+      Call op = Downcast<Call>(e);
+      if (op->op.same_as(builtin::likely())) {
+        fvisit(op->args[0]);
+      }
+    }
+  };
+  fvisit(condition);
+  // extract related vars from condition expression
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set;
+  PostOrderVisit(condition, [&var_set](const ObjectRef& obj) {
+    if (obj->IsInstance<VarNode>()) {
+      var_set.insert(Downcast<Var>(obj));
+    }
+  });
+  // build dom ranges for related vars
+  arith::Analyzer analyzer;
+  Array<Var> vars = Array<Var>(var_set.begin(), var_set.end());
+  Map<Var, Range> ranges;
+  for (const Var& v : vars) {
+    auto it = dom_map.find(v.get());
+    if (it != dom_map.end()) {
+      const auto& int_set = it->second;
+      ranges.Set(v, Range::FromMinExtent(int_set.min(),
+                                         analyzer.Simplify(int_set.max() - int_set.min() + 1)));
+    }
+  }
+  // solve constraints
+  arith::IntConstraints constraint(vars, ranges, equations);
+  auto result = arith::SolveInequalitiesToRange(constraint);
+  return result->ranges;
+}
+
+ConditionalBoundsContext::ConditionalBoundsContext(
+    std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
+    const Map<Var, Range>& true_branch_bounds, bool is_true_branch)
+    : dom_map_(dom_map), true_branch_bounds_(true_branch_bounds), is_true_branch_(is_true_branch) {}
+
+void ConditionalBoundsContext::EnterWithScope() {
+  if (is_true_branch_) {
+    for (const auto& p : true_branch_bounds_) {
+      const auto* var = p.first.get();
+      auto it = dom_map_->find(var);
+      if (it != dom_map_->end()) {
+        origin_map_.emplace(var, it->second);
+        it->second = arith::Intersect({it->second, arith::IntSet::FromRange(p.second)});
+      }
+    }
+  } else if (true_branch_bounds_.size() == 1) {
+    const auto& p = *true_branch_bounds_.begin();
+    const auto* var = p.first.get();
+    auto it = dom_map_->find(var);
+    if (it != dom_map_->end()) {
+      origin_map_.emplace(var, it->second);
+      it->second = arith::Difference(it->second, arith::IntSet::FromRange(p.second));
+    }
+  }
+}
+
+void ConditionalBoundsContext::ExitWithScope() {
+  for (const auto& p : origin_map_) {
+    (*dom_map_)[p.first] = p.second;
+  }
 }
 
 }  // namespace tir

@@ -24,7 +24,9 @@
 #ifndef TVM_TIR_TRANSFORMS_IR_UTILS_H_
 #define TVM_TIR_TRANSFORMS_IR_UTILS_H_
 
+#include <tvm/arith/int_set.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/support/with.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
@@ -32,6 +34,7 @@
 
 #include <limits>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -223,6 +226,46 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
  * \return Whether or not the PrimFunc was created from a te schedule
  */
 Bool IsFromLegacyTESchedule(PrimFunc f);
+
+/*!
+ * \brief Helper to solve related variable's bound within conditional scope.
+ * \param condition The condition expression to solve.
+ * \param dom_map Global domain map of related vars.
+ */
+Map<Var, Range> GetVarBoundsFromCondition(
+    const PrimExpr& condition, const std::unordered_map<const VarNode*, arith::IntSet>& dom_map);
+
+/*!
+ *\brief Context helper to update domain map within conditional scope.
+ *
+ * Assume the condition is `0 <= i && i < 9` and global domain of i is [0, 20], thus `bounds[i]` is
+ *[0, 8]. Then `With<ConditionalBoundsContext> ctx(&dom_map, bounds, true)` step into scope where
+ *dom_map[i] is [0, 8] and `With<ConditionalBoundsContext> ctx(&dom_map, bounds, false)` step into
+ *scope where dom_map[i] is [9, 20]
+ */
+class ConditionalBoundsContext {
+ private:
+  friend class With<ConditionalBoundsContext>;
+  /*!
+   * \brief Construct a condition bounds context.
+   * \param dom_map The global domain map to be updated.
+   * \param true_branch_bounds The condition bounds map.
+   * \param is_true_branch Whether step into the branch where condition bounds holds.
+   */
+  ConditionalBoundsContext(std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
+                           const Map<Var, Range>& true_branch_bounds, bool is_true_branch);
+  void EnterWithScope();
+  void ExitWithScope();
+
+  /*! \brief global domain map to updated */
+  std::unordered_map<const VarNode*, arith::IntSet>* dom_map_;
+  /*! \brief var bounds on true branch */
+  const Map<Var, Range>& true_branch_bounds_;
+  /*! \brief whether is on true branch */
+  bool is_true_branch_;
+  /*! \brief used to record and restore original var bounds */
+  std::unordered_map<const VarNode*, arith::IntSet> origin_map_;
+};
 
 }  // namespace tir
 }  // namespace tvm

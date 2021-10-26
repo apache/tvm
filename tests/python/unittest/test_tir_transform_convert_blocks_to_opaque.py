@@ -59,13 +59,13 @@ def substituted_elementwise_func(a: T.handle, c: T.handle) -> None:
             B = T.alloc_buffer([16, 16], "float32")
             for j in range(0, 16):
                 with T.block() as []:
-                    T.reads(A[i, j])
-                    T.writes(B[i, j])
+                    T.reads([])
+                    T.writes([])
                     B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
                 with T.block() as []:
-                    T.reads(B[i, j])
-                    T.writes(C[i, j])
+                    T.reads([])
+                    T.writes([])
                     C[i, j] = B[i, j] * 2.0
 
 
