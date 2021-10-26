@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-#include "../hexagon_module.h"
+#include "../hexagon_device.h"
 #include "HexagonWrapper.h"
 #include "hexagon_sim_proto.h"
 
@@ -121,7 +121,7 @@ struct non_const_str {
     ICHECK_EQ(pointers_.size(), 1);
     return pointers_[0];
   }
-  operator char* *() { return pointers_.data(); }
+  operator char**() { return pointers_.data(); }
 
  private:
   std::vector<char*> pointers_;

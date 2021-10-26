@@ -27,7 +27,7 @@
 #include <string>
 #include <utility>
 
-#include "../hexagon_module.h"
+#include "../hexagon_device.h"
 #include "AEEStdErr.h"
 #include "fastrpc/include/tvm_remote.h"
 #include "hexagon_dsprpcapi.h"
