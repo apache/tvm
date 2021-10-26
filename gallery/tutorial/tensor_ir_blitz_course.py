@@ -69,7 +69,7 @@ import numpy as np
 # a language embedded in python AST. The new method makes it possible to write complex programs
 # and further schedule and optimize it.
 #
-# Following is an simple example for vector addition.
+# Following is a simple example for vector addition.
 #
 
 
