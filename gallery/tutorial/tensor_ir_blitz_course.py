@@ -40,7 +40,7 @@ import numpy as np
 # An IRModule is the central data structure in TVM, which contains deep learning programs.
 # It is the basic object of interest of IR transformation and model building.
 #
-# .. image:: https://raw.githubusercontent.com/Hzfengsy/web-data/main/images/design/tvm_life_of_irmodule.png
+# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/design/tvm_life_of_irmodule.png
 #    :align: center
 #    :width: 85%
 #
@@ -136,7 +136,7 @@ print(b)
 # A schedule contains multiple primitive methods to interactively transform the program.
 # Each primitive transforms the program in certain ways to bring additional performance optimizations.
 #
-# .. image:: https://raw.githubusercontent.com/Hzfengsy/web-data/main/images/design/tvm_tensor_ir_opt_flow.png
+# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/design/tvm_tensor_ir_opt_flow.png
 #    :align: center
 #    :width: 100%
 #
