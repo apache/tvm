@@ -32,6 +32,10 @@ Usage: run_demo.sh [--ethosu_driver_path ETHOSU_DRIVER_PATH]
     Set path to CMSIS.
 --ethosu_platform_path ETHOSU_PLATFORM_PATH
     Set path to Arm(R) Ethos(TM)-U core platform.
+--fvp_path FVP_PATH
+   Set path to FVP.
+--cmake_path
+   Set path to cmake.
 EOF
 }
 
@@ -79,6 +83,30 @@ while (( $# )); do
             fi
             ;;
 
+        --fvp_path)
+            if [ $# -gt 1 ]
+            then
+                export PATH="$2/models/Linux64_GCC-6.4:$PATH"
+                shift 2
+            else
+                echo 'ERROR: --fvp_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
+        --cmake_path)
+            if [ $# -gt 1 ]
+            then
+                export CMAKE="$2"
+                shift 2
+            else
+                echo 'ERROR: --cmake_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;            
+
         -*|--*)
             echo "Error: Unknown flag: $1" >&2
             show_usage >&2
@@ -100,8 +128,10 @@ mobilenet_url='https://storage.googleapis.com/download.tensorflow.org/models/mob
 curl --retry 64 -sSL ${mobilenet_url} | gunzip | tar -xvf - ./mobilenet_v1_1.0_224_quant.tflite
 
 # Compile model for Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
-tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, \
-    c -runtime=c --link-params -mcpu=cortex-m55 --executor=aot --interface-api=c --unpacked-api=1" \
+# An alternative to using "python3 -m tvm.driver.tvmc" is to call
+# "tvmc" directly once TVM has been pip installed.
+python3 -m tvm.driver.tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, \
+    c -runtime=c --link-params -mcpu=cortex-m55 -executor=aot -interface-api=c -unpacked-api=1" \
     --pass-config tir.disable_vectorize=1 ./mobilenet_v1_1.0_224_quant.tflite --output-format=mlf
 tar -xvf module.tar
 
