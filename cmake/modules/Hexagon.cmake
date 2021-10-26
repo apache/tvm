@@ -53,18 +53,22 @@ if(BUILD_FOR_HEXAGON)
   include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
 endif()
 
-if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
-  set(USE_HEXAGON_DEVICE "${PICK_SIM}")
-else()
-  if(USE_HEXAGON_DEVICE STREQUAL "OFF")
-    list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
-    return()
-  elseif(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
-      NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
-    set(ERROR_MSG
-      "USE_HEXAGON_DEVICE must be one of [${PICK_NONE}|${PICK_SIM}|${PICK_HW}]")
-    message(SEND_ERROR "${ERROR_MSG}")
-    return()
+# Don't run these checks when compiling Hexagon device code,
+# e.g. when compiling the TVM runtime for Hexagon.
+if (NOT BUILD_FOR_HEXAGON)
+  if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
+    set(USE_HEXAGON_DEVICE "${PICK_SIM}")
+  else()
+    if(USE_HEXAGON_DEVICE STREQUAL "OFF")
+      list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
+      return()
+    elseif(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
+        NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
+      set(ERROR_MSG
+        "USE_HEXAGON_DEVICE must be one of [${PICK_NONE}|${PICK_SIM}|${PICK_HW}]")
+      message(SEND_ERROR "${ERROR_MSG}")
+      return()
+    endif()
   endif()
 endif()
 
