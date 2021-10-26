@@ -24,7 +24,7 @@
 #include <algorithm>
 #include <cstring>
 
-#include "hexagon_module.h"
+#include "hexagon_device.h"
 
 namespace tvm {
 namespace runtime {

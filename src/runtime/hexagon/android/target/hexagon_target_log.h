@@ -17,15 +17,18 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_SIM_DRIVER_SCHED_H_
-#define TVM_RUNTIME_HEXAGON_SIM_DRIVER_SCHED_H_
+#ifndef TVM_RUNTIME_HEXAGON_ANDROID_TARGET_HEXAGON_TARGET_LOG_H_
+#define TVM_RUNTIME_HEXAGON_ANDROID_TARGET_HEXAGON_TARGET_LOG_H_
+#ifdef __ANDROID__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-int sched_yield(void);
-#ifdef __cplusplus
-}
-#endif
+#include <android/log.h>
 
-#endif  // TVM_RUNTIME_HEXAGON_SIM_DRIVER_SCHED_H_
+#define TVM_LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "TVM", ##__VA_ARGS__)
+#define TVM_LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "TVM", ##__VA_ARGS__)
+#define TVM_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "TVM", ##__VA_ARGS__)
+#define TVM_LOGW(...) __android_log_print(ANDROID_LOG_WARN, "TVM", ##__VA_ARGS__)
+#define TVM_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "TVM", ##__VA_ARGS__)
+#define TVM_LOGF(...) __android_log_print(ANDROID_LOG_FATAL, "TVM", ##__VA_ARGS__)
+
+#endif  // __ANDROID__
+#endif  // TVM_RUNTIME_HEXAGON_ANDROID_TARGET_HEXAGON_TARGET_LOG_H_
