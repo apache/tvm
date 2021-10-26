@@ -44,7 +44,7 @@ import numpy as np
 #    :align: center
 #    :width: 85%
 #
-# This is the life cycle of an IRModule, which can be created from TVM Script. TensorIR schedule
+# This is the life cycle of an IRModule, which can be created from TVMScript. TensorIR schedule
 # primitives and passes are two major ways to transform an IRModule. Also, a sequence of
 # transformations on an IRModule is acceptable. Note that we can print an IRModule at **ANY** stage
 # to TVMScript. After all transformations and optimizations are complete, we can build the IRModule
@@ -64,8 +64,8 @@ import numpy as np
 # ------------------
 # IRModule can be created by writing TVMScript, which is a round-trippable syntax for TVM IR.
 #
-# Different than creating an computational expression by Tensor Expression
-# (:ref:`tutorial-tensor-expr-get-started`). TensorIR allow user to  programs through tvm script,
+# Different than creating a computational expression by Tensor Expression
+# (:ref:`tutorial-tensor-expr-get-started`), TensorIR allow users to program through TVMScript,
 # a language embedded in python AST. The new method makes it possible to write complex programs
 # and further schedule and optimize it.
 #
@@ -140,7 +140,7 @@ print(b)
 #    :align: center
 #    :width: 100%
 #
-# The image above is a typical workflow for optimization a tensor program. First, we need to create
+# The image above is a typical workflow for optimizing a tensor program. First, we need to create a
 # schedule on the initial IRModule created from either TVMScript or Tensor Expression. Then, a
 # sequence of schedule primitives will help to improve the performance. And at last, we can lower
 # and build it into a runnable module.
