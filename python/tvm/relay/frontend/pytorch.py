@@ -2794,6 +2794,27 @@ class PyTorchOpConverter:
     def bucketize(self, inputs, input_types):
         return self.searchsorted_common(inputs[1], inputs[0], inputs[2], inputs[3])
 
+    def roll(self, inputs, input_types):
+        def swap_axes(inp, shape, ax1, ax2):
+            axes = list(range(len(shape)))
+            axes[ax1] = ax2
+            axes[ax2] = ax1
+            return _op.transpose(inp, axes)
+
+        x = inputs[0]
+        shifts = inputs[1]
+        dims = inputs[2]
+        shape = self.infer_shape(x)
+        start = _expr.const(0, "int64")
+        roll_dim = _expr.const(shape[dims[0]], "int64")
+        step = _expr.const(1, "int64")
+        indices_1d = _op.mod(
+            _op.transform.arange(start, roll_dim, step, "int64") - _expr.const(shifts[0], "int64"),
+            roll_dim,
+        )
+        indices = swap_axes(_op.tile(indices_1d, shape[:-1] + (1,)), shape, roll_dim, -1)
+        return _op.gather(x, roll_dim, indices)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3021,6 +3042,7 @@ class PyTorchOpConverter:
             "aten::any": functools.partial(self.all_any_common, _op.any),
             "aten::searchsorted": self.searchsorted,
             "aten::bucketize": self.bucketize,
+            "aten::roll": self.roll,
         }
 
     def update_convert_map(self, custom_map):
