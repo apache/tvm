@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
-import tarfile
 
 import pytest
 
+import tvm
 from tvm.ir.module import IRModule
 
 from tvm.driver import tvmc
@@ -82,6 +81,14 @@ def test_guess_frontend_tensorflow():
 
     sut = tvmc.frontends.guess_frontend("a_model.pb")
     assert type(sut) is tvmc.frontends.TensorflowFrontend
+
+
+def test_guess_frontend_paddle():
+    # some CI environments wont offer Paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+
+    sut = tvmc.frontends.guess_frontend("a_model.pdmodel")
+    assert type(sut) is tvmc.frontends.PaddleFrontend
 
 
 def test_guess_frontend_invalid():
@@ -161,6 +168,16 @@ def test_load_model__pb(pb_mobilenet_v1_1_quant):
     assert "MobilenetV1/Conv2d_0/weights" in tvmc_model.params.keys()
 
 
+def test_load_model__paddle(paddle_resnet50):
+    # some CI environments wont offer Paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+
+    tvmc_model = tvmc.load(paddle_resnet50, model_format="paddle")
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
+
+
 def test_load_model___wrong_language__to_keras(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
@@ -211,3 +228,128 @@ def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
             model_format="pytorch",
             shape_dict={"input": [1, 3, 224, 224]},
         )
+
+
+def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip("tflite")
+
+    tvmc_model = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
+    before = tvmc_model.mod
+
+    expected_layout = "NCHW"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NHWC"
+                and node.attrs.dst_layout == "NCHW"
+            )
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert any(layout_transform_calls), "Expected 'layout_transform NHWC->NCHW' not found"
+
+
+def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
+    # some CI environments wont offer ONNX, so skip in case it is not present
+    pytest.importorskip("onnx")
+
+    tvmc_model = tvmc.frontends.load_model(onnx_resnet50)
+    before = tvmc_model.mod
+
+    expected_layout = "NHWC"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NCHW"
+                and node.attrs.dst_layout == "NHWC"
+            )
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert any(layout_transform_calls), "Expected 'layout_transform NCWH->NHWC' not found"
+
+
+def test_compile_paddle_module_nchw_to_nhwc(paddle_resnet50):
+    # some CI environments wont offer Paddle, so skip in case it is not present
+    pytest.importorskip("paddle")
+
+    tvmc_model = tvmc.frontends.load_model(paddle_resnet50, "paddle")
+    before = tvmc_model.mod
+
+    expected_layout = "NHWC"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NCHW"
+                and node.attrs.dst_layout == "NHWC"
+            )
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert any(layout_transform_calls), "Expected 'layout_transform NCWH->NHWC' not found"
+
+
+def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_quant):
+    # some CI environments wont offer TFLite, so skip in case it is not present
+    pytest.importorskip("tflite")
+
+    tvmc_model = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant)
+    before = tvmc_model.mod
+
+    expected_layout = "NHWC"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NHWC"
+                and node.attrs.dst_layout == "NHWC"
+            )
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert not any(layout_transform_calls), "Unexpected 'layout_transform' call"
+
+
+def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
+    # some CI environments wont offer ONNX, so skip in case it is not present
+    pytest.importorskip("onnx")
+
+    tvmc_model = tvmc.frontends.load_model(onnx_resnet50)
+    before = tvmc_model.mod
+
+    expected_layout = "NCHW"
+    after = tvmc.common.convert_graph_layout(before, expected_layout)
+
+    layout_transform_calls = []
+
+    def _is_layout_transform(node):
+        if isinstance(node, tvm.relay.expr.Call):
+            layout_transform_calls.append(
+                node.op.name == "layout_transform"
+                and node.attrs.src_layout == "NCHW"
+                and node.attrs.dst_layout == "NCHW"
+            )
+
+    tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
+
+    assert not any(layout_transform_calls), "Unexpected 'layout_transform' call"

@@ -26,15 +26,17 @@ import re
 import shutil
 import subprocess
 import tarfile
-from typing import NamedTuple, Union, Optional, List, Dict
+from typing import Any, NamedTuple, Union, Optional, List, Dict
 
 import pytest
 import numpy as np
 
 import tvm
 from tvm import relay
+from tvm import te
 from tvm.contrib import utils, graph_executor
-from tvm.relay.backend import compile_engine
+from tvm.relay.backend import te_compiler
+from tvm.relay.backend.te_compiler import TECompiler
 from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
 
@@ -56,17 +58,53 @@ class AOTTestModel(NamedTuple):
         Dict of input names to value arrays
     outputs: List[np.array]
         Ordered list of output value arrays
+    output_tolerance: Optional[Union[int, float]]
+        Allowed tolerance of the output
     name: str
         Name to use for this model
     params: Optional[Dict[str, np.array]]
         Dict of parameter names to value arrays
+    extra_memory_in_bytes: int
+        Extra memory to allocate after planned memory
     """
 
     module: tvm.IRModule
     inputs: Dict[str, np.array]
     outputs: List[np.array]
+    output_tolerance: Optional[Union[int, float]] = None
     name: str = "default"
     params: Optional[Dict[str, np.array]] = None
+    extra_memory_in_bytes: int = 0
+
+
+class AOTCompiledTestModel(NamedTuple):
+    """A compiled AOTTestModel with associated module
+
+    Parameters
+    ----------
+    model: AOTTestModel
+        Input model to be compiled
+    module: tvm.runtime.Module
+        The compiled Module for the associated AOTTestModel
+    """
+
+    model: AOTTestModel
+    executor_factory: tvm.relay.backend.executor_factory.AOTExecutorFactoryModule
+
+
+class AOTDataLinkage(NamedTuple):
+    """A compiled AOTTestModel with associated module
+
+    Parameters
+    ----------
+    section: str
+        Named section to place data into
+    alignment: int
+        Section alignment
+    """
+
+    section: str
+    alignment: int
 
 
 class AOTTestRunner(NamedTuple):
@@ -80,14 +118,17 @@ class AOTTestRunner(NamedTuple):
         Code to prepend to the main function
     includes: List[str]
         Additional includes required to run the AOT test runner
-    parameters: Map[str, str]
+    parameters: Dict[str, str]
         Additional parameters to pass to the make command
+    pass_config: Dict[str, Any]
+        Additional pass configuration when building the model
     """
 
     makefile: str = "default"
     prologue: str = ""
     includes: List[str] = []
     parameters: Dict[str, str] = {}
+    pass_config: Dict[str, Any] = {}
 
 
 AOT_DEFAULT_RUNNER = AOTTestRunner()
@@ -225,11 +266,20 @@ def subprocess_log_output(cmd, cwd, logfile):
     return proc.wait()
 
 
-def emit_main_prologue(main_file, custom_prologue, workspace_bytes):
+# TODO: Move to linker script with list of symbols rather than coding into source
+def emit_data_linkage(output_file, data_linkage):
+    if data_linkage is not None:
+        output_file.write(
+            f'__attribute__((section("{data_linkage.section}"), aligned({data_linkage.alignment}))) '
+        )
+
+
+def emit_main_prologue(main_file, custom_prologue, workspace_bytes, data_linkage):
     # Add TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES because of memory alignment.
     main_file.write(
         f"#define WORKSPACE_SIZE ({workspace_bytes} + TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)\n"
     )
+    emit_data_linkage(main_file, data_linkage)
     main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
     main_file.write("tvm_workspace_t app_workspace;\n")
     main_file.write(
@@ -242,9 +292,14 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
     return StackMemoryManager_Free(&app_workspace,ptr);
 }
 
-void TVMPlatformAbort(tvm_crt_error_t code) { }
+void TVMPlatformAbort(tvm_crt_error_t code) { exit(-1); }
 
-void TVMLogf(const char* msg, ...) { }
+void TVMLogf(const char* msg, ...) {
+  va_list args;
+  va_start(args, msg);
+  vfprintf(stdout, msg, args);
+  va_end(args);
+}
 
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
 int main(){\n
@@ -360,23 +415,30 @@ def emit_main_packed_call(main_file, input_map, output_list, mod_name):
     main_file.write("\n")
 
 
-def emit_main_compare(main_file, output_list, mod_name):
+def emit_main_compare(main_file, output_list, output_tolerance, mod_name):
     num_outputs = len(output_list)
     actual_data_name = mangle_name(mod_name, "output_data")
     expected_data_name = mangle_name(mod_name, "expected_output_data")
 
     for i in range(0, num_outputs):
         is_float_dtype = output_list[i].dtype == "float32"
-        main_file.write(f"for (int i = 0; i<{actual_data_name}{i}_len; i++){{\n")
+
+        comparison_function = "abs"
+        tolerance = output_tolerance or 0
         if is_float_dtype:
-            main_file.write(
-                f'if (fabs({actual_data_name}{i}[i]-{expected_data_name}{i}[i]) > 0.001f){{\n\tprintf("{AOT_FAILURE_TOKEN}\\n");\n\treturn -1;}}\n'
-            )
-        else:
-            main_file.write(
-                f'if ({actual_data_name}{i}[i]!={expected_data_name}{i}[i]){{\n\tprintf("{AOT_FAILURE_TOKEN}\\n");\n\treturn -1;}}\n'
-            )
-        main_file.write("}\n")
+            comparison_function = "fabs"
+            tolerance = output_tolerance or 0.001
+
+        main_file.write(
+            f"""
+            for (int i = 0; i<{actual_data_name}{i}_len; i++) {{
+                if ({comparison_function}({actual_data_name}{i}[i]-{expected_data_name}{i}[i]) > {tolerance}) {{
+                    printf("{AOT_FAILURE_TOKEN}\\n");
+                    return -1;
+                }}
+            }}
+            """
+        )
 
 
 def emit_main_init_memory_manager(main_file):
@@ -392,6 +454,8 @@ def emit_main_epilogue(main_file):
 
 def emit_main_common_includes(main_file, custom_includes):
     main_file.write("#include <stdio.h>\n")
+    main_file.write("#include <stdarg.h>\n")
+    main_file.write("#include <stdlib.h>\n")
     main_file.write("#include <math.h>\n")
     main_file.write('#include "tvm/runtime/c_runtime_api.h"\n')
     main_file.write('#include "tvm/runtime/crt/stack_allocator.h"\n')
@@ -404,7 +468,14 @@ def emit_main_micro_include(main_file, mod_name):
 
 
 def create_main(
-    test_name, models, output_path, custom_includes, custom_prologue, interface_api, workspace_bytes
+    test_name,
+    models,
+    output_path,
+    custom_includes,
+    custom_prologue,
+    data_linkage,
+    interface_api,
+    workspace_bytes,
 ):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
@@ -418,7 +489,7 @@ def create_main(
         for model in models:
             emit_main_data(main_file, model.inputs, model.outputs, model.name)
 
-        emit_main_prologue(main_file, custom_prologue, workspace_bytes)
+        emit_main_prologue(main_file, custom_prologue, workspace_bytes, data_linkage)
         emit_main_init_memory_manager(main_file)
 
         if interface_api == "c":
@@ -432,11 +503,11 @@ def create_main(
                 emit_main_packed_call(main_file, model.inputs, model.outputs, model.name)
 
         for model in models:
-            emit_main_compare(main_file, model.outputs, model.name)
+            emit_main_compare(main_file, model.outputs, model.output_tolerance, model.name)
         emit_main_epilogue(main_file)
 
 
-def create_header_file(tensor_name, npy_data, output_path):
+def create_header_file(tensor_name, npy_data, output_path, data_linkage):
     """
     This method generates a header file containing the data contained in the numpy array provided.
     It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone application.
@@ -449,6 +520,8 @@ def create_header_file(tensor_name, npy_data, output_path):
         header_file.write("#include <stdint.h>\n")
         header_file.write("#include <dlpack/dlpack.h>\n")
         header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
+
+        emit_data_linkage(header_file, data_linkage)
 
         if npy_data.dtype == "int8":
             header_file.write(f"int8_t {tensor_name}[] =")
@@ -471,36 +544,66 @@ def extract_main_workspace_size_bytes(extract_dir):
         return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
 
-def compile_and_run(
+def compile_models(
     models: Union[List[AOTTestModel], AOTTestModel],
-    runner: AOTTestRunner,
-    interface_api,
-    use_unpacked_api,
-    debug_calculated_workspaces=False,
-    workspace_byte_alignment=8,
-    enable_op_fusion=True,
-):
+    interface_api: str,
+    use_unpacked_api: bool,
+    workspace_byte_alignment: int = 8,
+    enable_op_fusion: bool = True,
+    pass_config: Dict[str, Any] = None,
+) -> List[AOTCompiledTestModel]:
     """
-    This method verifies the generated source
+    This method generates runtime.Modules for the tests
     """
-    base_target = "c -runtime=c --link-params --executor=aot"
-    extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
-    target = f"{base_target} {extra_target}"
-    cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
-
     if not isinstance(models, list):
         models = [models]
 
-    # The calculated workspaces will not account for stack allocator tags used for debugging
-    if debug_calculated_workspaces:
-        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
+    base_target = "c -runtime=c --link-params --executor=aot"
+    extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
+    target = f"{base_target} {extra_target}"
 
     config = {"tir.disable_vectorize": True}
+    if pass_config:
+        config = {**config, **pass_config}
     if not enable_op_fusion:
         config["relay.FuseOps.max_depth"] = 1
 
+    compiled_mods = list()
+    for model in models:
+        with tvm.transform.PassContext(opt_level=3, config=config):
+            executor_factory = tvm.relay.build(
+                model.module,
+                target,
+                target_host=target,
+                params=model.params,
+                mod_name=model.name,
+            )
+            compiled_mods.append(
+                AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+            )
+    return compiled_mods
+
+
+def run_and_check(
+    models: List[AOTCompiledTestModel],
+    runner: AOTTestRunner,
+    interface_api: str,
+    debug_calculated_workspaces=False,
+    workspace_byte_alignment=8,
+    data_linkage: AOTDataLinkage = None,
+):
+    """
+    This method uses the original test data and compiled runtime.Modules
+    to run in the test runner to verify the results.
+    """
+
     tmp_path = utils.tempdir()
     tmp_dir = tmp_path.temp_dir
+
+    cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+    # The calculated workspaces will not account for stack allocator tags used for debugging
+    if debug_calculated_workspaces:
+        cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
     base_path = os.path.join(tmp_dir, "test")
     build_path = os.path.join(base_path, "build")
@@ -515,21 +618,14 @@ def compile_and_run(
     )
 
     workspace_bytes = 0
-    for model in models:
-        with tvm.transform.PassContext(opt_level=3, config=config):
-            lib = tvm.relay.build(
-                model.module,
-                target,
-                target_host=target,
-                params=model.params,
-                mod_name=model.name,
-            )
-
+    for compiled_model in models:
+        model = compiled_model.model
         tar_file = os.path.join(base_path, f"{model.name}.tar")
-        export_model_library_format(lib, tar_file)
+        export_model_library_format(compiled_model.executor_factory, tar_file)
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
+        workspace_bytes += model.extra_memory_in_bytes
         workspace_bytes += extract_main_workspace_size_bytes(base_path)
 
         for key in model.inputs:
@@ -538,6 +634,7 @@ def compile_and_run(
                 f'{mangle_name(model.name, "input_data")}_{sanitized_tensor_name}',
                 model.inputs[key],
                 include_path,
+                data_linkage,
             )
 
         for i in range(len(model.outputs)):
@@ -545,19 +642,22 @@ def compile_and_run(
                 (f'{mangle_name(model.name,"output_data")}{i}'),
                 np.zeros(model.outputs[i].shape, model.outputs[i].dtype),
                 include_path,
+                data_linkage,
             )
             create_header_file(
                 (f'{mangle_name(model.name, "expected_output_data")}{i}'),
                 model.outputs[i],
                 include_path,
+                data_linkage,
             )
 
     create_main(
         "test.c",
-        models,
+        [compiled_model.model for compiled_model in models],
         build_path,
         runner.includes,
         runner.prologue,
+        data_linkage,
         interface_api,
         workspace_bytes,
     )
@@ -592,9 +692,37 @@ def compile_and_run(
         assert AOT_SUCCESS_TOKEN in run_log.read()
 
 
+def compile_and_run(
+    models: Union[List[AOTTestModel], AOTTestModel],
+    runner: AOTTestRunner,
+    interface_api: str,
+    use_unpacked_api: bool,
+    debug_calculated_workspaces: bool = False,
+    workspace_byte_alignment: int = 8,
+    enable_op_fusion: bool = True,
+    data_linkage: AOTDataLinkage = None,
+):
+    """This is a wrapper API to compile and run models as test for AoT"""
+    compiled_test_mods = compile_models(
+        models=models,
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        workspace_byte_alignment=workspace_byte_alignment,
+        enable_op_fusion=enable_op_fusion,
+        pass_config=runner.pass_config,
+    )
+    run_and_check(
+        models=compiled_test_mods,
+        runner=runner,
+        interface_api=interface_api,
+        debug_calculated_workspaces=debug_calculated_workspaces,
+        workspace_byte_alignment=workspace_byte_alignment,
+        data_linkage=data_linkage,
+    )
+
+
 def generate_ref_data(mod, input_data, params=None, target="llvm"):
     """Generate reference data through executing the relay module"""
-    compile_engine.get().clear()
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params=params)
 

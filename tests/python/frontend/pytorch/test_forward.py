@@ -1602,6 +1602,8 @@ def test_forward_linear():
     verify_model(LinearNoBias(), input_data=[input2d, weight1d])
     # 3D input, 2D weight, no bias
     verify_model(LinearNoBias(), input_data=[input3d, weight3x2])
+    # 3D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input3d, weight2d, bias1d])
 
     verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
 
@@ -1963,8 +1965,9 @@ def test_forward_nms():
         boxes = torch.rand(num_boxes, box_len, dtype=torch.float) * 0.5
         boxes[:, 2] += boxes[:, 0]
         boxes[:, 3] += boxes[:, 1]
-        scores = torch.from_numpy(np.random.uniform(-1, 1, size=(num_boxes,)).astype(np.float32))
-        return boxes, scores
+        scores = np.linspace(0, 1, num=num_boxes).astype("float32")
+        np.random.shuffle(scores)
+        return boxes, torch.from_numpy(scores)
 
     targets = ["llvm", "cuda"]
 
@@ -3945,6 +3948,48 @@ def test_annotate_span():
         trace, [("input", inp.shape)], use_parser_friendly_name=True
     )
     relay.transform.AnnotateSpans()(mod)
+
+
+@tvm.testing.uses_gpu
+def test_all_any():
+    def test_fn(f, dim=None, keepdim=False):
+        return lambda x: f(x, dim=dim, keepdim=keepdim)
+
+    for f in [torch.all, torch.any]:
+        verify_model(test_fn(f, 0), [torch.rand(1, 2).bool()])
+        verify_model(test_fn(f, 0), [torch.arange(0, 3).to(torch.uint8)])
+        verify_model(test_fn(f, 1), [torch.rand(4, 2).bool()])
+        verify_model(test_fn(f, 0, keepdim=True), [torch.rand(4, 2).bool()])
+
+
+@tvm.testing.uses_gpu
+def test_searchsorted():
+    def test_fn(out_int32=False, right=False):
+        return lambda x, y: torch.searchsorted(x, y, out_int32=out_int32, right=right)
+
+    sorted_sequence = torch.tensor([[1, 3, 5, 7, 9], [2, 4, 6, 8, 10]])
+    values = torch.tensor([[3, 6, 9], [3, 6, 9]])
+    verify_model(test_fn(), [sorted_sequence, values])
+    verify_model(test_fn(out_int32=True), [sorted_sequence[0], values[0]])
+    verify_model(test_fn(right=True), [sorted_sequence, values])
+
+    sorted_sequence_1d = torch.tensor([1, 3, 5, 7, 9])
+    values = torch.tensor([[3, 6, 9], [4, 2, 7]])
+    verify_model(test_fn(), [sorted_sequence_1d, values])
+
+    verify_model(test_fn(), [sorted_sequence_1d, torch.tensor(6)])
+
+
+@tvm.testing.uses_gpu
+def test_bucketize():
+    def test_fn(out_int32=False, right=False):
+        return lambda x, y: torch.bucketize(x, y, out_int32=out_int32, right=right)
+
+    boundaries = torch.tensor([1, 3, 5, 7, 9])
+    values = torch.tensor([3, 6, 9])
+
+    verify_model(test_fn(), [values, boundaries])
+    verify_model(test_fn(out_int32=True, right=True), [values, boundaries])
 
 
 if __name__ == "__main__":

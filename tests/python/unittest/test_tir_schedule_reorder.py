@@ -20,175 +20,164 @@ import sys
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def elementwise(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128, 128))
-    with tir.block([128, 128, 128, 128], "B") as [vi, vj, vk, vl]:
-        B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
-
-
-@tvm.script.tir
-def elementwise_not_affine(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128, 128))
-    for i, j, k, l in tir.grid(128, 128, 128, 8):
-        with tir.block([128, 128, 128, 128], "B") as [vi, vj, vk, vl]:
-            tir.bind(vi, i)
-            tir.bind(vj, j)
-            tir.bind(vk, k)
-            tir.bind(vl, l * 16)
+@T.prim_func
+def elementwise(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@tvm.script.tir
-def elementwise_dependent_loop(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128, 128))
-    for i in tir.serial(0, 128):
-        for j, k, l in tir.grid(128, i, 128):
-            with tir.block([128, 128, i, 128], "B") as [vi, vj, vk, vl]:
+@T.prim_func
+def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for i, j, k, l in T.grid(128, 128, 128, 8):
+        with T.block("B"):
+            vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            vl = T.axis.S(128, l * 16)
+            B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
+
+
+@T.prim_func
+def elementwise_dependent_loop(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for i in T.serial(0, 128):
+        for j, k, l in T.grid(128, i, 128):
+            with T.block("B"):
+                vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@tvm.script.tir
-def elementwise_predicate(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128, 128))
-    for i, j, k, l in tir.grid(128, 128, 128, 128):
-        with tir.block([128, 128, 128, 128], "B") as [vi, vj, vk, vl]:
-            tir.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
+@T.prim_func
+def elementwise_predicate(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            T.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@tvm.script.tir
-def elementwise_non_single_branch(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128))
-    C = tir.alloc_buffer((128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128))
-    for i, j in tir.grid(128, 128):
-        for k in tir.serial(0, 128):
-            with tir.block([128, 128, 128], "C") as [vi, vj, vk]:
-                tir.bind(vi, i)
-                tir.bind(vj, j)
-                tir.bind(vk, k)
+@T.prim_func
+def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128))
+    C = T.alloc_buffer((128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128))
+    for i, j in T.grid(128, 128):
+        for k in T.serial(0, 128):
+            with T.block("C"):
+                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 C[vi, vj, vk] = A[vi, vj, vk] * 2.0
-        for k in tir.serial(0, 128):
-            with tir.block([128, 128, 128], "B") as [vi, vj, vk]:
-                tir.bind(vi, i)
-                tir.bind(vj, j)
-                tir.bind(vk, k)
+        for k in T.serial(0, 128):
+            with T.block("B"):
+                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[vi, vj, vk] = C[vi, vj, vk] * 2.0
 
 
-@tvm.script.tir
-def elementwise_with_loops_not_same_scope(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128))
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "A") as [vi, vj]:
-            tir.bind(vi, i)
-            tir.bind(vj, j)
-            for k in tir.serial(0, 128):
-                with tir.block([128], "B") as [vk]:
-                    tir.bind(vk, k)
-                    tir.reads([A[vi, vj, vk]])
-                    tir.writes([B[vi, vj, vk]])
+@T.prim_func
+def elementwise_with_loops_not_same_scope(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("A"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            for k in T.serial(0, 128):
+                with T.block("B"):
+                    vk = T.axis.S(128, k)
+                    T.reads([A[vi, vj, vk]])
+                    T.writes([B[vi, vj, vk]])
                     B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@tvm.script.tir
-def elementwise_with_wrong_block_var_type(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128))
-    for i, j, k in tir.grid(128, 128, 128):
-        with tir.block([128, 128, tir.scan_axis(0, 128)], "B") as [vi, vj, vk]:
-            tir.bind(vi, i)
-            tir.bind(vj, j)
-            tir.bind(vk, k)
-            tir.reads([A[vi, vj, vk]])
-            tir.writes([B[vi, vj, vk]])
+@T.prim_func
+def elementwise_with_wrong_block_var_type(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128))
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            vk = T.axis.scan(128, k)
+            T.reads([A[vi, vj, vk]])
+            T.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@tvm.script.tir
-def elementwise_reordered(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128, 128))
-    for l, j, k, i in tir.grid(128, 128, 128, 128):
-        with tir.block([128, 128, 128, 128], "B") as [vi, vj, vk, vl]:
-            tir.bind(vi, i)
-            tir.bind(vj, j)
-            tir.bind(vk, k)
-            tir.bind(vl, l)
+@T.prim_func
+def elementwise_reordered(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for l, j, k, i in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@tvm.script.tir
-def elementwise_reordered2(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128, 128))
-    for k, j, i, l in tir.grid(128, 128, 128, 128):
-        with tir.block([128, 128, 128, 128], "B") as [vi, vj, vk, vl]:
-            tir.bind(vi, i)
-            tir.bind(vj, j)
-            tir.bind(vk, k)
-            tir.bind(vl, l)
+@T.prim_func
+def elementwise_reordered2(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for k, j, i, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@tvm.script.tir
-def elementwise_reordered_with_predicate(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128, 128, 128))
-    B = tir.match_buffer(b, (128, 128, 128, 128))
-    for l, j, k, i in tir.grid(128, 128, 128, 128):
-        with tir.block([128, 128, 128, 128], "B") as [vi, vj, vk, vl]:
-            tir.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
-            tir.bind(vi, i)
-            tir.bind(vj, j)
-            tir.bind(vk, k)
-            tir.bind(vl, l)
+@T.prim_func
+def elementwise_reordered_with_predicate(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for l, j, k, i in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            T.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@tvm.script.tir
-def opaque_access(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [16, 16], "float32")
-    B = tir.match_buffer(b, [16, 16], "float32")
-    with tir.block([16, 16], "A") as [vi, vj]:
-        tir.reads([])
-        tir.writes([A[0:16, 0:16]])
-        tir.store(A.data, vi * 16 + vj, 1)
-    with tir.block([16, 16], "B") as [vi, vj]:
-        tir.reads([])
-        tir.writes([B[0:16, 0:16]])
-        tir.evaluate(tir.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
+@T.prim_func
+def opaque_access(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [16, 16], "float32")
+    B = T.match_buffer(b, [16, 16], "float32")
+    for i, j in T.grid(16, 16):
+        with T.block("A"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([])
+            T.writes([A[0:16, 0:16]])
+            T.store(A.data, vi * 16 + vj, 1)
+    for i, j in T.grid(16, 16):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([])
+            T.writes([B[0:16, 0:16]])
+            T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
 
 
-@tvm.script.tir
-def opaque_access_reorder(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [16, 16], "float32")
-    B = tir.match_buffer(b, [16, 16], "float32")
-    for j, i in tir.grid(16, 16):
-        with tir.block([16, 16], "A") as [vi, vj]:
-            tir.bind(vi, i)
-            tir.bind(vj, j)
-            tir.reads([])
-            tir.writes([A[0:16, 0:16]])
-            tir.store(A.data, vi * 16 + vj, 1)
-    for j, i in tir.grid(16, 16):
-        with tir.block([16, 16], "B") as [vi, vj]:
-            tir.bind(vi, i)
-            tir.bind(vj, j)
-            tir.reads([])
-            tir.writes([B[0:16, 0:16]])
-            tir.evaluate(tir.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
+@T.prim_func
+def opaque_access_reorder(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [16, 16], "float32")
+    B = T.match_buffer(b, [16, 16], "float32")
+    for j, i in T.grid(16, 16):
+        with T.block("A"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([])
+            T.writes([A[0:16, 0:16]])
+            T.store(A.data, vi * 16 + vj, 1)
+    for j, i in T.grid(16, 16):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([])
+            T.writes([B[0:16, 0:16]])
+            T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
 
 
 # pylint: enable=no-member,invalid-name,unused-variable

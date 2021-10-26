@@ -113,6 +113,9 @@ std::vector<int64_t> ToShape(NDArray shape_tensor) {
   return shape;
 }
 
+void VirtualMachine::OpStartHook(Instruction instr) {}
+void VirtualMachine::OpStopHook() {}
+
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   if (name == "invoke") {
@@ -233,7 +236,7 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
       << "The number of provided parameters doesn't match the number of assigned devices";
   std::vector<ObjectRef> func_args(param_names.size());
   for (int i = offset; i < args.size(); ++i) {
-    Index device_type = vm_func.params_device_type[i - offset];
+    DLDeviceType device_type = vm_func.params_device_type[i - offset];
     Device dev = GetDevice(device_type);
 
     if (args[i].type_code() == kTVMDLTensorHandle) {
@@ -400,11 +403,9 @@ inline void VirtualMachine::WriteRegister(Index r, const ObjectRef& val) {
   frames_.back().register_file[r] = val;
 }
 
-inline ObjectRef VirtualMachine::ReadRegister(Index r) const {
-  return frames_.back().register_file[r];
-}
+ObjectRef VirtualMachine::ReadRegister(Index r) const { return frames_.back().register_file[r]; }
 
-inline int64_t VirtualMachine::LoadScalarInt(Index r) const {
+int64_t VirtualMachine::LoadScalarInt(Index r) const {
   int64_t result = 0;
   const auto& obj = ReadRegister(r);
   NDArray array = Downcast<NDArray>(CopyTo(obj, {kDLCPU, 0}));
@@ -458,6 +459,11 @@ void VirtualMachine::RunLoop() {
         throw std::runtime_error("VM encountered fatal error");
       }
       case Opcode::LoadConst: {
+        bool is_not_cached = const_pool_.size() <= static_cast<size_t>(instr.const_index) ||
+                             !const_pool_[instr.const_index].defined();
+        if (is_not_cached) {
+          OpStartHook(instr);
+        }
         auto constant_obj = exec_->constants[instr.const_index];
         // We cache the allocated object in the constant pool. To measure, the
         // first iteration will set the pool up. The other iterations will
@@ -471,6 +477,9 @@ void VirtualMachine::RunLoop() {
           const_pool_[instr.const_index] = CopyTo(constant_obj, dev);
         }
         WriteRegister(instr.dst, const_pool_[instr.const_index]);
+        if (is_not_cached) {
+          OpStopHook();
+        }
         pc_++;
         goto main_loop;
       }
@@ -560,6 +569,7 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::AllocTensor: {
+        OpStartHook(instr);
         auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
 
         for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
@@ -572,10 +582,12 @@ void VirtualMachine::RunLoop() {
         auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor.dtype);
 
         WriteRegister(instr.dst, obj);
+        OpStopHook();
         pc_++;
         goto main_loop;
       }
       case Opcode::AllocTensorReg: {
+        OpStartHook(instr);
         Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
         auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
         NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
@@ -586,6 +598,7 @@ void VirtualMachine::RunLoop() {
         auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor_reg.dtype);
 
         WriteRegister(instr.dst, obj);
+        OpStopHook();
         pc_++;
         goto main_loop;
       }
@@ -609,6 +622,7 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::AllocStorage: {
+        OpStartHook(instr);
         auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
         auto alignment = instr.alloc_storage.alignment;
 
@@ -625,6 +639,7 @@ void VirtualMachine::RunLoop() {
         storage_obj->buffer = alloc->Alloc(size, alignment, instr.alloc_storage.dtype_hint);
         Storage storage(storage_obj);
         WriteRegister(instr.dst, storage);
+        OpStopHook();
         pc_++;
         goto main_loop;
       }
@@ -656,6 +671,7 @@ void VirtualMachine::RunLoop() {
         }
       }
       case Opcode::ReshapeTensor: {
+        OpStartHook(instr);
         Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
         auto tensor_obj = ReadRegister(instr.reshape_tensor.tensor);
         NDArray tensor_arr = Downcast<NDArray>(tensor_obj);
@@ -664,17 +680,19 @@ void VirtualMachine::RunLoop() {
         NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
         const DLTensor* dl_tensor = shape_tensor.operator->();
         ICHECK_EQ(dl_tensor->dtype.code, 0u);
-        ICHECK_EQ(dl_tensor->dtype.bits, 64);
+        ICHECK_EQ(dl_tensor->dtype.bits, 64u);
         int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
         int64_t ndim = shape_tensor->shape[0];
         std::vector<int64_t> shape(dims, dims + ndim);
         // Reshape the input tensor
         auto out_tensor = tensor_arr.CreateView(shape, tensor_arr->dtype);
         WriteRegister(instr.dst, out_tensor);
+        OpStopHook();
         pc_++;
         goto main_loop;
       }
       case Opcode::DeviceCopy: {
+        OpStartHook(instr);
         auto tensor_src = ReadRegister(instr.src);
         NDArray src_data = Downcast<NDArray>(tensor_src);
         Device src_dev = src_data->device;
@@ -686,6 +704,7 @@ void VirtualMachine::RunLoop() {
 
         NDArray dst_data = src_data.CopyTo(dst_dev);
         WriteRegister(instr.dst, dst_data);
+        OpStopHook();
         pc_++;
         goto main_loop;
       }

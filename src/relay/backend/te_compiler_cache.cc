@@ -111,8 +111,10 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
 // Construct a schedule for a given Relay primitive function and target.
 class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
-  explicit ScheduleBuilder(Target target)
-      : target_(target), device_copy_op_(Op::Get("device_copy")) {
+  explicit ScheduleBuilder(Target target, bool create_schedule = true)
+      : target_(target),
+        device_copy_op_(Op::Get("device_copy")),
+        create_schedule_(create_schedule) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
   }
@@ -132,6 +134,8 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
     auto outputs = this->VisitExpr(prim_func->body);
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
+    // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
+    //          whenever the value of kMaxFuncNameLength changes
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
@@ -149,7 +153,6 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
     auto prim_fn_var = GlobalVar(prim_fn_name);
     prim_fn_var->checked_type_ = prim_func->checked_type();
 
-    ICHECK(anchor_op_.defined());
     // Fusion over tupled results may leave identity relationships
     // between inputs and outputs, and those should not be scheduled.
     // Hence schedule only non PlaceholderOp outputs.
@@ -162,7 +165,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
 
     te::Schedule schedule;
     // No need to register schedule for device copy op.
-    if (anchor_attrs_.as<DeviceCopyAttrs>() == nullptr) {
+    if (anchor_attrs_.as<DeviceCopyAttrs>() == nullptr && create_schedule_) {
       if (use_auto_scheduler_) {
         const auto* fauto_schedule =
             runtime::Registry::Get("auto_scheduler.relay_integration.auto_schedule_topi_compute");
@@ -259,17 +262,19 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
       impl = lowered_out->implementation;
     }
 
-    int op_pattern = fpattern[op];
-    if (!use_auto_scheduler_ && op_pattern >= kCommReduce) {
-      ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
-          << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
-          << " anchor=" << anchor_op_ << " current=" << op;
-    }
-    if (op_pattern >= anchor_op_pattern_) {
-      anchor_op_ = op;
-      anchor_attrs_ = call_node->attrs;
-      anchor_op_pattern_ = op_pattern;
-      anchor_implementation_ = impl;
+    if (create_schedule_) {
+      int op_pattern = fpattern[op];
+      if (!use_auto_scheduler_ && op_pattern >= kCommReduce) {
+        ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
+            << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
+            << " anchor=" << anchor_op_ << " current=" << op;
+      }
+      if (op_pattern >= anchor_op_pattern_) {
+        anchor_op_ = op;
+        anchor_attrs_ = call_node->attrs;
+        anchor_op_pattern_ = op_pattern;
+        anchor_implementation_ = impl;
+      }
     }
     if (outputs.size() != 1) {
       const auto* tuple_type = call_node->checked_type().as<TupleTypeNode>();
@@ -334,6 +339,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
+  bool create_schedule_;
 };
 
 /*!
@@ -390,6 +396,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     // Generate a name.
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
+    // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
+    //          whenever the value of kMaxFuncNameLength changes
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
@@ -666,6 +674,12 @@ std::string GetUniqueName(std::string name, std::unordered_map<std::string, int>
   }
   return name;
 }
+
+TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {
+  return ScheduleBuilder(tvm::Target("ext_dev"), false).Create(prim_func, [&](std::string name) {
+    return name;
+  });
+});
 
 }  // namespace tec
 }  // namespace relay

@@ -162,6 +162,8 @@ def conv2d_packed_filter(
     stride,
     padding,
     dtype,
+    k_split_factor,
+    h_split_factor,
     storage_scope="global",
 ):
     """
@@ -260,15 +262,50 @@ def conv2d_packed_filter(
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
-    # Perform scheduling
-    n, hid, wid, cid, hoff, woff, coff = s[Y].op.axis
-    slice = s[Y].fuse(wid, cid)
+    # cache read for the input / activation (X)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
+    Fl = s.cache_read(filt_packed, storage_scope, [Y])
+
+    # cache write for the output (Y)
     Yl = s.cache_write(Y, storage_scope)
 
-    s[Yl].compute_at(s[Y], hid)
-    n, hid, slice, hoff, woff, coff = s[Yl].op.axis
-    s[Xl].compute_at(s[Yl], slice)
+    ########################
+    # cache write schedule #
+    ########################
+
+    # loop schedule corresponding with nhwc8h8w32c layout
+    # using k to represent output channel
+    n, ho, wo, ko, hi, wi, ki = s[Y].op.axis
+
+    # loop split h and compute cache write at outer loop split
+    # to increase cache usage by factor of h_split_factor
+    koo, koi = s[Y].split(ko, factor=k_split_factor)
+    hoo, hoi = s[Y].split(ho, factor=h_split_factor)
+    s[Y].reorder(n, koo, hoo, koi, hoi, wo, hi, wi, ki)
+    s[Yl].compute_at(s[Y], hoo)
+
+    ####################
+    # compute schedule #
+    ####################
+
+    # loop schedule corresponding with nhwc8h8w32c layout
+    # using k to represent output channel
+    n, ho, wo, ko, hi, wi, ki = s[Yl].op.axis
+
+    # reduction axes
+    # using rc to represent (reduction) input channel
+    rh, rw, rc = s[Yl].op.reduce_axis
+
+    # split input channel by the block size
+    rco, rci = s[Yl].split(rc, factor=block_C)
+
+    # loop split h and compute cache write at outer loop split
+    # to increase cache usage by factor of h_split_factor
+    koo, koi = s[Yl].split(ko, factor=k_split_factor)
+    hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
+    s[Yl].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
+    s[Xl].compute_at(s[Yl], hoo)
+    s[Fl].compute_at(s[Yl], hoo)
 
     binds = {}
     if storage_scope and storage_scope != "global":
@@ -287,6 +324,8 @@ def conv2d_packed_filter_nhwhwc(
     stride,
     padding,
     dtype,
+    k_split_factor,
+    h_split_factor,
     storage_scope="global",
 ):
     """
@@ -299,7 +338,7 @@ def conv2d_packed_filter_nhwhwc(
     assert kernel_size == tuple(shape_oihw8i32o4i[2:4])
 
     block_shape = get_block_shape()
-    block_H, block_W, _ = block_shape
+    block_H, block_W, block_C = block_shape
     shape = get_packed_activation_layout(shape_nhwc, block_shape, packed_C=False)
     logical_output_shape = get_conv2d_nhwc_shape(
         shape_nhwc,
@@ -372,18 +411,66 @@ def conv2d_packed_filter_nhwhwc(
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
-    n, ho, wo, hi, wi, k = s[Y].op.axis
-    rh, rw, rc = s[Y].op.reduce_axis
-
-    rco, rci = s[Y].split(rc, factor=32)
-    s[Y].reorder(n, rco, wo, ho, k, hi, wi)
+    # cache read for the input / activation (X)
     Xl = s.cache_read(X_packed, storage_scope, [Y])
-    s[Xl].compute_at(s[Y], rco)
-
-    ko, ki = s[Y].split(k, factor=32)
-    s[Y].reorder(n, rco, wo, ho, ko, hi, wi, ki)
     Fl = s.cache_read(filt_packed, storage_scope, [Y])
-    s[Fl].compute_at(s[Y], ko)
+
+    # cache write for the output (Y)
+    Yl = s.cache_write(Y, storage_scope)
+
+    ########################
+    # cache write schedule #
+    ########################
+
+    # loop schedule corresponding with nhw8h8wc layout
+    # using k to represent output channel
+    n, ho, wo, hi, wi, k = s[Y].op.axis
+
+    # split output channel by the block size
+    ko, ki = s[Y].split(k, factor=block_C)
+
+    # loop split h and compute cache write at outer loop split
+    # to increase cache usage by factor of h_split_factor
+    koo, koi = s[Y].split(ko, factor=k_split_factor)
+    hoo, hoi = s[Y].split(ho, factor=h_split_factor)
+    s[Y].reorder(n, koo, hoo, koi, hoi, wo, hi, wi, ki)
+    s[Yl].compute_at(s[Y], hoo)
+
+    ####################
+    # compute schedule #
+    ####################
+
+    # loop schedule corresponding with nhw8h8wc layout
+    # using k to represent output channel
+    n, ho, wo, hi, wi, k = s[Yl].op.axis
+
+    # reduction axes
+    # using rc to represent (reduction) input channel
+    rh, rw, rc = s[Yl].op.reduce_axis
+
+    # split output & input channel by the block size
+    ko, ki = s[Yl].split(k, factor=block_C)
+    rco, rci = s[Yl].split(rc, factor=block_C)
+
+    # loop split h and compute cache write at outer loop split
+    # to increase cache usage by factor of h_split_factor
+    koo, koi = s[Yl].split(ko, factor=k_split_factor)
+    hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
+    s[Yl].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
+    s[Xl].compute_at(s[Yl], hoo)
+    s[Fl].compute_at(s[Yl], hoo)
+
+    #######################
+    # cache read schedule #
+    #######################
+
+    # loop schedule corresponding with nhw8h8wc layout
+    # using k to represent output channel
+    n, ho, wo, hi, wi, c = s[Xl].op.axis
+
+    # split intput channel by the block size
+    co, ci = s[Xl].split(c, factor=block_C)
+    s[Xl].reorder(n, ho, wo, co, hi, wi, ci)
 
     binds = {}
     if storage_scope and storage_scope != "global":
@@ -397,13 +484,15 @@ def conv2d_packed_filter_nhwhwc(
 
 class BaseConv2d:
     batch = tvm.testing.parameter(1)
-    in_size = tvm.testing.parameter(8, 56)
-    in_channel = tvm.testing.parameter(64)
-    out_channel = tvm.testing.parameter(64)
-    kernel = tvm.testing.parameter(3)
+    in_size = tvm.testing.parameter(8, 56, 64)
+    in_channel = tvm.testing.parameter(64, 128)
+    out_channel = tvm.testing.parameter(64, 128)
+    kernel = tvm.testing.parameter(1, 3)
     stride = tvm.testing.parameter(1)
-    pad = tvm.testing.parameter(1)
+    pad = tvm.testing.parameter(0, 1)
     dtype = tvm.testing.parameter("float32")
+    k_split_factor = tvm.testing.parameter(1, 2)
+    h_split_factor = tvm.testing.parameter(1, 2)
 
 
 class TestConv2dLogical(BaseConv2d):
@@ -427,13 +516,37 @@ class TestConv2dLogical(BaseConv2d):
             padding=(pad, pad, pad, pad),
             dtype=dtype,
         )
-        return output, ref_output
+
+        # nhwc8h8w32c -> nhwc
+        output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(
+            output.shape[0],
+            output.shape[1] * output.shape[4],
+            output.shape[2] * output.shape[5],
+            output.shape[3] * output.shape[6],
+        )
+
+        # slice output to match ref_output shape
+        # e.g. 8x8 spatial 3x3 filter = 6x6 ref output
+        # but still 8x8 output given the blocked layout
+        output = output[
+            0 : ref_output.shape[0] : 1,
+            0 : ref_output.shape[1] : 1,
+            0 : ref_output.shape[2] : 1,
+            0 : ref_output.shape[3] : 1,
+        ]
+
+        if "int" in dtype:
+            tol = {"atol": 0, "rtol": 0}
+        elif dtype == "float32":
+            tol = {"rtol": 1e-4, "atol": 2e-4}
+        tvm.testing.assert_allclose(output, ref_output, **tol)
 
 
 class TestConv2dPackedFilter(BaseConv2d):
     conv2d_impl = tvm.testing.parameter(conv2d_packed_filter, conv2d_packed_filter_nhwhwc)
 
     @tvm.testing.parametrize_targets("llvm")
+    @pytest.mark.skip("Skip due to being flaky on i386.")
     def test_conv2d(
         self,
         conv2d_impl,
@@ -445,6 +558,8 @@ class TestConv2dPackedFilter(BaseConv2d):
         pad,
         dtype,
         target,
+        k_split_factor,
+        h_split_factor,
     ):
         inputs = [
             np.random.uniform(0, 255, size=shape_nhwc).astype(dtype),
@@ -465,8 +580,45 @@ class TestConv2dPackedFilter(BaseConv2d):
             stride=(stride, stride),
             padding=(pad, pad, pad, pad),
             dtype=dtype,
+            k_split_factor=k_split_factor,
+            h_split_factor=h_split_factor,
         )
-        return output, ref_output
+
+        # nhwc8h8w32c
+        if len(output.shape) == 7:
+            # nhwc8h8w32c -> nhwc
+            output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(
+                output.shape[0],
+                output.shape[1] * output.shape[4],
+                output.shape[2] * output.shape[5],
+                output.shape[3] * output.shape[6],
+            )
+
+        # nhwhwc
+        else:
+            # nhwhwc -> nhwc
+            output = output.transpose(0, 1, 3, 2, 4, 5).reshape(
+                output.shape[0],
+                output.shape[1] * output.shape[3],
+                output.shape[2] * output.shape[4],
+                output.shape[5],
+            )
+
+        # slice output to match ref_output shape
+        # e.g. 8x8 spatial 3x3 filter = 6x6 ref output
+        # but still 8x8 output given the blocked layout
+        output = output[
+            0 : ref_output.shape[0] : 1,
+            0 : ref_output.shape[1] : 1,
+            0 : ref_output.shape[2] : 1,
+            0 : ref_output.shape[3] : 1,
+        ]
+
+        if "int" in dtype:
+            tol = {"atol": 0, "rtol": 0}
+        elif dtype == "float32":
+            tol = {"rtol": 1e-4, "atol": 2e-4}
+        tvm.testing.assert_allclose(output, ref_output, **tol)
 
 
 if __name__ == "__main__":

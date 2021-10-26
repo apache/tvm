@@ -17,150 +17,177 @@
 # pylint: disable=missing-function-docstring, missing-module-docstring
 
 import tvm
-from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 
 
-@tvm.script.tir
-def matmul(a: ty.handle, b: ty.handle, c: ty.handle, n: ty.int32) -> None:
-    m = tir.var("int32")
-    A = tir.match_buffer(a, [m, n])
-    B = tir.match_buffer(b, [m, n])
-    C = tir.match_buffer(c, [m, m])
+@T.prim_func
+def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
+    m = T.var("int32")
+    A = T.match_buffer(a, [m, n])
+    B = T.match_buffer(b, [m, n])
+    C = T.match_buffer(c, [m, m])
 
-    with tir.block([m, m, tir.reduce_axis(0, n)], "update") as [vi, vj, vk]:
-        with tir.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
-
-
-@tvm.script.tir
-def matmul_128(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-
-    with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-        with tir.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(m, m, n):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@tvm.script.tir
-def matmul_m_128(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    m = tir.var("int32")
-    A = tir.match_buffer(a, [m, 128])
-    B = tir.match_buffer(b, [m, 128])
-    C = tir.match_buffer(c, [m, m])
+@T.prim_func
+def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
 
-    with tir.block([m, m, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-        with tir.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
-
-
-@tvm.script.tir
-def matmul_m_8x(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    x = tir.var("int32")
-    m = tir.var("int32")
-    A = tir.match_buffer(a, [m, x * 8])
-    B = tir.match_buffer(b, [m, x * 8])
-    C = tir.match_buffer(c, [m, m])
-
-    with tir.block([m, m, tir.reduce_axis(0, x * 8)], "update") as [vi, vj, vk]:
-        with tir.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@tvm.script.tir
-def element_wise(a: ty.handle, c: ty.handle) -> None:
-    m = tir.var("int32")
-    n = tir.var("int32")
-    A = tir.match_buffer(a, (m, n), "float32")
-    C = tir.match_buffer(c, (m, n), "float32")
+@T.prim_func
+def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
+    m = T.var("int32")
+    A = T.match_buffer(a, [m, 128])
+    B = T.match_buffer(b, [m, 128])
+    C = T.match_buffer(c, [m, m])
 
-    B = tir.alloc_buffer((m, n), "float32")
-
-    with tir.block([m, n], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-
-    with tir.block([m, n], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
-
-
-@tvm.script.tir
-def element_wise_128_64(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 64), "float32")
-    C = tir.match_buffer(c, (128, 64), "float32")
-    B = tir.alloc_buffer((128, 64), "float32")
-
-    with tir.block([128, 64], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-
-    with tir.block([128, 64], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+    for i, j, k in T.grid(m, m, 128):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@tvm.script.tir
-def element_wise_128_n(a: ty.handle, c: ty.handle) -> None:
-    n = tir.var("int32")
-    A = tir.match_buffer(a, (128, n), "float32")
-    C = tir.match_buffer(c, (128, n), "float32")
-    B = tir.alloc_buffer((128, n), "float32")
+@T.prim_func
+def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
+    x = T.var("int32")
+    m = T.var("int32")
+    A = T.match_buffer(a, [m, x * 8])
+    B = T.match_buffer(b, [m, x * 8])
+    C = T.match_buffer(c, [m, m])
 
-    with tir.block([128, n], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-
-    with tir.block([128, n], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
-
-
-@tvm.script.tir
-def mem_copy(
-    a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32, p: ty.int32, q: ty.int32
-) -> None:
-    A = tir.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=q)
-    B = tir.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
-
-    with tir.block([m, n], "") as [vi, vj]:
-        B[vi, vj] = A[vi, vj]
+    for i, j, k in T.grid(m, m, x * 8):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@tvm.script.tir
-def mem_copy_16_16_8_4(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (16, 16), "float32", strides=[8, 1], elem_offset=4)
-    B = tir.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
+@T.prim_func
+def element_wise(a: T.handle, c: T.handle) -> None:
+    m = T.var("int32")
+    n = T.var("int32")
+    A = T.match_buffer(a, (m, n), "float32")
+    C = T.match_buffer(c, (m, n), "float32")
 
-    with tir.block([16, 16], "") as [vi, vj]:
-        B[vi, vj] = A[vi, vj]
+    B = T.alloc_buffer((m, n), "float32")
 
+    for i, j in T.grid(m, n):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
 
-@tvm.script.tir
-def mem_copy_m_n_p_n(a: ty.handle, b: ty.handle, m: ty.int32, n: ty.int32, p: ty.int32) -> None:
-    A = tir.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=n)
-    B = tir.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
-
-    with tir.block([m, n], "") as [vi, vj]:
-        B[vi, vj] = A[vi, vj]
-
-
-@tvm.script.tir
-def param_in_arith_exprs(a: ty.handle, b: ty.handle) -> None:
-    n = tir.var("int32")
-    A = tir.match_buffer(a, [n // 8, 8], "int32")
-    B = tir.match_buffer(b, [n], "int32")
-    with tir.block([n - 1], "") as [vi]:
-        B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
+    for i, j in T.grid(m, n):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def param_in_arith_exprs_n_16(a: ty.handle, b: ty.handle) -> None:
-    n = tir.var("int32")
-    A = tir.match_buffer(a, [2, 8], "int32")
-    B = tir.match_buffer(b, [16], "int32")
-    with tir.block([15], "") as [vi]:
-        B[vi] = A[vi // 8, vi % 8] + 714
+@T.prim_func
+def element_wise_128_64(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 64), "float32")
+    C = T.match_buffer(c, (128, 64), "float32")
+    B = T.alloc_buffer((128, 64), "float32")
+
+    for i, j in T.grid(128, 64):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+
+    for i, j in T.grid(128, 64):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def element_wise_128_n(a: T.handle, c: T.handle) -> None:
+    n = T.var("int32")
+    A = T.match_buffer(a, (128, n), "float32")
+    C = T.match_buffer(c, (128, n), "float32")
+    B = T.alloc_buffer((128, n), "float32")
+
+    for i, j in T.grid(128, n):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+
+    for i, j in T.grid(128, n):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32, q: T.int32) -> None:
+    A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=q)
+    B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
+
+    for i, j in T.grid(m, n):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj]
+
+
+@T.prim_func
+def mem_copy_16_16_8_4(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32", strides=[8, 1], elem_offset=4)
+    B = T.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
+
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj]
+
+
+@T.prim_func
+def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32) -> None:
+    A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=n)
+    B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
+
+    for i, j in T.grid(m, n):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj]
+
+
+@T.prim_func
+def param_in_arith_exprs(a: T.handle, b: T.handle) -> None:
+    n = T.var("int32")
+    A = T.match_buffer(a, [n // 8, 8], "int32")
+    B = T.match_buffer(b, [n], "int32")
+    for i in range(n - 1):
+        with T.block():
+            vi = T.axis.S(n - 1, i)
+            B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
+
+
+@T.prim_func
+def param_in_arith_exprs_n_16(a: T.handle, b: T.handle) -> None:
+    n = T.var("int32")
+    A = T.match_buffer(a, [2, 8], "int32")
+    B = T.match_buffer(b, [16], "int32")
+    for i in range(15):
+        with T.block():
+            vi = T.axis.S(15, i)
+            B[vi] = A[vi // 8, vi % 8] + 714
 
 
 def test_specialize_nothing():
@@ -171,13 +198,13 @@ def test_specialize_nothing():
 def test_specialize_matmul():
     a, _, _, n = matmul.params
     # fully specialized
-    func = matmul.specialize({a: tir.decl_buffer((128, 128))})
+    func = matmul.specialize({a: tvm.tir.decl_buffer((128, 128))})
     tvm.ir.assert_structural_equal(func, matmul_128)
     # partially specialized
     func = matmul.specialize({n: 128})
     tvm.ir.assert_structural_equal(func, matmul_m_128)
     # symbolic specialized
-    func = matmul.specialize({n: tir.Var("x", "int32") * 8})
+    func = matmul.specialize({n: tvm.tir.Var("x", "int32") * 8})
     tvm.ir.assert_structural_equal(func, matmul_m_8x)
 
 
@@ -185,17 +212,17 @@ def test_specialize_elemwise():
     a, c = element_wise.params
     C = element_wise.buffer_map[c]
     # fully specialized
-    func = element_wise.specialize({a: tir.decl_buffer((128, 64))})
+    func = element_wise.specialize({a: tvm.tir.decl_buffer((128, 64))})
     tvm.ir.assert_structural_equal(func, element_wise_128_64)
     # partially specialized
-    func = element_wise.specialize({c: tir.decl_buffer((128, C.shape[1]))})
+    func = element_wise.specialize({c: tvm.tir.decl_buffer((128, C.shape[1]))})
     tvm.ir.assert_structural_equal(func, element_wise_128_n)
 
 
 def test_specialize_mem_copy():
     a, _, m, n, p, q = mem_copy.params
     # fully specialized
-    func = mem_copy.specialize({a: tir.decl_buffer((16, 16), strides=[8, 1], elem_offset=4)})
+    func = mem_copy.specialize({a: tvm.tir.decl_buffer((16, 16), strides=[8, 1], elem_offset=4)})
     tvm.ir.assert_structural_equal(func, mem_copy_16_16_8_4)
     func = mem_copy.specialize({n: 16, m: 16, p: 8, q: 4})
     tvm.ir.assert_structural_equal(func, mem_copy_16_16_8_4)
@@ -211,7 +238,7 @@ def test_specialize_recursive_load():
 
 def test_specialize_with_const_folding():
     b = param_in_arith_exprs.params[1]
-    func = param_in_arith_exprs.specialize({b: tir.decl_buffer([16])})
+    func = param_in_arith_exprs.specialize({b: tvm.tir.decl_buffer([16])})
     tvm.ir.assert_structural_equal(func, param_in_arith_exprs_n_16)
 
 

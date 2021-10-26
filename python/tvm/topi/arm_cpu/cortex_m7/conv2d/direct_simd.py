@@ -30,7 +30,7 @@ from ..micro_kernel.gemm import (
 )
 
 
-def conv2d_direct_simd(*args, **kwargs):
+def conv2d_nhwc_direct_simd(*args, **kwargs):
     """Defines the Cortex-M7 SIMD implementation of conv2d."""
     assert not kwargs, "Do not support kwargs in template function call"
     args = deserialize_args(args)
@@ -39,17 +39,17 @@ def conv2d_direct_simd(*args, **kwargs):
     cfg = autotvm.get_config()
     args = [cfg] + args
     assert layout == "NHWC"
-    conv = conv2d_direct_simd_compute(*args)
-    sched = conv2d_direct_simd_nhwc_schedule(cfg, [data, kernel, conv])
+    conv = conv2d_nhwc_direct_simd_compute(*args)
+    sched = conv2d_nhwc_direct_simd_schedule(cfg, [data, kernel, conv])
     return sched, [data, kernel, conv]
 
 
-conv2d_direct_simd.template_key = "direct_simd"
-conv2d_direct_simd.default_data_layout = "NHWC"
-conv2d_direct_simd.default_kernel_layout = "HWOI"
+conv2d_nhwc_direct_simd.template_key = "direct_simd"
+conv2d_nhwc_direct_simd.default_data_layout = "NHWC"
+conv2d_nhwc_direct_simd.default_kernel_layout = "HWOI"
 
 
-def conv2d_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def conv2d_nhwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute function for Cortex-M7 SIMD implementation of conv2d."""
     assert isinstance(strides, int) or len(strides) == 2
     assert isinstance(dilation, int) or len(dilation) == 2
@@ -112,10 +112,14 @@ def conv2d_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, ou
         cfg.reduce_axis(in_channels.value),
     )
 
-    assert in_channels.value % 4 == 0
     owo, owi = cfg.define_split("tile_ow", ow, policy="factors", num_outputs=2)
     cio, cii = cfg.define_split(
-        "tile_ci", ci, policy="factors", num_outputs=2, filter=lambda x: x.size[-1] % 4 == 0
+        "tile_ci",
+        ci,
+        policy="factors",
+        num_outputs=2,
+        # TODO: check case with in_channels.value % 4 != 0 with AutoTVM
+        filter=None if cfg.is_fallback else lambda x: x.size[-1] % 4 == 0,
     )
     coo, coi = cfg.define_split("tile_co", co, policy="factors", num_outputs=2)
 
@@ -134,10 +138,15 @@ def conv2d_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, ou
     cfg.define_knob("auto_unroll_max_step", [0, 2, 4, 8, 16, 32])
     cfg.define_knob("unroll_explicit", [0, 1])
 
+    if cfg.is_fallback:
+        cfg.fallback_split("tile_ow", [-1, out_width.value])
+        cfg.fallback_split("tile_ci", [-1, in_channels.value])
+        cfg.fallback_split("tile_co", [-1, out_channels.value])
+
     return conv
 
 
-def conv2d_direct_simd_nhwc_schedule(cfg, outs):
+def conv2d_nhwc_direct_simd_schedule(cfg, outs):
     """Schedule function for Cortex-M7 SIMD implementation of conv2d."""
     sched = te.create_schedule([x.op for x in outs])
 

@@ -676,9 +676,10 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
                              Array<IndexExpr> dilation, Array<IndexExpr> padding,
-                             std::string layout, bool ceil_mode, bool count_include_pad) {
-  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout, ceil_mode,
-                                     count_include_pad, "nn.avg_pool2d");
+                             std::string layout, std::string out_layout, bool ceil_mode,
+                             bool count_include_pad) {
+  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                     out_layout, ceil_mode, count_include_pad, "nn.avg_pool2d");
 }
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, Expr pad_value,
@@ -695,10 +696,6 @@ static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }
-
-Expr StopFusion(Expr data);
-
-Expr CastHint(Expr data, DataType dtype);
 
 }  // namespace relay
 }  // namespace tvm

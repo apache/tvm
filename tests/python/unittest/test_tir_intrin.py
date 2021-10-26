@@ -19,7 +19,7 @@ import tvm.testing
 from tvm import te, tir
 from tvm import topi
 from tvm.contrib import utils, clang
-from tvm.script import ty
+from tvm.script import tir as T
 import numpy as np
 import ctypes
 import math
@@ -187,17 +187,18 @@ def test_clz(target, dev, dtype):
         np.testing.assert_equal(b.numpy(), ref)
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class Module:
-    def test_tir_fma(A: ty.handle, B: ty.handle, C: ty.handle, d: ty.handle) -> None:
+    @T.prim_func
+    def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "test_fma", "tir.noalias": True})
-        n = tir.var("int32")
-        stride = tir.var("int32")
-        stride_1 = tir.var("int32")
-        stride_2 = tir.var("int32")
-        stride_3 = tir.var("int32")
-        A_1 = tir.match_buffer(
+        T.func_attr({"global_symbol": "test_fma", "tir.noalias": True})
+        n = T.var("int32")
+        stride = T.var("int32")
+        stride_1 = T.var("int32")
+        stride_2 = T.var("int32")
+        stride_3 = T.var("int32")
+        A_1 = T.match_buffer(
             A,
             [n],
             strides=[stride],
@@ -206,7 +207,7 @@ class Module:
             offset_factor=1,
             type="auto",
         )
-        B_1 = tir.match_buffer(
+        B_1 = T.match_buffer(
             B,
             [n],
             strides=[stride_1],
@@ -215,7 +216,7 @@ class Module:
             offset_factor=1,
             type="auto",
         )
-        C_1 = tir.match_buffer(
+        C_1 = T.match_buffer(
             C,
             [n],
             strides=[stride_2],
@@ -224,7 +225,7 @@ class Module:
             offset_factor=1,
             type="auto",
         )
-        d_1 = tir.match_buffer(
+        d_1 = T.match_buffer(
             d,
             [n],
             strides=[stride_3],
@@ -234,11 +235,11 @@ class Module:
             type="auto",
         )
         # body
-        for i in tir.serial(0, n):
+        for i in T.serial(0, n):
             d_1.data[(i * stride_3)] = (
-                tir.load("float32", A_1.data, (i * stride))
-                * tir.load("float32", B_1.data, (i * stride_1))
-            ) + tir.load("float32", C_1.data, (i * stride_2))
+                T.load("float32", A_1.data, (i * stride))
+                * T.load("float32", B_1.data, (i * stride_1))
+            ) + T.load("float32", C_1.data, (i * stride_2))
 
 
 def test_fma():
@@ -248,7 +249,7 @@ def test_fma():
             tvm.tir.transform.LowerIntrin(),
         ]
     )
-    mod = opt(Module())
+    mod = opt(Module)
     assert mod["test_tir_fma"].body.body.value.op.name == "tir.call_llvm_pure_intrin"
 
 

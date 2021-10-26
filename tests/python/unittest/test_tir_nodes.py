@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import te
 import numpy as np
@@ -103,6 +104,11 @@ def test_cast():
     assert isinstance(y, tvm.tir.Cast)
     assert isinstance(z, tvm.tir.Broadcast)
     assert z.lanes == 4
+
+    s = tvm.tir.StringImm("s")
+    with pytest.raises(tvm.error.TVMError) as cm:
+        s.astype("int")
+        assert "Can't cast a handle to other types" in str(cm.execption)
 
 
 def test_attr():
@@ -467,29 +473,38 @@ def test_block_blockrealize():
     assert output.find("with init()") != -1
 
 
+def test_tir_allocate():
+    dtype = "int8"
+    storage_scope = "global"
+    ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
+    a = te.var("buffer", ptype)
+    allocate = tvm.tir.Allocate(
+        buffer_var=a,
+        dtype=dtype,
+        extents=[2, 2],
+        condition=tvm.get_global_func("tir.const_true")(dtype, None),
+        body=tvm.tir.Evaluate(2 + 1),
+        annotations={
+            "attr1": "foo",
+            "attr2": "bar",
+        },
+    )
+    assert allocate.buffer_var == a
+    assert allocate.dtype == "int8"
+    assert list(allocate.extents) == [2, 2]
+    assert allocate.annotations["attr1"] == "foo"
+    assert allocate.annotations["attr2"] == "bar"
+
+    # make sure we can print using TIRTextPrinter
+    func = tvm.tir.PrimFunc([], allocate)
+    output = func.astext()
+    assert (
+        output.find(
+            'allocate(buffer: Pointer(global int8), int8, [2, 2]), storage_scope = global, annotations = {"attr2": "bar", "attr1": "foo"})'
+        )
+        != -1
+    )
+
+
 if __name__ == "__main__":
-    test_intimm_cond()
-    test_buffer_load_store()
-    test_vars()
-    test_prim_func()
-    test_cast()
-    test_attr()
-    test_const()
-    test_scalar_dtype_inference()
-    test_make()
-    test_ir()
-    test_basic()
-    test_stmt()
-    test_let()
-    test_dir()
-    test_dtype()
-    test_any()
-    test_all()
-    test_bitwise()
-    test_float_bitwise()
-    test_shift_bounds()
-    test_divide_by_zero()
-    test_isnan()
-    test_equality()
-    test_equality_string_imm()
-    test_block_blockrealize()
+    pytest.main([__file__])

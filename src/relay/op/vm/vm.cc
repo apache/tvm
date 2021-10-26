@@ -50,6 +50,7 @@ RELAY_REGISTER_OP("vm.shape_of")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The input tensor")
     .add_type_rel("ShapeOf", ShapeOfRel)
+    .set_attrs_type_key("relay.attrs.ShapeOfAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -131,17 +132,13 @@ RELAY_REGISTER_OP("vm.shape_func")
     .add_argument("func", "Function", "The operation to call")
     .add_argument("ins", "Tuple", "The input tensors.")
     .add_argument("outs", "Tuple", "The output tensors.")
+    .set_attrs_type_key("relay.attrs.ShapeFuncAttrs")
     .add_type_rel("ShapeFuncRel", ShapeFuncRel)
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 // vm.invoke_tvm_op
 bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -186,12 +183,7 @@ RELAY_REGISTER_OP("vm.invoke_tvm_op")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_dtype) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 // vm.reshape
 TVM_REGISTER_NODE_TYPE(ReshapeTensorAttrs);
@@ -214,6 +206,7 @@ RELAY_REGISTER_OP("vm.reshape_tensor")
     .add_argument("data", "Tensor", "The input tensor")
     .add_argument("shape", "Tensor", "The output shape tensor")
     .add_type_rel("ReshapeTensor", ReshapeTensorRel)
+    .set_attrs_type_key("relay.attrs.ReshapeTensorAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)

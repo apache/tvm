@@ -51,9 +51,8 @@ if curr_path.name == "_staging":
 else:
     tvm_path = Path(os.pardir)
 
-
-sys.path.insert(0, str(tvm_path / "python"))
-sys.path.insert(0, str(tvm_path / "vta" / "python"))
+sys.path.insert(0, str(tvm_path.resolve() / "python"))
+sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
 
 # -- General configuration ------------------------------------------------
 
@@ -209,22 +208,37 @@ intersphinx_mapping = {
 
 from sphinx_gallery.sorting import ExplicitOrder
 
-examples_dirs = [tvm_path.joinpath("tutorials"), tvm_path.joinpath("vta", "tutorials")]
-gallery_dirs = ["tutorials", "vta/tutorials"]
+examples_dirs = [
+    tvm_path.joinpath("gallery", "tutorial"),
+    tvm_path.joinpath("gallery", "how_to", "compile_models"),
+    tvm_path.joinpath("gallery", "how_to", "deploy_models"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_relay"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_schedules"),
+    tvm_path.joinpath("gallery", "how_to", "optimize_operators"),
+    tvm_path.joinpath("gallery", "how_to", "tune_with_autotvm"),
+    tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
+    tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
+    tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
+    tvm_path.joinpath("vta", "tutorials"),
+]
+
+gallery_dirs = [
+    "tutorial",
+    "how_to/compile_models",
+    "how_to/deploy_models",
+    "how_to/work_with_relay",
+    "how_to/work_with_schedules",
+    "how_to/optimize_operators",
+    "how_to/tune_with_autotvm",
+    "how_to/tune_with_autoscheduler",
+    "how_to/work_with_microtvm",
+    "how_to/extend_tvm",
+    "topic/vta/tutorials",
+]
 
 subsection_order = ExplicitOrder(
     str(p)
     for p in [
-        tvm_path / "tutorials" / "get_started",
-        tvm_path / "tutorials" / "frontend",
-        tvm_path / "tutorials" / "language",
-        tvm_path / "tutorials" / "optimize",
-        tvm_path / "tutorials" / "autotvm",
-        tvm_path / "tutorials" / "auto_scheduler",
-        tvm_path / "tutorials" / "dev",
-        tvm_path / "tutorials" / "topi",
-        tvm_path / "tutorials" / "deployment",
-        tvm_path / "tutorials" / "micro",
         tvm_path / "vta" / "tutorials" / "frontend",
         tvm_path / "vta" / "tutorials" / "optimize",
         tvm_path / "vta" / "tutorials" / "autotvm",
@@ -236,7 +250,7 @@ subsection_order = ExplicitOrder(
 # The unlisted files are sorted by filenames.
 # The unlisted files always appear after listed files.
 within_subsection_order = {
-    "get_started": [
+    "tutorial": [
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
@@ -244,10 +258,11 @@ within_subsection_order = {
         "tensor_expr_get_started.py",
         "autotvm_matmul_x86.py",
         "auto_scheduler_matmul_x86.py",
+        "topi.pi",
         "cross_compilation_and_rpc.py",
         "relay_quick_start.py",
     ],
-    "frontend": [
+    "compile_models": [
         "from_pytorch.py",
         "from_tensorflow.py",
         "from_mxnet.py",
@@ -257,8 +272,9 @@ within_subsection_order = {
         "from_coreml.py",
         "from_darknet.py",
         "from_caffe2.py",
+        "from_paddle.py",
     ],
-    "language": [
+    "work_with_schedules": [
         "schedule_primitives.py",
         "reduction.py",
         "intrin_math.py",
@@ -268,26 +284,25 @@ within_subsection_order = {
         "tuple_inputs.py",
         "tedd.py",
     ],
-    "optimize": [
+    "optimize_operators": [
         "opt_gemm.py",
         "opt_conv_cuda.py",
         "opt_conv_tensorcore.py",
     ],
-    "autotvm": [
-        "tune_simple_template.py",
+    "tune_with_autotvm": [
         "tune_conv2d_cuda.py",
         "tune_relay_cuda.py",
         "tune_relay_x86.py",
         "tune_relay_arm.py",
         "tune_relay_mobile_gpu.py",
     ],
-    "auto_scheduler": [
+    "tune_with_autoscheduler": [
         "tune_matmul_x86.py",
         "tune_conv2d_layer_cuda.py",
         "tune_network_x86.py",
         "tune_network_cuda.py",
     ],
-    "dev": [
+    "extend_tvm": [
         "low_level_custom_pass.py",
         "use_pass_infra.py",
         "use_pass_instrument.py",

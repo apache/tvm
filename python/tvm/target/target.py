@@ -31,6 +31,11 @@ from . import _ffi_api
 class TargetKind(Object):
     """Kind of a compilation target"""
 
+    @property
+    def options(self):
+        """Returns the dict of available option names and types"""
+        return dict(_ffi_api.ListTargetKindOptions(self))
+
 
 @tvm._ffi.register_object
 class Target(Object):
@@ -286,7 +291,7 @@ MICRO_SUPPORTED_MODELS = {
     "atsamd51": ["-mcpu=cortex-m4"],
     "cxd5602gg": ["-mcpu=cortex-m4"],
     "esp32": [],
-    "imxrt1060": ["-mcpu=cortex-m7"],
+    "imxrt10xx": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
@@ -525,7 +530,7 @@ def hexagon(cpu_ver="v66", **kwargs):
 
     # LLVM target string
     def create_llvm_target(cpu_ver, config):
-        """ Create LLVM target string. """
+        """Create LLVM target string."""
 
         target = " -mtriple=hexagon"
         mcpu = " -mcpu=hexagon" + cpu_ver
@@ -547,7 +552,7 @@ def hexagon(cpu_ver="v66", **kwargs):
 
     # Simulator options string
     def create_sim_options(cpu_ver, config):
-        """ Create simulator option string. """
+        """Create simulator option string."""
 
         def validate_hvx_length(codegen_hvx, sim_options):
             if sim_options and "--hvx_length" in sim_options:
@@ -606,7 +611,7 @@ def hexagon(cpu_ver="v66", **kwargs):
 
     # LLVM options string
     def create_llvm_options(cpu_ver, config):  # pylint: disable=unused-argument
-        """ Create LLVM options string. """
+        """Create LLVM options string."""
 
         llvm_options = config["llvm_options"]
 
@@ -620,7 +625,7 @@ def hexagon(cpu_ver="v66", **kwargs):
 
     # TVM target attributes string
     def create_tvm_options(cpu_ver, config):  # pylint: disable=unused-argument
-        """ Create TVM target features string. """
+        """Create TVM target features string."""
 
         features = {
             "link_params": "link-params",

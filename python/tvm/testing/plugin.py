@@ -48,6 +48,7 @@ MARKERS = {
     "metal": "mark a test as requiring metal",
     "llvm": "mark a test as requiring llvm",
     "ethosn": "mark a test as requiring ethosn",
+    "hexagon": "mark a test as requiring hexagon",
 }
 
 
@@ -73,6 +74,7 @@ def pytest_collection_modifyitems(config, items):
     # pylint: disable=unused-argument
     _count_num_fixture_uses(items)
     _remove_global_fixture_definitions(items)
+    _sort_tests(items)
 
 
 @pytest.fixture
@@ -235,6 +237,25 @@ def _remove_global_fixture_definitions(items):
                 delattr(module, name)
 
 
+def _sort_tests(items):
+    """Sort tests by file/function.
+
+    By default, pytest will sort tests to maximize the re-use of
+    fixtures.  However, this assumes that all fixtures have an equal
+    cost to generate, and no caches outside of those managed by
+    pytest.  A tvm.testing.parameter is effectively free, while
+    reference data for testing may be quite large.  Since most of the
+    TVM fixtures are specific to a python function, sort the test
+    ordering by python function, so that
+    tvm.testing.utils._fixture_cache can be cleared sooner rather than
+    later.
+
+    Should be called from pytest_collection_modifyitems.
+
+    """
+    items.sort(key=lambda item: item.location)
+
+
 def _target_to_requirement(target):
     if isinstance(target, str):
         target = tvm.target.Target(target)
@@ -258,6 +279,8 @@ def _target_to_requirement(target):
         return utils.requires_opencl()
     if target.kind.name == "llvm":
         return utils.requires_llvm()
+    if target.kind.name == "hexagon":
+        return utils.requires_hexagon()
     return []
 
 

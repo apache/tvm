@@ -38,8 +38,10 @@ from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
 from .common import (
+    autopad,
     AttrCvt,
     Renamer,
+    ensure_scalar_shape,
     fold_constant,
     get_name,
     get_relay_op,
@@ -50,6 +52,8 @@ from .common import (
     infer_value,
     lstm_cell,
     new_var,
+    shape_of,
+    try_resolve_var_to_const,
     unbind,
 )
 
@@ -313,7 +317,6 @@ class Pool(OnnxOpConverter):
                         attr.get("strides", [1] * (ndim - 2)),
                         attr["kernel_shape"],
                         [1] * ndim,
-                        ndim,
                         pad_value=pad_val,
                         mode=attr["auto_pad"],
                     )
@@ -409,69 +412,6 @@ class InstanceNorm(OnnxOpConverter):
         return AttrCvt(op_name="instance_norm")(inputs, attr, params)
 
 
-def autopad(
-    data,
-    strides,
-    kernel_shape,
-    dilations,
-    ndim,
-    pad_type="constant",
-    deconv=False,
-    mode="SAME_UPPER",
-    pad_value=0.0,
-):
-    """
-    Perform autopadding with dynamic input shapes
-    """
-    # get attributes as constants
-    strides = _op.const(np.array(strides), dtype="int64")
-    dilated_kernel_shape = _op.const(
-        np.array(
-            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
-        ),
-        dtype="int64",
-    )
-    # get input shape
-    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
-
-    # set up integer constants
-    zero = _op.const(0, dtype="int64")
-    one = _op.const(1, dtype="int64")
-    two = _op.const(2, dtype="int64")
-
-    # Calculate total padding
-    mod = _op.mod(shape, strides)
-
-    left = _op.maximum(dilated_kernel_shape - strides, zero)
-    right = _op.maximum(dilated_kernel_shape - mod, zero)
-
-    total_pad = _op.where(_op.equal(mod, zero), left, right)
-    if deconv:
-        total_pad = _op.const(np.array(kernel_shape), dtype="int64") - one - total_pad
-
-    # split total padding into before and after
-    pad_before = _op.floor_divide(total_pad, two)
-    pad_after = total_pad - pad_before
-
-    # combine
-    if "LOWER" in mode:
-        pad = _op.concatenate(
-            [_op.reshape(pad_after, [-1, 1]), _op.reshape(pad_before, [-1, 1])], axis=1
-        )
-    else:
-        pad = _op.concatenate(
-            [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
-        )
-
-    # pad N and C with zeros
-    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
-
-    if isinstance(pad_value, (float, int)):
-        pad_value = _op.const(pad_value)
-
-    return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
-
-
 class Conv(OnnxOpConverter):
     """Operator converter for Conv."""
 
@@ -499,7 +439,6 @@ class Conv(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -580,7 +519,6 @@ class ConvTranspose(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     deconv=True,
                     mode=attr["auto_pad"],
                 )
@@ -972,7 +910,6 @@ class LpPool(OnnxOpConverter):
                     attr["strides"],
                     attr["kernel_shape"],
                     [1] * ndim,
-                    ndim,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -1006,6 +943,18 @@ class LpPool(OnnxOpConverter):
         kernels = attr["kernel_shape"]
         out = _op.abs(out) * _expr.const(np.prod(kernels).astype(dtype))
         return _op.power(out, reci_p)
+
+
+class GlobalLpPool(OnnxOpConverter):
+    """Operator converter for GlobalLpPool."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # TODO: GlobalLpPool does not yet support dynamic shapes
+        in_shape = infer_shape(inputs[0])
+        attr["kernel_shape"] = in_shape[2:]
+
+        return LpPool._impl_v1(inputs, attr, params)
 
 
 class Mul(Elemwise):
@@ -1396,14 +1345,6 @@ class Upsample(OnnxOpConverter):
         return out
 
 
-def shape_of(x, dtype="int64"):
-    ttype = infer_type(x).checked_type
-    if not _ty.is_dynamic(ttype):
-        shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
-    return _op.shape_of(x, dtype)
-
-
 class Shape(OnnxOpConverter):
     """Operator converter for Shape."""
 
@@ -1456,11 +1397,62 @@ class Unsqueeze(OnnxOpConverter):
     """Operator converter for Unsqueeze."""
 
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        axes = sorted(attr["axes"])
+    def run_calculation(cls, tensor, axes):
+        axes = sorted(axes)
         for axis in axes:
-            inputs[0] = _op.expand_dims(inputs[0], axis=axis, num_newaxis=1)
-        return inputs[0]
+            tensor = _op.expand_dims(tensor, axis=axis, num_newaxis=1)
+        return tensor
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return cls.run_calculation(inputs[0], attr["axes"])
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        if isinstance(inputs[1], _expr.Constant):
+            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(map(int, constant_axes))
+            return cls.run_calculation(inputs[0], constant_axes)
+
+        rank_input = len(infer_type(inputs[0]).checked_type.shape)
+        num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0])
+        axes = relay.split(inputs[1], num_new_axis).astuple()
+        result = inputs[0]
+
+        # TODO (AndrewZhaoLuo): investigate performance issues with consecutive
+        # dynamic expand_dims on non-llvm targets.
+        for i in range(num_new_axis):
+            axis = relay.TupleGetItem(axes, i)
+            # Unpack scalar
+            axis = relay.reshape(axis, [])
+            axis = relay.where(
+                axis >= relay.const(0, "int64"), axis, axis + relay.const(rank_input, "int64")
+            )
+            result = _op.expand_dims(result, axis)
+        return result
+
+
+class Squeeze(OnnxOpConverter):
+    """Operator converter for Squeeze."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get("axes", None)
+        return _op.squeeze(inputs[0], axis)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = inputs[1]
+        dtype = infer_type(axis).checked_type.dtype
+
+        if isinstance(axis, _expr.Constant):
+            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(map(int, constant_axes))
+            return _op.squeeze(inputs[0], constant_axes)
+
+        rank = _op.shape_of(_op.shape_of(inputs[0], dtype), dtype)
+        axis = _op.where(axis < _op.const(0, dtype), axis + rank, axis)
+        return _op.squeeze(inputs[0], fold_constant(axis))
 
 
 class Split(OnnxOpConverter):
@@ -1583,7 +1575,7 @@ def normalize_gather_indices(data, indices, axis):
     """Make sure gather indicies aren't negative"""
     ind_dtype = infer_type(indices).checked_type.dtype
     # Normalize the indices to a positive range
-    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis, dtype="int64"))
     cond = fold_constant(indices < _op.const(0, ind_dtype))
     if isinstance(cond, _expr.Constant):
         val = cond.data.numpy()
@@ -1644,6 +1636,26 @@ class GatherND(OnnxOpConverter):
     def _impl_v12(cls, inputs, attr, params):
         batch_dims = attr.get("batch_dims", 0)
         return cls._impl_common(inputs[0], inputs[1], batch_dims)
+
+
+class Compress(OnnxOpConverter):
+    """Operator converter for compress"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        input_tensor, condition_tensor = inputs
+
+        axis = attr.get("axis", None)
+
+        # Change one hot tensor to indices e.g. [0, 1, 1, 0, 1] -> [1, 2, 4]
+        condition_tensor = _op.reshape(_op.argwhere(condition_tensor), (-1,))
+
+        if axis is not None:
+            return _op.take(input_tensor, condition_tensor, axis=axis)
+
+        # if axis is None, flatten input tensor before selection
+        input_tensor = _op.reshape(input_tensor, (-1,))
+        return _op.take(input_tensor, condition_tensor, axis=0)
 
 
 class Scatter(OnnxOpConverter):
@@ -1761,14 +1773,31 @@ class Reduce(OnnxOpConverter):
     name = ""
 
     @classmethod
+    def run_calculation(cls, inputs, axis, keepdims):
+        attr = {"axis": axis, "keepdims": keepdims}
+        return AttrCvt(cls.name)(inputs, attr)
+
+    @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
-        return AttrCvt(cls.name)(inputs, attr)
+
+        return cls.run_calculation(inputs, axis, attr.get("keepdims", True))
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        if len(inputs) == 2:
+            if isinstance(inputs[1], _expr.Constant):
+                # Get axis and unpack scalar
+                constant_axis = int(inputs[1].data.numpy()[0])
+                return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
+
+            raise ValueError("Dynamic Reduce is not supported yet!")
+
+        return cls._impl_v1(inputs, attr, params)
 
 
 class ReduceMax(Reduce):
@@ -2595,6 +2624,40 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
+        scale = inputs[2]
+        scale_shape = infer_shape(scale)
+        if len(inputs) == 4:
+            assert (
+                len(scale_shape) == 0 or scale_shape[0] == 0
+            ), "One of scale or size should be passed, not both."
+            size = inputs[3]
+        else:
+            assert len(scale_shape) != 0, "One of scale or size should be passed."
+            size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
+        return cls.v11_13_common(inputs, size, attr, params)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        scale = inputs[2]
+        size = inputs[3]
+        if size is not None:
+            assert scale is None, "One of scale or size should be passed, not both."
+        else:
+            scale_type = infer_type(scale)
+            scale_shape = scale_type.checked_type.shape
+            scale_dtype = scale_type.checked_type.dtype
+            assert len(scale_shape) != 0, "One of scale or size should be passed."
+            size = _op.cast(shape_of(inputs[0]), scale_dtype) * scale
+
+        return cls.v11_13_common(inputs, size, attr, params)
+
+    @classmethod
+    def v11_13_common(cls, inputs, size, attr, params):
+        """
+        Resize v11 and Resize v13 are identical except in how
+        they handle the passing of scale and size. This utility
+        provides the implementation for both
+        """
         ndims = len(infer_shape(inputs[0]))
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
@@ -2613,16 +2676,6 @@ class Resize(OnnxOpConverter):
         alpha = attr.get("cubic_coeff_a", -0.75)
         exclude = attr.get("exclude_outside", 0)
 
-        scale = inputs[2]
-        scale_shape = infer_shape(scale)
-        if len(inputs) == 4:
-            assert (
-                len(scale_shape) == 0 or scale_shape[0] == 0
-            ), "One of scale or size should be passed, not both."
-            size = inputs[3]
-        else:
-            assert len(scale_shape) != 0, "One of scale or size should be passed."
-            size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
         out = None
         if ndims == 3:
@@ -2749,7 +2802,8 @@ class Celu(OnnxOpConverter):
         alpha = _op.const(attr.get("alpha", 1.0), dtype)
         zero = _op.const(0, dtype)
         one = _op.const(1, dtype)
-        return _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+        out = _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+        return out
 
 
 class MaxRoiPool(OnnxOpConverter):
@@ -3313,7 +3367,6 @@ class QLinearConv(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     pad_value=x_zero_point.data,
                     mode=attr["auto_pad"],
                 )
@@ -3405,6 +3458,156 @@ class QLinearAdd(OnnxOpConverter):
         return _qnn.op.quantize(out, c_scale, c_zero_point, out_dtype=dtype)
 
 
+class QLinearMatMul(OnnxOpConverter):
+    """
+    Operator converter for QLinearMatMul from Microsoft onnxruntime contrib opset.
+
+    Limitations:
+    - Only supports 2D input tensors.
+    - Not guaranteed to meet the integer-overflow behavior stipulated in the
+      ONNX documentation for this operator.
+    """
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+
+        # Some of the ops used below take scalar-like inputs, and may require either
+        # of the following:
+        #
+        # - the input is Const node (not merely an expression that *could* be reduced
+        #   to a single Const at graph-compilation time)
+        #
+        # - the input has a specific dtype
+        #
+        # This function attempts to present 'x' in a form that meets both of those
+        # requirements.
+        def try_resolve_to_const_scalar(x, dtype_override=None):
+            x2 = try_resolve_var_to_const(x, params)
+            x3 = ensure_scalar_shape(x2)
+
+            x_dtype = infer_type(x).checked_type.dtype
+            if (dtype_override is not None) and (dtype_override != x_dtype):
+                x4 = _op.cast(x3, dtype_override)
+            else:
+                x4 = x3
+
+            x5 = fold_constant(x4)
+            return x5
+
+        # Unpack the inputs and obtain some type info...
+        a, a_scale, a_zp, b, b_scale, b_zp, y_scale, y_zp = inputs
+
+        a_type = infer_type(a).checked_type  # 'T1' in ONNX doc for this op
+        a_scale_type = infer_type(a_scale).checked_type
+        a_zp_type = infer_type(a_zp).checked_type
+
+        b_type = infer_type(b).checked_type  # 'T2' in ONNX doc for this op
+        b_scale_type = infer_type(b_scale).checked_type
+        b_zp_type = infer_type(b_zp).checked_type
+
+        y_scale_type = infer_type(y_scale).checked_type
+        y_zp_type = infer_type(y_zp).checked_type  # 'T3' in ONNX doc for this op
+
+        a_shape = infer_shape(a)
+        b_shape = infer_shape(b)
+
+        # Verify type assumptions, based on the ONNX doc for this op...
+        assert a_type.dtype in ["int8", "uint8"]
+        assert a_scale_type.dtype == "float32"
+        assert a_zp_type.dtype == a_type.dtype
+
+        assert b_type.dtype in ["int8", "uint8"]
+        assert b_scale_type.dtype == "float32"
+        assert b_zp_type.dtype == b_type.dtype
+
+        assert y_scale_type.dtype == "float32"
+        assert y_zp_type.dtype in ["int8", "uint8"]
+
+        # TODO: relax this limitation in a future version of this importer.
+        a_rank = len(a_shape)
+        b_rank = len(b_shape)
+        assert (a_rank == 2) and (b_rank == 2), (
+            "QLinearMatMul importer currently requires both 'a' and 'b' tensors to be 2D, but"
+            " rank(a)={}, rank(b)={}".format(a_rank, b_rank)
+        )
+
+        # _qnn.op.dense requires the zero-point values to have dtype int32.
+        a_scale_scalar = try_resolve_to_const_scalar(a_scale)
+        a_zp_scalar = try_resolve_to_const_scalar(a_zp, "int32")
+
+        b_scale_scalar = try_resolve_to_const_scalar(b_scale)
+        b_zp_scalar = try_resolve_to_const_scalar(b_zp, "int32")
+
+        y_scale_scalar = try_resolve_to_const_scalar(y_scale)
+        y_zp_scalar = try_resolve_to_const_scalar(y_zp, "int32")
+
+        # TODO: Confirm that we're using 'num_hidden_units' correctly / as intended with
+        # the '_qnn.op.dense' instance below.
+        num_hidden_units = infer_shape(b)[-1]
+
+        # - Specify the matmul result dtype as int32, so that hopefully the matmul will use
+        #   a 32-bit accumulator as seems to be required by the ONNX op's documentation.
+        #
+        # TL;DR:
+        # The ONNX documentation for this op is clear about acceptable overflow
+        # behavior during the matmul operation:
+        #   - The scalar multiplication ops MAY NOT overflow.
+        #   - The scalar addition ops, which sum the results of the scalar multiplication,
+        #     MAY overflow, but if they do so, it must behave as one would expect during
+        #     32-bit integer-addition overflow.
+        # As of this writing, Relay's qnn.op.dense operator doesn't expose a way for us to
+        # express these constraints.
+        #
+        # TODO: Extend TVM / Relay / TIR / etc. to allow this kind of constraint to be
+        # expressed in a Relay graph. And then update this importer and various TVM
+        # backends accordingly.
+        matmul_result_dtype = "int32"
+
+        matmul_result = _qnn.op.dense(
+            a,
+            _op.transpose(b),
+            a_zp_scalar,
+            b_zp_scalar,
+            a_scale_scalar,
+            b_scale_scalar,
+            num_hidden_units,
+            matmul_result_dtype,
+        )
+
+        # This information might only be found in the C++ code-comments for the
+        # dense.matmul op, but the quantized tensor returned by _qnn.op.dense
+        # has scale==(a_scale_scalar * b_scale_scalar), and zero_point==0.
+        #
+        # 'matmul_result_zp_scalar' has type 'int32' to satisfy input requirements
+        # of the [de/re]quantize ops below.
+        matmul_result_scale_scalar = fold_constant(_op.multiply(a_scale_scalar, b_scale_scalar))
+        matmul_result_zp_scalar = _op.const(0, dtype="int32")
+
+        # requantize requires y_scale to be constant,
+        # if y_scale is not constant, doing dequantize -> quantize
+        if isinstance(y_scale_scalar, _expr.Constant):
+            y = _qnn.op.requantize(
+                matmul_result,
+                matmul_result_scale_scalar,
+                matmul_result_zp_scalar,
+                y_scale_scalar,
+                y_zp_scalar,
+                axis=-1,
+                rounding="TONEAREST",
+                out_dtype=y_zp_type.dtype,
+            )
+        else:
+            matmul_result_deq = _qnn.op.dequantize(
+                matmul_result, matmul_result_scale_scalar, matmul_result_zp_scalar, axis=0
+            )
+
+            y = _qnn.op.quantize(
+                matmul_result_deq, y_scale_scalar, y_zp_scalar, axis=0, out_dtype=y_zp_type.dtype
+            )
+
+        return y
+
+
 class QLinearMul(OnnxOpConverter):
     """Operator converter for QLinearMul from Microsoft onnxruntime contrib opset."""
 
@@ -3427,6 +3630,28 @@ class QLinearMul(OnnxOpConverter):
         a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
         b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
         out = _op.multiply(a, b)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
+class QLinearLeakyRelu(OnnxOpConverter):
+    """Operator converter for QLinearLeakyRelu from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+
+        a_scale = get_scalar(inputs[1], params)
+        a_zero_point = get_scalar(inputs[2], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, "int32")
+        alpha = float(attr.get("alpha", 1.0))
+
+        dtype = infer_type(inputs[0]).checked_type.dtype
+
+        # Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        # and then requantize afer (according to documentation below)
+        # https://github.com/microsoft/onnxruntime/blob/master/docs/ContribOperators.md#com.microsoft.QLinearLeakyRelu
+        a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
+        out = _op.nn.leaky_relu(a, alpha)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
 
 
@@ -3511,7 +3736,6 @@ class ConvInteger(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     pad_value=data_zp,
                     mode=attr["auto_pad"],
                 )
@@ -3986,7 +4210,9 @@ def _get_convert_map(opset):
         "Elu": Elu.get_converter(opset),
         "Exp": Renamer("exp"),
         "Greater": Renamer("greater"),
+        "GreaterOrEqual": Renamer("greater_equal"),
         "Less": Renamer("less"),
+        "LessOrEqual": Renamer("less_equal"),
         "Log": Renamer("log"),
         "Acos": Renamer("acos"),
         "Acosh": Renamer("acosh"),
@@ -4024,6 +4250,7 @@ def _get_convert_map(opset):
         # defs/nn
         "AveragePool": AveragePool.get_converter(opset),
         "LpPool": LpPool.get_converter(opset),
+        "GlobalLpPool": GlobalLpPool.get_converter(opset),
         "MaxPool": MaxPool.get_converter(opset),
         "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
@@ -4071,12 +4298,13 @@ def _get_convert_map(opset):
         "Gather": Gather.get_converter(opset),
         "GatherElements": GatherElements.get_converter(opset),
         "GatherND": GatherND.get_converter(opset),
+        "Compress": Compress.get_converter(opset),
         "Size": AttrCvt("ndarray_size", extras={"dtype": "int64"}),
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
         "ScatterND": ScatterND.get_converter(opset),
         "EyeLike": EyeLike.get_converter(opset),
-        "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
+        "Squeeze": Squeeze.get_converter(opset),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),
         "Shape": Shape.get_converter(opset),
@@ -4107,11 +4335,13 @@ def _get_convert_map(opset):
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearConcat": QLinearConcat.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
+        "QLinearMatMul": QLinearMatMul.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
         "QLinearSigmoid": QLinearSigmoid.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
+        "QLinearLeakyRelu": QLinearLeakyRelu.get_converter(opset),
         # Random number generation.
         "RandomUniform": RandomUniform.get_converter(opset),
         # Loss functions / training

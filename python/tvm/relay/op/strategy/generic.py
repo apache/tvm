@@ -715,6 +715,19 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+def copy_if_identical(tensor_a, tensor_b):
+    """
+    When two inputs to batch_matul or dense are the same tensor, e.g. batch_matmul(x, x),
+    compilation fails because TE thinks there is only one input tensor x, and doing
+    cache_read(x) on the same tensor twice results in an error.
+    To prevent such errors, we make the second tensor be the copy of the first one
+    when two input tensors are identical.
+    """
+    if tensor_a == tensor_b:
+        return te.compute(tensor_a.shape, lambda *ind: tensor_a[ind])
+    return tensor_b
+
+
 # matmul
 def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
     """wrap matmul topi compute"""
@@ -733,6 +746,7 @@ def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
         ]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
     return _compute_matmul
@@ -762,6 +776,7 @@ def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
         args = [inputs[0], inputs[1], None, out_dtype]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
     return _compute_dense
@@ -804,6 +819,7 @@ def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, ne
         args.append(attrs.transpose_b)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
     return _compute_batch_matmul
@@ -982,6 +998,31 @@ def topk_strategy(attrs, inputs, out_type, target):
         wrap_compute_topk(topi.topk),
         wrap_topi_schedule(topi.generic.schedule_topk),
         name="topk.generic",
+    )
+    return strategy
+
+
+# searchsorted
+def wrap_compute_searchsorted(topi_compute):
+    """Wrap searchsorted compute"""
+
+    def _compute_searchsorted(attrs, inputs, out_type):
+        right = attrs.right
+        dtype = attrs.dtype
+        return [topi_compute(inputs[0], inputs[1], right, dtype)]
+
+    return _compute_searchsorted
+
+
+# searchsorted_strategy
+@override_native_generic_func("searchsorted_strategy")
+def searchsorted_strategy(attrs, inputs, out_type, target):
+    """searchsorted generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_searchsorted(topi.searchsorted),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="searchsorted.generic",
     )
     return strategy
 

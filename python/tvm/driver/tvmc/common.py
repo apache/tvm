@@ -80,7 +80,7 @@ def convert_graph_layout(mod, desired_layout):
             )
 
 
-def validate_targets(parse_targets):
+def validate_targets(parse_targets, additional_target_options=None):
     """
     Apply a series of validations in the targets provided via CLI.
     """
@@ -103,6 +103,15 @@ def validate_targets(parse_targets):
             "Only two of the following targets can be used at a time. "
             f"Found: {verbose_tvm_targets}."
         )
+
+    if additional_target_options is not None:
+        for target_name in additional_target_options:
+            if not any([target for target in parse_targets if target["name"] == target_name]):
+                first_option = list(additional_target_options[target_name].keys())[0]
+                raise TVMCException(
+                    f"Passed --target-{target_name}-{first_option}"
+                    f" but did not specify {target_name} target"
+                )
 
 
 def tokenize_target(target):
@@ -261,7 +270,21 @@ def is_inline_json(target):
         return False
 
 
-def target_from_cli(target):
+def _combine_target_options(target, additional_target_options=None):
+    if additional_target_options is None:
+        return target
+    if target["name"] in additional_target_options:
+        target["opts"].update(additional_target_options[target["name"]])
+    return target
+
+
+def _recombobulate_target(target):
+    name = target["name"]
+    opts = " ".join([f"-{key}={value}" for key, value in target["opts"].items()])
+    return f"{name} {opts}"
+
+
+def target_from_cli(target, additional_target_options=None):
     """
     Create a tvm.target.Target instance from a
     command line interface (CLI) string.
@@ -271,6 +294,10 @@ def target_from_cli(target):
     target : str
         compilation target as plain string,
         inline JSON or path to a JSON file
+
+    additional_target_options: Optional[Dict[str, Dict[str,str]]]
+        dictionary of additional target options to be
+        combined with parsed targets
 
     Returns
     -------
@@ -298,18 +325,22 @@ def target_from_cli(target):
         except ValueError as ex:
             raise TVMCException(f"Error parsing target string '{target}'.\nThe error was: {ex}")
 
-        validate_targets(parsed_targets)
-        tvm_targets = [t for t in parsed_targets if t["is_tvm_target"]]
+        validate_targets(parsed_targets, additional_target_options)
+        tvm_targets = [
+            _combine_target_options(t, additional_target_options)
+            for t in parsed_targets
+            if t["is_tvm_target"]
+        ]
 
         # Validated target strings have 1 or 2 tvm targets, otherwise
         # `validate_targets` above will fail.
         if len(tvm_targets) == 1:
-            target = tvm_targets[0]["raw"]
+            target = _recombobulate_target(tvm_targets[0])
             target_host = None
         else:
             assert len(tvm_targets) == 2
-            target = tvm_targets[0]["raw"]
-            target_host = tvm_targets[1]["raw"]
+            target = _recombobulate_target(tvm_targets[0])
+            target_host = _recombobulate_target(tvm_targets[1])
 
         extra_targets = [t for t in parsed_targets if not t["is_tvm_target"]]
 
@@ -387,7 +418,8 @@ def parse_shape_string(inputs_string):
     ----------
     inputs_string: str
         A string of the form "input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]" that
-        indicates the desired shape for specific model inputs.
+        indicates the desired shape for specific model inputs. Colons, forward slashes and dots
+        within input_names are supported. Spaces are supported inside of dimension arrays.
 
     Returns
     -------
@@ -396,7 +428,12 @@ def parse_shape_string(inputs_string):
     """
 
     # Create a regex pattern that extracts each separate input mapping.
-    pattern = r"(?:\w+\/)?\w+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
+    # We want to be able to handle:
+    # * Spaces inside arrays
+    # * forward slashes inside names (but not at the beginning or end)
+    # * colons inside names (but not at the beginning or end)
+    # * dots inside names
+    pattern = r"(?:\w+\/)?[:\w.]+\:\s*\[\-?\d+(?:\,\s*\-?\d+)*\]"
     input_mappings = re.findall(pattern, inputs_string)
     if not input_mappings:
         raise argparse.ArgumentTypeError(
@@ -408,7 +445,7 @@ def parse_shape_string(inputs_string):
         # Remove whitespace.
         mapping = mapping.replace(" ", "")
         # Split mapping into name and shape.
-        name, shape_string = mapping.split(":")
+        name, shape_string = mapping.rsplit(":", 1)
         # Convert shape string into a list of integers or Anys if negative.
         shape = [int(x) if int(x) > 0 else relay.Any() for x in shape_string.strip("][").split(",")]
         # Add parsed mapping to shape dictionary.

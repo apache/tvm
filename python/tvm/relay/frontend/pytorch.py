@@ -20,6 +20,7 @@
 # pylint: disable=missing-function-docstring
 """PT: PyTorch frontend."""
 import itertools
+import functools
 import logging
 import math
 import sys
@@ -1468,7 +1469,7 @@ class PyTorchOpConverter:
         if isinstance(bias, _expr.Expr):
             bias_ndims = len(self.infer_shape_with_prelude(bias))
             if bias_ndims == 1:
-                return _op.nn.bias_add(mm_out, bias)
+                return _op.nn.bias_add(mm_out, bias, axis=-1)
             mm_dtype = self.infer_type_with_prelude(mm_out).dtype
             return self.add([mm_out, bias], [mm_dtype, input_types[2]])
         return mm_out
@@ -2763,6 +2764,36 @@ class PyTorchOpConverter:
 
         return (output, _op.stack(hy, 0), _op.stack(cy, 0))
 
+    def all_any_common(self, op, inputs, input_types):
+        dim = inputs[1]
+        keepdim = inputs[2]
+        if self.infer_type(inputs[0]).dtype != "bool":
+            # The input dtype can be uint8.
+            inp = _op.cast(inputs[0], "bool")
+        else:
+            inp = inputs[0]
+        return op(inp, axis=dim, keepdims=keepdim)
+
+    def searchsorted_common(self, sorted_sequence, values, out_int32, right):
+        dtype = "int32" if out_int32 else "int64"
+        values_shape = _infer_shape(values)
+
+        if len(values_shape) == 0:
+            values = _op.expand_dims(values, 0)
+
+        out = _op.searchsorted(sorted_sequence, values, right=right, dtype=dtype)
+
+        if len(values_shape) == 0:
+            return _op.squeeze(out)
+
+        return out
+
+    def searchsorted(self, inputs, input_types):
+        return self.searchsorted_common(*inputs)
+
+    def bucketize(self, inputs, input_types):
+        return self.searchsorted_common(inputs[1], inputs[0], inputs[2], inputs[3])
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2986,6 +3017,10 @@ class PyTorchOpConverter:
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
+            "aten::all": functools.partial(self.all_any_common, _op.all),
+            "aten::any": functools.partial(self.all_any_common, _op.any),
+            "aten::searchsorted": self.searchsorted,
+            "aten::bucketize": self.bucketize,
         }
 
     def update_convert_map(self, custom_map):
@@ -3713,6 +3748,7 @@ def from_pytorch(
     custom_convert_map=None,
     default_dtype="float32",
     use_parser_friendly_name=False,
+    keep_quantized_weight=False,
 ):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
@@ -3744,6 +3780,16 @@ def from_pytorch(
         The Relay text parser treats a variable name followed by a period as a tuple element access,
         so a variable name like "dense.weight" cannot be parsed correctly.
         Use this option when you want to run the AnnotateSpans pass on the imported module.
+
+    keep_quantized_weight : bool
+        Return quantized weights and bias, rather than float ones. PyTorch stores quantized weights
+        in a custom format, so we cannot directly access 8 bit weights as Numpy arrays. We use
+        a PyTorch function to unpack quantized weights into float32 arrays and quantization
+        parameters. By default, we return float32 weights and rely on the QNN lowering and the
+        Relay constant folding pass to quantize weights at compile time. In BYOC use cases, however,
+        we cannot apply the constant folding pass on a QNN graph. If keep_quantized_weight is True,
+        we quantize weights in the frontend using a function that is equivalent to
+        qnn.op.quantize(...) operating on Numpy arrays.
 
     Returns
     -------
@@ -3789,9 +3835,17 @@ def from_pytorch(
     # For quantized models
     quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
     if len(quantized_ops.intersection(set(op_names))) > 0:
-        weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
-        qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)
+        weight_quant_params = qnn_torch.get_weight_quant_params(
+            script_module, packed_param_map.values()
+        )
+        input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
+        qnn_torch.add_quant_params_to_outputs(
+            outputs,
+            packed_param_map,
+            weight_quant_params,
+            input_scales_for_bias,
+            keep_quantized_weight,
+        )
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 

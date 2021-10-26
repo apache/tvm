@@ -84,11 +84,11 @@ struct VMFunction {
   /*! \brief The size of the frame for this function */
   Index register_file_size;
   /*! \brief The device type of each parameter for this function. */
-  std::vector<Index> params_device_type;
+  std::vector<DLDeviceType> params_device_type;
 
   VMFunction(const std::string& name, std::vector<std::string> params,
              const std::vector<Instruction>& instructions, Index register_file_size,
-             const std::vector<Index> params_device_type = {})
+             const std::vector<DLDeviceType> params_device_type = {})
       : name(name),
         params(params),
         instructions(instructions),
@@ -198,14 +198,14 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param reg The register to read from.
    * \return The read object.
    */
-  inline ObjectRef ReadRegister(RegName reg) const;
+  ObjectRef ReadRegister(RegName reg) const;
 
   /*!
    * \brief Read a VM register and cast it to int32_t
    * \param reg The register to read from.
    * \return The read scalar.
    */
-  inline int64_t LoadScalarInt(RegName reg) const;
+  int64_t LoadScalarInt(RegName reg) const;
 
   /*!
    * \brief Invoke a VM function.
@@ -267,6 +267,22 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param offset Starting offset of the arguments in `args`.
    */
   void SetInput(std::string name, TVMArgs args, int offset);
+
+  /*!
+   * \brief Internal hook for profiling the start of an op.
+   *
+   * This hook is only called on certain ops that are likely to take a
+   * significant amount of runtime (normally because they alloc or transfer to
+   * device).
+   *
+   * \param instr Instruction that will be executed after this hook fires
+   */
+  virtual void OpStartHook(Instruction instr);
+
+  /*!
+   * \brief Internal hook for profiling the end of an op.
+   */
+  virtual void OpStopHook();
 
  protected:
   /*! \brief The virtual machine's packed function table. */

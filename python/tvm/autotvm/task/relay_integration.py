@@ -22,7 +22,6 @@ Decorator and utilities for the integration with TOPI and Relay
 """
 import threading
 import logging
-from copy import deepcopy
 
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
@@ -49,27 +48,10 @@ def _lower(mod, target, params):
             grc.codegen(mod["main"])
             return
 
-    # default case
-    # Try graph codegen first to extract autotvm tasks.
-    # If failed to compile, then fallback to use VM compiler.
-    # TODO: Currently VM compiler is likely to stack overflow for large models.
-    try:
-        # TODO(jwfromm) Remove this once AlterOpLayout bug that mutates
-        # source module is fixed. Until then, create a clone.
-        mod_clone = deepcopy(mod)
-        opt_mod, _ = relay.optimize(mod_clone, target, params)
-        grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
-        grc.codegen(opt_mod["main"])
-    except tvm.TVMError as e:
-        print(
-            "Get errors with GraphExecutorCodegen for task extraction. "
-            "Fallback to VMCompiler. Error details:\n%s" % str(e)
-        )
-        mod_clone = deepcopy(mod)
-        compiler = relay.vm.VMCompiler()
-        if params:
-            compiler.set_params(params)
-        compiler.lower(mod_clone, target=target)
+    compiler = relay.vm.VMCompiler()
+    if params:
+        compiler.set_params(params)
+    compiler.lower(mod, target=target)
 
 
 def extract_from_program(mod, params, target, target_host=None, ops=None):
@@ -145,12 +127,12 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
             assert isinstance(
                 mod, tvm.IRModule
             ), "only support relay Module or Function to be tuned"
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
             build_thread = threading.Thread(target=_lower, args=(mod, target, param))
             build_thread.start()
             build_thread.join()
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
             # Clear the warning message cache in FallbackContext
             if isinstance(DispatchContext.current, FallbackContext):
                 DispatchContext.current.memory = {}

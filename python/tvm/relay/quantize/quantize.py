@@ -51,7 +51,7 @@ def kind2str(kind):
 
 def _forward_op(ref_call, args):
     """forward the operator of ref_call with provided arguments"""
-    return _expr.Call(ref_call.op, args, ref_call.attrs, ref_call.type_args)
+    return _expr.Call(ref_call.op, args, ref_call.attrs, ref_call.type_args, ref_call.span)
 
 
 @tvm._ffi.register_object("relay.quantize.QConfig")
