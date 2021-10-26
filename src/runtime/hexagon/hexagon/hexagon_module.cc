@@ -31,7 +31,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../dso_library.h"
+#include "../../library_module.h"
 #include "hexagon_buffer.h"
 #include "hexagon_common.h"
 
@@ -44,14 +44,12 @@ Module HexagonModuleCreate(std::string data, std::string fmt,
                            const std::set<std::string>& packed_c_abi) {
   CHECK(fmt == "so") << "Invalid format provided when constructing Hexagon runtime module: " << fmt
                      << ". Valid formats are: 'so'.";
-  auto n = make_object<DSOLibrary>();
-  n->Init(data);
+  ObjectPtr<Library> n = CreateDSOLibraryObject(data);
   return CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
-  auto n = make_object<DSOLibrary>();
-  n->Init(args[0]);
+  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
   *rv = CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
 });
 }  // namespace runtime
