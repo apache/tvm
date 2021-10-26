@@ -849,6 +849,18 @@ class PyTorchOpConverter:
         data = inputs[0]
         return data * self.hard_sigmoid(inputs, input_types)
 
+    def adaptive_avg_pool_1d(self, inputs, input_types):
+        data = inputs[0]
+        output_size = inputs[1]
+
+        def func(x):
+            return _op.nn.adaptive_avg_pool1d(x, output_size=output_size)
+
+        if self.is_quantized_tensor(data):
+            return qnn_torch.apply_with_upcast(data, func)
+
+        return func(data)
+
     def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
@@ -861,10 +873,20 @@ class PyTorchOpConverter:
 
         return func(data)
 
+    def adaptive_avg_pool_3d(self, inputs, input_types):
+        data = inputs[0]
+        output_size = inputs[1]
+        return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
+
+    def adaptive_max_pool_1d(self, inputs, input_types):
+        data = inputs[0]
+        output_size = inputs[1]
+        # returns dummy indices too
+        return _op.nn.adaptive_max_pool1d(data, output_size=output_size), None
+
     def adaptive_max_pool_2d(self, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
-
         # returns dummy indices too
         return _op.nn.adaptive_max_pool2d(data, output_size=output_size), None
 
@@ -873,11 +895,6 @@ class PyTorchOpConverter:
         output_size = inputs[1]
         # returns dummy indices too
         return _op.nn.adaptive_max_pool3d(data, output_size=output_size), None
-
-    def adaptive_avg_pool_3d(self, inputs, input_types):
-        data = inputs[0]
-        output_size = inputs[1]
-        return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
 
     @staticmethod
     def convert_const_list(data):
@@ -2884,9 +2901,14 @@ class PyTorchOpConverter:
             "aten::gelu": self.gelu,
             "aten::selu": self.selu,
             "aten::silu": self.silu,
+            "aten::silu_": self.silu,
             "aten::log_sigmoid": self.log_sigmoid,
+            "aten::adaptive_avg_pool1d": self.adaptive_avg_pool_1d,
+            "aten::adaptive_max_pool1d": self.adaptive_max_pool_1d,
             "aten::adaptive_avg_pool2d": self.adaptive_avg_pool_2d,
             "aten::adaptive_max_pool2d": self.adaptive_max_pool_2d,
+            "aten::adaptive_avg_pool3d": self.adaptive_avg_pool_3d,
+            "aten::adaptive_max_pool3d": self.adaptive_max_pool_3d,
             "aten::max_pool2d": self.maxpool_2d,
             "aten::max_pool2d_with_indices": self.maxpool_2d_with_indices,
             "aten::max_pool1d": self.maxpool_1d,
@@ -2972,6 +2994,7 @@ class PyTorchOpConverter:
             "aten::rsqrt": self.make_unary("rsqrt"),
             "aten::ceil": self.make_unary("ceil"),
             "aten::floor": self.make_unary("floor"),
+            "aten::floor_": self.make_unary("floor"),
             "aten::round": self.make_unary("round"),
             "aten::isfinite": self.make_unary("isfinite"),
             "aten::isinf": self.make_unary("isinf"),
@@ -2997,8 +3020,6 @@ class PyTorchOpConverter:
             "aten::bitwise_xor": self.bitwise_xor,
             "aten::Bool": self.Bool,
             "aten::Float": self.Float,
-            "aten::adaptive_avg_pool3d": self.adaptive_avg_pool_3d,
-            "aten::adaptive_max_pool3d": self.adaptive_max_pool_3d,
             "aten::rsub": self.rsub,
             "aten::embedding": self.embedding,
             "aten::one_hot": self.one_hot,
