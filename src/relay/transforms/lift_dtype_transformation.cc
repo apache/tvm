@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file src/relay/transforms/fold_type_transformation.cc
+ * \file src/relay/transforms/lift_dtype_transformation.cc
  * \brief A pass for transforming relay graph function
- * signatures such that when a function-level inputs is
+ * signatures such that when a function parameter is
  * transformed by a subsequent cast or quantize operation,
  * that operation is folded into the signature itself.
  */
@@ -34,7 +34,7 @@ namespace tvm {
 namespace relay {
 
 /*! \brief This class transforms a relay module's function signature
- * such that when a function-level input is transformed by a subsequent
+ * such that when a function parameter is transformed by a subsequent
  * "cast" or "qnn.quantize" operation, that operation is folded into
  * the signature itself. For example,
  *
@@ -56,16 +56,20 @@ namespace relay {
  * For this pass to fold a type transformation, the following conditions
  * must be met:
  *   - The relay module must contain only a single function.
- *   - The type of each function-level input is transformed only once
- *     per program.
  *   - The type transformation operation must be either a "cast"
  *     or "qnn.quantize".
+ *   - Each function parameter is used only once
+ *     per program. There should be no structure that looks like:
+ * 
+ *      in                                      in
+ *     /  \        but the following is ok:      |
+ *  cast  add                                  cast
  */
-class FoldTypeTransformationRewriter : public MixedModeMutator {
+class LiftDtypeTransformationRewriter : public MixedModeMutator {
  protected:
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
     const CallNode* post_call_node = post.as<CallNode>();
-    CHECK(post_call_node) << "Expected a CallNode, but got " << post;
+    ICHECK(post_call_node) << "Expected a CallNode, but got " << post;
 
     Expr cur_op = pre_call_node->op;
     for (auto arg : pre_call_node->args) {
@@ -74,9 +78,9 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
         auto var = Downcast<Var>(arg);
         auto it = input_transform_map_.find(var);
         if (it != input_transform_map_.end()) {
-          // Checks that the function-level input var hasn't been an arg
+          // Checks that the function parameter var hasn't been an arg
           // to a CallNode yet.
-          CHECK(!it->second) << "Function input with name '" << var->name_hint()
+          CHECK(!it->second) << "Function param with name '" << var->name_hint()
                              << "' is fed into more than one call; "
                              << "aborting transformation";
 
@@ -91,7 +95,7 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
             auto attrs = pre_call_node->attrs.as<qnn::QuantizeAttrs>();
             out_dtype = attrs->out_dtype;
           } else {
-            CHECK(false) << "FoldTypeTransformation will only fold cast and "
+            CHECK(false) << "LiftDtypeTransformation will only fold cast and "
                          << "quantize type transformations";
           }
 
@@ -105,7 +109,7 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
           return GetRef<Expr>(var_node);
         } else {
           LOG(WARNING) << "Variable '" << var->name_hint() << "' encountered"
-                       << " but wasn't registered as a function-level input";
+                       << " but wasn't registered as a function parameter";
         }
       }
     }
@@ -117,7 +121,7 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
   Expr VisitExpr_(const FunctionNode* node) {
     function_count_++;
     if (function_count_ > 1) {
-      CHECK(false) << "FoldTypeTransformation is supported for only single-function graphs";
+      CHECK(false) << "LiftDtypeTransformation is supported for only single-function graphs";
     }
 
     for (auto param : node->params) {
@@ -132,7 +136,7 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
   const Op quantize_op_ = Op::Get("qnn.quantize");
 
  private:
-  // Maps function-level input to the first-encountered call node within
+  // Maps function parameter to the first-encountered call node within
   // the function that takes in that input.
   std::map<Var, const CallNode*> input_transform_map_;
 
@@ -140,22 +144,22 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
   int function_count_;
 };
 
-Expr FoldTypeTransformation(const Expr& expr, const IRModule& mod) {
-  return FoldTypeTransformationRewriter().Mutate(expr);
+Expr LiftDtypeTransformation(const Expr& expr, const IRModule& mod) {
+  return LiftDtypeTransformationRewriter().Mutate(expr);
 }
 
 namespace transform {
 
-Pass FoldTypeTransformation() {
+Pass LiftDtypeTransformation() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(FoldTypeTransformation(f, m));
+        return Downcast<Function>(LiftDtypeTransformation(f, m));
       };
-  return CreateFunctionPass(pass_func, 0, "FoldTypeTransformation", {});
+  return CreateFunctionPass(pass_func, 0, "LiftDtypeTransformation", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.FoldTypeTransformation")
-    .set_body_typed(FoldTypeTransformation);
+TVM_REGISTER_GLOBAL("relay._transform.LiftDtypeTransformation")
+    .set_body_typed(LiftDtypeTransformation);
 
 }  // namespace transform
 

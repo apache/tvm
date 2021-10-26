@@ -24,7 +24,7 @@ def test_simple_cast_fold():
     out = relay.add(out, out)
     mod = tvm.IRModule.from_expr(out)
     mod = tvm.relay.transform.InferType()(mod)
-    mod = tvm.relay.transform.FoldTypeTransformation()(mod)
+    mod = tvm.relay.transform.LiftDtypeTransformation()(mod)
 
     data_fp16 = relay.var("data", shape=[1, 3, 224, 224], dtype="float16")
     out = relay.add(data_fp16, data_fp16)
@@ -41,7 +41,7 @@ def test_simple_quantize_fold():
 
     mod = tvm.IRModule.from_expr(out)
     mod = tvm.relay.transform.InferType()(mod)
-    mod = tvm.relay.transform.FoldTypeTransformation()(mod)
+    mod = tvm.relay.transform.LiftDtypeTransformation()(mod)
 
     data_fp16 = relay.var("data", shape=[1, 3, 224, 224], dtype="uint8")
     out = relay.add(data_fp16, data_fp16)
