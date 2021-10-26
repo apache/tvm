@@ -31,7 +31,7 @@ import requests
 
 import tvm.micro
 from tvm.micro import export_model_library_format
-
+from tvm.micro.testing import mlf_extract_workspace_size_bytes
 
 TEMPLATE_PROJECT_DIR = (
     pathlib.Path(__file__).parent
@@ -77,19 +77,6 @@ def has_fpu(board: str):
     return board in fpu_boards
 
 
-def extract_workspace_size_bytes(
-    tar_path: Union[pathlib.Path, str], extract_path: Union[pathlib.Path, str]
-):
-    tar_file = str(tar_path)
-    base_path = str(extract_path)
-    t = tarfile.open(tar_file)
-    t.extractall(base_path)
-
-    with open(os.path.join(base_path, "metadata.json")) as json_f:
-        metadata = json.load(json_f)
-        return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
-
-
 def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     project_dir = temp_dir / "project"
 
@@ -97,7 +84,7 @@ def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_fil
         model_tar_path = pathlib.Path(tar_temp_dir) / "model.tar"
         export_model_library_format(mod, model_tar_path)
 
-        workspace_size = extract_workspace_size_bytes(model_tar_path, tar_temp_dir)
+        workspace_size = mlf_extract_workspace_size_bytes(model_tar_path, tar_temp_dir)
         project = tvm.micro.project.generate_project_from_mlf(
             str(TEMPLATE_PROJECT_DIR),
             project_dir,

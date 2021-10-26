@@ -20,6 +20,8 @@
 import pathlib
 import json
 import logging
+import os
+import tarfile
 from typing import Union
 from tvm.micro.project_api.server import IoTimeoutError
 
@@ -46,11 +48,12 @@ def aot_transport_init_wait(transport):
             transport.write(b"init%", timeout_sec=timeout)
 
 
-def aot_transport_find_message(transport, expr: str, timeout_sec: int):
+def aot_transport_find_message(transport, expression: str, timeout_sec: int):
+    """Read transport message until it finds the expression."""
     while True:
         data = _read_line(transport, timeout_sec)
         logging.debug("new line: %s", data)
-        if expr in data:
+        if expression in data:
             return data
 
 
@@ -69,3 +72,18 @@ def _read_line(transport, timeout_sec: int):
                 new_line = True
                 break
     return data
+
+
+def mlf_extract_workspace_size_bytes(
+    mlf_tar_path: Union[pathlib.Path, str], extract_path: Union[pathlib.Path, str]
+):
+    """Extract an MLF archive file and read workspace size from metadata file."""
+
+    tar_file = str(mlf_tar_path)
+    base_path = str(extract_path)
+    t = tarfile.open(tar_file)
+    t.extractall(base_path)
+
+    with open(os.path.join(base_path, "metadata.json")) as json_f:
+        metadata = json.load(json_f)
+        return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
