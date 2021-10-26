@@ -139,7 +139,7 @@ def match_buffer_func() -> None:
                 with T.block():
                     jj = T.axis.S(128, j)
                     C1 = T.match_buffer(C0[jj], ())
-                    C1[()] = 0
+                    C1[()] = 0.0
 
 
 @T.prim_func
@@ -153,7 +153,7 @@ def transformed_match_buffer_func() -> None:
                 with T.block():
                     jj = T.axis.S(128, j)
                     C1 = T.match_buffer(C0[jj], ())
-                    C1[()] = 0
+                    C1[()] = 0.0
 
 
 @T.prim_func

@@ -2922,7 +2922,7 @@ def test_opaque_block():
 def rank0(a: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
     B = T.alloc_buffer((), "float32")
-    A[()] = 2
+    A[()] = 2.0
     B[()] = A[()]
 
 
@@ -2954,7 +2954,7 @@ def test_rank0_blocks():
 @T.prim_func
 def select(a: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
-    A[()] = T.Select(True, 1, 2)
+    A[()] = T.Select(True, 1.0, 2.0)
 
 
 def test_select():
@@ -2966,8 +2966,8 @@ def test_select():
 @T.prim_func
 def minmax(a: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
-    A[()] = T.min(1, 2)
-    A[()] = T.max(1, 2)
+    A[()] = T.min(1.0, 2.0)
+    A[()] = T.max(1.0, 2.0)
 
 
 def test_minmax():
@@ -3027,11 +3027,11 @@ def var_with_same_name(a: T.handle) -> None:
     for i, j in T.grid(16, 16):
         with T.block():
             vi, vj = T.axis.remap("SS", [i, j])
-            A[vi, vj] = 0
+            A[vi, vj] = 0.0
     for i, j in T.grid(16, 16):
         with T.block():
             vi, vj = T.axis.remap("SS", [i, j])
-            A[vi, vj] = 0
+            A[vi, vj] = 0.0
 
 
 def test_same_name_var():
@@ -3057,7 +3057,7 @@ def while_loop(a: T.handle, b: T.handle) -> None:
     for ii in range(16):
         with T.block():
             vi = T.axis.S(16, ii)
-            B[vi] = 0
+            B[vi] = 0.0
         while i[()] < 10:
             for j in range(16):
                 B[j] += A[j]

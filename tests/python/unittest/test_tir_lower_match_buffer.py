@@ -309,7 +309,7 @@ def recursive_match(a: T.handle, b: T.handle) -> None:
                         )
                     )
                     for jjj, kkk in T.grid(4, 4):
-                        sub_sub_B[jjj, kkk] = 1
+                        sub_sub_B[jjj, kkk] = 1.0
 
 
 @T.prim_func
@@ -354,7 +354,7 @@ def transformed_recursive_match(a: T.handle, b: T.handle) -> None:
                         )
                     )
                     for jjj, kkk in T.grid(4, 4):
-                        B[i, j * 16 + jj * 4 + jjj, k * 16 + kk * 4 + kkk] = 1
+                        B[i, j * 16 + jj * 4 + jjj, k * 16 + kk * 4 + kkk] = 1.0
 
 
 @T.prim_func
@@ -372,7 +372,7 @@ def symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32) -> None:
                 B[i * n : i * n + 2, 0 : m * 4], (2, m * 4), strides=[Bs_0, Bs_1], offset_factor=1
             )
             for ii, jj in T.grid(m, m):
-                sub_A[ii, jj] = 1
+                sub_A[ii, jj] = 1.0
             for j in range(0, 4):
                 T.evaluate(
                     T.intrin_test(
@@ -396,7 +396,7 @@ def transformed_symbolic_match(a: T.handle, b: T.handle, n: T.int32, m: T.int32)
             T.reads([])
             T.writes([A[i * m : i * m + n, 0:m], B[i * n : i * n + 2, 0 : m * 4]])
             for ii, jj in T.grid(m, m):
-                A[i * m + ii, jj] = 1
+                A[i * m + ii, jj] = 1.0
             for j in range(0, 4):
                 T.evaluate(
                     T.intrin_test(
@@ -421,7 +421,7 @@ def rank0_buffer(a: T.handle, b: T.handle) -> None:
             T.writes([A[i, j], B[i, j]])
             sub_A = T.match_buffer(A[i, j], (), offset_factor=1)
             sub_B = T.match_buffer(B[i, j], (), offset_factor=1)
-            sub_A[()] = 1
+            sub_A[()] = 1.0
             T.evaluate(
                 T.intrin_test(
                     sub_B.data,
@@ -443,7 +443,7 @@ def transformed_rank0_buffer(a: T.handle, b: T.handle) -> None:
         with T.block():
             T.reads([])
             T.writes([A[i, j], B[i, j]])
-            A[i, j] = 1
+            A[i, j] = 1.0
             T.evaluate(
                 T.intrin_test(
                     B.data,
@@ -489,7 +489,7 @@ def fail_buffer_bind(a: T.handle) -> None:
                 A[i, j * 4 : j * 4 + 4], (1, 4), strides=[stride, stride], offset_factor=1
             )
             for jj in range(0, 4):
-                sub_A[i, j * 4 + jj] = 1
+                sub_A[i, j * 4 + jj] = 1.0
 
 
 @T.prim_func
@@ -499,7 +499,7 @@ def fail_match_func_param(a: T.handle, m: T.handle, n: T.handle) -> None:
         with T.block():
             sub_A = T.match_buffer(A[i, j * 4 : j * 4 + 4], (1, 4), strides=[m, n], offset_factor=1)
             for jj in range(0, 4):
-                sub_A[i, j * 4 + jj] = 1
+                sub_A[i, j * 4 + jj] = 1.0
 
 
 def test_buffer_load_store():

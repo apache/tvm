@@ -121,11 +121,11 @@ def concatenate_multi_producer(a: T.handle, b: T.handle) -> None:
     for i in range(0, 64):
         with T.block("A_0"):
             vi = T.axis.S(64, i)
-            A[vi] = vi + 1
+            A[vi] = T.cast(vi, "float32") + 1.0
     for i in range(0, 64):
         with T.block("A_1"):
             vi = T.axis.S(64, i + 64)
-            A[vi] = vi + 2
+            A[vi] = T.cast(vi, "float32") + 2.0
     for i in range(0, 128):
         with T.block("B"):
             vi = T.axis.S(128, i)
@@ -139,11 +139,11 @@ def concatenate_multi_producer_uncovered(a: T.handle, b: T.handle) -> None:
     for i in range(0, 63):
         with T.block("A_0"):
             vi = T.axis.S(63, i)
-            A[vi] = vi + 1
+            A[vi] = T.cast(vi, "float32") + 1.0
     for i in range(0, 64):
         with T.block("A_1"):
             vi = T.axis.S(64, i + 64)
-            A[vi] = vi + 2
+            A[vi] = T.cast(vi, "float32") + 2.0
     for i in range(0, 128):
         with T.block("B"):
             vi = T.axis.S(128, i)
@@ -171,11 +171,11 @@ def multi_producer_consumer(a: T.handle, b: T.handle) -> None:
     for i in range(0, 64):
         with T.block("A_0"):
             vi = T.axis.S(64, i)
-            A[vi] = vi + 1
+            A[vi] = T.cast(vi, "float32") + 1.0
     for i in range(0, 64):
         with T.block("A_1"):
             vi = T.axis.S(64, i + 64)
-            A[vi] = vi + 2
+            A[vi] = T.cast(vi, "float32") + 2.0
     for i in range(0, 64):
         with T.block("B_0"):
             vi = T.axis.S(64, i)
