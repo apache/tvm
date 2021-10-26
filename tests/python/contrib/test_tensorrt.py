@@ -1526,4 +1526,7 @@ def test_empty_subgraph(run_module):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+
+    # sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    test_maskrcnn_resnet50(run_module)
