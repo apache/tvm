@@ -849,52 +849,23 @@ class PyTorchOpConverter:
         data = inputs[0]
         return data * self.hard_sigmoid(inputs, input_types)
 
-    def adaptive_avg_pool_1d(self, inputs, input_types):
+    def adaptive_avg_pool(self, op, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
 
         def func(x):
-            return _op.nn.adaptive_avg_pool1d(x, output_size=output_size)
+            return op(x, output_size=output_size)
 
         if self.is_quantized_tensor(data):
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
 
-    def adaptive_avg_pool_2d(self, inputs, input_types):
-        data = inputs[0]
-        output_size = inputs[1]
-
-        def func(x):
-            return _op.nn.adaptive_avg_pool2d(x, output_size=output_size)
-
-        if self.is_quantized_tensor(data):
-            return qnn_torch.apply_with_upcast(data, func)
-
-        return func(data)
-
-    def adaptive_avg_pool_3d(self, inputs, input_types):
-        data = inputs[0]
-        output_size = inputs[1]
-        return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
-
-    def adaptive_max_pool_1d(self, inputs, input_types):
+    def adaptive_max_pool(self, op, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
         # returns dummy indices too
-        return _op.nn.adaptive_max_pool1d(data, output_size=output_size), None
-
-    def adaptive_max_pool_2d(self, inputs, input_types):
-        data = inputs[0]
-        output_size = inputs[1]
-        # returns dummy indices too
-        return _op.nn.adaptive_max_pool2d(data, output_size=output_size), None
-
-    def adaptive_max_pool_3d(self, inputs, input_types):
-        data = inputs[0]
-        output_size = inputs[1]
-        # returns dummy indices too
-        return _op.nn.adaptive_max_pool3d(data, output_size=output_size), None
+        return op(data, output_size=output_size), None
 
     @staticmethod
     def convert_const_list(data):
@@ -2903,12 +2874,24 @@ class PyTorchOpConverter:
             "aten::silu": self.silu,
             "aten::silu_": self.silu,
             "aten::log_sigmoid": self.log_sigmoid,
-            "aten::adaptive_avg_pool1d": self.adaptive_avg_pool_1d,
-            "aten::adaptive_max_pool1d": self.adaptive_max_pool_1d,
-            "aten::adaptive_avg_pool2d": self.adaptive_avg_pool_2d,
-            "aten::adaptive_max_pool2d": self.adaptive_max_pool_2d,
-            "aten::adaptive_avg_pool3d": self.adaptive_avg_pool_3d,
-            "aten::adaptive_max_pool3d": self.adaptive_max_pool_3d,
+            "aten::adaptive_avg_pool1d": functools.partial(
+                self.adaptive_avg_pool, _op.nn.adaptive_avg_pool1d
+            ),
+            "aten::adaptive_avg_pool2d": functools.partial(
+                self.adaptive_avg_pool, _op.nn.adaptive_avg_pool2d
+            ),
+            "aten::adaptive_avg_pool3d": functools.partial(
+                self.adaptive_avg_pool, _op.nn.adaptive_avg_pool3d
+            ),
+            "aten::adaptive_max_pool1d": functools.partial(
+                self.adaptive_max_pool, _op.nn.adaptive_max_pool1d
+            ),
+            "aten::adaptive_max_pool2d": functools.partial(
+                self.adaptive_max_pool, _op.nn.adaptive_max_pool2d
+            ),
+            "aten::adaptive_max_pool3d": functools.partial(
+                self.adaptive_max_pool, _op.nn.adaptive_max_pool3d
+            ),
             "aten::max_pool2d": self.maxpool_2d,
             "aten::max_pool2d_with_indices": self.maxpool_2d_with_indices,
             "aten::max_pool1d": self.maxpool_1d,

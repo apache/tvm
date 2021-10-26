@@ -4021,5 +4021,4 @@ def test_roll():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_forward_adaptive_maxpool()
+    pytest.main([__file__])
