@@ -773,7 +773,9 @@ def verify_matrix_set_diag(input_shape, diagonal_shape, dtype, k=0, align="RIGHT
         print("Running on target: %s" % target)
         with tvm.target.Target(target):
             s = tvm.topi.testing.get_injective_schedule(target)(matrix_set_diag_result)
-        fn = tvm.build(s, [input, diagonal, k1, k2, matrix_set_diag_result], target, name="matrix_set_diag")
+        fn = tvm.build(
+            s, [input, diagonal, k1, k2, matrix_set_diag_result], target, name="matrix_set_diag"
+        )
         input_npy = np.random.randint(-100, 100, size=input_shape).astype(dtype)
         diagonal_npy = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)
         out_npy = tvm.topi.testing.matrix_set_diag(input_npy, diagonal_npy, k, align)

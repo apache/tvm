@@ -5773,10 +5773,11 @@ def test_convinteger(target, dev):
         repeat(2, D),
     )
 
+
 @tvm.testing.parametrize_targets
 def test_trilu(target, dev):
     def verify_trilu(in_shape, k, upper):
-        trilu_node = helper.make_node('Trilu', inputs=["x", "k"], outputs=["out"], upper=upper)
+        trilu_node = helper.make_node("Trilu", inputs=["x", "k"], outputs=["out"], upper=upper)
         graph = helper.make_graph(
             [trilu_node],
             "trilu_test",
@@ -5789,7 +5790,9 @@ def test_trilu(target, dev):
 
         model = helper.make_model(graph, producer_name="trilu_test")
         input_array = np.random.rand(*in_shape).astype("float32")
-        verify_with_ort_with_inputs(model, [input_array, np.asarray(k)], target=target, dev=dev, use_vm=True)
+        verify_with_ort_with_inputs(
+            model, [input_array, np.asarray(k)], target=target, dev=dev, use_vm=True
+        )
 
     in_shape = (4, 5)
     verify_trilu(in_shape, [4], 0)

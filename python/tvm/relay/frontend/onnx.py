@@ -4228,7 +4228,7 @@ class Momentum(OnnxOpConverter):
 
 class Trilu(OnnxOpConverter):
     """Operator converter for Trilu"""
-    
+
     @classmethod
     def _impl_v14(cls, inputs, attr, params):
         upper = attr.get("upper", 1)
