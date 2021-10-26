@@ -18,12 +18,12 @@
 # pylint: disable=import-outside-toplevel
 """Transform operators."""
 
+import numpy as np
 from ...tir import expr as _expr
 from ..expr import Constant, Expr, Tuple, TupleWrapper, const
 from . import _make
 from .dyn import _make as _dyn_make
 from .tensor import shape_of
-import numpy as np
 
 
 def cast(data, dtype):

@@ -4240,19 +4240,19 @@ class Trilu(OnnxOpConverter):
             k_tensor = inputs[1]
 
         diag_input = relay.zeros(fold_constant(shape_of(inputs[0])), dtype=data_type)
-
+        k1, k2 = None, None
         if upper == 0:
             k1 = relay.add(k_tensor, relay.const(1, dtype="int64"))
             k2 = relay.take(input_shape, relay.const(input_dims - 1, dtype="int32"))
             k2 = relay.expand_dims(k2, axis=0)
-            return relay.matrix_set_diag(inputs[0], diag_input, k=(k1, k2))
         else:
-            k1 = relay.take(input_shape, relay.const(input_dims-2, dtype="int32"))
+            k1 = relay.take(input_shape, relay.const(input_dims - 2, dtype="int32"))
             k1 = relay.multiply(k1, relay.const(-1, dtype="int64"))
             k1 = relay.subtract(k1, relay.const(1, dtype="int64"))
             k1 = relay.expand_dims(k1, axis=0)
             k2 = relay.subtract(k_tensor, relay.const(1, dtype="int64"))
-            return relay.matrix_set_diag(inputs[0], diag_input, k=(k1, k2))
+
+        return relay.matrix_set_diag(inputs[0], diag_input, k=(k1, k2))
 
 
 # compatible operators that do NOT require any conversion.
