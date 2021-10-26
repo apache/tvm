@@ -3,6 +3,9 @@
 # This file is distributed under the same license as the tvm package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# Huan Mei, 2021
+# 
 #, fuzzy
 msgid ""
 msgstr ""
@@ -10,6 +13,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2021-10-12 10:06+0000\n"
 "PO-Revision-Date: 2021-10-13 01:29+0000\n"
+"Last-Translator: Huan Mei, 2021\n"
 "Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,15 +23,15 @@ msgstr ""
 
 #: ../../_staging/arch/microtvm_design.rst:20
 msgid "microTVM Design Document"
-msgstr ""
+msgstr "microTVM设计文档"
 
 #: ../../_staging/arch/microtvm_design.rst:23
 msgid "Table of Contents"
-msgstr ""
+msgstr "目录"
 
 #: ../../_staging/arch/microtvm_design.rst:26
 msgid "Background"
-msgstr ""
+msgstr "背景知识"
 
 #: ../../_staging/arch/microtvm_design.rst:28
 msgid ""
@@ -38,6 +42,8 @@ msgid ""
 "for a proof-of-concept implementation on such devices, the runtime cannot "
 "depend on:"
 msgstr ""
+"TVM 是一个模型部署框架，在传统操作系统的各种模型中都表现出了良好的性能。鉴于 TVM "
+"的分层编译方法，将TVM应用到微控制器设备成了自然而然的事情。虽然大多数汇编流程不需要为了在此类设备上实现概念验证而更改，但是运行时间不能依赖于："
 
 #: ../../_staging/arch/microtvm_design.rst:33
 msgid ""
@@ -47,27 +53,29 @@ msgid ""
 "typically need to be more judicious in using memory, and need to release "
 "memory when it is not in use."
 msgstr ""
+"**虚拟内存**，和其他任何系统提供的 ``malloc``。另外，微控制器设备的内存资源通常非常有限（以 KB "
+"为单位）。因此，为此类平台设计的库在使用内存时通常需要非常谨慎，并且需要在内存未使用时及时释放内存。"
 
 #: ../../_staging/arch/microtvm_design.rst:37
 msgid ""
 "Traditional OS abstractions, such as **files**, **libraries**, and **kernel "
 "functions**. Some projects implement support for these, but they are by no "
 "means standard."
-msgstr ""
+msgstr "传统的操作系统功能，如 **files**，**libraries** 和 **kernel functions**。"
 
 #: ../../_staging/arch/microtvm_design.rst:39
 msgid "Support for programming languages other than **C**."
-msgstr ""
+msgstr "支持除 **C** 以外的编程语言。"
 
 #: ../../_staging/arch/microtvm_design.rst:41
 msgid ""
 "Such changes require a different approach from the TVM C++ runtime typically"
 " used on traditional Operating Systems."
-msgstr ""
+msgstr "这些变化需要一个不同于传统操作系统通常使用的 TVM C++运行时间。"
 
 #: ../../_staging/arch/microtvm_design.rst:45
 msgid "Typical Use"
-msgstr ""
+msgstr "典型案例"
 
 #: ../../_staging/arch/microtvm_design.rst:47
 msgid ""
