@@ -96,9 +96,9 @@ class FoldTypeTransformationRewriter : public MixedModeMutator {
           }
 
           // Mutate the var node type
-          VarNode* var_node = reinterpret_cast<VarNode*>(maybe_var_node);
+          VarNode* var_node = const_cast<VarNode*>(maybe_var_node);
           const TensorTypeNode* anno = var_node->type_annotation.as<TensorTypeNode>();
-          auto mut_anno = reinterpret_cast<TensorTypeNode*>(anno);
+          auto mut_anno = const_cast<TensorTypeNode*>(anno);
           auto shape = anno->shape;
           mut_anno->dtype = out_dtype;
 
