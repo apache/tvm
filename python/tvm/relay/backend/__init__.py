@@ -16,3 +16,5 @@
 # under the License.
 """Backend codegen modules for relay."""
 from . import te_compiler
+from .executor import Executor
+from .runtime import Runtime
