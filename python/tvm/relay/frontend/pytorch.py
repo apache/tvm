@@ -2783,10 +2783,9 @@ class PyTorchOpConverter:
         return self.searchsorted_common(inputs[1], inputs[0], inputs[2], inputs[3])
 
     def roll(self, inputs, input_types):
-        def swap_axes(inp, shape, ax1, ax2):
+        def slide_axes(inp, shape, ax):
             axes = list(range(len(shape)))
-            axes[ax1] = ax2
-            axes[ax2] = ax1
+            axes = axes[:ax] + [-1] + axes[ax:-1]
             return _op.transpose(inp, axes)
 
         x = inputs[0]
@@ -2805,11 +2804,12 @@ class PyTorchOpConverter:
                 + roll_dim,
                 roll_dim,
             )
-            indices = swap_axes(
+            # First fill in the last axis with roll indices, and then do transpose to
+            # bring the roll indices into the desired axis.
+            indices = slide_axes(
                 _op.tile(indices_1d, shape[: dims[i]] + shape[dims[i] + 1 :] + (1,)),
                 shape,
                 dims[i],
-                -1,
             )
             out = _op.gather(out, dims[i], indices)
 
