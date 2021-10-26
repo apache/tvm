@@ -2797,7 +2797,7 @@ class PyTorchOpConverter:
 
         out = x
         for i, dim in enumerate(dims):
-            roll_dim = _expr.const(shape[i], "int64")
+            roll_dim = _expr.const(shape[dim], "int64")
             indices_1d = _op.mod(
                 _op.transform.arange(start, roll_dim, step, "int64")
                 - _expr.const(shifts[i], "int64")
