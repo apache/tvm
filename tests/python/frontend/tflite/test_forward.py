@@ -2227,9 +2227,11 @@ def _test_not_equal(data):
 # ------------------
 
 
-def _test_squared_difference(data):
+def _test_squared_difference(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of squared difference"""
-    return _test_elemwise(math_ops.squared_difference, data)
+    return _test_elemwise(
+        math_ops.squared_difference, data, fused_activation_function, quantized, qnn_op
+    )
 
 
 #######################################################################
@@ -2293,6 +2295,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_mul: (-5e3, 5e3),
         _test_maximum: (-112, 111),
         _test_minimum: (-128, 127),
+        _test_squared_difference: (0, 225e2),
     }
 
     return qnn_out_range[qnn_op]
@@ -2323,6 +2326,7 @@ def test_all_elemwise():
     _test_forward_elemwise_quantized(_test_minimum)
     _test_forward_elemwise(_test_greater)
     _test_forward_elemwise(_test_squared_difference)
+    _test_forward_elemwise_quantized(_test_squared_difference)
     _test_forward_elemwise(_test_greater_equal)
     _test_forward_elemwise(_test_less)
     _test_forward_elemwise(_test_less_equal)

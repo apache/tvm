@@ -1243,7 +1243,7 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_elemwise(self, relay_op, op, ignore_qnn_params=False):
+    def _convert_elemwise(self, relay_op, op, ignore_qnn_params=False, dequantize=False):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.AddOptions import AddOptions
@@ -1277,8 +1277,13 @@ class OperatorConverter(object):
 
         # If quantized, extracts qnn params and call QNN add operator.
         if not ignore_qnn_params and lhs_tensor.qnn_params:
-            assert rhs_tensor.qnn_params, "Both tensors should be quantized."
-            assert output_tensor.qnn_params, "Output tensor should be quantized."
+            if not dequantize:
+                assert rhs_tensor.qnn_params, "Both tensors should be quantized."
+                assert output_tensor.qnn_params, "Output tensor should be quantized."
+            else:
+                lhs_expr = self.dequantize(lhs_expr, lhs_tensor)
+                rhs_expr = self.dequantize(rhs_expr, rhs_tensor)
+
             out = relay_op(
                 lhs=lhs_expr,
                 rhs=rhs_expr,
@@ -1291,6 +1296,9 @@ class OperatorConverter(object):
             )
         else:
             out = relay_op(lhs_expr, rhs_expr)
+
+        if dequantize and output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
 
         # Options (fused_activation_function)
         options = None
@@ -1393,11 +1401,7 @@ class OperatorConverter(object):
     def convert_squared_difference(self, op):
         """Convert TFLite SQUARED DIFFERENCE"""
         # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized squared difference operator is not supported yet."
-            )
-        difference = self._convert_elemwise(_op.subtract, op)
+        difference = self._convert_elemwise(_op.subtract, op, dequantize=True)
         # _convert_elemwise has guaranteed only have one output tensor
         exp_type = self.get_tensor_type_str(self.get_output_tensors(op)[0].tensor.Type())
         out = _op.power(difference, relay.const(2, exp_type))
