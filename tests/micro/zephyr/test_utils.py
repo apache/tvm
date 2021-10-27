@@ -84,7 +84,7 @@ def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_fil
         model_tar_path = pathlib.Path(tar_temp_dir) / "model.tar"
         export_model_library_format(mod, model_tar_path)
 
-        workspace_size = mlf_extract_workspace_size_bytes(model_tar_path, tar_temp_dir)
+        workspace_size = mlf_extract_workspace_size_bytes(model_tar_path)
         project = tvm.micro.project.generate_project_from_mlf(
             str(TEMPLATE_PROJECT_DIR),
             project_dir,

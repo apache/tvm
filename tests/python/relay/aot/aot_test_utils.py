@@ -618,7 +618,7 @@ def run_and_check(
         export_model_library_format(compiled_model.executor_factory, tar_file)
 
         workspace_bytes += model.extra_memory_in_bytes
-        workspace_bytes += mlf_extract_workspace_size_bytes(tar_file, base_path)
+        workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
 
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)

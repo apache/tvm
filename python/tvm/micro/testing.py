@@ -20,10 +20,12 @@
 import pathlib
 import json
 import logging
-import os
 import tarfile
 from typing import Union
 from tvm.micro.project_api.server import IoTimeoutError
+
+# Timeout in seconds for AOT transport.
+TIMEOUT_SEC = 5
 
 
 def check_tune_log(log_path: Union[pathlib.Path, str]):
@@ -39,51 +41,42 @@ def check_tune_log(log_path: Union[pathlib.Path, str]):
 
 def aot_transport_init_wait(transport):
     """Send init message to microTVM device until it receives wakeup sequence."""
-    timeout = 5
     while True:
         try:
-            aot_transport_find_message(transport, "wakeup", timeout_sec=timeout)
+            aot_transport_find_message(transport, "wakeup", timeout_sec=TIMEOUT_SEC)
             break
         except IoTimeoutError:
-            transport.write(b"init%", timeout_sec=timeout)
+            transport.write(b"init%", timeout_sec=TIMEOUT_SEC)
 
 
-def aot_transport_find_message(transport, expression: str, timeout_sec: int):
+def aot_transport_find_message(transport, expression: str, timeout_sec: int) -> str:
     """Read transport message until it finds the expression."""
+    timeout = timeout_sec
     while True:
-        data = _read_line(transport, timeout_sec)
+        data = _read_line(transport, timeout)
         logging.debug("new line: %s", data)
         if expression in data:
             return data
+        timeout -= 0.001
 
 
-def _read_line(transport, timeout_sec: int):
-    data = ""
-    new_line = False
+def _read_line(transport, timeout_sec: int) -> str:
+    data = bytearray()
     while True:
-        if new_line:
-            break
         new_data = transport.read(1, timeout_sec=timeout_sec)
         logging.debug("read data: %s", new_data)
         for item in new_data:
-            new_c = chr(item)
-            data = data + new_c
-            if new_c == "\n":
-                new_line = True
-                break
-    return data
+            data.append(item)
+            if str(chr(item)) == "\n":
+                return data.decode(encoding="utf-8")
 
 
-def mlf_extract_workspace_size_bytes(
-    mlf_tar_path: Union[pathlib.Path, str], extract_path: Union[pathlib.Path, str]
-):
+def mlf_extract_workspace_size_bytes(mlf_tar_path: Union[pathlib.Path, str]) -> int:
     """Extract an MLF archive file and read workspace size from metadata file."""
 
-    tar_file = str(mlf_tar_path)
-    base_path = str(extract_path)
-    t = tarfile.open(tar_file)
-    t.extractall(base_path)
-
-    with open(os.path.join(base_path, "metadata.json")) as json_f:
-        metadata = json.load(json_f)
-        return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
+    with tarfile.open(mlf_tar_path, "r:*") as tar_file:
+        tar_members = [ti.name for ti in tar_file.getmembers()]
+        assert "./metadata.json" in tar_members
+        with tar_file.extractfile("./metadata.json") as f:
+            metadata = json.load(f)
+            return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
