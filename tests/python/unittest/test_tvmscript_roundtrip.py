@@ -2865,7 +2865,7 @@ def block_elements(a: T.handle, b: T.handle) -> None:
         D = T.match_buffer(A[0:4, 0], (4, 1))
         with T.init():
             B[0, 0] = T.float32(0)
-        B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2]
+        B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2, 0]
 
 
 def test_block_elements():
