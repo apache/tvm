@@ -478,6 +478,31 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   }
 }
 
+template <typename T>
+inline void PrintBinaryExpr(const T* op, const char* opstr, std::ostream& os, CodeGenOpenCL* p) {
+  if (op->dtype.lanes() == 1) {
+    os << opstr << "((";
+    p->PrintType(op->a->dtype, os);
+    os << ")";
+    p->PrintExpr(op->a, os);
+    os << ", (";
+    p->PrintType(op->b->dtype, os);
+    os << ")";
+    p->PrintExpr(op->b, os);
+    os << ')';
+  } else {
+    p->PrintVecBinaryOp(opstr, op->dtype, op->a, op->b, os);
+  }
+}
+
+void CodeGenOpenCL::VisitExpr_(const MinNode* op, std::ostream& os) {
+  PrintBinaryExpr(op, "min", os, this);
+}
+
+void CodeGenOpenCL::VisitExpr_(const MaxNode* op, std::ostream& os) {
+  PrintBinaryExpr(op, "max", os, this);
+}
+
 void CodeGenOpenCL::SetTextureScope(
     const std::unordered_map<const VarNode*, std::string>& scope) {  // NOLINT(*)
   for (auto& texture : scope) {
