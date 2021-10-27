@@ -607,7 +607,10 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+  // The host Target contains these parameters at the moment rather than
+  // the specific Target
+  // TODO(Mousius) - Move these to the Executor object rather than Target
+  if (target->GetHost().value()->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));

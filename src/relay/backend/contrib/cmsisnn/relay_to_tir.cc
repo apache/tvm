@@ -17,6 +17,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/transform.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/tir/builtin.h>
@@ -33,29 +34,46 @@ namespace relay {
 namespace contrib {
 namespace cmsisnn {
 
-class RelayToTIRVisitor : public MixedModeVisitor {
+class RelayToTIRVisitor : public MixedModeMutator {
  public:
-  explicit RelayToTIRVisitor(String func_name) : func_name_(func_name) {}
+  explicit RelayToTIRVisitor(IRModule ir_module, Target target)
+      : ir_module_(ir_module), target_(target) {}
 
-  tir::PrimFunc GetReplacementPrimFunc() { return primfunc_; }
+  IRModule Mutate() {
+    GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
+    BaseFunc main = ir_module_->Lookup(main_global_var);
+    Function main_func = GetRef<Function>(main.as<FunctionNode>());
+
+    // Copy everything across and mutate the body
+    Function mutated_main =
+        Function(main_func->params, VisitExpr(main_func->body), main_func->ret_type,
+                 main_func->type_params, main_func->attrs, main_func->span);
+
+    ir_module_->Update(main_global_var, mutated_main);
+
+    return ir_module_;
+  }
 
  private:
   inline IntImm ToArg(int32_t value) { return IntImm(DataType::Int(32), value); }
 
-  void CreatePrimFuncForExtern(Array<tir::Var> func_signature,
+  void CreatePrimFuncForExtern(const GlobalVar& global_var, Array<tir::Var> func_signature,
                                tvm::Array<PrimExpr> call_extern_args) {
     Map<String, ObjectRef> dict_attrs;
-    dict_attrs.Set("global_symbol", func_name_);
+    dict_attrs.Set(tvm::attr::kGlobalSymbol, global_var->name_hint);
+    dict_attrs.Set(tvm::attr::kTarget, target_);
     dict_attrs.Set("tir.noalias", Bool(true));
 
     tir::Stmt body = tir::Evaluate(
         tvm::tir::Call(DataType::Int(8), tir::builtin::call_extern(), call_extern_args));
 
-    primfunc_ = tir::PrimFunc(func_signature, body, VoidType(), Map<tir::Var, tir::Buffer>(),
-                              DictAttrs(dict_attrs));
+    tir::PrimFunc replacement_func(func_signature, body, VoidType(), Map<tir::Var, tir::Buffer>(),
+                                   DictAttrs(dict_attrs));
+
+    ir_module_->Add(global_var, replacement_func);
   }
 
-  void EmitSoftMax(const Expr& expr) {
+  void EmitSoftMax(const GlobalVar& global_var, const Expr& expr) {
     auto* quantize_call = expr.as<CallNode>();
     auto* softmax_call = quantize_call->args[0].as<CallNode>();
     auto* dequant_call = softmax_call->args[0].as<CallNode>();
@@ -102,10 +120,10 @@ class RelayToTIRVisitor : public MixedModeVisitor {
         out_var,
     };
 
-    CreatePrimFuncForExtern(func_signature, args);
+    CreatePrimFuncForExtern(global_var, func_signature, args);
   }
 
-  void EmitMul(const Expr& expr) {
+  void EmitMul(const GlobalVar& global_var, const Expr& expr) {
     auto* mul_call = expr.as<CallNode>();
 
     const float input_0_scale = GetScalarFromConstant<float>(mul_call->args[2]);
@@ -145,10 +163,10 @@ class RelayToTIRVisitor : public MixedModeVisitor {
         tensor_size,
     };
 
-    CreatePrimFuncForExtern(func_signature, args);
+    CreatePrimFuncForExtern(global_var, func_signature, args);
   }
 
-  void EmitAdd(const Expr& expr) {
+  void EmitAdd(const GlobalVar& global_var, const Expr& expr) {
     auto* add_call = expr.as<CallNode>();
 
     const float input_0_scale = GetScalarFromConstant<float>(add_call->args[2]);
@@ -212,58 +230,59 @@ class RelayToTIRVisitor : public MixedModeVisitor {
         tensor_size,
     };
 
-    CreatePrimFuncForExtern(func_signature, args);
+    CreatePrimFuncForExtern(global_var, func_signature, args);
   }
 
-  void VisitExpr_(const CallNode* call) final {
-    auto* func = call->op.as<FunctionNode>();
-    if (func == nullptr) {
-      return;
+  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
+    if (const CallNode* call = post.as<CallNode>()) {
+      auto* func = call->op.as<FunctionNode>();
+      if (func == nullptr) {
+        return post;
+      }
+
+      auto codegen_name = func->GetAttr<String>(attr::kCompiler);
+      if (codegen_name.defined() && codegen_name == "cmsis-nn") {
+        const CallNode* inner_call = func->body.as<CallNode>();
+        const FunctionNode* composite_func = inner_call->op.as<FunctionNode>();
+        auto comp_name = composite_func->GetAttr<String>(attr::kComposite);
+        auto func_name = func->GetAttr<String>(::tvm::attr::kGlobalSymbol);
+
+        GlobalVar new_global_var(func_name.value());
+        new_global_var->checked_type_ = composite_func->checked_type();
+
+        if (comp_name == "cmsis-nn.quantized_softmax") {
+          EmitSoftMax(new_global_var, composite_func->body);
+        }
+        if (comp_name == "cmsis-nn.quantized_mul") {
+          EmitMul(new_global_var, composite_func->body);
+        }
+        if (comp_name == "cmsis-nn.quantized_add") {
+          EmitAdd(new_global_var, composite_func->body);
+        }
+
+        Array<Expr> args;
+        for (const auto& arg : call->args) {
+          args.push_back(VisitExpr(arg));
+        }
+
+        return Call(new_global_var, args, call->attrs, call->type_args, call->span);
+      }
     }
 
-    auto comp_name = func->GetAttr<String>(attr::kComposite);
-    if (comp_name.defined()) {
-      if (comp_name == "cmsisnn.quantized_softmax") {
-        EmitSoftMax(func->body);
-      }
-      if (comp_name == "cmsisnn.quantized_mul") {
-        EmitMul(func->body);
-      }
-      if (comp_name == "cmsisnn.quantized_add") {
-        EmitAdd(func->body);
-      }
-    }
+    return post;
   }
 
- public:
-  String func_name_;
-  tir::PrimFunc primfunc_;
+ private:
+  IRModule ir_module_;
+  Target target_;
 };
 
-IRModule GenerateTIR(IRModule mod) {
-  String func_name;
-  Function func;
-
-  // Obtain external Relay Function that needs to be translated into TIR
-  ICHECK(mod->functions.size() == 1) << "Supports modules with single external Relay function.";
-  for (auto kv : mod->functions) {
-    func = Downcast<Function>(kv.second);
-    func_name = func->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
-  }
-
-  // Prepare PrimFunc from Relay Function
-  auto relay_to_tir = RelayToTIRVisitor(func_name);
-  relay_to_tir.VisitExpr(func->body);
-
-  // Build the TIR IRModule from the generated PrimFunc
-  Map<GlobalVar, BaseFunc> var_func_map;
-  var_func_map.Set(GlobalVar(func_name), relay_to_tir.GetReplacementPrimFunc());
-  return IRModule(var_func_map);
-}
-
-transform::Pass RelayToTIR() {
+tvm::transform::Pass RelayToTIR() {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
-      [=](IRModule m, transform::PassContext pc) { return GenerateTIR(m); };
+      [=](IRModule ir_module, transform::PassContext pass_context) {
+        auto relay_to_tir = RelayToTIRVisitor(ir_module, Target("cmsis-nn"));
+        return relay_to_tir.Mutate();
+      };
   return tvm::transform::CreateModulePass(pass_func, 0, "RelayToTIR", {});
 }
 
