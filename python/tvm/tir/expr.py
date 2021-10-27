@@ -1036,6 +1036,39 @@ class Load(PrimExprWithOp):
         )
 
 
+@tvm._ffi.register_object("tir.BufferPointer")
+class BufferPointer(PrimExpr):
+    """Buffer load node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer to be loaded.
+
+    indices : List[PrimExpr]
+        The buffer indices.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
+
+    def __init__(self, buffer, indices, span=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BufferPointer, buffer, indices, span  # type: ignore
+        )
+
+    def value_dtype(self):
+        """The datatype of the location pointed to.
+
+        Will have the same scalar type as `self.buffer.dtype`, but may
+        have a different number of lanes.  This is because access of a
+        buffer using an index with more than one lane, such as a
+        RampNode, indicates more than one location in the buffer.
+
+        """
+        return _ffi_api.BufferPointer_value_dtype(self)
+
+
 @tvm._ffi.register_object("tir.BufferLoad")
 class BufferLoad(PrimExprWithOp):
     """Buffer load node.

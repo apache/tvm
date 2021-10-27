@@ -355,15 +355,31 @@ def test_scoped_storage_vars():
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 
-def test_buffer_load_store():
+def test_buffer_pointer():
     b = tvm.tir.decl_buffer((10,), "float32")
-    x = tvm.tir.BufferLoad(b, [0])
-    assert isinstance(x, tvm.tir.BufferLoad)
-    assert x.dtype == "float32"
-    assert x.buffer == b
-    s = tvm.tir.BufferStore(b, 0.1, [0])
-    assert isinstance(s, tvm.tir.BufferStore)
+    node = tvm.tir.BufferPointer(b, [0])
+    assert isinstance(node, tvm.tir.BufferPointer)
+    assert node.dtype == "handle"
+    assert node.value_dtype() == "float32"
 
+
+def test_buffer_load():
+    b = tvm.tir.decl_buffer((10,), "float32")
+    node = tvm.tir.BufferLoad(b, [0])
+    assert isinstance(node, tvm.tir.BufferLoad)
+    assert node.dtype == "float32"
+    assert node.pointer.buffer == b
+
+
+def test_buffer_store():
+    b = tvm.tir.decl_buffer((10,), "float32")
+    node = tvm.tir.BufferStore(b, 0.1, [0])
+    assert isinstance(node, tvm.tir.BufferStore)
+    assert node.pointer.buffer == b
+
+
+def test_buffer_realize():
+    b = tvm.tir.decl_buffer((10,), "float32")
     s = tvm.tir.BufferRealize(b, [tvm.ir.Range(0, 1)], True, tvm.tir.Evaluate(0))
     assert isinstance(s, tvm.tir.BufferRealize)
 
