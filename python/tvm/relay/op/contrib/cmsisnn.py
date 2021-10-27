@@ -123,6 +123,16 @@ def pattern_table():
         kernel_zp = conv2d.args[3].data.numpy()
         kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
 
+        # check if depthwise Conv2D
+        kernel_layout = conv2d.attrs.kernel_layout
+        pos_o = kernel_layout.index("O")
+        groups = conv2d.attrs.groups
+        is_depthwise = False
+        if groups == int(conv2d_input.checked_type.shape[3]) and groups == int(
+            conv2d_weight.checked_type.shape[pos_o]
+        ):
+            is_depthwise = True
+
         return (
             conv2d.attrs.out_dtype == "int32"
             and conv2d.attrs.padding[2] == 0
@@ -132,6 +142,7 @@ def pattern_table():
             and pattern.checked_type.dtype == "int8"
             and bias_dtype == "int32"
             and all([zp == 0 for zp in kernel_zp])
+            and (not is_depthwise or bias_add is not None)
         )
 
     def binary_op_pattern(op):
