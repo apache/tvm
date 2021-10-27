@@ -41,6 +41,7 @@
 #include <vector>
 
 #include "../file_utils.h"
+#include "../hexagon/hexagon/hexagon_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -384,6 +385,7 @@ void GraphExecutor::SetupStorage() {
     } else {
       std::vector<int64_t> shape;
       shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
+      HEXAGON_PRINT(ALWAYS, "graph exec shape: %ld", shape[0]);
       storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, dev));
     }
   }

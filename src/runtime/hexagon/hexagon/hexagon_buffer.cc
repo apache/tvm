@@ -21,6 +21,8 @@
 
 #include <tvm/runtime/module.h>
 
+#include "HAP_compute_res.h"
+
 #include <string>
 #include <utility>
 
@@ -29,6 +31,45 @@
 namespace tvm {
 namespace runtime {
 namespace hexagon {
+
+struct Allocation {
+  Allocation(size_t size, size_t alignment) {}
+  virtual ~Allocation() {}
+  Allocation(const Allocation&) = delete;
+  void* data_{nullptr};
+};
+
+template <HexagonBuffer::StorageScope S>
+std::unique_ptr<Allocation> Allocator(size_t size, size_t alignment);
+
+struct VTCMAllocation : public Allocation {
+  VTCMAllocation(size_t size, size_t alignment) : Allocation(size, alignment), context_id_(0) {
+    compute_res_attr_t res_info;
+    HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
+    HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, size, 1));
+    context_id_ = HAP_compute_res_acquire(&res_info, 10000);
+    if (context_id_) {
+      data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
+      if (!data_) {
+        FARF(ERROR, "ERROR: Allocated VTCM ptr is null.");
+        HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+        return;
+      }
+    } else {
+      FARF(ERROR, "ERROR: Unable to acquire requeisted resource.");
+      return;
+    }
+    // FARF(ALWAYS, "VTCMAllocation() - Context ID: %u, VTCM ptr: %p", context_id_, data_);
+  }
+  ~VTCMAllocation() {
+    // FARF(ALWAYS, "~VTCMAllocation() - Context ID: %u, VTCM ptr: %p", context_id_, data_);
+    if (context_id_ && data_) {
+      HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+      data_ = nullptr;
+    }
+  }
+  unsigned int context_id_;
+};
 
 static size_t GetDataAlignment(const DLDataType dtype) {
   size_t align = (dtype.bits / 8) * dtype.lanes;
@@ -40,6 +81,7 @@ HexagonBuffer::HexagonBuffer(int ndim, const int64_t* shape, DLDataType dtype,
                              Optional<String> scope) {
   ICHECK_LE(ndim, 1) << "Hexagon currently only supports flat allocations "
                      << "and arrays of flat allocations.";
+  HEXAGON_PRINT(ALWAYS, "nd allocator");
 
   size_t alignment = GetDataAlignment(dtype);
   // TODO(csullivan): Extend to support arrays of allocations.
@@ -47,41 +89,60 @@ HexagonBuffer::HexagonBuffer(int ndim, const int64_t* shape, DLDataType dtype,
   *this = HexagonBuffer(shape[0] * (dtype.bits / 8) * dtype.lanes, alignment, scope);
 }
 
-HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope) {
-  void* ptr = nullptr;
-  int ret = posix_memalign(&ptr, alignment, nbytes);
-  if (ret != 0) {
-    throw std::bad_alloc();
-  }
-  allocations_.push_back(ptr);
-  SetStorageScope(scope);
+template <>
+std::unique_ptr<Allocation> Allocator<HexagonBuffer::StorageScope::kDDR>(size_t size,
+                                                                         size_t alignment) {
+  return nullptr;
 }
 
-HexagonBuffer::HexagonBuffer(void* data, Optional<String> scope) : managed_{false} {
+template <>
+std::unique_ptr<Allocation> Allocator<HexagonBuffer::StorageScope::kVTCM>(size_t size,
+                                                                          size_t alignment) {
+  return std::make_unique<VTCMAllocation>(size, alignment);
+}
+
+HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope) {
+  HEXAGON_PRINT(ALWAYS, "nbytes: %u, alignment: %u", nbytes, alignment);
+  SetStorageScope(scope);
+
+  std::unique_ptr<Allocation> alloca = nullptr;
+  switch (GetStorageScope()) {
+    case StorageScope::kDDR:
+      alloca = Allocator<StorageScope::kDDR>(nbytes, alignment);
+      break;
+    case StorageScope::kVTCM:
+      alloca = Allocator<StorageScope::kVTCM>(nbytes, alignment);
+      break;
+  };
+
+  ICHECK(alloca->data_ != nullptr) << "HexagonBuffer allocation failed; scope: "
+                                  << static_cast<uint32_t>(GetStorageScope());
+
+  allocations_.push_back(alloca->data_);
+  managed_allocations_.push_back(std::move(alloca));
+}
+
+HexagonBuffer::HexagonBuffer(void* data, Optional<String> scope) {
   SetStorageScope(scope);
   allocations_.push_back(data);
 }
 
 HexagonBuffer::~HexagonBuffer() {
-  if (managed_) {
-    for (auto& ptr : allocations_) {
-      free(ptr);
-    }
-  }
+  managed_allocations_.clear();
 }
 
 HexagonBuffer::HexagonBuffer(HexagonBuffer&& other)
     : allocations_(other.allocations_),
-      managed_(other.managed_),
+      managed_allocations_(std::move(other.managed_allocations_)),
       storage_scope_(other.storage_scope_) {
   other.allocations_.clear();
-  other.managed_ = false;
+  other.managed_allocations_.clear();
   other.storage_scope_ = StorageScope::kDDR;
 }
 
 HexagonBuffer& HexagonBuffer::operator=(HexagonBuffer&& other) {
   std::swap(allocations_, other.allocations_);
-  std::swap(managed_, other.managed_);
+  std::swap(managed_allocations_, other.managed_allocations_);
   std::swap(storage_scope_, other.storage_scope_);
   return *this;
 }

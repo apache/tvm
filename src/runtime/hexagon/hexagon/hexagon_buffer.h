@@ -32,6 +32,8 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
+struct Allocation;
+
 class HexagonBuffer {
  public:
   /* \brief Allocate memory within hexagon accessible memory
@@ -109,17 +111,17 @@ class HexagonBuffer {
  private:
   //! \brief Assign a storage scope to the buffer.
   void SetStorageScope(Optional<String> scope);
-  /*! \brief Array of allocations required by the buffer.
+  /*! \brief Array of raw pointer allocations required by the buffer.
    *
    *  For a 1d (flat) storage, a single contiguous allocation will
    *  result. For 2d storage, (count, nbytes) = shape, which will
    *  result in `count` discrete allocations.
    */
   std::vector<void*> allocations_;
-  /*! \brief Whether the allocation(s) present are managed
-   *  and should be deallocated upon destruction.
+  /*! \brief Managed allocations which follow RAII and are released
+   *  during destruction.
    */
-  bool managed_{true};
+  std::vector<std::unique_ptr<Allocation>> managed_allocations_;
   /*! \brief The underlying storage type in which the allocation
    *  resides.
    */

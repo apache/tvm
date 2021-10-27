@@ -52,6 +52,7 @@ void HexagonDeviceAPIv2::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* r
 
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* shape,
                                          DLDataType dtype, Optional<String> mem_scope) {
+  HEXAGON_PRINT(ALWAYS, "ndim: %u", ndim);
   return new HexagonBuffer(ndim, shape, dtype, mem_scope.defined() ? mem_scope : String("global"));
 }
 
