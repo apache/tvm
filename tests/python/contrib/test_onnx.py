@@ -47,10 +47,11 @@ def run_onnx(onnx_model, input_data):
     return res
 
 
-def run_relay(func, data_tuple):
+def run_relay(func, data_tuple, is_dyn=False):
     target = "llvm"
     dev = tvm.device("llvm", 0)
-    relay_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+    kind = "graph" if not is_dyn else "vm"
+    relay_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
         *data_tuple
     )
 
@@ -62,8 +63,8 @@ def run_relay(func, data_tuple):
     return result
 
 
-def verify_results(relay_func, indata, test_name, rtol=1e-7, atol=0):
-    relay_results = run_relay(relay_func, indata)
+def verify_results(relay_func, indata, test_name, rtol=1e-7, atol=0, is_dyn=False):
+    relay_results = run_relay(relay_func, indata, is_dyn)
     onnx_results = run_onnx(func_to_onnx(relay_func, test_name), indata)
 
     for relay_res, onnx_res in zip(relay_results, onnx_results):
@@ -111,7 +112,7 @@ def test_conv2d():
         func = relay.Function([x, w], y)
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-        verify_results(func, [data, kernel], "test_conv2d", rtol=1e-5, atol=1e-5)
+        verify_results(func, [data, kernel], "test_conv2d", rtol=1e-5, atol=1e-5, is_dyn=True)
 
     dshape = (1, 32, 18, 18)
     kshape = (32, 1, 3, 3)
@@ -700,6 +701,24 @@ def test_resize():
                 verify_resize(isize, osize, method=i, coord_trans=j, rounding_method=k)
 
 
+def test_dyn():
+    """Dynamic unit test."""
+
+    def verify_dyn_bcast(lhs_shape, rhs_shape, dtype):
+        lhs_dyn_shape = tuple(relay.Any() for i in range(len(lhs_shape)))
+        rhs_dyn_shape = tuple(relay.Any() for i in range(len(rhs_shape)))
+        x = relay.var("x", shape=lhs_dyn_shape, dtype=dtype)
+        y = relay.var("y", shape=rhs_dyn_shape, dtype=dtype)
+        z = relay.add(x, y)
+        func = relay.Function([x, y], z)
+        lhs_data = np.random.uniform(size=lhs_shape).astype(dtype)
+        rhs_data = np.random.uniform(size=rhs_shape).astype(dtype)
+        verify_results(func, [lhs_data, rhs_data], "test_dyn_bcast", rtol=1e-5, atol=1e-5, is_dyn=True)
+
+    verify_dyn_bcast((1, 3, 32, 1), (1, 3, 1, 3), "float32")
+    verify_dyn_bcast((1, 13), (4, 3, 5, 1), "float32")
+
+
 if __name__ == "__main__":
     test_add()
     test_bias_add()
@@ -730,3 +749,4 @@ if __name__ == "__main__":
     test_round()
     test_cast()
     test_resize()
+    test_dyn()
