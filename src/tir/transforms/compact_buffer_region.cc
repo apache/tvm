@@ -339,28 +339,13 @@ class BufferCompactor : public StmtExprMutator {
       std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info)
       : buffer_info_(std::move(buffer_info)) {}
 
-  Stmt VisitStmt_(const BufferStoreNode* _op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
+  PrimExpr VisitExpr_(const BufferPointerNode* _op) final {
+    BufferPointer ptr = Downcast<BufferPointer>(StmtExprMutator::VisitExpr_(_op));
 
-    BufferPointer ptr = store->pointer;
     auto ptr_writer = ptr.CopyOnWrite();
     RewriteBufferAccess(&ptr_writer->buffer, &ptr_writer->indices);
 
-    BufferStoreNode* op = store.CopyOnWrite();
-    op->pointer = std::move(ptr);
-    return std::move(store);
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
-
-    BufferPointer ptr = load->pointer;
-    auto ptr_writer = ptr.CopyOnWrite();
-    RewriteBufferAccess(&ptr_writer->buffer, &ptr_writer->indices);
-
-    BufferLoadNode* op = load.CopyOnWrite();
-    op->pointer = std::move(ptr);
-    return std::move(load);
+    return std::move(ptr);
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -368,7 +353,7 @@ class BufferCompactor : public StmtExprMutator {
     ICHECK(!op->init.defined());
     // Step 1. Reallocate and rewrite alloc_buffers, also update BufferAllocInfo.
     Array<Buffer> alloc_buffers = RewriteAllocBuffer(op->alloc_buffers);
-    // Step 2. Recursively rewrite BufferLoad/BufferStore.
+    // Step 2. Recursively rewrite the BufferPointer used by BufferLoad/BufferStore.
     Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
     // Step 3. Update block signature.
     BlockNode* n = block.CopyOnWrite();

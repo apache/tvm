@@ -82,51 +82,20 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-    ICHECK(op != nullptr);
+  PrimExpr VisitExpr_(const BufferPointerNode* op) final {
+    auto ptr = Downcast<BufferPointer>(StmtExprMutator::VisitExpr_(op));
 
-    auto it = match_buffers_.find(op->pointer->buffer);
+    auto it = match_buffers_.find(op->buffer);
     if (it == match_buffers_.end()) {
-      return stmt;
+      return std::move(ptr);
     } else {
       const Buffer& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
 
-      BufferPointer pointer = op->pointer;
-      auto p_wtr = pointer.CopyOnWrite();
-      p_wtr->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->pointer->indices);
-      p_wtr->buffer = source->buffer;
-
-      BufferStore store = GetRef<BufferStore>(op);
-      auto store_writer = store.CopyOnWrite();
-      store_writer->pointer = pointer;
-      return std::move(store);
-    }
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-    ICHECK(op != nullptr);
-
-    auto it = match_buffers_.find(op->pointer->buffer);
-    if (it == match_buffers_.end()) {
-      return expr;
-    } else {
-      const Buffer& buffer = (*it).first;
-      const BufferRegion& source = (*it).second;
-
-      BufferPointer pointer = op->pointer;
-      auto p_wtr = pointer.CopyOnWrite();
-      p_wtr->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->pointer->indices);
-      p_wtr->buffer = source->buffer;
-
-      BufferLoad load = GetRef<BufferLoad>(op);
-      auto load_writer = load.CopyOnWrite();
-      load_writer->pointer = pointer;
-      return std::move(load);
+      auto writer = ptr.CopyOnWrite();
+      writer->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
+      writer->buffer = source->buffer;
+      return std::move(ptr);
     }
   }
 

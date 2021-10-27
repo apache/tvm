@@ -226,18 +226,6 @@ class BF16LowerRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<BufferStoreNode>();
-
-    auto it = buffer_remap_.find(op->pointer->buffer);
-    if (it != buffer_remap_.end()) {
-      return BufferStore(it->second, op->value, op->pointer->indices);
-    } else {
-      return ret;
-    }
-  }
-
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
@@ -281,16 +269,13 @@ class BF16LowerRewriter : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr ret = StmtExprMutator::VisitExpr_(op);
-    op = ret.as<BufferLoadNode>();
-
-    auto it = buffer_remap_.find(op->pointer->buffer);
+  PrimExpr VisitExpr_(const BufferPointerNode* op) final {
+    auto ptr = Downcast<BufferPointer>(StmtExprMutator::VisitExpr_(op));
+    auto it = buffer_remap_.find(ptr->buffer);
     if (it != buffer_remap_.end()) {
-      return BufferLoad(it->second, op->pointer->indices);
-    } else {
-      return ret;
+      return BufferPointer(it->second, std::move(ptr->indices), std::move(ptr->span));
     }
+    return std::move(ptr);
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {

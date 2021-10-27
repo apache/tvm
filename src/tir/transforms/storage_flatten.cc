@@ -162,52 +162,20 @@ class BufferShapeLegalize : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-    ICHECK(op);
+  PrimExpr VisitExpr_(const BufferPointerNode* op) final {
+    auto ptr = Downcast<BufferPointer>(StmtExprMutator::VisitExpr_(op));
 
-    auto it = buf_map_.find(op->pointer->buffer);
+    auto it = buf_map_.find(ptr->buffer);
     if (it != buf_map_.end()) {
       const BufferEntry& entry = it->second;
-      ICHECK(entry.in_scope) << "Cannot store to an out-of-scope buffer";
+      ICHECK(entry.in_scope) << "Cannot access an out-of-scope buffer";
 
-      BufferPointer ptr = op->pointer;
-      auto ptr_writer = ptr.CopyOnWrite();
-      ptr_writer->indices = update_indices(ptr->indices, entry.index_offsets);
-      ptr_writer->buffer = entry.remap_to;
-
-      BufferStore store = GetRef<BufferStore>(op);
-      auto store_writer = store.CopyOnWrite();
-      store_writer->pointer = ptr;
-      stmt = store;
+      auto writer = ptr.CopyOnWrite();
+      writer->indices = update_indices(ptr->indices, entry.index_offsets);
+      writer->buffer = entry.remap_to;
     }
 
-    return stmt;
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-    ICHECK(op);
-
-    auto it = buf_map_.find(op->pointer->buffer);
-    if (it != buf_map_.end()) {
-      const BufferEntry& entry = it->second;
-      ICHECK(entry.in_scope) << "Cannot read from an out-of-scope buffer";
-
-      BufferPointer ptr = op->pointer;
-      auto ptr_writer = ptr.CopyOnWrite();
-      ptr_writer->indices = update_indices(ptr->indices, entry.index_offsets);
-      ptr_writer->buffer = entry.remap_to;
-
-      BufferLoad load = GetRef<BufferLoad>(op);
-      auto load_writer = load.CopyOnWrite();
-      load_writer->pointer = ptr;
-      expr = load;
-    }
-
-    return expr;
+    return std::move(ptr);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -544,44 +512,18 @@ class BufferStrideLegalize : public StmtExprMutator {
     return BufferRealize(with_strides, op->bounds, op->condition, op->body, op->span);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
+  PrimExpr VisitExpr_(const BufferPointerNode* op) final {
+    auto ptr = Downcast<BufferPointer>(StmtExprMutator::VisitExpr_(op));
 
-    auto it = buf_map_.find(op->pointer->buffer);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->pointer->buffer;
+    auto it = buf_map_.find(op->buffer);
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
     const BufferEntry& e = it->second;
     ICHECK(e.in_scope) << "Cannot read a buffer that is already out of scope";
 
-    BufferPointer ptr = op->pointer;
     auto ptr_writer = ptr.CopyOnWrite();
     ptr_writer->buffer = e.remap_to;
 
-    BufferLoad load = GetRef<BufferLoad>(op);
-    auto load_writer = load.CopyOnWrite();
-    load_writer->pointer = ptr;
-
-    return std::move(load);
-  }
-
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-
-    auto it = buf_map_.find(op->pointer->buffer);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->pointer->buffer;
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot write to a buffer that is already out of scope";
-
-    BufferPointer ptr = op->pointer;
-    auto ptr_writer = ptr.CopyOnWrite();
-    ptr_writer->buffer = e.remap_to;
-
-    BufferStore store = GetRef<BufferStore>(op);
-    auto store_writer = store.CopyOnWrite();
-    store_writer->pointer = ptr;
-
-    return std::move(store);
+    return std::move(ptr);
   }
 
  private:
@@ -695,46 +637,16 @@ class ThreadScopePropagate : public StmtExprMutator {
     return BufferRealize(buf, op->bounds, op->condition, body, op->span);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-    ICHECK(op);
+  PrimExpr VisitExpr_(const BufferPointerNode* op) final {
+    auto ptr = Downcast<BufferPointer>(StmtExprMutator::VisitExpr_(op));
 
-    auto it = buf_remap_.find(op->pointer->buffer->data);
+    auto it = buf_remap_.find(op->buffer->data);
     if (it != buf_remap_.end()) {
-      BufferPointer ptr = op->pointer;
-      auto ptr_writer = ptr.CopyOnWrite();
-      ptr_writer->buffer = it->second;
-
-      BufferLoad load = GetRef<BufferLoad>(op);
-      auto load_writer = load.CopyOnWrite();
-      load_writer->pointer = ptr;
-
-      return std::move(load);
-    } else {
-      return expr;
+      auto writer = ptr.CopyOnWrite();
+      writer->buffer = it->second;
     }
-  }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-    ICHECK(op);
-
-    auto it = buf_remap_.find(op->pointer->buffer->data);
-    if (it != buf_remap_.end()) {
-      BufferPointer ptr = op->pointer;
-      auto ptr_writer = ptr.CopyOnWrite();
-      ptr_writer->buffer = it->second;
-
-      BufferStore store = GetRef<BufferStore>(op);
-      auto store_writer = store.CopyOnWrite();
-      store_writer->pointer = ptr;
-
-      return std::move(store);
-    } else {
-      return stmt;
-    }
+    return std::move(ptr);
   }
 
  private:
@@ -908,54 +820,20 @@ class BufferBindUnwrapper : public StmtExprMutator {
     return out;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
+  PrimExpr VisitExpr_(const BufferPointerNode* op) final {
+    auto ptr = Downcast<BufferPointer>(StmtExprMutator::VisitExpr_(op));
 
-    auto it = buf_map_.find(op->pointer->buffer.get());
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->pointer->buffer;
+    auto it = buf_map_.find(ptr->buffer.get());
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << ptr->buffer;
     const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot read from buffer " << op->pointer->buffer << ", out of scope.";
+    ICHECK(e.in_scope) << "Cannot access buffer " << ptr->buffer << ", out of scope.";
 
     if (e.remap) {
-      BufferPointer ptr = op->pointer;
-      auto ptr_writer = ptr.CopyOnWrite();
-      ptr_writer->buffer = e.remap->target;
-      ptr_writer->indices = remap_indices(op->pointer->indices, e.remap->begins, e.remap->extents);
-
-      BufferLoad load = GetRef<BufferLoad>(op);
-      auto load_writer = load.CopyOnWrite();
-      load_writer->pointer = ptr;
-
-      return std::move(load);
-    } else {
-      return expr;
+      auto writer = ptr.CopyOnWrite();
+      writer->buffer = e.remap->target;
+      writer->indices = remap_indices(op->indices, e.remap->begins, e.remap->extents);
     }
-  }
-
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-
-    auto it = buf_map_.find(op->pointer->buffer.get());
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->pointer->buffer;
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot write to buffer" << op->pointer->buffer << ", out of scope.";
-
-    if (e.remap) {
-      BufferPointer ptr = op->pointer;
-      auto ptr_writer = ptr.CopyOnWrite();
-      ptr_writer->buffer = e.remap->target;
-      ptr_writer->indices = remap_indices(op->pointer->indices, e.remap->begins, e.remap->extents);
-
-      BufferStore store = GetRef<BufferStore>(op);
-      auto store_writer = store.CopyOnWrite();
-      store_writer->pointer = ptr;
-
-      return std::move(store);
-    } else {
-      return stmt;
-    }
+    return std::move(ptr);
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
