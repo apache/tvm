@@ -3061,6 +3061,7 @@ class PyTorchOpConverter:
             "aten::_unique2": self.unique,
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
+            "aten::nll_loss_nd": self.nll_loss,
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
