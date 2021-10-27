@@ -61,10 +61,10 @@ add_executable(sim_dev ${SOURCE_FILES})
 target_include_directories(sim_dev
   PUBLIC "."
   PUBLIC ".."
-  PUBLIC "../../../../../include"
+  PUBLIC "../../../../../../include"
 )
 target_include_directories(sim_dev SYSTEM
-  PUBLIC "../../../../../3rdparty/dlpack/include"
+  PUBLIC "../../../../../../3rdparty/dlpack/include"
 )
 
 target_link_libraries(sim_dev "-ldl")

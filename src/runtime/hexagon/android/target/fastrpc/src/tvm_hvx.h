@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_TARGET_FASTRPC_SRC_TVM_HVX_H_
-#define TVM_RUNTIME_HEXAGON_TARGET_FASTRPC_SRC_TVM_HVX_H_
+#ifndef TVM_RUNTIME_HEXAGON_ANDROID_TARGET_FASTRPC_SRC_TVM_HVX_H_
+#define TVM_RUNTIME_HEXAGON_ANDROID_TARGET_FASTRPC_SRC_TVM_HVX_H_
 
 // Utility providing functions for accessing the Hexagon Vector Extensions
 // (HVX) hardware.
@@ -150,4 +150,4 @@ int cleanup_mt_job(const config_t* hvx_config);
 
 }  // namespace hvx
 
-#endif  // TVM_RUNTIME_HEXAGON_TARGET_FASTRPC_SRC_TVM_HVX_H_
+#endif  // TVM_RUNTIME_HEXAGON_ANDROID_TARGET_FASTRPC_SRC_TVM_HVX_H_

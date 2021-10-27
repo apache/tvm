@@ -17,39 +17,40 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
-#define TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
+/*!
+ * \file hexagon_module.cc
+ * \brief The HexagonLibraryModuleNode
+ */
+#include "../hexagon_module.h"
 
-#include <tvm/runtime/logging.h>
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/registry.h>
 
-#include <array>
-#include <memory>
-#include <set>
 #include <string>
-#include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "../meta_data.h"
+#include "../../library_module.h"
+#include "hexagon_buffer.h"
+#include "hexagon_common.h"
 
 namespace tvm {
 namespace runtime {
 
-/*!
- * \brief Create a Hexagon module from data.
- * \param data          The module data.
- * \param fmt           The format of the data, can be "obj".
- * \param fmap          The function information map of each function.
- * \param asm_str       String with the generated assembly source.
- * \param obj_str       String with the object file data.
- * \param ir_str        String with the disassembled LLVM IR source.
- * \param bc_str        String with the bitcode LLVM IR.
- * \param packed_c_abi  Set of names of functions using PackedC calling
- *                      convention.
- */
 Module HexagonModuleCreate(std::string data, std::string fmt,
                            std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
                            std::string obj_str, std::string ir_str, std::string bc_str,
-                           const std::set<std::string>& packed_c_abi);
+                           const std::set<std::string>& packed_c_abi) {
+  CHECK(fmt == "so") << "Invalid format provided when constructing Hexagon runtime module: " << fmt
+                     << ". Valid formats are: 'so'.";
+  ObjectPtr<Library> n = CreateDSOLibraryObject(data);
+  return CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
+}
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
+  *rv = CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
+});
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_
