@@ -449,10 +449,11 @@ class TextPrinter {
 
   Doc PrintFinal(const ObjectRef& node) {
     Doc doc;
-    if (node->IsInstance<IRModuleNode>()) {
+    if (node.defined() && node->IsInstance<IRModuleNode>()) {
       doc << PrintMod(Downcast<IRModule>(node));
-    } else if (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
-               node->IsInstance<tir::StmtNode>()) {
+    } else if (node.defined() &&
+               (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
+                node->IsInstance<tir::StmtNode>())) {
       doc << tir_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);

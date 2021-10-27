@@ -14,9 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import, redefined-builtin
-"""Namespace for Unified Static Memory Planner"""
+"""USMP Transform Python API for passes"""
+# pylint: disable=invalid-name
 
-from . import analysis
-from . import transform
-from .utils import BufferInfo
+from typing import Dict
+
+from . import _ffi_api
+from ....tir import Stmt
+from ..utils import PoolAllocation
+
+
+def convert_pool_allocations_to_offsets(pool_allocations: Dict[Stmt, PoolAllocation]):
+    """Convert pool allocations to Load nodes with offsets from pools.
+
+    Parameters
+    ----------
+    pool_allocations : Dict[Stmt, PoolAllocation]
+        Allocate or AllocateConst node to pool allocation mapping
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that converts the allocations to offsets.
+    """
+    return _ffi_api.ConvertPoolAllocationsToOffsets(pool_allocations)

@@ -14,9 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import, redefined-builtin
-"""Namespace for Unified Static Memory Planner"""
+"""FFI APIs for tvm.tir.usmp.analysis"""
+import tvm._ffi
 
-from . import analysis
-from . import transform
-from .utils import BufferInfo
+
+tvm._ffi._init_api("tir.usmp.transform", __name__)

@@ -144,6 +144,19 @@ Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info
   return ret;
 }
 
+Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
+    const Map<BufferInfo, Stmt>& buffer_info_to_stmt,
+    const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation) {
+  Map<Stmt, PoolAllocation> ret;
+  for (const auto& kv : buffer_info_to_pool_allocation) {
+    BufferInfo bi = kv.first;
+    Stmt stmt_ = buffer_info_to_stmt[bi];
+    PoolAllocation pa = kv.second;
+    ret.Set(stmt_, pa);
+  }
+  return ret;
+}
+
 Integer CalculateExtentsSize(const AllocateNode* op) {
   size_t element_size_bytes = op->dtype.bytes();
   size_t num_elements = 1;
@@ -162,6 +175,8 @@ TVM_REGISTER_GLOBAL("tir.usmp.CreateArrayBufferInfo")
     .set_body_typed([](Map<BufferInfo, Stmt> buffer_info_map) {
       return (CreateArrayBufferInfo(buffer_info_map));
     });
+
+TVM_REGISTER_GLOBAL("tir.usmp.AssignStmtPoolAllocations").set_body_typed(AssignStmtPoolAllocations);
 
 }  // namespace usmp
 }  // namespace tir
