@@ -410,9 +410,12 @@ class PyTorchOpConverter:
 
         if target_begin is None and target_end is None:
             return data
+
         # Process begin
         begin = [0] * ndim
-        begin[dim] = target_begin if target_begin is not None else 0
+
+        if target_begin is not None:
+            begin[dim] = target_begin
 
         if target_begin is not None and not isinstance(begin[dim], int):
             tmp = []
@@ -749,6 +752,7 @@ class PyTorchOpConverter:
 
         if inputs[3] is None:
             import torch
+
             dtype = _convert_data_type(str(torch.get_default_dtype()))
         else:
             dtype = _convert_dtype_value(inputs[3])
@@ -2072,16 +2076,25 @@ class PyTorchOpConverter:
         data = inputs[0]
         weight = inputs[1]
         offset = inputs[2]
-        strides = (inputs[4], inputs[5])
-        padding = (inputs[6], inputs[7])
-        dilation = (inputs[8], inputs[9])
-        groups = inputs[10]
-        deformable_groups = inputs[11]
+
+        if len(inputs) > 12:
+            strides_offset = 5
+            bias = inputs[4]
+            logging.warning("mask argument in deformable conv2d is not supported and ignored")
+        else:
+            strides_offset = 4
+            bias = inputs[3]
+
+        strides = (inputs[strides_offset], inputs[strides_offset + 1])
+        padding = (inputs[strides_offset + 2], inputs[strides_offset + 3])
+        dilation = (inputs[strides_offset + 4], inputs[strides_offset + 5])
+        groups = inputs[strides_offset + 6]
+        deformable_groups = inputs[strides_offset + 7]
         weight_shape = self.infer_shape(weight)
         output_channels = weight_shape[0]
         kernel_size = (weight_shape[2], weight_shape[3])
 
-        return _op.nn.deformable_conv2d(
+        conv_out = _op.nn.deformable_conv2d(
             data,
             offset,
             weight,
@@ -2093,6 +2106,8 @@ class PyTorchOpConverter:
             output_channels,
             kernel_size,
         )
+
+        return _op.nn.bias_add(conv_out, bias)
 
     def unbind(self, inputs, input_types):
         data = inputs[0]
