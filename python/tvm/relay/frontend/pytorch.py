@@ -747,7 +747,12 @@ class PyTorchOpConverter:
         else:
             stop = start + step
 
-        dtype = "float32" if inputs[3] is not None else _convert_dtype_value(inputs[3])
+        if inputs[3] is None:
+            import torch
+            dtype = _convert_data_type(str(torch.get_default_dtype()))
+        else:
+            dtype = _convert_dtype_value(inputs[3])
+
         start = _create_typed_const(start, dtype)
         stop = _create_typed_const(stop, dtype)
         step = _create_typed_const(step, dtype)
@@ -3858,6 +3863,7 @@ def from_pytorch(
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
+    print(graph)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
