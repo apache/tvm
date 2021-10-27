@@ -27,7 +27,7 @@ from ..micro_kernel.gemm import (
 
 
 def dense_direct_simd_schedule(outs):
-    """Schedule function for Cortex-M7 SIMD implementation of dense."""
+    """Schedule function for v7e-m DSP instructions of dense."""
     sched = te.create_schedule([x.op for x in outs])
 
     def _callback(op):

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-value-for-parameter
-"""Defines max intrinsics for SIMD max operation."""
+"""Defines sum intrinsics for sum operation with v7e-m DSP instructions."""
 
 import random
 import string
@@ -26,7 +26,7 @@ from . import common
 
 
 def intrin_sum(shape, in_dtype, out_dtype, reset=False):
-    """Defines a SIMD-accelerated avg pool sum."""
+    """Defines a v7e-m DSP-accelerated sum operation."""
     UNIQ_ID_LEN = 8
     uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
     func_prefix = "sum16"

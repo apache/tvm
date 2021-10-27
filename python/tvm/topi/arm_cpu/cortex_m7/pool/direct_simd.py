@@ -37,7 +37,7 @@ logger = logging.getLogger("topi")
 
 
 def schedule_maxpool_1d_nwc(s, op):
-    """Schedule function for Cortex-M7 SIMD implementation of maxpool 1d NWC layout."""
+    """Schedule function for v7e-m DSP instructions of maxpool 1d NWC layout."""
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
@@ -55,7 +55,7 @@ def schedule_maxpool_1d_nwc(s, op):
 
 
 def schedule_maxpool_2d_nhwc(s, op):
-    """Schedule function for Cortex-M7 SIMD implementation of maxpool 2d NHWC layout."""
+    """Schedule function for v7e-m DSP instructions of maxpool 2d NHWC layout."""
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
@@ -73,7 +73,7 @@ def schedule_maxpool_2d_nhwc(s, op):
 
 
 def schedule_avgpool_1d_ncw(s, op):
-    """Schedule function for Cortex-M7 SIMD implementation of maxpool 1d NCW layout."""
+    """Schedule function for v7e-m DSP instructions of avgpool 1d NCW layout."""
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
@@ -87,7 +87,7 @@ def schedule_avgpool_1d_ncw(s, op):
 
 
 def schedule_avgpool_2d_nchw(s, op):
-    """Schedule function for Cortex-M7 SIMD implementation of maxpool 2d NCHW layout."""
+    """Schedule function for v7e-m DSP instructions of avgpool 2d NCHW layout."""
     output = op.output(0)
     data_vec = op.input_tensors[0]
 
@@ -101,7 +101,7 @@ def schedule_avgpool_2d_nchw(s, op):
 
 
 def pool_direct_simd_schedule(outs, layout):
-    """Schedule function for Cortex-M7 SIMD implementation of pooling."""
+    """Schedule function for v7e-m DSP instructions of pooling."""
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):

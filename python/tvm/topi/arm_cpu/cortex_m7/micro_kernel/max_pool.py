@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-value-for-parameter
-"""Defines max intrinsics for SIMD max operation."""
+"""Defines max intrinsics for elemwise max operation with v7e-m DSP instructions."""
 
 import random
 import string
@@ -26,7 +26,7 @@ from . import common
 
 
 def intrin_max(shape, in_dtype, out_dtype):
-    """Defines a SIMD-accelerated max pool."""
+    """Defines a v7e-m DSP-accelerated max pool."""
     UNIQ_ID_LEN = 8
     uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
     func_prefix = "max8"

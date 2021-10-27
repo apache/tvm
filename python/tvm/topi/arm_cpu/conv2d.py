@@ -507,7 +507,7 @@ def schedule_conv2d_nchw_winograd_nnpack_without_weight_transform(cfg, outs):
 
 @autotvm.register_topi_compute("conv2d_nhwc_direct_simd.arm_cpu")
 def conv2d_nhwc_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    """Compute conv2d_nhwc with SIMD (v7e-m)."""
+    """Compute conv2d_nhwc with v7e-m DSP instructions."""
     return direct_simd.conv2d_nhwc_direct_simd_compute(
         cfg, data, kernel, strides, padding, dilation, out_dtype
     )

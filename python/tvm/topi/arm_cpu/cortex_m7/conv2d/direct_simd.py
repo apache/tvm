@@ -32,7 +32,7 @@ from ..micro_kernel.gemm import (
 
 
 def conv2d_nhwc_direct_simd(*args, **kwargs):
-    """Defines the Cortex-M7 SIMD implementation of conv2d."""
+    """Defines the v7e-m DSP instructions of conv2d."""
     assert not kwargs, "Do not support kwargs in template function call"
     args = deserialize_args(args)
     data, kernel = args[:2]
@@ -51,7 +51,7 @@ conv2d_nhwc_direct_simd.default_kernel_layout = "HWOI"
 
 
 def conv2d_nhwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    """Compute function for Cortex-M7 SIMD implementation of conv2d."""
+    """Compute function for v7e-m DSP instructions of conv2d."""
     assert isinstance(strides, int) or len(strides) == 2
     assert isinstance(dilation, int) or len(dilation) == 2
 
@@ -148,7 +148,7 @@ def conv2d_nhwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilatio
 
 
 def conv2d_nhwc_direct_simd_schedule(cfg, outs):
-    """Schedule function for Cortex-M7 SIMD implementation of conv2d."""
+    """Schedule function for v7e-m DSP instructions of conv2d."""
     sched = te.create_schedule([x.op for x in outs])
 
     def _callback(op):

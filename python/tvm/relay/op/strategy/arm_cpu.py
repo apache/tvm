@@ -49,7 +49,7 @@ def schedule_concatenate_arm_cpu(_, outs, target):
         return topi.arm_cpu.schedule_concatenate(outs)
 
 
-@schedule_pool.register(["arm_cpu", "micro_dev"])
+@schedule_pool.register(["arm_cpu"])
 def schedule_pool_arm_cpu(attrs, outs, target):
     """schedule pooling ops arm cpu"""
     layout = attrs.layout
@@ -437,7 +437,7 @@ def schedule_bitserial_dense_arm_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
-@dense_strategy.register(["arm_cpu", "micro_dev"])
+@dense_strategy.register(["arm_cpu"])
 def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
     """dense arm cpu strategy"""
     strategy = _op.OpStrategy()
@@ -446,7 +446,7 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
         strategy.add_implementation(
             wrap_compute_dense(topi.nn.dense),
             wrap_topi_schedule(topi.arm_cpu.schedule_dense_direct_simd),
-            name="dense_direct_simd.micro_dev",
+            name="dense_direct_simd",
         )
     else:
         strategy.add_implementation(
@@ -474,7 +474,7 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv1d(topi.arm_cpu.conv1d_nwc_direct_simd),
                 wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_nwc_direct_simd),
-                name="conv1d_direct_simd.micro_dev",
+                name="conv1d_direct_simd",
             )
         else:
             raise RuntimeError(

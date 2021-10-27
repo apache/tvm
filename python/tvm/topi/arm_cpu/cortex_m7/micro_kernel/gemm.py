@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-value-for-parameter
-"""Defines gemm intrinsics for SIMD matrix multiplication."""
+"""Defines gemm intrinsics for matrix multiplication with v7e-m DSP instructions."""
 
 import random
 import string
@@ -31,7 +31,7 @@ from . import common
 
 # NOTE this is transposed matmul (A * B^T)
 def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype, stride_w=1):
-    """Defines a SIMD-accelerated transposed matmul."""
+    """Defines a v7e-m DSP-accelerated transposed matmul."""
     # we generate a unique ID for every intrinsic definition, to prevent name
     # collisions in the generated source (e.g., if there are multiple operators
     # in the same module that use the same intrinsic)
