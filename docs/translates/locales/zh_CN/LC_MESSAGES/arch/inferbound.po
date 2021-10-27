@@ -353,6 +353,10 @@ msgid ""
 "InferRootBound calls GatherBound, to set the Ranges of the stage's "
 "root_iter_vars, based on the TensorDoms (Phase 4)."
 msgstr ""
+"否则，InferRootBound 会遍历该阶段的消费者，并为每个消费者的 IterVars 创建 IntSet ，具体如下。阶段 1） 为消费者的 "
+"leaf_iter_vars 初始化 IntSet ，并通过 PassUpDomain 传播到消费者的root_iter_vars（阶段2）。这些 "
+"IntSet 用于创建消费者阶段的输入张量的  TensorDom（阶段3）。最后，在处理完所有消费者之后，InferRootBound 将会调用 "
+"GatherBound ，根据 TensorDoms 设置阶段的 root_iter_vars 的范围（阶段 4）。"
 
 #: ../../_staging/arch/inferbound.rst:205
 msgid ""
