@@ -90,6 +90,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
+- [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh
 - [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Luke Hutton](https://github.com/lhutton1): @lhutton1
@@ -132,6 +133,7 @@ We do encourage everyone to work anything they are interested in.
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
+- [Mark Shields](https://github.com/mbs-octoml): @mbs-octoml
 - [Christopher Sidebottom](https://github.com/mousius): @mousius
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov

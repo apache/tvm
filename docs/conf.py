@@ -258,6 +258,7 @@ within_subsection_order = {
         "tensor_expr_get_started.py",
         "autotvm_matmul_x86.py",
         "auto_scheduler_matmul_x86.py",
+        "tensor_ir_blitz_course.py",
         "topi.pi",
         "cross_compilation_and_rpc.py",
         "relay_quick_start.py",

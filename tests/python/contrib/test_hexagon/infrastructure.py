@@ -39,16 +39,25 @@ def get_packed_activation_layout(shape_nhwc, block_shape, packed_C=True):
     return shape
 
 
+def get_block_shape():
+    return 8, 8, 32
+
+
+def get_filter_block_shape():
+    return 8, 32, 4
+
+
 def get_packed_filter_layout(out_channel, in_channel, kernel_h, kernel_w):
-    out_factor, in_first_factor, in_second_factor = 32, 32, 4
+    filter_Cio, filter_Ki, filter_Cii = get_filter_block_shape()
+    filter_Ci = filter_Cio * filter_Cii
     return (
-        int(ceildiv(out_channel, out_factor)),
-        int(ceildiv(in_channel, in_first_factor)),
+        int(ceildiv(out_channel, filter_Ki)),
+        int(ceildiv(in_channel, filter_Ci)),
         kernel_h,
         kernel_w,
-        in_first_factor // in_second_factor,
-        out_factor,
-        in_second_factor,
+        filter_Cio,
+        filter_Ki,
+        filter_Cii,
     )
 
 
@@ -71,10 +80,6 @@ def build_and_run(inputs, func, target, target_host, *args, **kwargs):
     return tensors[-1].asnumpy()
 
 
-def get_block_shape():
-    return 8, 8, 32
-
-
 def get_conv2d_nhwc_shape(shape_nhwc, kernel_size, strides, padding, dilation, out_channels):
     assert len(shape_nhwc) == 4
     kernel = []
@@ -86,3 +91,41 @@ def get_conv2d_nhwc_shape(shape_nhwc, kernel_size, strides, padding, dilation, o
         (shape_nhwc[2] - kernel[1] + padding[2] + padding[3]) // strides[1] + 1,
         out_channels,
     )
+
+
+def verify_conv2d(output, ref_output, dtype):
+    # nhwc8h8w32c
+    if len(output.shape) == 7:
+        # nhwc8h8w32c -> nhwc
+        output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(
+            output.shape[0],
+            output.shape[1] * output.shape[4],
+            output.shape[2] * output.shape[5],
+            output.shape[3] * output.shape[6],
+        )
+
+    # nhwhwc
+    else:
+        # nhwhwc -> nhwc
+        output = output.transpose(0, 1, 3, 2, 4, 5).reshape(
+            output.shape[0],
+            output.shape[1] * output.shape[3],
+            output.shape[2] * output.shape[4],
+            output.shape[5],
+        )
+
+    # slice output to match ref_output shape
+    # e.g. 8x8 spatial 3x3 filter = 6x6 ref output
+    # but still 8x8 output given the blocked layout
+    output = output[
+        0 : ref_output.shape[0] : 1,
+        0 : ref_output.shape[1] : 1,
+        0 : ref_output.shape[2] : 1,
+        0 : ref_output.shape[3] : 1,
+    ]
+
+    if "int" in dtype:
+        tol = {"atol": 0, "rtol": 0}
+    elif dtype == "float32":
+        tol = {"rtol": 1e-4, "atol": 2e-4}
+    tvm.testing.assert_allclose(output, ref_output, **tol)
