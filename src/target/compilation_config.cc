@@ -196,8 +196,8 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
       node->primitive_targets.size() == 1 ? *node->primitive_targets.begin() : Target();
 
   for (const auto& target : node->primitive_targets) {
-    LOG(INFO) << "Target '" << target->str() << "' of device type "
-              << target->kind->device_type << " is available for primitives";
+    LOG(INFO) << "Target '" << target->str() << "' of device type " << target->kind->device_type
+              << " is available for primitives";
   }
   LOG(INFO) << "Using default primitive scope " << node->default_primitive_se_scope;
   LOG(INFO) << "Using host scope " << node->host_se_scope;

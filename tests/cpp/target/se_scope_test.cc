@@ -25,20 +25,69 @@ namespace tvm {
 namespace {
 
 TEST(SEScope, Join_Defined) {
-  Target target_a = Target("cuda");
-  SEScope lhs = SEScope(kDLCUDA, 3);
-  SEScope rhs = SEScope(kDLCUDA, -1, target_a, "global");
-  Optional<SEScope> actual = SEScope::Join(lhs, rhs);
-  EXPECT_TRUE(actual.operator bool());
-  SEScope expected = SEScope(kDLCUDA, 3, target_a, "global");
-  EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+  {
+    Target target_a = Target("cuda");
+    SEScope lhs = SEScope(kDLCUDA, 3);
+    SEScope rhs = SEScope(kDLCUDA, -1, target_a, "global");
+    Optional<SEScope> actual = SEScope::Join(lhs, rhs);
+    EXPECT_TRUE(actual.operator bool());
+    SEScope expected = SEScope(kDLCUDA, 3, target_a, "global");
+    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+  }
+  {
+    Target target_a = Target("cuda");
+    SEScope lhs = SEScope(kDLCUDA, -1, target_a, "global");
+    SEScope rhs = SEScope(kDLCUDA, 3);
+    Optional<SEScope> actual = SEScope::Join(lhs, rhs);
+    EXPECT_TRUE(actual.operator bool());
+    SEScope expected = SEScope(kDLCUDA, 3, target_a, "global");
+    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+  }
+  {
+    Target target_a = Target("cuda");
+    SEScope lhs = SEScope(kDLCUDA);
+    SEScope rhs = SEScope(kDLCUDA, 2, target_a);
+    Optional<SEScope> actual = SEScope::Join(lhs, rhs);
+    EXPECT_TRUE(actual.operator bool());
+    SEScope expected = SEScope(kDLCUDA, 2, target_a);
+    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+  }
+  {
+    Target target_a = Target("cuda");
+    SEScope lhs = SEScope();
+    SEScope rhs = SEScope(kDLCUDA, 3, target_a, "global");
+    Optional<SEScope> actual = SEScope::Join(lhs, rhs);
+    EXPECT_TRUE(actual.operator bool());
+    SEScope expected = rhs;
+    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+  }
 }
 
 TEST(SEScope, Join_Undefined) {
-  SEScope lhs = SEScope(kDLCUDA, 3);
-  SEScope rhs = SEScope(kDLCUDA, 4);
-  Optional<SEScope> actual = SEScope::Join(lhs, rhs);
-  EXPECT_FALSE(actual);
+  {
+    SEScope lhs = SEScope(kDLCUDA);
+    SEScope rhs = SEScope(kDLCPU);
+    Optional<SEScope> actual = SEScope::Join(lhs, rhs);
+    EXPECT_FALSE(actual);
+  }
+  {
+    SEScope lhs = SEScope(kDLCUDA, 3);
+    SEScope rhs = SEScope(kDLCUDA, 4);
+    Optional<SEScope> actual = SEScope::Join(lhs, rhs);
+    EXPECT_FALSE(actual);
+  }
+  {
+    SEScope lhs = SEScope(kDLCUDA, 3, Target("cuda"));
+    SEScope rhs = SEScope(kDLCUDA, 3, Target("cuda"));
+    Optional<SEScope> actual = SEScope::Join(lhs, rhs);
+    EXPECT_FALSE(actual);
+  }
+  {
+    SEScope lhs = SEScope(kDLCUDA, 3, Target("cuda"), "local");
+    SEScope rhs = SEScope(kDLCUDA, 3, Target("cuda"), "global");
+    Optional<SEScope> actual = SEScope::Join(lhs, rhs);
+    EXPECT_FALSE(actual);
+  }
 }
 
 TEST(SEScope, Default) {
@@ -49,6 +98,8 @@ TEST(SEScope, Default) {
   SEScope expected = SEScope(kDLCUDA, 3, target_a, "global");
   EXPECT_TRUE(StructuralEqual()(actual, expected));
 }
+
+TEST(SEScope, Constructor_Invalid) { EXPECT_ANY_THROW(SEScope(kDLCPU, -1, Target("cuda"))); }
 
 TEST(SEScopeCache, Memoized) {
   SEScopeCache cache;

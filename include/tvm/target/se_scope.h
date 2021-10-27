@@ -35,6 +35,15 @@
 namespace tvm {
 
 /*!
+ * Abstract label for an area of memory.
+ *
+ * Currently uninterpreted and arbitrary. Likely to be replaced by a structured representation
+ * of a memory pool in the future. Please try to use this alias instead of String to aid future
+ * code migration.
+ */
+using MemoryScope = String;
+
+/*!
  * \brief Describes at compile time where data is to be stored down to the device and memory
  * scope level, or where execution is to take place, down to the device level. It is a quadruple of:
  * - A \p device_type (\p DLDeviceType).
@@ -43,10 +52,9 @@ namespace tvm {
  *   system). The virtual device id need not correspond to any physical device id, see
  *   "Virtual Devices" below.
  * - A \p target (\p Target) describing how to compile code for the intended device.
- * - A \p memory_scope (currently just \p String) describing which memory area is to be used to
- *   hold data. The area should be reachable from the device but need not be 'on' the device,
- *   see "Memory Scopes and Devices" below. (We're using a \p String for now but would prefer a
- *   more structured representation once it is available.)
+ * - A \p memory_scope (MemoryScope, which is currently just \p String) describing which memory
+ *   area is to be used to hold data. The area should be reachable from the device but need not be
+ *   'on' the device, see "Memory Scopes and Devices" below.
  *
  * All of these fields may be 'unconstrained' (ie null, -1 or ""), signaling that device planning
  * is free to choose a value consistent with the whole program. However if a \p target is given
@@ -173,9 +181,7 @@ class SEScopeNode : public Object {
    *
    * Empty denotes unconstrained.
    */
-  // TODO(mbs): We are using String as a stand-in pending a more structured representation, such
-  // as runtime::StorageScope or a memory pool.
-  const String& memory_scope() const { return memory_scope_; }
+  const MemoryScope& memory_scope() const { return memory_scope_; }
 
   /*!
    * \brief Returns true if scope is fully unconstrained, ie no target/device type, virtual device
@@ -220,7 +226,7 @@ class SEScopeNode : public Object {
   DLDeviceType device_type_;
   int virtual_device_id_;
   Target target_;
-  String memory_scope_;
+  MemoryScope memory_scope_;
 
   friend class SEScope;
 };
@@ -242,7 +248,7 @@ class SEScope : public ObjectRef {
    * \return The SEScope
    */
   explicit SEScope(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
-                   Target target = {}, String memory_scope = {});
+                   Target target = {}, MemoryScope memory_scope = {});
 
   /*! \brief Returns the unique fully unconstrained \p SEScope. */
   static SEScope FullyUnconstrained();
@@ -274,7 +280,7 @@ class SEScope : public ObjectRef {
 
   /*! \brief Returns the \p SEScope for \p device, \p target and \p memory_scope. */
   TVM_DLL static SEScope ForDeviceTargetAndMemoryScope(const Device& device, Target target,
-                                                       String memory_scope) {
+                                                       MemoryScope memory_scope) {
     return SEScope(device.device_type, device.device_id, std::move(target),
                    std::move(memory_scope));
   }
@@ -309,12 +315,13 @@ class SEScopeCache {
  public:
   /*! \brief Returns the unique \p SEScope representing given fields. */
   SEScope Make(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
-               Target target = {}, String memory_scope = {});
+               Target target = {}, MemoryScope memory_scope = {});
 
   /*! \brief Returns the unique \p SEScope structurally equal to the given \p se_scope. */
   SEScope Unique(const SEScope& scope);
 
  private:
+  /*! \brief Map from canonical string representation to already constructed \p SEScope. */
   std::unordered_map<std::string, SEScope> cache_;
 };
 

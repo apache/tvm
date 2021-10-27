@@ -89,7 +89,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 SEScope::SEScope(DLDeviceType device_type, int virtual_device_id, Target target,
-                 String memory_scope) {
+                 MemoryScope memory_scope) {
   ICHECK(!target.defined() || device_type == target->kind->device_type)
       << "target '" << target->str() << "' has device type " << target->kind->device_type
       << " but scope has device type " << device_type;
@@ -138,7 +138,7 @@ Optional<SEScope> SEScope::Join(const SEScope& lhs, const SEScope& rhs) {
   } else {
     joined_target = rhs->target_;
   }
-  String joined_memory_scope;
+  MemoryScope joined_memory_scope;
   if (!lhs->memory_scope_.empty()) {
     joined_memory_scope = lhs->memory_scope_;
     if (!rhs->memory_scope_.empty() && lhs->memory_scope_ != rhs->memory_scope_) {
@@ -177,7 +177,7 @@ SEScope SEScope::Default(const SEScope& lhs, const SEScope& rhs) {
     }
     // else: leave as null
   }
-  String defaulted_memory_scope;
+  MemoryScope defaulted_memory_scope;
   if (!lhs->memory_scope_.empty()) {
     defaulted_memory_scope = lhs->memory_scope_;
   } else {
@@ -188,9 +188,10 @@ SEScope SEScope::Default(const SEScope& lhs, const SEScope& rhs) {
 }
 
 SEScope SEScopeCache::Make(DLDeviceType device_type, int virtual_device_id, Target target,
-                           String memory_scope) {
+                           MemoryScope memory_scope) {
   // Not the most efficient, but reducing the key to a string seems to be the simplest.
-  // Note this means we are effectively collapsing Targets by their str() representation.
+  // Note this means we are effectively quotienting Targets by their str() representation.
+  // TODO(mbs): Implement structural equality/hash on Target.
   std::ostringstream os;
   os << device_type;
   os << ":" << virtual_device_id;
