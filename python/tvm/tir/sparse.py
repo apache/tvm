@@ -20,6 +20,7 @@ from typing import List, Dict, Optional
 import tvm._ffi
 from tvm.ir import PrimExpr
 from tvm.runtime import Object, const
+from tvm.tir import Var
 
 from . import _ffi_api
 from .buffer import Buffer
@@ -166,7 +167,7 @@ class AxisTree(Object):
 
 
 @tvm._ffi.register_object("tir.sparse.SparseBuffer")
-class SparseBuffer:
+class SparseBuffer(Object):
     """SparseBuffer node
 
     Parameters
@@ -197,3 +198,39 @@ class SparseBuffer:
         self.__init_handle_by_constructor__(
             _ffi_api.SparseBuffer, tree, axes, data, name, dtype  # type: ignore
         )
+
+
+@tvm._ffi.register_object("tir.sparse.SpIterVar")
+class SpIterVar(Object):
+    """IterVar in SparseTIR
+
+    Parameters
+    ----------
+    var : Var
+        The var of the SpIterVar
+
+    max_extent : PrimExpr
+        The maximum extent of the SpIterVar
+
+    kind : int
+        The kind of the SpIterVar
+
+    axis : Optional[Axis]
+        The axis over which the SpIterVar iterates. Required to be defined
+        when `kind` is not `DenseFixed`
+    """
+    var: Var
+    max_extent: PrimExpr
+    kind: int
+    axis: Optional[Axis]
+
+    DenseFixed = 0
+    DenseVariable = 1
+    SparseFixed = 2
+    SparseVariable = 3
+
+    def __init__(self, var, max_extent, kind, axis=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.SpIterVar, var, max_extent, kind, axis  # type: ignore
+        )
+

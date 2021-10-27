@@ -355,6 +355,64 @@ class SparseBuffer : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(SparseBuffer, ObjectRef, SparseBufferNode);
 };
 
+enum class SpIterKind : int {
+  kDenseFixed = 0,
+  kDenseVariable = 1,
+  kSparseFixed = 2,
+  kSparseVariable = 3
+};
+
+/*!
+ * \brief Iterator variables in SparseTIR
+ */
+class SpIterVarNode : public Object {
+ public:
+  Var var;
+  PrimExpr max_extent;
+  SpIterKind kind;
+  Optional<Axis> axis;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("var", &var);
+    v->Visit("max_extent", &max_extent);
+    v->Visit("axis", &axis);
+    v->Visit("kind", &kind);
+  }
+
+  bool SEqualReduce(const SpIterVarNode* other, SEqualReducer equal) const {
+    return equal(var, other->var) && equal(max_extent, other->max_extent) &&
+           equal(axis, other->axis) && equal(kind, other->kind);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(var);
+    hash_reduce(max_extent);
+    hash_reduce(axis);
+    hash_reduce(kind);
+  }
+
+  static constexpr const char* _type_key = "tir.sparse.SpIterVar";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(SpIterVarNode, Object);
+};
+
+class SpIterVar : public ObjectRef {
+ public:
+  TVM_DLL explicit SpIterVar(String name, PrimExpr max_extent, SpIterKind kind,
+                             Optional<Axis> axis = NullOpt);
+
+  /*!
+   * \return the corresponding var in the IterVar.
+   */
+  inline operator PrimExpr() const;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SpIterVar, ObjectRef, SpIterVarNode);
+};
+
+// inline implementations
+inline SpIterVar::operator PrimExpr() const { return (*this)->var; }
+
 }  // namespace tir
 }  // namespace tvm
 
