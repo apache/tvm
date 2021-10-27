@@ -52,11 +52,6 @@ SEScope CompilationConfigNode::CanonicalSEScope(const SEScope& se_scope) const {
       SEScope(device_type, se_scope->virtual_device_id(), target, se_scope->memory_scope()));
 }
 
-/*!
- * \brief Returns the default \p SEScope for primitives and the \p SEScope for the host
- * given vector of available \p targets. If necessary, add new \p Targets to \p targets
- * to match the required devices.
- */
 void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContext& pass_ctx) {
   //
   // Gather the hints as to what our default device type for primitives should be.
@@ -84,7 +79,8 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
               << "' of device type " << default_primitive_device_type
               << " as the default device type for all primitive operations";
   } else {
-    // Fallback.
+    // Fallback. Note that we'll require a primitive Target of kDLCPU device_type to be given
+    // and won't manufacture one out of thin air.
     default_primitive_device_type = kDLCPU;
     LOG(WARNING) << "Using " << default_primitive_device_type
                  << " as the default device type for all primitive operations";
@@ -200,11 +196,11 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
       node->primitive_targets.size() == 1 ? *node->primitive_targets.begin() : Target();
 
   for (const auto& target : node->primitive_targets) {
-    VLOG(0) << "Established primitive target " << target->kind->device_type << " = '"
-            << target->str() << "'";
+    LOG(INFO) << "Target '" << target->str() << "' of device type "
+              << target->kind->device_type << " is available for primitives";
   }
-  VLOG(0) << "Established default primitive SEScope " << node->default_primitive_se_scope;
-  VLOG(0) << "Established host SEScope " << node->host_se_scope;
+  LOG(INFO) << "Using default primitive scope " << node->default_primitive_se_scope;
+  LOG(INFO) << "Using host scope " << node->host_se_scope;
 
   data_ = std::move(node);
 }

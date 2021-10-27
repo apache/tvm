@@ -19,4 +19,9 @@ from . import _ffi_api
 
 
 def make_compilation_config(ctxt, targets, host_target=None):
+    """Returns a CompilationConfig appropriate for targets and an optional host_target.
+    Currently intended just for unit tests and will be replaced by a Python CompilationConfig
+    class in the future. Note that targets must be a dictionary from IntImm objects to Targets
+    and we do not support any of the lighter-weight conventions used by the various build(...)
+    APIs."""
     return _ffi_api.MakeCompilationConfig(ctxt, targets, host_target)

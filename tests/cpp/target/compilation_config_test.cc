@@ -24,16 +24,28 @@
 namespace tvm {
 namespace {
 
-TEST(CompilationConfig, Constructor) {
+Target TestCpuTarget() { return Target("llvm -mcpu arm64"); }
+
+Target TestCudaTarget() { return Target("nvidia/tesla-p40"); }
+
+Target TestDefaultCpuTarget() { return Target("llvm"); }
+
+Target TestExtDevTarget() { return Target("ext_dev"); }
+
+CompilationConfig TestCompilationConfig() {
   transform::PassContext pass_ctx = transform::PassContext::Create();
-  pass_ctx->config.Set("relay.fallback_device_type", Integer(static_cast<int>(kDLCUDA)));
+  TargetMap legacy_target_map;
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), TestCudaTarget());
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), TestCpuTarget());
+  return CompilationConfig(pass_ctx, legacy_target_map, TestDefaultCpuTarget());
+}
 
-  Target cuda_target = Target("nvidia/tesla-p40");
-  Target default_cpu_target = Target("llvm");
-
+TEST(CompilationConfig, Constructor_Homogeneous_DefaultHost) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+  Target cuda_target = TestCudaTarget();
+  Target default_cpu_target = TestDefaultCpuTarget();
   TargetMap legacy_target_map;
   legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
-
   CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{});
 
   ASSERT_EQ(config->legacy_target_map.size(), 1);
@@ -50,15 +62,80 @@ TEST(CompilationConfig, Constructor) {
   EXPECT_EQ(config->optional_homogeneous_target->str(), cuda_target->str());
 }
 
-TEST(CompilationConfig, CanonicalSEScope) {
+TEST(CompilationConfig, Constructor_Hetrogeneous_DefaultHost) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+  pass_ctx->config.Set("relay.fallback_device_type", Integer(static_cast<int>(kDLCUDA)));
+  Target cuda_target = TestCudaTarget();
+  Target cpu_target = TestCpuTarget();
+  Target default_cpu_target = TestDefaultCpuTarget();
+  TargetMap legacy_target_map;
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), cpu_target);
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
+  CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{});
+
+  ASSERT_EQ(config->legacy_target_map.size(), 2);
+  EXPECT_TRUE(config->host_target.defined());
+  EXPECT_EQ(config->host_target->str(), default_cpu_target->str());
+  ASSERT_EQ(config->primitive_targets.size(), 2);
+  EXPECT_EQ(config->default_primitive_se_scope->device_type(), kDLCUDA);
+  EXPECT_EQ(config->default_primitive_se_scope->target()->str(), cuda_target->str());
+  EXPECT_EQ(config->host_se_scope->device_type(), kDLCPU);
+  EXPECT_EQ(config->host_se_scope->target()->str(), default_cpu_target->str());
+  EXPECT_FALSE(config->optional_homogeneous_target.defined());
+}
+
+TEST(CompilationConfig, Constructor_Hetrogeneous_ExplicitHost) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+  pass_ctx->config.Set("relay.fallback_device_type", Integer(static_cast<int>(kDLCUDA)));
+  Target cuda_target = TestCudaTarget();
+  Target cpu_target = TestCpuTarget();
+  TargetMap legacy_target_map;
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), cpu_target);
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
+  CompilationConfig config(pass_ctx, legacy_target_map, cpu_target);
+
+  ASSERT_EQ(config->legacy_target_map.size(), 2);
+  EXPECT_TRUE(config->host_target.defined());
+  EXPECT_EQ(config->host_target->str(), cpu_target->str());
+  ASSERT_EQ(config->primitive_targets.size(), 2);
+  EXPECT_EQ(config->default_primitive_se_scope->device_type(), kDLCUDA);
+  EXPECT_EQ(config->default_primitive_se_scope->target()->str(), cuda_target->str());
+  EXPECT_EQ(config->host_se_scope->device_type(), kDLCPU);
+  EXPECT_EQ(config->host_se_scope->target()->str(), cpu_target->str());
+  EXPECT_FALSE(config->optional_homogeneous_target.defined());
+}
+
+TEST(CompilationConfig, Constructor_InvalidAttribute) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+  pass_ctx->config.Set("relay.fallback_device_type", Integer(static_cast<int>(kInvalidDeviceType)));
+  TargetMap legacy_target_map;
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), TestCudaTarget());
+  EXPECT_ANY_THROW(
+      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{}));
+}
+
+TEST(CompilationConfig, Constructor_NoMatchingPrimitiveTarget) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+  pass_ctx->config.Set("relay.fallback_device_type", Integer(static_cast<int>(kDLMetal)));
+  TargetMap legacy_target_map;
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), TestCudaTarget());
+  EXPECT_ANY_THROW(
+      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{}));
+}
+
+TEST(CompilationConfig, Constructor_DefaultNoMatchingPrimitiveTarget) {
   transform::PassContext pass_ctx = transform::PassContext::Create();
   TargetMap legacy_target_map;
-  Target cuda_target = Target("cuda");
-  Target cpu_target = Target("llvm -mcpu arm64");
-  Target host_target = Target("llvm");
-  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
-  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), cpu_target);
-  CompilationConfig config(pass_ctx, legacy_target_map, host_target);
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), TestCudaTarget());
+  legacy_target_map.Set(Integer(static_cast<int>(kDLExtDev)), TestExtDevTarget());
+  EXPECT_ANY_THROW(
+      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{}));
+}
+
+TEST(CompilationConfig, CanonicalSEScope) {
+  Target cuda_target = TestCudaTarget();
+  Target cpu_target = TestCpuTarget();
+  CompilationConfig config = TestCompilationConfig();
 
   {
     SEScope in = SEScope(kDLCPU);
@@ -74,6 +151,20 @@ TEST(CompilationConfig, CanonicalSEScope) {
     EXPECT_EQ(actual->target()->str(), cuda_target->str());
     EXPECT_EQ(config->CanonicalSEScope(in), actual);
   }
+}
+
+TEST(CompilationConfig, CanonicalSEScope_NoDevice) {
+  CompilationConfig config = TestCompilationConfig();
+  SEScope fully_unconstrained;
+  EXPECT_ANY_THROW(config->CanonicalSEScope(fully_unconstrained));
+  SEScope missing_device(kInvalidDeviceType, 3, {}, "local");
+  EXPECT_ANY_THROW(config->CanonicalSEScope(missing_device));
+}
+
+TEST(CompilationConfig, CanonicalSEScope_NoMatchingTarget) {
+  CompilationConfig config = TestCompilationConfig();
+  SEScope no_such_target(kDLMetal);
+  EXPECT_ANY_THROW(config->CanonicalSEScope(no_such_target));
 }
 
 }  // namespace

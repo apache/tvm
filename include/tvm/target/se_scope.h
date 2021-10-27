@@ -39,20 +39,18 @@ namespace tvm {
  * scope level, or where execution is to take place, down to the device level. It is a quadruple of:
  * - A \p device_type (\p DLDeviceType).
  * - An uninterpreted \p virtual_device_id (\p int) distinguishing the intended device from all
- *   other devices (either of the same \p device_type, or across all availabel devices in the
- *   system). The \p virtual_device_id may be left as 0 if not significant. It is up to downstream
- *   compilation passes and/or the runtime to map a \p virtual_device_id to an actual physical
- *   device if required. In particular the \p virtual_device_id need not correspond exactly to
- *   any runtime \p Device's \p device_id.
- * - A \p target (\p Target) describing how to compile code for the intended device. The
- *   \p target->kind->device_type must match the above \p device_type.
+ *   other devices (either of the same \p device_type, or across all available devices in the
+ *   system). The virtual device id need not correspond to any physical device id, see
+ *   "Virtual Devices" below.
+ * - A \p target (\p Target) describing how to compile code for the intended device.
  * - A \p memory_scope (currently just \p String) describing which memory area is to be used to
  *   hold data. The area should be reachable from the device but need not be 'on' the device,
- *   see below. (We're using a \p String for now but would prefer a more structured representation.)
+ *   see "Memory Scopes and Devices" below. (We're using a \p String for now but would prefer a
+ *   more structured representation once it is available.)
  *
- * All of these fields may be 'unconstrained', signaling that device planning is free to choose
- * a value consistent with the whole program. However if a \p target is given then the
- * \p device_type must equal \p target->kind->device_type.
+ * All of these fields may be 'unconstrained' (ie null, -1 or ""), signaling that device planning
+ * is free to choose a value consistent with the whole program. However if a \p target is given
+ * then the \p device_type must equal \p target->kind->device_type.
  *
  * Note that currently we assume if a function returns its result on a particular device
  * then the function body is also executed on that device. See the overview comment in
@@ -69,7 +67,7 @@ namespace tvm {
  * Targets vs Devices
  * ------------------
  * Generally \p Targets (a compile-time only datastructue) describe compiler options for a specific
- * microarchitecture and toolchain, while \p Devices (a runtime datastructure alsa available at
+ * microarchitecture and toolchain, while \p Devices (a runtime datastructure also available at
  * compile time) describe a physical device on the target system. Obviously the target must agree
  * with the device's microarchitecture, but we otherwise don't impose any constraints between them:
  *  - It's ok to use different \p Targets for the same \p Device, eg to squeeze some extra perf
@@ -79,7 +77,15 @@ namespace tvm {
  * Traditionally TVM assumes at most one \p Target per \p DLDeviceType. We are moving away from that
  * assumption.
  *
- * Memory scopes and devices
+ * Virtual vs Physical Devices
+ * ---------------------------
+ * The \p virtual_device_id may be left as 0 if not significant. It is up to downstream
+ * compilation passes and/or the runtime to map a \p virtual_device_id to an actual physical
+ * device id if required. For example, some runtimes may support passing in an array of actual
+ * `device` specifications, and the \p virtual_device_id is simply an index known at compile time
+ * into that array.
+ *
+ * Memory Scopes and Devices
  * -------------------------
  * Multi-device systems can have complex memory hierarchies. For example
  * \code

@@ -55,7 +55,7 @@ void SEScopeNode::SHashReduce(SHashReducer hash_reduce) const {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SEScopeNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = ref.as<SEScopeNode>();
-      p->stream << "SEScopeNode(";
+      p->stream << "SEScope(";
       if (node->is_fully_unconstrained()) {
         p->stream << "?";
       } else {

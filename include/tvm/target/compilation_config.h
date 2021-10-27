@@ -31,12 +31,20 @@
 namespace tvm {
 
 /*!
- * \brief Gathers the \p Targets and \p SEScopes in canonical form needed to compile a Relay module.
+ * \brief Gathers the \p Targets and distinguished \p SEScopes in canonical form needed to
+ * compile a Relay module. All centralizes any setup and validation logic needed to transition
+ * from configuration options conveyed implicitly (eg in \p PassContexts) or explicitly
+ * (eg a a list of \p Targets) to the configuration.
  *
- * CAUTION: This is a temporary class to help us bridge legacy and new target/device handling
- * and reduce code duplication and inconsistencies between the VM (relay/backend/vm/compile.cc),
- * Graph/AOT (relay/backend/build_module.cc) and Interpreter (relay/backend/interpreter.cc)
- * compilation flows. Preliminary and subject to change.
+ * CAUTION: This is subject to change as we rework compilation options in general. See
+ * https://github.com/apache/tvm-rfcs/blob/main/rfcs/0028-command-line-registry-composition.md.
+ * So far this class is only focussed on carrying just the configuration needed by PlanDevices,
+ * and removing target-munging code duplication and inconsistencies between the three major build
+ * flows for the VM (relay/backend/vm/compile.cc), Graph/AOT (relay/backend/build_module.cc) and
+ * Interpreter (relay/backend/interpreter.cc). Over time we expect more global compiler
+ * configuration (eg for executor and runtime config, for system memory pool configuration, etc)
+ * to migrate into this class, and instances thereof to be attached to \p IRModules using a
+ * well-known attribute.
  */
 class CompilationConfigNode : public Object {
  public:
@@ -75,9 +83,11 @@ class CompilationConfigNode : public Object {
   SEScope host_se_scope = SEScope::FullyUnconstrained();
 
   /*!
-   * \brief If defined then in 'homogenous execution mode' and all primitives will be compiled
-   * for this target. This is to support legacy passes which have not been adapted to hetrogeneous
-   * execution.
+   * \brief If defined then compile and/or run in 'homogenous execution mode'. In this mode all
+   * primitives are compiled for this target only.
+   *
+   * This is to support legacy passes which have not been adapted to hetrogeneous execution and
+   * rely on an implicit global \p Target to be in scope.
    *
    * TODO(mbs): Remove once all passes are 'hetrogeneous aware'.
    */
@@ -86,7 +96,7 @@ class CompilationConfigNode : public Object {
   void VisitAttrs(AttrVisitor* v);
 
   /*!
-   * \brief Returns a \p SEScope agreeing with \p se_scope on all it's constrained fields, however:
+   * \brief Returns a \p SEScope agreeing with \p se_scope on all its constrained fields, however:
    * - If the target is null then it is filled in from the known available primitive targets by
    *   matching on device type. Fails if no such target is known.
    * - The returned object is unique for the field values w.r.t. all other \p SEScopes returned
@@ -103,8 +113,15 @@ class CompilationConfigNode : public Object {
  private:
   /*!
    * \brief Establishes the default \p SEScope for primitives and the \p SEScope for the host
-   * given vector of available \p Targets. If necessary, add new \p Targets to match the
-   * required devices.
+   * given:
+   *  - the vector of available primitive \p Targets.
+   *  - any host \p Target.
+   *  - any "relay.fallback_device_type" attribute on \p pass_ctx.
+   *  - whether the LLVM backend is available.
+   * If necessary, creates new default \p Targets to match the required devices.
+   *
+   * NOTE: The implementation is a bit convoluted since it tries to maintain backwards
+   * compatibility with legacy methods for conveying \p Targets.
    */
   void EstablishDefaultSEScopes(const transform::PassContext& pass_ctx);
 
