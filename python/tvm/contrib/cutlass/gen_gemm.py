@@ -299,7 +299,7 @@ class ProfilerEngine(object):
             rt = float(sp.stdout)
             print(op_name, rt)
         except subprocess.CalledProcessError:
-            rt = 999999
+            rt = -1
         return rt
 
     def evaluate(self, op_name, src, args=None):
@@ -324,12 +324,19 @@ class CutlassGemmProfiler(object):
             return False
         return True
 
-    def profile(self, M, N, K, out_dtype):
+    def profile(self, M, N, K, out_dtype, profile_all=True):
         """Profile and select the best kernel from `op_generators`."""
         ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
+        for op in ops:
+            op["runtime"] = -1
+
         for op in ops:
             if self.check_align(op["name"], M):
                 out = self.engine.evaluate(op["name"], op["src"], [M, N, K])
                 op["runtime"] = out
-        output = sorted(ops, key=lambda i: i["runtime"])
+                if out > 0 and profile_all is False:
+                    break
+
+        valid_ops = filter(lambda op: op["runtime"] > 0, ops)
+        output = sorted(valid_ops, key=lambda i: i["runtime"])
         return output[0]

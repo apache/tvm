@@ -39,7 +39,7 @@ class GemmAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
 
 
-def profile_cutlass_kernels(mod, sm, tmp_dir="./tmp"):
+def profile_cutlass_kernels(mod, sm, profile_all=True, tmp_dir="./tmp"):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.
 
@@ -51,6 +51,10 @@ def profile_cutlass_kernels(mod, sm, tmp_dir="./tmp"):
     sm : int
         An integer specifying the compute capability. For example, 75 for Turing and
         80 or 86 for Ampere.
+
+    profile_all : bool
+        Whether or not profile all candidate kernels, or stop profiling after
+        the first applicable kernel is found.
 
     tmp_dir : string, optional
         A temporary directory where intermediate compiled artifacts will be stored.
@@ -83,7 +87,7 @@ def profile_cutlass_kernels(mod, sm, tmp_dir="./tmp"):
             MM = arg0_shape[0]
             KK = arg0_shape[1]
             NN = arg1_shape[0]
-            out = cutlass_profiler.profile(MM, NN, KK, annotator.signature["ret_dtype"])
+            out = cutlass_profiler.profile(MM, NN, KK, annotator.signature["ret_dtype"], profile_all)
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]
             elif new_attrs["op_type"] == "cutlass.dense_bias":
