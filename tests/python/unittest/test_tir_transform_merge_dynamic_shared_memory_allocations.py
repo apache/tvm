@@ -307,7 +307,6 @@ def test_dyn_shared_more_dtype():
     s = te.create_schedule(C.op)
 
     mod = run_passes(s, [A, B, C])
-    print(mod["main"].body)
     verify_single_allocation(mod["main"].body, n * 4)
 
     def check_target(target):

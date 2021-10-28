@@ -62,30 +62,29 @@ class AllocateCollector : public StmtExprVisitor {
 
 // Find a linear pattern of storage access
 // Used for liveness analysis.
-// Composite scopes(loop/thread_launch/IfThen) is represented by two points:
-// before_scope -> scope_body -> after_scope
-//
-// The linear_seq_ stores before_scope and after_scope.
-// The access to the arrays are stored at the after_scope point.
+// "linear" means fitting a complex access pattern into an array of StmtEntry
 //
 // Define "scope" as the body of For/thread_launch/IfThenElse
+// Composite scopes(loop/thread_launch/IfThen) is represented by three StmtEntry:
+// before_scope -> scope_body -> after_scope
+//
 // This pass tries to detect last point that we need to keep memory
-// alive under the same scope as allocate.
-// The storage need to be kept alive between allocate and last access.
-// The free point is only inserted at the same scope of allocate.
+// alive under the same scope as Allocate.
+// The storage need to be kept alive between Allocate and last access.
+// The free point is only inserted at the same scope of Allocate.
 //
 class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
  public:
-  /*! \brief record the touch hist of statment. */
+  /*! \brief record the touch list of statment. */
   struct StmtEntry {
-    // The statment
+    // The statement
     const Object* stmt;
     // The index in the linear_seq_ to point to end of the nested scope.
     // This is only set to non-zero if stmt is a nested scope.
     // if offset > 0, means this is the begin, the end entry is current_index + offset
     // if offset < 0, means this is the end, the begin entry is current_index + offset
     int64_t scope_pair_offset{0};
-    // The buffer variables this statment touched.
+    // The buffer variables this statement touched.
     std::vector<const VarNode*> touched;
   };
   // The scope of each allocation
@@ -237,6 +236,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
     this->LivenessAnalysis(finder.linear_seq_);
     this->PlanMemory(finder.linear_seq_);
   }
+ private:
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent && !allocated_) {
@@ -331,7 +331,6 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
     }
   }
 
- private:
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
     auto it = buffer_byte_offsets_.find(buffer_var.get());
     ICHECK(it != buffer_byte_offsets_.end());
