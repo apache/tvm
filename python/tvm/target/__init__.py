@@ -70,6 +70,7 @@ from .target import (
     bifrost,
     riscv_cpu,
     hexagon,
+    stm32,
 )
 from .tag import list_tags
 from .generic_func import GenericFunc

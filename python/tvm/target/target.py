@@ -642,6 +642,27 @@ def hexagon(cpu_ver="v66", **kwargs):
 
     return Target(" ".join(["hexagon"] + args_list))
 
+STM32_SUPPORTED_MODELS = {
+    #"stm32H7xx": ["-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32H7xx": ["-device=arm_cpu", "-mcpu=cortex-m7"],
+    "stm32F4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+}
+
+def stm32(model="unknown", options=None):
+    """Returns a STM32 target.
+
+    Parameters
+    ----------
+    model: str
+        Series name of a STM32 board series, eg. stm32H7xx or stm32F4xx
+    options : str or list of str
+        Additional options
+    """
+    
+    if model not in STM32_SUPPORTED_MODELS:
+        raise ValueError(f"Series {model} is not supported by tvm.target.stm32.")
+    opts = _merge_opts(STM32_SUPPORTED_MODELS[model], options)
+    return Target(" ".join(["c"] + opts))
 
 def create(target):
     """Deprecated. Use the constructor of :py:mod:`tvm.target.Target` directly."""
