@@ -51,7 +51,8 @@ namespace relay {
  *
  * Note that now it is the user's responsibility to modify their
  * input pre-processing pipeline to satisfy the new signature's
- * constraints.
+ * constraints. Care should especially be taken when lifting a
+ * quantize transformation.
  *
  * For this pass to fold a type transformation, the following conditions
  * must be met:
@@ -60,7 +61,7 @@ namespace relay {
  *     or "qnn.quantize".
  *   - Each function parameter is used only once
  *     per program. There should be no structure that looks like:
- * 
+ *
  *      in                                      in
  *     /  \        but the following is ok:      |
  *  cast  add                                  cast
@@ -68,6 +69,9 @@ namespace relay {
 class LiftDtypeTransformationRewriter : public MixedModeMutator {
  protected:
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
+    // This rewrite identifies and removes the op that transforms the
+    // type of a function parameter, then updates the parameter with the
+    // expected output dtype of the removed op.
     const CallNode* post_call_node = post.as<CallNode>();
     ICHECK(post_call_node) << "Expected a CallNode, but got " << post;
 
@@ -155,7 +159,7 @@ Pass LiftDtypeTransformation() {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(LiftDtypeTransformation(f, m));
       };
-  return CreateFunctionPass(pass_func, 0, "LiftDtypeTransformation", {});
+  return CreateFunctionPass(pass_func, 4, "LiftDtypeTransformation", {});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.LiftDtypeTransformation")
