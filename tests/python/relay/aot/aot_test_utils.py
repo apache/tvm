@@ -616,6 +616,8 @@ def run_and_check(
         model = compiled_model.model
         tar_file = os.path.join(base_path, f"{model.name}.tar")
         export_model_library_format(compiled_model.executor_factory, tar_file)
+        t = tarfile.open(tar_file)
+        t.extractall(base_path)
 
         workspace_bytes += model.extra_memory_in_bytes
         workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
