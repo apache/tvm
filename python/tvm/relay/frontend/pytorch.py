@@ -3878,7 +3878,6 @@ def from_pytorch(
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
-    print(graph)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)

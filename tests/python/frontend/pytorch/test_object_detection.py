@@ -164,6 +164,3 @@ def test_detection_models():
     # Results should be equivalent after rewriting
     for res1, res2 in zip(tvm_res, tvm_res_after_rewrite):
         tvm.testing.assert_allclose(res1.numpy(), res2.numpy())
-
-
-test_detection_models()
