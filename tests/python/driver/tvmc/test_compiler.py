@@ -397,7 +397,7 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
 
     tvmc_package = tvmc.compiler.compile_model(
         tvmc_model,
-        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 --executor=aot",
+        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
         output_format="mlf",
         package_path=output_file_name,
         pass_context_configs=["tir.disable_vectorize=true"],
@@ -455,7 +455,7 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
 
         tvmc_package = tvmc.compiler.compile_model(
             tvmc_model,
-            target=f"ethos-u -accelerator_config={accel_type}, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 --executor=aot",
+            target=f"ethos-u -accelerator_config={accel_type}, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
             output_format="mlf",
             package_path=output_file_name,
             pass_context_configs=["tir.disable_vectorize=true"],
@@ -471,7 +471,11 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
                 for name in mlf_package.getnames()
                 if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
             ]
-            assert len(c_source_files) == 17
+            # The number of c_source_files depends on the number of fused subgraphs that
+            # get offloaded to the NPU, e.g. conv2d->depthwise_conv2d->conv2d gets offloaded
+            # as a single subgraph if both of these operators are supported by the NPU.
+            # Currently there are two source files for CPU execution and two offload graphs
+            assert len(c_source_files) == 4
 
 
 @mock.patch("tvm.relay.build")

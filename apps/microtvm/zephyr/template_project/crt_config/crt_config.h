@@ -36,7 +36,7 @@
 #define TVM_CRT_MAX_ARGS 10
 
 /*! Size of the global function registry, in bytes. */
-#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 200
+#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 256
 
 /*! Maximum number of registered modules. */
 #define TVM_CRT_MAX_REGISTERED_MODULES 2
@@ -48,7 +48,10 @@
 #define TVM_CRT_MAX_STRLEN_DLTYPE 10
 
 /*! Maximum supported string length in function names */
-#define TVM_CRT_MAX_STRLEN_FUNCTION_NAME 80
+#define TVM_CRT_MAX_STRLEN_FUNCTION_NAME 120
+
+/*! Maximum supported string length in parameter names */
+#define TVM_CRT_MAX_STRLEN_PARAM_NAME 80
 
 /*! \brief Maximum length of a PackedFunc function name. */
 #define TVM_CRT_MAX_FUNCTION_NAME_LENGTH_BYTES 30

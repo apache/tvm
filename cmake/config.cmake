@@ -279,6 +279,9 @@ set(USE_FALLBACK_STL_MAP OFF)
 set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
 
+# Whether to build the hexagon launcher
+set(USE_HEXAGON_LAUNCHER OFF)
+
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
@@ -332,3 +335,15 @@ set(USE_CCACHE AUTO)
 # - OFF: disable PAPI support.
 # - /path/to/folder/containing/: Path to folder containing papi.pc.
 set(USE_PAPI OFF)
+
+# Whether to use GoogleTest for C++ unit tests. When enabled, the generated
+# build file (e.g. Makefile) will have a target "cpptest".
+# Possible values:
+# - ON: enable GoogleTest. The package `GTest` will be required for cmake
+#   to succeed.
+# - OFF: disable GoogleTest.
+# - AUTO: cmake will attempt to find the GTest package, if found GTest will
+#   be enabled, otherwise it will be disabled.
+# Note that cmake will use `find_package` to find GTest. Please use cmake's
+# predefined variables to specify the path to the GTest package if needed.
+set(USE_GTEST AUTO)

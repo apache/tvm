@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.driver.build_module import schedule_to_module
 
 
 def test_storage_share():
@@ -28,12 +29,7 @@ def test_storage_share():
         B = te.compute((m, l), lambda i, j: B[i, j] + (t + 1), name="A%d" % t)
 
     s = te.create_schedule(B.op)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A, B])
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
     mod = tvm.tir.transform.Simplify()(mod)
@@ -169,12 +165,7 @@ def test_inplace_rule():
     AA = te.compute((m,), lambda i: A0[i] + A1[i] + A1[0], name="AA")
     B = te.compute((m,), lambda i: AA[i] + 1, name="B")
     s = te.create_schedule(B.op)
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A, B])
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
     mod = tvm.tir.transform.Simplify()(mod)
@@ -206,11 +197,8 @@ def test_storage_combine():
     s = te.create_schedule(B.op)
     for S in stages[:-1]:
         s[S].set_scope("global:tag")
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+
+    mod = schedule_to_module(s, [A, B])
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
     mod = tvm.tir.transform.Simplify()(mod)
@@ -238,10 +226,7 @@ def test_storage_combine_with_vectorization():
     BB = s.cache_read(B, "global:tag", readers=[C])
     CC = s.cache_write(C, "global:tag")
     s[CC].vectorize(s[CC].op.axis[0])
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B, C], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A, B, C])
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     mod = tvm.tir.transform.VectorizeLoop()(mod)
     mod = tvm.tir.transform.StorageRewrite()(mod)
@@ -285,11 +270,7 @@ def test_storage_share_gpu():
         s[A[2 * t + 1]].compute_at(s[A[2 * t + 2]], tx)
         s[A[2 * t + 1]].set_scope("shared")
 
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A[0], A[-1]], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A[0], A[-1]])
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     mod = tvm.tir.transform.Simplify()(mod)
     mod = tvm.tir.transform.StorageRewrite()(mod)
@@ -418,12 +399,7 @@ def test_inplace_rule2(scope_tb="local_TB2", max_bits=1024 * 1024 * 1024):
     A0L = s.cache_read(A0, scope_tb, [A2])
     A1L = s.cache_read(A1, scope_tb, [A2])
     A2L = s.cache_read(A2, scope_tb, [B])
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B, C, D], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [A, B, C, D])
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
     mod = tvm.tir.transform.Simplify()(mod)
@@ -511,12 +487,7 @@ def test_inplace_rule3():
     s[B10].compute_inline()
 
     s = s.normalize()
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([B0, B1, B2, B3, B4, B5, B], stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(s, [B0, B1, B2, B3, B4, B5, B])
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
     mod = tvm.tir.transform.Simplify()(mod)

@@ -27,10 +27,12 @@ def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
     B = T.match_buffer(b, [m, n])
     C = T.match_buffer(c, [m, m])
 
-    with T.block([m, m, T.reduce_axis(0, n)], "update") as [vi, vj, vk]:
-        with T.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(m, m, n):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
 @T.prim_func
@@ -39,10 +41,12 @@ def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-        with T.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
 @T.prim_func
@@ -52,10 +56,12 @@ def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [m, 128])
     C = T.match_buffer(c, [m, m])
 
-    with T.block([m, m, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-        with T.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(m, m, 128):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
 @T.prim_func
@@ -66,10 +72,12 @@ def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [m, x * 8])
     C = T.match_buffer(c, [m, m])
 
-    with T.block([m, m, T.reduce_axis(0, x * 8)], "update") as [vi, vj, vk]:
-        with T.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(m, m, x * 8):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
 @T.prim_func
@@ -81,11 +89,15 @@ def element_wise(a: T.handle, c: T.handle) -> None:
 
     B = T.alloc_buffer((m, n), "float32")
 
-    with T.block([m, n], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(m, n):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
 
-    with T.block([m, n], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(m, n):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 @T.prim_func
@@ -94,11 +106,15 @@ def element_wise_128_64(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 64), "float32")
     B = T.alloc_buffer((128, 64), "float32")
 
-    with T.block([128, 64], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 64):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
 
-    with T.block([128, 64], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 64):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 @T.prim_func
@@ -108,11 +124,15 @@ def element_wise_128_n(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, n), "float32")
     B = T.alloc_buffer((128, n), "float32")
 
-    with T.block([128, n], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, n):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
 
-    with T.block([128, n], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, n):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 @T.prim_func
@@ -120,8 +140,10 @@ def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32, q: T.
     A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=q)
     B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
 
-    with T.block([m, n], "") as [vi, vj]:
-        B[vi, vj] = A[vi, vj]
+    for i, j in T.grid(m, n):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj]
 
 
 @T.prim_func
@@ -129,8 +151,10 @@ def mem_copy_16_16_8_4(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32", strides=[8, 1], elem_offset=4)
     B = T.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
 
-    with T.block([16, 16], "") as [vi, vj]:
-        B[vi, vj] = A[vi, vj]
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj]
 
 
 @T.prim_func
@@ -138,8 +162,10 @@ def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int3
     A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=n)
     B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
 
-    with T.block([m, n], "") as [vi, vj]:
-        B[vi, vj] = A[vi, vj]
+    for i, j in T.grid(m, n):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj]
 
 
 @T.prim_func
@@ -147,8 +173,10 @@ def param_in_arith_exprs(a: T.handle, b: T.handle) -> None:
     n = T.var("int32")
     A = T.match_buffer(a, [n // 8, 8], "int32")
     B = T.match_buffer(b, [n], "int32")
-    with T.block([n - 1], "") as [vi]:
-        B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
+    for i in range(n - 1):
+        with T.block():
+            vi = T.axis.S(n - 1, i)
+            B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
 
 
 @T.prim_func
@@ -156,8 +184,10 @@ def param_in_arith_exprs_n_16(a: T.handle, b: T.handle) -> None:
     n = T.var("int32")
     A = T.match_buffer(a, [2, 8], "int32")
     B = T.match_buffer(b, [16], "int32")
-    with T.block([15], "") as [vi]:
-        B[vi] = A[vi // 8, vi % 8] + 714
+    for i in range(15):
+        with T.block():
+            vi = T.axis.S(15, i)
+            B[vi] = A[vi // 8, vi % 8] + 714
 
 
 def test_specialize_nothing():

@@ -773,7 +773,6 @@ def test_roi_align():
             mode=mode,
         )
         for target, dev in tvm.testing.enabled_targets():
-            print("test on", target)
             op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
                 np_data, np_rois
             )

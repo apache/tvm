@@ -327,7 +327,7 @@ inline relay::Function BindParamsByName(
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
-      repeat_var.insert(arg);
+      repeat_var.insert(name_dict[name]);
     } else {
       name_dict[name] = arg;
     }
@@ -424,15 +424,6 @@ inline std::string GetExtSymbol(const Function& func) {
 inline bool IsAutoSchedulerEnabled() {
   return transform::PassContext::Current()
       ->GetConfig<Bool>("relay.backend.use_auto_scheduler", Bool(false))
-      .value();
-}
-
-/*!
- * \brief Return whether the compile engine cache is disabled in the pass context.
- */
-inline bool IsCompileEngineCacheDisabled() {
-  return transform::PassContext::Current()
-      ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
       .value();
 }
 

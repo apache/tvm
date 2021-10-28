@@ -51,6 +51,8 @@ class VirtualMachineDebug : public VirtualMachine {
  private:
   void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count, Index output_size,
                     const std::vector<ObjectRef>& args) final;
+  void OpStartHook(Instruction instr) final;
+  void OpStopHook() final;
 
   std::unordered_map<Index, std::string> packed_index_map_;
   dmlc::optional<profiling::Profiler> prof_;

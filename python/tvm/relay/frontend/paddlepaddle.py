@@ -17,73 +17,158 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """Paddle: PArallel Distributed Deep LEarning."""
-import warnings
 
+import warnings
 import numpy as np
 
 import tvm
 from tvm.ir import IRModule
 
+from ... import nd as _nd
 from .. import analysis
+from .. import ty as _ty
 from .. import expr as _expr
 from .. import function as _function
 from .. import ty as _ty
 from .. import op as _op
 from .common import (
+    autopad,
     fold_constant,
+    get_relay_op,
     infer_shape,
     infer_type,
     infer_value,
+    shape_of,
+    try_infer_value,
     new_var,
 )
 
 __all__ = ["from_paddle"]
 
 
-def shape_of(x, dtype="int32"):
-    """Get shape of a tensor"""
+def _dtype_shape_promotion(inputs):
+    """Promote data type and shape for list of tensors."""
 
-    ttype = infer_type(x).checked_type
-    if not _ty.is_dynamic(ttype):
-        shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
-    return _op.shape_of(x, dtype)
+    dtype_order = ["bool", "int8", "int16", "int32", "int64", "float32", "float64"]
+
+    ranks = [len(infer_shape(x)) for x in inputs]
+    if set(ranks) == set([1, 0]):
+        for i, r in enumerate(ranks):
+            if r == 0:
+                inputs[i] = _op.expand_dims(inputs[i], axis=0)
+
+    dtypes = set(dtype_order.index(infer_type(x).checked_type.dtype) for x in inputs)
+    if len(dtypes) == 1:
+        return inputs
+    max_dtype = dtype_order[max(dtypes)]
+    for i, input_op in enumerate(inputs):
+        if infer_type(input_op).checked_type.dtype != max_dtype:
+            inputs[i] = input_op.astype(max_dtype)
+    return inputs
 
 
-def _get_pad_size(in_size, dilated_kernel_size, stride_size):
-    """calculate the paddings size"""
+def _convert_dtype_value(val):
+    """Converts a Paddle type id to a string."""
 
-    if stride_size == 1 or in_size % stride_size == 0:
-        pad = max(dilated_kernel_size - stride_size, 0)
+    convert_dtype_map = {
+        21: "int8",
+        20: "uint8",
+        6: "float64",
+        5: "float32",
+        4: "float16",
+        3: "int64",
+        2: "int32",
+        1: "int16",
+        0: "bool",
+    }
+    if val not in convert_dtype_map:
+        msg = "Paddle data type value %d is not handled yet." % (val)
+        raise NotImplementedError(msg)
+    return convert_dtype_map[val]
+
+
+def convert_unary_op(g, op, block):
+    """Operator converter for all the unary operators."""
+
+    # op_map stores mapping relationship between paddlepaddle and relay
+    op_map = {
+        "isinf_v2": _op.isinf,
+        "isfinite_v2": _op.isfinite,
+        "isnan_v2": _op.isnan,
+    }
+    if op.type in op_map:
+        unary_func = op_map[op.type]
     else:
-        pad = max(dilated_kernel_size - (in_size % stride_size), 0)
-
-    pad_before = pad // 2
-    pad_after = pad - pad_before
-
-    return [pad_before, pad_after]
+        # while paddle operator's name is same with relay
+        unary_func = get_relay_op(op.type)
+    out = unary_func(g.get_node(op.input("X")[0]))
+    g.add_node(op.output("Out")[0], out)
 
 
-def convert_arg_max(g, op, block):
-    """Operator converter for arg_max."""
+def convert_binary_logical_op(g, op, block):
+    """Operator converter for logical op."""
+
+    ipt0 = g.get_node(op.input("X")[0])
+    ipt1 = g.get_node(op.input("Y")[0])
+    op_func = get_relay_op(op.type)
+    out = op_func(ipt0, ipt1)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_arg_max_min(g, op, block):
+    """Operator converter for arg_max and arg_min."""
 
     axis = op.attr("axis")
     keepdims = op.attr("keepdims")
     flatten = op.attr("flatten")
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
 
+    func = _op.argmax if op.type == "arg_max" else _op.argmin
     x = g.get_node(op.input("X")[0])
     if axis is None or flatten:
         x = _op.reshape(x, [-1])
-        out = _op.argmax(x, axis=None, keepdims=True)
+        out = func(x, axis=None, keepdims=True)
     else:
-        out = _op.argmax(x, axis=axis, keepdims=keepdims)
+        out = func(x, axis=axis, keepdims=keepdims)
+    if dtype != infer_type(out).checked_type.dtype:
+        out = _op.cast(out, dtype)
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_argsort(g, op, block):
+    """Operator converter for argsort."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+    descending = op.attr("descending")
+
+    out_indices = _op.argsort(x, axis, not descending, dtype="int64")
+    out = _op.gather(x, axis, out_indices)
+    g.add_node(op.output("Out")[0], out)
+    g.add_node(op.output("Indices")[0], out_indices)
 
 
 def convert_assign(g, op, block):
     """Operator converter for assign."""
 
-    out = _op.copy(g.get_node(op.input("X")[0]))
+    out = g.get_node(op.input("X")[0])
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_assign_value(g, op, block):
+    """Operator converter for assign_value."""
+
+    keys = ["bool_values", "fp32_values", "int32_values", "int64_values"]
+    dtypes = ["bool", "float32", "int32", "int64"]
+    for i, key in enumerate(keys):
+        dtype = dtypes[i]
+        value = np.array(op.attr(key)).astype(dtype)
+        if value is not None and value.size >= 1:
+            break
+    shape = op.attr("shape")
+    value = value.reshape(shape)
+    out = _op.const(value, dtype=dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -110,8 +195,8 @@ def convert_batch_norm(g, op, block):
 def convert_cast(g, op, block):
     """Operator converter for cast."""
 
-    dtype = block.var(op.output("Out")[0]).dtype
-    dtype = str(dtype).strip().split(".")[1]
+    dtype = op.attr("out_dtype")
+    dtype = _convert_dtype_value(dtype)
     x = g.get_node(op.input("X")[0])
     out = _op.cast(x, dtype=dtype)
     g.add_node(op.output("Out")[0], out)
@@ -122,6 +207,7 @@ def convert_concat(g, op, block):
 
     inputs = [g.get_node(op.input("X")[i]) for i in range(len(op.input("X")))]
     axis = op.attr("axis")
+    inputs = _dtype_shape_promotion(inputs)
     out = _op.concatenate(inputs, axis=axis)
     g.add_node(op.output("Out")[0], out)
 
@@ -138,17 +224,19 @@ def convert_conv2d(g, op, block):
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
     out_channels, _, k_h, k_w = infer_shape(kernel)
-    in_h, in_w = infer_shape(input_x)[2:]
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        pad_h = _get_pad_size(in_h, (k_h - 1) * dilations[0] + 1, strides[0])
-        pad_w = _get_pad_size(in_w, (k_w - 1) * dilations[1] + 1, strides[1])
-        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
+        # Handle history issue of PaddlePaddle
+        # while padding_algorithm == "SAME"
+        # dilations will be set to [1, 1]
+        dilations = [1, 1]
+        input_x = autopad(input_x, strides, [k_h, k_w], dilations)
+        paddings = [0, 0]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
             paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
-        if len(paddings) == 4:
+        elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
         msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
@@ -191,7 +279,18 @@ def convert_dropout(g, op, block):
     """Operator converter for dropout."""
 
     x = g.get_node(op.input("X")[0])
-    out = _op.copy(x)
+    g.add_node(op.output("Out")[0], x)
+
+
+def convert_dot(g, op, block):
+    """Operator converter for dot."""
+
+    # x, y should be 1D or 2D tensor
+    # when it's 2D tensor, the first dimension means batch dimension
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+
+    out = _op.sum(_op.multiply(x, y), axis=[-1], keepdims=True)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -199,49 +298,61 @@ def convert_elementwise_op(g, op, block):
     """Operator converter for all the elementwise operators."""
 
     op_map = {
-        "elementwise_div": lambda x, y: x / y,
-        "elementwise_add": lambda x, y: x + y,
-        "elementwise_mul": lambda x, y: x * y,
-        "elementwise_sub": lambda x, y: x - y,
-        "elementwise_mod": lambda x, y: x % y,
+        "elementwise_div": "divide",
+        "elementwise_add": "add",
+        "elementwise_mul": "multiply",
+        "elementwise_sub": "subtract",
+        "elementwise_mod": "mod",
+        "elementwise_max": "maximum",
+        "elementwise_min": "minimum",
+        "elementwise_pow": "power",
+        "elementwise_floordiv": "floor_divide",
+        "equal": "equal",
+        "greater_equal": "greater_equal",
+        "greater_than": "greater",
+        "less_equal": "less_equal",
+        "less_than": "less",
+        "not_equal": "not_equal",
     }
     op_func = op_map[op.type]
     ipt0 = g.get_node(op.input("X")[0])
     ipt1 = g.get_node(op.input("Y")[0])
-    ipt0_shape = block.var(op.input("X")[0]).shape
-    ipt1_shape = block.var(op.input("Y")[0]).shape
+    ipt0_shape = infer_shape(ipt0)
+    ipt1_shape = infer_shape(ipt1)
     axis = op.attr("axis")
     if len(ipt0_shape) != len(ipt1_shape):
         if axis < 0:
             axis = axis + len(ipt0_shape)
         if axis != len(ipt0_shape) - 1:
             ipt1 = _op.expand_dims(ipt1, axis=axis, num_newaxis=(len(ipt0_shape) - axis - 1))
+    op_func = get_relay_op(op_func)
     out = op_func(ipt0, ipt1)
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_equal(g, op, block):
-    """Operator converter for equal."""
+def convert_expand(g, op, block):
+    """Operator converter for expand."""
 
     x = g.get_node(op.input("X")[0])
-    y = g.get_node(op.input("Y")[0])
-    out = _op.equal(x, y)
+    if op.input("Shape"):
+        sizes = g.get_node(op.input("Shape")[0])
+        sizes = try_infer_value(sizes, g.get_params())[0]
+    else:
+        sizes = op.attr("shape")
+
+    if isinstance(sizes, np.ndarray):
+        sizes = sizes.tolist()
+
+    out = _op.broadcast_to(x, sizes)
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_activation(g, op, block):
-    """Operator converter for all the activation."""
+def convert_expand_as(g, op, block):
+    """Operator converter for expand_as."""
 
-    op_map = {
-        "exp": _op.exp,
-        "relu": _op.nn.relu,
-        "tanh": _op.tanh,
-        "sqrt": _op.sqrt,
-        "erf": _op.erf,
-        "abs": _op.abs,
-    }
-    act_func = op_map[op.type]
-    out = act_func(g.get_node(op.input("X")[0]))
+    x = g.get_node(op.input("X")[0])
+    target_shape = op.attr("target_shape")
+    out = _op.broadcast_to(x, target_shape)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -259,6 +370,12 @@ def convert_feed(g, op, block):
         ipt_name = op.name
     if g.shape_dict is not None:
         ipt_shape = g.shape_dict[ipt_name]
+
+    if isinstance(ipt_shape, tuple):
+        ipt_shape = list(ipt_shape)
+    for i, s in enumerate(ipt_shape):
+        if s < 0:
+            ipt_shape[i] = _ty.Any()
     out = new_var(ipt_name, shape=ipt_shape, dtype=ipt_dtype)
     g.add_node(ipt_name, out)
 
@@ -266,18 +383,11 @@ def convert_feed(g, op, block):
 def convert_fill_any_like(g, op, block):
     """Operator converter for fill_any_like."""
 
-    out_name = op.output("Out")[0]
-    out_dtype = block.var(out_name).dtype
-    out_dtype = str(out_dtype).strip().split(".")[1]
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
     x = g.get_node(op.input("X")[0])
-    ipt_type = infer_type(x).checked_type
-    value = op.attr("value")
-    if not _ty.is_dynamic(ipt_type):
-        shape = infer_shape(x)
-        const = np.ones(shape) * value
-        out = _expr.const(const.astype(out_dtype))
-    else:
-        out = _op.transform.full_like(x, value).astype(out_dtype)
+    value = _expr.const(op.attr("value"), dtype=dtype)
+    out = _op.transform.full_like(x, value).astype(dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -286,16 +396,20 @@ def convert_fill_constant(g, op, block):
 
     value = op.attr("value")
     shape = block.var(op.output("Out")[0]).shape
-    dtype = block.var(op.output("Out")[0]).dtype
-    dtype = str(dtype).strip().split(".")[1]
-    if op.input("ValueTensor"):
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+    value = _expr.const(value).astype(dtype)
+    if "ValueTensor" in op.input_names and op.input("ValueTensor"):
         shape = g.get_node(op.input("ValueTensor")[0])
-        shape = infer_value(shape, g.get_params()).numpy()
-    if op.input("ShapeTensor"):
+        shape = try_infer_value(shape, g.get_params())[0]
+    if "ShapeTensor" in op.input_names and op.input("ShapeTensor"):
         shape = g.get_node(op.input("ShapeTensor")[0])
-        shape = infer_value(shape, g.get_params()).numpy()
-    value = np.full(shape, value, dtype)
-    out = _expr.const(value.astype(dtype)).astype(dtype)
+        shape = try_infer_value(shape, g.get_params())[0]
+
+    if isinstance(shape, np.ndarray):
+        shape = shape.tolist()
+
+    out = _op.full(value, shape=shape, dtype=dtype)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -416,9 +530,9 @@ def convert_matmul(g, op, block):
 
     # This implemention almost keeps same with ONNX
     # Need to check input shape as batch matmul must be supported.
-    a_shape = shape_of(inputs[0])
+    a_shape = shape_of(inputs[0], dtype="int32")
     a_rank = infer_shape(a_shape)[0]
-    b_shape = shape_of(inputs[1])
+    b_shape = shape_of(inputs[1], dtype="int32")
     b_rank = infer_shape(b_shape)[0]
     # When performing a batch matmul, we need to properly handle N-dim shapes.
     if a_rank > 2 or b_rank > 2:
@@ -505,8 +619,8 @@ def convert_mul(g, op, block):
     y = g.get_node(op.input("Y")[0])
     x_num_col_dims = op.attr("x_num_col_dims")
     y_num_col_dims = op.attr("y_num_col_dims")
-    x_shape = shape_of(x)
-    y_shape = shape_of(y)
+    x_shape = shape_of(x, dtype="int32")
+    y_shape = shape_of(y, dtype="int32")
     x_dim = infer_shape(x_shape)[0]
     y_dim = infer_shape(y_shape)[0]
     if x_num_col_dims < 0:
@@ -543,6 +657,39 @@ def convert_mul(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_padding(g, op, block):
+    """Operator converter for padding."""
+
+    input_x = g.get_node(op.input("X")[0])
+    input_padding = op.input("Paddings")
+    if input_padding:
+        padding = g.get_node(input_padding[0])
+        padding = infer_value(padding, g.get_params()).numpy().tolist()
+    else:
+        padding = op.attr("paddings")
+    padding = op.attr("paddings")
+    value = op.attr("value")
+    data_format = op.attr("data_format")
+    mode = op.attr("mode")
+    assert mode != "circular", "Don't support mod='circular' for PaddlePaddle's padding"
+    if mode == "replicate":
+        mode = "edge"
+
+    pad_len = len(padding)
+    new_paddings = [0] * (pad_len + 4)
+    for i in range(0, pad_len, 2):
+        index = -1 - i
+        if data_format[:2] != "NC":
+            index = -3 - i
+        new_paddings[index] = padding[i + 1]
+        new_paddings[index - 1] = padding[i]
+
+    new_paddings = [new_paddings[i : i + 2] for i in range(0, len(new_paddings), 2)]
+
+    out = _op.nn.pad(input_x, new_paddings, pad_value=value, pad_mode=mode)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_pool2d(g, op, block):
     """Operator converter for pool2d."""
 
@@ -553,17 +700,19 @@ def convert_pool2d(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     pooling_type = op.attr("pooling_type")
+
     if global_pooling:
         adaptive = True
         ksize = [1, 1]
 
     input_x = g.get_node(op.input("X")[0])
-    in_h, in_w = infer_shape(input_x)[2:]
+    _, _, in_h, in_w = infer_shape(input_x)
 
     op_map = {
         "avg": "avg_pool2d",
         "max": "max_pool2d",
     }
+
     strides = op.attr("strides")
     if isinstance(strides, int):
         strides = [strides, strides]
@@ -575,24 +724,69 @@ def convert_pool2d(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        pad_h = _get_pad_size(in_h, ksize[0], strides[0])
-        pad_w = _get_pad_size(in_w, ksize[1], strides[1])
-        paddings = [pad_h[0], pad_w[0], pad_h[1], pad_w[1]]
+        input_x = autopad(input_x, strides, ksize)
+        paddings = [0, 0]
     elif padding_algorithm == "EXPLICIT":
         if len(paddings) == 2:
             paddings = [paddings[0], paddings[1], paddings[0], paddings[1]]
-        if len(paddings) == 4:
+        elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
         msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
+    # handle with special case
+    # while kernel size less than input size
+    # shrink kernel size to input size
+    if not isinstance(in_h, _op.Expr) and in_h < ksize[0]:
+        ksize[0] = in_h
+    if not isinstance(in_w, _op.Expr) and in_w < ksize[1]:
+        ksize[1] = in_w
+
     if not adaptive:
-        out = getattr(_op.nn, op_map[pooling_type])(
-            input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
-        )
+        if pooling_type == "avg":
+            exclusive = op.attr("exclusive")
+            out = _op.nn.avg_pool2d(
+                input_x,
+                pool_size=ksize,
+                strides=strides,
+                padding=paddings,
+                ceil_mode=ceil_mode,
+                count_include_pad=not exclusive,
+            )
+        else:
+            out = getattr(_op.nn, op_map[pooling_type])(
+                input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
+            )
     else:
         out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(input_x, output_size=ksize)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_reduce(g, op, block):
+    """Operator converter for series of reduce operators."""
+
+    op_map = {
+        "reduce_all": "all",
+        "reduce_any": "any",
+        "reduce_max": "max",
+        "reduce_min": "min",
+        "reduce_prod": "prod",
+        "reduce_sum": "sum",
+        "reduce_mean": "mean",
+    }
+    op_name = op_map[op.type]
+    input_x = g.get_node(op.input("X")[0])
+    axis = op.attr("dim")
+    if op.attr("reduce_all"):
+        axis = None
+    keepdims = op.attr("keep_dim")
+    out = get_relay_op(op_name)(input_x, axis=axis, keepdims=keepdims)
+    if not axis and not keepdims:
+        # use `expand_dims` to solve the following situation
+        # for TVM, the shape of `out` will be (, )
+        # for Paddle, the shape of `out` will be [1]
+        out = _op.expand_dims(out, axis=0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -653,7 +847,7 @@ def convert_shape(g, op, block):
     """Operator converter for shape."""
 
     x = g.get_node(op.input("Input")[0])
-    out = shape_of(x)
+    out = shape_of(x, dtype="int32")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -711,6 +905,17 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_squeeze(g, op, block):
+    """Operator converter for squeeze2."""
+
+    x = g.get_node(op.input("X")[0])
+    axes = op.attr("axes")
+    if not axes:
+        axes = None
+    x = _op.squeeze(x, axis=axes)
+    g.add_node(op.output("Out")[0], x)
+
+
 def convert_unsqueeze(g, op, block):
     """Operator converter for unsqueeze."""
 
@@ -722,41 +927,84 @@ def convert_unsqueeze(g, op, block):
 
 
 _convert_map = {
-    "arg_max": convert_arg_max,
+    "abs": convert_unary_op,
+    "acos": convert_unary_op,
+    "arg_max": convert_arg_max_min,
+    "arg_min": convert_arg_max_min,
+    "argsort": convert_argsort,
+    "asin": convert_unary_op,
     "assign": convert_assign,
+    "assign_value": convert_assign_value,
+    "atan": convert_unary_op,
     "batch_norm": convert_batch_norm,
     "cast": convert_cast,
+    "ceil": convert_unary_op,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
+    "cos": convert_unary_op,
+    "cosh": convert_unary_op,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
+    "dot": convert_dot,
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
     "elementwise_div": convert_elementwise_op,
     "elementwise_mul": convert_elementwise_op,
     "elementwise_sub": convert_elementwise_op,
-    "equal": convert_equal,
-    "exp": convert_activation,
+    "equal": convert_elementwise_op,
+    "erf": convert_unary_op,
+    "exp": convert_unary_op,
+    "expand_v2": convert_expand,
+    "expand_as_v2": convert_expand_as,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
+    "floor": convert_unary_op,
     "gelu": convert_gelu,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
+    "isfinite_v2": convert_unary_op,
+    "isinf_v2": convert_unary_op,
+    "isnan_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
+    "less_equal": convert_elementwise_op,
+    "less_than": convert_elementwise_op,
+    "log": convert_unary_op,
+    "log2": convert_unary_op,
+    "log10": convert_unary_op,
+    "logical_and": convert_binary_logical_op,
+    "logical_or": convert_binary_logical_op,
+    "logical_xor": convert_binary_logical_op,
     "lookup_table_v2": convert_lookup_table,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
+    "pad3d": convert_padding,
     "pool2d": convert_pool2d,
-    "relu": convert_activation,
+    "relu": convert_unary_op,
     "reshape2": convert_reshape,
+    "round": convert_unary_op,
+    "reduce_all": convert_reduce,
+    "reduce_any": convert_reduce,
+    "reduce_max": convert_reduce,
+    "reduce_min": convert_reduce,
+    "reduce_prod": convert_reduce,
+    "reduce_sum": convert_reduce,
+    "reduce_mean": convert_reduce,
+    "rsqrt": convert_unary_op,
     "scale": convert_scale,
     "shape": convert_shape,
+    "sigmoid": convert_unary_op,
+    "sign": convert_unary_op,
+    "sin": convert_unary_op,
+    "sinh": convert_unary_op,
     "slice": convert_slice,
     "softmax": convert_softmax,
-    "tanh": convert_activation,
+    "sqrt": convert_unary_op,
+    "squeeze2": convert_squeeze,
+    "tan": convert_unary_op,
+    "tanh": convert_unary_op,
     "unsqueeze2": convert_unsqueeze,
 }
 
@@ -781,7 +1029,7 @@ class GraphProto:
         self.nodes[name] = fold_constant(node)
 
     def get_params(self, name=None):
-        """get params from graph"""
+        """Get params from graph."""
 
         if name is None:
             return self.params
@@ -800,10 +1048,12 @@ class GraphProto:
             if not var.persistable:
                 continue
             if isinstance(scope, dict):
-                self.params[name] = scope[name]
+                self.params[name] = _nd.array(scope[name])
             else:
-                self.params[name] = np.array(scope.var(name).get_tensor())
-            self.nodes[name] = _expr.const(self.params[name])
+                self.params[name] = _nd.array(np.array(scope.var(name).get_tensor()))
+            shape = self.params[name].shape
+            dtype = self.params[name].dtype
+            self.nodes[name] = new_var(name, shape=shape, dtype=dtype)
 
     def check_input_shape(self, op, block):
         """Check the shape information of model's inputs, fixed shape is recommended."""
@@ -894,17 +1144,44 @@ class GraphProto:
         free_vars = analysis.free_vars(outputs)
         func = _function.Function(free_vars, outputs)
         mod = IRModule.from_expr(func)
+        # remove unused parameters
+        final_params = dict()
+        for var in free_vars:
+            if var.name_hint in self.params:
+                final_params[var.name_hint] = self.params[var.name_hint]
+        self.params = final_params
         return mod, self.params
 
 
 def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """Convert a PaddlePaddle model into an equivalent Relay Function.
-
     PaddlePaddle Program/TranslatedLayer represent the computation graph of PaddlePaddle model,
     and PaddlePaddle scope stores all the weights of PaddlePaddle model.
+
+    Parameters
+    ----------
+    program_or_layer : object of `paddle.static.Program` or `paddle.jit.TranslatedLayer`
+        Loaded model by `paddle.static.load_inference_model` or `paddle.jit.load`
+
+    shape_dict : dict of str to tuple/list, optional
+        The input shape of model
+
+    scope : object of `paddle.static.Scope`, optional
+        The scope that saves all the weights of model, use `paddle.static.global_scope` by default
+
+    Returns
+    -------
+    mod : tvm.IRModule
+        The relay module for compilation
+
+    params : dict of str to tvm.nd.NDArray
     """
 
     import paddle
+
+    # disable system signal capturing in paddle framework
+    # the signal capturing may cause conflict while running autotvm with paddle frontend
+    paddle.disable_signal_handler()
 
     g = GraphProto()
     if isinstance(program_or_layer, paddle.jit.TranslatedLayer):

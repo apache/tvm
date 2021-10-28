@@ -32,7 +32,7 @@ from tvm.micro.project_api import server
 import tvm.relay as relay
 
 from tvm.contrib.download import download_testdata
-from tvm.micro.interface_api import generate_c_interface_header
+from tvm.micro.model_library_format import generate_c_interface_header
 
 import test_utils
 
@@ -47,6 +47,8 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
         "nrf5340dk_nrf5340_cpuapp",
         "nucleo_l4r5zi",
         "qemu_cortex_r5",
+        "qemu_riscv32",
+        "qemu_riscv64",
     ]:
         pytest.skip(msg="Model does not fit.")
 
@@ -55,8 +57,8 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     output_shape = (1, 10)
     build_config = {"debug": tvm_debug}
 
-    model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
-    model_path = download_testdata(model_url, "ic01_fp32.tflite", module="model")
+    model_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/image_classification_fp32.tflite"
+    model_path = download_testdata(model_url, "image_classification_fp32.tflite", module="model")
 
     # Import TFLite model
     tflite_model_buf = open(model_path, "rb").read()

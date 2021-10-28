@@ -42,6 +42,14 @@ TEST(NameTransforms, ToCVariableStyle) {
   EXPECT_THROW(ToCVariableStyle(""), InternalError);
 }
 
+TEST(NameTransforms, ToCConstantStyle) {
+  ASSERT_EQ(ToCConstantStyle("TVM_Woof"), "TVM_WOOF");
+  ASSERT_EQ(ToCConstantStyle("TVM_woof"), "TVM_WOOF");
+  ASSERT_EQ(ToCConstantStyle("TVM_woof_Woof"), "TVM_WOOF_WOOF");
+  EXPECT_THROW(ToCConstantStyle("Cake_Bakery"), InternalError);  // Incorrect prefix
+  EXPECT_THROW(ToCConstantStyle(""), InternalError);
+}
+
 TEST(NameTransforms, PrefixName) {
   ASSERT_EQ(PrefixName({"Woof"}), "TVM_Woof");
   ASSERT_EQ(PrefixName({"woof"}), "TVM_woof");
@@ -71,10 +79,10 @@ TEST(NameTransforms, CombineNames) {
 }
 
 TEST(NameTransforms, SanitizeName) {
-  ASSERT_EQ(SanitizeName("+_+ "), "_");
+  ASSERT_EQ(SanitizeName("+_+ "), "____");
   ASSERT_EQ(SanitizeName("input+"), "input_");
   ASSERT_EQ(SanitizeName("input-"), "input_");
-  ASSERT_EQ(SanitizeName("input++"), "input_");
+  ASSERT_EQ(SanitizeName("input++"), "input__");
   ASSERT_EQ(SanitizeName("woof:1"), "woof_1");
   EXPECT_THROW(SanitizeName(""), InternalError);
 }

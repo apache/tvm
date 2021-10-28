@@ -75,6 +75,7 @@ def pytest_collection_modifyitems(config, items):
     # pylint: disable=unused-argument
     _count_num_fixture_uses(items)
     _remove_global_fixture_definitions(items)
+    _sort_tests(items)
 
 
 @pytest.fixture
@@ -235,6 +236,31 @@ def _remove_global_fixture_definitions(items):
                 obj._pytestfixturefunction, _pytest.fixtures.FixtureFunctionMarker
             ):
                 delattr(module, name)
+
+
+def _sort_tests(items):
+    """Sort tests by file/function.
+
+    By default, pytest will sort tests to maximize the re-use of
+    fixtures.  However, this assumes that all fixtures have an equal
+    cost to generate, and no caches outside of those managed by
+    pytest.  A tvm.testing.parameter is effectively free, while
+    reference data for testing may be quite large.  Since most of the
+    TVM fixtures are specific to a python function, sort the test
+    ordering by python function, so that
+    tvm.testing.utils._fixture_cache can be cleared sooner rather than
+    later.
+
+    Should be called from pytest_collection_modifyitems.
+
+    """
+
+    def sort_key(item):
+        filename, lineno, test_name = item.location
+        test_name = test_name.split("[")[0]
+        return filename, lineno, test_name
+
+    items.sort(key=sort_key)
 
 
 def _target_to_requirement(target):
