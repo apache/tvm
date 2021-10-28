@@ -332,7 +332,7 @@ class CutlassGemmProfiler(object):
         return True
 
     def profile(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
-        """Profile and select the best kernel from `op_generators`.
+        """Profile and select the best kernel from candidate kernels.
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """

@@ -130,9 +130,7 @@ def profile_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False
 
 
 def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so"):
-    """Partition the given Relay module for CUTLASS, profile each workload to select which
-    kernels to emit and compile, and finally build the Relay module together with
-    CUTLASS kernels to obtain a runtime module.
+    """Compile CUTLASS kernels in lib and return the runtime module ready to run.
 
     Parameters
     ----------
