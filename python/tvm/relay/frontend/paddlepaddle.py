@@ -763,6 +763,33 @@ def convert_pool2d(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_reduce(g, op, block):
+    """Operator converter for series of reduce operators."""
+
+    op_map = {
+        "reduce_all": "all",
+        "reduce_any": "any",
+        "reduce_max": "max",
+        "reduce_min": "min",
+        "reduce_prod": "prod",
+        "reduce_sum": "sum",
+        "reduce_mean": "mean",
+    }
+    op_name = op_map[op.type]
+    input_x = g.get_node(op.input("X")[0])
+    axis = op.attr("dim")
+    if op.attr("reduce_all"):
+        axis = None
+    keepdims = op.attr("keep_dim")
+    out = get_relay_op(op_name)(input_x, axis=axis, keepdims=keepdims)
+    if not axis and not keepdims:
+        # use `expand_dims` to solve the following situation
+        # for TVM, the shape of `out` will be (, )
+        # for Paddle, the shape of `out` will be [1]
+        out = _op.expand_dims(out, axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_reshape(g, op, block):
     """Operator converter for reshape."""
 
@@ -900,15 +927,22 @@ def convert_unsqueeze(g, op, block):
 
 
 _convert_map = {
+    "abs": convert_unary_op,
+    "acos": convert_unary_op,
     "arg_max": convert_arg_max_min,
     "arg_min": convert_arg_max_min,
     "argsort": convert_argsort,
+    "asin": convert_unary_op,
     "assign": convert_assign,
     "assign_value": convert_assign_value,
+    "atan": convert_unary_op,
     "batch_norm": convert_batch_norm,
     "cast": convert_cast,
+    "ceil": convert_unary_op,
     "concat": convert_concat,
     "conv2d": convert_conv2d,
+    "cos": convert_unary_op,
+    "cosh": convert_unary_op,
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
     "dot": convert_dot,
@@ -918,12 +952,14 @@ _convert_map = {
     "elementwise_mul": convert_elementwise_op,
     "elementwise_sub": convert_elementwise_op,
     "equal": convert_elementwise_op,
+    "erf": convert_unary_op,
     "exp": convert_unary_op,
     "expand_v2": convert_expand,
     "expand_as_v2": convert_expand_as,
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
+    "floor": convert_unary_op,
     "gelu": convert_gelu,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
@@ -932,6 +968,11 @@ _convert_map = {
     "isnan_v2": convert_unary_op,
     "layer_norm": convert_layer_norm,
     "leaky_relu": convert_leaky_relu,
+    "less_equal": convert_elementwise_op,
+    "less_than": convert_elementwise_op,
+    "log": convert_unary_op,
+    "log2": convert_unary_op,
+    "log10": convert_unary_op,
     "logical_and": convert_binary_logical_op,
     "logical_or": convert_binary_logical_op,
     "logical_xor": convert_binary_logical_op,
@@ -943,11 +984,26 @@ _convert_map = {
     "pool2d": convert_pool2d,
     "relu": convert_unary_op,
     "reshape2": convert_reshape,
+    "round": convert_unary_op,
+    "reduce_all": convert_reduce,
+    "reduce_any": convert_reduce,
+    "reduce_max": convert_reduce,
+    "reduce_min": convert_reduce,
+    "reduce_prod": convert_reduce,
+    "reduce_sum": convert_reduce,
+    "reduce_mean": convert_reduce,
+    "rsqrt": convert_unary_op,
     "scale": convert_scale,
     "shape": convert_shape,
+    "sigmoid": convert_unary_op,
+    "sign": convert_unary_op,
+    "sin": convert_unary_op,
+    "sinh": convert_unary_op,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "sqrt": convert_unary_op,
     "squeeze2": convert_squeeze,
+    "tan": convert_unary_op,
     "tanh": convert_unary_op,
     "unsqueeze2": convert_unsqueeze,
 }
@@ -1122,6 +1178,10 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
     """
 
     import paddle
+
+    # disable system signal capturing in paddle framework
+    # the signal capturing may cause conflict while running autotvm with paddle frontend
+    paddle.disable_signal_handler()
 
     g = GraphProto()
     if isinstance(program_or_layer, paddle.jit.TranslatedLayer):

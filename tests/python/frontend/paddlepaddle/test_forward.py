@@ -461,6 +461,8 @@ def test_forward_elemwise():
 
     api_list = [
         "equal",
+        "less_equal",
+        "less_than",
     ]
     x_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
     y_shapes = [[1], [8, 20], [4, 1, 1], [2, 3, 8, 8], [2, 3, 3, 9, 1]]
@@ -800,6 +802,33 @@ def test_forward_pad3d():
 
 
 @tvm.testing.uses_gpu
+def test_forward_reduce():
+    class Reduce(nn.Layer):
+        def __init__(self, op_name, axis=None, keepdim=False):
+            super(Reduce, self).__init__()
+            self.op_name = op_name
+            self.axis = axis
+            self.keepdim = keepdim
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            result = getattr(paddle, self.op_name)(inputs, axis=self.axis, keepdim=self.keepdim)
+            result = result.astype("float32")
+            return result
+
+    input_shapes = [[1, 2, 2, 5, 5], [2, 3, 4], [4, 20], [2, 3, 30, 30]]
+    for input_shape in input_shapes:
+        input_data = paddle.uniform(min=-3, max=3, shape=input_shape, dtype="float32")
+        verify_model(Reduce("all"), input_data=input_data.astype("bool"))
+        verify_model(Reduce("any", 1), input_data=input_data.astype("bool"))
+        verify_model(Reduce("max", 0, True), input_data=input_data)
+        verify_model(Reduce("min", 1, True), input_data=input_data)
+        verify_model(Reduce("prod", 0), input_data=input_data)
+        verify_model(Reduce("sum", 0, True), input_data=input_data)
+        verify_model(Reduce("mean", -1, True), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_reshape():
     @paddle.jit.to_static
     def reshape1(inputs, x):
@@ -899,8 +928,28 @@ def test_forward_math_api():
             return self.func(inputs)
 
     api_list = [
+        "abs",
+        "acos",
+        "asin",
+        "atan",
+        "ceil",
+        "cos",
+        "cosh",
+        "erf",
         "exp",
+        "floor",
+        "log",
+        "log2",
+        "log10",
         "relu",
+        "round",
+        "rsqrt",
+        "sigmoid",
+        "sign",
+        "sin",
+        "sinh",
+        "sqrt",
+        "tan",
         "tanh",
     ]
     input_shapes = [[128], [2, 100], [10, 2, 5], [7, 3, 4, 1]]
