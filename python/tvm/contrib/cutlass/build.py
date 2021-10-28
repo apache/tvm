@@ -18,7 +18,6 @@
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import tvm
 from tvm import runtime, relay
-from tvm.relay.op.contrib.cutlass import partition_for_cutlass
 from .gen_gemm import CutlassGemmProfiler
 
 
@@ -40,18 +39,14 @@ class GemmAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
 
 
-def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
-    """Partition the given Relay module for CUTLASS, profile each workload to select which
-    kernels to emit and compile, and finally build the Relay module together with
-    CUTLASS kernels to obtain a runtime module.
+def profile_cutlass_kernels(mod, sm, tmp_dir="./tmp"):
+    """Given a module partitioned for CUTLASS offloading, profile each workload to select which
+    kernels to emit.
 
     Parameters
     ----------
     mod : IRModule
-        The Relay module to compile.
-
-    params : Optional[Dict[str, NDArray]]
-        Constant input parameters.
+        The Relay module with cutlass partitions.
 
     sm : int
         An integer specifying the compute capability. For example, 75 for Turing and
@@ -60,22 +55,15 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     tmp_dir : string, optional
         A temporary directory where intermediate compiled artifacts will be stored.
 
-    lib_path : string, optional
-        The path to a shared library which will be generated as the result of the build  process
-
     Returns
     -------
-    rt_mod : runtime.Module
-        The runtime module ready to run.
-
-    dev : Device
-        The device context used to create `rt_mod` above.
+    mod : IRModule
+        The updated module annotated with cutlass profiling information.
 
     num_cutlass_partition : int
         The number of partitioned functions created for CUTLASS.
     """
     cutlass_profiler = CutlassGemmProfiler(sm, "../../../3rdparty/cutlass", tmp_dir)
-    mod = partition_for_cutlass(mod)
     num_cutlass_partition = 0
     for var in mod.get_global_vars():
         fun_name = var.name_hint
@@ -129,9 +117,34 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
             )
             mod.update_func(var, new_func)
 
-    with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(mod, target="cuda", params=params)
+    return mod, num_cutlass_partition
 
+
+def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so"):
+    """Partition the given Relay module for CUTLASS, profile each workload to select which
+    kernels to emit and compile, and finally build the Relay module together with
+    CUTLASS kernels to obtain a runtime module.
+
+    Parameters
+    ----------
+    lib : GraphExecutorFactoryModule
+        The output from relay.build containing compiled host code and non-cutlass kernels.
+
+    sm : int
+        An integer specifying the compute capability. For example, 75 for Turing and
+        80 or 86 for Ampere.
+
+    tmp_dir : string, optional
+        A temporary directory where intermediate compiled artifacts will be stored.
+
+    lib_path : string, optional
+        The path to a shared library which will be generated as the result of the build  process
+
+    Returns
+    -------
+    updated_lib : runtime.Module
+        The updated module with compiled cutlass kernels.
+    """
     cutlass_path = "../../../3rdparty/cutlass/include"
     cutlass_util_path = "../../../3rdparty/cutlass/tools/util/include"
 
@@ -149,7 +162,4 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
         "-I" + cutlass_util_path,
     ]
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
-    lib = runtime.load_module(lib_path)
-    dev = tvm.device("cuda", 0)
-    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
-    return rt_mod, dev, num_cutlass_partition
+    return runtime.load_module(lib_path)

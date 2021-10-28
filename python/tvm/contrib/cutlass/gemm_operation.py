@@ -202,9 +202,9 @@ class EmitGemmInstance:
             // operation.tile_description.warp_count[idx]
             for idx in range(3)
         ]
-        epilogue_vector_length = int(
+        epilogue_vector_length = (
             min(operation.C.alignment * DataTypeSize[operation.C.element], 128)
-            / DataTypeSize[operation.C.element]
+            // DataTypeSize[operation.C.element]
         )
         residual = ""
         complex_transform_tag = "cutlass::ComplexTransform::kNone"

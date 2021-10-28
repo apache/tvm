@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 """BYOC support for CUTLASS."""
-from .build import profile_and_build
+from .build import profile_cutlass_kernels, build_cutlass_kernels
