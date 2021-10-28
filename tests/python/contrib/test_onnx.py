@@ -51,9 +51,7 @@ def run_relay(func, data_tuple, is_dyn=False):
     target = "llvm"
     dev = tvm.device("llvm", 0)
     kind = "graph" if not is_dyn else "vm"
-    relay_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
-        *data_tuple
-    )
+    relay_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(*data_tuple)
 
     result = []
     relay_res = relay_res if isinstance(relay_res, list) else [relay_res]
@@ -713,7 +711,9 @@ def test_dyn():
         func = relay.Function([x, y], z)
         lhs_data = np.random.uniform(size=lhs_shape).astype(dtype)
         rhs_data = np.random.uniform(size=rhs_shape).astype(dtype)
-        verify_results(func, [lhs_data, rhs_data], "test_dyn_bcast", rtol=1e-5, atol=1e-5, is_dyn=True)
+        verify_results(
+            func, [lhs_data, rhs_data], "test_dyn_bcast", rtol=1e-5, atol=1e-5, is_dyn=True
+        )
 
     verify_dyn_bcast((1, 3, 32, 1), (1, 3, 1, 3), "float32")
     verify_dyn_bcast((1, 13), (4, 3, 5, 1), "float32")
