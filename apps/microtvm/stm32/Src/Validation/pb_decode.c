@@ -21,6 +21,7 @@
  * \file pb_decode.c
  * \brief decode a protobuf using minimal resources.
  *        2011 Petteri Aimonen <jpa@kapsi.fi>
+ *
  */
 
 /* Use the GCC warn_unused_result attribute to check that all return values

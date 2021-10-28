@@ -238,3 +238,12 @@ The Unlicense
 -------------
 
 3rdparty/rang
+
+Zlib License
+-------------
+
+apps/microtvm/stm32/Src/Validation/pb_common.c
+apps/microtvm/stm32/Src/Validation/pb_encode.c
+apps/microtvm/stm32/Src/Validation/pb_decode.c
+apps/microtvm/stm32/Src/Validation/stm32msg.pb.c
+apps/microtvm/stm32/scripts/ai_runner/stm32msg_pb2.py
