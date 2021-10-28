@@ -21,11 +21,13 @@ import pathlib
 import json
 import logging
 import tarfile
+import time
 from typing import Union
+
 from tvm.micro.project_api.server import IoTimeoutError
 
 # Timeout in seconds for AOT transport.
-TIMEOUT_SEC = 5
+TIMEOUT_SEC = 10
 
 
 def check_tune_log(log_path: Union[pathlib.Path, str]):
@@ -52,12 +54,13 @@ def aot_transport_init_wait(transport):
 def aot_transport_find_message(transport, expression: str, timeout_sec: int) -> str:
     """Read transport message until it finds the expression."""
     timeout = timeout_sec
+    start_time = time.monotonic()
     while True:
         data = _read_line(transport, timeout)
         logging.debug("new line: %s", data)
         if expression in data:
             return data
-        timeout -= 0.001
+        timeout = max(0, timeout_sec - (time.monotonic() - start_time))
 
 
 def _read_line(transport, timeout_sec: int) -> str:
