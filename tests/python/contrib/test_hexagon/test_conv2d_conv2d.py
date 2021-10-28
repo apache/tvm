@@ -38,7 +38,7 @@ import pytest
 
 
 def conv2dconv2d(
-    shape_nhwc,
+    shape_input,
     pad1,
     stride1,
     dilation1,
@@ -54,28 +54,27 @@ def conv2dconv2d(
 ):
     """
     Conv2d -> Conv2d wherein the input activation is defined by its
-    logical NHWC shape.  The filter is provided in its physical
-    packed shape (oihw8i32o4i).  The input is padded and then packed
-    into its physical packed shape (nhwc8h8w32c) and producing an
-    output of the same physical packed shape (nhwc8h8w32c).
+    logical NHWC layout.  The filter is provided in its physical
+    packed layout (oihw8i32o4i).  The input is padded and then packed
+    into its physical packed layout (nhwc8h8w32c).  The resulting
+    computation is in the same physical packed layout (nhwc8h8w32c).
     """
 
-    # shape nhwc
-    X = te.placeholder(shape_nhwc, dtype=dtype)
+    # nhwc layout
+    X = te.placeholder(shape_input, dtype=dtype)
 
-    # shape oihw8i32o4i
+    # oihw8i32o4i layout
     filt_packed1 = te.placeholder(shape_filter1, dtype=dtype)
     filt_packed2 = te.placeholder(shape_filter2, dtype=dtype)
 
-    # assuming filter shape oihw8i32o4i
+    # calculate kernel size and output channels
+    # given oihw8i32o4i filter layout
     kernel_size1 = tuple(shape_filter1[2:4])
     out_channels1 = shape_filter1[0] * shape_filter1[5]
 
-    block_shape = get_block_shape()
-    block_H, block_W, block_C = block_shape
-
+    # get the the logical output shape of conv2d #1
     logical_output_shape1 = get_conv2d_nhwc_shape(
-        shape_nhwc,
+        shape_input,
         kernel_size1,
         stride1,
         pad1,
@@ -83,15 +82,18 @@ def conv2dconv2d(
         out_channels1,
     )
 
+    block_shape = get_block_shape()
+    block_H, block_W, block_C = block_shape
+
     # Calculate padded input
-    N, H, W, C = shape_nhwc
+    N, H, W, C = shape_input
     pad_h = (block_H - ((H + pad1[1]) % block_H)) % block_H
     pad_w = (block_W - ((W + pad1[3]) % block_W)) % block_W
     X_pad = topi.nn.pad(
         X, [0, pad1[0], pad1[2], 0], [0, pad_h, pad_w, 0], pad_value=0, name="padded_input"
     )
 
-    # Calculate packed layout
+    # Calculate packed input
     packed_shape = get_packed_activation_layout(X_pad.shape, block_shape)
     X_packed = te.compute(
         packed_shape,
@@ -143,10 +145,12 @@ def conv2dconv2d(
     output_shape1 = get_packed_activation_layout(logical_output_shape1, block_shape)
     temp_Y = te.compute(output_shape1, compute, name="temp_output")
 
-    # assuming filter shape oihw8i32o4i
+    # calculate kernel size and output channels
+    # given oihw8i32o4i filter layout
     kernel_size2 = tuple(shape_filter2[2:4])
     out_channels2 = shape_filter2[0] * shape_filter2[5]
 
+    # get the the logical output shape of conv2d #2
     logical_input_shape2 = logical_output_shape1
     logical_output_shape2 = get_conv2d_nhwc_shape(
         logical_input_shape2,
@@ -280,7 +284,7 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
         dilation1 = 1
         dilation2 = 1
 
-        shape_nhwc = [batch, in_size, in_size, in_channel]
+        shape_input = [batch, in_size, in_size, in_channel]
         shape_filter1_oihw = [out_channel1, in_channel, kernel_size1, kernel_size1]
         shape_filter1_oihw8i32o4i = get_packed_filter_layout(
             out_channel1, in_channel, kernel_size1, kernel_size1
@@ -292,7 +296,7 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
         )
 
         inputs = [
-            np.random.uniform(0, 255, size=shape_nhwc).astype(dtype),
+            np.random.uniform(0, 255, size=shape_input).astype(dtype),
             np.random.uniform(0, 255, size=shape_filter1_oihw8i32o4i).astype(dtype),
             np.random.uniform(0, 255, size=shape_filter2_oihw8i32o4i).astype(dtype),
         ]
@@ -315,7 +319,7 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
             conv2dconv2d,
             target,
             target,
-            shape_nhwc=shape_nhwc,
+            shape_input=shape_input,
             pad1=(pad1, pad1, pad1, pad1),
             stride1=(stride1, stride1),
             dilation1=(dilation1, dilation1),

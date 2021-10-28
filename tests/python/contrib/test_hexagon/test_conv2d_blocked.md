@@ -15,28 +15,7 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-Documents manual TE schedule to illustrate Hexagon operator slicing.
-
-# High Level Notes
-
-* Using float32 (for now) so that tests will pass on CPU
-* Using global storage scope (for now) which means "cache" reads and writes from global, to global
-* TIR is pending changes from the work-in-progress layout RFC
-  (https://github.com/apache/tvm-rfcs/pull/39)
-* TIR has been hand-edited for context and clarity
-  * Added C-style comments
-  * Changed variable names
-  * Added spacing and line breaks
-* Naming conventions
-  * Using input (instead of activation)
-  * Using filter (instead of weight, kernel)
-  * Using `k` to denote channel-out and `c` or `rc` (reduction channel) to denote channel-in
-  * Using `rh` and `rw` (reduction height / width) to denote filter height and width
-
-# Calling Convention
-
-TODO: Map this packed string to parameters
-conv2d_packed_filter-1-1-0-float32-1-1-1-64-64-128-llvm
+Hexagon conv2d schedules
 
 # Baseline conv2d
 
