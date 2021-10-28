@@ -286,11 +286,17 @@ class ProfilerEngine(object):
         os.system(cmd)
         os.unlink(fi.name)
 
-    def compile_all(self, ops):
-        pool = multiprocessing.Pool(multiprocessing.cpu_count())
-        pool.map(self._compile, ops)
+    def compile_all(self, ops, use_multiprocessing=False):
+        """Compile all profiler executables."""
+        if use_multiprocessing:
+            pool = multiprocessing.Pool(multiprocessing.cpu_count())
+            pool.map(self._compile, ops)
+        else:
+            for op in ops:
+                self._compile(op)
 
-    def _execute(self, op_name, args):
+    def evaluate(self, op_name, args):
+        """Run the profiler executable corresponding to op_name with args."""
         opath = os.path.join(self.binary_prefix, op_name)
         cmd = [opath]
         if args is not None:
@@ -306,10 +312,6 @@ class ProfilerEngine(object):
         except subprocess.CalledProcessError:
             rt = -1
         return rt
-
-    def evaluate(self, op, args=None):
-        self._compile(op)
-        return self._execute(op["name"], args)
 
 
 class CutlassGemmProfiler(object):
@@ -335,18 +337,18 @@ class CutlassGemmProfiler(object):
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
         ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
+        ops = list(filter(lambda op: self.check_align(op["name"], M), ops))
+
         for op in ops:
             op["runtime"] = -1
 
-        if use_multiprocessing:
-            self.engine.compile_all(ops)
+        self.engine.compile_all(ops, use_multiprocessing)
 
         for op in ops:
-            if self.check_align(op["name"], M):
-                out = self.engine.evaluate(op, [M, N, K])
-                op["runtime"] = out
-                if out > 0 and profile_all is False:
-                    break
+            out = self.engine.evaluate(op["name"], [M, N, K])
+            op["runtime"] = out
+            if out > 0 and profile_all is False:
+                break
 
         valid_ops = filter(lambda op: op["runtime"] > 0, ops)
         output = sorted(valid_ops, key=lambda i: i["runtime"])
