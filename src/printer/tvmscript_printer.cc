@@ -310,6 +310,13 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     }
     return doc;
   }
+
+ public:
+  static Doc PrintHeader(const std::string& tir_prefix) {
+    Doc header;
+    header << "from tvm.script import tir as " << tir_prefix << Doc::NewLine();
+    return header;
+  }
 };
 
 Doc TVMScriptPrinter::GetUniqueName(std::string prefix) {
@@ -1437,7 +1444,10 @@ Doc TVMScriptPrinterWithDiagnostic::PrintLoop(const For& loop) {
 
 String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  return TVMScriptPrinter(tir_prefix, show_meta).Print(mod).str() + "\n";
+  Doc doc;
+  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
+      << TVMScriptPrinter(tir_prefix, show_meta).Print(mod);
+  return doc.str() + "\n";
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
@@ -1445,7 +1455,10 @@ TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  return TVMScriptPrinterWithDiagnostic(tir_prefix, show_meta, annotate).Print(mod).str() + "\n";
+  Doc doc;
+  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
+      << TVMScriptPrinterWithDiagnostic(tir_prefix, show_meta, annotate).Print(mod);
+  return doc.str() + "\n";
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScriptWithDiagnostic").set_body_typed(AsTVMScriptWithDiagnostic);
