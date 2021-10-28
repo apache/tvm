@@ -20,6 +20,7 @@ import os
 import re
 import tempfile
 import subprocess
+import multiprocessing
 from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
 from .library import (
@@ -273,17 +274,21 @@ class ProfilerEngine(object):
         self.cflags += " -Xcompiler=-Wconversion -Xcompiler=-fno-strict-aliasing"
         self.cmd = "nvcc {cflags} {src} -o {output}"
 
-    def _compile(self, op_name, src):
+    def _compile(self, op):
         os.makedirs(self.binary_prefix, exist_ok=True)
-        opath = os.path.join(self.binary_prefix, op_name)
+        opath = os.path.join(self.binary_prefix, op["name"])
         if os.path.exists(opath):
             return
         fi = tempfile.NamedTemporaryFile("w", delete=False, suffix=".cu")
-        fi.write(src)
+        fi.write(op["src"])
         fi.close()
         cmd = self.cmd.format(cflags=self.cflags, src=fi.name, output=opath)
         os.system(cmd)
         os.unlink(fi.name)
+
+    def compile_all(self, ops):
+        pool = multiprocessing.Pool(multiprocessing.cpu_count())
+        pool.map(self._compile, ops)
 
     def _execute(self, op_name, args):
         opath = os.path.join(self.binary_prefix, op_name)
@@ -302,9 +307,9 @@ class ProfilerEngine(object):
             rt = -1
         return rt
 
-    def evaluate(self, op_name, src, args=None):
-        self._compile(op_name, src)
-        return self._execute(op_name, args)
+    def evaluate(self, op, args=None):
+        self._compile(op)
+        return self._execute(op["name"], args)
 
 
 class CutlassGemmProfiler(object):
@@ -324,15 +329,21 @@ class CutlassGemmProfiler(object):
             return False
         return True
 
-    def profile(self, M, N, K, out_dtype, profile_all=True):
-        """Profile and select the best kernel from `op_generators`."""
+    def profile(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
+        """Profile and select the best kernel from `op_generators`.
+        If profile_all is False, return immediately after the first applicable kernel is found.
+        If use_multiprocessing is True, compile all profiler executables in parallel.
+        """
         ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
         for op in ops:
             op["runtime"] = -1
 
+        if use_multiprocessing:
+            self.engine.compile_all(ops)
+
         for op in ops:
             if self.check_align(op["name"], M):
-                out = self.engine.evaluate(op["name"], op["src"], [M, N, K])
+                out = self.engine.evaluate(op, [M, N, K])
                 op["runtime"] = out
                 if out > 0 and profile_all is False:
                     break

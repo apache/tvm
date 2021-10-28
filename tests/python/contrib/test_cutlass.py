@@ -67,7 +67,9 @@ def get_dense_bias_gelu(M, N, K, out_dtype="float16"):
 
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     mod = partition_for_cutlass(mod)
-    mod, num_cutlass_partition = profile_cutlass_kernels(mod, sm, profile_all=False, tmp_dir=tmp_dir)
+    mod, num_cutlass_partition = profile_cutlass_kernels(
+        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
+    )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
     lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path)
@@ -89,7 +91,7 @@ def verify(func, M, N, K, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False):
     params = {"weight": np_weight, "bias": np_bias}
 
     rt_mod_ref, dev = get_ref_rt_mod(mod, params)
-    rt_mod, dev, num_partition = profile_and_build(mod, params, sm, tmp_dir="tmp")
+    rt_mod, dev, num_partition = profile_and_build(mod, params, sm)
     assert num_partition > 0
 
     x = tvm.nd.array(np_data, device=dev)
@@ -126,9 +128,8 @@ def test_dense_bias_relu():
 
 def test_dense_bias_gelu():
     verify(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3)
-    # verify(get_dense_bias_gelu(M, N, K, out_dtype="float32"), M, N, K, atol=1e-3, rtol=1e-3)
+    verify(get_dense_bias_gelu(M, N, K, out_dtype="float32"), M, N, K, atol=1e-3, rtol=1e-3)
 
 
-# if __name__ == "__main__":
-#     pytest.main([__file__])
-test_dense_bias_gelu()
+if __name__ == "__main__":
+    pytest.main([__file__])
