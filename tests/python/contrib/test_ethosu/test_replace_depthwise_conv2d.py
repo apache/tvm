@@ -20,7 +20,7 @@ import pytest
 pytest.importorskip("ethosu.vela")
 
 import tvm
-from tvm import relay, TVMError
+from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
 
@@ -244,29 +244,3 @@ def test_depthwise_conv2d_single(trial):
         "NONE",
     ]
     assert data[0] == answer, data[0]
-
-
-def test_incompatible_weight_data_type():
-    ifm = relay.var("ifm", shape=(1, 8, 8, 3), dtype="int8")
-
-    depthwise = make_ethosu_depthwise_conv2d(
-        ifm=ifm,
-        channels=3,
-        kernel_shape=(3, 2),
-        padding=(0, 0),
-        strides=(1, 1),
-        dilation=(1, 1),
-        activation="NONE",
-        ifm_layout="NHWC",
-        ofm_layout="NHWC",
-        weight_dtype="int16",
-    )
-
-    func = relay.Function(relay.analysis.free_vars(depthwise), depthwise)
-    mod = tvm.IRModule.from_expr(func)
-
-    with pytest.raises(TVMError) as err:
-        mod = relay.transform.InferType()(mod)
-
-    message = "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for weight but was int16"
-    assert message in str(err.value)
