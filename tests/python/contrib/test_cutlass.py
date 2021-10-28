@@ -20,7 +20,7 @@ import tvm
 from tvm import relay
 import numpy as np
 from tvm.relay.op.contrib.cutlass import partition_for_cutlass
-from tvm.contrib.cutlass import profile_cutlass_kernels, build_cutlass_kernels
+from tvm.contrib.cutlass import tune_cutlass_kernels, build_cutlass_kernels
 
 
 def get_ref_rt_mod(mod, params):
@@ -67,7 +67,7 @@ def get_dense_bias_gelu(M, N, K, out_dtype="float16"):
 
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     mod = partition_for_cutlass(mod)
-    mod, num_cutlass_partition = profile_cutlass_kernels(
+    mod, num_cutlass_partition = tune_cutlass_kernels(
         mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
     )
     with tvm.transform.PassContext(opt_level=3):

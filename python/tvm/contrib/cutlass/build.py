@@ -39,7 +39,7 @@ class GemmAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
 
 
-def profile_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"):
+def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.
 
