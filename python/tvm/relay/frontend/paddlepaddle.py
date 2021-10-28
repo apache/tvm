@@ -1179,6 +1179,10 @@ def from_paddle(program_or_layer, shape_dict=None, scope=None):
 
     import paddle
 
+    # disable system signal capturing in paddle framework
+    # the signal capturing may cause conflict while running autotvm with paddle frontend
+    paddle.disable_signal_handler()
+
     g = GraphProto()
     if isinstance(program_or_layer, paddle.jit.TranslatedLayer):
         # model is loaded by `paddle.jit.load`
