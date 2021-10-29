@@ -250,7 +250,6 @@ def test_rpc_tracker(host, port):
 
 
 @pytest.mark.dependency()
-@pytest.mark.skip(reason="This type of connection was broken.")
 @ios_rpc_bundle_description_required
 @setup_rpc_tracker_via_proxy_configuration
 def test_rpc_tracker_via_proxy(host, port):
@@ -288,7 +287,6 @@ def test_can_call_remote_function_with_rpc_tracker(host, port):
 
 
 @pytest.mark.dependency(depends=["test_rpc_tracker_via_proxy"])
-@pytest.mark.skip(reason="This type of connection was broken.")
 @ios_rpc_bundle_description_required
 @setup_rpc_tracker_via_proxy_configuration
 def test_can_call_remote_function_with_rpc_tracker_via_proxy(host, port):
