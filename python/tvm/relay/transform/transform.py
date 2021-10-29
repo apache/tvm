@@ -1255,7 +1255,7 @@ def LiftDtypeTransformation():
     Automatic function signature transformation to fold type transformations.
     For example, when a function has a tensor of type float32 as a
     parameter, and the first operation on that tensor is a cast or quantize
-    operation, that operation is folded into the function signature -- 
+    operation, that operation is folded into the function signature --
     the resultant type of the first operation is the new type of the tensor
     parameter.
 
@@ -1266,7 +1266,7 @@ def LiftDtypeTransformation():
       or "qnn.quantize".
     - Each function parameter is used only once
       per program. There should be no structure that looks like:
-  
+
        in                                      in
       /  \        but the following is ok:      |
     cast  add                                  cast
