@@ -24,7 +24,11 @@ from .gen_gemm import CutlassGemmProfiler
 
 def _get_cutlass_path():
     tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
-    return os.path.join(tvm_root, "3rdparty/cutlass")
+    cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
+    assert os.path.exists(cutlass_path), "The CUTLASS root directory not found in {}".format(
+        cutlass_path
+    )
+    return cutlass_path
 
 
 class GemmAnnotator(tvm.relay.ExprVisitor):
