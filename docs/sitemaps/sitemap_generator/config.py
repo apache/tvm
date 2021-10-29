@@ -1,5 +1,5 @@
 # root url
-ROOTURL = "https://tvmchinese.github.io"
+ROOTURL = "https://chinese.tvm.wiki"
 
 # homepage's filename
 HOMEPAGE = "index.html"
