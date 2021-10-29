@@ -24,7 +24,7 @@ from unittest import mock
 import pytest
 
 import tvm
-import tvm.testing
+from tvm.testing.utils import ethosn_available
 
 from tvm.contrib.target.vitis_ai import vitis_ai_available
 
@@ -370,8 +370,11 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert os.path.exists(dumps_path)
 
 
-@tvm.testing.requires_ethosn
-def test_compile_tflite_module_with_external_codegen(tflite_mobilenet_v1_1_quant):
+@pytest.mark.skipif(
+    not ethosn_available(),
+    reason="--target=Ethos(TM)-N77 is not available. TVM built with 'USE_ETHOSN OFF'",
+)
+def test_compile_tflite_module_with_external_codegen_ethos_n77(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
     tvmc_package = tvmc.compile(tvmc_model, target="ethos-n77, llvm", dump_code="relay")
@@ -414,6 +417,26 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
             if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
         ]
         assert len(c_source_files) == 3
+
+
+@pytest.mark.skipif(
+    not ethosn_available(),
+    reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
+)
+def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_v1_1_quant):
+    pytest.importorskip("tflite")
+    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
+    tvmc_package = tvmc.compile(
+        tvmc_model, target="ethos-n78 -variant=ethos-n78, llvm", dump_code="relay"
+    )
+    dumps_path = tvmc_package.package_path + ".relay"
+
+    # check for output types
+    assert type(tvmc_package) is TVMCPackage
+    assert type(tvmc_package.graph) is str
+    assert type(tvmc_package.lib_path) is str
+    assert type(tvmc_package.params) is bytearray
+    assert os.path.exists(dumps_path)
 
 
 @pytest.mark.skipif(
