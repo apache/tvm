@@ -118,16 +118,6 @@ def test_parse_multiple_target():
     assert "llvm" == targets[1]["name"]
 
 
-def test_parse_multiple_target_with_opts():
-    targets = tvmc.common.parse_target("ethos-n77 -myopt=value, llvm -device=arm_cpu --system-lib")
-
-    assert len(targets) == 2
-    assert "ethos-n77" == targets[0]["name"]
-    assert "myopt" in targets[0]["opts"]
-    assert "value" == targets[0]["opts"]["myopt"]
-    assert "llvm" == targets[1]["name"]
-
-
 def test_parse_quotes_and_separators_on_options():
     targets_no_quote = tvmc.common.parse_target("foo -option1=+v1.0x,+value,+bar")
     targets_single_quote = tvmc.common.parse_target("foo -option1='+v1.0x,+value'")
@@ -141,3 +131,23 @@ def test_parse_quotes_and_separators_on_options():
 
     assert len(targets_double_quote) == 1
     assert "+v1.0x,+value" == targets_double_quote[0]["opts"]["option1"]
+
+
+def test_parse_multiple_target_with_opts_ethos_n77():
+    targets = tvmc.common.parse_target("ethos-n77 -myopt=value, llvm -device=arm_cpu --system-lib")
+
+    assert len(targets) == 2
+    assert "ethos-n77" == targets[0]["name"]
+    assert "myopt" in targets[0]["opts"]
+    assert "value" == targets[0]["opts"]["myopt"]
+    assert "llvm" == targets[1]["name"]
+
+
+def test_parse_multiple_target_with_opts_ethos_n78():
+    targets = tvmc.common.parse_target("ethos-n78 -myopt=value, llvm -device=arm_cpu --system-lib")
+
+    assert len(targets) == 2
+    assert "ethos-n78" == targets[0]["name"]
+    assert "myopt" in targets[0]["opts"]
+    assert "value" == targets[0]["opts"]["myopt"]
+    assert "llvm" == targets[1]["name"]
