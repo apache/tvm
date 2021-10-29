@@ -874,6 +874,18 @@ def convert_pool2d(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_pow(g, op, block):
+    """Operator converter for pow."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = block.var(op.output("Out")[0]).dtype
+    dtype = _convert_dtype_value(dtype)
+    factor = op.attr("factor")
+    factor = _expr.const(factor, dtype=dtype)
+    out = _op.power(x, factor)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_reciprocal(g, op, block):
     """Operator converter for reciprocal."""
 
@@ -1005,11 +1017,36 @@ def convert_scatter_nd_add(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_selu(g, op, block):
+    """Operator converter for selu."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    alpha = _op.const(op.attr("alpha"), dtype)
+    scale = _op.const(op.attr("scale"), dtype)
+    out = (
+        _expr.const(-1.0, dtype=dtype)
+        * alpha
+        * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x))
+    )
+    out = scale * (out + _op.nn.relu(x))
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_shape(g, op, block):
     """Operator converter for shape."""
 
     x = g.get_node(op.input("Input")[0])
     out = shape_of(x, dtype="int32")
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_size(g, op, block):
+    """Operator converter for size."""
+
+    input_x = g.get_node(op.input("Input")[0])
+    out = _op.ndarray_size(input_x, dtype="int64")
+    out = _op.expand_dims(out, axis=0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1067,6 +1104,26 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_softplus(g, op, block):
+    """Operator converter for softplus."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    beta = op.attr("beta")
+    beta = _expr.const(beta, dtype=dtype)
+    out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_softsign(g, op, block):
+    """Operator converter for softsign."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = x / (_op.const(1.0, dtype) + _op.abs(x))
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_square(g, op, block):
     """Operator converter for square."""
 
@@ -1086,6 +1143,23 @@ def convert_squeeze(g, op, block):
         axes = None
     x = _op.squeeze(x, axis=axes)
     g.add_node(op.output("Out")[0], x)
+
+
+def convert_swish(g, op, block):
+    """Operator converter for swish."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = x / (_op.const(1.0, dtype) + _op.exp(_op.const(-1.0, dtype) * x))
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_transpose(g, op, block):
+    """Operator converter for transpose."""
+
+    perm = op.attr("axis")
+    out = _op.transpose(g.get_node(op.input("X")[0]), axes=perm)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_unsqueeze(g, op, block):
@@ -1172,6 +1246,7 @@ _convert_map = {
     "pad2d": convert_padding,
     "pad3d": convert_padding,
     "pool2d": convert_pool2d,
+    "pow": convert_pow,
     "relu": convert_unary_op,
     "relu6": convert_relu6,
     "reshape2": convert_reshape,
@@ -1188,18 +1263,24 @@ _convert_map = {
     "scale": convert_scale,
     "scatter": convert_scatter,
     "scatter_nd_add": convert_scatter_nd_add,
+    "selu": convert_selu,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
     "sign": convert_unary_op,
     "sin": convert_unary_op,
     "sinh": convert_unary_op,
+    "size": convert_size,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "softplus": convert_softplus,
+    "softsign": convert_softsign,
     "sqrt": convert_unary_op,
     "square": convert_square,
     "squeeze2": convert_squeeze,
+    "swish": convert_swish,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "transpose2": convert_transpose,
     "unsqueeze2": convert_unsqueeze,
 }
 
