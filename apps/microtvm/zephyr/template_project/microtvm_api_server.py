@@ -275,6 +275,10 @@ PROJECT_OPTIONS = [
         choices=(True, False),
         help="Treat warnings as errors and raise an Exception.",
     ),
+    server.ProjectOption(
+        "compile_definitions",
+        help="Extra definitions added project compile.",
+    ),
 ]
 
 
@@ -418,6 +422,11 @@ class Handler(server.ProjectAPIHandler):
                         line = line.replace("<API_SERVER_CRT_LIBS>", crt_libs)
 
                     cmake_f.write(line)
+
+                if options.get("compile_definitions"):
+                    flags = options.get("compile_definitions")
+                    for item in flags:
+                        cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
 
         self._create_prj_conf(project_dir, options)
 

@@ -18,8 +18,9 @@ import io
 import os
 import json
 import pathlib
-import logging
 import tarfile
+import tempfile
+from typing import Union
 
 import numpy as np
 
@@ -29,7 +30,8 @@ import json
 import requests
 
 import tvm.micro
-
+from tvm.micro import export_model_library_format
+from tvm.micro.testing import mlf_extract_workspace_size_bytes
 
 TEMPLATE_PROJECT_DIR = (
     pathlib.Path(__file__).parent
@@ -77,19 +79,29 @@ def has_fpu(board: str):
 
 def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
     project_dir = temp_dir / "project"
-    project = tvm.micro.generate_project(
-        str(TEMPLATE_PROJECT_DIR),
-        mod,
-        project_dir,
-        {
-            "extra_files_tar": extra_files_tar,
-            "project_type": "aot_demo",
-            "west_cmd": west_cmd,
-            "verbose": bool(build_config.get("debug")),
-            "zephyr_board": zephyr_board,
-        },
-    )
-    project.build()
+
+    with tempfile.TemporaryDirectory() as tar_temp_dir:
+        model_tar_path = pathlib.Path(tar_temp_dir) / "model.tar"
+        export_model_library_format(mod, model_tar_path)
+
+        workspace_size = mlf_extract_workspace_size_bytes(model_tar_path)
+        project = tvm.micro.project.generate_project_from_mlf(
+            str(TEMPLATE_PROJECT_DIR),
+            project_dir,
+            model_tar_path,
+            {
+                "extra_files_tar": extra_files_tar,
+                "project_type": "aot_demo",
+                "west_cmd": west_cmd,
+                "verbose": bool(build_config.get("debug")),
+                "zephyr_board": zephyr_board,
+                "compile_definitions": [
+                    # TODO(mehrdadh): It fails without offset.
+                    f"-DWORKSPACE_SIZE={workspace_size + 128}",
+                ],
+            },
+        )
+        project.build()
     return project, project_dir
 
 
@@ -127,31 +139,6 @@ def create_header_file(tensor_name, npy_data, output_path, tar_file):
     ti.mode = 0o644
     ti.type = tarfile.REGTYPE
     tar_file.addfile(ti, io.BytesIO(header_file_bytes))
-
-
-def _read_line(fd, timeout_sec: int):
-    data = ""
-    new_line = False
-    while True:
-        if new_line:
-            break
-        new_data = fd.read(1, timeout_sec=timeout_sec)
-        logging.debug(f"read data: {new_data}")
-        for item in new_data:
-            new_c = chr(item)
-            data = data + new_c
-            if new_c == "\n":
-                new_line = True
-                break
-    return data
-
-
-def get_message(fd, expr: str, timeout_sec: int):
-    while True:
-        data = _read_line(fd, timeout_sec)
-        logging.debug(f"new line: {data}")
-        if expr in data:
-            return data
 
 
 # TODO move CMSIS integration to microtvm_api_server.py
