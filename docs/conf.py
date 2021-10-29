@@ -53,6 +53,7 @@ else:
 
 sys.path.insert(0, str(tvm_path.resolve() / "python"))
 sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
+sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
 
@@ -467,5 +468,9 @@ def process_docstring(app, what, name, obj, options, lines):
         update_alias_docstring(name, obj, lines)
 
 
+from legacy_redirect import build_legacy_redirect
+
+
 def setup(app):
     app.connect("autodoc-process-docstring", process_docstring)
+    app.connect("build-finished", build_legacy_redirect(tvm_path))
