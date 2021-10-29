@@ -115,6 +115,32 @@ def convert_binary_logical_op(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_addmm(g, op, block):
+    """Operator converter for addmm."""
+
+    input_x = g.get_node(op.input("Input")[0])
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+
+    alpha = op.attr("Alpha")
+    beta = op.attr("Beta")
+    dtype = block.var(op.output("Out")[0]).dtype
+    dtype = str(dtype).strip().split(".")[1]
+
+    if not isinstance(alpha, _expr.Expr) and alpha != 1:
+        alpha = _expr.const(alpha, dtype)
+        x *= alpha
+
+    if not isinstance(beta, _expr.Expr) and beta != 1:
+        beta = _expr.const(beta, dtype)
+        input_x *= beta
+
+    transposed_y = _op.transpose(y, axes=[1, 0])
+    dense_out = _op.nn.dense(x, transposed_y)
+    out = dense_out + input_x
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_arg_max_min(g, op, block):
     """Operator converter for arg_max and arg_min."""
 
@@ -190,6 +216,26 @@ def convert_batch_norm(g, op, block):
         epsilon=epsilon,
     )
     g.add_node(op.output("Y")[0], out[0])
+
+
+def convert_bmm(g, op, block):
+    """Operator converter for bmm."""
+
+    x = g.get_node(op.input("X")[0])
+    y = g.get_node(op.input("Y")[0])
+    y = _op.transpose(y, [0, 2, 1])
+    out = _op.nn.batch_matmul(x, y)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_brelu(g, op, block):
+    """Operator converter for brelu."""
+
+    x = g.get_node(op.input("X")[0])
+    t_max = op.attr("t_max")
+    t_min = op.attr("t_min")
+    out = _op.tensor.clip(x, t_min, t_max)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_cast(g, op, block):
@@ -413,6 +459,29 @@ def convert_fill_constant(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_gather(g, op, block):
+    """Operator converter for gather."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Index")[0])
+    axis = op.attr("axis")
+    out = _op.take(x, index, axis)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_gather_nd(g, op, block):
+    """Operator converter for gather_nd."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Index")[0])
+    shape = infer_shape(index)
+    perm = list(range(0, len(shape) - 1))
+    perm.insert(0, len(shape) - 1)
+    index = _op.transpose(index, axes=perm)
+    out = _op.gather_nd(x, index, 0, shape[-1])
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_gelu(g, op, block):
     """Operator converter for gelu."""
 
@@ -421,6 +490,39 @@ def convert_gelu(g, op, block):
         _expr.const(0.5, dtype="float32")
         + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
     )
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_group_norm(g, op, block):
+    """Operator converter for group_norm."""
+
+    x = g.get_node(op.input("X")[0])
+    num_groups = op.attr("groups")
+    epsilon = op.attr("epsilon")
+    gamma = g.get_node(op.input("Scale")[0])
+    beta = g.get_node(op.input("Bias")[0])
+    out = _op.nn.group_norm(
+        x,
+        gamma=gamma,
+        beta=beta,
+        num_groups=num_groups,
+        axis=1,
+        epsilon=epsilon,
+        center=True,
+        scale=True,
+    )
+    g.add_node(op.output("Y")[0], out)
+
+
+def convert_hard_shrink(g, op, block):
+    """Operator converter for hard_shrink."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    threshold = op.attr("threshold")
+    threshold = _op.const(threshold, dtype)
+    out = _op.logical_or(x < _op.const(-1.0, dtype) * threshold, x > threshold)
+    out = _op.cast(out, dtype) * x
     g.add_node(op.output("Out")[0], out)
 
 
@@ -487,6 +589,15 @@ def convert_leaky_relu(g, op, block):
     alpha = op.attr("alpha")
     x = g.get_node(op.input("X")[0])
     out = _op.nn.leaky_relu(x, alpha=alpha)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_logical_not(g, op, block):
+    """Operator converter for logical_not op."""
+
+    ipt0 = g.get_node(op.input("X")[0])
+    op_func = get_relay_op(op.type)
+    out = op_func(ipt0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -763,6 +874,15 @@ def convert_pool2d(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_reciprocal(g, op, block):
+    """Operator converter for reciprocal."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = infer_type(x).checked_type.dtype
+    out = _expr.const(1.0, dtype) / x
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_reduce(g, op, block):
     """Operator converter for series of reduce operators."""
 
@@ -787,6 +907,14 @@ def convert_reduce(g, op, block):
         # for TVM, the shape of `out` will be (, )
         # for Paddle, the shape of `out` will be [1]
         out = _op.expand_dims(out, axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_relu6(g, op, block):
+    """Operator converter for relu6."""
+
+    x = g.get_node(op.input("X")[0])
+    out = _op.clip(x, 0.0, 6.0)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -840,6 +968,40 @@ def convert_scale(g, op, block):
                 out = (x + _expr.const(np.array(bias).astype("float32"))) * _expr.const(
                     np.array(scale).astype("float32")
                 )
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_scatter(g, op, block):
+    """Operator converter for scatter."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Ids")[0])
+    updates = g.get_node(op.input("Updates")[0])
+    overwrite = op.attr("overwrite")
+
+    shape = infer_shape(updates)
+    ndims = len(shape)
+    index = _op.expand_dims(index, axis=-1, num_newaxis=ndims - 1)
+    index = _op.transform.broadcast_to(index, shape)
+
+    if overwrite:
+        out = _op.scatter(x, index, updates, axis=0)
+    else:
+        out = _op.scatter_add(_op.zeros_like(x), index, updates, axis=0)
+        out += _op.scatter(x, index, _op.zeros_like(updates), axis=0)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_scatter_nd_add(g, op, block):
+    """Operator converter for scatter_nd_add."""
+
+    x = g.get_node(op.input("X")[0])
+    index = g.get_node(op.input("Index")[0])
+    updates = g.get_node(op.input("Updates")[0])
+    indices_dim = len(infer_shape(index))
+    axes = list(range(indices_dim))
+    index = _op.transpose(index, axes[-1:] + axes[:-1])
+    out = _op.scatter_nd(x, index, updates, mode="add")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -905,6 +1067,16 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_square(g, op, block):
+    """Operator converter for square."""
+
+    x = g.get_node(op.input("X")[0])
+    dtype = block.var(op.output("Out")[0]).dtype
+    dtype = _convert_dtype_value(dtype)
+	out = _op.pow(x, _expr.const(2, dtype))
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_squeeze(g, op, block):
     """Operator converter for squeeze2."""
 
@@ -929,6 +1101,7 @@ def convert_unsqueeze(g, op, block):
 _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
+	"addmm": convert_addmm,
     "arg_max": convert_arg_max_min,
     "arg_min": convert_arg_max_min,
     "argsort": convert_argsort,
@@ -937,6 +1110,8 @@ _convert_map = {
     "assign_value": convert_assign_value,
     "atan": convert_unary_op,
     "batch_norm": convert_batch_norm,
+	"bmm": convert_bmm,
+	"brelu": convert_brelu,
     "cast": convert_cast,
     "ceil": convert_unary_op,
     "concat": convert_concat,
@@ -949,7 +1124,12 @@ _convert_map = {
     "dropout": convert_dropout,
     "elementwise_add": convert_elementwise_op,
     "elementwise_div": convert_elementwise_op,
+    "elementwise_floordiv": convert_elementwise_op,
+    "elementwise_max": convert_elementwise_op,
+    "elementwise_min": convert_elementwise_op,
     "elementwise_mul": convert_elementwise_op,
+    "elementwise_pow": convert_elementwise_op,
+    "elementwise_prod": convert_elementwise_op,
     "elementwise_sub": convert_elementwise_op,
     "equal": convert_elementwise_op,
     "erf": convert_unary_op,
@@ -960,7 +1140,14 @@ _convert_map = {
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
     "floor": convert_unary_op,
+	"floor_mod": convert_elementwise_op,
+    "gather": convert_gather,
+    "gather_nd": convert_gather_nd,
     "gelu": convert_gelu,
+    "greater_equal": convert_elementwise_op,
+    "greater_than": convert_elementwise_op,
+	"group_norm": convert_group_norm,
+	"hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "isfinite_v2": convert_unary_op,
@@ -974,17 +1161,22 @@ _convert_map = {
     "log2": convert_unary_op,
     "log10": convert_unary_op,
     "logical_and": convert_binary_logical_op,
+    "logical_not": convert_logical_not,
     "logical_or": convert_binary_logical_op,
     "logical_xor": convert_binary_logical_op,
     "lookup_table_v2": convert_lookup_table,
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
+    "pad1d": convert_padding,
+    "pad2d": convert_padding,
     "pad3d": convert_padding,
     "pool2d": convert_pool2d,
     "relu": convert_unary_op,
+	"relu6": convert_relu6,
     "reshape2": convert_reshape,
     "round": convert_unary_op,
+	"reciprocal": convert_reciprocal,
     "reduce_all": convert_reduce,
     "reduce_any": convert_reduce,
     "reduce_max": convert_reduce,
@@ -994,6 +1186,8 @@ _convert_map = {
     "reduce_mean": convert_reduce,
     "rsqrt": convert_unary_op,
     "scale": convert_scale,
+    "scatter": convert_scatter,
+    "scatter_nd_add": convert_scatter_nd_add,
     "shape": convert_shape,
     "sigmoid": convert_unary_op,
     "sign": convert_unary_op,
@@ -1002,6 +1196,7 @@ _convert_map = {
     "slice": convert_slice,
     "softmax": convert_softmax,
     "sqrt": convert_unary_op,
+	"square": convert_square,
     "squeeze2": convert_squeeze,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
