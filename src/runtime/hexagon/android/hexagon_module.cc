@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "hexagon_module.h"
+#include "../hexagon_module.h"
 
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -31,8 +31,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../file_utils.h"
-#include "../meta_data.h"
+#include "../../file_utils.h"
+#include "hexagon_device.h"
 
 namespace tvm {
 namespace runtime {

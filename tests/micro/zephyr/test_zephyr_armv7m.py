@@ -25,8 +25,6 @@ import tempfile
 import pytest
 import numpy as np
 
-import test_utils
-
 import tvm
 import tvm.rpc
 import tvm.micro
@@ -35,18 +33,17 @@ from tvm import relay
 
 from tvm.contrib.download import download_testdata
 from tvm.micro.model_library_format import generate_c_interface_header
+from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
-import conftest
-
+import test_utils
 
 _LOG = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def _open_tflite_model():
     # Import TFLite model
 
-    model_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/model/mnist_model_quant.tflite"
+    model_url = "https://github.com/tlc-pack/web-data/raw/b2f3c02427b67267a00fd968ba1fce28fc833028/testdata/microTVM/model/mnist_model_quant.tflite"
     model_path = download_testdata(model_url, "mnist_model_quant.tflite", module="model")
 
     tflite_model_buf = open(model_path, "rb").read()
@@ -145,15 +142,15 @@ def _run_model(temp_dir, board, west_cmd, lowered, build_config, sample, output_
     project.flash()
 
     with project.transport() as transport:
-        timeout_read = 60
-        transport.write(b"start\n", timeout_sec=5)
-        result_line = test_utils.get_message(transport, "#result", timeout_sec=timeout_read)
+        aot_transport_init_wait(transport)
+        transport.write(b"infer%", timeout_sec=5)
+        result_line = aot_transport_find_message(transport, "result", timeout_sec=60)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
     result = int(result_line[1])
     time = int(result_line[2])
-    logging.info(f"Result: {result}\ttime: {time} ms")
+    _LOG.info(f"Result: {result}\ttime: {time} ms")
 
     return result, time
 
@@ -188,6 +185,17 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     target = tvm.target.target.micro(
         model,
         options=[
+            "-keys=cpu",
+            "-link-params=1",
+            "--executor=aot",
+            "--unpacked-api=1",
+            "--interface-api=c",
+        ],
+    )
+
+    target_simd = tvm.target.target.micro(
+        model,
+        options=[
             "-keys=arm_cpu,cpu",
             "-link-params=1",
             "--executor=aot",
@@ -203,7 +211,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     os.makedirs(temp_dir_no_simd, exist_ok=True)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered_simd = relay.build(relay_mod_simd, target, params=params)
+        lowered_simd = relay.build(relay_mod_simd, target_simd, params=params)
         lowered_no_simd = relay.build(relay_mod_no_simd, target, params=params)
         result_simd, time_simd = _run_model(
             temp_dir_simd, board, west_cmd, lowered_simd, build_config, sample, output_shape

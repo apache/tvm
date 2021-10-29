@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_HEXAGON_SIM_HEXAGON_SIM_PROTO_H_
-#define TVM_RUNTIME_HEXAGON_SIM_HEXAGON_SIM_PROTO_H_
+#ifndef TVM_RUNTIME_HEXAGON_ANDROID_SIM_HEXAGON_SIM_PROTO_H_
+#define TVM_RUNTIME_HEXAGON_ANDROID_SIM_HEXAGON_SIM_PROTO_H_
 
 // Protocol:
 
@@ -70,4 +70,4 @@ struct MsgCall {
   uint32_t data[];      //         12
 } __attribute__((packed));
 
-#endif  // TVM_RUNTIME_HEXAGON_SIM_HEXAGON_SIM_PROTO_H_
+#endif  // TVM_RUNTIME_HEXAGON_ANDROID_SIM_HEXAGON_SIM_PROTO_H_

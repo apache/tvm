@@ -24,3 +24,4 @@ from .bnns import *
 from .coreml import *
 from .ethosn import *
 from .tensorrt import *
+from .cutlass import *
