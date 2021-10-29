@@ -794,6 +794,30 @@ TVM_DLL PrimExpr round(PrimExpr x, Span span = Span());
 TVM_DLL PrimExpr nearbyint(PrimExpr x, Span span = Span());
 
 /*!
+ * \brief Lower bound function for binary search
+ * \param arr The buffer variable of the array to be looked up in
+ * \param val The value to be looked up in the array
+ * \param l The left boundary of the look-up range (inclusive)
+ * \param r The right boundary of the look-up range (exclusive)
+ * \param span The location of this operation in the source
+ * \return The look-up result
+ */
+TVM_DLL PrimExpr lower_bound(tir::Var arr, PrimExpr val, PrimExpr l, PrimExpr r,
+                             Span span = Span());
+
+/*!
+ * \brief Upper bound function for binary search
+ * \param arr The buffer variable of the array to be looked up in
+ * \param val The value to be looked up in the array
+ * \param l The left boundary of the look-up range (inclusive)
+ * \param r The right boundary of the look-up range (exclusive)
+ * \param span The location of this operation in the source
+ * \return The look-up result
+ */
+TVM_DLL PrimExpr upper_bound(tir::Var arr, PrimExpr val, PrimExpr l, PrimExpr r,
+                             Span span = Span());
+
+/*!
  * \brief Calculate trunc(x)
  * \param x The input expression.
  * \param span The location of this operation in the source.
