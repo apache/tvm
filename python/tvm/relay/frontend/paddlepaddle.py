@@ -125,7 +125,7 @@ def convert_addmm(g, op, block):
     alpha = op.attr("Alpha")
     beta = op.attr("Beta")
     dtype = block.var(op.output("Out")[0]).dtype
-    dtype = str(dtype).strip().split(".")[1]
+    dtype = convert_dtype_value(dtype)
 
     if not isinstance(alpha, _expr.Expr) and alpha != 1:
         alpha = _expr.const(alpha, dtype)
@@ -1073,7 +1073,7 @@ def convert_square(g, op, block):
     x = g.get_node(op.input("X")[0])
     dtype = block.var(op.output("Out")[0]).dtype
     dtype = _convert_dtype_value(dtype)
-	out = _op.pow(x, _expr.const(2, dtype))
+    out = _op.power(x, _expr.const(2, dtype))
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1101,7 +1101,7 @@ def convert_unsqueeze(g, op, block):
 _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
-	"addmm": convert_addmm,
+    "addmm": convert_addmm,
     "arg_max": convert_arg_max_min,
     "arg_min": convert_arg_max_min,
     "argsort": convert_argsort,
@@ -1110,8 +1110,8 @@ _convert_map = {
     "assign_value": convert_assign_value,
     "atan": convert_unary_op,
     "batch_norm": convert_batch_norm,
-	"bmm": convert_bmm,
-	"brelu": convert_brelu,
+    "bmm": convert_bmm,
+    "brelu": convert_brelu,
     "cast": convert_cast,
     "ceil": convert_unary_op,
     "concat": convert_concat,
@@ -1140,14 +1140,14 @@ _convert_map = {
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
     "floor": convert_unary_op,
-	"floor_mod": convert_elementwise_op,
+    "floor_mod": convert_elementwise_op,
     "gather": convert_gather,
     "gather_nd": convert_gather_nd,
     "gelu": convert_gelu,
     "greater_equal": convert_elementwise_op,
     "greater_than": convert_elementwise_op,
-	"group_norm": convert_group_norm,
-	"hard_shrink": convert_hard_shrink,
+    "group_norm": convert_group_norm,
+    "hard_shrink": convert_hard_shrink,
     "hard_sigmoid": convert_hard_sigmoid,
     "hard_swish": convert_hard_swish,
     "isfinite_v2": convert_unary_op,
@@ -1173,10 +1173,10 @@ _convert_map = {
     "pad3d": convert_padding,
     "pool2d": convert_pool2d,
     "relu": convert_unary_op,
-	"relu6": convert_relu6,
+    "relu6": convert_relu6,
     "reshape2": convert_reshape,
     "round": convert_unary_op,
-	"reciprocal": convert_reciprocal,
+    "reciprocal": convert_reciprocal,
     "reduce_all": convert_reduce,
     "reduce_any": convert_reduce,
     "reduce_max": convert_reduce,
@@ -1196,7 +1196,7 @@ _convert_map = {
     "slice": convert_slice,
     "softmax": convert_softmax,
     "sqrt": convert_unary_op,
-	"square": convert_square,
+    "square": convert_square,
     "squeeze2": convert_squeeze,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
