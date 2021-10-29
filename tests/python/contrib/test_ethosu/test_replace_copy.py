@@ -73,6 +73,7 @@ def test_copy():
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 
+# fmt: off
 @tvm.script.ir_module
 class WeightStream:
     @T.prim_func
@@ -95,6 +96,7 @@ class WeightStream:
         T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_3.data, 0), 64, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, T.load("int8", placeholder_5.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 6, 16, 0, 16, T.load("int8", ethosu_write_1.data, 10), 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 16, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 272, 12, T.load("uint8", placeholder_d_global, 0), 64, 0, 0, 0, 0, "NONE", 0, 0, "NONE", dtype="handle"))
     __tvm_meta__ = None
+# fmt: on
 
 
 def test_weight_stream():
