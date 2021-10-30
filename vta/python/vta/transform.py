@@ -729,8 +729,8 @@ def InjectConv2DTransposeSkip():
                     body = op.body.body
                     while isinstance(body, tvm.tir.IfThenElse):
                         body = body.then_case
-                    args = body.indices
-                    res_buffer = body.buffer
+                    args = body.pointer.indices
+                    res_buffer = body.pointer.buffer
                     tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
                     inner = tvm.tir.AttrStmt(
                         [dout, res_buffer],
@@ -741,9 +741,9 @@ def InjectConv2DTransposeSkip():
                     return inner
                 else:
                     conv_call, data_call, kernel_call = calls[-3:]
-                    pad_data_tensor = data_call.buffer
-                    kernel_tensor = kernel_call.buffer
-                    res_tensor = conv_call.buffer
+                    pad_data_tensor = data_call.pointer.buffer
+                    kernel_tensor = kernel_call.pointer.buffer
+                    res_tensor = conv_call.pointer.buffer
 
                     if selects:
                         condition = selects[0].condition
@@ -774,7 +774,7 @@ def InjectConv2DTransposeSkip():
                         )
                     inner = irb.get()
 
-                    args = conv_call.indices
+                    args = conv_call.pointer.indices
                     tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
                     inner = tvm.tir.AttrStmt(
                         [dout, res_tensor],
@@ -782,7 +782,7 @@ def InjectConv2DTransposeSkip():
                         tvm.tir.call_intrin("handle", "tir.tvm_tuple", *tpl),
                         inner,
                     )
-                    args = kernel_call.indices
+                    args = kernel_call.pointer.indices
                     tpl = (
                         args[0],
                         1,
@@ -803,7 +803,7 @@ def InjectConv2DTransposeSkip():
                         tvm.tir.call_intrin("handle", "tir.tvm_tuple", *tpl),
                         inner,
                     )
-                    args = data_call.indices
+                    args = data_call.pointer.indices
                     tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_IN)
                     inner = tvm.tir.AttrStmt(
                         [dinp, pad_data_tensor],
