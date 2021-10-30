@@ -45,6 +45,15 @@ using Str2StrMap = std::unordered_map<std::string, std::string>;
 
 static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"}, {"float32", "float"}};
 
+constexpr const char* kAnyDim = "Any";
+
+std::string GetDimAsStr(ObjectRef dim) {
+  if (auto d = dim.as<IntImmNode>()) {
+    return std::to_string(d->value);
+  }
+  return kAnyDim;
+}
+
 Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
   Str2StrMap args;
   auto arg0_dtype = std::string(attrs["arg0_dtype"].as<StringObj>()->data);
@@ -55,9 +64,9 @@ Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
   args["ElementInputA"] = dtype_map.at(arg0_dtype);
   args["ElementInputB"] = dtype_map.at(arg1_dtype);
   args["ElementOutput"] = dtype_map.at(ret_dtype);
-  args["M"] = std::to_string(arg0_shape->at(0).as<IntImmNode>()->value);
-  args["K"] = std::to_string(arg0_shape->at(1).as<IntImmNode>()->value);
-  args["N"] = std::to_string(arg1_shape->at(0).as<IntImmNode>()->value);
+  args["M"] = GetDimAsStr(arg0_shape->at(0));
+  args["K"] = GetDimAsStr(arg0_shape->at(1));
+  args["N"] = GetDimAsStr(arg1_shape->at(0));
   args["op_def"] = std::string(attrs["cutlass_op_def"].as<StringObj>()->data);
   args["op_name"] = std::string(attrs["cutlass_op_name"].as<StringObj>()->data);
   args["op_type"] = std::string(attrs["op_type"].as<StringObj>()->data);
@@ -93,7 +102,13 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   /// Gemm Call
 
   // Create TensorRef
-  CutlassPrint(gemm_decl, "int M = " + attrs.at("M") + ";\n");
+  std::string m;
+  if (attrs.at("M") == kAnyDim) {
+    m = func_args[0] + "->shape[0]";
+  } else {
+    m = attrs.at("M");
+  }
+  CutlassPrint(gemm_decl, "int M = " + m + ";\n");
   CutlassPrint(gemm_decl, "int N = " + attrs.at("N") + ";\n");
   CutlassPrint(gemm_decl, "int K = " + attrs.at("K") + ";\n");
   CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
