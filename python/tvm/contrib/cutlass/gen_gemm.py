@@ -295,9 +295,12 @@ class ProfilerEngine(object):
             for op in ops:
                 self._compile(op)
 
-    def evaluate(self, op_name, args):
+    def evaluate(self, op, args):
         """Run the profiler executable corresponding to op_name with args."""
+        op_name = op["name"]
         opath = os.path.join(self.binary_prefix, op_name)
+        if not os.path.exists(opath):
+            self._compile(op)
         cmd = [opath]
         if args is not None:
             cmd.append(str(args[0]))
@@ -342,10 +345,11 @@ class CutlassGemmProfiler(object):
         for op in ops:
             op["runtime"] = -1
 
-        self.engine.compile_all(ops, use_multiprocessing)
+        if profile_all:
+            self.engine.compile_all(ops, use_multiprocessing)
 
         for op in ops:
-            out = self.engine.evaluate(op["name"], [M, N, K])
+            out = self.engine.evaluate(op, [M, N, K])
             op["runtime"] = out
             if out > 0 and profile_all is False:
                 break
