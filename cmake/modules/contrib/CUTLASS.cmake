@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_CUTLASS)
+if(USE_CUDA AND USE_CUTLASS)
   file(GLOB CUTLASS_RELAY_CONTRIB_SRC src/relay/backend/contrib/cutlass/*.cc)
   list(APPEND COMPILER_SRCS ${CUTLASS_RELAY_CONTRIB_SRC})
 
