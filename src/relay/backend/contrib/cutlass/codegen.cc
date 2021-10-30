@@ -185,7 +185,34 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
   }
 
   std::string JIT(const std::vector<Output>& out) {
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_name_, out);
+    code_stream_ << "void " << ext_func_id_ << "_(";
+
+    for (const auto& arg : ext_func_args_) {
+      const auto& dtype_str = GetDtypeString(arg);
+      code_stream_ << dtype_str << "* " << arg->name_hint() << ", ";
+    }
+    for (size_t i = 0; i < out.size() - 1; ++i) {
+      code_stream_ << out[i].dtype << "* out" << i << ", ";
+    }
+    code_stream_ << out.back().dtype << "* out" << out.size() - 1 << ") {\n";
+    this->EnterScope();
+
+    // Function body
+    for (auto decl : buf_decl_) {
+      this->PrintIndents();
+      code_stream_ << decl << "\n";
+    }
+    code_stream_ << "\n";
+    for (auto stmt : ext_func_body_) {
+      this->PrintIndents();
+      code_stream_ << stmt << "\n";
+    }
+
+    this->ExitScope();
+    code_stream_ << "}\n";
+
+    this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, const_array_name_, out);
+    return code_stream_.str();
   }
 
  private:
