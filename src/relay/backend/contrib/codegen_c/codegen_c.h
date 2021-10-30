@@ -161,7 +161,7 @@ class CodegenCBase {
    */
   void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args,
                             const std::string& const_arr_name, const std::vector<Output>& outs,
-			    bool pass_dl_tensor = false) {
+                            bool pass_dl_tensor = false) {
     // Print signature
     code_stream_ << "\n";
 
@@ -183,7 +183,7 @@ class CodegenCBase {
     code_stream_ << func_name << "_(";
     for (size_t i = 0; i < args.size(); i++) {
       if (pass_dl_tensor) {
-	code_stream_ << "arg" << i << ",\n";
+        code_stream_ << "arg" << i << ",\n";
       } else {
         const auto& dtype_str = GetDtypeString(args[i]);
         code_stream_ << "(" << dtype_str << "*)(arg" << i << "->data),\n";
