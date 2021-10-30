@@ -75,7 +75,7 @@ class AllocateCollector : public StmtExprVisitor {
 //
 class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
  public:
-  /*! \brief record the touch list of statment. */
+  /*! \brief record the touch list of statement. */
   struct StmtEntry {
     // The statement
     const Object* stmt;
@@ -236,8 +236,8 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
     this->LivenessAnalysis(finder.linear_seq_);
     this->PlanMemory(finder.linear_seq_);
   }
- private:
 
+ private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent && !allocated_) {
       // Allocate one dynamic shared memory allocation at the beginning of thread scope

@@ -82,7 +82,7 @@ def test_matmul_dyn_shared():
         # Create a dynamic shared memory for the accumulation.
         # This is for testing merging dynamic shared memory alloctions with different data type.
         # In practice, there is no need to allocate a shared memory for C.
-        C_local = ib.allocate(C.dtype, (1), scope="local", name="C_local")
+        C_local = ib.allocate(C.dtype, (1,), scope="local", name="C_local")
         C_sh = ib.allocate(C.dtype, (block, block), scope="shared.dyn", name="C_sh")  # fp32
 
         A_ptr = ib.buffer_ptr(A)
