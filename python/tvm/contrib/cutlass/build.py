@@ -16,9 +16,22 @@
 # under the License.
 # pylint: disable=invalid-name
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
+import os
 import tvm
 from tvm import runtime, relay
 from .gen_gemm import CutlassGemmProfiler
+
+
+def _get_cutlass_path():
+    tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
+    cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
+    assert os.path.exists(
+        cutlass_path
+    ), """The CUTLASS root directory not found in {}.
+        Currently, using CUTLASS requires building TVM from source.""".format(
+        cutlass_path
+    )
+    return cutlass_path
 
 
 class GemmAnnotator(tvm.relay.ExprVisitor):
@@ -70,7 +83,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
     num_cutlass_partition : int
         The number of partitioned functions created for CUTLASS.
     """
-    cutlass_profiler = CutlassGemmProfiler(sm, "../../../3rdparty/cutlass", tmp_dir)
+    cutlass_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
     num_cutlass_partition = 0
     for var in mod.get_global_vars():
         fun_name = var.name_hint
@@ -152,8 +165,9 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so"):
     updated_lib : runtime.Module
         The updated module with compiled cutlass kernels.
     """
-    cutlass_path = "../../../3rdparty/cutlass/include"
-    cutlass_util_path = "../../../3rdparty/cutlass/tools/util/include"
+    cutlass_root = _get_cutlass_path()
+    cutlass_include = os.path.join(cutlass_root, "include")
+    cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
 
     kwargs = {}
     kwargs["cc"] = "nvcc"
@@ -165,8 +179,8 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so"):
         "-Xcompiler=-fno-strict-aliasing",
         "-O3",
         "-std=c++14",
-        "-I" + cutlass_path,
-        "-I" + cutlass_util_path,
+        "-I" + cutlass_include,
+        "-I" + cutlass_util_include,
     ]
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
     return runtime.load_module(lib_path)

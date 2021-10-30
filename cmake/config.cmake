@@ -347,3 +347,7 @@ set(USE_PAPI OFF)
 # Note that cmake will use `find_package` to find GTest. Please use cmake's
 # predefined variables to specify the path to the GTest package if needed.
 set(USE_GTEST AUTO)
+
+# Enable using CUTLASS as a BYOC backend
+# Need to have USE_CUDA=ON
+set(USE_CUTLASS OFF)
