@@ -55,9 +55,9 @@ TEST(CompilationConfig, Constructor_Homogeneous_DefaultHost) {
   ASSERT_EQ(config->primitive_targets.size(), 1);
   EXPECT_EQ(config->primitive_targets[0]->str(), cuda_target->str());
   EXPECT_EQ(config->default_primitive_se_scope->device_type(), kDLCUDA);
-  EXPECT_EQ(config->default_primitive_se_scope->target()->str(), cuda_target->str());
+  EXPECT_EQ(config->default_primitive_se_scope->target->str(), cuda_target->str());
   EXPECT_EQ(config->host_se_scope->device_type(), kDLCPU);
-  EXPECT_EQ(config->host_se_scope->target()->str(), default_cpu_target->str());
+  EXPECT_EQ(config->host_se_scope->target->str(), default_cpu_target->str());
   ASSERT_TRUE(config->optional_homogeneous_target.defined());
   EXPECT_EQ(config->optional_homogeneous_target->str(), cuda_target->str());
 }
@@ -78,9 +78,9 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_DefaultHost) {
   EXPECT_EQ(config->host_target->str(), default_cpu_target->str());
   ASSERT_EQ(config->primitive_targets.size(), 2);
   EXPECT_EQ(config->default_primitive_se_scope->device_type(), kDLCUDA);
-  EXPECT_EQ(config->default_primitive_se_scope->target()->str(), cuda_target->str());
+  EXPECT_EQ(config->default_primitive_se_scope->target->str(), cuda_target->str());
   EXPECT_EQ(config->host_se_scope->device_type(), kDLCPU);
-  EXPECT_EQ(config->host_se_scope->target()->str(), default_cpu_target->str());
+  EXPECT_EQ(config->host_se_scope->target->str(), default_cpu_target->str());
   EXPECT_FALSE(config->optional_homogeneous_target.defined());
 }
 
@@ -99,9 +99,9 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_ExplicitHost) {
   EXPECT_EQ(config->host_target->str(), cpu_target->str());
   ASSERT_EQ(config->primitive_targets.size(), 2);
   EXPECT_EQ(config->default_primitive_se_scope->device_type(), kDLCUDA);
-  EXPECT_EQ(config->default_primitive_se_scope->target()->str(), cuda_target->str());
+  EXPECT_EQ(config->default_primitive_se_scope->target->str(), cuda_target->str());
   EXPECT_EQ(config->host_se_scope->device_type(), kDLCPU);
-  EXPECT_EQ(config->host_se_scope->target()->str(), cpu_target->str());
+  EXPECT_EQ(config->host_se_scope->target->str(), cpu_target->str());
   EXPECT_FALSE(config->optional_homogeneous_target.defined());
 }
 
@@ -140,15 +140,15 @@ TEST(CompilationConfig, CanonicalSEScope) {
   {
     SEScope in = SEScope(kDLCPU);
     SEScope actual = config->CanonicalSEScope(in);
-    ASSERT_TRUE(actual->target().defined());
-    EXPECT_EQ(actual->target()->str(), cpu_target->str());
+    ASSERT_TRUE(actual->target.defined());
+    EXPECT_EQ(actual->target->str(), cpu_target->str());
     EXPECT_EQ(config->CanonicalSEScope(in), actual);
   }
   {
     SEScope in = SEScope(kDLCUDA);
     SEScope actual = config->CanonicalSEScope(in);
-    ASSERT_TRUE(actual->target().defined());
-    EXPECT_EQ(actual->target()->str(), cuda_target->str());
+    ASSERT_TRUE(actual->target.defined());
+    EXPECT_EQ(actual->target->str(), cuda_target->str());
     EXPECT_EQ(config->CanonicalSEScope(in), actual);
   }
 }

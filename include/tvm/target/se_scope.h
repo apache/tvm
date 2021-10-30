@@ -46,19 +46,19 @@ using MemoryScope = String;
 /*!
  * \brief Describes at compile time where data is to be stored down to the device and memory
  * scope level, or where execution is to take place, down to the device level. It is a quadruple of:
- * - A \p device_type (\p DLDeviceType).
- * - An uninterpreted \p virtual_device_id (\p int) distinguishing the intended device from all
- *   other devices (either of the same \p device_type, or across all available devices in the
- *   system). The virtual device id need not correspond to any physical device id, see
- *   "Virtual Devices" below.
- * - A \p target (\p Target) describing how to compile code for the intended device.
- * - A \p memory_scope (MemoryScope, which is currently just \p String) describing which memory
- *   area is to be used to hold data. The area should be reachable from the device but need not be
- *   'on' the device, see "Memory Scopes and Devices" below.
+ * - A \p device_type (\p DLDeviceType). May be kInvalidDeviceType if unconstrained.
+ * - A \p virtual_device_id (\p int). This allows us to distinguish distinct devices
+ *   with the same \p Target, for example in a multi-GPU system. May be -1 if unconstrained.
+ *   See "Virtual Devices" below.
+ * - A \p target (\p Target) describing how to compile code for the intended device. May be null
+ *   if unconstrained.
+ * - A \p memory_scope (\p MemoryScope, which is currently just \p String) describing which memory
+ *   area is to be used to hold data. May be "" if unconstrained. See "Memory Scopes and Devices"
+ *   below.
  *
- * All of these fields may be 'unconstrained' (ie null, -1 or ""), signaling that device planning
- * is free to choose a value consistent with the whole program. However if a \p target is given
- * then the \p device_type must equal \p target->kind->device_type.
+ * Some or all of these fields may be unconstrained, signaling that device planning is free to
+ * choose a value consistent with the whole program. However if a \p target is given then the \p
+ * device_type must equal \p target->kind->device_type.
  *
  * Note that currently we assume if a function returns its result on a particular device
  * then the function body is also executed on that device. See the overview comment in
@@ -87,11 +87,15 @@ using MemoryScope = String;
  *
  * Virtual vs Physical Devices
  * ---------------------------
- * The \p virtual_device_id may be left as 0 if not significant. It is up to downstream
- * compilation passes and/or the runtime to map a \p virtual_device_id to an actual physical
- * device id if required. For example, some runtimes may support passing in an array of actual
- * `device` specifications, and the \p virtual_device_id is simply an index known at compile time
- * into that array.
+ * The \p virtual_device_id may be used by downstream passes or the runtime to help decide which
+ * \p device_id to use for a particular physical runtime \p Device. For example:
+ *  - Some runtimes may support passing in an array of actual `device` specifications, and the
+ *    \p virtual_device_id can be used at runtime as an index into that array.
+ *  - Some runtimes may support dynamically allocating computations to physical devices. On these
+ *    systems a large space of \p virtual_device_ids could be used at compile time, even though
+ *    at runtime only a few physical devices will be present.
+ *
+ * The \p virtual_device_id may also be left unconstrained if not needed.
  *
  * Memory Scopes and Devices
  * -------------------------
@@ -120,10 +124,13 @@ using MemoryScope = String;
  * \endcode
  * could denote the same memory area, but with very different access costs.
  *
- * We don't currently try to build any of this system-level understanding into \p SEScope. Device
- * planning will simply insert "device_copy" operators wherever \p SEScopes are not exactly
- * pointwise equal, and we leave it to downstream compilation to elide unnecessary copies. We
- * may revisit this in the future.
+ * Furthermore, not all memory scopes are accessible to all devices, and it is possible for
+ * a memory scope to only be accessible to a device when code is compiled with particular
+ * \p Target options.
+ *
+ * \p SEScopes themselves have no system-level understanding. Currently device planning will
+ * simply insert "device_copy" operators wherever \p SEScopes are not exactly pointwise equal.
+ * We may revisit this in the future as the work on memory pools matures.
  *
  * Joining and Defaulting
  * ----------------------
@@ -149,47 +156,50 @@ using MemoryScope = String;
 class SEScopeNode : public Object {
  public:
   /*!
-   * \brief The \p DLDeviceType of the device. If \p target is known then this will be equal to
-   * \p target->kind->device_type. If \p target is null then the target is to be determined by
-   * a later pass.
+   * \brief The \p DLDeviceType (represtented as an int) of the device. If \p target is known then
+   * this will be equal to \p target->kind->device_type. If \p target is null then the target is to
+   * be determined by a later pass.
    *
    * This is needed to support the legacy "on_device" and "device_copy" calls which only allow
    * a \p DLDeviceTypes (as an integer) to be given.
    *
    * kInvalidDeviceType denotes unconstrained.
    */
-  DLDeviceType device_type() const { return device_type_; }
+  int device_type_int;
+
+  DLDeviceType device_type() const { return static_cast<DLDeviceType>(device_type_int); }
 
   /*!
    * \brief The 'virtual' device identifier for the device. This must be resolved to a physical
    * device identifier either during compilation or at runtime.
    *
-   * -1 denotes unconstrained. May be 0 if not significant.
+   * -1 denotes unconstrained.
    */
-  int virtual_device_id() const { return virtual_device_id_; }
+  int virtual_device_id;
 
   /*!
    * \brief The \p Target describing how to compile for the device.
    *
-   * Null denotes unconstrained (though if device_type is known then only a target of that
-   * type is allowed).
+   * Null denotes unconstrained. Note that if a target later becomes known for this \p SEScope
+   * then it must be consistent with the \p device_type if that is already known. This is
+   * enforced by the Join and Default methods.
    */
-  const Target& target() const { return target_; }
+  Target target;
 
   /*!
    * \brief The scope of memory within the device.
    *
    * Empty denotes unconstrained.
    */
-  const MemoryScope& memory_scope() const { return memory_scope_; }
+  MemoryScope memory_scope;
 
   /*!
    * \brief Returns true if scope is fully unconstrained, ie no target/device type, virtual device
    * id or memory scope is specified.
    */
   bool is_fully_unconstrained() const {
-    return !target_.defined() && device_type_ == kInvalidDeviceType && virtual_device_id_ == -1 &&
-           memory_scope_.empty();
+    return !target.defined() && device_type() == kInvalidDeviceType && virtual_device_id == -1 &&
+           memory_scope.empty();
   }
 
   /*!
@@ -197,15 +207,15 @@ class SEScopeNode : public Object {
    * memory scope are all specified.
    */
   bool is_fully_constrained() const {
-    return target_.defined() && virtual_device_id_ != -1 && !memory_scope_.empty();
+    return target.defined() && virtual_device_id != -1 && !memory_scope.empty();
   }
 
   Device ToDevice() const {
-    ICHECK(device_type_ != kInvalidDeviceType);
-    ICHECK(virtual_device_id_ != -1);
+    ICHECK(device_type() != kInvalidDeviceType);
+    ICHECK(virtual_device_id != -1);
     Device device;
-    device.device_type = device_type_;
-    device.device_id = virtual_device_id_;
+    device.device_type = device_type();
+    device.device_id = virtual_device_id;
     return device;
   }
 
@@ -220,13 +230,6 @@ class SEScopeNode : public Object {
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(SEScopeNode, Object);
-
- private:
-  // We keep the fields private so the constructor memoization can't be upset by mutation.
-  DLDeviceType device_type_;
-  int virtual_device_id_;
-  Target target_;
-  MemoryScope memory_scope_;
 
   friend class SEScope;
 };

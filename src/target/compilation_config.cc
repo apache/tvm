@@ -40,7 +40,7 @@ void CompilationConfigNode::VisitAttrs(AttrVisitor* v) {
 }
 
 SEScope CompilationConfigNode::CanonicalSEScope(const SEScope& se_scope) const {
-  if (se_scope->target().defined()) {
+  if (se_scope->target.defined()) {
     return se_scope_cache_.Unique(se_scope);
   }
   DLDeviceType device_type = se_scope->device_type();
@@ -49,7 +49,7 @@ SEScope CompilationConfigNode::CanonicalSEScope(const SEScope& se_scope) const {
       << "SEScope annotations must include at least a device_type";
   Target target = FindPrimitiveTargetOrFail(se_scope->device_type());
   return se_scope_cache_.Unique(
-      SEScope(device_type, se_scope->virtual_device_id(), target, se_scope->memory_scope()));
+      SEScope(device_type, se_scope->virtual_device_id, target, se_scope->memory_scope));
 }
 
 void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContext& pass_ctx) {
@@ -186,8 +186,8 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
   // the definitive list of all required targets, both for host and primitives.
   node->EstablishDefaultSEScopes(pass_ctx);
 
-  ICHECK(node->default_primitive_se_scope->target().defined());
-  ICHECK(node->host_se_scope->target().defined());
+  ICHECK(node->default_primitive_se_scope->target.defined());
+  ICHECK(node->host_se_scope->target.defined());
   ICHECK_GT(node->primitive_targets.size(), 0U);
 
   // Legacy: Some passes only support homogenous compilation and expect the target to be

@@ -30,26 +30,25 @@ namespace tvm {
 TVM_REGISTER_NODE_TYPE(SEScopeNode);
 
 void SEScopeNode::VisitAttrs(AttrVisitor* v) {
-  int i = static_cast<int>(device_type_);
-  v->Visit("device_type", &i);
-  device_type_ = static_cast<DLDeviceType>(i);
-  v->Visit("virtual_device_id", &virtual_device_id_);
-  v->Visit("target", &target_);
-  v->Visit("memory_scope", &memory_scope_);
+  v->Visit("device_type_int", &device_type_int);
+  v->Visit("virtual_device_id", &virtual_device_id);
+  v->Visit("target", &target);
+  v->Visit("memory_scope", &memory_scope);
 }
 
 bool SEScopeNode::SEqualReduce(const SEScopeNode* other, SEqualReducer equal) const {
-  return device_type_ == other->device_type_ && virtual_device_id_ == other->virtual_device_id_ &&
+  return device_type_int == other->device_type_int &&
+         virtual_device_id == other->virtual_device_id &&
          // NOTE: Comparing targets by their str representations
-         target_->str() == other->target_->str() && memory_scope_ == other->memory_scope_;
+         target->str() == other->target->str() && memory_scope == other->memory_scope;
 }
 
 void SEScopeNode::SHashReduce(SHashReducer hash_reduce) const {
-  hash_reduce(device_type_);
-  hash_reduce(virtual_device_id_);
+  hash_reduce(device_type_int);
+  hash_reduce(virtual_device_id);
   // NOTE: Reducing target to its str representation
-  hash_reduce(target_->str());
-  hash_reduce(memory_scope_);
+  hash_reduce(target->str());
+  hash_reduce(memory_scope);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -64,25 +63,25 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           p->stream << "device_type=" << node->device_type();
           need_sep = true;
         }
-        if (node->virtual_device_id() >= 0) {
+        if (node->virtual_device_id >= 0) {
           if (need_sep) {
             p->stream << ", ";
           }
-          p->stream << "virtual_device_id=" << node->virtual_device_id();
+          p->stream << "virtual_device_id=" << node->virtual_device_id;
           need_sep = true;
         }
-        if (node->target().defined()) {
+        if (node->target.defined()) {
           if (need_sep) {
             p->stream << ", ";
           }
-          p->stream << "target='" << node->target()->str() << "'";
+          p->stream << "target='" << node->target->str() << "'";
           need_sep = true;
         }
-        if (!node->memory_scope().empty()) {
+        if (!node->memory_scope.empty()) {
           if (need_sep) {
             p->stream << ", ";
           }
-          p->stream << "memory_scope='" << node->memory_scope() << "'";
+          p->stream << "memory_scope='" << node->memory_scope << "'";
         }
       }
       p->stream << ")";
@@ -94,10 +93,10 @@ SEScope::SEScope(DLDeviceType device_type, int virtual_device_id, Target target,
       << "target '" << target->str() << "' has device type " << target->kind->device_type
       << " but scope has device type " << device_type;
   auto node = make_object<SEScopeNode>();
-  node->device_type_ = device_type;
-  node->virtual_device_id_ = virtual_device_id;
-  node->target_ = std::move(target);
-  node->memory_scope_ = std::move(memory_scope);
+  node->device_type_int = device_type;
+  node->virtual_device_id = virtual_device_id;
+  node->target = std::move(target);
+  node->memory_scope = std::move(memory_scope);
   data_ = std::move(node);
 }
 
@@ -112,40 +111,40 @@ Optional<SEScope> SEScope::Join(const SEScope& lhs, const SEScope& rhs) {
     return lhs;
   }
   DLDeviceType joined_device_type;
-  if (lhs->device_type_ != kInvalidDeviceType) {
-    joined_device_type = lhs->device_type_;
-    if (rhs->device_type_ != kInvalidDeviceType && lhs->device_type_ != rhs->device_type_) {
+  if (lhs->device_type() != kInvalidDeviceType) {
+    joined_device_type = lhs->device_type();
+    if (rhs->device_type() != kInvalidDeviceType && lhs->device_type() != rhs->device_type()) {
       return {};
     }
   } else {
-    joined_device_type = rhs->device_type_;
+    joined_device_type = rhs->device_type();
   }
   int joined_virtual_device_id;
-  if (lhs->virtual_device_id_ >= 0) {
-    joined_virtual_device_id = lhs->virtual_device_id_;
-    if (rhs->virtual_device_id_ >= 0 && lhs->virtual_device_id_ != rhs->virtual_device_id_) {
+  if (lhs->virtual_device_id >= 0) {
+    joined_virtual_device_id = lhs->virtual_device_id;
+    if (rhs->virtual_device_id >= 0 && lhs->virtual_device_id != rhs->virtual_device_id) {
       return {};
     }
   } else {
-    joined_virtual_device_id = rhs->virtual_device_id_;
+    joined_virtual_device_id = rhs->virtual_device_id;
   }
   Target joined_target;
-  if (lhs->target_.defined()) {
-    joined_target = lhs->target_;
-    if (rhs->target_.defined() && lhs->target_ != rhs->target_) {
+  if (lhs->target.defined()) {
+    joined_target = lhs->target;
+    if (rhs->target.defined() && lhs->target != rhs->target) {
       return {};
     }
   } else {
-    joined_target = rhs->target_;
+    joined_target = rhs->target;
   }
   MemoryScope joined_memory_scope;
-  if (!lhs->memory_scope_.empty()) {
-    joined_memory_scope = lhs->memory_scope_;
-    if (!rhs->memory_scope_.empty() && lhs->memory_scope_ != rhs->memory_scope_) {
+  if (!lhs->memory_scope.empty()) {
+    joined_memory_scope = lhs->memory_scope;
+    if (!rhs->memory_scope.empty() && lhs->memory_scope != rhs->memory_scope) {
       return {};
     }
   } else {
-    joined_memory_scope = rhs->memory_scope_;
+    joined_memory_scope = rhs->memory_scope;
   }
   return SEScope(joined_device_type, joined_virtual_device_id, joined_target, joined_memory_scope);
 }
@@ -156,32 +155,32 @@ SEScope SEScope::Default(const SEScope& lhs, const SEScope& rhs) {
     return lhs;
   }
   DLDeviceType defaulted_device_type;
-  if (lhs->device_type_ != kInvalidDeviceType) {
-    defaulted_device_type = lhs->device_type_;
+  if (lhs->device_type() != kInvalidDeviceType) {
+    defaulted_device_type = lhs->device_type();
   } else {
-    defaulted_device_type = rhs->device_type_;
+    defaulted_device_type = rhs->device_type();
   }
   int defaulted_virtual_device_id;
-  if (lhs->virtual_device_id_ >= 0) {
-    defaulted_virtual_device_id = lhs->virtual_device_id_;
+  if (lhs->virtual_device_id >= 0) {
+    defaulted_virtual_device_id = lhs->virtual_device_id;
   } else {
-    defaulted_virtual_device_id = rhs->virtual_device_id_;
+    defaulted_virtual_device_id = rhs->virtual_device_id;
   }
   Target defaulted_target;
-  if (lhs->target_.defined()) {
-    defaulted_target = lhs->target_;
+  if (lhs->target.defined()) {
+    defaulted_target = lhs->target;
   } else {
     // We can only default to the rhs's target if it is consistent with the device type
-    if (rhs->target_.defined() && rhs->target_->kind->device_type == defaulted_device_type) {
-      defaulted_target = rhs->target_;
+    if (rhs->target.defined() && rhs->target->kind->device_type == defaulted_device_type) {
+      defaulted_target = rhs->target;
     }
     // else: leave as null
   }
   MemoryScope defaulted_memory_scope;
-  if (!lhs->memory_scope_.empty()) {
-    defaulted_memory_scope = lhs->memory_scope_;
+  if (!lhs->memory_scope.empty()) {
+    defaulted_memory_scope = lhs->memory_scope;
   } else {
-    defaulted_memory_scope = rhs->memory_scope_;
+    defaulted_memory_scope = rhs->memory_scope;
   }
   return SEScope(defaulted_device_type, defaulted_virtual_device_id, defaulted_target,
                  defaulted_memory_scope);
@@ -216,8 +215,7 @@ SEScope SEScopeCache::Make(DLDeviceType device_type, int virtual_device_id, Targ
 }
 
 SEScope SEScopeCache::Unique(const SEScope& scope) {
-  return Make(scope->device_type(), scope->virtual_device_id(), scope->target(),
-              scope->memory_scope());
+  return Make(scope->device_type(), scope->virtual_device_id, scope->target, scope->memory_scope);
 }
 
 TVM_REGISTER_GLOBAL("target.SEScope_ForDeviceTargetAndMemoryScope")
