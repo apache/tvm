@@ -99,18 +99,17 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(gemm_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
   CutlassPrint(gemm_decl, attrs.at("op_def"));
   CutlassPrint(gemm_decl, "using Gemm = Operation_" + attrs.at("op_name") + ";\n");
-  /// Gemm Call
 
-  // Create TensorRef
-  std::string m;
-  if (attrs.at("M") == kAnyDim) {
-    m = func_args[0] + "->shape[0]";
-  } else {
-    m = attrs.at("M");
-  }
-  CutlassPrint(gemm_decl, "int M = " + m + ";\n");
-  CutlassPrint(gemm_decl, "int N = " + attrs.at("N") + ";\n");
-  CutlassPrint(gemm_decl, "int K = " + attrs.at("K") + ";\n");
+  auto get_dim = [&attrs, &func_args](const std::string& axis, int arg_idx, int axis_idx) {
+    if (attrs.at(axis) == kAnyDim) {
+      return func_args[arg_idx] + "->shape[" + std::to_string(axis_idx) + "]";
+    } else {
+      return attrs.at(axis);
+    }
+  };
+  CutlassPrint(gemm_decl, "int M = " + get_dim("M", 0, 0) + ";\n");
+  CutlassPrint(gemm_decl, "int N = " + get_dim("N", 1, 0) + ";\n");
+  CutlassPrint(gemm_decl, "int K = " + get_dim("K", 0, 1) + ";\n");
   CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
   // Initialize alpha for dot product computation
   CutlassPrint(gemm_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");

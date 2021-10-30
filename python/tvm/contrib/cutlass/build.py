@@ -138,7 +138,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                 if profile_all:
                     print("The best kernel is " + out["name"])
                 else:
-                    print("Picked the first kernel found" + out["name"])
+                    print("Picked the first kernel found " + out["name"])
 
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]

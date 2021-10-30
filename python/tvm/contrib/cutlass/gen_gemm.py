@@ -259,12 +259,12 @@ GENERATOR_FUNC_TABLE = {
 DEFAULT_KERNELS = {
     80: {
         "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
-        "float32": "cutlass_tensorop_s16816gemm_f16_256x128_32x3_tn_align4",
+        "float32": "cutlass_tensorop_s16816gemm_f16_128x128_32x3_tn_align4",
     }
 }
 
 
-class ProfilerEngine(object):
+class ProfilerEngine:
     """Compile and run a given profiler executable."""
 
     def __init__(self, cuda_arch, cutlass_path, binary_prefix):

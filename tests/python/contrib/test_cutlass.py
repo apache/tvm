@@ -99,7 +99,7 @@ def get_dense_bias_gelu(M, N, K, out_dtype="float16"):
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=False, use_multiprocessing=True, tmp_dir=tmp_dir
+        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
     )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
@@ -124,20 +124,21 @@ def profile_and_build_vm(
 
 
 def verify(
-    func, M, N, K, vm=False, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    func, M, N, K, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
 ):
     if not has_cutlass():
         return
     mod = tvm.IRModule.from_expr(func)
-    typ = relay.transform.InferType()(mod)
-    out_dtype = typ["main"].body.checked_type.dtype
+    typ = relay.transform.InferType()(mod)["main"].body.checked_type
+    out_dtype = typ.dtype
+    use_vm = any(isinstance(s, tvm.tir.Any) for s in typ.shape)
     np_data = np.random.uniform(-1, 1, (M, K)).astype("float16")
     np_weight = np.random.uniform(-1, 1, (N, K)).astype("float16")
     np_bias = np.random.uniform(-1, 1, (N,)).astype(out_dtype)
 
     params = {"weight": np_weight, "bias": np_bias}
 
-    if vm:
+    if use_vm:
         if ref_target == "cuda" and out_dtype == "float16":
             # Uncomment "return" below to see the accuracy difference of static vs dynamic TVM native fp16 dense
             # The static one can use a tensorcore schedule, but the dynamic one cannot
@@ -164,7 +165,7 @@ def verify(
 
     if run_benchmark:
         print("CUTLASS:", rt_mod.benchmark(dev, number=1, repeat=600))
-        print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
+        print("TVM with target %s:" % ref_target, rt_mod_ref.benchmark(dev, number=1, repeat=600))
 
 
 M = 1820
@@ -173,12 +174,12 @@ K = 768
 
 
 def test_dense():
-    # verify(get_dense(M, N, K), M, N, K)
-    verify(get_dense(M, N, K, out_dtype="float32"), M, N, K, vm=True)
+    verify(get_dense(M, N, K), M, N, K)
+    verify(get_dense(M, N, K, out_dtype="float32"), M, N, K)
 
 
 def test_dense_bias():
-    # verify(get_dense_bias(M, N, K), M, N, K)
+    verify(get_dense_bias(M, N, K), M, N, K)
     verify(get_dense_bias(M, N, K, out_dtype="float32"), M, N, K)
 
 
@@ -188,16 +189,16 @@ def test_dense_bias_relu():
 
 
 def test_dense_bias_gelu():
-    verify(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3, run_benchmark=True)
-    # verify(get_dense_bias_gelu(M, N, K, out_dtype="float32"), M, N, K, atol=1e-3, rtol=1e-3)
+    verify(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3)
+    verify(get_dense_bias_gelu(M, N, K, out_dtype="float32"), M, N, K, atol=1e-3, rtol=1e-3)
 
 
 def test_dense_dynamic():
     data_shape = (relay.Any(), K)
-    weight_shape = (N, K)
+    weight_shape = (relay.Any(), K)
 
     if has_cublas():
-        # TVM native fp16 dense (without tensorcore), using fp16 assum, seems to have accuracy issues
+        # TVM native fp16 dense (without tensorcore), using fp16 accum, seems to have accuracy issues
         # Use cublas as a reference
         verify(
             get_dense_with_shape(data_shape, weight_shape),
@@ -205,22 +206,17 @@ def test_dense_dynamic():
             N,
             K,
             ref_target="cuda -libs=cublas",
-            vm=True,
         )
 
-    # verify(
-    #     get_dense_with_shape(data_shape, weight_shape, out_dtype="float32"),
-    #     M,
-    #     N,
-    #     K,
-    #     vm=True,
-    #     atol=1e-3,
-    #     rtol=1e-3,
-    # )
+    verify(
+        get_dense_with_shape(data_shape, weight_shape, out_dtype="float32"),
+        M,
+        N,
+        K,
+        atol=1e-4,
+        rtol=1e-4,
+    )
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    # test_dense()
-    # test_dense_bias_gelu()
-    test_dense_dynamic()
+    pytest.main([__file__])
