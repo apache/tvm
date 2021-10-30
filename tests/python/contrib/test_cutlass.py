@@ -123,9 +123,7 @@ def profile_and_build_vm(
     return VirtualMachine(vm_exec, dev), dev, num_cutlass_partition
 
 
-def verify(
-    func, M, N, K, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
-):
+def verify(func, M, N, K, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False):
     if not has_cutlass():
         return
     mod = tvm.IRModule.from_expr(func)
@@ -144,7 +142,9 @@ def verify(
             # The static one can use a tensorcore schedule, but the dynamic one cannot
             rt_mod, dev = get_ref_vm(tvm.IRModule.from_expr(get_dense(M, N, K)), params)
             num_partition = 1
-            logging.warning("The reference fp16 dense with dynamic shape using fp16 accumulation has accuracy issues.")
+            logging.warning(
+                "The reference fp16 dense with dynamic shape using fp16 accumulation has accuracy issues."
+            )
             return
         else:
             rt_mod, dev, num_partition = profile_and_build_vm(mod, params, sm)
