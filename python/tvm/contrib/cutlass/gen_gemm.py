@@ -256,7 +256,12 @@ GENERATOR_FUNC_TABLE = {
     80: generate_sm80_tensor_op_16816,
 }
 
-DEFAULT_KERNELS = {80: {"float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4"}}
+DEFAULT_KERNELS = {
+    80: {
+        "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
+        "float32": "cutlass_tensorop_s16816gemm_f16_256x128_32x3_tn_align4",
+    }
+}
 
 
 class ProfilerEngine(object):

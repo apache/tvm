@@ -128,14 +128,17 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             KK = arg0_shape[1]
             NN = arg1_shape[0]
             out_dtype = annotator.signature["ret_dtype"]
-            if any([isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]]):
+            if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
                 out = cutlass_profiler.get_default(out_dtype)
                 print("Picked the default kernel " + out["name"])
             else:
                 out = cutlass_profiler.profile(
                     MM, NN, KK, out_dtype, profile_all, use_multiprocessing
                 )
-                print("The best kernel is " + out["name"])
+                if profile_all:
+                    print("The best kernel is " + out["name"])
+                else:
+                    print("Picked the first kernel found" + out["name"])
 
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]
