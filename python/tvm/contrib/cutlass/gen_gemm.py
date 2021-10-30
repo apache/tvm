@@ -256,6 +256,8 @@ GENERATOR_FUNC_TABLE = {
     80: generate_sm80_tensor_op_16816,
 }
 
+DEFAULT_KERNELS = {80: {"float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4"}}
+
 
 class ProfilerEngine(object):
     """Compile and run a given profiler executable."""
@@ -334,6 +336,13 @@ class CutlassGemmProfiler(object):
         if M % align != 0:
             return False
         return True
+
+    def get_default(self, out_dtype):
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
+        default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
+        filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
+        assert len(filtered) == 1
+        return filtered[0]
 
     def profile(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
         """Profile and select the best kernel from candidate kernels.

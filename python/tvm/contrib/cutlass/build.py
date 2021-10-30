@@ -127,9 +127,16 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             MM = arg0_shape[0]
             KK = arg0_shape[1]
             NN = arg1_shape[0]
-            out = cutlass_profiler.profile(
-                MM, NN, KK, annotator.signature["ret_dtype"], profile_all, use_multiprocessing
-            )
+            out_dtype = annotator.signature["ret_dtype"]
+            if any([isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]]):
+                out = cutlass_profiler.get_default(out_dtype)
+                print("Picked the default kernel " + out["name"])
+            else:
+                out = cutlass_profiler.profile(
+                    MM, NN, KK, out_dtype, profile_all, use_multiprocessing
+                )
+                print("The best kernel is " + out["name"])
+
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]
             elif new_attrs["op_type"] == "cutlass.dense_bias":
@@ -142,17 +149,13 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                 raise ValueError("%s pattern is not implemented." % new_attrs["op_type"])
             new_attrs["cutlass_op_name"] = out["name"]
 
-            print("The best kernel is " + new_attrs["cutlass_op_name"])
             if new_attrs["cutlass_op_name"].find("_tn_align") > 0:
                 new_attrs["lda"] = "K"
                 new_attrs["ldb"] = "K"
                 new_attrs["ldc"] = "N"
-            elif new_attrs["cutlass_op_name"].find("_nt_align") > 0:
-                new_attrs["lda"] = "M"
-                new_attrs["ldb"] = "N"
-                new_attrs["ldc"] = "N"
             else:
                 raise ValueError("%s unsupported operation" % new_attrs["cutlass_op_name"])
+
             new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
             new_func = relay.Function(
                 func.params,
