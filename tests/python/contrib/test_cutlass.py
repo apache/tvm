@@ -183,5 +183,5 @@ def test_dense_dynamic():
 
 if __name__ == "__main__":
     # pytest.main([__file__])
-    # test_dense_bias_gelu()
-    test_dense_dynamic()
+    test_dense_bias_gelu()
+    # test_dense_dynamic()

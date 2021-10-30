@@ -112,11 +112,11 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   // Create a tuple of gemm kernel arguments. This is later passed as arguments to launch
   // instantiated CUTLASS kernel
   ICHECK(func_args.size() >= 2);
-  CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + func_args[0] + ");\n");
-  CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + func_args[1] + ");\n");
+  CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + func_args[0] + "->data);\n");
+  CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
   if (has_bias) {
     ICHECK(func_args.size() >= 3);
-    CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + ");\n");
+    CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + "->data);\n");
   }
   CutlassPrint(gemm_decl, "void* ptr_out = (void*)(out0);\n");
 
@@ -188,8 +188,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     code_stream_ << "void " << ext_func_id_ << "_(";
 
     for (const auto& arg : ext_func_args_) {
-      const auto& dtype_str = GetDtypeString(arg);
-      code_stream_ << dtype_str << "* " << arg->name_hint() << ", ";
+      code_stream_ << "DLTensor* " << arg->name_hint() << ", ";
     }
     for (size_t i = 0; i < out.size() - 1; ++i) {
       code_stream_ << out[i].dtype << "* out" << i << ", ";
@@ -211,7 +210,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     this->ExitScope();
     code_stream_ << "}\n";
 
-    this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, const_array_name_, out);
+    this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, const_array_name_, out, true);
     return code_stream_.str();
   }
 
