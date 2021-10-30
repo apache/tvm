@@ -19,8 +19,13 @@ import pytest
 import tvm
 from tvm import relay
 import numpy as np
+from tvm.runtime.vm import VirtualMachine
 from tvm.relay.op.contrib.cutlass import partition_for_cutlass
-from tvm.contrib.cutlass import tune_cutlass_kernels, build_cutlass_kernels
+from tvm.contrib.cutlass import (
+    tune_cutlass_kernels,
+    build_cutlass_kernels,
+    build_cutlass_kernels_vm,
+)
 
 
 def get_ref_rt_mod(mod, params):
@@ -31,16 +36,35 @@ def get_ref_rt_mod(mod, params):
     return rt_mod, dev
 
 
+def get_ref_vm(mod, params):
+    with tvm.transform.PassContext(opt_level=3):
+        vm_exec = relay.vm.compile(mod, target="cuda", params=params)
+        code, lib = vm_exec.save()
+
+    dev = tvm.device("cuda", 0)
+    vm_exec = tvm.runtime.vm.Executable.load_exec(code, lib)
+    vm = VirtualMachine(vm_exec, dev)
+    return vm, dev
+
+
 def get_output(rt_mod, x):
     rt_mod.set_input("data", x)
     rt_mod.run()
     return rt_mod.get_output(0).asnumpy()
 
 
-def get_dense(M, N, K, out_dtype="float16"):
-    data = relay.var("data", shape=(M, K), dtype="float16")
-    weight = relay.var("weight", shape=(N, K), dtype="float16")
+def get_output_vm(vm, x):
+    return vm.invoke("main", data=x).numpy()
+
+
+def get_dense_with_shape(data_shape, weight_shape, out_dtype="float16"):
+    data = relay.var("data", shape=data_shape, dtype="float16")
+    weight = relay.var("weight", shape=weight_shape, dtype="float16")
     return relay.nn.dense(data, weight, out_dtype=out_dtype)
+
+
+def get_dense(M, N, K, out_dtype="float16"):
+    return get_dense_with_shape((M, K), (N, K), out_dtype)
 
 
 def get_dense_bias(M, N, K, out_dtype="float16"):
@@ -78,7 +102,22 @@ def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     return rt_mod, dev, num_cutlass_partition
 
 
-def verify(func, M, N, K, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False):
+def profile_and_build_vm(
+    mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", vmcode_path="vmcode.ro"
+):
+    mod = partition_for_cutlass(mod)
+    mod, num_cutlass_partition = tune_cutlass_kernels(
+        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
+    )
+    with tvm.transform.PassContext(opt_level=3):
+        vm_exec = relay.vm.compile(mod, target="cuda", params=params)
+    vm_exec = build_cutlass_kernels_vm(vm_exec, sm, tmp_dir, lib_path, vmcode_path)
+    dev = tvm.device("cuda", 0)
+    vm = VirtualMachine(vm_exec, dev)
+    return vm, dev, num_cutlass_partition
+
+
+def verify(func, M, N, K, vm=False, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False):
     if not tvm.get_global_func("relay.ext.cutlass", True):
         return
     mod = tvm.IRModule.from_expr(func)
@@ -90,15 +129,20 @@ def verify(func, M, N, K, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False):
 
     params = {"weight": np_weight, "bias": np_bias}
 
-    rt_mod_ref, dev = get_ref_rt_mod(mod, params)
-    rt_mod, dev, num_partition = profile_and_build(mod, params, sm)
+    if vm:
+        rt_mod, dev, num_partition = profile_and_build_vm(mod, params, sm)
+        rt_mod_ref, dev = get_ref_vm(mod, params)
+        x = tvm.nd.array(np_data, device=dev)
+        out = get_output_vm(rt_mod, x)
+        ref_out = get_output_vm(rt_mod_ref, x)
+    else:
+        rt_mod_ref, dev = get_ref_rt_mod(mod, params)
+        rt_mod, dev, num_partition = profile_and_build(mod, params, sm)
+        x = tvm.nd.array(np_data, device=dev)
+        out = get_output(rt_mod, x)
+        ref_out = get_output(rt_mod_ref, x)
+
     assert num_partition > 0
-
-    x = tvm.nd.array(np_data, device=dev)
-
-    out = get_output(rt_mod, x)
-    ref_out = get_output(rt_mod_ref, x)
-
     np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
 
     if run_benchmark:
@@ -113,7 +157,7 @@ K = 768
 
 def test_dense():
     verify(get_dense(M, N, K), M, N, K)
-    verify(get_dense(M, N, K, out_dtype="float32"), M, N, K)
+    verify(get_dense(M, N, K, out_dtype="float32"), M, N, K, vm=True)
 
 
 def test_dense_bias():
@@ -127,9 +171,17 @@ def test_dense_bias_relu():
 
 
 def test_dense_bias_gelu():
-    verify(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3)
-    verify(get_dense_bias_gelu(M, N, K, out_dtype="float32"), M, N, K, atol=1e-3, rtol=1e-3)
+    verify(get_dense_bias_gelu(M, N, K), M, N, K, atol=1e-3, rtol=1e-3, run_benchmark=True)
+    # verify(get_dense_bias_gelu(M, N, K, out_dtype="float32"), M, N, K, atol=1e-3, rtol=1e-3)
+
+
+def test_dense_dynamic():
+    data_shape = (relay.Any(), K)
+    weight_shape = (N, K)
+    verify(get_dense_with_shape(data_shape, weight_shape), M, N, K, vm=True)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # pytest.main([__file__])
+    # test_dense_bias_gelu()
+    test_dense_dynamic()

@@ -36,6 +36,28 @@ def _get_cutlass_path():
     return cutlass_path
 
 
+def _get_cutlass_compile_options(sm):
+    cutlass_root = _get_cutlass_path()
+    cutlass_include = os.path.join(cutlass_root, "include")
+    cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
+
+    kwargs = {}
+    kwargs["cc"] = "nvcc"
+    kwargs["options"] = [
+        "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
+        "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
+        "-Xcompiler=-fPIC",
+        "-Xcompiler=-Wconversion",
+        "-Xcompiler=-fno-strict-aliasing",
+        "-O3",
+        "-std=c++14",
+        "-I" + cutlass_include,
+        "-I" + cutlass_util_include,
+    ]
+
+    return kwargs
+
+
 class GemmAnnotator(tvm.relay.ExprVisitor):
     """Annotates partitioned functions with shape and dtype information."""
 
@@ -171,27 +193,22 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so", threa
     updated_lib : runtime.Module
         The updated module with compiled cutlass kernels.
     """
-    cutlass_root = _get_cutlass_path()
-    cutlass_include = os.path.join(cutlass_root, "include")
-    cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
-
-    kwargs = {}
-    kwargs["cc"] = "nvcc"
-    kwargs["options"] = [
-        "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-        "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
-        "-Xcompiler=-fPIC",
-        "-Xcompiler=-Wconversion",
-        "-Xcompiler=-fno-strict-aliasing",
-        "-O3",
-        "-std=c++14",
-        "-I" + cutlass_include,
-        "-I" + cutlass_util_include,
-    ]
-    cuda_path = find_cuda_path()
-    cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver >= 11.2:
-        ncpu = multiprocessing.cpu_count() if threads < 0 else threads
-        kwargs["options"].append("-t %d" % ncpu)
+    kwargs = _get_cutlass_compile_options(sm)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
     return runtime.load_module(lib_path)
+
+
+def build_cutlass_kernels_vm(
+    vm_exec, sm, tmp_dir="./tmp", lib_path="compile.so", vmcode_path="vmcode.ro"
+):
+    """TODO"""
+    code, lib = vm_exec.save()
+    kwargs = _get_cutlass_compile_options(sm)
+    lib_path = os.path.join(tmp_dir, lib_path)
+    vmcode_path = os.path.join(tmp_dir, vmcode_path)
+    lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
+    with open(vmcode_path, "wb") as fo:
+        fo.write(code)
+    lib = tvm.runtime.load_module(lib_path)
+    code = bytearray(open(vmcode_path, "rb").read())
+    return tvm.runtime.vm.Executable.load_exec(code, lib)
