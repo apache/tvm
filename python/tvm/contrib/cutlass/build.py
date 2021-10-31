@@ -17,8 +17,10 @@
 # pylint: disable=invalid-name
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import os
+import multiprocessing
 import tvm
 from tvm import runtime, relay
+from tvm.contrib.nvcc import find_cuda_path, get_cuda_version
 from .gen_gemm import CutlassGemmProfiler
 
 
@@ -142,7 +144,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
     return mod, num_cutlass_partition
 
 
-def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so"):
+def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so", threads=-1):
     """Compile CUTLASS kernels in lib and return the runtime module ready to run.
 
     Parameters
@@ -159,6 +161,10 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so"):
 
     lib_path : string, optional
         The path to a shared library which will be generated as the result of the build  process
+
+    threads : int, optional
+        The number of threads to use for compiling generated kernels. Only available for
+        CUDA 11.2 or later. Use all logical cores by default.
 
     Returns
     -------
@@ -182,5 +188,10 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so"):
         "-I" + cutlass_include,
         "-I" + cutlass_util_include,
     ]
+    cuda_path = find_cuda_path()
+    cuda_ver = get_cuda_version(cuda_path)
+    if cuda_ver >= 11.2:
+        ncpu = multiprocessing.cpu_count() if threads < 0 else threads
+        kwargs["options"].append("-t %d" % ncpu)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
     return runtime.load_module(lib_path)

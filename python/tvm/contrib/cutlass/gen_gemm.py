@@ -324,6 +324,7 @@ class CutlassGemmProfiler(object):
         assert sm in GENERATOR_FUNC_TABLE, "sm%d not supported yet." % sm
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.sm = sm
+        self.cache = {}
 
     def check_align(self, op_name, M):
         """Filter out kernels that cannot be supported."""
@@ -339,6 +340,9 @@ class CutlassGemmProfiler(object):
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
+        if (M, N, K) in self.cache:
+            return self.cache[(M, N, K)]
+
         ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
         ops = list(filter(lambda op: self.check_align(op["name"], M), ops))
 
@@ -356,4 +360,5 @@ class CutlassGemmProfiler(object):
 
         valid_ops = filter(lambda op: op["runtime"] > 0, ops)
         output = sorted(valid_ops, key=lambda i: i["runtime"])
+        self.cache[(M, N, K)] = output[0]
         return output[0]
