@@ -187,7 +187,7 @@ class SparseAxis : public Axis {
  */
 class SparseFixedAxisNode : public SparseAxisNode {
  public:
-  Buffer indices; 
+  Buffer indices;
   /* fixed number of columns of current sparse axis. */
   PrimExpr num_cols;
 
@@ -267,7 +267,6 @@ class SparseVariableAxis : public SparseAxis {
   TVM_DEFINE_OBJECT_REF_METHODS(SparseVariableAxis, SparseAxis, SparseVariableAxisNode);
 };
 
-
 /*!
  * \brief Axis Dependency Tree.
  */
@@ -314,9 +313,7 @@ class SparseBufferNode : public Object {
   /* Data type */
   runtime::DataType dtype;
 
-  inline int ndim() const {
-    return static_cast<int>(axes.size());
-  }
+  inline int ndim() const { return static_cast<int>(axes.size()); }
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &tree);
@@ -370,24 +367,28 @@ class SpIterVarNode : public Object {
   Var var;
   PrimExpr max_extent;
   SpIterKind kind;
+  bool is_reduction;
   Optional<Axis> axis;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("max_extent", &max_extent);
     v->Visit("axis", &axis);
+    v->Visit("is_reduction", &is_reduction);
     v->Visit("kind", &kind);
   }
 
   bool SEqualReduce(const SpIterVarNode* other, SEqualReducer equal) const {
     return equal(var, other->var) && equal(max_extent, other->max_extent) &&
-           equal(axis, other->axis) && equal(kind, other->kind);
+           equal(axis, other->axis) && equal(is_reduction, other->is_reduction) &&
+           equal(kind, other->kind);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(var);
     hash_reduce(max_extent);
     hash_reduce(axis);
+    hash_reduce(is_reduction);
     hash_reduce(kind);
   }
 
@@ -399,7 +400,7 @@ class SpIterVarNode : public Object {
 
 class SpIterVar : public ObjectRef {
  public:
-  TVM_DLL explicit SpIterVar(String name, PrimExpr max_extent, SpIterKind kind,
+  TVM_DLL explicit SpIterVar(String name, PrimExpr max_extent, SpIterKind kind, bool is_reduction,
                              Optional<Axis> axis = NullOpt);
 
   /*!
