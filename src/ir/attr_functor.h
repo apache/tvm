@@ -31,7 +31,6 @@
 #define TVM_IR_ATTR_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
-#include <tvm/target/se_scope.h>
 #include <tvm/tir/expr.h>
 
 #include <utility>
@@ -106,7 +105,6 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const tir::CastNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tir::CallNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tir::SelectNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const SEScopeNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
 
  private:
   // initialize the vtable.
@@ -141,7 +139,6 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(CastNode);
     ATTR_FUNCTOR_DISPATCH(CallNode);
     ATTR_FUNCTOR_DISPATCH(SelectNode);
-    ATTR_FUNCTOR_DISPATCH(SEScopeNode);
     return vtable;
   }
 };

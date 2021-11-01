@@ -812,17 +812,6 @@ Doc RelayTextPrinter::VisitAttr_(const tir::StringImmNode* op) {
   return Doc::StrLiteral(op->value);
 }
 
-Doc RelayTextPrinter::VisitAttr_(const SEScopeNode* op) {
-  if (show_meta_data_) {
-    return VisitAttrDefault_(op);
-  } else {
-    // TODO(mbs): Surely there's a better way?
-    std::ostringstream os;
-    os << GetRef<SEScope>(op);
-    return Doc::Text(os.str());
-  }
-}
-
 /*!
  * \brief Attribute printer which prints the attributes in the call.
  */
