@@ -262,7 +262,7 @@ Expr DeviceAwareExprMutator::VisitExpr_(const CallNode* call_node) {
     Expr expr = VisitExpr(props.body);
     // Leaving lexical scope of "on_device" call.
     PopDeviceType();
-    return OnDevice(expr, props.device_type, props.is_fixed);
+    return MaybeOnDevice(expr, props.device_type, props.is_fixed);
   } else {
     return DeviceAwareVisitExpr_(call_node);
   }

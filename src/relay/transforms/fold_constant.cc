@@ -21,6 +21,7 @@
  * \file constant_folding.cc
  */
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
@@ -30,68 +31,80 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
-#include "pattern_utils.h"
+#include "../op/annotation/annotation.h"
+#include "./device_aware_visitors.h"
+#include "./pattern_utils.h"
 
 namespace tvm {
 namespace relay {
+namespace transform {
 
-using FInterpreter = runtime::TypedPackedFunc<ObjectRef(Expr)>;
+namespace {
+/*!
+ * \brief Returns whether \p expr is a literal \p Constant, optionally wrapped by an "on_device"
+ * annotation CallNode (which serves only to associate a device to the constant and has no
+ * operational effect).
+ */
+bool IsSimpleConstant(const Expr& expr) {
+  return AsIgnoringOnDevice<ConstantNode>(expr) != nullptr;
+}
 
-class ConstantChecker : private ExprVisitor {
- public:
-  // Check whether an expression is constant. The results are memoized.
-  bool Check(const Expr& expr) {
-    // The `ConstantNode` case is common enough that we check directly for the
-    // case here, to avoid the time overhead of dispatching through the vtable
-    // and the space overhead of memoizing always-true results.
-    if (expr.as<ConstantNode>()) {
-      return true;
-    }
-    const auto it = memo_.find(expr);
-    if (it != memo_.end()) return it->second;
-    VisitExpr(expr);
-    return memo_[expr];  // return memoized result or the default value false
+/*!
+ * \brief Returns whether \p expr \p IsSimpleConstant directly or is a tuple of
+ * \p IsComplexConstant expressions.
+ */
+bool IsComplexConstant(const Expr& expr) {
+  if (IsSimpleConstant(expr)) {
+    return true;
+  } else if (const auto* tuple_node = AsIgnoringOnDevice<TupleNode>(expr)) {
+    return std::all_of(tuple_node->fields.begin(), tuple_node->fields.end(), IsComplexConstant);
+  } else {
+    return false;
   }
-
- private:
-  std::unordered_map<Expr, bool, ObjectPtrHash, ObjectPtrEqual> memo_;
-
-  void VisitExpr_(const TupleNode* n) final {
-    bool result = true;
-    for (const auto& field : n->fields) {
-      if (!Check(field)) {
-        result = false;
-        break;
-      }
-    }
-    memo_[GetRef<Tuple>(n)] = result;
-  }
-};
-
-bool ConstantCheck(const Expr& e) { return ConstantChecker().Check(e); }
-
-TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(ConstantCheck);
+}
 
 // TODO(tvm-team) consider combine dead-code with constant folder.
 // or make a more powerful partial evaluator.
 class ConstantFolder : public MixedModeMutator {
  public:
   explicit ConstantFolder(IRModule module)
-      : module_(module),
+      : module_(std::move(module)),
         device_copy_op_(Op::Get("device_copy")),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
         cast_op_(Op::Get("cast")),
         ndarray_size_op_(Op::Get("ndarray_size")) {}
 
-  using MixedModeMutator::VisitExpr_;
+ private:
+  using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const LetNode* let_node) final {
     auto pre_visit = [this](const LetNode* op) {
       // Rely on the Memoizer to cache pre-visit values
-      Expr value = this->Mutate(op->value);
-      if (value.as<ConstantNode>()) {
-        this->memo_[op->var] = value;
+      Expr new_value = Mutate(op->value);
+      if (IsSimpleConstant(new_value)) {
+        // Inline new value (along with any on_device annotation wrapping it) at all occurrences of
+        // the variable.
+        //
+        // We need to retain any "on_device" annotation so that downstream 'device aware'
+        // passes can still retrieve the device for the constant in its new position(s). Eg:
+        //   def @f(..., result_device_type=D) {
+        //     let %x = on_device(... something we eval to a constant..., device_type=E)
+        //     @f(..., %x, ...)
+        //   }
+        // Here the default device is D, whereas the argument %x to @f is on E (and @f expects
+        // that). No on_device annotation is required in the call according to the convention used
+        // by the device-aware visitors.
+        //
+        // However once we've inlined the constant we need to insert an on_device, again to
+        // respect the convention used by the device-aware visitors.
+        //   def @f(..., result_device_type=D) {
+        //     @f(..., on_device(...the constant..., device_type=E), ...)
+        //   }
+        VLOG(1) << "Replacing let-binding for " << op->var->name_hint()
+                << " with constant:" << std::endl
+                << PrettyPrint(new_value);
+        memo_[op->var] = new_value;
       } else {
         this->Mutate(op->var);
       }
@@ -99,116 +112,117 @@ class ConstantFolder : public MixedModeMutator {
     auto post_visit = [this](const LetNode* op) {
       Expr expr = GetRef<Expr>(op);
       // Rely on the Memoizer to cache pre-visit values
-      Expr value = this->Mutate(op->value);
-      if (value.as<ConstantNode>()) {
-        this->memo_[expr] = this->Mutate(op->body);
+      Expr new_value = this->Mutate(op->value);
+      if (IsSimpleConstant(new_value)) {
+        // The let-bound value has been inlined, drop the let-binding itself.
+        this->memo_[expr] = Mutate(op->body);
       } else {
-        Var var = Downcast<Var>(this->Mutate(op->var));
-        Expr body = this->Mutate(op->body);
-        if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+        Var new_var = Downcast<Var>(this->Mutate(op->var));
+        Expr new_body = this->Mutate(op->body);
+        if (new_var.same_as(op->var) && new_value.same_as(op->value) &&
+            new_body.same_as(op->body)) {
           this->memo_[expr] = expr;
         } else {
-          this->memo_[expr] = Let(var, value, body);
+          this->memo_[expr] = Let(new_var, new_value, new_body, op->span);
         }
       }
     };
-    ExpandANormalForm(op, pre_visit, post_visit);
-    return memo_[GetRef<Expr>(op)];
+    ExpandANormalForm(let_node, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(let_node)];
   }
 
-  bool inside_primitive = false;
-  Expr VisitExpr_(const FunctionNode* op) final {
-    if (op->HasNonzeroAttr(attr::kPrimitive)) {
-      ICHECK_EQ(inside_primitive, false);
-      inside_primitive = true;
-      auto ret = ExprMutator::VisitExpr_(op);
-      inside_primitive = false;
+  Expr VisitExpr_(const FunctionNode* function_node) final {
+    if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+      ICHECK_EQ(inside_primitive_, false);
+      inside_primitive_ = true;
+      auto ret = ExprMutator::VisitExpr_(function_node);
+      inside_primitive_ = false;
       return ret;
     } else {
-      return ExprMutator::VisitExpr_(op);
+      return ExprMutator::VisitExpr_(function_node);
     }
   }
 
-  Expr VisitExpr_(const IfNode* op) final {
-    auto new_cond = ExprMutator::VisitExpr(op->cond);
-    if (auto const_cond = new_cond.as<ConstantNode>()) {
-      if (reinterpret_cast<uint8_t*>(const_cond->data->data)[0]) {
-        return ExprMutator::VisitExpr(op->true_branch);
-      } else {
-        return ExprMutator::VisitExpr(op->false_branch);
-      }
-    }
-    return ExprMutator::VisitExpr_(op);
-  }
-
-  Expr Rewrite_(const CallNode* call, const Expr& post) final {
-    if (inside_primitive) {
-      return GetRef<Expr>(call);
-    }
-    static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
-
-    auto origin_args = call->args;
-    call = post.as<CallNode>();
-    // We don't constant fold function with zero arguments.
-    // This is a heuristic that is useful.
-    // For example it is harmful to fold ones(shape=(4, 5)).
-    if (call->args.size() == 0) return post;
-    const OpNode* op = call->op.as<OpNode>();
-    if (op == nullptr) return post;
-    // skip stateful ops.
-    if (op_stateful.get(GetRef<Op>(op), false)) return post;
-    // Try to evaluate shape_of op
-    if (call->op == shape_of_op_ || call->op == vm_shape_of_op_) {
-      return EvaluateShapeOf(post, origin_args, call->attrs);
+  Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
+    Call pre_call = GetRef<Call>(pre_call_node);
+    if (inside_primitive_) {
+      return pre_call;
     }
 
-    if (call->op == ndarray_size_op_) {
-      return EvaluateNdarraySize(post, origin_args, call->attrs);
+    Call post_call = Downcast<Call>(post);
+
+    if (post_call->args.empty()) {
+      // We don't constant fold function with zero arguments.
+      // This is a heuristic that is useful.
+      // For example it is harmful to fold ones(shape=(4, 5)).
+      return std::move(pre_call);
     }
 
-    // We should think about potentially constant evaluation over these ops too.
     static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
-    if (const auto* call_node = call->op.as<OpNode>()) {
-      Op op = GetRef<Op>(call_node);
-      if ((fnoncomputational.count(op) && fnoncomputational[op]) || (call->op == device_copy_op_)) {
-        return GetRef<Call>(call);
-      }
-    }
 
-    bool all_const_args = true;
-    for (Expr arg : call->args) {
-      if (!checker_.Check(arg)) {
-        all_const_args = false;
-      }
+    const auto* op_node = post_call->op.as<OpNode>();
+    if (op_node == nullptr) {
+      // Only evaluate primitives.
+      return std::move(post_call);
     }
-    if (all_const_args) {
-      return ConstEvaluate(post);
-    } else {
-      return post;
+    Op op = GetRef<Op>(op_node);
+    static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
+    if (op_stateful.get(op, false)) {
+      // skip stateful ops.
+      return std::move(post_call);
     }
+    // Try to evaluate shape_of and ndarray_size ops
+    // Use the original call rather than new_call here since it still has valid checked_type
+    // fields. These operators don't care about the value of their argument anyway.
+    if (Optional<Expr> opt_result = EvaluateShapeOf(pre_call)) {
+      return opt_result.value();
+    }
+    // Use the original call rather than new_call here since it still has valid checked_type
+    // fields. This operator doesn't care about the value of its argument anyway.
+    if (Optional<Expr> opt_result = EvaluateNdarraySize(pre_call)) {
+      return opt_result.value();
+    }
+    if ((fnoncomputational.count(op) && fnoncomputational[op]) || op == device_copy_op_ ||
+        op == shape_of_op_ || op == vm_shape_of_op_ || op == ndarray_size_op_) {
+      // We should think about potentially constant evaluation over these ops too.
+      return std::move(post_call);
+    }
+    if (!std::all_of(post_call->args.begin(), post_call->args.end(), IsComplexConstant)) {
+      // At least one non-constant argument.
+      return std::move(post_call);
+    }
+    // During evaluation we have obviously lost all on_device annotations. However any
+    // on_device wrapping this call will be left in place.
+    return ConstEvaluate(post_call);
   }
 
-  Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) final {
-    op = post.as<TupleGetItemNode>();
-    if (const auto* tuple = op->tuple.as<TupleNode>()) {
-      return tuple->fields[op->index];
-    } else {
-      return post;
+  Expr VisitExpr_(const IfNode* if_node) final {
+    If new_if = Downcast<If>(ExprMutator::VisitExpr_(if_node));
+    if (const auto* const_node = AsIgnoringOnDevice<ConstantNode>(new_if->cond)) {
+      if (reinterpret_cast<uint8_t*>(const_node->data->data)[0]) {
+        return new_if->true_branch;
+      } else {
+        return new_if->false_branch;
+      }
     }
+    return std::move(new_if);
   }
 
- private:
-  // Internal constant checker
-  ConstantChecker checker_;
-  // Module
-  IRModule module_;
-
-  // Cache the following ops for equivalence checking in this pass.
-  const Op& device_copy_op_;
-  const Op& shape_of_op_;
-  const Op& vm_shape_of_op_;
-  const Op& cast_op_;
-  const Op& ndarray_size_op_;
+  Expr Rewrite_(const TupleGetItemNode* tuple_get_item_node,
+                const Expr& post_tuple_get_item) final {
+    const auto* post_tuple_get_item_node = post_tuple_get_item.as<TupleGetItemNode>();
+    if (const auto* tuple_node = AsIgnoringOnDevice<TupleNode>(post_tuple_get_item_node->tuple)) {
+      Expr result = tuple_node->fields[tuple_get_item_node->index];
+      OnDeviceProps props = GetOnDeviceProps(post_tuple_get_item_node->tuple);
+      if (props.body.defined()) {
+        // (on_device((x, y, z), device_type=D).1 ==> on_device(y, device_type=D)
+        return MaybeOnDevice(result, props.device_type, props.is_fixed);
+      } else {
+        return result;
+      }
+    }
+    return std::move(post_tuple_get_item);
+  }
 
   // Convert value to expression.
   Expr ObjectToExpr(const ObjectRef& value) {
@@ -224,35 +238,53 @@ class ConstantFolder : public MixedModeMutator {
       return Tuple(fields);
     } else {
       LOG(FATAL) << "Cannot handle " << value->GetTypeKey();
-      return Expr();
+      return {};
     }
   }
+
   // Constant evaluate an expression.
-  Expr ConstEvaluate(Expr expr) {
+  Expr ConstEvaluate(const Expr& expr) {
+    VLOG_CONTEXT << "ConstEvaluate";
+    VLOG(1) << "Evaluating :" << std::endl << PrettyPrint(expr);
+
+    // We'll invoke the interpreter using the generic CPU device and target. Technically there's
+    // no guarantee the results we bitwise equal what we'd get on the true device, however to
+    // support cross-compilation we don't want to assume the true device is available.
     Device dev;
     dev.device_type = kDLCPU;
     dev.device_id = 0;
     Target target = Target("llvm");
 
-    // use a fresh build context in case we are already in a build context.
+    // Use a fresh build context in case we are already in a build context.
     // needed for both execution and creation(due to JIT)
     With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
 
-    return ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(), dev, target));
+    Expr result =
+        ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(), dev, target));
+    VLOG(1) << "Evaluated to constant:" << std::endl << PrettyPrint(result);
+    return result;
   }
 
-  // Evaluate a call to the shape_of operator for tensors with constant
-  // shapes.
-  Expr EvaluateShapeOf(Expr expr, Array<Expr> args, Attrs attrs) {
-    Expr input = args[0];
-    const auto* param = attrs.as<ShapeOfAttrs>();
+  /*!
+   * \brief Returns constant shape result of \p call if it of form \p shape_of(e) and \p e has
+   * a non-dynamic tensor shape. Returns null otherwise.
+   */
+  Optional<Expr> EvaluateShapeOf(const Call& call) {
+    if (call->op != shape_of_op_ && call->op != vm_shape_of_op_) {
+      return {};
+    }
+
+    VLOG(1) << "Evaluating for shape_of:" << std::endl << PrettyPrint(call);
+    ICHECK_EQ(call->args.size(), 1);
+    const auto* param = call->attrs.as<ShapeOfAttrs>();
     ICHECK(param != nullptr);
+    Expr input = call->args[0];
 
     tvm::Array<IndexExpr> ishape;
-    if (auto opt = GetConstantShape(input)) {
-      ishape = opt.value();
+    if (Optional<tvm::Array<IndexExpr>> opt_shape = GetConstantShape(input)) {
+      ishape = opt_shape.value();
     } else {
-      return expr;
+      return {};
     }
 
     // Get the constant shape
@@ -261,26 +293,26 @@ class ConstantFolder : public MixedModeMutator {
     dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
-    if (ishape.size() == 0) {
+    if (ishape.empty()) {
       value = runtime::NDArray::Empty({}, cdtype, dev);
     } else {
       ICHECK_NE(ishape.size(), 0);
       std::vector<int64_t> cshape = {static_cast<int64_t>(ishape.size())};
       value = runtime::NDArray::Empty(cshape, cdtype, dev);
-      int32_t* dims = static_cast<int32_t*>(value->data);
+      auto* dims = static_cast<int32_t*>(value->data);
       using ::tvm::tir::IntImmNode;
       for (size_t i = 0; i < ishape.size(); ++i) {
-        if (const IntImmNode* dim = ishape[i].as<IntImmNode>()) {
+        if (const auto* dim = ishape[i].as<IntImmNode>()) {
           dims[i] = dim->value;
         } else {
-          return expr;
+          return {};
         }
       }
     }
 
     Constant shape = Downcast<Constant>(ObjectToExpr(value));
 
-    if (shape->data.Shape().size() == 0 && GetScalarFromConstant<int32_t>(shape) == 0) {
+    if (shape->data.Shape().empty() && GetScalarFromConstant<int32_t>(shape) == 0) {
       auto ndarray = runtime::NDArray::Empty({}, cdtype, dev);
       shape = Constant(ndarray);
     }
@@ -288,18 +320,25 @@ class ConstantFolder : public MixedModeMutator {
     return CastValue(shape, param->dtype);
   }
 
-  // Evaluate a call to the ndarray_size operator for tensors with constant
-  // shapes.
-  Expr EvaluateNdarraySize(Expr expr, Array<Expr> args, Attrs attrs) {
-    Expr input = args[0];
-    const auto* param = attrs.as<NdarraySizeAttrs>();
+  /*!
+   * \brief Returns the constant NDArray size of result of \p call if it is of the form
+   * \p ndarray_size(e) and \p e has non-dynamic tensor type. Returns null otherwise.
+   */
+  Optional<Expr> EvaluateNdarraySize(const Call& call) {
+    if (call->op != ndarray_size_op_) {
+      return {};
+    }
+    VLOG(1) << "Evaluating for ndarray_size:" << std::endl << PrettyPrint(call);
+    ICHECK_EQ(call->args.size(), 1);
+    Expr input = call->args[0];
+    const auto* param = call->attrs.as<NdarraySizeAttrs>();
     ICHECK(param != nullptr);
 
     tvm::Array<IndexExpr> ishape;
-    if (auto opt = GetConstantShape(input)) {
-      ishape = opt.value();
+    if (Optional<tvm::Array<IndexExpr>> opt_shape = GetConstantShape(input)) {
+      ishape = opt_shape.value();
     } else {
-      return expr;
+      return {};
     }
 
     // Get the constant size
@@ -309,17 +348,17 @@ class ConstantFolder : public MixedModeMutator {
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
     value = runtime::NDArray::Empty({}, cdtype, dev);
-    int32_t* data = static_cast<int32_t*>(value->data);
-    if (ishape.size() == 0) {
+    auto* data = static_cast<int32_t*>(value->data);
+    if (ishape.empty()) {
       *data = 0;
     } else {
       *data = 1;
       using ::tvm::tir::IntImmNode;
       for (size_t i = 0; i < ishape.size(); ++i) {
-        if (const IntImmNode* dim = ishape[i].as<IntImmNode>()) {
+        if (const auto* dim = ishape[i].as<IntImmNode>()) {
           *data *= dim->value;
         } else {
-          return expr;
+          return {};
         }
       }
     }
@@ -337,31 +376,57 @@ class ConstantFolder : public MixedModeMutator {
   }
 
   Optional<tvm::Array<IndexExpr>> GetConstantShape(const Expr& input) {
-    tvm::Array<IndexExpr> ishape;
-    if (const ConstantNode* op = input.as<ConstantNode>()) {
-      ishape = op->tensor_type()->shape;
+    if (const auto* const_node = AsIgnoringOnDevice<ConstantNode>(input)) {
+      // TODO(mbs): This is not necessary since we only ever ask for the shapes for
+      // pre-rewritten expressions which will always have a checked_type.
+      return const_node->tensor_type()->shape;
     } else if (input->checked_type_.defined()) {
-      ishape = input->checked_type().as<TensorTypeNode>()->shape;
+      return input->checked_type().as<TensorTypeNode>()->shape;
     } else {
-      return Optional<tvm::Array<IndexExpr>>(nullptr);
+      return {};
     }
-
-    return Optional<tvm::Array<IndexExpr>>(ishape);
   }
+
+  // Module
+  IRModule module_;
+
+  // Cache the following ops for equivalence checking in this pass.
+  const Op& device_copy_op_;
+  const Op& shape_of_op_;
+  const Op& vm_shape_of_op_;
+  const Op& cast_op_;
+  const Op& ndarray_size_op_;
+
+  // True if currently within a "primitive" Relay Function.
+  bool inside_primitive_ = false;
 };
 
-Expr FoldConstant(const Expr& expr, const IRModule& mod) {
-  return ConstantFolder(mod).Mutate(expr);
+}  // namespace
+
+TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(IsComplexConstant);
+
+/*!
+ * \brief Returns \p expr with any constants expressions evaluated and let-bound constants
+ * inlined. Returns \p expr unchanged if no change.
+ *
+ * CAUTION: The importers rely on this function returning \p expr unchanged to preserve sharing
+ * from their p.o.v. Furthermore, this function can be called before conversion to ANF so
+ * we must avoid all recursion.
+ */
+Expr FoldConstantExpr(const Expr& expr, const IRModule& mod) {
+  VLOG_CONTEXT << "FoldConstantExpr";
+  VLOG(1) << "folding:" << std::endl << PrettyPrint(expr);
+  Expr result = ConstantFolder(mod).VisitExpr(expr);
+  VLOG(1) << "folded to:" << std::endl << PrettyPrint(result);
+  return result;
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.FoldConstantExpr").set_body_typed(FoldConstant);
-
-namespace transform {
+TVM_REGISTER_GLOBAL("relay._transform.FoldConstantExpr").set_body_typed(FoldConstantExpr);
 
 Pass FoldConstant() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(FoldConstant(f, m));
+        return Downcast<Function>(FoldConstantExpr(f, m));
       };
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }
@@ -369,6 +434,5 @@ Pass FoldConstant() {
 TVM_REGISTER_GLOBAL("relay._transform.FoldConstant").set_body_typed(FoldConstant);
 
 }  // namespace transform
-
 }  // namespace relay
 }  // namespace tvm

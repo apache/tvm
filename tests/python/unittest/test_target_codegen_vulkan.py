@@ -17,7 +17,6 @@
 
 import random
 import re
-import sys
 import threading
 
 import numpy as np
@@ -557,4 +556,6 @@ def test_shared_mem_alloc(target, dev):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

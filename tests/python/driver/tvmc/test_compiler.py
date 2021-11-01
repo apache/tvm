@@ -523,3 +523,9 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
         config={"relay.ext.mock.options": {"testopt": "value"}},
         disabled_pass=None,
     )
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
