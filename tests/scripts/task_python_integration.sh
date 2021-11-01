@@ -76,6 +76,6 @@ run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
 
 
-if [ -z "${TVM_INTEGRATION_GPU_ONLY:-}" ]; then
+if [ -z "${TVM_INTEGRATION_GPU_ONLY:-}" ] && [ -z "${TVM_INTEGRATION_I386_ONLY:-}" ] ; then
     run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-m7-simd tests/python/integration/test_m7_simd.py --enable-corstone300-tests
 fi

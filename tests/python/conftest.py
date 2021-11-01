@@ -57,7 +57,7 @@ def pytest_collection_modifyitems(config, items):
         if config.getoption("--enable-corstone300-tests"):
             if not "corstone300" in item.keywords:
                 item.add_marker(
-                    pytest.mark.skip(reason="Test shold be marked 'corstone300' to run")
+                    pytest.mark.skip(reason="Test should be marked 'corstone300' to run")
                 )
         else:
             if "corstone300" in item.keywords:
