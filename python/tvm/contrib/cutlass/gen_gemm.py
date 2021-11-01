@@ -265,7 +265,7 @@ DEFAULT_KERNELS = {
     80: {
         "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
         "float32": "cutlass_tensorop_s16816gemm_f16_128x128_32x3_tn_align4",
-    }
+    },
 }
 
 
