@@ -256,6 +256,7 @@ GENERATOR_FUNC_TABLE = {
     80: generate_sm80_tensor_op_16816,
 }
 
+# TODO(masahi): A sensible way to pick reasonable default kernels
 DEFAULT_KERNELS = {
     80: {
         "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
@@ -343,6 +344,9 @@ class CutlassGemmProfiler(object):
         return True
 
     def get_default(self, out_dtype):
+        """Return the default kernel for the requested architecture.
+        For now, the default kernel was picked arbitrary.
+        """
         ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
         default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
