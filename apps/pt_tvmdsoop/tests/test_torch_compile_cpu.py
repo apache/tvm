@@ -22,11 +22,14 @@ import time
 import tvm
 from tvm.contrib.torch import compile
 
+
 class Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
     def forward(self, x: torch.Tensor):
         return x * x
+
 
 model = Model()
 x = torch.rand([1, 3, 224, 224])
