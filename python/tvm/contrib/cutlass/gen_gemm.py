@@ -258,6 +258,10 @@ GENERATOR_FUNC_TABLE = {
 
 # TODO(masahi): A sensible way to pick reasonable default kernels
 DEFAULT_KERNELS = {
+    75: {
+        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align4",
+        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align4",
+    },
     80: {
         "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
         "float32": "cutlass_tensorop_s16816gemm_f16_128x128_32x3_tn_align4",
