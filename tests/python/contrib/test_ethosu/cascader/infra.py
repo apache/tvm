@@ -17,6 +17,24 @@
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.tir.compiler import extract_constants, lower_to_te
+import tvm.contrib.ethosu.cascader as cs
+
+
+def make_options(
+    cascade_region: cs.MemoryRegion,
+    max_proposals: int = 1,
+    stripe_factors: int = 1,
+    max_plan_size: int = 1,
+    always_copy_size: int = 1024,
+):
+    return cs.CascaderOptions(
+        cascade_region=cascade_region,
+        max_proposals=max_proposals,
+        stripe_factors=stripe_factors,
+        max_plan_size=max_plan_size,
+        always_copy_size=always_copy_size,
+    )
+
 
 import numpy as np
 
@@ -124,3 +142,14 @@ def make_matrices(
         scale_bias_matrix,
         scale_bias_offset,
     )
+
+
+def make_simple_home_map(graph, var_region, const_region):
+    home_map = {}
+    for tensor in graph.tensor_order:
+        if tensor.is_constant:
+            home_map[tensor] = [const_region]
+        else:
+            home_map[tensor] = [var_region]
+
+    return home_map

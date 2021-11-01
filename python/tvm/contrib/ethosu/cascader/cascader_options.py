@@ -14,26 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The NPU cascader.
+"""Object to hold options for the NPU cascader"""
+import tvm._ffi
 
-This component performs inter-operator scheduling to optimize
-for both performance and memory usage on Arm(R) Ethos(TM)-U NPUs.
-"""
-from .stripe_config import StripeConfig
-from .block_config import BlockConfig
-from .propagator import Propagator
-from .graph import (
-    PerformanceInfo,
-    Tensor,
-    Part,
-    TESubgraph,
-    CascaderGraph,
-    BufferMode,
-    register_matcher,
-    create_cascader_graph,
-)
-from .parts import InlinePart, EthosuPart
-from .device_config import EthosuDeviceConfig
-from .tensor_config import TensorConfigState, MemoryRegion, TensorConfig
-from .plan import Plan
-from .cascader_options import CascaderOptions
+from tvm.runtime import Object
+
+from . import _ffi_api
+from .tensor_config import MemoryRegion
+
+
+@tvm._ffi.register_object("contrib.ethosu.cascader.CascaderOptions")
+class CascaderOptions(Object):
+    """A class to hold configuration options for the cascader."""
+
+    def __init__(
+        self,
+        cascade_region: MemoryRegion,
+        max_proposals: int,
+        stripe_factors: int,
+        max_plan_size: int,
+        always_copy_size: int,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.CascaderOptions,
+            cascade_region,
+            max_proposals,
+            stripe_factors,
+            max_plan_size,
+            always_copy_size,
+        )
