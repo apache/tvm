@@ -20,6 +20,7 @@
 import torch
 import time
 from torchvision.models import resnet50
+import tvm
 from tvm.contrib.torch import compile
 
 
@@ -43,8 +44,10 @@ option = {
     "default_dtype": "float16",
     "export_dir": "pytorch_compiled",
     "num_outputs": 1,
-    "tuning_n_trials": 0,  # set zero to skip tuning
+    "tuning_n_trials": 1,  # set zero to skip tuning
     "tuning_log_file": "tuning.log",
+    "target": "cuda",
+    "device": tvm.cuda(0),
 }
 
 pytorch_tvm_module = compile(model_jit, option)

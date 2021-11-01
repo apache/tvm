@@ -46,19 +46,14 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
   set(LIBRARY_NAME pt_tvmdsoop)
   file(GLOB_RECURSE PTTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/**/*.cc)
   add_library(${LIBRARY_NAME} SHARED ${PTTVM_SRCS})
-  # add_library(${STATIC_NAME} STATIC ${PTTVM_SRCS})
-  # set(PTTVM_LINK_FLAGS -ltvm -ltvm_runtime -L${CMAKE_CURRENT_BINARY_DIR})
   set(PTTVM_LINK_FLAGS -ltvm -L${CMAKE_CURRENT_BINARY_DIR})
 
   if (NOT BUILD_PT_TVMDSOOP_ONLY STREQUAL "ON")
     add_dependencies(${LIBRARY_NAME} tvm) 
   endif()
-  # add_dependencies(${LIBRARY_NAME} tvm)
 
   target_compile_options(${LIBRARY_NAME} PUBLIC ${PTTVM_COMPILE_FLAGS} ${PT_COMPILE_FLAGS})
   target_link_libraries(${LIBRARY_NAME} PUBLIC ${PTTVM_LINK_FLAGS} ${PT_LINK_FLAGS})
-  # target_compile_options(${STATIC_NAME} PUBLIC ${PTTVM_COMPILE_FLAGS} ${PT_COMPILE_FLAGS})
-  # target_link_libraries(${STATIC_NAME} PUBLIC ${PTTVM_LINK_FLAGS} ${PT_LINK_FLAGS})
 
 endif()
 

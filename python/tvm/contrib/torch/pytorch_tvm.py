@@ -16,6 +16,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-builtin
 """`compile` api that convert torch module to torch tvm module"""
 import os
 import tvm
@@ -100,15 +101,15 @@ TVM_ASSETS = ["mod.so", "graph.json", "params"]
 class PyTorchTVMModule:
     """Helper class for compiling pytorch module to tvm module"""
 
-    def __init__(self) -> None:
+    def __init__(self, target="cuda", device=tvm.cuda(0)) -> None:
         self.script_module = None
         self.input_infos = None
         self.default_dtype = "float32"
         self.mod = None
         self.params = None
         self.tasks = None
-        self.target = "cuda"
-        self.dev = tvm.cuda(0)
+        self.target = target
+        self.dev = device
         self.log_file = None
         self.tvm_module = None
         self.tvm_graph = None
@@ -183,13 +184,25 @@ class PyTorchTVMModule:
         assert len(input_infos) == num_inputs
         assets = [os.path.join(self.export_dir, i) for i in TVM_ASSETS]
         input_shapes = [i[1] for i in input_infos]
-        mod = GraphModule(num_inputs=num_inputs, num_outputs=num_outputs).to(self.target)
+
+        def _tvm_dev_to_pt_dev(device):
+            if tvm.runtime.Device.MASK2STR[device.device_type] == "cpu":
+                return "cpu"
+            elif tvm.runtime.Device.MASK2STR[device.device_type] == "cuda":
+                return f"cuda:{device.device_id}"
+            else:
+                raise ValueError(f"unsupported device for pt graph module: {device}")
+
+        mod = GraphModule(num_inputs=num_inputs, num_outputs=num_outputs).to(
+            _tvm_dev_to_pt_dev(self.dev)
+        )
         mod.init(input_shapes, *assets)
         return mod
 
 
-def compile(script_module, option):  # pylint: disable=redefined-builtin
+def compile(script_module, option):
     """
+    example:
     option = {
         "input_infos": [
             ("x", (1, 3, 244, 244)),
@@ -199,19 +212,24 @@ def compile(script_module, option):  # pylint: disable=redefined-builtin
         "num_outputs": 1,
         "tuning_n_trials": 20,  # set zero to skip tuning
         "tuning_log_file": "tuning.log",
+        "target": "llvm",
+        "device": tvm.cpu(),
     }
     script_module = torch.jit.script(model)
     pytorch_tvm_module = compile(script_module, option)
     pytorch_tvm_module("model_tvm.pt")
     """
-    mod = PyTorchTVMModule()
-    print("Converting...")
     input_infos = option["input_infos"]
     default_dtype = option.get("default_dtype", "float32")
     export_dir = option.get("export_dir", "pytorch_compiled")
     tuning_log_file = option.get("tuning_log_file", "tuning.log")
     tuning_n_trials = option.get("tuning_n_trials", 20)
     num_outputs = option.get("num_outputs", 1)
+    target = option.get("target", "cuda")
+    device = option.get("device", tvm.cuda(0))
+
+    mod = PyTorchTVMModule(target=target, device=device)
+    print("Converting...")
 
     mod.log_file = tuning_log_file
     mod.from_pytorch(script_module, input_infos, default_dtype)

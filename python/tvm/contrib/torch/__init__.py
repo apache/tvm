@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=wrong-import-position,redefined-builtin,invalid-name
 """Module container of Pytorch custom class"""
 import os
 import platform
@@ -38,13 +39,13 @@ def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
 
 _load_platform_specific_library()
 
-from . import module  # nopep8, pylint: disable=wrong-import-position
+from . import module
 
 GraphModule = module.GraphModule
 VMModule = module.VMModule
 TraceTvmModule = module.TraceTvmModule
 
-from . import pytorch_tvm  # nopep8, pylint: disable=wrong-import-position
+from . import pytorch_tvm
 
 PyTorchTVMModule = pytorch_tvm.PyTorchTVMModule
-compile = pytorch_tvm.compile  # pylint: disable=redefined-builtin,invalid-name
+compile = pytorch_tvm.compile
