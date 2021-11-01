@@ -1203,8 +1203,6 @@ class OperatorConverter(object):
 
     def convert_neg(self, op):
         """Convert TFLite NEG"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized NEG operator is not supported yet.")
         return self._convert_unary_elemwise(_op.negative, op)
 
     def convert_elu(self, op):
