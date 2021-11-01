@@ -562,7 +562,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     BaseFunc prim_func = ResolveToPrimitive(new_value);
 
     if (prim_func.defined() && !prim_func->IsInstance<tir::PrimFuncNode>()) {
-      // Remember let var is bound to (possibly indirectly) to a non-tir primitive.
+      // Remember let var is bound to (possibly indirectly) a non-tir primitive.
       Function func = Downcast<Function>(prim_func);
       primitive_functions_.emplace(var, func);
     }
@@ -896,8 +896,6 @@ void UpdateFunctionMetadata(Function relay_func,
 
 IRModule LowerTE(const IRModule& module, TargetMap targets, const String& module_name,
                  std::function<void(Function)> process_fn) {
-  DLOG(INFO) << "lowering module:\n" << PrettyPrint(module);
-
   TECompiler compiler;
 
   auto updated_module = LowerTensorExpr(targets, module_name, compiler, process_fn)(module);

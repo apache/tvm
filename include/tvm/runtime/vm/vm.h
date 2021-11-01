@@ -84,11 +84,11 @@ struct VMFunction {
   /*! \brief The size of the frame for this function */
   Index register_file_size;
   /*! \brief The device type of each parameter for this function. */
-  std::vector<DLDeviceType> params_device_type;
+  std::vector<Index> params_device_type;
 
   VMFunction(const std::string& name, std::vector<std::string> params,
              const std::vector<Instruction>& instructions, Index register_file_size,
-             const std::vector<DLDeviceType> params_device_type = {})
+             const std::vector<Index> params_device_type = {})
       : name(name),
         params(params),
         instructions(instructions),

@@ -76,6 +76,16 @@ Expr MaybeOnDevice(Expr expr, DLDeviceType device_type, bool is_fixed) {
     // by the function's attributes.
     return expr;
   }
+  OnDeviceProps props = GetOnDeviceProps(expr);
+  if (props.body.defined()) {
+    // Don't nest on_devices.
+    // If the inner and outer device types differ then we need to be careful:
+    //  - If the inner on_device is_fixed then it disagrees with the outer.
+    //  - If the outer on_device is_fixed then it implies a hidden device_copy
+    // Otherwise just use the inner device type and ignore the outer.
+    ICHECK(props.device_type == device_type || (!is_fixed && !props.is_fixed));
+    return OnDevice(props.body, device_type, is_fixed || props.is_fixed);
+  }
   return OnDevice(expr, device_type, is_fixed);
 }
 
