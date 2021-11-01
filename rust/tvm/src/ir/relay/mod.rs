@@ -163,7 +163,7 @@ impl Call {
         span: Span,
     ) -> Call {
         let node = CallNode {
-            base: ExprNode::base::<VarNode>(span),
+            base: ExprNode::base::<CallNode>(span),
             op: op,
             args: args,
             attrs: attrs,
