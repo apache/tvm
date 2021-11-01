@@ -29,52 +29,140 @@ from . import _ffi_instrument_api
 class PassInstrument(tvm.runtime.Object):
     """A pass instrument implementation.
 
-    Users don't need to interact with this class directly.
-    Instead, a `PassInstrument` instance should be created through
-    :py:func:`pass_instrument`
+    To use, a user class can either subclass from PassInstrument
+    directly, or can apply the :py:func:`pass_instrument` wrapper.  In
+    either case, the `enter_pass_ctx`, `exit_pass_ctx`, `should_run`,
+    `run_before_pass`, and `run_after_pass` methods can be defined to
+    adjust the instrument's behavior.  See the no-op implementations
+    in this class definition for more information on each.
+
     """
+
+    def __init__(self):
+        # initialize handle in case pi_cls creation failed.
+        self.handle = None
+        cls = type(self)
+
+        # If the child class declared the method, then use it.
+        # Otherwise, pass None to avoid a C++ -> Python round trip for
+        # a no-op.
+        def get_child_method(name):
+            if getattr(cls, name) is getattr(PassInstrument, name):
+                return None
+
+            return getattr(self, name)
+
+        # Create runtime pass instrument object.
+        # reister instance's enter_pass_ctx,exit_pass_ctx, should_run, run_before_pass and
+        # run_after_pass methods to it if present.
+        self.__init_handle_by_constructor__(
+            _ffi_instrument_api.PassInstrument,
+            cls.__name__,
+            get_child_method("enter_pass_ctx"),
+            get_child_method("exit_pass_ctx"),
+            get_child_method("should_run"),
+            get_child_method("run_before_pass"),
+            get_child_method("run_after_pass"),
+        )
+
+    def enter_pass_ctx(self):
+        """Called when entering the instrumented context.
+
+        Returns
+        -------
+        None
+        """
+
+    def exit_pass_ctx(self):
+        """Called when exiting the instrumented context.
+
+        Returns
+        -------
+        None
+        """
+
+    def should_run(self, mod, info):
+        """Determine whether to run the pass or not.
+
+        Called once for each pass that is run while the instrumented
+        context is active.
+
+        Parameters
+        ----------
+        mod : tvm.ir.module.IRModule
+
+            The module on which an optimization pass is being run.
+
+        info : tvm.transform.PassInfo
+
+            The pass information.
+
+        Returns
+        -------
+        should_run : bool
+
+            True to run the pass, or False to skip the pass.
+        """
+
+    def run_before_pass(self, mod, info):
+        """Instrument before the pass runs.
+
+        Called once for each pass that is run while the instrumented
+        context is active.
+
+        Parameters
+        ----------
+        mod : tvm.ir.module.IRModule
+
+            The module on which an optimization pass is being run.
+
+        info : tvm.transform.PassInfo
+
+            The pass information.
+
+        Returns
+        -------
+        None
+        """
+
+    def run_after_pass(self, mod, info):
+        """Instrument after the pass runs.
+
+        Called once for each pass that is run while the instrumented
+        context is active.
+
+        Parameters
+        ----------
+        mod : tvm.ir.module.IRModule
+
+            The module on which an optimization pass is being run.
+
+        info : tvm.transform.PassInfo
+
+            The pass information.
+
+        Returns
+        -------
+        None
+        """
 
 
 def _wrap_class_pass_instrument(pi_cls):
     """Wrap a python class as pass instrument"""
 
-    class PyPassInstrument(PassInstrument):
+    # No additional wrapping needed if the user class already
+    # inherits.
+    if issubclass(pi_cls, PassInstrument):
+        return pi_cls
+
+    class PyPassInstrument(pi_cls, PassInstrument):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
             # initialize handle in case pi_cls creation failed.
             self.handle = None
-            inst = pi_cls(*args, **kwargs)
-
-            # check method declartion within class, if found, wrap it.
-            def create_method(method):
-                if hasattr(inst, method) and inspect.ismethod(getattr(inst, method)):
-
-                    def func(*args):
-                        return getattr(inst, method)(*args)
-
-                    func.__name__ = "_" + method
-                    return func
-                return None
-
-            # create runtime pass instrument object
-            # reister instance's enter_pass_ctx,exit_pass_ctx, should_run, run_before_pass and
-            # run_after_pass methods to it if present.
-            self.__init_handle_by_constructor__(
-                _ffi_instrument_api.PassInstrument,
-                pi_cls.__name__,
-                create_method("enter_pass_ctx"),
-                create_method("exit_pass_ctx"),
-                create_method("should_run"),
-                create_method("run_before_pass"),
-                create_method("run_after_pass"),
-            )
-
-            self._inst = inst
-
-        def __getattr__(self, name):
-            # fall back to instance attribute if there is not any
-            return self._inst.__getattribute__(name)
+            pi_cls.__init__(self, *args, **kwargs)
+            PassInstrument.__init__(self)
 
     functools.update_wrapper(PyPassInstrument.__init__, pi_cls.__init__)
     PyPassInstrument.__name__ = pi_cls.__name__
