@@ -29,33 +29,11 @@ namespace tvm {
 
 TVM_REGISTER_NODE_TYPE(SEScopeNode);
 
-void SEScopeNode::VisitAttrs(AttrVisitor* v) {
-  v->Visit("device_type_int", &device_type_int);
-  v->Visit("virtual_device_id", &virtual_device_id);
-  v->Visit("target", &target);
-  v->Visit("memory_scope", &memory_scope);
-}
-
-bool SEScopeNode::SEqualReduce(const SEScopeNode* other, SEqualReducer equal) const {
-  return device_type_int == other->device_type_int &&
-         virtual_device_id == other->virtual_device_id &&
-         // NOTE: Comparing targets by their str representations
-         target->str() == other->target->str() && memory_scope == other->memory_scope;
-}
-
-void SEScopeNode::SHashReduce(SHashReducer hash_reduce) const {
-  hash_reduce(device_type_int);
-  hash_reduce(virtual_device_id);
-  // NOTE: Reducing target to its str representation
-  hash_reduce(target->str());
-  hash_reduce(memory_scope);
-}
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SEScopeNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = ref.as<SEScopeNode>();
       p->stream << "SEScope(";
-      if (node->is_fully_unconstrained()) {
+      if (node->IsFullyUnconstrained()) {
         p->stream << "?";
       } else {
         bool need_sep = false;
@@ -190,7 +168,7 @@ SEScope SEScopeCache::Make(DLDeviceType device_type, int virtual_device_id, Targ
                            MemoryScope memory_scope) {
   // Not the most efficient, but reducing the key to a string seems to be the simplest.
   // Note this means we are effectively quotienting Targets by their str() representation.
-  // TODO(mbs): Implement structural equality/hash on Target.
+  // TODO(mbs): Structural equality on targets
   std::ostringstream os;
   os << device_type;
   os << ":" << virtual_device_id;
@@ -206,7 +184,7 @@ SEScope SEScopeCache::Make(DLDeviceType device_type, int virtual_device_id, Targ
     return itr->second;
   }
   SEScope scope(device_type, virtual_device_id, std::move(target), std::move(memory_scope));
-  if (scope->is_fully_unconstrained()) {
+  if (scope->IsFullyUnconstrained()) {
     scope = SEScope::FullyUnconstrained();
   }
   cache_.emplace(key, scope);

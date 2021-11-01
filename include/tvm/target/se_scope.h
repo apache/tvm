@@ -72,6 +72,11 @@ using MemoryScope = String;
  * surrounding them which coordinates data and control flow. Again, typically non-primitive
  * operators must be executed on a 'CPU'-like device with good support for control flow.
  *
+ * Since TVM targets such a wide range of systems it is not possible for \p SEScope to impose
+ * much semantics on these fields, particularly for \p virtual_device_id and \p memory_scope.
+ * Instead we assume downstream passes and codegen will interpret an validate these fields
+ * appropriately.
+ *
  * Targets vs Devices
  * ------------------
  * Generally \p Targets (a compile-time only datastructue) describe compiler options for a specific
@@ -153,12 +158,12 @@ using MemoryScope = String;
  * These operations are needed during device planning.
  *
  */
-class SEScopeNode : public Object {
+class SEScopeNode : public AttrsNode<SEScopeNode> {
  public:
   /*!
-   * \brief The \p DLDeviceType (represtented as an int) of the device. If \p target is known then
-   * this will be equal to \p target->kind->device_type. If \p target is null then the target is to
-   * be determined by a later pass.
+   * \brief The \p DLDeviceType (represtented as an int) of the virtual device. If \p target is
+   * known then this will be equal to \p target->kind->device_type. If \p target is null then the
+   * target is to be determined later.
    *
    * This is needed to support the legacy "on_device" and "device_copy" calls which only allow
    * a \p DLDeviceTypes (as an integer) to be given.
@@ -170,7 +175,7 @@ class SEScopeNode : public Object {
   DLDeviceType device_type() const { return static_cast<DLDeviceType>(device_type_int); }
 
   /*!
-   * \brief The 'virtual' device identifier for the device. This must be resolved to a physical
+   * \brief The device identifier for the virtual device. This must be resolved to a physical
    * device identifier either during compilation or at runtime.
    *
    * -1 denotes unconstrained.
@@ -178,38 +183,44 @@ class SEScopeNode : public Object {
   int virtual_device_id;
 
   /*!
-   * \brief The \p Target describing how to compile for the device.
+   * \brief The \p Target describing how to compile for the virtual device.
    *
    * Null denotes unconstrained. Note that if a target later becomes known for this \p SEScope
-   * then it must be consistent with the \p device_type if that is already known. This is
-   * enforced by the Join and Default methods.
+   * then it must be consistent with the \p device_type if already known. This is enforced by the
+   * Join and Default methods.
    */
   Target target;
 
   /*!
-   * \brief The scope of memory within the device.
+   * \brief The scope of memory w.r.t. the virtual device which holds data.
    *
    * Empty denotes unconstrained.
    */
   MemoryScope memory_scope;
 
   /*!
-   * \brief Returns true if scope is fully unconstrained, ie no target/device type, virtual device
-   * id or memory scope is specified.
+   * \brief Returns true if scope is fully unconstrained, ie no target/device type, device id
+   * or memory scope is specified.
    */
-  bool is_fully_unconstrained() const {
+  bool IsFullyUnconstrained() const {
     return !target.defined() && device_type() == kInvalidDeviceType && virtual_device_id == -1 &&
            memory_scope.empty();
   }
 
   /*!
-   * \brief Returns true if scope is fully constrained, ie target, virtual device id and
-   * memory scope are all specified.
+   * \brief Returns true if scope is fully constrained, ie target, device id and memory scope are
+   * all specified.
    */
-  bool is_fully_constrained() const {
+  bool IsFullyConstrained() const {
     return target.defined() && virtual_device_id != -1 && !memory_scope.empty();
   }
 
+  /*!
+   * \brief Returns the (virtual) \p Device implied by this \p SEScope. Both the \p device_type and
+   * \p virtual_device_must be constrained. The returned \p Device may not correspond to any
+   * physical device available at compile time or even runtime: see "Virtual vs Physical Devices"
+   * above.
+   */
   Device ToDevice() const {
     ICHECK(device_type() != kInvalidDeviceType);
     ICHECK(virtual_device_id != -1);
@@ -219,17 +230,20 @@ class SEScopeNode : public Object {
     return device;
   }
 
-  void VisitAttrs(AttrVisitor* v);
-
-  // We implement structural equality (which reduces Targets to their str representation)
-  // so that unit tests can compare actual and expected SEScopes.
-  bool SEqualReduce(const SEScopeNode* other, SEqualReducer equal) const;
-  void SHashReduce(SHashReducer hash_reduce) const;
-
-  static constexpr const char* _type_key = "SEScope";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(SEScopeNode, Object);
+  TVM_DECLARE_ATTRS(SEScopeNode, "SEScope") {
+    TVM_ATTR_FIELD(device_type_int)
+        .describe("The type of the virtual device.")
+        .set_default(kInvalidDeviceType);
+    TVM_ATTR_FIELD(virtual_device_id)
+        .describe("The device id of the virtual device.")
+        .set_default(-1);
+    TVM_ATTR_FIELD(target)
+        .describe("The target describing how to compile for the virtual device.")
+        .set_default(Target());
+    TVM_ATTR_FIELD(memory_scope)
+        .describe("The area of memory w.r.t. the virtual device where data is stored.")
+        .set_default("");
+  }
 
   friend class SEScope;
 };
@@ -243,11 +257,13 @@ class SEScope : public ObjectRef {
  public:
   /*!
    * \brief Construct an SEScope.
-   * \param device_type The device type for the device, or kInvalidDeviceType if unconstrained.
-   * If \p target is defined then must match its \p target->kind->device_type.
-   * \param virtual_device_id The virtual device id for the device, or -1 if unconstrained.
-   * \param target The target describing how to compile for the device, or null if unconstrained.
-   * \param memory_scope The memory scope within the device, or "" if unconstrained.
+   * \param device_type The device type for the virtual device, or kInvalidDeviceType if
+   * unconstrained.  If \p target is defined then must match its \p target->kind->device_type.
+   * \param virtual_device_id The device id for the virtual device, or -1 if unconstrained.
+   * \param target The target describing how to compile for the virtual device, or null if
+   * unconstrained.
+   * \param memory_scope The memory scope w.r.t. the virtual device which holds data, or "" if
+   * unconstrained.
    * \return The SEScope
    */
   explicit SEScope(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
