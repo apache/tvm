@@ -32,6 +32,8 @@ from tvm import rpc
 import tvm.testing
 from tvm.relay.transform import InferType
 from tvm.relay.testing import mlp
+from tvm.relay.dataflow_pattern import wildcard, is_op
+from tvm.relay.backend.vm import VMCompiler
 
 
 def check_result(target, dev, args, expected_result, mod=None):
@@ -971,6 +973,30 @@ def test_benchmark_end_to_end_rpc():
         remote.device("cuda"), data=data, func_name="main", repeat=2, number=1, end_to_end=True
     )
     assert result.mean > 0
+
+
+def test_shape_func_nested_function():
+    data_shape = (relay.Any(), 16)
+    weight_shape = (relay.Any(), 16)
+
+    dense = relay.nn.dense(
+        relay.var("data", shape=data_shape), relay.var("weight", shape=weight_shape)
+    )
+    mod = tvm.IRModule.from_expr(dense)
+
+    patterns = [("test.dense", is_op("nn.dense")(wildcard(), wildcard()))]
+    passes = tvm.transform.Sequential(
+        [
+            relay.transform.MergeComposite(patterns),
+            relay.transform.AnnotateTarget(["test"]),
+            relay.transform.PartitionGraph(),
+        ]
+    )
+
+    mod = passes(mod)
+
+    compiler = VMCompiler()
+    compiler.lower(mod, "llvm")
 
 
 if __name__ == "__main__":
