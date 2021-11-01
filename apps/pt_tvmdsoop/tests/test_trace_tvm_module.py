@@ -50,7 +50,8 @@ option = {
 # use TraceTvmModule to convert List[Tensor] input/output
 # to tuple of Tensors
 pytorch_tvm_module = compile(model_jit, option)
-traced = TraceTvmModule(pytorch_tvm_module)
+scripted = torch.jit.script(pytorch_tvm_module)
+traced = torch.jit.trace(TraceTvmModule(scripted), (x, y))
 
 res_traced = traced.forward(x, y)
 res_expected = pytorch_tvm_module.forward([x, y])[0]
