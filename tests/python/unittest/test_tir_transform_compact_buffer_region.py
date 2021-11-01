@@ -387,7 +387,7 @@ def compacted_storage_align_func(a: T.handle, c: T.handle) -> None:
 def padding_pattern_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (20, 20), "float32")
-    with T.block() as []:
+    with T.block():
         B = T.alloc_buffer((20, 20), dtypes="float32")
         for i in range(0, 20):
             for j in range(0, 20):
@@ -410,7 +410,7 @@ def padding_pattern_func(a: T.handle, c: T.handle) -> None:
 def mem_access_in_branch_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (224, 224), "float32")
     C = T.match_buffer(c, (224, 224), "float32")
-    with T.block() as []:
+    with T.block():
         B1 = T.alloc_buffer((224, 224), dtypes="float32")
         B2 = T.alloc_buffer((224, 224), dtypes="float32")
         for i in range(0, 224):
@@ -436,7 +436,7 @@ def mem_access_in_branch_func(a: T.handle, c: T.handle) -> None:
 def compacted_mem_access_in_branch_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (224, 224), "float32")
     C = T.match_buffer(c, (224, 224), "float32")
-    with T.block() as []:
+    with T.block():
         B1 = T.alloc_buffer((112, 112), dtypes="float32")
         B2 = T.alloc_buffer((224, 224), dtypes="float32")
         for i in range(0, 224):

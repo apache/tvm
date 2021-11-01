@@ -223,29 +223,6 @@ def test_union_lower_bound():
     assert result.max_value.same_as(pos_inf)
 
 
-def test_difference():
-    def __check(point_pair_a, point_pair_b, expect):
-        a = tvm.arith.IntervalSet(min_value=point_pair_a[0], max_value=point_pair_a[1])
-        b = tvm.arith.IntervalSet(min_value=point_pair_b[0], max_value=point_pair_b[1])
-        result = tvm.arith.IntSet.difference(a, b)
-        assert result.min_value.same_as(expect[0]) or result.min_value == expect[0]
-        assert result.max_value.same_as(expect[1]) or result.max_value == expect[1]
-
-    empty = [tvm.arith.int_set.pos_inf(), tvm.arith.int_set.neg_inf()]
-    __check([1, 10], [-1, -1], [1, 10])
-    __check([1, 10], [-1, 1], [2, 10])
-    __check([1, 10], [-1, 10], empty)
-    __check([1, 10], [-1, 15], empty)
-    __check([1, 10], [1, 5], [6, 10])
-    __check([1, 10], [1, 10], empty)
-    __check([1, 10], [1, 15], empty)
-    __check([1, 10], [3, 8], [1, 10])
-    __check([1, 10], [3, 10], [1, 2])
-    __check([1, 10], [3, 15], [1, 2])
-    __check([1, 10], [10, 15], [1, 9])
-    __check([1, 10], [12, 15], [1, 10])
-
-
 if __name__ == "__main__":
     test_basic()
     test_vector()
@@ -260,4 +237,3 @@ if __name__ == "__main__":
     test_region_lower_bound_split_predicate()
     test_region_lower_bound_multiple_variables()
     test_union_lower_bound()
-    test_difference()

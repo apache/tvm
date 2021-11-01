@@ -228,14 +228,6 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
 Bool IsFromLegacyTESchedule(PrimFunc f);
 
 /*!
- * \brief Helper to solve related variable's bound within conditional scope.
- * \param condition The condition expression to solve.
- * \param dom_map Global domain map of related vars.
- */
-Map<Var, Range> GetVarBoundsFromCondition(
-    const PrimExpr& condition, const std::unordered_map<const VarNode*, arith::IntSet>& dom_map);
-
-/*!
  *\brief Context helper to update domain map within conditional scope.
  *
  * Assume the condition is `0 <= i && i < 9` and global domain of i is [0, 20], thus `bounds[i]` is
@@ -248,19 +240,23 @@ class ConditionalBoundsContext {
   friend class With<ConditionalBoundsContext>;
   /*!
    * \brief Construct a condition bounds context.
+   * \param condition The condition holds on true branch.
    * \param dom_map The global domain map to be updated.
-   * \param true_branch_bounds The condition bounds map.
    * \param is_true_branch Whether step into the branch where condition bounds holds.
    */
-  ConditionalBoundsContext(std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
-                           const Map<Var, Range>& true_branch_bounds, bool is_true_branch);
+  ConditionalBoundsContext(const PrimExpr& condition,
+                           std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
+                           bool is_true_branch);
   void EnterWithScope();
   void ExitWithScope();
 
+  /*! \brief Helper to solve related variable's bound within conditional scope.*/
+  Map<Var, Range> GetVarBoundsFromCondition();
+
+  /*! \brief the condition holds on true branch. */
+  const PrimExpr& condition_;
   /*! \brief global domain map to updated */
   std::unordered_map<const VarNode*, arith::IntSet>* dom_map_;
-  /*! \brief var bounds on true branch */
-  const Map<Var, Range>& true_branch_bounds_;
   /*! \brief whether is on true branch */
   bool is_true_branch_;
   /*! \brief used to record and restore original var bounds */

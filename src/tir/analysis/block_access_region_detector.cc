@@ -158,15 +158,14 @@ void BlockReadWriteDetector::VisitStmt_(const ForNode* op) {
 
 void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
   VisitExpr(op->condition);
-  Map<Var, Range> bounds = GetVarBoundsFromCondition(op->condition, dom_map_);
   {
     // Visit then branch
-    With<ConditionalBoundsContext> ctx(&dom_map_, bounds, true);
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, true);
     StmtExprVisitor::VisitStmt(op->then_case);
   }
   if (op->else_case.defined()) {
     // Visit else branch
-    With<ConditionalBoundsContext> ctx(&dom_map_, bounds, false);
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, false);
     StmtExprVisitor::VisitStmt(op->else_case);
   }
 }
@@ -174,15 +173,14 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
 void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::if_then_else())) {
     VisitExpr(op->args[0]);
-    Map<Var, Range> bounds = GetVarBoundsFromCondition(op->args[0], dom_map_);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(&dom_map_, bounds, true);
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, true);
       StmtExprVisitor::VisitExpr(op->args[1]);
     }
     {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(&dom_map_, bounds, false);
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, false);
       StmtExprVisitor::VisitExpr(op->args[2]);
     }
     return;

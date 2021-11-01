@@ -252,14 +252,35 @@ Bool IsFromLegacyTESchedule(PrimFunc f) {
   return from_legacy_te_schedule.value();
 }
 
-Map<Var, Range> GetVarBoundsFromCondition(
-    const PrimExpr& condition, const std::unordered_map<const VarNode*, arith::IntSet>& dom_map) {
-  // extract equations from condition expression
+Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
+  // extract equations and related vars from condition expression.
+  // currently only extract simple integral equations which could be solvable.
+  arith::Analyzer analyzer;
+  PrimExpr condition = is_true_branch_ ? condition_ : analyzer.Simplify(!condition_);
   Array<PrimExpr> equations;
-  std::function<void(const PrimExpr&)> fvisit = [&equations, &fvisit](const PrimExpr& e) {
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set;
+  std::function<void(const PrimExpr&)> fvisit = [&equations, &var_set, &fvisit](const PrimExpr& e) {
     if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
         e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
-      equations.push_back(Downcast<PrimExpr>(e));
+      bool is_simple = true;
+      std::vector<Var> cand_vars;
+      PostOrderVisit(e, [&cand_vars, &is_simple, &e](const ObjectRef& obj) {
+        if (obj.same_as(e)) {
+          return;
+        } else if (const VarNode* var = obj.as<VarNode>()) {
+          if (var->dtype.is_int() || var->dtype.is_uint()) {
+            cand_vars.push_back(GetRef<Var>(var));
+          }
+        } else {
+          is_simple &= obj->IsInstance<AddNode>() || obj->IsInstance<SubNode>() ||
+                       obj->IsInstance<MulNode>() || obj->IsInstance<FloorDivNode>() ||
+                       obj->IsInstance<FloorModNode>() || obj->IsInstance<IntImmNode>();
+        }
+      });
+      if (is_simple && !cand_vars.empty()) {
+        for (const Var& var : cand_vars) var_set.insert(var);
+        equations.push_back(Downcast<PrimExpr>(e));
+      }
     } else if (e->IsInstance<AndNode>()) {
       And op = Downcast<And>(e);
       fvisit(op->a);
@@ -272,20 +293,15 @@ Map<Var, Range> GetVarBoundsFromCondition(
     }
   };
   fvisit(condition);
-  // extract related vars from condition expression
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set;
-  PostOrderVisit(condition, [&var_set](const ObjectRef& obj) {
-    if (obj->IsInstance<VarNode>()) {
-      var_set.insert(Downcast<Var>(obj));
-    }
-  });
+  if (equations.empty() || var_set.empty()) {
+    return Map<Var, Range>();
+  }
   // build dom ranges for related vars
-  arith::Analyzer analyzer;
   Array<Var> vars = Array<Var>(var_set.begin(), var_set.end());
   Map<Var, Range> ranges;
   for (const Var& v : vars) {
-    auto it = dom_map.find(v.get());
-    if (it != dom_map.end()) {
+    auto it = dom_map_->find(v.get());
+    if (it != dom_map_->end()) {
       const auto& int_set = it->second;
       ranges.Set(v, Range::FromMinExtent(int_set.min(),
                                          analyzer.Simplify(int_set.max() - int_set.min() + 1)));
@@ -298,27 +314,17 @@ Map<Var, Range> GetVarBoundsFromCondition(
 }
 
 ConditionalBoundsContext::ConditionalBoundsContext(
-    std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
-    const Map<Var, Range>& true_branch_bounds, bool is_true_branch)
-    : dom_map_(dom_map), true_branch_bounds_(true_branch_bounds), is_true_branch_(is_true_branch) {}
+    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
+    bool is_true_branch)
+    : condition_(condition), dom_map_(dom_map), is_true_branch_(is_true_branch) {}
 
 void ConditionalBoundsContext::EnterWithScope() {
-  if (is_true_branch_) {
-    for (const auto& p : true_branch_bounds_) {
-      const auto* var = p.first.get();
-      auto it = dom_map_->find(var);
-      if (it != dom_map_->end()) {
-        origin_map_.emplace(var, it->second);
-        it->second = arith::Intersect({it->second, arith::IntSet::FromRange(p.second)});
-      }
-    }
-  } else if (true_branch_bounds_.size() == 1) {
-    const auto& p = *true_branch_bounds_.begin();
+  for (const auto& p : GetVarBoundsFromCondition()) {
     const auto* var = p.first.get();
     auto it = dom_map_->find(var);
     if (it != dom_map_->end()) {
       origin_map_.emplace(var, it->second);
-      it->second = arith::Difference(it->second, arith::IntSet::FromRange(p.second));
+      it->second = arith::Intersect({it->second, arith::IntSet::FromRange(p.second)});
     }
   }
 }

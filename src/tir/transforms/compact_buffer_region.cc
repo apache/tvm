@@ -121,16 +121,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   void VisitStmt_(const IfThenElseNode* op) final {
     // Visit condition
     StmtExprVisitor::VisitExpr(op->condition);
-    // Get new var bounds from condition
-    Map<Var, Range> bounds = GetVarBoundsFromCondition(op->condition, dom_map_);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(&dom_map_, bounds, true);
+      With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, true);
       StmtExprVisitor::VisitStmt(op->then_case);
     }
     if (op->else_case.defined()) {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(&dom_map_, bounds, false);
+      With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, false);
       StmtExprVisitor::VisitStmt(op->else_case);
     }
   }
@@ -139,16 +137,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (op->op.same_as(builtin::if_then_else())) {
       // Visit condition
       StmtExprVisitor::VisitExpr(op->args[0]);
-      // Get new var bounds from condition
-      Map<Var, Range> bounds = GetVarBoundsFromCondition(op->args[0], dom_map_);
       {
         // Visit then branch
-        With<ConditionalBoundsContext> ctx(&dom_map_, bounds, true);
+        With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, true);
         StmtExprVisitor::VisitExpr(op->args[1]);
       }
       {
         // Visit else branch
-        With<ConditionalBoundsContext> ctx(&dom_map_, bounds, false);
+        With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, false);
         StmtExprVisitor::VisitExpr(op->args[2]);
       }
       return;

@@ -126,16 +126,6 @@ TVM_DLL IntervalSet Union(Analyzer* analyzer, IntervalSet a, IntervalSet b);
  */
 TVM_DLL IntervalSet Intersect(Analyzer* analzyer, IntervalSet a, IntervalSet b);
 
-/*!
- * \brief Create difference of two IntervalSets, which is the minimal interval
- * set covering all of the integers belong to a but not belong to b.
- * \param analzyer The analyzer for simplification analysis.
- * \param a The first set.
- * \param b The second set.
- * \return The result set.
- */
-TVM_DLL IntervalSet Difference(Analyzer* analzyer, IntervalSet a, IntervalSet b);
-
 }  // namespace arith
 }  // namespace tvm
 
