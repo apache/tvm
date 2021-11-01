@@ -36,7 +36,7 @@ def _get_cutlass_path():
     return cutlass_path
 
 
-def _get_cutlass_compile_options(sm):
+def _get_cutlass_compile_options(sm, threads):
     cutlass_root = _get_cutlass_path()
     cutlass_include = os.path.join(cutlass_root, "include")
     cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
@@ -54,7 +54,11 @@ def _get_cutlass_compile_options(sm):
         "-I" + cutlass_include,
         "-I" + cutlass_util_include,
     ]
-
+    cuda_path = find_cuda_path()
+    cuda_ver = get_cuda_version(cuda_path)
+    if cuda_ver >= 11.2:
+        ncpu = multiprocessing.cpu_count() if threads < 0 else threads
+        kwargs["options"].append("-t %d" % ncpu)
     return kwargs
 
 
@@ -188,28 +192,56 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so", threa
         A temporary directory where intermediate compiled artifacts will be stored.
 
     lib_path : string, optional
-        The path to a shared library which will be generated as the result of the build  process
+        The path to a shared library which will be generated as the result of the build process.
 
     threads : int, optional
         The number of threads to use for compiling generated kernels. Only available for
-        CUDA 11.2 or later. Use all logical cores by default.
+        CUDA 11.2 or later. Use all physical cores by default.
 
     Returns
     -------
     updated_lib : runtime.Module
         The updated module with compiled cutlass kernels.
     """
-    kwargs = _get_cutlass_compile_options(sm)
+    kwargs = _get_cutlass_compile_options(sm, threads)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
     return runtime.load_module(lib_path)
 
 
 def build_cutlass_kernels_vm(
-    vm_exec, sm, tmp_dir="./tmp", lib_path="compile.so", vmcode_path="vmcode.ro"
+    vm_exec, sm, tmp_dir="./tmp", lib_path="compile.so", vmcode_path="vmcode.ro", threads=-1
 ):
-    """TODO"""
+    """Compile CUTLASS kernels in vm_exec and return a VM executable ready to run.
+
+    Parameters
+    ----------
+    vm_exec : vm.Executable
+        The output from relay.vm.compile containing compiled host code and non-cutlass kernels.
+
+    sm : int
+        An integer specifying the compute capability. For example, 75 for Turing and
+        80 or 86 for Ampere.
+
+    tmp_dir : string, optional
+        A temporary directory where intermediate compiled artifacts will be stored.
+
+    lib_path : string, optional
+        The path to a shared library which will be generated as the result of the build process.
+
+    vmcode_path : string, optional
+        The path where the VM bytecode will be serialized to.
+
+    threads : int, optional
+        The number of threads to use for compiling generated kernels. Only available for
+        CUDA 11.2 or later. Use all physical cores by default.
+
+    Returns
+    -------
+    updated_vm_exec: vm.Executable
+        The updated exectuable with compiled cutlass kernels.
+    """
     code, lib = vm_exec.save()
-    kwargs = _get_cutlass_compile_options(sm)
+    kwargs = _get_cutlass_compile_options(sm, threads)
     lib_path = os.path.join(tmp_dir, lib_path)
     vmcode_path = os.path.join(tmp_dir, vmcode_path)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
