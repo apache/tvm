@@ -590,7 +590,6 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(BindTarget(target));
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
-  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
   if (ShouldAnnotateEntryFunc(target, mixed_mod)) {
     mixed_pass_list.push_back(AnnotateEntryFunc(true));
@@ -603,6 +602,8 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   }
 
   mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
+  mixed_pass_list.push_back(tir::transform::ThreadSync("shared.dyn"));
+  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());

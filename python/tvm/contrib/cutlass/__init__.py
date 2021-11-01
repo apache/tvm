@@ -14,14 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Contrib modules."""
-from .register import get_pattern_table, register_pattern_table
-
-from .arm_compute_lib import *
-from .dnnl import *
-from .bnns import *
-from .coreml import *
-from .ethosn import *
-from .tensorrt import *
-from .cutlass import *
+"""BYOC support for CUTLASS."""
+from .build import tune_cutlass_kernels, build_cutlass_kernels
