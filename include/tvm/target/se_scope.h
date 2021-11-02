@@ -29,7 +29,7 @@
 #include <tvm/target/target.h>
 
 #include <string>
-#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace tvm {
@@ -340,8 +340,8 @@ class SEScopeCache {
   SEScope Unique(const SEScope& scope);
 
  private:
-  /*! \brief Map from canonical string representation to already constructed \p SEScope. */
-  std::unordered_map<std::string, SEScope> cache_;
+  /*! \brief Already constructed SEScopes. */
+  std::unordered_set<SEScope, StructuralHash, StructuralEqual> cache_;
 };
 
 }  // namespace tvm

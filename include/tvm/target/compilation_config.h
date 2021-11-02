@@ -122,6 +122,9 @@ class CompilationConfigNode : public Object {
    *
    * NOTE: The implementation is a bit convoluted since it tries to maintain backwards
    * compatibility with legacy methods for conveying \p Targets.
+   *
+   * CAUTION: Recreated the primitive_targets so that they all have the given/constructed
+   * host_target as their host (cf CheckAndUpdateHostConsistency).
    */
   void EstablishDefaultSEScopes(const transform::PassContext& pass_ctx);
 
@@ -152,12 +155,12 @@ class CompilationConfig : public ObjectRef {
  public:
   /*!
    * \brief Constructs the compilation config given the available \p Targets in the
-   * \p legacy_target_map and an optional \p optional_host_target. May use
+   * \p legacy_target_map_arg and an optional \p optional_host_target_arg. May use
    * 'relay.fallback_device_type' and the availability of the LLVM compilation module
    * to decide on appropriate default devices.
    */
-  TVM_DLL CompilationConfig(const transform::PassContext& pass_ctx, TargetMap legacy_target_map,
-                            Target optional_host_target);
+  TVM_DLL CompilationConfig(const transform::PassContext& pass_ctx, TargetMap legacy_target_map_arg,
+                            Target optional_host_target_arg);
 
   TVM_DEFINE_OBJECT_REF_METHODS(CompilationConfig, ObjectRef, CompilationConfigNode);
 };

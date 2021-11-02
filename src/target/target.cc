@@ -532,13 +532,86 @@ Optional<Target> TargetNode::GetHost() const {
 }
 
 bool TargetNode::SEqualReduce(const TargetNode* other, SEqualReducer equal) const {
-  return
+  // Object identity for kinds.
+  if (kind != other->kind) {
+    VLOG(1) << "targets disagree on kinds";
+    return false;
+  }
+  // Structural equality for (optional) host.
+  if (host.defined() != other->host.defined()) {
+    VLOG(1) << "targets disagree on having hosts: " << host.defined() << " vs "
+            << other->host.defined();
+    return false;
+  }
+  if (host.defined() &&
+      !host.value().as<TargetNode>()->SEqualReduce(other->host.value().as<TargetNode>(), equal)) {
+    VLOG(1) << "targets disagree on hosts";
+    return false;
+  }
+  if (tag != other->tag) {
+    VLOG(1) << "targets disagree on tags: '" << tag << "' vs '" << other->tag << "'";
+    return false;
+  }
+  // Array (not set) equality for keys.
+  if (keys.size() != other->keys.size()) {
+    VLOG(1) << "targets disagree on number of keys";
+    return false;
+  }
+  for (size_t i = 0; i < keys.size(); ++i) {
+    if (keys[i] != other->keys[i]) {
+      VLOG(1) << "targets disagree on key " << i << ": '" << keys[i] << "' vs '" << other->keys[i]
+              << "'";
+      return false;
+    }
+  }
+  // Map equality for attributes.
+  if (attrs.size() != other->attrs.size()) {
+    VLOG(1) << "targets disagree on number of attributes";
+    return false;
+  }
+  if (!std::all_of(attrs.begin(), attrs.end(), [other](const std::pair<String, ObjectRef>& pair) {
+        if (other->attrs.count(pair.first) == 0) {
+          VLOG(1) << "targets disagree on attribute for '" << pair.first << "': missing in other";
+          return false;
+        }
+        // Object/string identity for attribute values
+        if (!ObjectEqual()(pair.second, other->attrs[pair.first])) {
+          VLOG(1) << "targets disagree on attribute for '" << pair.first << "': " << pair.second
+                  << " vs " << other->attrs[pair.first];
+          return false;
+        }
+        return true;
+      })) {
+    return false;
+  }
+  return true;
 }
 
 void TargetNode::SHashReduce(SHashReducer hash_reduce) const {
-
+  // Object identity for kinds.
+  hash_reduce(kind.get());
+  if (host.defined()) {
+    // Structural equality for hosts.
+    hash_reduce(host.value());
+  } else {
+    hash_reduce(0);
+  }
+  hash_reduce(tag);
+  for (const auto& key : keys) {
+    hash_reduce(key);
+  }
+  std::vector<String> attrs_keys;
+  attrs_keys.reserve(attrs.size());
+  for (const auto& pair : attrs) {
+    attrs_keys.emplace_back(pair.first);
+  }
+  std::sort(attrs_keys.begin(), attrs_keys.end());
+  for (const auto& attrs_key : attrs_keys) {
+    hash_reduce(attrs_key);
+    // Object/string identity for attribute values.
+    hash_reduce->SHashReduceHashedValue(ObjectHash()(attrs[attrs_key]));
+  }
 }
-
 
 /*! \brief Entry to hold the Target context stack. */
 struct TVMTargetThreadLocalEntry {
