@@ -142,5 +142,22 @@ def test_tir_schedule_remove_rv():
         sch.get(block_rv)
 
 
+def test_get_child_blocks():
+    s = tir.Schedule(matmul, debug_mask="all")
+    init = s.get_block("init")
+    update = s.get_block("update")
+    # loop
+    blocks = s.get_child_blocks(s.get_loops(init)[0])
+    assert len(blocks) == 2
+    assert s.get(init) == s.get(blocks[0])
+    assert s.get(update) == s.get(blocks[1])
+    # block
+    root = s.get_block("root")
+    blocks = s.get_child_blocks(root)
+    assert len(blocks) == 2
+    assert s.get(init) == s.get(blocks[0])
+    assert s.get(update) == s.get(blocks[1])
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

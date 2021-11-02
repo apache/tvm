@@ -367,6 +367,21 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleGetLoops(self, block)  # type: ignore # pylint: disable=no-member
 
+    def get_child_blocks(self, block_or_loop: Union[BlockRV, LoopRV]) -> List[BlockRV]:
+        """Get the leaf blocks of a specific block/loop
+
+        Parameters
+        ----------
+        block_or_loop : Union[BlockRV, LoopRV]
+            The query block/loop
+
+        Returns
+        -------
+        blocks : List[LoopRV]
+            A list of leaf blocks inside a specific block/loop
+        """
+        return _ffi_api.ScheduleGetChildBlocks(self, block_or_loop)  # pylint: disable=no-member
+
     ########## Schedule: Transform loops ##########
     def fuse(self, *loops: List[LoopRV]) -> LoopRV:
         """Fuse a list of consecutive loops into one. It requires:
