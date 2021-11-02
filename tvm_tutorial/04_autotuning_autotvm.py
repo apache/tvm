@@ -1,3 +1,4 @@
+import sys
 import tvm
 from tvm import autotvm
 from tvm.autotvm.tuner import XGBTuner
@@ -95,14 +96,16 @@ def schedule_conv1d_ncw(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
     nn, kk, xx = s[outs[0]].op.axis
 
-    cfg.define_knob("split_kk", [1, 2, 4, 8, 16])
-    cfg.define_knob("split_xx", [1, 2, 4, 8, 16])
+    cfg.define_knob("vectorize", [0, 1])
+    cfg.define_split("split_kk", kk, num_outputs=2)
+    cfg.define_split("split_xx", xx, num_outputs=2)
 
-    kk_outer, kk_inner = s[outs[0]].split(kk, cfg["split_kk"].val)
-    xx_outer, xx_inner = s[outs[0]].split(xx, cfg["split_xx"].val)
+    kk_outer, kk_inner = cfg["split_kk"].apply(s, outs[0], kk)
+    xx_outer, xx_inner = cfg["split_xx"].apply(s, outs[0], xx)
 
     s[outs[0]].reorder(kk_outer, xx_outer, kk_inner, xx_inner)
-    s[outs[0]].vectorize(xx_inner)
+    if cfg["vectorize"].val:
+        s[outs[0]].vectorize(xx_inner)
 
     return s
 
@@ -130,7 +133,7 @@ def custom_conv1d_strategy(attrs, inputs, out_type, target):
 
 def main():
     # Load module
-    m = TVMModule()
+    m = TVMModule(torch_model=True)
     relay_mod, relay_params = m.load()
 
     # Register new strategy. Default priority level is 10.
@@ -138,6 +141,7 @@ def main():
     _op.register_strategy("nn.conv1d", custom_conv1d_strategy, level=plevel)
 
     # Autotvm
+    print("Start tuning...")
     # logging.getLogger("autotvm").setLevel(logging.DEBUG)
     # logging.getLogger("autotvm").addHandler(logging.StreamHandler(sys.stdout))
     runner = autotvm.LocalRunner(
@@ -170,8 +174,10 @@ def main():
                 autotvm.callback.log_to_file(tuning_option["tuning_records"]),
             ],
         )
+        print("BEST:", tuner_obj.best_config)
 
     # Compile module
+    print("Compile module...")
     with autotvm.apply_history_best(tuning_option["tuning_records"]):
         with tvm.transform.PassContext(opt_level=0):
             lib = relay.build(relay_mod, target=target, params=relay_params)

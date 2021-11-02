@@ -23,13 +23,21 @@ class TorchModel(torch.nn.Module):
 
 
 class TVMModule:
-    def __init__(self):
-        self.input_shape = [1, 16, 100]
-        self.input_data = torch.randn(self.input_shape)
-        self.input_name = "input0"
-
-    def load(self, torch_model=True):
+    def __init__(self, torch_model=True):
+        self.torch_model = torch_model
         if torch_model:
+            self.input_shape = [1, 16, 100]
+            self.input_data = torch.randn(self.input_shape)
+            self.input_name = "input0"
+        else:
+            self.input_shape = [1, 3, 224, 224]
+            self.input_data = torch.randn(self.input_shape)
+            self.input_name = "data"
+
+
+    def load(self):
+        print("Load module...")
+        if self.torch_model:
             scripted_model = torch.jit.trace(TorchModel(), self.input_data).eval()
             shape_list = [(self.input_name, self.input_shape)]
             return relay.frontend.from_pytorch(scripted_model, shape_list)
