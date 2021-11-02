@@ -151,7 +151,7 @@ std::string Executable::GetBytecode() const {
 namespace {
 String ShapeString(const ShapeTuple& shape_tuple, DLDataType dtype) {
   std::stringstream sizes;
-  sizes << dtype << "[";
+  sizes << DLDataType2String(dtype) << "[";
   for (size_t i = 0; i < shape_tuple.size(); i++) {
     if (i != 0) {
       sizes << ", ";
