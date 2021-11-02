@@ -999,6 +999,67 @@ def test_shape_func_nested_function():
     compiler.lower(mod, "llvm")
 
 
+@tvm.testing.requires_cuda
+def test_storage_size_and_offset_on_cpu():
+    """Tests allocations place sizes and offsets on the CPU host even if the rest
+    of the computation is on a different device type."""
+    # TODO(mbs): Better would be to test ManifestAlloc independently.
+
+    # CPU = device type 1
+    # GPU = device type 2
+    def input():
+        return tvm.parser.fromtext(
+            """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32],
+                      param_device_types=[2], result_device_type=2) {
+              add(%a, %a)
+            }
+        """
+        )
+
+    exe = relay.vm.compile(
+        input(),
+        tvm.target.Target("cuda"),
+    )
+
+    # This program needs two constants:
+    # - The size of the tensor's storage (first arg) to alloc_storage
+    # - The offset of the tensor within the storage (second arg) to alloc_tensor
+    # Both should be on the CPU
+    assert not "on device of type 2" in exe.constants
+    assert "on device of type 1" in exe.constants
+
+
+@tvm.testing.requires_cuda
+def test_reshape_shape_on_cpu():
+    """Tests the argument to a reshape places the shape on the CPU host even if the rest
+    of the computation is on a different device type."""
+    # TODO(mbs): Better would be to test ManifestAlloc independently.
+
+    # CPU = device type 1
+    # GPU = device type 2
+    def input():
+        return tvm.parser.fromtext(
+            """
+            #[version = "0.0.5"]
+            def @main(%x: Tensor[(2, 8), float32],
+                      param_device_types=[2], result_device_type=2) {
+              reshape(%x, newshape=[2, 4, 2])
+            }
+        """
+        )
+
+    exe = relay.vm.compile(
+        input(),
+        tvm.target.Target("cuda"),
+    )
+
+    # The newshape annotation should have been turned into a constant on the CPU.
+    assert not "on device of type 2" in exe.constants
+    assert "on device of type 1" in exe.constants
+
+
 if __name__ == "__main__":
     import sys
 
