@@ -16,12 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
+import logging
 import os
 import multiprocessing
 import tvm
 from tvm import runtime, relay
 from tvm.contrib.nvcc import find_cuda_path, get_cuda_version
 from .gen_gemm import CutlassGemmProfiler
+
+logger = logging.getLogger("cutlass")
 
 
 def _get_cutlass_path():
@@ -134,15 +137,15 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             out_dtype = annotator.signature["ret_dtype"]
             if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
                 out = cutlass_profiler.get_default(out_dtype)
-                print("Picked the default kernel " + out["name"])
+                logger.info("Picked the default kernel %s", out["name"])
             else:
                 out = cutlass_profiler.profile(
                     MM, NN, KK, out_dtype, profile_all, use_multiprocessing
                 )
                 if profile_all:
-                    print("The best kernel is " + out["name"])
+                    logger.info("The best kernel is %s", out["name"])
                 else:
-                    print("Picked the first kernel found " + out["name"])
+                    logger.info("Picked the first kernel found %s", out["name"])
 
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]

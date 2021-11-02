@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Kernel generator and profiler for CUTLASS."""
+import logging
 import os
 import re
 import tempfile
@@ -35,6 +36,8 @@ from .library import (
     MathOperation,
     TileDescription,
 )
+
+logger = logging.getLogger("cutlass")
 
 
 def create_gemm_operator(
@@ -323,7 +326,7 @@ class ProfilerEngine:
         try:
             sp = subprocess.run(cmd, capture_output=True, check=True)
             rt = float(sp.stdout)
-            print(op_name, rt)
+            logger.info("%s, %f", op_name, rt)
         except subprocess.CalledProcessError:
             rt = -1
         return rt
@@ -333,7 +336,7 @@ class CutlassGemmProfiler(object):
     """Profile all candidate kernels and select the best one."""
 
     def __init__(self, sm, cutlass_path, binary_path):
-        assert sm in GENERATOR_FUNC_TABLE, "sm%d not supported yet." % sm
+        assert sm in GENERATOR_FUNC_TABLE and sm in DEFAULT_KERNELS, "sm%d not supported yet." % sm
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.sm = sm
         self.cache = {}

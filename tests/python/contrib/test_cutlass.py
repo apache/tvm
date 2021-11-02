@@ -28,6 +28,8 @@ from tvm.contrib.cutlass import (
     build_cutlass_kernels_vm,
 )
 
+logging.basicConfig(level=logging.INFO)
+
 
 def has_cublas():
     return tvm.get_global_func("tvm.contrib.cublas.matmul", True) != None
