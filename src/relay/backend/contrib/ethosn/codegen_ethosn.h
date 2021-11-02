@@ -227,7 +227,9 @@ NetworkWithIDs ConstructNetwork(const IRModule& mod, const GlobalVar& var, const
 /*! \brief Attributes to store the compiler options for Ethos-N */
 struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode> {
   String variant;
-  int sram_size_bytes;
+  String sram_size;
+  String tops;
+  String ple_ratio;
   bool strategy0;
   bool strategy1;
   bool strategy3;
@@ -247,9 +249,15 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("Ethos-N77");
-    TVM_ATTR_FIELD(sram_size_bytes)
-        .describe("Optionally override the default sram size. See Ethos-N documentation.")
-        .set_default(0);
+    TVM_ATTR_FIELD(sram_size)
+        .describe("Optionally override the default sram size. See Ethos(TM)-N documentation.")
+        .set_default("0");
+    TVM_ATTR_FIELD(tops)
+        .describe("Valid values 1, 2, 4 and 8. See Ethos(TM)-N documentation.")
+        .set_default("1");
+    TVM_ATTR_FIELD(ple_ratio)
+        .describe("Valid values 2 and 4. See Ethos(TM)-N documentation.")
+        .set_default("2");
     TVM_ATTR_FIELD(strategy0).set_default(true);
     TVM_ATTR_FIELD(strategy1).set_default(true);
     TVM_ATTR_FIELD(strategy3).set_default(true);
@@ -287,6 +295,22 @@ class EthosnCompiler {
    */
   static runtime::Module CreateRuntimeModule(const ObjectRef& ref);
 
+  /*!
+   * \brief Initialise the is-supported functionality of the Ethos-N support library
+   * with the target variant.
+   * \return Error object
+   */
+  static EthosnError SupportedSetup();
+
+  /*!
+   * \brief Return the is-supported API of the Support Library
+   * \return A reference to the API.
+   */
+  static std::unique_ptr<sl::SupportQueries>& GetSupported() {
+    ICHECK(m_Queries != nullptr);
+    return m_Queries;
+  }
+
  private:
   /*!
    * \brief Compile a single Relay Ethos-N function into an ordered compiled network.
@@ -322,6 +346,12 @@ class EthosnCompiler {
    */
   static std::pair<std::vector<uint32_t>, std::vector<uint32_t>> GetInputOutputOrder(
       NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network);
+
+  /*!
+   * \brief Query interface used to determine if the Ethos-N hardware supports an operation
+   * with the supplied parameters.
+   */
+  static std::unique_ptr<sl::SupportQueries> m_Queries;
 };
 
 runtime::Module CompileEthosn(const ObjectRef& ref) {

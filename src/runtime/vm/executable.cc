@@ -308,7 +308,7 @@ void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
 VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
   std::vector<Index> fields;
   // Save the opcode.
-  DLOG(INFO) << "Serializing: " << instr << std::endl;
+  VLOG(1) << "Serializing: " << instr << std::endl;
   switch (instr.op) {
     case Opcode::Move: {
       // Number of fields = 2

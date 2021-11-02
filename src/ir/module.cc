@@ -170,7 +170,7 @@ Constructor IRModuleNode::GetConstructor(const String& adt, const String& cons) 
   }
 
   LOG(FATAL) << adt << " does not contain constructor " << cons;
-  throw std::runtime_error("Constructor Not Found.");
+  return {};
 }
 
 tvm::Array<GlobalTypeVar> IRModuleNode::GetGlobalTypeVars() const {
@@ -187,9 +187,12 @@ void WarnIfMalformed(const IRModule& mod, relay::Function func) {
   auto fv = relay::FreeVars(func);
   auto ftv = relay::FreeTypeVars(func, mod);
   // TODO(@jroesch): refactor to use diagnostic context
-  ICHECK_EQ(fv.size(), 0) << "There are free variables: " << fv << std::endl;
-  ICHECK_EQ(ftv.size(), 0) << "There are free type variables: " << fv
-                           << " in function: " << AsText(func, false);
+  ICHECK_EQ(fv.size(), 0) << "Function:" << std::endl
+                          << PrettyPrint(func) << std::endl
+                          << "contains free variables: " << fv;
+  ICHECK_EQ(ftv.size(), 0) << "Function:" << std::endl
+                           << PrettyPrint(func) << std::endl
+                           << "contains free type variables: " << fv;
 }
 
 void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {

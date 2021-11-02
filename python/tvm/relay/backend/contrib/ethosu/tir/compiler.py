@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""The integration of Arm(R) Ethos(TM)-U NPU TIR compiler"""
+"""The integration of the Arm(R) Ethos(TM)-U NPU TIR compiler."""
 import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprMutator
-from tvm.driver.build_module import get_binds
+from tvm.driver.build_module import schedule_to_module
 
 from .passes import ReplaceOperators, RemoveZeroStores, EncodeConstants
 from .scheduler import schedule
@@ -29,7 +29,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
     """Lower a schedule to TIR for the Arm(R) Ethos(TM)-U NPU target.
 
     The resulting TIR module will contain a single function
-    that comprises of a sequence of tir.extern_calls to NPU
+    that consists of a sequence of tir.extern_calls to NPU
     operations.
 
     Parameters
@@ -64,25 +64,21 @@ def lower_ethosu(sch, args, const_dict, name="main"):
             "no_unroll_loop_with_extent_one": True,
         },
         "tir.UnrollLoop": {"auto_max_depth": -1},
+        "tir.noalias": True,
+        "tir.debug_keep_trivial_loop": True,
     }
     # Merge two configs
     curr_cfg = {**curr_cfg, **tir_compiler_cfg}
 
     sch = sch.normalize()
-    bounds = tvm.te.schedule.InferBound(sch)
-    stmt = tvm.te.schedule.ScheduleOps(sch, bounds, True)
 
-    compact = tvm.te.schedule.VerifyCompactBuffer(stmt)
-    binds, arg_list = get_binds(args, compact, None)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
-
-    func = func.with_attr("global_symbol", name)
-    func = func.with_attr("tir.noalias", True)
-    mod = tvm.IRModule({name: func})
     with tvm.transform.PassContext(config=curr_cfg):
+        mod = schedule_to_module(sch, args, name)
+
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
         mod = tvm.tir.transform.UnrollLoop()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = RemoveZeroStores()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
@@ -96,20 +92,20 @@ def lower_ethosu(sch, args, const_dict, name="main"):
 
 
 def lower_to_te(prim_func):
-    """Lower a Relay primitive function to a Tensor Expression graph.
+    """Lower a Relay primitive function to a Tensor Expression in an unscheduled CachedFunc.
 
     Parameters
     ----------
     prim_func : tvm.relay.Function
-        The Relay function to lowerethosu_runtime([]).
+        The Relay function to lower.
 
     Returns
     -------
-    out : TEGraph
-        The lowered Tensor Expression graph.
+    out : CachedFunc
+        The lowered Tensor Expression as part of a CachedFunc.
 
     """
-    f = tvm._ffi.get_global_func("relay.backend.contrib.ethosu.LowerToTE")
+    f = tvm._ffi.get_global_func("relay.backend.LowerToTE")
     return f(prim_func)
 
 
@@ -193,7 +189,7 @@ def lower_to_tir(func, cascader=None):
     func, consts = extract_constants(func)
     mod = tvm.IRModule.from_expr(func)
     func = relay.transform.InferType()(mod)["main"]
-    te_graph = lower_to_te(func)
-    s = schedule(te_graph, consts, cascader)
-    mod, consts = lower_ethosu(s, te_graph, consts)
+    cached_func = lower_to_te(func)
+    s = schedule(cached_func, consts, cascader)
+    mod, consts = lower_ethosu(s, cached_func, consts)
     return mod, consts

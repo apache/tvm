@@ -32,6 +32,8 @@ from tvm import rpc
 import tvm.testing
 from tvm.relay.transform import InferType
 from tvm.relay.testing import mlp
+from tvm.relay.dataflow_pattern import wildcard, is_op
+from tvm.relay.backend.vm import VMCompiler
 
 
 def check_result(target, dev, args, expected_result, mod=None):
@@ -766,6 +768,19 @@ def test_vm_reshape_tensor(target, dev):
     check_result(target, dev, [x_np, y_np], x_np.reshape([8, 2, 8]), mod)
 
 
+def test_vm_reshape_and_copy(target, dev):
+    """Make sure the compiler notices the reshape result shape is a literal and can use
+    the immediate-mode alloc_tensor instruction instead of alloc_tensor_reg."""
+    x_np = np.random.uniform(size=(1, 1)).astype("float32")
+    x = relay.var("x", shape=(1, 1), dtype="float32")
+    mod = tvm.IRModule.from_expr(relay.Function([x], relay.copy(relay.reshape(x, [0, 1]))))
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert "alloc_tensor" in exec.bytecode
+    assert not "alloc_tensor_reg" in exec.bytecode
+    check_result(target, dev, [x_np], x_np.reshape([1, 1]), mod)
+
+
 def test_vm_reshape_tuple(target, dev, x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
     tup = relay.var(
         "tup",
@@ -960,7 +975,31 @@ def test_benchmark_end_to_end_rpc():
     assert result.mean > 0
 
 
+def test_shape_func_nested_function():
+    data_shape = (relay.Any(), 16)
+    weight_shape = (relay.Any(), 16)
+
+    dense = relay.nn.dense(
+        relay.var("data", shape=data_shape), relay.var("weight", shape=weight_shape)
+    )
+    mod = tvm.IRModule.from_expr(dense)
+
+    patterns = [("test.dense", is_op("nn.dense")(wildcard(), wildcard()))]
+    passes = tvm.transform.Sequential(
+        [
+            relay.transform.MergeComposite(patterns),
+            relay.transform.AnnotateTarget(["test"]),
+            relay.transform.PartitionGraph(),
+        ]
+    )
+
+    mod = passes(mod)
+
+    compiler = VMCompiler()
+    compiler.lower(mod, "llvm")
+
+
 if __name__ == "__main__":
     import sys
 
-    sys.exit(pytest.main(sys.argv))
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

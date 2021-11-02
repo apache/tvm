@@ -313,6 +313,45 @@ TECompiler::TECompiler() {
   data_ = object;
 }
 
+/*! \brief The global TE compiler */
+TECompiler& TECompiler::Global() {
+  static TECompiler* inst = new TECompiler(make_object<TECompilerImpl>());
+  return *inst;
+}
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
+
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerGlobal").set_body_typed([]() {
+  return TECompiler::Global();
+});
+
+TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
+    .set_body_typed([](Function source_func, Target target) {
+      return CCacheKey(source_func, target);
+    });
+
+TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
+    .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
+      return LoweredOutput(outputs, impl);
+    });
+
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerClear").set_body_typed([](TECompiler self) {
+  self->Clear();
+});
+
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerLower")
+    .set_body_typed([](TECompiler self, CCacheKey key, const String mod_name) {
+      return self->Lower(key, mod_name);
+    });
+
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerJIT")
+    .set_body_typed([](TECompiler self, CCacheKey key) { return self->JIT(key); });
+
+TVM_REGISTER_GLOBAL("relay.backend._TECompilerListItems").set_body_typed([](TECompiler self) {
+  TECompilerImpl* ptr = dynamic_cast<TECompilerImpl*>(self.operator->());
+  ICHECK(ptr != nullptr);
+  return ptr->ListItems();
+});
+
 using AnalysisRemapping = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>;
 
 std::tuple<bool, int, int> IsDeviceCopy(const Function& func) {
@@ -523,7 +562,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     BaseFunc prim_func = ResolveToPrimitive(new_value);
 
     if (prim_func.defined() && !prim_func->IsInstance<tir::PrimFuncNode>()) {
-      // Remember let var is bound to (possibly indirectly) to a non-tir primitive.
+      // Remember let var is bound to (possibly indirectly) a non-tir primitive.
       Function func = Downcast<Function>(prim_func);
       primitive_functions_.emplace(var, func);
     }
@@ -857,8 +896,6 @@ void UpdateFunctionMetadata(Function relay_func,
 
 IRModule LowerTE(const IRModule& module, TargetMap targets, const String& module_name,
                  std::function<void(Function)> process_fn) {
-  DLOG(INFO) << "lowering module:\n" << PrettyPrint(module);
-
   TECompiler compiler;
 
   auto updated_module = LowerTensorExpr(targets, module_name, compiler, process_fn)(module);

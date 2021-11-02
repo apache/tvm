@@ -304,7 +304,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       }
       VisitExpr(func);
     }
-    return VMFunction(var->name_hint, params_, instructions_, registers_num_, params_device_type);
+    std::vector<Index> params_device_type_index;
+    params_device_type_index.reserve(params_device_type.size());
+    for (auto device_type : params_device_type) {
+      params_device_type_index.push_back(static_cast<Index>(device_type));
+    }
+    return VMFunction(var->name_hint, params_, instructions_, registers_num_,
+                      params_device_type_index);
   }
 
   /*! \brief Attrs objects for each op. */
@@ -317,7 +323,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
   size_t NewRegister() { return registers_num_++; }
 
   inline void Emit(const Instruction& instr) {
-    VLOG(1) << "VMCompiler::Emit: instr=" << instr;
+    VLOG(2) << "VMCompiler::Emit: instr=" << instr;
     ICHECK((int)instr.op < 100) << "Invalid opcode " << (int)instr.op;
     switch (instr.op) {
       case Opcode::AllocADT:
@@ -594,8 +600,9 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    auto offset_register = last_register_;
 
                    // If the shape is constant then we will emit a static tensor allocation
-                   // instruction.
-                   auto const_shape = args[2].as<ConstantNode>();
+                   // instruction. It may be wrapped by an on_device, but it will be on the host
+                   // which is assumed by the alloc_tensor instruction anyway.
+                   auto const_shape = AsIgnoringOnDevice<ConstantNode>(args[2]);
 
                    if (const_shape) {
                      NDArray shape = const_shape->data;
@@ -619,7 +626,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    this->VisitExpr(args[0]);
                    auto size_register = last_register_;
 
-                   ICHECK(args[1].as<ConstantNode>());
+                   ICHECK(args[1].as<ConstantNode>());  // Always a literal.
                    NDArray alignment_arr = args[1].as<ConstantNode>()->data;
                    ICHECK_EQ(alignment_arr->dtype.code, 0U)
                        << "The dtype of constant shape must be int32 or int64, but got "
@@ -702,7 +709,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       auto global = GetRef<GlobalVar>(global_node);
       auto it = context_->global_map.find(global);
       ICHECK(it != context_->global_map.end());
-      VLOG(1) << "VisitExpr_: generating invoke for " << global->name_hint
+      VLOG(2) << "VisitExpr_: generating invoke for " << global->name_hint
               << " with func_index=" << it->second;
 
       // TODO(tvm-team):
@@ -824,7 +831,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
   /*!
    * \brief Compile a pattern match expression
-   * It first converts the pattern match expression into a desicision tree, the condition
+   * It first converts the pattern match expression into a decision tree, the condition
    * could be object comparison or variable binding. If any of the condition fails in a clause,
    * the decision tree switches to check the conditions of next clause and so on. If no clause
    * matches the value, a fatal node is inserted.
@@ -940,12 +947,6 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
     }
   }
 
-#if USE_RELAY_DEBUG
-  for (auto vm_func : exec_->functions) {
-    VLOG(1) << vm_func << "-------------";
-  }
-#endif  // USE_RELAY_DEBUG
-
   // populate constants
   for (auto data : context_.constants) {
     exec_->constants.push_back(data);
@@ -965,6 +966,12 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   for (const auto& cfunc : context_.cached_funcs) {
     exec_->primitive_map.insert({cfunc->prim_fn_var->name_hint, primitive_index++});
   }
+
+#if USE_RELAY_DEBUG
+  for (const auto& vm_func : exec_->functions) {
+    VLOG(1) << vm_func << "-------------";
+  }
+#endif  // USE_RELAY_DEBUG
 
   backend::UpdateAutoSchedulerOpWeights(context_.compiler);
 }
@@ -1017,6 +1024,7 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
 
 IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
                                     const Target& target_host_arg) {
+  VLOG_CONTEXT << "VMCompiler::OptimizeModule";
   TargetsMap targets = targets_arg;
   Target target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&targets, &target_host);

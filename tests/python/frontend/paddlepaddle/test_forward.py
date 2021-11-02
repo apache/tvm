@@ -80,9 +80,8 @@ def verify_model(func, input_data, rtol=1e-5, atol=1e-5):
         baseline_outputs = (baseline_outputs.numpy(),)
 
     mod, params = relay.frontend.from_paddle(baseline_model, input_shape_dict)
-    parms_num = min(len(input_names), len(mod["main"].params))
     compiled_names = []
-    for arg in mod["main"].params[:parms_num]:
+    for arg in mod["main"].params:
         assert arg.name_hint in input_names or arg.name_hint in params
         if arg.name_hint in input_names:
             compiled_names.append(arg.name_hint)
@@ -383,31 +382,37 @@ def test_forward_cumsum():
 
 @tvm.testing.uses_gpu
 def test_forward_conv():
-    conv2d_input_shape = [1, 3, 10, 10]
-
     class Conv2D1(nn.Layer):
-        def __init__(self):
+        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"):
             super(Conv2D1, self).__init__()
-            self.conv = nn.Conv2D(3, 6, 7, bias_attr=True)
+            self.conv = nn.Conv2D(
+                3,
+                6,
+                3,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                padding_mode=padding_mode,
+            )
             self.softmax = nn.Softmax()
 
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
 
-    class Conv2D2(nn.Layer):
-        def __init__(self):
-            super(Conv2D2, self).__init__()
-            self.conv = nn.Conv2D(3, 6, 7, groups=3, bias_attr=False)
-            self.softmax = nn.Softmax()
+    input_shapes = [[1, 3, 10, 10], [1, 3, 12, 12]]
 
-        @paddle.jit.to_static
-        def forward(self, inputs):
-            return self.softmax(self.conv(inputs))
-
-    conv2d_input_data = paddle.rand(conv2d_input_shape, dtype="float32")
-    verify_model(Conv2D1(), input_data=conv2d_input_data)
-    verify_model(Conv2D2(), input_data=conv2d_input_data)
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(Conv2D1(), input_data=input_data)
+        verify_model(Conv2D1(stride=2, padding="VALID", dilation=3), input_data=input_data)
+        verify_model(Conv2D1(stride=2, padding="SAME", dilation=3), input_data=input_data)
+        verify_model(
+            Conv2D1(stride=2, padding=3, dilation=3, padding_mode="replicate"),
+            input_data=input_data,
+        )
+        verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -456,6 +461,8 @@ def test_forward_elemwise():
 
     api_list = [
         "equal",
+        "less_equal",
+        "less_than",
     ]
     x_shapes = [[128], [8, 20], [4, 20, 3], [2, 3, 8, 8], [2, 3, 3, 9, 9]]
     y_shapes = [[1], [8, 20], [4, 1, 1], [2, 3, 8, 8], [2, 3, 3, 9, 1]]
@@ -537,6 +544,26 @@ def test_forward_shape_full():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(full1, input_data=[input_data])
     verify_model(full2, input_data=[input_data])
+
+
+@tvm.testing.uses_gpu
+def test_forward_squeeze():
+    class Squeeze(nn.Layer):
+        def __init__(self, axis=None):
+            super(Squeeze, self).__init__()
+            self.axis = axis
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return paddle.squeeze(inputs, axis=self.axis)
+
+    input_shapes = [[1, 1, 3, 1, 5], [5, 1, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(Squeeze(axis=None), input_data=input_data)
+        verify_model(Squeeze(axis=1), input_data=input_data)
+    input_data = paddle.rand([1], dtype="float32")
+    verify_model(Squeeze(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -723,24 +750,82 @@ def test_forward_matmul():
 
 @tvm.testing.uses_gpu
 def test_forward_pool2d():
-    @paddle.jit.to_static
-    def pool2d1(inputs):
-        return nn.functional.avg_pool2d(inputs, kernel_size=2, stride=2, padding=0)
+    class Pool2D1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.avg_pool2d(inputs, kernel_size=2, stride=2, padding=0)
 
-    @paddle.jit.to_static
-    def pool2d2(inputs):
-        return nn.functional.adaptive_avg_pool2d(inputs, output_size=[3, 3])
+    class Pool2D2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.adaptive_avg_pool2d(inputs, output_size=[3, 3])
 
-    @paddle.jit.to_static
-    def pool2d3(inputs):
-        return nn.functional.max_pool2d(
-            inputs, kernel_size=2, stride=2, padding=0, return_mask=True
-        )
+    class Pool2D3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.avg_pool2d(
+                inputs,
+                kernel_size=3,
+                stride=1,
+                padding=[1, 1],
+                exclusive=False,
+                divisor_override=2.5,
+            )
 
-    input_data = paddle.uniform(shape=[1, 2, 32, 32], dtype="float32", min=-1, max=1)
-    verify_model(pool2d1, input_data=input_data)
-    verify_model(pool2d2, input_data=input_data)
-    # verify_model(pool2d3, input_data=input_data)
+    input_shapes = [[1, 2, 8, 8], [1, 3, 10, 10]]
+    for input_shape in input_shapes:
+        input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
+        verify_model(Pool2D1(), input_data=input_data)
+        verify_model(Pool2D2(), input_data=input_data)
+        verify_model(Pool2D3(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_pad3d():
+    class Pad3D(nn.Layer):
+        def __init__(self, padding=0, mode="constant", value=0.0, data_format="NCDHW"):
+            super(Pad3D, self).__init__()
+            self.pad3d = paddle.nn.Pad3D(padding, mode=mode, value=value, data_format=data_format)
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.pad3d(inputs)
+
+    input_shapes = [[1, 2, 2, 5, 5], [1, 2, 2, 5, 9]]
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+    verify_model(Pad3D(padding=2), input_data=input_data)
+    verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1]), input_data=input_data)
+    verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1], value=0.3), input_data=input_data)
+    verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1], mode="reflect"), input_data=input_data)
+    verify_model(Pad3D(padding=3, mode="replicate"), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_reduce():
+    class Reduce(nn.Layer):
+        def __init__(self, op_name, axis=None, keepdim=False):
+            super(Reduce, self).__init__()
+            self.op_name = op_name
+            self.axis = axis
+            self.keepdim = keepdim
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            result = getattr(paddle, self.op_name)(inputs, axis=self.axis, keepdim=self.keepdim)
+            result = result.astype("float32")
+            return result
+
+    input_shapes = [[1, 2, 2, 5, 5], [2, 3, 4], [4, 20], [2, 3, 30, 30]]
+    for input_shape in input_shapes:
+        input_data = paddle.uniform(min=-3, max=3, shape=input_shape, dtype="float32")
+        verify_model(Reduce("all"), input_data=input_data.astype("bool"))
+        verify_model(Reduce("any", 1), input_data=input_data.astype("bool"))
+        verify_model(Reduce("max", 0, True), input_data=input_data)
+        verify_model(Reduce("min", 1, True), input_data=input_data)
+        verify_model(Reduce("prod", 0), input_data=input_data)
+        verify_model(Reduce("sum", 0, True), input_data=input_data)
+        verify_model(Reduce("mean", -1, True), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -843,8 +928,28 @@ def test_forward_math_api():
             return self.func(inputs)
 
     api_list = [
+        "abs",
+        "acos",
+        "asin",
+        "atan",
+        "ceil",
+        "cos",
+        "cosh",
+        "erf",
         "exp",
+        "floor",
+        "log",
+        "log2",
+        "log10",
         "relu",
+        "round",
+        "rsqrt",
+        "sigmoid",
+        "sign",
+        "sin",
+        "sinh",
+        "sqrt",
+        "tan",
         "tanh",
     ]
     input_shapes = [[128], [2, 100], [10, 2, 5], [7, 3, 4, 1]]

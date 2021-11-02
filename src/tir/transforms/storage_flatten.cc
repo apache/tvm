@@ -60,6 +60,19 @@ using runtime::ThreadScope;
  */
 class BufferShapeLegalize : public StmtExprMutator {
  public:
+  static transform::Pass Pass() {
+    auto pass_func = [](PrimFunc func, IRModule m, transform::PassContext ctx) {
+      IRVisitorWithAnalyzer bound_analyzer;
+
+      bound_analyzer(func->body);
+
+      auto fptr = func.CopyOnWrite();
+      fptr->body = BufferShapeLegalize(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
+      return func;
+    };
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferShapeLegalize", {});
+  }
+
   explicit BufferShapeLegalize(const Map<Var, Buffer>& extern_buffer_map,
                                IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_(bound_analyzer) {
@@ -383,6 +396,19 @@ class BufferShapeLegalize : public StmtExprMutator {
  */
 class BufferStrideLegalize : public StmtExprMutator {
  public:
+  static transform::Pass Pass() {
+    auto pass_func = [](PrimFunc func, IRModule m, transform::PassContext ctx) {
+      IRVisitorWithAnalyzer bound_analyzer;
+
+      bound_analyzer(func->body);
+
+      auto fptr = func.CopyOnWrite();
+      fptr->body = BufferStrideLegalize(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
+      return func;
+    };
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferStrideLegalize", {});
+  }
+
   explicit BufferStrideLegalize(const Map<Var, Buffer>& extern_buffer_map,
                                 IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_(bound_analyzer) {
@@ -565,6 +591,15 @@ class BufferStrideLegalize : public StmtExprMutator {
  */
 class ThreadScopePropagate : public StmtExprMutator {
  public:
+  static transform::Pass Pass() {
+    auto pass_func = [](PrimFunc func, IRModule m, transform::PassContext ctx) {
+      auto fptr = func.CopyOnWrite();
+      fptr->body = ThreadScopePropagate(fptr->buffer_map)(std::move(fptr->body));
+      return func;
+    };
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.ThreadScopePropagate", {});
+  }
+
   explicit ThreadScopePropagate(const Map<Var, Buffer>& extern_buffer_map) {
     // External buffers shouldn't be overwritten, even if they have a
     // BufferRealizeNode.
@@ -718,6 +753,19 @@ class ThreadScopePropagate : public StmtExprMutator {
  */
 class BufferBindUnwrapper : public StmtExprMutator {
  public:
+  static transform::Pass Pass() {
+    auto pass_func = [](PrimFunc func, IRModule m, transform::PassContext ctx) {
+      IRVisitorWithAnalyzer bound_analyzer;
+
+      bound_analyzer(func->body);
+
+      auto fptr = func.CopyOnWrite();
+      fptr->body = BufferBindUnwrapper(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
+      return func;
+    };
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferBindUnwrapper", {});
+  }
+
   explicit BufferBindUnwrapper(const Map<Var, Buffer>& extern_buffer_map,
                                IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_(bound_analyzer) {
@@ -1030,6 +1078,20 @@ class BufferBindUnwrapper : public StmtExprMutator {
 
 class StorageFlattener : public StmtExprMutator {
  public:
+  static transform::Pass Pass(int cache_line_size, bool create_bound_attributes) {
+    auto pass_func = [=](PrimFunc func, IRModule m, transform::PassContext ctx) {
+      IRVisitorWithAnalyzer bound_analyzer;
+
+      bound_analyzer(func->body);
+
+      auto fptr = func.CopyOnWrite();
+      fptr->body = StorageFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
+                                    &bound_analyzer)(std::move(fptr->body));
+      return func;
+    };
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.StorageFlattener", {});
+  }
+
   explicit StorageFlattener(const Map<Var, Buffer>& extern_buffer_map, int cache_line_size,
                             bool create_bound_attributes, IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_(bound_analyzer), create_bound_attributes_(create_bound_attributes) {
@@ -1355,6 +1417,19 @@ class StorageFlattener : public StmtExprMutator {
  */
 class AssertSimplifier : public StmtMutator {
  public:
+  static transform::Pass Pass() {
+    auto pass_func = [=](PrimFunc func, IRModule m, transform::PassContext ctx) {
+      IRVisitorWithAnalyzer bound_analyzer;
+
+      bound_analyzer(func->body);
+
+      auto fptr = func.CopyOnWrite();
+      fptr->body = AssertSimplifier(&bound_analyzer)(std::move(fptr->body));
+      return func;
+    };
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.AssertSimplifier", {});
+  }
+
   explicit AssertSimplifier(IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_(bound_analyzer) {}
 
@@ -1409,30 +1484,25 @@ class AssertSimplifier : public StmtMutator {
 // We do support a few relaxed case, such as binding a
 // region with shape [1, 1, n, m] to buffer with shape [n, m]
 PrimFunc StorageFlatten(PrimFunc func, int cache_line_size, bool create_bound_attributes) {
-  // Only apply this pass to TIR from TE schedules
+  // Only apply this pass to TIR from TE schedules.  Because this is a
+  // per-function attribute, we can't just check it once for the
+  // entire module and apply the Sequential transform.
   Optional<Bool> from_legacy_te_schedule = func->GetAttr("from_legacy_te_schedule", Bool(false));
   if (from_legacy_te_schedule.value()) {
-    auto fptr = func.CopyOnWrite();
-
-    IRVisitorWithAnalyzer bound_analyzer;
-    bound_analyzer(fptr->body);
-
-    fptr->body = BufferShapeLegalize(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
-
-    auto stride_legalize = BufferStrideLegalize(fptr->buffer_map, &bound_analyzer);
-    fptr->body = stride_legalize(std::move(fptr->body));
-    fptr->buffer_map = stride_legalize.UpdatedExternBufferMap();
-
-    fptr->body = ThreadScopePropagate(fptr->buffer_map)(std::move(fptr->body));
-
-    fptr->body = BufferBindUnwrapper(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
-
-    fptr->body = StorageFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
-                                  &bound_analyzer)(std::move(fptr->body));
-
-    fptr->body = AssertSimplifier(&bound_analyzer)(std::move(fptr->body));
-
-    return func;
+    auto seq = transform::Sequential(
+        {
+            BufferShapeLegalize::Pass(),
+            BufferStrideLegalize::Pass(),
+            ThreadScopePropagate::Pass(),
+            BufferBindUnwrapper::Pass(),
+            StorageFlattener::Pass(cache_line_size, create_bound_attributes),
+            AssertSimplifier::Pass(),
+        },
+        "tir.StorageFlatten_impl");
+    GlobalVar dummy_func_name("dummy_func");
+    IRModule mod(Map<GlobalVar, BaseFunc>({{dummy_func_name, func}}));
+    mod = seq(mod);
+    return Downcast<PrimFunc>(mod->Lookup(dummy_func_name));
   } else {
     return func;
   }
