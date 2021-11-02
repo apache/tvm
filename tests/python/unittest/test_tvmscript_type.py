@@ -23,23 +23,22 @@ from tvm.script import tir as T
 
 
 @pytest.mark.mypy_testing
-def test_mypy_use_reveal_type() -> None:
-    @tvm.script.ir_module
-    class Module:
-        @T.prim_func
-        def func(a: T.handle, b: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, [128, 128], dtype="float32")
-            B = T.match_buffer(b, [128, 128], dtype="float32")
-            C = T.match_buffer(c, [128, 128], dtype="float32")
-            reveal_type(A)  # R: <Buffer>
-            for i, j, k in T.grid(128, 128, T.reduce_axis(0, 128)):
-                with T.block("C"):
-                    C[i, j] = T.if_then_else(
-                        i == 0 and j == 0 and k == 0,
-                        0.0,
-                        C[i, j] + A[i, k] * B[k, j],
-                        dtype="float32",
-                    )
+@tvm.script.ir_module
+class Module:
+    @T.prim_func
+    def func(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128], dtype="float32")
+        B = T.match_buffer(b, [128, 128], dtype="float32")
+        C = T.match_buffer(c, [128, 128], dtype="float32")
+        reveal_type(A)  # R: <Buffer>
+        for i, j, k in T.grid(128, 128, T.reduce_axis(0, 128)):
+            with T.block("C"):
+                C[i, j] = T.if_then_else(
+                    i == 0 and j == 0 and k == 0,
+                    0.0,
+                    C[i, j] + A[i, k] * B[k, j],
+                    dtype="float32",
+                )
 
 
 if __name__ == "__main__":
