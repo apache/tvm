@@ -531,6 +531,15 @@ Optional<Target> TargetNode::GetHost() const {
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
 }
 
+bool TargetNode::SEqualReduce(const TargetNode* other, SEqualReducer equal) const {
+  return
+}
+
+void TargetNode::SHashReduce(SHashReducer hash_reduce) const {
+
+}
+
+
 /*! \brief Entry to hold the Target context stack. */
 struct TVMTargetThreadLocalEntry {
   /*! \brief The current target context */
