@@ -25,6 +25,7 @@ from functools import partial
 import pytest
 import numpy as np
 import tvm
+import tempfile
 from tvm import te
 from tvm import relay
 
@@ -1770,16 +1771,6 @@ def _test_unary_elemwise(math_op, data):
 
 
 #######################################################################
-# Abs
-# ---
-
-
-def _test_abs(data):
-    """One iteration of abs"""
-    return _test_unary_elemwise(math_ops.abs, data)
-
-
-#######################################################################
 # Ceil
 # ----
 
@@ -1898,7 +1889,6 @@ def _test_forward_unary_elemwise(test_op):
 
 
 def test_all_unary_elemwise():
-    _test_forward_unary_elemwise(_test_abs)
     _test_forward_unary_elemwise(_test_floor)
     _test_forward_unary_elemwise(_test_exp)
     _test_forward_unary_elemwise(_test_log)
@@ -3410,6 +3400,71 @@ def test_forward_neg():
 
 
 #######################################################################
+# ABS
+# ----
+
+
+def _test_abs(data, quantized=False):
+    """One iteration of ABS"""
+    if quantized:
+
+        def _create_model():
+            class Model(tf.Module):
+                @tf.function
+                def tf_function(self, x):
+                    op = tf.math.abs(x)
+                    return op
+
+            dtype = "int8"
+            model = Model()
+
+            # Save the model
+            export_dir = tempfile.gettempdir() + "/tf_model"
+            tf.saved_model.save(
+                model,
+                export_dir,
+                signatures=model.tf_function.get_concrete_function(
+                    tf.TensorSpec(data.shape, tf.float32, name="input"),
+                ),
+            )
+
+            # Convert the model
+            def representative_dataset():
+                for _ in range(100):
+                    tmp_data = np.random.rand(*tuple(data.shape))
+                    yield [tmp_data.astype(np.float32) * 2 - 1]
+
+            converter = tf.lite.TFLiteConverter.from_saved_model(export_dir)
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.representative_dataset = representative_dataset
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+            converter.inference_input_type = tf.int8
+            converter.inference_output_type = tf.int8
+            tflite_model = converter.convert()
+            return tflite_model
+
+        tflite_model_quant = _create_model()
+        tflite_output = run_tflite_graph(tflite_model_quant, data)
+        in_node = ["serving_default_input_int8"]
+        tvm_output = run_tvm_graph(tflite_model_quant, data, in_node)
+        tvm.testing.assert_allclose(
+            np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-2
+        )
+    else:
+        with tf.Graph().as_default():
+            in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in_0")
+            out = math_ops.abs(in_data)
+            compare_tflite_with_tvm(data, "in_0:0", [in_data], [out])
+
+
+def test_forward_abs():
+    """ABS"""
+    _test_abs(np.arange(-3.0, 3.0, dtype=np.float32), quantized=False)
+    _test_abs(np.arange(-3.0, 3.0, dtype=np.float32).reshape((2, 1, 3)), quantized=False)
+    _test_abs(np.arange(-128, 127, 45, dtype=np.int8), quantized=True)
+
+
+#######################################################################
 # ReLu
 # ----
 
@@ -4686,6 +4741,7 @@ if __name__ == "__main__":
     test_forward_tanh()
     test_forward_rsqrt()
     test_forward_neg()
+    test_forward_abs()
     test_forward_relu()
     test_forward_relu6()
     test_forward_leaky_relu()
