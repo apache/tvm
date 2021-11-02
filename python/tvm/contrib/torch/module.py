@@ -50,9 +50,9 @@ class GraphModule(torch.nn.Module):
         r"""Get the device string"""
         return str(self.dummy_param.device)
 
-    def _apply(self, func):
+    def _apply(self, fn):
         r"""Override to device function, manually move tvm module to desired device"""
-        super()._apply(func)
+        super()._apply(fn)
         if self.engine is not None:
             self.engine.to(self.device)
         return self
@@ -88,9 +88,9 @@ class VMModule(torch.nn.Module):
         r"""Get the device string"""
         return str(self.dummy_param.device)
 
-    def _apply(self, func):
+    def _apply(self, fn):
         r"""Override to device function, manually move tvm module to desired device"""
-        super()._apply(func)
+        super()._apply(fn)
         if self.engine is not None:
             self.engine.to(self.device)
         return self

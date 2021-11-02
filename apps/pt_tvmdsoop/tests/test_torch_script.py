@@ -63,13 +63,13 @@ if not os.path.exists(log_file):
 
 print("Building...")
 tvm_mod = mod.build_tvm(export_dir)
-pytorch_mod = mod.build_pytorch_op(num_inputs=2, num_outputs=1)
+pytorch_mod = mod.build_pytorch_module(num_inputs=2, num_outputs=1)
 
 
 ## Or you can load from a prebuilt tvm module
 # mod = PyTorchTVMModule()
 # tvm_mod = mod.load_tvm(export_dir)
-# pytorch_mod = mod.build_pytorch_op(num_inputs=2, num_outputs=1, input_infos=input_shapes)
+# pytorch_mod = mod.build_pytorch_module(num_inputs=2, num_outputs=1, input_infos=input_shapes)
 
 
 print("Run TVM...")

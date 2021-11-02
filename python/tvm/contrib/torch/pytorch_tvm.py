@@ -76,8 +76,12 @@ def tune_tasks(
         )
 
     # pick best records to a cache file
-    autotvm.record.pick_best(tmp_log_file, log_filename)
-    os.remove(tmp_log_file)
+    if not os.path.exists(log_filename):
+        with open(log_filename, 'w', encoding="utf-8"):
+            pass
+    if os.path.exists(tmp_log_file):
+        autotvm.record.pick_best(tmp_log_file, log_filename)
+        os.remove(tmp_log_file)
 
 
 def get_tuning_opt(log_file="tuning.log", n_trial=200):
@@ -177,7 +181,8 @@ class PyTorchTVMModule:
         self.tvm_module.set_input(**self.tvm_params)
         return self.tvm_module
 
-    def build_pytorch_op(self, num_inputs, num_outputs, input_infos=None):
+    def build_pytorch_module(self, num_inputs, num_outputs, input_infos=None):
+        """Build pytorch module containing TVM Graph Module"""
         assert self.export_dir, "you must build_tvm or load_tvm before"
         input_infos = input_infos or self.input_infos
         assert input_infos
@@ -186,12 +191,12 @@ class PyTorchTVMModule:
         input_shapes = [i[1] for i in input_infos]
 
         def _tvm_dev_to_pt_dev(device):
+            """convert tvm device to pytorch device string"""
             if tvm.runtime.Device.MASK2STR[device.device_type] == "cpu":
                 return "cpu"
-            elif tvm.runtime.Device.MASK2STR[device.device_type] == "cuda":
+            if tvm.runtime.Device.MASK2STR[device.device_type] == "cuda":
                 return f"cuda:{device.device_id}"
-            else:
-                raise ValueError(f"unsupported device for pt graph module: {device}")
+            raise ValueError(f"unsupported device for pt graph module: {device}")
 
         mod = GraphModule(num_inputs=num_inputs, num_outputs=num_outputs).to(
             _tvm_dev_to_pt_dev(self.dev)
@@ -240,5 +245,5 @@ def compile(script_module, option):
 
     print("Building...")
     mod.build_tvm(export_dir)
-    pytorch_mod = mod.build_pytorch_op(num_inputs=len(input_infos), num_outputs=num_outputs)
+    pytorch_mod = mod.build_pytorch_module(num_inputs=len(input_infos), num_outputs=num_outputs)
     return pytorch_mod
