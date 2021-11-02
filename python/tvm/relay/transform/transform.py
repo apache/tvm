@@ -1268,7 +1268,7 @@ def LiftDtypeTransformation():
       per program. There should be no structure that looks like:
 
        in                                      in
-      /  \        but the following is ok:      |
+       | \        but the following is ok:      |
     cast  add                                  cast
 
     Returns
