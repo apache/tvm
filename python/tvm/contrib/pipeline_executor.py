@@ -157,7 +157,7 @@ def create(pipeline_mods, mod_config):
         mod = graph_executor.GraphModule(
             pipeline_mod["default"](pipeline_mods[pipeline_mod]["dev"])
         )
-        mods.append(mod.module)
+        mods.append(mod)
 
     submodule = PipelineModule(mods, json.dumps(mod_config))
     # submodule = PipelineModule(pipeline_mods, json.dumps(mod_config))
@@ -181,7 +181,7 @@ class PipelineModule(object):
     def __init__(self, modules, pipeline_config):
         mods = []
         for module in modules:
-            mods.append(module)
+            mods.append(module.module)
 
         pipelinecreate = tvm._ffi.get_global_func("tvm.pipeline_executor.create")
         assert pipelinecreate
