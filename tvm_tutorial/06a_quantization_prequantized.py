@@ -5,6 +5,7 @@ import numpy as np
 
 import torch
 from torchvision.models.quantization import mobilenet as qmobilenet
+from torchvision.models.quantization import shufflenetv2 as qshufflenet
 
 import tvm
 from tvm import relay
@@ -28,6 +29,7 @@ def get_transform():
 def get_real_image(im_height, im_width):
     img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
     img_path = download_testdata(img_url, "cat.png", module="data")
+
     return Image.open(img_path).resize((im_height, im_width))
 
 
@@ -97,6 +99,7 @@ def quantize_model(model, inp):
 print("Using a framework prequantized model in TVM")
 print("")
 qmodel = qmobilenet.mobilenet_v2(pretrained=True).eval()
+#qmodel = qshufflenet.shufflenet_v2_x1_0(pretrained=True).eval()
 print("Torch model(unquantized):")
 print(qmodel)   
 
@@ -130,8 +133,8 @@ tvm_result, rt_mod = run_tvm_model(mod, params, input_name, inp, target=target)
 pt_top3_labels = np.argsort(pt_result[0])[::-1][:3]
 tvm_top3_labels = np.argsort(tvm_result[0])[::-1][:3]
 
-print("PyTorch top3 labels:", ",".join([synset[label] for label in pt_top3_labels]))
-print("TVM top3 labels:", ",".join([synset[label] for label in tvm_top3_labels]))
+print("PyTorch top3 labels:", ", ".join([f'"{synset[label]}"' for label in pt_top3_labels]))
+print("TVM top3 labels:", ", ".join([f'"{synset[label]}"' for label in tvm_top3_labels]))
 
 n_repeat = 100  # should be bigger to make the measurement more accurate
 dev = tvm.cpu(0)
