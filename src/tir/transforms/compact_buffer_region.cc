@@ -182,7 +182,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       for (const Buffer& buffer : op->alloc_buffers) {
         buffer_var_in_scope_.emplace(buffer->data, std::make_pair(buffer, ancestor_loops_.size()));
       }
-      // Step 1.2(non-opaque scope). visit recursively
+      // Step 1.2(non-opaque scope). visit match buffers
+      for (const MatchBufferRegion& region : op->match_buffers) {
+        VisitBufferAccess(region->source);
+      }
+      // Step 1.3(non-opaque scope). visit recursively
       StmtExprVisitor::VisitStmt_(op);
     }
 
