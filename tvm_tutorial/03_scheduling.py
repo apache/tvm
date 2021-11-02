@@ -97,8 +97,8 @@ def schedule_conv1d_ncw(outs):
     # xx_outer, xx_inner = s[outs[0]].split(xx, 1)
 
     # s[outs[0]].reorder(kk_outer, xx_outer, kk_inner, xx_inner)
-    s[outs[0]].vectorize(xx)
-    s[outs[0]].unroll(rc)
+    # s[outs[0]].vectorize(xx)
+    # s[outs[0]].unroll(rc)
 
     return s
 
@@ -126,7 +126,7 @@ def custom_conv1d_strategy(attrs, inputs, out_type, target):
 
 def main():
     # Load module
-    m = TVMModule()
+    m = TVMModule(torch_model=True)
     relay_mod, relay_params = m.load()
 
     # Register new strategy. Default priority level is 10.
@@ -136,6 +136,7 @@ def main():
     logging.getLogger("compile_engine").addHandler(logging.StreamHandler(sys.stdout))
 
     # Compile module
+    print("Compile module...")
     target = tvm.target.Target("llvm")
     with tvm.transform.PassContext(opt_level=0):
         lib = relay.build(relay_mod, target=target, params=relay_params)

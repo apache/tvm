@@ -117,11 +117,11 @@ def custom_conv1d_strategy(attrs, inputs, out_type, target):
 
 def main():
     # Load module
-    m = TVMModule()
+    m = TVMModule(torch_model=True)
     relay_mod, relay_params = m.load()
 
     # Register new strategy. Default priority level is 10.
-    plevel = 11
+    plevel = 1
     _op.register_strategy("nn.conv1d", custom_conv1d_strategy, level=plevel)
 
     # Auto scheduler
@@ -140,7 +140,7 @@ def main():
         print("Begin tuning...")
         tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
         tune_option = auto_scheduler.TuningOptions(
-            num_measure_trials=200,  # change this to 20000 to achieve the best performance
+            num_measure_trials=2000,  # change this to 20000 to achieve the best performance
             runner=auto_scheduler.LocalRunner(repeat=10, enable_cpu_cache_flush=True),
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
@@ -149,7 +149,7 @@ def main():
     run_tuning()
 
     # Compile with the history best
-    print("Compile...")
+    print("Compile module...")
     with auto_scheduler.ApplyHistoryBest(log_file):
         with tvm.transform.PassContext(
             opt_level=0,
