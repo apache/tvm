@@ -29,6 +29,6 @@ make cython3
 
 # Note: Default behaviour is to assume the test target is Ethos-N77
 # but setting ETHOSN_VARIANT_CONFIG appropriately
-# (e.g. ETHOSN_VARIANT_CONFIG=ETHOSN78_1TOPS_4PLE_448KSRAM)
+# (e.g. ETHOSN_VARIANT_CONFIG=Ethos-N78_1TOPS_2PLE_RATIO)
 # switches the target to an Ethos-N78 configuration.
 run_pytest ctypes python-ethosn tests/python/contrib/test_ethosn
