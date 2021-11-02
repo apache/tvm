@@ -33,10 +33,10 @@
 ##############################
 # Top-level Fallbacks
 ##############################
-include/**  @tqchen @jroesch @yzhliu @icemelon9 @junrushao1994 @comaniac @zhiics
-src/** @tqchen @jroesch @yzhliu @icemelon9 @junrushao1994 @comaniac @zhiics
-apps/** @tqchen @jroesch @yzhliu @icemelon9 @junrushao1994 @comaniac @zhiics
-python/** @tqchen @jroesch @yzhliu @icemelon9 @junrushao1994 @comaniac @zhiics
+include/**  @tqchen @jroesch @yzhliu @icemelon @junrushao1994 @comaniac @zhiics
+src/** @tqchen @jroesch @yzhliu @icemelon @junrushao1994 @comaniac @zhiics
+apps/** @tqchen @jroesch @yzhliu @icemelon @junrushao1994 @comaniac @zhiics
+python/** @tqchen @jroesch @yzhliu @icemelon @junrushao1994 @comaniac @zhiics
 
 # Thirdparty license audit
 3rdparty/**  @tqchen @jroesch
@@ -67,11 +67,11 @@ rust/** @jroesch @nhynes @nhynes
 vta/**    @tmoreau89 @vegaluisjose
 
 # docs
-docs/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon9
-tutorials/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon9
+docs/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon
+tutorials/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon
 
 # tests
-tests/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon9
+tests/**  @comaniac @junrushao1994 @tqchen @jroesch @areusch @yzhliu @merrymercy @icemelon
 
 ##############################
 # Specific modules
@@ -129,9 +129,9 @@ include/tvm/runtime/micro/** @areusch @liangfu @tmoreau89 @manupa-arm
 python/tvm/micro/** @areusch @liangfu @tmoreau89 @manupa-arm
 
 # relay
-src/relay/** @jroesch @slyubomirsky @icemelon9 @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
-include/tvm/relay/** @jroesch @slyubomirsky @icemelon9 @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
-python/tvm/relay/** @jroesch @slyubomirsky @icemelon9 @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
+src/relay/** @jroesch @slyubomirsky @icemelon @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
+include/tvm/relay/** @jroesch @slyubomirsky @icemelon @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
+python/tvm/relay/** @jroesch @slyubomirsky @icemelon @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
 
 
 # relay/qnn
