@@ -138,6 +138,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Jon Soifer](https://github.com/soiferj): @soiferj
+- [Chris Sullivan](https://github.com/csullivan): @csullivan
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Jorn Tuyls](https://github.com/jtuyls): @jtuyls
