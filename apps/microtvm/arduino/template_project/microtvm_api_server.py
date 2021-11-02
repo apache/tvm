@@ -31,6 +31,7 @@ import tarfile
 import tempfile
 import time
 from string import Template
+import re
 
 import serial
 import serial.tools.list_ports
@@ -287,11 +288,11 @@ class Handler(server.ProjectAPIHandler):
         return include_path
 
     def _get_platform_version(self, arduino_cli_path: str) -> float:
+        # sample output of this command:
+        # 'arduino-cli alpha Version: 0.18.3 Commit: d710b642 Date: 2021-05-14T12:36:58Z\n'
         version_output = subprocess.check_output([arduino_cli_path, "version"], encoding="utf-8")
-        version_output = (
-            version_output.replace("\n", "").replace("\r", "").replace(":", "").lower().split(" ")
-        )
-        full_version = version_output[version_output.index("version") + 1].split(".")
+        full_version = re.findall("version: ([\.0-9]*)", version_output.lower())
+        full_version = full_version[0].split(".")
         version = float(f"{full_version[0]}.{full_version[1]}")
 
         return version
