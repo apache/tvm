@@ -999,9 +999,11 @@ def test_shape_func_nested_function():
     compiler.lower(mod, "llvm")
 
 
+@tvm.testing.requires_cuda
 def test_storage_size_and_offset_on_cpu():
     """Tests allocations place sizes and offsets on the CPU host even if the rest
     of the computation is on a different device type."""
+    # TODO(mbs): Better would be to test ManifestAlloc independently.
 
     # CPU = device type 1
     # GPU = device type 2
@@ -1021,9 +1023,6 @@ def test_storage_size_and_offset_on_cpu():
         tvm.target.Target("cuda"),
     )
 
-    print(exe.constants)
-    print(exe.bytecode)
-
     # This program needs two constants:
     # - The size of the tensor's storage (first arg) to alloc_storage
     # - The offset of the tensor within the storage (second arg) to alloc_tensor
@@ -1032,15 +1031,15 @@ def test_storage_size_and_offset_on_cpu():
     assert "on device of type 1" in exe.constants
 
 
+@tvm.testing.requires_cuda
 def test_reshape_shape_on_cpu():
     """Tests the argument to a reshape places the shape on the CPU host even if the rest
-    of the copmutation is on a different device type."""
+    of the computation is on a different device type."""
+    # TODO(mbs): Better would be to test ManifestAlloc independently.
 
     # CPU = device type 1
     # GPU = device type 2
     def input():
-        newshape = [2, 4, 2]
-        metatable = {"relay.Constant": [relay.const(newshape, dtype="int64")]}
         return tvm.parser.fromtext(
             """
             #[version = "0.0.5"]
@@ -1055,9 +1054,6 @@ def test_reshape_shape_on_cpu():
         input(),
         tvm.target.Target("cuda"),
     )
-
-    print(exe.constants)
-    print(exe.bytecode)
 
     # The newshape annotation should have been turned into a constant on the CPU.
     assert not "on device of type 2" in exe.constants
