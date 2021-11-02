@@ -17,7 +17,6 @@
 """Testing utilities for the TensorIR schedule API"""
 from typing import Union
 
-from tvm import tir
 from tvm.ir import IRModule, structural_equal
 from tvm.tir import PrimFunc
 from tvm.tir.schedule import Trace, Schedule
