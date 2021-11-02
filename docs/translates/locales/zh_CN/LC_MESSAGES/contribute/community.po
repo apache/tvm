@@ -4,7 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# 孟鑫, 2021
+# juzi, 2021
 # a_flying_fish <a_flying_fish@outlook.com>, 2021
 # 
 #, fuzzy
