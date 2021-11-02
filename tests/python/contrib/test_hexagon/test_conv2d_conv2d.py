@@ -253,8 +253,8 @@ class BaseConv2dConv2d:
     kernel_size2 = tvm.testing.parameter(1)
     out_channel2 = tvm.testing.parameter(128)
     # schedule params
-    k_split_factor = tvm.testing.parameter(1)
-    h_split_factor = tvm.testing.parameter(1)
+    k_split_factor = tvm.testing.parameter(1, 2)
+    h_split_factor = tvm.testing.parameter(1, 2)
     dtype = tvm.testing.parameter("float32")
 
 
