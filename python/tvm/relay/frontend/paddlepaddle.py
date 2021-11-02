@@ -125,7 +125,7 @@ def convert_addmm(g, op, block):
     alpha = op.attr("Alpha")
     beta = op.attr("Beta")
     dtype = block.var(op.output("Out")[0]).dtype
-    dtype = convert_dtype_value(dtype)
+    dtype = _convert_dtype_value(dtype)
 
     if not isinstance(alpha, _expr.Expr) and alpha != 1:
         alpha = _expr.const(alpha, dtype)
@@ -1201,6 +1201,7 @@ _convert_map = {
     "elementwise_floordiv": convert_elementwise_op,
     "elementwise_max": convert_elementwise_op,
     "elementwise_min": convert_elementwise_op,
+    "elementwise_mod": convert_elementwise_op,
     "elementwise_mul": convert_elementwise_op,
     "elementwise_pow": convert_elementwise_op,
     "elementwise_prod": convert_elementwise_op,
@@ -1242,6 +1243,7 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
+    "not_equal": convert_elementwise_op,
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
