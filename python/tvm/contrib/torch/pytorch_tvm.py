@@ -77,7 +77,7 @@ def tune_tasks(
 
     # pick best records to a cache file
     if not os.path.exists(log_filename):
-        with open(log_filename, 'w', encoding="utf-8"):
+        with open(log_filename, "w", encoding="utf-8"):
             pass
     if os.path.exists(tmp_log_file):
         autotvm.record.pick_best(tmp_log_file, log_filename)
