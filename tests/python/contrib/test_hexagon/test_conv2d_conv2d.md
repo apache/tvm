@@ -410,7 +410,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
 
       // NOTE: compute over all output channels of conv2d #1 before computing conv2d #2
       for (ko.outer_1: int32, 0, 2) {
-
+        for (ko.inner: int32, 0, 2) {
           // filter #1 cache read
           for (co: int32, 0, 4) {
             for (cio: int32, 0, 8) {
