@@ -29,20 +29,21 @@ class TorchModel(torch.nn.Module):
     def forward(self, x):
         y = self.conv(x)
         y = x + y
-        y = y.mean(axis=-1)
-        y = self.fc(y)
+#        y = y.mean(axis=-1)
+#        y = self.fc(y)
         return y
 
-pt_inp = torch.rand([1, 16, 8])
+pt_inp = torch.rand([1, 16, 32])
 inp = pt_inp.numpy()
 pt_model = TorchModel()
+pt_model.eval()
 script_module = torch.jit.trace(pt_model, pt_inp).eval()
 
 with torch.no_grad():
     pt_result = script_module(pt_inp).numpy()
 
 input_name = "input"
-input_shapes = [(input_name, (1, 16, 8))]
+input_shapes = [(input_name, (1, 16, 32))]
 mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
 
@@ -73,12 +74,10 @@ def add_attr(expr):
 
 #mod = relay.transform.MergeComposite(pattern_table())(mod)
 #print(mod)
-
-
 mod = relay.transform.AnnotateTarget(custom_target_name)(mod)
 print(mod)
-#mod = relay.transform.MergeCompilerRegions()(mod)
-#print(mod)
+mod = relay.transform.MergeCompilerRegions()(mod)
+print(mod)
 mod = relay.transform.PartitionGraph()(mod)
 print(mod)
 

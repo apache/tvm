@@ -107,7 +107,8 @@ class CustomCodegenC : public MemoizedExprTranslator<std::vector<Output>>, publi
     std::string func_name = ext_func_id_ + "_" + std::to_string(func_idx++);
 
     // Make function declaration
-    macro_stream << "CSOURCE_BINARY_OP_" << call->args.size() << "D(" << func_name << ", ";
+    auto in_shape = GetShape(call->args[0]->checked_type());
+    macro_stream << "CSOURCE_BINARY_OP_" << in_shape.size() << "D(" << func_name << ", ";
 
     if (IsOp(call, "add")) {
       macro_stream << "+";
@@ -119,8 +120,7 @@ class CustomCodegenC : public MemoizedExprTranslator<std::vector<Output>>, publi
       LOG(FATAL) << "Unrecognized op";
     }
 
-    auto in_shape = GetShape(call->args[0]->checked_type());
-    for (size_t i = 1; i < in_shape.size(); ++i) {
+    for (size_t i = 0; i < in_shape.size(); ++i) {
       macro_stream << ", " << in_shape[i];
     }
 
@@ -251,7 +251,7 @@ class CustomCSourceCodegen : public CSourceModuleCodegenBase {
       }
 
     #define CSOURCE_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_, p_DTYPE)  \
-      void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {        \
+      void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {                   \
         for (int64_t i = 0; i < p_DIM1_; ++i) {                            \
           for (int64_t j = 0; j < p_DIM2_; ++j) {                          \
             int64_t k = i * p_DIM2_ + j;                                   \
@@ -259,6 +259,19 @@ class CustomCSourceCodegen : public CSourceModuleCodegenBase {
           }                                                                \
         }                                                                  \
       }
+    
+    
+    #define CSOURCE_BINARY_OP_3D(p_ID_, p_OP_, p_DIM1_, p_DIM2_, p_DIM3_, p_DTYPE)  \
+      void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {                   \
+        for (int64_t i = 0; i < p_DIM1_; ++i) {                            \
+          for (int64_t j = 0; j < p_DIM2_; ++j) {                          \
+            for (int64_t k = 0; k < p_DIM3_; ++k) {                        \
+            int64_t l = i * p_DIM2_ * p_DIM3_ + j  * p_DIM3_ + k;          \
+            out[l] = a[l] p_OP_ b[l];                                      \
+          }                                                                \
+        }                                                                  \
+      }                                                                    \
+    }
     )op_macro";
 
     code_stream_ << operator_macro << "\n\n";
