@@ -14,29 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-builtin
+from typing import Tuple, Union, List
+from tvm.tir import PrimExpr, IterVar, Var
 
-[mypy]
-ignore_missing_imports = False
-show_column_numbers = True
-show_error_context = True
-follow_imports = skip
-ignore_errors = False
-strict_optional = False
-
-#
-# Note: not all tests under .tests/ are typed 
-# Therefore include test files that should be
-# checked by mypy here
-#
-files = 
-    tests/python/unittest/test_tvmscript_type.py
-
-[mypy-python.tvm.auto_scheduler.*]
-ignore_errors = True
-
-[mypy-python.tvm.runtime.*]
-ignore_errors = True
-
-[mypy-python.tvm.tir.schedule.*]
-ignore_errors = False
-
+def spatial(dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr) -> IterVar: ...
+def S(dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], iter_value) -> IterVar: ...
+def reduce(dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr) -> IterVar: ...
+def R(dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr) -> IterVar: ...
+def scan(dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr) -> IterVar: ...
+def opaque(dom: Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], value: PrimExpr) -> IterVar: ...
+def remap(iter_types: str, loop_vars: List[Var]) -> IterVar: ...

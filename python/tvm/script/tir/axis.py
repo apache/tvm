@@ -14,29 +14,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-[mypy]
-ignore_missing_imports = False
-show_column_numbers = True
-show_error_context = True
-follow_imports = skip
-ignore_errors = False
-strict_optional = False
-
-#
-# Note: not all tests under .tests/ are typed 
-# Therefore include test files that should be
-# checked by mypy here
-#
-files = 
-    tests/python/unittest/test_tvmscript_type.py
-
-[mypy-python.tvm.auto_scheduler.*]
-ignore_errors = True
-
-[mypy-python.tvm.runtime.*]
-ignore_errors = True
-
-[mypy-python.tvm.tir.schedule.*]
-ignore_errors = False
-
+# pylint: disable=redefined-builtin
