@@ -20,13 +20,13 @@ from ...dataflow_pattern import wildcard, is_op, is_constant
 
 
 def make_gelu_pattern(bias_out, out_dtype="float16"):
-    mul = is_op("multiply")(bias_out, wildcard())
+    mul = is_op("multiply")(bias_out, is_constant() | wildcard())
     if out_dtype == "float16":
         erf = is_op("cast")(is_op("erf")(is_op("cast")(mul)))
     else:
         erf = is_op("erf")(mul)
-    mul_half = is_op("multiply")(erf, is_constant())
-    add = is_op("add")(mul_half, is_constant())
+    mul_half = is_op("multiply")(erf, is_constant() | wildcard())
+    add = is_op("add")(mul_half, is_constant() | wildcard())
     return is_op("multiply")(add, bias_out)
 
 

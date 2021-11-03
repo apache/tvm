@@ -240,6 +240,7 @@ def test_dense_dynamic():
             ref_target="cuda -libs=cublas",
         )
 
+    return
     verify(
         get_dense_with_shape(data_shape, weight_shape, out_dtype="float32"),
         M,
@@ -258,5 +259,6 @@ def test_batch_matmul():
 if __name__ == "__main__":
     # pytest.main([__file__])
     # test_batch_matmul()
+    test_dense_bias_gelu()
     # test_dense()
-    test_dense_dynamic()
+    # test_dense_dynamic()
