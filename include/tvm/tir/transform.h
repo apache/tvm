@@ -479,6 +479,12 @@ TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
  */
 TVM_DLL Pass ConvertForLoopsToSerial();
 
+/*!
+ * \brief Lower SparseTIR to TIR.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerSparseTIR();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

@@ -21,6 +21,7 @@
  * \file sparse.cc
  * \brief buffers and formats in sparse tir.
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/sparse.h>
@@ -158,9 +159,21 @@ SpIterVar::SpIterVar(String name, PrimExpr max_extent, SpIterKind kind, bool is_
                      Optional<Axis> axis) {
   ObjectPtr<SpIterVarNode> node = make_object<SpIterVarNode>();
 
+  arith::Analyzer ana;
+  if (axis.defined()) {
+    CHECK(ana.CanProveEqual(axis.value()->length, max_extent));
+  }
   if (kind != SpIterKind::kDenseFixed) {
     CHECK(axis.defined()) << "ValueError: To create a SpIterVar that is not fixed-dense, one must "
                              "specify the axis over which the SpIterVar iterates";
+    const char* err_str = "ValueError: The given kind doesn't match the type of the given axis";
+    if (kind == SpIterKind::kDenseVariable) {
+      CHECK(axis.value()->IsInstance<DenseFixedAxisNode>()) << err_str;
+    } else if (kind == SpIterKind::kSparseFixed) {
+      CHECK(axis.value()->IsInstance<SparseFixedAxisNode>()) << err_str;
+    } else if (kind == SpIterKind::kSparseVariable) {
+      CHECK(axis.value()->IsInstance<SparseVariableAxisNode>()) << err_str;
+    }
   }
 
   node->var = Var(std::move(name));
@@ -174,9 +187,9 @@ SpIterVar::SpIterVar(String name, PrimExpr max_extent, SpIterKind kind, bool is_
 TVM_REGISTER_NODE_TYPE(SpIterVarNode);
 
 TVM_REGISTER_GLOBAL("tir.sparse.SpIterVar")
-    .set_body_typed([](String name, PrimExpr max_extent, SpIterKind kind, bool is_reduction,
+    .set_body_typed([](String name, PrimExpr max_extent, int kind, bool is_reduction,
                        Optional<Axis> axis) {
-      return SpIterVar(name, max_extent, kind, is_reduction, axis);
+      return SpIterVar(name, max_extent, SpIterKind(kind), is_reduction, axis);
     });
 
 }  // namespace tir

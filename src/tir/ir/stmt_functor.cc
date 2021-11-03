@@ -69,6 +69,11 @@ void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
 
+void StmtVisitor::VisitStmt_(const SparseBufferStoreNode* op) {
+  this->VisitExpr(op->value);
+  VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
+}
+
 void StmtVisitor::VisitStmt_(const BufferRealizeNode* op) {
   VisitArray(op->bounds, [this](const Range& r) {
     this->VisitExpr(r->min);
@@ -354,6 +359,20 @@ Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
+  PrimExpr value = this->VisitExpr(op->value);
+  Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
+
+  if (value.same_as(op->value) && indices.same_as(op->indices)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->value = std::move(value);
+    n->indices = std::move(indices);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const SparseBufferStoreNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
 

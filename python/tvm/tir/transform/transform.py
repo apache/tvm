@@ -749,3 +749,14 @@ def ConvertForLoopsToSerial():
         The result pass
     """
     return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
+
+
+def LowerSparseTIR():
+    """Lower SparseTIR to TIR
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerSparseTIR()  # type: ignore
