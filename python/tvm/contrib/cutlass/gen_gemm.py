@@ -354,11 +354,11 @@ class CutlassGemmProfiler(object):
             return False
         return True
 
-    def get_default(self, out_dtype):
+    def get_default(self, out_dtype, batched=False):
         """Return the default kernel for the requested architecture.
         For now, the default kernel was picked arbitrary.
         """
-        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, batched)
         default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
         assert len(filtered) == 1

@@ -88,7 +88,7 @@ def select_gemm_kernel(
 ):
     """TODO"""
     if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
-        out = cutlass_profiler.get_default(out_dtype)
+        out = cutlass_profiler.get_default(out_dtype, batched=batched)
         logger.info("Picked the default kernel %s", out["name"])
     else:
         out = cutlass_profiler.profile(

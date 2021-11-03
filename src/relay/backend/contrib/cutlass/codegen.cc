@@ -90,21 +90,21 @@ Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
 
 Str2StrMap BatchMatmulArgs(const Map<String, ObjectRef>& attrs) {
   Str2StrMap args = GemmArgsCommon(attrs);
-  args["batch"] = std::to_string(attrs["batch"].as<IntImmNode>()->value);
-  args["batch_stride_A"] = std::to_string(attrs["batch_stride_A"].as<IntImmNode>()->value);
-  args["batch_stride_B"] = std::to_string(attrs["batch_stride_B"].as<IntImmNode>()->value);
-  args["batch_stride_C"] = std::to_string(attrs["batch_stride_C"].as<IntImmNode>()->value);
+  args["batch"] = GetDimAsStr(attrs["batch"]);
+  args["batch_stride_A"] = GetDimAsStr(attrs["batch_stride_A"]);
+  args["batch_stride_B"] = GetDimAsStr(attrs["batch_stride_B"]);
+  args["batch_stride_C"] = GetDimAsStr(attrs["batch_stride_C"]);
   auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
-  args["M"] = std::to_string(arg0_shape->at(1).as<IntImmNode>()->value);
-  args["K"] = std::to_string(arg0_shape->at(2).as<IntImmNode>()->value);
-  args["N"] = std::to_string(arg1_shape->at(1).as<IntImmNode>()->value);
+  args["M"] = GetDimAsStr(arg0_shape->at(1));
+  args["K"] = GetDimAsStr(arg0_shape->at(2));
+  args["N"] = GetDimAsStr(arg1_shape->at(1));
   return args;
 }
 
 void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
                     const std::vector<std::string>& func_args, const std::string& kernel,
-                    bool has_bias, bool is_gelu) {
+                    bool has_bias, bool is_gelu, int m_axis_idx, int n_axis_idx, int k_axis_idx) {
   CutlassPrint(gemm_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
   CutlassPrint(gemm_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
   CutlassPrint(gemm_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
@@ -119,12 +119,9 @@ void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
       return attrs.at(axis);
     }
   };
-  CutlassPrint(gemm_decl, "int M = " + get_dim("M", 0, 0) + ";\n");
-  CutlassPrint(gemm_decl, "int N = " + get_dim("N", 1, 0) + ";\n");
-  CutlassPrint(gemm_decl, "int K = " + get_dim("K", 0, 1) + ";\n");
-  // CutlassPrint(gemm_decl, "int M = " + attrs.at("M") + ";\n");
-  // CutlassPrint(gemm_decl, "int N = " + attrs.at("N") + ";\n");
-  // CutlassPrint(gemm_decl, "int K = " + attrs.at("K") + ";\n");
+  CutlassPrint(gemm_decl, "int M = " + get_dim("M", 0, m_axis_idx) + ";\n");
+  CutlassPrint(gemm_decl, "int N = " + get_dim("N", 1, n_axis_idx) + ";\n");
+  CutlassPrint(gemm_decl, "int K = " + get_dim("K", 0, k_axis_idx) + ";\n");
   CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
   CutlassPrint(gemm_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
   if (is_gelu) {
@@ -180,7 +177,7 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
     has_bias = true;
   }
   std::ostringstream gemm_decl;
-  AppendPrologue(gemm_decl, attrs, func_args, "Gemm", has_bias, is_gelu);
+  AppendPrologue(gemm_decl, attrs, func_args, "Gemm", has_bias, is_gelu, 0, 0, 1);
 
   CutlassPrint(gemm_decl, " {static_cast<ElementInputA*>(ptr_a), " + attrs.at("lda") + "},\n");
   CutlassPrint(gemm_decl, " {static_cast<ElementInputB*>(ptr_b), " + attrs.at("ldb") + "},\n");
@@ -205,18 +202,37 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
 std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
                           const std::vector<std::string>& func_args) {
   std::ostringstream gemm_decl;
-  AppendPrologue(gemm_decl, attrs, func_args, "BatchedGemm", false, false);
+  AppendPrologue(gemm_decl, attrs, func_args, "BatchedGemm", false, false, 1, 1, 2);
+
+  // "batch_stride_A": arg0_shape[1] * arg0_shape[2],
+  // "batch_stride_B": arg1_shape[1] * arg1_shape[2],
+  // "batch_stride_C": arg0_shape[1] * arg1_shape[1],
+
+  auto get_batch_stride = [&attrs, &func_args](const std::string& name, int arg0_idx, int arg1_idx,
+                                               int arg0_axis_idx, int arg1_axis_idx) {
+    if (attrs.at(name) == kAnyDim) {
+      return func_args[arg0_idx] + "->shape[" + std::to_string(arg0_axis_idx) + "] * " +
+             func_args[arg1_idx] + "->shape[" + std::to_string(arg1_axis_idx) + "]";
+    } else {
+      return attrs.at(name);
+    }
+  };
 
   CutlassPrint(gemm_decl, " {static_cast<ElementInputA*>(ptr_a), " + attrs.at("lda") + "},\n");
-  CutlassPrint(gemm_decl, attrs.at("batch_stride_A") + ",\n");
+  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_A", 0, 0, 1, 2) + ",\n");
   CutlassPrint(gemm_decl, " {static_cast<ElementInputB*>(ptr_b), " + attrs.at("ldb") + "},\n");
-  CutlassPrint(gemm_decl, attrs.at("batch_stride_B") + ",\n");
+  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_B", 1, 1, 1, 2) + ",\n");
   CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
-  CutlassPrint(gemm_decl, attrs.at("batch_stride_C") + ",\n");
+  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_C", 0, 1, 1, 1) + ",\n");
   CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
-  CutlassPrint(gemm_decl, attrs.at("batch_stride_C") + ",\n");
+  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_C", 0, 1, 1, 1) + ",\n");
   CutlassPrint(gemm_decl, " {alpha, beta},\n");
-  CutlassPrint(gemm_decl, attrs.at("batch") + "};\n");
+
+  if (attrs.at("batch") == kAnyDim) {
+    CutlassPrint(gemm_decl, func_args[0] + "->shape[0]" + "};\n");
+  } else {
+    CutlassPrint(gemm_decl, attrs.at("batch") + "};\n");
+  }
 
   AppendGemmExecute(gemm_decl, "BatchedGemm");
   return gemm_decl.str();
