@@ -15,26 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-argument
-"""Tensor Expressions for convolutions for the NPU"""
-from typing import Tuple, Union, List
+"""Tensor Expressions for poolings"""
+from typing import Tuple
 
-from tvm import te  # type: ignore
+from tvm import te
 from .dma import dma_ofm_compute, dma_ifm_compute
 
 
-def conv2d_compute(
+def pooling_compute(
     ifm: te.Tensor,
-    weight: te.Tensor,
-    scale_bias: te.Tensor,
     lut: te.Tensor,
+    pooling_type: str,
     ifm_scale: float,
     ifm_zero_point: int,
-    weight_zero_point: int,
     ofm_scale: float,
     ofm_zero_point: int,
+    pool_shape: Tuple[int, int],
+    ofm_channels: int,
     strides: Tuple[int, int],
     padding: Tuple[int, int, int, int],
-    dilation: Union[Tuple[int, int], List[int]],
     activation: str,
     clip_min: int,
     clip_max: int,
@@ -42,34 +41,32 @@ def conv2d_compute(
     ifm_layout: str,
     ofm_layout: str,
 ) -> te.Tensor:
-    """A compute operator representing the capabilities of a 2D convolution for the NPU.
+    """A compute operator representing the capabilities of pooling for the NPU.
 
     Parameters
     ----------
     ifm : te.Tensor
         The Input Feature Map tensor (IFM).
-    weight : te.Tensor
-        The weight tensor.
-    scale_bias : te.Tensor
-        The packed per-channel weight scale and bias tensor.
     lut : te.Tensor
         The look-up table of values to use if activation = "LUT".
+    pooling_type: str
+        The type of the pooling. "AVG" - average pool,   "MAX" - max pool.
     ifm_scale : float
         The quantization scale for the Input Feature Map tensor.
     ifm_zero_point : int
         The quantization zero point for the Input Feature Map tensor.
-    weight_zero_point : int
-        The quantization zero point for the weight tensor.
     ofm_scale : float
         The quantization scale for the Output Feature Map tensor.
     ofm_zero_point : int
         The quantization zero point for the Output Feature Map tensor.
-    strides : tuple
+    pool_shape : Tuple[int, int]
+        The 2 dimensional pool shape as (pool_shape_height, pool_shape_width).
+    ofm_channels : int
+        The number of the Output Feature Map channels
+    strides : Tuple[int, int]
         The 2 dimensional strides as (stride_height, stride_width).
-    padding : tuple
+    padding : Tuple[int, int, int, int]
         The 4 dimensional padding as (pad_top, pad_left, pad_bottom, pad_right).
-    dilation : Union[Tuple[int, int], List[int]]
-        The 2 dimensional dilation as (dilation_height, dilation_width).
     activation : str
         The activation function to use.
             "NONE" - no activation function.
@@ -95,57 +92,39 @@ def conv2d_compute(
     -------
     te.Tensor
         The OFM tensor.
-
     """
-    assert ifm.shape[0] == 1
-    assert ifm_layout in {"NHWC", "NHCWB16"}
-    assert ofm_layout in {"NHWC", "NHCWB16"}
-
     stride_h, stride_w = strides
-    dilation_h, dilation_w = dilation
-    ofm_channels, kernel_h, kernel_w, ifm_channels = weight.shape
+    pool_shape_h, pool_shape_w = pool_shape
 
     # Compute operation for the IFM DMA pipeline
-    dmaed_ifm = dma_ifm_compute(
-        ifm, ifm_layout, ifm_zero_point, ifm_scale, weight.shape[3], padding
-    )
+    dmaed_ifm = dma_ifm_compute(ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, padding)
 
-    # 2D Convolution compute operation
-    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-    ofm_height = (dmaed_ifm.shape[1] - dilated_kernel_h) // stride_h + 1
-    ofm_width = (dmaed_ifm.shape[2] - dilated_kernel_w) // stride_w + 1
-    rc = te.reduce_axis((0, ifm_channels), name="rc")
-    rh = te.reduce_axis((0, kernel_h), name="ry")
-    rw = te.reduce_axis((0, kernel_w), name="rx")
+    # Pooling compute operation
+    ofm_height = (dmaed_ifm.shape[1] - pool_shape_h) // stride_h + 1
+    ofm_width = (dmaed_ifm.shape[2] - pool_shape_w) // stride_w + 1
+    rh = te.reduce_axis((0, pool_shape_h), name="ry")
+    rw = te.reduce_axis((0, pool_shape_w), name="rx")
 
-    conv2d_attrs = {
-        "op": "ethosu_conv2d",
-        "weight_zero_point": weight_zero_point,
-        "activation": activation,
-        "upscale": upscale,
-        "clip_min": clip_min,
-        "clip_max": clip_max,
+    pooling_attrs = {
+        "op": "ethosu_pooling",
+        "pooling_type": pooling_type,
         "stride_h": stride_h,
         "stride_w": stride_w,
-        "dilation_h": dilation_h,
-        "dilation_w": dilation_w,
+        "activation": activation,
+        "clip_min": clip_min,
+        "clip_max": clip_max,
+        "upscale": upscale,
     }
 
-    conv = te.compute(
+    pooling = te.compute(
         (1, ofm_height, ofm_width, ofm_channels),
-        lambda nn, hh, ww, cc: te.sum(
-            dmaed_ifm(
-                nn, hh * stride_h + rh * dilation_h, ww * stride_w + rw * dilation_w, rc
-            ).astype(ifm.dtype)
-            * weight[cc, rh, rw, rc].astype(ifm.dtype)
-            # This is a trick to load 10 elements of the scale_bias at once, not accurate maths
-            + (scale_bias[cc, 0] * scale_bias[cc, 9]).astype(ifm.dtype),
-            axis=[rh, rw, rc],
+        lambda nn, hh, ww, cc: te.max(
+            dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc).astype(ifm.dtype),
+            axis=[rh, rw],
         ),
-        name="ethosu_conv2d",
-        attrs=conv2d_attrs,
+        name="ethosu_pooling",
+        attrs=pooling_attrs,
     )
 
     # Compute operation for the OFM DMA pipeline
-    return dma_ofm_compute(conv, ofm_layout, ofm_zero_point, ofm_scale, ofm_channels)
+    return dma_ofm_compute(pooling, ofm_layout, ofm_zero_point, ofm_scale, ofm_channels)
