@@ -83,6 +83,30 @@ class GemmAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
 
 
+def select_gemm_kernel(
+    cutlass_profiler, MM, KK, NN, out_dtype, batched, profile_all, use_multiprocessing
+):
+    """TODO"""
+    if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
+        out = cutlass_profiler.get_default(out_dtype)
+        logger.info("Picked the default kernel %s", out["name"])
+    else:
+        out = cutlass_profiler.profile(
+            MM,
+            NN,
+            KK,
+            out_dtype,
+            batched=batched,
+            profile_all=profile_all,
+            use_multiprocessing=use_multiprocessing,
+        )
+        if profile_all:
+            logger.info("The best kernel is %s", out["name"])
+        else:
+            logger.info("Picked the first kernel found %s", out["name"])
+    return out
+
+
 def handle_batch_matmul(
     cutlass_profiler, op_type, arg0_shape, arg1_shape, out_dtype, profile_all, use_multiprocessing
 ):
@@ -90,19 +114,10 @@ def handle_batch_matmul(
     MM = arg0_shape[1]
     KK = arg0_shape[2]
     NN = arg1_shape[1]
-    out = cutlass_profiler.profile(
-        MM,
-        NN,
-        KK,
-        out_dtype,
-        batched=True,
-        profile_all=profile_all,
-        use_multiprocessing=use_multiprocessing,
+
+    out = select_gemm_kernel(
+        cutlass_profiler, MM, KK, NN, out_dtype, True, profile_all, use_multiprocessing
     )
-    if profile_all:
-        logger.info("The best kernel is %s", out["name"])
-    else:
-        logger.info("Picked the first kernel found %s", out["name"])
 
     if op_type == "cutlass.batch_matmul":
         cutlass_op_def = out["opdef"]
@@ -127,15 +142,9 @@ def handle_dense(
     KK = arg0_shape[1]
     NN = arg1_shape[0]
 
-    if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
-        out = cutlass_profiler.get_default(out_dtype)
-        logger.info("Picked the default kernel %s", out["name"])
-    else:
-        out = cutlass_profiler.profile(MM, NN, KK, out_dtype, profile_all, use_multiprocessing)
-        if profile_all:
-            logger.info("The best kernel is %s", out["name"])
-        else:
-            logger.info("Picked the first kernel found %s", out["name"])
+    out = select_gemm_kernel(
+        cutlass_profiler, MM, KK, NN, out_dtype, False, profile_all, use_multiprocessing
+    )
 
     if op_type == "cutlass.dense":
         cutlass_op_def = out["opdef"]
