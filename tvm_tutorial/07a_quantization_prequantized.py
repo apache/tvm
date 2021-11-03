@@ -1,4 +1,5 @@
 # Using framework prequantized models in TVM
+import typing
 from PIL import Image
 
 import numpy as np
@@ -11,6 +12,17 @@ import tvm
 from tvm import relay
 from tvm.contrib.download import download_testdata
 
+@tvm.instrument.pass_instrument
+class PrintIR:
+    """Print the name of the pass, the IR, only before passes execute."""
+
+    def __init__(self, names: typing.Union[str, typing.Sequence[str]] = []):
+        self.names = names
+
+    def run_after_pass(self, mod, info):
+        if self.names == "all" or str(info.name) in self.names:
+            print("Mod after pass:", info.name)
+            print(mod)
 
 def get_transform():
     import torchvision.transforms as transforms
@@ -60,6 +72,9 @@ def run_tvm_model(mod, params, input_name, inp, target="llvm", opt_level=3, inst
     if instrument_passes:
         timing_inst = tvm.ir.instrument.PassTimingInstrument()
         instruments.append(timing_inst)
+
+    if not profile:
+        instruments.append(PrintIR(["Legalize"]))
 
     with tvm.transform.PassContext(opt_level=opt_level, instruments=instruments):
         lib = relay.build(mod, target=target, params=params)
