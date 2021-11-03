@@ -158,7 +158,8 @@ struct GetChildBlocksTraits : public UnpackedInstTraits<GetChildBlocksTraits> {
     return py.Str();
   }
 
-  friend struct UnpackedInstTraits;
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(GetBlockTraits);
