@@ -1437,8 +1437,8 @@ class Parser {
                   String attr_key = Downcast<String>(raw_attrs["attrs_type_key"]);
                   if (attr_key.size()) {
                     raw_attrs.erase("attrs_type_key");
-                    auto tbl = tvm::ReflectionVTable::Global();
-                    auto attr_obj = tbl->CreateObject(attr_key, raw_attrs);
+                    auto attr_obj =
+                        tvm::ReflectionVTable::Global()->CreateObject(attr_key, raw_attrs);
                     ICHECK(attr_obj.defined());
                     attrs = Downcast<Attrs>(attr_obj);
                   }

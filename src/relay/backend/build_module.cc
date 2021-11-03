@@ -43,7 +43,6 @@ Pass LabelOps();
 }
 namespace backend {
 
-using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
 
 /*!
@@ -56,7 +55,7 @@ struct BuildOutput {
 };
 
 struct ExecutorCodegen {
-  void Init(runtime::Module* m, TargetsMap targets) { CallFunc("init", m, targets); }
+  void Init(runtime::Module* m, TargetMap targets) { CallFunc("init", m, targets); }
 
   void Codegen(const Function& func, String mod_name) { CallFunc("codegen", func, mod_name); }
 
@@ -278,7 +277,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target Target device
    * \param target_host Host target device
    */
-  void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host,
+  void Build(IRModule mod, const TargetMap& targets, const tvm::Target& target_host,
              const String executor, const String mod_name) {
     for (const auto& pair : targets) {
       VLOG(0) << "Build target " << pair.first << " = " << pair.second->str();
@@ -307,7 +306,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return relay::IRModule The updated Relay IR module after optimization.
    */
-  IRModule Optimize(IRModule relay_module, const TargetsMap& targets,
+  IRModule Optimize(IRModule relay_module, const TargetMap& targets,
                     const std::unordered_map<std::string, runtime::NDArray>& params) {
     targets_ = targets;
     // No target_host setup it seems.
@@ -444,7 +443,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
     if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
 
-    // Update all the targets in the targets_ TargetsMap
+    // Update all the targets in the targets_ TargetMap
     CheckAndUpdateHostConsistency(&targets_, &target_host);
 
     // Relay IRModule -> IRModule optimizations.
@@ -540,7 +539,7 @@ class RelayBuildModule : public runtime::ModuleNode {
  protected:
   std::unique_ptr<ExecutorCodegen> executor_codegen_;
   /*! \brief target device */
-  TargetsMap targets_;
+  TargetMap targets_;
   /*! \brief target host device */
   tvm::Target target_host_;
   /*! \brief parameters */
