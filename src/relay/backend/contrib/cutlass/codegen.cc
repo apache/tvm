@@ -204,10 +204,6 @@ std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
   std::ostringstream gemm_decl;
   AppendPrologue(gemm_decl, attrs, func_args, "BatchedGemm", false, false, 1, 1, 2);
 
-  // "batch_stride_A": arg0_shape[1] * arg0_shape[2],
-  // "batch_stride_B": arg1_shape[1] * arg1_shape[2],
-  // "batch_stride_C": arg0_shape[1] * arg1_shape[1],
-
   auto get_batch_stride = [&attrs, &func_args](const std::string& name, int arg0_idx, int arg1_idx,
                                                int arg0_axis_idx, int arg1_axis_idx) {
     if (attrs.at(name) == kAnyDim) {

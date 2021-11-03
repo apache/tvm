@@ -86,7 +86,8 @@ class GemmAnnotator(tvm.relay.ExprVisitor):
 def select_gemm_kernel(
     cutlass_profiler, MM, KK, NN, out_dtype, batched, profile_all, use_multiprocessing
 ):
-    """TODO"""
+    """Run CUTLASS profiler to select the best kernel, or return the default one for dynamic
+    workloads."""
     if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
         out = cutlass_profiler.get_default(out_dtype, batched=batched)
         logger.info("Picked the default kernel %s", out["name"])
@@ -110,7 +111,7 @@ def select_gemm_kernel(
 def handle_batch_matmul(
     cutlass_profiler, op_type, arg0_shape, arg1_shape, out_dtype, profile_all, use_multiprocessing
 ):
-    """TODO"""
+    """Profile and select a kernel for batch_matmul op workload."""
     MM = arg0_shape[1]
     KK = arg0_shape[2]
     NN = arg1_shape[1]
@@ -137,7 +138,7 @@ def handle_batch_matmul(
 def handle_dense(
     cutlass_profiler, op_type, arg0_shape, arg1_shape, out_dtype, profile_all, use_multiprocessing
 ):
-    """TODO"""
+    """Profile and select a kernel for dense op workload."""
     MM = arg0_shape[0]
     KK = arg0_shape[1]
     NN = arg1_shape[0]
