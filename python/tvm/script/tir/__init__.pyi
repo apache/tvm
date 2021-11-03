@@ -34,7 +34,6 @@ from tvm.tir.function import PrimFunc
 from tvm.tir import PrimExpr, Range, IterVar, Var
 from tvm.runtime import Object
 from .node import BufferSlice
-from .ty import ConcreteType
 
 """
 redefine types
