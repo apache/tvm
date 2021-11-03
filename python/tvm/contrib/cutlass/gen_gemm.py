@@ -47,6 +47,7 @@ def create_gemm_operator(
     alignment_constraints,
     epilogue_functor=EpilogueFunctor.LinearCombination,
     swizzling_functor=SwizzlingFunctor.Identity8,
+    batched=False
 ):
     """Exhaustively instantiate all kernels from a given configuration."""
     ret = []
@@ -54,6 +55,9 @@ def create_gemm_operator(
     profiler_emitter = GemmProfilerEmitter()
 
     element_a, element_b, element_c, element_epilogue = data_type
+
+    if batched:
+        swizzling_functor = SwizzlingFunctor.Batched
 
     for layout in layouts:
         for tile_description in tile_descriptions:
@@ -109,15 +113,15 @@ def create_gemm_operator(
                 kernel_emitter = EmitGemmInstance()
                 op_entry["op"] = op
                 op_entry["name"] = op.procedural_name()
-                op_entry["opdef"] = kernel_emitter.emit(op)
-                op_entry["opdef_bias"] = kernel_emitter.emit(op_bias, no_beta_scaling=True)
+                op_entry["opdef"] = kernel_emitter.emit(op, batched=batched)
+                op_entry["opdef_bias"] = kernel_emitter.emit(op_bias, no_beta_scaling=True, batched=batched)
                 op_entry["opdef_bias_relu"] = kernel_emitter.emit(
-                    op_bias_relu, no_beta_scaling=True
+                    op_bias_relu, no_beta_scaling=True, batched=batched
                 )
-                op_entry["opdef_bias_gelu"] = kernel_emitter.emit(op_bias_gelu)
+                op_entry["opdef_bias_gelu"] = kernel_emitter.emit(op_bias_gelu, batched=batched)
                 op_entry["src"] = profiler_emitter.emit(
                     op.procedural_name(),
-                    op_entry["opdef"],
+                    kernel_emitter.emit(op, batched=False),
                     DataTypeTag[element_a],
                     DataTypeTag[element_b],
                     DataTypeTag[element_c],
@@ -128,7 +132,7 @@ def create_gemm_operator(
     return ret
 
 
-def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions):
+def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions, batched=False):
     """Common kernel generator to be used by archtecture specific generators."""
     ops = []
     layouts = [
@@ -143,14 +147,14 @@ def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile
             math_inst.element_accumulator,
         ]
 
-        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
+        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints, batched=batched)
 
         ops.extend(out)
 
     return ops
 
 
-def generate_sm75_tensor_op_1688(out_dtype):
+def generate_sm75_tensor_op_1688(out_dtype, batched=False):
     """Generate GEMM kernels for Turing."""
     assert out_dtype in ["float32", "float16"]
     math_instructions = {
@@ -192,11 +196,11 @@ def generate_sm75_tensor_op_1688(out_dtype):
         ]
 
     return generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions
+        math_instructions, alignment_constraints, get_tile_descriptions, batched
     )
 
 
-def generate_sm80_tensor_op_16816(out_dtype):
+def generate_sm80_tensor_op_16816(out_dtype, batched=False):
     """Generate GEMM kernels for Ampere."""
     assert out_dtype in ["float32", "float16"]
     math_instructions = {
@@ -250,7 +254,7 @@ def generate_sm80_tensor_op_16816(out_dtype):
         ]
 
     return generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions
+        math_instructions, alignment_constraints, get_tile_descriptions, batched
     )
 
 
@@ -360,7 +364,7 @@ class CutlassGemmProfiler(object):
         assert len(filtered) == 1
         return filtered[0]
 
-    def profile(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
+    def profile(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False, batched=False):
         """Profile and select the best kernel from candidate kernels.
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
@@ -368,7 +372,7 @@ class CutlassGemmProfiler(object):
         if (M, N, K) in self.cache:
             return self.cache[(M, N, K)]
 
-        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, batched)
         ops = list(filter(lambda op: self.check_align(op["name"], M), ops))
 
         for op in ops:

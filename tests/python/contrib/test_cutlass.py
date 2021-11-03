@@ -56,8 +56,9 @@ def get_ref_vm(mod, params, target="cuda"):
     return VirtualMachine(vm_exec, dev), dev
 
 
-def get_output(rt_mod, x):
-    rt_mod.set_input("data", x)
+def get_output(rt_mod, names, inputs):
+    for name, inp in zip(names, inputs):
+        rt_mod.set_input(name, inp)
     rt_mod.run()
     return rt_mod.get_output(0).asnumpy()
 
@@ -74,6 +75,12 @@ def get_dense_with_shape(data_shape, weight_shape, out_dtype="float16"):
 
 def get_dense(M, N, K, out_dtype="float16"):
     return get_dense_with_shape((M, K), (N, K), out_dtype)
+
+
+def get_batch_matmul(batch, M, N, K, out_dtype="float16"):
+    x = relay.var("x", shape=(batch, M, K), dtype="float16")
+    y = relay.var("y", shape=(batch, N, K), dtype="float16")
+    return relay.nn.batch_matmul(x, y, out_dtype=out_dtype)
 
 
 def get_dense_bias(M, N, K, out_dtype="float16"):
@@ -168,6 +175,30 @@ def verify(func, M, N, K, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_be
         print("TVM with target %s:" % ref_target, rt_mod_ref.benchmark(dev, number=1, repeat=600))
 
 
+def verify_batch_matmul(func, batch, M, N, K, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False):
+    if not tvm.get_global_func("relay.ext.cutlass", True):
+        return
+    mod = tvm.IRModule.from_expr(func)
+    x_np = np.random.uniform(-1, 1, (batch, M, K)).astype("float16")
+    y_np = np.random.uniform(-1, 1, (batch, N, K)).astype("float16")
+
+    rt_mod, dev, num_partition = profile_and_build(mod, {}, sm)
+    rt_mod_ref, dev = get_ref_rt_mod(mod, {})
+    assert num_partition > 0
+
+    x = tvm.nd.array(x_np, device=dev)
+    y = tvm.nd.array(y_np, device=dev)
+
+    out = get_output(rt_mod, ["x", "y"], [x, y])
+    ref_out = get_output(rt_mod_ref, ["x", "y"], [x, y])
+
+    np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
+
+    if True:
+        print("CUTLASS:", rt_mod.benchmark(dev, number=1, repeat=600))
+        print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
+
+
 M = 1820
 N = 768
 K = 768
@@ -218,5 +249,11 @@ def test_dense_dynamic():
     )
 
 
+def test_batch_matmul():
+    batch = 32
+    verify_batch_matmul(get_batch_matmul(batch, M, N, K), batch, M, N, K)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # pytest.main([__file__])
+    test_batch_matmul()

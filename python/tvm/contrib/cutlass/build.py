@@ -131,23 +131,44 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             # call profiler
             arg0_shape = new_attrs["arg0_shape"]
             arg1_shape = new_attrs["arg1_shape"]
-            MM = arg0_shape[0]
-            KK = arg0_shape[1]
-            NN = arg1_shape[0]
             out_dtype = annotator.signature["ret_dtype"]
-            if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
-                out = cutlass_profiler.get_default(out_dtype)
-                logger.info("Picked the default kernel %s", out["name"])
-            else:
-                out = cutlass_profiler.profile(
-                    MM, NN, KK, out_dtype, profile_all, use_multiprocessing
-                )
-                if profile_all:
-                    logger.info("The best kernel is %s", out["name"])
-                else:
-                    logger.info("Picked the first kernel found %s", out["name"])
 
-            if new_attrs["op_type"] == "cutlass.dense":
+            if len(arg0_shape) == 3:
+                # batched matmul
+                MM = arg0_shape[1]
+                KK = arg0_shape[2]
+                NN = arg1_shape[1]
+                out = cutlass_profiler.profile(
+                    MM,
+                    NN,
+                    KK,
+                    annotator.signature["ret_dtype"],
+                    batched=True,
+                    profile_all=profile_all,
+                    use_multiprocessing=use_multiprocessing,
+                )
+                new_attrs["batch"] = arg0_shape[0]
+                new_attrs["batch_stride_A"] = arg0_shape[1] * arg0_shape[2]
+                new_attrs["batch_stride_B"] = arg1_shape[1] * arg1_shape[2]
+                new_attrs["batch_stride_C"] = arg0_shape[1] * arg1_shape[1]
+            else:
+                MM = arg0_shape[0]
+                KK = arg0_shape[1]
+                NN = arg1_shape[0]
+
+                if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
+                    out = cutlass_profiler.get_default(out_dtype)
+                    logger.info("Picked the default kernel %s", out["name"])
+                else:
+                    out = cutlass_profiler.profile(
+                        MM, NN, KK, out_dtype, profile_all, use_multiprocessing
+                    )
+                    if profile_all:
+                        logger.info("The best kernel is %s", out["name"])
+                    else:
+                        logger.info("Picked the first kernel found %s", out["name"])
+
+            if new_attrs["op_type"] in ["cutlass.dense", "cutlass.batch_matmul"]:
                 new_attrs["cutlass_op_def"] = out["opdef"]
             elif new_attrs["op_type"] == "cutlass.dense_bias":
                 new_attrs["cutlass_op_def"] = out["opdef_bias"]
@@ -157,6 +178,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                 new_attrs["cutlass_op_def"] = out["opdef_bias_gelu"]
             else:
                 raise ValueError("%s pattern is not implemented." % new_attrs["op_type"])
+
             new_attrs["cutlass_op_name"] = out["name"]
 
             if new_attrs["cutlass_op_name"].find("_tn_align") > 0:

@@ -174,7 +174,7 @@ class EmitGemmInstance:
     >"""
         self.gemm_template = """
   // Gemm operator ${operation_name}
-  using Operation_${operation_name} = cutlass::gemm::device::Gemm<
+  using Operation_${operation_name} = cutlass::gemm::device::${kernel_name}<
     ${element_a}, ${layout_a},
     ${element_b}, ${layout_b},
     ${element_c}, ${layout_c},
@@ -189,13 +189,12 @@ class EmitGemmInstance:
     ${stages},
     ${align_a},
     ${align_b},
-    false,
+    ${split_k_serial}
     ${math_operation}
-    ${residual}
   >;
 """
 
-    def emit(self, operation, no_beta_scaling=False):
+    def emit(self, operation, no_beta_scaling=False, batched=False):
         """Instantiate a GEMM kernel from given `operation`."""
         warp_shape = [
             operation.tile_description.threadblock_shape[idx]
@@ -206,8 +205,6 @@ class EmitGemmInstance:
             min(operation.C.alignment * DataTypeSize[operation.C.element], 128)
             // DataTypeSize[operation.C.element]
         )
-        residual = ""
-        complex_transform_tag = "cutlass::ComplexTransform::kNone"
         values = {
             "operation_name": operation.procedural_name(),
             "element_a": DataTypeTag[operation.A.element],
@@ -243,13 +240,13 @@ class EmitGemmInstance:
             "stages": str(operation.tile_description.stages),
             "align_a": str(operation.A.alignment),
             "align_b": str(operation.B.alignment),
-            "transform_a": complex_transform_tag,
-            "transform_b": complex_transform_tag,
             "math_operation": MathOperationTag[
                 operation.tile_description.math_instruction.math_operation
             ],
-            "residual": residual,
         }
+
+        values["kernel_name"] = "GemmBatched" if batched else "Gemm"
+        values["split_k_serial"] = "" if batched else "false,"
 
         gemm_template = substitute_template(
             self.gemm_template,
