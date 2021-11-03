@@ -186,7 +186,7 @@ RELAY_REGISTER_OP("contrib.ethosu.depthwise_conv2d")
     .describe(R"code(Arm(R) Ethos(TM)-U NPU 2D quantized depthwise operator.
 
 This Relay operator corresponds to the hardware-implemented quantized
-depthwise operation found on Ethos(TM)-U NPUs. It accepts either NHWC or NHCWB16 format
+depthwise operation found on Ethos(TM)-U NPU. It accepts either NHWC or NHCWB16 format
 for the input data (input feature map, or IFM) and OHWI format for the kernel weights.
 
 - **ifm**: NHWC - (1, ifm_height, ifm_width, ifm_channels)
@@ -201,7 +201,7 @@ for the input data (input feature map, or IFM) and OHWI format for the kernel we
     .add_argument("ifm", "Tensor", "The Input Feature Map tensor (IFM).")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .add_argument("scale_bias", "Tensor", "The packed per-channel weight scale and bias tensor.")
-    .add_argument("lut", "Tensor", "The look-up table values to use if activation = 'LUT'")
+    .add_argument("lut", "Tensor", "The look-up table of values to use if activation = 'LUT'")
     .set_support_level(11)
     .add_type_rel("EthosuDepthwiseConv2D", EthosuDepthwiseConv2DRel);
 

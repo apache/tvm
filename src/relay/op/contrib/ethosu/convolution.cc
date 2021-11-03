@@ -70,7 +70,7 @@ struct EthosuConv2DAttrs : public tvm::AttrsNode<EthosuConv2DAttrs> {
         .describe("The 2 dimensional kernel shape as (kernel_height, kernel_width).")
         .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(ofm_channels)
-        .describe("The number of OFM channels.")
+        .describe("The number of the Output Feature Map channels.")
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1}))
@@ -179,7 +179,7 @@ RELAY_REGISTER_OP("contrib.ethosu.conv2d")
     .describe(R"code(Arm(R) Ethos(TM)-U NPU 2D quantized convolution operator.
 
 This Relay operator corresponds to the hardware-implemented quantized
-convolution operation found on Ethos(TM)-U NPUs. It accepts either NHWC
+convolution operation found on Ethos(TM)-U NPU. It accepts either NHWC
 or NHCWB16 format for the input data (Input Feature Map, or IFM) and
 OHWI format for the kernel weights.
 
@@ -201,7 +201,7 @@ of type uint8. For more detail, refer to the Technical Reference Manual linked a
     .add_argument("ifm", "Tensor", "The Input Feature Map tensor (IFM).")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .add_argument("scale_bias", "Tensor", "The packed per-channel weight scale and bias tensor.")
-    .add_argument("lut", "Tensor", "The look-up table values to use if activation = 'LUT'.")
+    .add_argument("lut", "Tensor", "The look-up table of values to use if activation = 'LUT'.")
     .set_support_level(11)
     .add_type_rel("EthosuConv2D", EthosuConv2DRel);
 

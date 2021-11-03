@@ -634,7 +634,7 @@ def test_translate_ethosu_copy():
     for test_case in test_cases:
         ethosu_copy_calls = extract_ethosu_copy_extern_calls(test_case["tir_module"])
         for idx, ethosu_copy_call in enumerate(ethosu_copy_calls):
-            npu_dma_op = tir_to_cs_translator.translate_ethosu_tir_extern_call(ethosu_copy_call)
+            npu_dma_op = tir_to_cs_translator.translate_ethosu_tir_call_extern(ethosu_copy_call)
             assert npu_dma_op.src.address.buffer_var.name == test_case["ref"][idx]["src"]
             assert npu_dma_op.dest.address.buffer_var.name == test_case["ref"][idx]["dest"]
             assert npu_dma_op.src.length == test_case["ref"][idx]["length"]
@@ -675,7 +675,7 @@ def test_assign_addresses():
         },
     ]
 
-    def extract_extern_calls(mod):
+    def extract_call_extern_list(mod):
         """This function will obtain all ethosu_conv2d
         calls from a NPU TIR module
         Parameters
@@ -825,10 +825,10 @@ def test_assign_addresses():
         buffer_info = tir_to_cs_translator.extract_buffer_info(
             test_case["tir_module"], test_case["param_dict"]
         )
-        extern_calls = extract_extern_calls(test_case["tir_module"])
+        extern_calls = extract_call_extern_list(test_case["tir_module"])
         _npu_ops = list()
         for extern_call in extern_calls:
-            _npu_ops.append(tir_to_cs_translator.translate_ethosu_tir_extern_call(extern_call))
+            _npu_ops.append(tir_to_cs_translator.translate_ethosu_tir_call_extern(extern_call))
         npu_op_tir_buffers = collect_tir_buffer_info(_npu_ops)
         _npu_ops, constant_tensor, scratch_size = tir_to_cs_translator.assign_addresses(
             buffer_info, _npu_ops
@@ -840,6 +840,77 @@ def test_assign_addresses():
         assert np.prod(scratch_allocation_mask) == 1
         # This will be only 1 if all constant tensors is read at least once.
         assert np.prod(constant_tensor_read_mask) == 1
+
+
+# fmt: off
+"""A ethosu_pooling tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuPooling:
+    @T.prim_func
+    def main(placeholder: T.handle, placeholder_3: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_4 = T.match_buffer(placeholder, [1, 5, 9, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [1, 5, 5, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_pooling", "int8", 5, 9, 3, 5, 0, 9, T.load("int8", placeholder_4.data, 0), 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 5, 3, 5, 0, 5, T.load("int8", ethosu_write_2.data, 0), 0, 0, 0, T.float32(1.0), 0, "NHWC", 15, 3, 1, "AVG", 2, 3, 2, 1, 1, 1, 1, 1, 1, 0, "CLIP", 10, 100, "NONE", dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+def test_translate_ethosu_pooling():
+    def extract_ethosu_pooling_extern_call(mod):
+        # There should only be a single function
+        assert len(mod.functions.items()) == 1
+        primfunc = mod.functions.items()[0][1]
+
+        ethosu_pooling_calls = list()
+
+        def populate_ethosu_pooling_calls(stmt):
+            if (
+                isinstance(stmt, tvm.tir.Call)
+                and stmt.op.name == "tir.call_extern"
+                and stmt.args[0] == "ethosu_pooling"
+            ):
+                ethosu_pooling_calls.append(stmt)
+
+        stmt_functor.post_order_visit(primfunc.body, populate_ethosu_pooling_calls)
+        return ethosu_pooling_calls[0]
+
+    pooling_call = extract_ethosu_pooling_extern_call(SingleEthosuPooling)
+    npu_op = tir_to_cs_translator.translate_ethosu_pooling(pooling_call)
+
+    assert npu_op.ifm.data_type == vapi.NpuDataType.INT8
+    assert npu_op.ifm.shape == vapi.NpuShape3D(5, 9, 3)
+    assert npu_op.ifm.tiles.height_0 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).height_0
+    assert npu_op.ifm.tiles.height_1 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).height_1
+    assert npu_op.ifm.tiles.width_0 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).width_0
+    assert npu_op.ifm.quantization == vapi.NpuQuantization(1.0, 0)
+    assert npu_op.ifm.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ifm.strides == vapi.NpuShape3D(27, 3, 1)
+    # Compare OFM
+    assert npu_op.ofm.data_type == vapi.NpuDataType.INT8
+    assert npu_op.ofm.shape == vapi.NpuShape3D(5, 5, 3)
+    assert npu_op.ofm.tiles.height_0 == vapi.NpuTileBox(5, 0, 5, [0, 0, 0, 0]).height_0
+    assert npu_op.ofm.tiles.height_1 == vapi.NpuTileBox(5, 0, 5, [0, 0, 0, 0]).height_1
+    assert npu_op.ofm.tiles.width_0 == vapi.NpuTileBox(5, 0, 5, [0, 0, 0, 0]).width_0
+    assert npu_op.ofm.quantization == vapi.NpuQuantization(1.0, 0)
+    assert npu_op.ofm.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ofm.strides == vapi.NpuShape3D(15, 3, 1)
+    # Compare pooling_type
+    assert npu_op.sub_op_type == vapi.NpuPoolingOp.AVERAGE
+    # Compare kernel and padding
+    assert (
+        npu_op.kernel.__dict__
+        == vapi.NpuKernel(w=2, h=3, stride_x=2, stride_y=1, dilation_x=1, dilation_y=1).__dict__
+    )
+    assert npu_op.padding == vapi.NpuPadding(top=1, left=1, bottom=1, right=0)
+    # Compare activation
+    assert npu_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+    assert npu_op.activation.min == 10
+    assert npu_op.activation.max == 100
+    # Compare ifm upscaling
+    assert npu_op.ifm_upscale == vapi.NpuResamplingMode.NONE
 
 
 if __name__ == "__main__":

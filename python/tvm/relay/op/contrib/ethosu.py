@@ -23,7 +23,7 @@ import numpy as np  # type: ignore
 
 import tvm  # type: ignore
 from tvm import relay
-from tvm.relay.expr import Constant  # type: ignore
+from tvm.relay.expr import Constant, Call  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant  # type: ignore
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
@@ -168,6 +168,16 @@ def check_padding(padding: List[int], bounds: List[int]):
     top, left, bottom, right = padding
     topb, leftb, bottomb, rightb = bounds
     return not (top > topb or left > leftb or bottom > bottomb or right > rightb)
+
+
+def check_pool_shape(pool_shape: tvm.ir.container.Array) -> bool:
+    if len(pool_shape) != 2:
+        return False
+    if pool_shape[1] > 256:
+        return False
+    if pool_shape[0] * pool_shape[1] > 256 * 256:
+        return False
+    return True
 
 
 class QnnConv2DParams:
@@ -331,6 +341,123 @@ def qnn_depthwise_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return clip_or_req
 
 
+class MaxPool2DParams:
+    """
+    This class will parse a call to a ethosu.maxpool2d composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.maxpool2d"
+    # The hardware only supports padding upto the numbers as follows
+    padding_bounds = [127, 127, 128, 128]
+
+    def __init__(self, func_body: Call):
+        clip = None
+        if str(func_body.op) == "clip":
+            clip = func_body
+            pool_op = clip.args[0]
+        else:
+            pool_op = func_body
+
+        attrs = pool_op.attrs
+        self.ifm = TensorParams(pool_op.args[0], attrs.layout)
+        self.ofm = TensorParams(pool_op, attrs.layout)
+        self.pool_shape = attrs.pool_size
+        self.strides = attrs.strides
+        self.padding = attrs.padding
+        self.activation = clip
+        self.pooling_type = "MAX"
+
+    def is_valid(self):
+        """
+        This function checks whether MaxPool2D has compatible attributes with the NPU
+        """
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_strides(self.strides):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not check_padding(self.padding, self.padding_bounds):
+            return False
+        if not check_pool_shape(self.pool_shape):
+            return False
+        return True
+
+
+def qnn_maxpool2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for nn.max_pool2d with optional fused RELU activation.
+    """
+    pattern = is_op("nn.max_pool2d")(wildcard())
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
+class AvgPool2DParams:
+    """
+    This class will parse a call to a ethosu.avgpool2d composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethosu.avgpool2d"
+    # The hardware only supports padding upto the numbers as follows
+    padding_bounds = [127, 127, 128, 128]
+
+    def __init__(self, func_body: Call):
+        clip = None
+        if str(func_body.op) == "clip":
+            clip = func_body
+            cast2 = clip.args[0]
+        else:
+            cast2 = func_body
+
+        avgpool = cast2.args[0]
+        cast1 = avgpool.args[0]
+
+        attrs = avgpool.attrs
+        self.ifm = TensorParams(cast1.args[0], attrs.layout)
+        self.ofm = TensorParams(cast2, attrs.layout)
+        self.pool_shape = attrs.pool_size
+        self.strides = attrs.strides
+        self.padding = attrs.padding
+        self.activation = clip
+        self.pooling_type = "AVG"
+
+    def is_valid(self):
+        """
+        This function checks whether AvgPool2D has compatible attributes with the NPU
+        """
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_strides(self.strides):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not check_padding(self.padding, self.padding_bounds):
+            return False
+        if not check_pool_shape(self.pool_shape):
+            return False
+        return True
+
+
+def qnn_avgpool2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for nn.avg_pool2d with optional fused RELU activation.
+    """
+    pattern = is_op("cast")(wildcard())
+    pattern = is_op("nn.avg_pool2d")(pattern)
+    pattern = is_op("cast")(pattern)
+    pattern = pattern.optional(is_op("clip"))
+    return pattern
+
+
 @register_pattern_table("ethosu")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -343,6 +470,16 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             QnnDepthwiseConv2DParams.composite_name,
             qnn_depthwise_conv2d_pattern(),
             lambda pat: QnnDepthwiseConv2DParams(pat).is_valid(),
+        ),
+        (
+            MaxPool2DParams.composite_name,
+            qnn_maxpool2d_pattern(),
+            lambda pat: MaxPool2DParams(pat).is_valid(),
+        ),
+        (
+            AvgPool2DParams.composite_name,
+            qnn_avgpool2d_pattern(),
+            lambda pat: AvgPool2DParams(pat).is_valid(),
         ),
     ]
 
