@@ -74,7 +74,7 @@ void CheckAndUpdateHostConsistency(Target* target, Target* host) {
   *host = (*target)->GetHost().value_or(Target());
 }
 
-void CheckAndUpdateHostConsistency(Map<Integer, Target>* targets, Target* host) {
+void CheckAndUpdateHostConsistency(TargetMap* targets, Target* host) {
   Map<Integer, Target> new_targets;
   for (auto& it : *targets) {
     auto target = it.second;
@@ -529,6 +529,19 @@ Map<String, ObjectRef> TargetNode::Export() const {
 
 Optional<Target> TargetNode::GetHost() const {
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
+}
+
+bool TargetNode::SEqualReduce(const TargetNode* other, SEqualReducer equal) const {
+  return equal(kind.get(), other->kind.get()) && equal(host, other->host) &&
+         equal(tag, other->tag) && equal(keys, other->keys) && equal(attrs, other->attrs);
+}
+
+void TargetNode::SHashReduce(SHashReducer hash_reduce) const {
+  hash_reduce(kind.get());
+  hash_reduce(host);
+  hash_reduce(tag);
+  hash_reduce(keys);
+  hash_reduce(attrs);
 }
 
 /*! \brief Entry to hold the Target context stack. */

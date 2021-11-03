@@ -578,6 +578,15 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     return DeviceAwareExprMutator::PostVisitLet_(pre_let_node, post_let_node);
   }
 
+  Expr DeviceAwareVisitExpr_(const FunctionNode* function_node) override {
+    if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+      // Nothing to lower inside primitive functions.
+      return GetRef<Function>(function_node);
+    } else {
+      return DeviceAwareExprMutator::DeviceAwareVisitExpr_(function_node);
+    }
+  }
+
   Expr DeviceAwareVisitExpr_(const CallNode* call_node) override {
     Call call = GetRef<Call>(call_node);
     // Look for (indirect) calls to primitives.
@@ -620,6 +629,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
     // Replace with direct call to lowered primitive, and attach annotations to record calling
     // convention.
+    // =====> in new call_lowered form
     return Call(pair.first, args, pair.second);
   }
 

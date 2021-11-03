@@ -80,7 +80,6 @@ namespace vm {
 using namespace tvm::runtime;
 using namespace tvm::runtime::vm;
 using namespace relay::transform;
-using namespace tec;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
@@ -251,7 +250,7 @@ int GetFallbackDevice() {
 
 class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
+  VMFunctionCompiler(VMCompilerContext* context, TargetMap targets, Target target_host)
       : DeviceAwareExprFunctor(context->module),
         last_register_(0),
         registers_num_(0),
@@ -464,7 +463,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
-    CCacheKey key(func, target_host_);
+    tec::CCacheKey key(func, target_host_);
     auto cfunc = context_->compiler->LowerShapeFunc(key);
     int op_index = -1;
     // pick the only function inside the context
@@ -540,7 +539,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       }
     }
 
-    CCacheKey key(func, target);
+    tec::CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
     auto cfunc = context_->compiler->Lower(key, mangle_fn);  // <<<< one-func-at-a-time lowering
 
@@ -910,7 +909,8 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
   params_[name] = data_in;
 }
 
-void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
+void VMCompiler::Lower(IRModule mod, const tvm::TargetMap& targets,
+                       const tvm::Target& target_host) {
   exec_ = make_object<Executable>();
   targets_ = targets;
   target_host_ = target_host;
@@ -976,7 +976,7 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   backend::UpdateAutoSchedulerOpWeights(context_.compiler);
 }
 
-transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
+transform::Sequential MemoryOpt(tvm::Target host_target, tvm::TargetMap targets) {
   Array<Pass> pass_seqs;
   // Remove unused functions
   Array<runtime::String> entry_functions{"main"};
@@ -1022,10 +1022,10 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   return transform::Sequential(pass_seqs);
 }
 
-IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
+IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets_arg,
                                     const Target& target_host_arg) {
   VLOG_CONTEXT << "VMCompiler::OptimizeModule";
-  TargetsMap targets = targets_arg;
+  TargetMap targets = targets_arg;
   Target target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&targets, &target_host);
   if (params_.size()) {

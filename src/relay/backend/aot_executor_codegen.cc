@@ -715,7 +715,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
                                     << "runtime::Module mod and  Map<int, Target> targets";
         void* mod = args[0];
-        Map<Integer, tvm::Target> targets = args[1];
+        TargetMap targets = args[1];
         init(mod, targets);
       });
     } else if (name == "codegen") {
@@ -758,7 +758,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
   const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
 
  private:
-  void init(void* mod, Map<Integer, tvm::Target> tmp) {
+  void init(void* mod, TargetMap tmp) {
     tec::TargetMap targets;
     Target target_host;
     for (const auto& it : tmp) {

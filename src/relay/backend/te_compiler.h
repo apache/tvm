@@ -148,7 +148,7 @@ void UpdateFunctionMetadata(Function relay_func,
  * \param dev_type
  * \return Target
  */
-Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
+Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets);
 
 /*!
  * \brief Update the "main" control function's metadata
