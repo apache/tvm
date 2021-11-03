@@ -71,7 +71,7 @@ def partition_for_cutlass(mod):
         dense_bias_relu_pat,
         dense_bias_pat,
         dense_pat,
-        ("cutlass.batch_matmul", make_batch_matmul_pattern())
+        ("cutlass.batch_matmul", make_batch_matmul_pattern()),
     ]
     mod = transform.MergeComposite(cutlass_patterns)(mod)
     mod = transform.AnnotateTarget(["cutlass"])(mod)

@@ -47,7 +47,7 @@ def create_gemm_operator(
     alignment_constraints,
     epilogue_functor=EpilogueFunctor.LinearCombination,
     swizzling_functor=SwizzlingFunctor.Identity8,
-    batched=False
+    batched=False,
 ):
     """Exhaustively instantiate all kernels from a given configuration."""
     ret = []
@@ -114,7 +114,9 @@ def create_gemm_operator(
                 op_entry["op"] = op
                 op_entry["name"] = op.procedural_name()
                 op_entry["opdef"] = kernel_emitter.emit(op, batched=batched)
-                op_entry["opdef_bias"] = kernel_emitter.emit(op_bias, no_beta_scaling=True, batched=batched)
+                op_entry["opdef_bias"] = kernel_emitter.emit(
+                    op_bias, no_beta_scaling=True, batched=batched
+                )
                 op_entry["opdef_bias_relu"] = kernel_emitter.emit(
                     op_bias_relu, no_beta_scaling=True, batched=batched
                 )
@@ -132,7 +134,9 @@ def create_gemm_operator(
     return ret
 
 
-def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions, batched=False):
+def generate_tensor_op_common(
+    math_instructions, alignment_constraints, get_tile_descriptions, batched=False
+):
     """Common kernel generator to be used by archtecture specific generators."""
     ops = []
     layouts = [
@@ -147,7 +151,9 @@ def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile
             math_inst.element_accumulator,
         ]
 
-        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints, batched=batched)
+        out = create_gemm_operator(
+            layouts, tile_descriptions, data_type, alignment_constraints, batched=batched
+        )
 
         ops.extend(out)
 
@@ -364,7 +370,9 @@ class CutlassGemmProfiler(object):
         assert len(filtered) == 1
         return filtered[0]
 
-    def profile(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False, batched=False):
+    def profile(
+        self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False, batched=False
+    ):
         """Profile and select the best kernel from candidate kernels.
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
