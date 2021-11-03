@@ -16,12 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
+import logging
 import os
 import multiprocessing
 import tvm
 from tvm import runtime, relay
 from tvm.contrib.nvcc import find_cuda_path, get_cuda_version
 from .gen_gemm import CutlassGemmProfiler
+
+logger = logging.getLogger("cutlass")
 
 
 def _get_cutlass_path():
@@ -34,6 +37,32 @@ def _get_cutlass_path():
         cutlass_path
     )
     return cutlass_path
+
+
+def _get_cutlass_compile_options(sm, threads):
+    cutlass_root = _get_cutlass_path()
+    cutlass_include = os.path.join(cutlass_root, "include")
+    cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
+
+    kwargs = {}
+    kwargs["cc"] = "nvcc"
+    kwargs["options"] = [
+        "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
+        "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
+        "-Xcompiler=-fPIC",
+        "-Xcompiler=-Wconversion",
+        "-Xcompiler=-fno-strict-aliasing",
+        "-O3",
+        "-std=c++14",
+        "-I" + cutlass_include,
+        "-I" + cutlass_util_include,
+    ]
+    cuda_path = find_cuda_path()
+    cuda_ver = get_cuda_version(cuda_path)
+    if cuda_ver >= 11.2:
+        ncpu = multiprocessing.cpu_count() if threads < 0 else threads
+        kwargs["options"].append("-t %d" % ncpu)
+    return kwargs
 
 
 class GemmAnnotator(tvm.relay.ExprVisitor):
@@ -105,9 +134,19 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             MM = arg0_shape[0]
             KK = arg0_shape[1]
             NN = arg1_shape[0]
-            out = cutlass_profiler.profile(
-                MM, NN, KK, annotator.signature["ret_dtype"], profile_all, use_multiprocessing
-            )
+            out_dtype = annotator.signature["ret_dtype"]
+            if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
+                out = cutlass_profiler.get_default(out_dtype)
+                logger.info("Picked the default kernel %s", out["name"])
+            else:
+                out = cutlass_profiler.profile(
+                    MM, NN, KK, out_dtype, profile_all, use_multiprocessing
+                )
+                if profile_all:
+                    logger.info("The best kernel is %s", out["name"])
+                else:
+                    logger.info("Picked the first kernel found %s", out["name"])
+
             if new_attrs["op_type"] == "cutlass.dense":
                 new_attrs["cutlass_op_def"] = out["opdef"]
             elif new_attrs["op_type"] == "cutlass.dense_bias":
@@ -120,17 +159,13 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                 raise ValueError("%s pattern is not implemented." % new_attrs["op_type"])
             new_attrs["cutlass_op_name"] = out["name"]
 
-            print("The best kernel is " + new_attrs["cutlass_op_name"])
             if new_attrs["cutlass_op_name"].find("_tn_align") > 0:
                 new_attrs["lda"] = "K"
                 new_attrs["ldb"] = "K"
                 new_attrs["ldc"] = "N"
-            elif new_attrs["cutlass_op_name"].find("_nt_align") > 0:
-                new_attrs["lda"] = "M"
-                new_attrs["ldb"] = "N"
-                new_attrs["ldc"] = "N"
             else:
                 raise ValueError("%s unsupported operation" % new_attrs["cutlass_op_name"])
+
             new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
             new_func = relay.Function(
                 func.params,
@@ -160,38 +195,61 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so", threa
         A temporary directory where intermediate compiled artifacts will be stored.
 
     lib_path : string, optional
-        The path to a shared library which will be generated as the result of the build  process
+        The path to a shared library which will be generated as the result of the build process.
 
     threads : int, optional
         The number of threads to use for compiling generated kernels. Only available for
-        CUDA 11.2 or later. Use all logical cores by default.
+        CUDA 11.2 or later. Use all physical cores by default.
 
     Returns
     -------
     updated_lib : runtime.Module
         The updated module with compiled cutlass kernels.
     """
-    cutlass_root = _get_cutlass_path()
-    cutlass_include = os.path.join(cutlass_root, "include")
-    cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
-
-    kwargs = {}
-    kwargs["cc"] = "nvcc"
-    kwargs["options"] = [
-        "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-        "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
-        "-Xcompiler=-fPIC",
-        "-Xcompiler=-Wconversion",
-        "-Xcompiler=-fno-strict-aliasing",
-        "-O3",
-        "-std=c++14",
-        "-I" + cutlass_include,
-        "-I" + cutlass_util_include,
-    ]
-    cuda_path = find_cuda_path()
-    cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver >= 11.2:
-        ncpu = multiprocessing.cpu_count() if threads < 0 else threads
-        kwargs["options"].append("-t %d" % ncpu)
+    kwargs = _get_cutlass_compile_options(sm, threads)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
     return runtime.load_module(lib_path)
+
+
+def build_cutlass_kernels_vm(
+    vm_exec, sm, tmp_dir="./tmp", lib_path="compile.so", vmcode_path="vmcode.ro", threads=-1
+):
+    """Compile CUTLASS kernels in vm_exec and return a VM executable ready to run.
+
+    Parameters
+    ----------
+    vm_exec : vm.Executable
+        The output from relay.vm.compile containing compiled host code and non-cutlass kernels.
+
+    sm : int
+        An integer specifying the compute capability. For example, 75 for Turing and
+        80 or 86 for Ampere.
+
+    tmp_dir : string, optional
+        A temporary directory where intermediate compiled artifacts will be stored.
+
+    lib_path : string, optional
+        The path to a shared library which will be generated as the result of the build process.
+
+    vmcode_path : string, optional
+        The path where the VM bytecode will be serialized to.
+
+    threads : int, optional
+        The number of threads to use for compiling generated kernels. Only available for
+        CUDA 11.2 or later. Use all physical cores by default.
+
+    Returns
+    -------
+    updated_vm_exec: vm.Executable
+        The updated exectuable with compiled cutlass kernels.
+    """
+    code, lib = vm_exec.save()
+    kwargs = _get_cutlass_compile_options(sm, threads)
+    lib_path = os.path.join(tmp_dir, lib_path)
+    vmcode_path = os.path.join(tmp_dir, vmcode_path)
+    lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
+    with open(vmcode_path, "wb") as fo:
+        fo.write(code)
+    lib = tvm.runtime.load_module(lib_path)
+    code = bytearray(open(vmcode_path, "rb").read())
+    return tvm.runtime.vm.Executable.load_exec(code, lib)

@@ -45,6 +45,15 @@ using Str2StrMap = std::unordered_map<std::string, std::string>;
 
 static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"}, {"float32", "float"}};
 
+constexpr const char* kAnyDim = "Any";
+
+std::string GetDimAsStr(ObjectRef dim) {
+  if (auto d = dim.as<IntImmNode>()) {
+    return std::to_string(d->value);
+  }
+  return kAnyDim;
+}
+
 Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
   Str2StrMap args;
   auto arg0_dtype = std::string(attrs["arg0_dtype"].as<StringObj>()->data);
@@ -55,9 +64,9 @@ Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
   args["ElementInputA"] = dtype_map.at(arg0_dtype);
   args["ElementInputB"] = dtype_map.at(arg1_dtype);
   args["ElementOutput"] = dtype_map.at(ret_dtype);
-  args["M"] = std::to_string(arg0_shape->at(0).as<IntImmNode>()->value);
-  args["K"] = std::to_string(arg0_shape->at(1).as<IntImmNode>()->value);
-  args["N"] = std::to_string(arg1_shape->at(0).as<IntImmNode>()->value);
+  args["M"] = GetDimAsStr(arg0_shape->at(0));
+  args["K"] = GetDimAsStr(arg0_shape->at(1));
+  args["N"] = GetDimAsStr(arg1_shape->at(0));
   args["op_def"] = std::string(attrs["cutlass_op_def"].as<StringObj>()->data);
   args["op_name"] = std::string(attrs["cutlass_op_name"].as<StringObj>()->data);
   args["op_type"] = std::string(attrs["op_type"].as<StringObj>()->data);
@@ -90,12 +99,17 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(gemm_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
   CutlassPrint(gemm_decl, attrs.at("op_def"));
   CutlassPrint(gemm_decl, "using Gemm = Operation_" + attrs.at("op_name") + ";\n");
-  /// Gemm Call
 
-  // Create TensorRef
-  CutlassPrint(gemm_decl, "int M = " + attrs.at("M") + ";\n");
-  CutlassPrint(gemm_decl, "int N = " + attrs.at("N") + ";\n");
-  CutlassPrint(gemm_decl, "int K = " + attrs.at("K") + ";\n");
+  auto get_dim = [&attrs, &func_args](const std::string& axis, int arg_idx, int axis_idx) {
+    if (attrs.at(axis) == kAnyDim) {
+      return func_args[arg_idx] + "->shape[" + std::to_string(axis_idx) + "]";
+    } else {
+      return attrs.at(axis);
+    }
+  };
+  CutlassPrint(gemm_decl, "int M = " + get_dim("M", 0, 0) + ";\n");
+  CutlassPrint(gemm_decl, "int N = " + get_dim("N", 1, 0) + ";\n");
+  CutlassPrint(gemm_decl, "int K = " + get_dim("K", 0, 1) + ";\n");
   CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
   // Initialize alpha for dot product computation
   CutlassPrint(gemm_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
@@ -112,11 +126,11 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
   // Create a tuple of gemm kernel arguments. This is later passed as arguments to launch
   // instantiated CUTLASS kernel
   ICHECK(func_args.size() >= 2);
-  CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + func_args[0] + ");\n");
-  CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + func_args[1] + ");\n");
+  CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + func_args[0] + "->data);\n");
+  CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
   if (has_bias) {
     ICHECK(func_args.size() >= 3);
-    CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + ");\n");
+    CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + "->data);\n");
   }
   CutlassPrint(gemm_decl, "void* ptr_out = (void*)(out0);\n");
 
@@ -185,7 +199,33 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
   }
 
   std::string JIT(const std::vector<Output>& out) {
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_name_, out);
+    code_stream_ << "void " << ext_func_id_ << "_(";
+
+    for (const auto& arg : ext_func_args_) {
+      code_stream_ << "DLTensor* " << arg->name_hint() << ", ";
+    }
+    for (size_t i = 0; i < out.size() - 1; ++i) {
+      code_stream_ << out[i].dtype << "* out" << i << ", ";
+    }
+    code_stream_ << out.back().dtype << "* out" << out.size() - 1 << ") {\n";
+    this->EnterScope();
+
+    // Function body
+    for (auto decl : buf_decl_) {
+      this->PrintIndents();
+      code_stream_ << decl << "\n";
+    }
+    code_stream_ << "\n";
+    for (auto stmt : ext_func_body_) {
+      this->PrintIndents();
+      code_stream_ << stmt << "\n";
+    }
+
+    this->ExitScope();
+    code_stream_ << "}\n";
+
+    this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, const_array_name_, out, true);
+    return code_stream_.str();
   }
 
  private:
