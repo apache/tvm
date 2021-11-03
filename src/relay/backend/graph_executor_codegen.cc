@@ -619,7 +619,7 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
                                     << "runtime::Module mod and Map<int, Target> targets";
         void* mod = args[0];
-        Map<Integer, tvm::Target> tmp = args[1];
+        TargetMap tmp = args[1];
         tec::TargetMap targets;
         for (const auto& it : tmp) {
           auto dev_type = it.first.as<tir::IntImmNode>();
