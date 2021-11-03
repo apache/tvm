@@ -29,7 +29,6 @@ T.block_attr, T.float32
 """
 
 
-@pytest.mark.mypy_testing
 @tvm.script.ir_module
 class Module:
     @T.prim_func
