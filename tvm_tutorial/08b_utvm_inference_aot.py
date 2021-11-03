@@ -115,7 +115,7 @@ with tvm.transform.PassContext(
 
 # Model Library Format: http://tvm.apache.org/docs/arch/model_library_format.html
 
-model_library_format_tar_path = pathlib.Path("build/07b/module.tar")
+model_library_format_tar_path = pathlib.Path("build/08b/module.tar")
 model_library_format_tar_path.unlink(missing_ok=True)
 model_library_format_tar_path.parent.mkdir(parents=True, exist_ok=True)
 
