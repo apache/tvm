@@ -85,7 +85,11 @@ from tvm import te
 from tvm import testing
 
 version = git_describe_version(tvm.__version__)
-release = version
+#release = version
+
+# CN_version=version.split("dev")[0]
+# CN_git_times=version.split("+")[0].split("dev")[1]
+release = version.split("+")[0]
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones
