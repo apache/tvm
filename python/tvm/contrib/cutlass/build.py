@@ -83,6 +83,77 @@ class GemmAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
 
 
+def handle_batch_matmul(
+    cutlass_profiler, op_type, arg0_shape, arg1_shape, out_dtype, profile_all, use_multiprocessing
+):
+    """TODO"""
+    MM = arg0_shape[1]
+    KK = arg0_shape[2]
+    NN = arg1_shape[1]
+    out = cutlass_profiler.profile(
+        MM,
+        NN,
+        KK,
+        out_dtype,
+        batched=True,
+        profile_all=profile_all,
+        use_multiprocessing=use_multiprocessing,
+    )
+    if profile_all:
+        logger.info("The best kernel is %s", out["name"])
+    else:
+        logger.info("Picked the first kernel found %s", out["name"])
+
+    if op_type == "cutlass.batch_matmul":
+        cutlass_op_def = out["opdef"]
+    else:
+        raise ValueError("%s pattern is not implemented." % op_type)
+
+    return {
+        "batch": arg0_shape[0],
+        "batch_stride_A": arg0_shape[1] * arg0_shape[2],
+        "batch_stride_B": arg1_shape[1] * arg1_shape[2],
+        "batch_stride_C": arg0_shape[1] * arg1_shape[1],
+        "cutlass_op_def": cutlass_op_def,
+        "cutlass_op_name": out["name"],
+    }
+
+
+def handle_dense(
+    cutlass_profiler, op_type, arg0_shape, arg1_shape, out_dtype, profile_all, use_multiprocessing
+):
+    """TODO"""
+    MM = arg0_shape[0]
+    KK = arg0_shape[1]
+    NN = arg1_shape[0]
+
+    if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
+        out = cutlass_profiler.get_default(out_dtype)
+        logger.info("Picked the default kernel %s", out["name"])
+    else:
+        out = cutlass_profiler.profile(MM, NN, KK, out_dtype, profile_all, use_multiprocessing)
+        if profile_all:
+            logger.info("The best kernel is %s", out["name"])
+        else:
+            logger.info("Picked the first kernel found %s", out["name"])
+
+    if op_type == "cutlass.dense":
+        cutlass_op_def = out["opdef"]
+    elif op_type == "cutlass.dense_bias":
+        cutlass_op_def = out["opdef_bias"]
+    elif op_type == "cutlass.dense_bias_relu":
+        cutlass_op_def = out["opdef_bias_relu"]
+    elif "cutlass.dense_bias_gelu" in op_type:
+        cutlass_op_def = out["opdef_bias_gelu"]
+    else:
+        raise ValueError("%s pattern is not implemented." % op_type)
+
+    return {
+        "cutlass_op_def": cutlass_op_def,
+        "cutlass_op_name": out["name"],
+    }
+
+
 def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.
@@ -123,63 +194,41 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
         if "cutlass" in fun_name:
             num_cutlass_partition += 1
             annotator.visit(func)
-            # call cutlass profiler to find best settings, update attr
-            new_attrs = {}
+            out_dtype = annotator.signature["ret_dtype"]
+            op_type = annotator.signature["op_type"]
+
+            new_attrs = {"op_type": op_type}
             new_attrs.update(annotator.signature)
-            for key in func.attrs.keys():
-                new_attrs[key] = func.attrs[key]
-            # call profiler
+            new_attrs.update(func.attrs)
             arg0_shape = new_attrs["arg0_shape"]
             arg1_shape = new_attrs["arg1_shape"]
-            out_dtype = annotator.signature["ret_dtype"]
 
-            if len(arg0_shape) == 3:
-                # batched matmul
-                MM = arg0_shape[1]
-                KK = arg0_shape[2]
-                NN = arg1_shape[1]
-                out = cutlass_profiler.profile(
-                    MM,
-                    NN,
-                    KK,
-                    annotator.signature["ret_dtype"],
-                    batched=True,
-                    profile_all=profile_all,
-                    use_multiprocessing=use_multiprocessing,
-                )
-                new_attrs["batch"] = arg0_shape[0]
-                new_attrs["batch_stride_A"] = arg0_shape[1] * arg0_shape[2]
-                new_attrs["batch_stride_B"] = arg1_shape[1] * arg1_shape[2]
-                new_attrs["batch_stride_C"] = arg0_shape[1] * arg1_shape[1]
-            else:
-                MM = arg0_shape[0]
-                KK = arg0_shape[1]
-                NN = arg1_shape[0]
-
-                if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
-                    out = cutlass_profiler.get_default(out_dtype)
-                    logger.info("Picked the default kernel %s", out["name"])
-                else:
-                    out = cutlass_profiler.profile(
-                        MM, NN, KK, out_dtype, profile_all, use_multiprocessing
+            if "batch_matmul" in op_type:
+                new_attrs.update(
+                    handle_batch_matmul(
+                        cutlass_profiler,
+                        op_type,
+                        arg0_shape,
+                        arg1_shape,
+                        out_dtype,
+                        profile_all,
+                        use_multiprocessing,
                     )
-                    if profile_all:
-                        logger.info("The best kernel is %s", out["name"])
-                    else:
-                        logger.info("Picked the first kernel found %s", out["name"])
-
-            if new_attrs["op_type"] in ["cutlass.dense", "cutlass.batch_matmul"]:
-                new_attrs["cutlass_op_def"] = out["opdef"]
-            elif new_attrs["op_type"] == "cutlass.dense_bias":
-                new_attrs["cutlass_op_def"] = out["opdef_bias"]
-            elif new_attrs["op_type"] == "cutlass.dense_bias_relu":
-                new_attrs["cutlass_op_def"] = out["opdef_bias_relu"]
-            elif "cutlass.dense_bias_gelu" in new_attrs["op_type"]:
-                new_attrs["cutlass_op_def"] = out["opdef_bias_gelu"]
+                )
+            elif "dense" in op_type:
+                new_attrs.update(
+                    handle_dense(
+                        cutlass_profiler,
+                        op_type,
+                        arg0_shape,
+                        arg1_shape,
+                        out_dtype,
+                        profile_all,
+                        use_multiprocessing,
+                    )
+                )
             else:
-                raise ValueError("%s pattern is not implemented." % new_attrs["op_type"])
-
-            new_attrs["cutlass_op_name"] = out["name"]
+                raise ValueError("%s unsupported composite" % op_type)
 
             if new_attrs["cutlass_op_name"].find("_tn_align") > 0:
                 new_attrs["lda"] = "K"
