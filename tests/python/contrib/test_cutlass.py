@@ -63,8 +63,9 @@ def get_output(rt_mod, names, inputs):
     return rt_mod.get_output(0).asnumpy()
 
 
-def get_output_vm(vm, x):
-    return vm.invoke("main", data=x).numpy()
+def get_output_vm(vm, names, inputs):
+    params = dict(zip(names, inputs))
+    return vm.invoke("main", **params).numpy()
 
 
 def get_dense_with_shape(data_shape, weight_shape, out_dtype="float16"):
@@ -158,14 +159,14 @@ def verify(func, M, N, K, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_be
 
         rt_mod_ref, dev = get_ref_vm(mod, params, target=ref_target)
         x = tvm.nd.array(np_data, device=dev)
-        out = get_output_vm(rt_mod, x)
-        ref_out = get_output_vm(rt_mod_ref, x)
+        out = get_output_vm(rt_mod, ["data"], [x])
+        ref_out = get_output_vm(rt_mod_ref, ["data"], [x])
     else:
         rt_mod_ref, dev = get_ref_rt_mod(mod, params, target=ref_target)
         rt_mod, dev, num_partition = profile_and_build(mod, params, sm)
         x = tvm.nd.array(np_data, device=dev)
-        out = get_output(rt_mod, x)
-        ref_out = get_output(rt_mod_ref, x)
+        out = get_output(rt_mod, ["data"], [x])
+        ref_out = get_output(rt_mod_ref, ["data"], [x])
 
     assert num_partition > 0
     np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
@@ -256,4 +257,6 @@ def test_batch_matmul():
 
 if __name__ == "__main__":
     # pytest.main([__file__])
-    test_batch_matmul()
+    # test_batch_matmul()
+    # test_dense()
+    test_dense_dynamic()
