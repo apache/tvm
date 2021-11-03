@@ -67,8 +67,13 @@ def get_dll_directories():
     # Pip lib directory
     dll_path.append(os.path.join(ffi_dir, ".."))
     # Default cmake build directory
-    dll_path.append(os.path.join(source_dir, "build"))
-    dll_path.append(os.path.join(source_dir, "build", "Release"))
+    # For microtvm RVM starts with "build"
+    for possible_path in os.listdir(source_dir):
+        if possible_path.startswith("build") and os.path.isdir(
+            os.path.join(source_dir, possible_path)
+        ):
+            dll_path.append(os.path.join(source_dir, possible_path))
+            dll_path.append(os.path.join(source_dir, possible_path, "Release"))
     # Default make build directory
     dll_path.append(os.path.join(source_dir, "lib"))
 
