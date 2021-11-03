@@ -33,7 +33,7 @@ class TorchModel(torch.nn.Module):
         y = self.fc(y)
         return y
 
-pt_inp = torch.zeros([1, 16, 8])
+pt_inp = torch.rand([1, 16, 8])
 inp = pt_inp.numpy()
 pt_model = TorchModel()
 script_module = torch.jit.trace(pt_model, pt_inp).eval()
@@ -45,19 +45,6 @@ input_name = "input"
 input_shapes = [(input_name, (1, 16, 8))]
 mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
-# Prepare Relay Graph for Code-Generation
-remove_bn_pass = tvm.transform.Sequential(
-    [
-        relay.transform.InferType(),
-        relay.transform.SimplifyInference(),
-        relay.transform.FoldConstant(),
-        relay.transform.FoldScaleAxis(),
-    ]
-)
-mod["main"] = tvm.relay.build_module.bind_params_by_name(mod["main"], params)
-with tvm.transform.PassContext(opt_level=3):
-    mod = remove_bn_pass(mod)
-print(mod)
 
 #custom_target_name = "ccompiler"
 custom_target_name = "custom_target"
@@ -65,7 +52,7 @@ custom_target_name = "custom_target"
 def pattern_table():
     
     add_pattern = is_op("add")(wildcard(), wildcard())
-
+ 
     patterns = [
         ("custom_target.add", add_pattern, lambda exp: True)
     ]
@@ -75,7 +62,14 @@ def pattern_table():
 
 @tvm.ir.register_op_attr("add", f"target.{custom_target_name}")
 def add_attr(expr):
-    return True
+    shapes = set()
+    for arg in expr.args:
+        ty = arg.checked_type
+        shape = tuple(ty.shape)
+        print(shape)
+        shapes.add(shape)
+
+    return len(shapes) == 1
 
 #mod = relay.transform.MergeComposite(pattern_table())(mod)
 #print(mod)
