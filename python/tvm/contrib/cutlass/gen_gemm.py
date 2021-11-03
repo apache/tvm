@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Kernel generator and profiler for CUTLASS."""
+import logging
 import os
 import re
 import tempfile
@@ -35,6 +36,8 @@ from .library import (
     MathOperation,
     TileDescription,
 )
+
+logger = logging.getLogger("cutlass")
 
 
 def create_gemm_operator(
@@ -256,8 +259,20 @@ GENERATOR_FUNC_TABLE = {
     80: generate_sm80_tensor_op_16816,
 }
 
+# TODO(masahi): A sensible way to pick reasonable default kernels
+DEFAULT_KERNELS = {
+    75: {
+        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align4",
+        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align4",
+    },
+    80: {
+        "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
+        "float32": "cutlass_tensorop_s16816gemm_f16_128x128_32x3_tn_align4",
+    },
+}
 
-class ProfilerEngine(object):
+
+class ProfilerEngine:
     """Compile and run a given profiler executable."""
 
     def __init__(self, cuda_arch, cutlass_path, binary_prefix):
@@ -311,7 +326,7 @@ class ProfilerEngine(object):
         try:
             sp = subprocess.run(cmd, capture_output=True, check=True)
             rt = float(sp.stdout)
-            print(op_name, rt)
+            logger.info("%s, %f", op_name, rt)
         except subprocess.CalledProcessError:
             rt = -1
         return rt
@@ -321,7 +336,7 @@ class CutlassGemmProfiler(object):
     """Profile all candidate kernels and select the best one."""
 
     def __init__(self, sm, cutlass_path, binary_path):
-        assert sm in GENERATOR_FUNC_TABLE, "sm%d not supported yet." % sm
+        assert sm in GENERATOR_FUNC_TABLE and sm in DEFAULT_KERNELS, "sm%d not supported yet." % sm
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.sm = sm
         self.cache = {}
@@ -334,6 +349,16 @@ class CutlassGemmProfiler(object):
         if M % align != 0:
             return False
         return True
+
+    def get_default(self, out_dtype):
+        """Return the default kernel for the requested architecture.
+        For now, the default kernel was picked arbitrary.
+        """
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
+        default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
+        filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
+        assert len(filtered) == 1
+        return filtered[0]
 
     def profile(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
         """Profile and select the best kernel from candidate kernels.
