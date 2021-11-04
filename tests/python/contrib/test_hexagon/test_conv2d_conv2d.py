@@ -215,6 +215,7 @@ def conv2dconv2d(
     koo, koi = s[temp_Y].split(ko, factor=k_split_factor)
     hoo, hoi = s[temp_Y].split(ho, factor=h_split_factor)
     s[temp_Y].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
+    s[Xl].compute_at(s[temp_Y], hoo)
     s[F1l].compute_at(s[temp_Y], hoo)
 
     n, ho, wo, ko, hi, wi, ki = s[Y].op.axis
@@ -231,7 +232,6 @@ def conv2dconv2d(
     s[Yl].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
 
     s[temp_Y].compute_at(s[Yl], hoo)
-    s[Xl].compute_at(s[Yl], hoo)
     s[F2l].compute_at(s[Yl], hoo)
 
     binds = {}  # TODO
@@ -246,11 +246,11 @@ class BaseConv2dConv2d:
     # conv2d #1
     pad1 = tvm.testing.parameter(0)
     stride1 = tvm.testing.parameter(1)
-    kernel_size1 = tvm.testing.parameter(1)
+    kernel_size1 = tvm.testing.parameter(1, 3)
     out_channel1 = tvm.testing.parameter(128)
     # conv2d #2
     stride2 = tvm.testing.parameter(1)
-    kernel_size2 = tvm.testing.parameter(1)
+    kernel_size2 = tvm.testing.parameter(1, 3)
     out_channel2 = tvm.testing.parameter(128)
     # schedule params
     k_split_factor = tvm.testing.parameter(1, 2)
