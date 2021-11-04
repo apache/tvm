@@ -75,8 +75,8 @@ void MetaScheduleContext::ExitWithScope() {
   ctx = NullOpt;
 }
 
-Optional<ObjectRef> MetaScheduleContext::QueryInWithScope(runtime::String task_name, IRModule mod,
-                                                          Optional<Array<IRModule>> dispatched) {
+Optional<ObjectRef> MetaScheduleContext::QueryInsideWithScope(
+    runtime::String task_name, IRModule mod, Optional<Array<IRModule>> dispatched) {
   if (Optional<MetaScheduleContext> ctx = MetaScheduleContext::Current()) {
     return ctx.value()->Query(task_name, mod, dispatched);
   }
@@ -139,8 +139,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextExitScope")
     .set_body_typed(MetaScheduleContextInternal::ExitScope);
 TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextCurrent")
     .set_body_typed(MetaScheduleContext::Current);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQueryInWithScope")
-    .set_body_typed(MetaScheduleContext::QueryInWithScope);
+TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQueryInsideWithScope")
+    .set_body_typed(MetaScheduleContext::QueryInsideWithScope);
 TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQuery")
     .set_body_method<MetaScheduleContext>(&MetaScheduleContextNode::Query);
 TVM_REGISTER_GLOBAL("meta_schedule.TaskExtraction").set_body_typed([]() -> TaskExtraction {

@@ -88,7 +88,7 @@ def test_meta_schedule_integration_multiple_current():
                 ...
 
 
-def test_meta_schedule_integration_query_in_with_scope():
+def test_meta_schedule_integration_query_inside_with_scope():
     mod, _, _, _ = get_network(
         name="resnet-18",
         batch_size=1,
@@ -97,7 +97,7 @@ def test_meta_schedule_integration_query_in_with_scope():
     )
     env = TaskExtraction()
     with env:
-        MetaScheduleContext.query_in_with_scope(
+        MetaScheduleContext.query_inside_with_scope(
             task_name="mock-task",
             mod=mod,
             dispatched=[MockModule],

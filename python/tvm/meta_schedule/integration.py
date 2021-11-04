@@ -110,13 +110,22 @@ class MetaScheduleContext(Object):
         return _ffi_api.MetaScheduleContextCurrent()  # type: ignore # pylint: disable=no-member
 
     @staticmethod
-    def query_in_with_scope(
+    def query_inside_with_scope(
         task_name: str,
         mod: IRModule,
         dispatched: Optional[List[IRModule]],
     ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
         """The entry point of the integration workflow. The compilation process of the high-level
         IR should call this method for task extraction and for feedback hints
+
+        Basically, this method is equivalent to:
+
+        .. code-block:: python
+
+            def query_inside_with_scope(task_name, mod, dispatched):
+                ctx = MetaScheduleContext.current()
+                assert ctx is not None
+                ctx.query(task_name, mod, dispatched)
 
         Parameters
         ----------
@@ -136,7 +145,7 @@ class MetaScheduleContext(Object):
             3) relay::Function if `mod` should be dispatched to BYOC workflow;
             4) IRModule for unified dispatch
         """
-        return _ffi_api.MetaScheduleContextQueryInWithScope(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
             task_name,
             mod,
             dispatched,

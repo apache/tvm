@@ -182,10 +182,10 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
       if (use_meta_schedule_) {
         const auto* f_create_func = runtime::Registry::Get("te.CreatePrimFuncFromOutputs");
         const auto* f_meta_schedule =
-            runtime::Registry::Get("meta_schedule.MetaScheduleContextQueryInWithScope");
+            runtime::Registry::Get("meta_schedule.MetaScheduleContextQueryInsideWithScope");
         ICHECK(f_create_func) << "te.CreatePrimFuncFromOutputs is not registered";
         ICHECK(f_meta_schedule)
-            << "meta_schedule.MetaScheduleContextQueryInWithScope is not registered";
+            << "meta_schedule.MetaScheduleContextQueryInsideWithScope is not registered";
         prim_func = (*f_create_func)(tensor_outs);
         Optional<ObjectRef> opt_mod_or_base_func =
             (*f_meta_schedule)(prim_fn_name, IRModule({{GlobalVar(prim_fn_name), relay_func}}),
