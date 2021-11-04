@@ -155,42 +155,39 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   void VisitStmt_(const BlockNode* op) final {
     // Step 0. Check there is no init part.
     ICHECK(!op->init.defined());
-    // Step 1. Update buffer info allocated by current block
-    bool is_opaque_scope = op->iter_vars.empty() && (!op->reads.empty() || !op->writes.empty());
-    if (is_opaque_scope) {
-      // For opaque block scope, the outer scope only recognize current block's
-      // region annotations and do not analysis outer buffer accesses within scope.
-      for (const BufferRegion& region : op->reads) {
-        VisitBufferAccess(region);
-      }
-      for (const BufferRegion& region : op->writes) {
-        VisitBufferAccess(region);
-      }
-      // Step 1.1(opaque scope). rebuild map buffer_var_in_scope
-      std::unordered_map<Var, std::pair<Buffer, size_t>, ObjectPtrHash, ObjectPtrEqual>
-          buffer_var_in_scope;
-      for (const Buffer& buffer : op->alloc_buffers) {
-        buffer_var_in_scope.emplace(buffer->data, std::make_pair(buffer, ancestor_loops_.size()));
-      }
-      // Step 1.2(opaque scope). Update the buffer_var_in_scope_ of visitor and visit recursively
-      std::swap(buffer_var_in_scope, buffer_var_in_scope_);
-      StmtExprVisitor::VisitStmt_(op);
-      std::swap(buffer_var_in_scope, buffer_var_in_scope_);
-    } else {
-      // For non-opaque block scope, the outer buffer accesses are also analyzed within scope.
-      // Step 1.1(non-opaque scope). update current buffer_var_in_scope_
-      for (const Buffer& buffer : op->alloc_buffers) {
-        buffer_var_in_scope_.emplace(buffer->data, std::make_pair(buffer, ancestor_loops_.size()));
-      }
-      // Step 1.2(non-opaque scope). visit match buffers
-      for (const MatchBufferRegion& region : op->match_buffers) {
-        VisitBufferAccess(region->source);
-      }
-      // Step 1.3(non-opaque scope). visit recursively
-      StmtExprVisitor::VisitStmt_(op);
+    // Step 1. Record and update current read/write region annotations
+    std::unordered_map<Buffer, std::vector<BufferRegion>, ObjectPtrHash, ObjectPtrEqual>
+        cur_access_annotations;
+    for (const BufferRegion& region : op->reads) {
+      cur_access_annotations[region->buffer].push_back(region);
     }
-
-    // Step 2. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
+    for (const BufferRegion& region : op->writes) {
+      cur_access_annotations[region->buffer].push_back(region);
+    }
+    for (auto& p : cur_access_annotations) {
+      auto& regions = access_annotations_[p.first];
+      p.second.swap(regions);
+    }
+    // Step 2. Record relax position of ancestor_loops_ into buffer_var_in_scope_
+    for (const Buffer& buffer : op->alloc_buffers) {
+      buffer_var_in_scope_.emplace(buffer->data, std::make_pair(buffer, ancestor_loops_.size()));
+    }
+    // Step 3. Visit match buffers
+    for (const MatchBufferRegion& region : op->match_buffers) {
+      VisitBufferAccess(region->source);
+    }
+    // Step 4. Visit block body recursively
+    StmtExprVisitor::VisitStmt_(op);
+    // Step 5. Recover read/write region annotations
+    for (auto& p : cur_access_annotations) {
+      auto& regions = access_annotations_[p.first];
+      if (p.second.empty()) {
+        access_annotations_.erase(p.first);
+      } else {
+        regions.swap(p.second);
+      }
+    }
+    // Step 6. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
     for (const Buffer& buffer : op->alloc_buffers) {
       auto it = relaxed_accesses_.find(buffer);
       ICHECK(it != relaxed_accesses_.end())
@@ -245,7 +242,15 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     auto it = buffer_var_in_scope_.find(var);
     if (it != buffer_var_in_scope_.end()) {
       const Buffer& buffer = it->second.first;
-      VisitBufferAccess(BufferRegion::FullRegion(buffer));
+      auto annotation_it = access_annotations_.find(buffer);
+      if (annotation_it != access_annotations_.end()) {
+        // opaque buffer has explicit accessed region annotations
+        for (const BufferRegion& region : annotation_it->second) {
+          VisitBufferAccess(region);
+        }
+      } else {
+        VisitBufferAccess(BufferRegion::FullRegion(buffer));
+      }
     }
   }
 
@@ -283,6 +288,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   std::unordered_map<Buffer, NDIntSet, ObjectPtrHash, ObjectPtrEqual> relaxed_accesses_;
   /*! \brief The map from Buffer to it entire access region, used for returning. */
   std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> buffer_access_region_;
+  /*! \brief The map from Buffer to it's access regions annotated by current block. */
+  std::unordered_map<Buffer, std::vector<BufferRegion>, ObjectPtrHash, ObjectPtrEqual>
+      access_annotations_;
 };
 
 /*! \brief Collect storage alignment information from block annotations. */
