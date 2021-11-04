@@ -42,7 +42,9 @@ redefine types
 """
 
 class Buffer(Var):
-    def __getitem__(self: Buffer, pos: Tuple[Union[int, PrimExpr]]) -> Buffer: ...
+    def __getitem__(
+        self: Buffer, pos: Tuple[Union[int, PrimExpr], Union[int, PrimExpr]]
+    ) -> Buffer: ...
     @property
     def data(self: Buffer) -> Ptr: ...
 
