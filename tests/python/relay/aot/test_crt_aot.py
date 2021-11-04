@@ -515,8 +515,8 @@ def test_quant_mobilenet_tfl():
 
     import tvm.relay.testing.tf as tf_testing
 
-    interface_api = "packed"
-    use_unpacked_api = False
+    use_unpacked_api = True
+    interface_api = "c"
     test_runner = AOT_DEFAULT_RUNNER
 
     tflite_model_file = tf_testing.get_workload_official(
@@ -658,14 +658,14 @@ def test_deprecated_target_arguments(capsys):
 
 
 @pytest.mark.parametrize(
-    "workspace_byte_alignment,main_workspace_size,sum_workspace_size",
+    "workspace_byte_alignment,main_workspace_size",
     [
-        (8, 10368, 15200),
-        (16, 10368, 15232),
-        (256, 10752, 17408),
+        (8, 17280),
+        (16, 17280),
+        (256, 17792),
     ],
 )
-def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):
+def test_memory_planning(workspace_byte_alignment, main_workspace_size):
     mod, params = tvm.relay.testing.synthetic.get_workload()
     target = "c"
     runtime = Runtime("crt")
@@ -675,21 +675,17 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_work
             "workspace-byte-alignment": workspace_byte_alignment,
         },
     )
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+    with tvm.transform.PassContext(
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+            "tir.disable_storage_rewrite": True,
+            "tir.usmp.algorithm": "greedy_by_conflicts",
+        },
+    ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
-
     assert (
         sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
-    )
-    assert (
-        sum(
-            [
-                size
-                for metadata in lib.function_metadata.values()
-                for size in metadata.workspace_sizes.values()
-            ]
-        )
-        == sum_workspace_size
     )
 
 
@@ -726,6 +722,7 @@ def test_aot_codegen_backend_alloc_workspace_calls():
         models=AOTTestModel(module=relay_mod, inputs=None, outputs=None),
         interface_api="c",
         use_unpacked_api=True,
+        pass_config={"tir.usmp.disable": True},
     )
     source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
     # There should be three allocates created for three primitive relay function

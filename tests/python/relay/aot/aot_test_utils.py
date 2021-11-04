@@ -702,9 +702,8 @@ def run_and_check(
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
-        workspace_bytes += model.extra_memory_in_bytes
-        if interface_api == "packed":
-            workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
+        # TODO(@manupa-arm): remove the stack allocator once the microNPU uses target hooks
+        workspace_bytes = model.extra_memory_in_bytes
 
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)
@@ -815,6 +814,7 @@ def compile_and_run(
         target=target,
         target_opts=target_opts,
     )
+
     run_and_check(
         models=compiled_test_mods,
         runner=runner,

@@ -30,6 +30,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/tir/usmp/utils.h>
 
 #include <string>
 #include <unordered_map>
@@ -55,9 +56,11 @@ inline String get_name_mangled(const String& module_name, const String& name) {
 class MetadataNode : public Object {
  public:
   /*! \brief input information for the main function */
-  Array<String> inputs;
+  Array<tir::Var> inputs;
+  /*! \brief pool information for the main function */
+  Array<tir::Var> pools;
   /*! \brief number of outputs of the main function */
-  int num_outputs = 1;
+  unsigned int num_outputs = 1;
   /*! \brief device contexts information for the main function */
   Array<String> devices;
   /*! \brief the executor to be used to run the model */
@@ -66,6 +69,8 @@ class MetadataNode : public Object {
   String interface_api;
   /*! \brief The internal API (packed or unpacked) in use */
   bool unpacked_api;
+  /*! \brief the input var names that correspond to pool_inputs */
+  Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
 
   String mod_name = "";
 
@@ -79,16 +84,21 @@ class MetadataNode : public Object {
  */
 class Metadata : public ObjectRef {
  public:
-  TVM_DLL Metadata(Array<String> inputs, Array<String> devices, int num_outputs, String executor,
-                   String mod_name, String interface_api = "packed", bool unpacked_api = false) {
+  TVM_DLL Metadata(Array<tir::Var> inputs, Array<tir::Var> pools, Array<String> devices,
+                   int num_outputs, String executor, String mod_name,
+                   String interface_api = "packed", bool unpacked_api = false,
+                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
+                       Map<tir::Var, tir::usmp::AllocatedPoolInfo>()) {
     auto n = make_object<MetadataNode>();
     n->inputs = inputs;
+    n->pools = pools;
     n->devices = devices;
     n->num_outputs = num_outputs;
     n->executor = executor;
     n->interface_api = interface_api;
     n->unpacked_api = unpacked_api;
     n->mod_name = mod_name;
+    n->pool_inputs = pool_inputs;
     data_ = std::move(n);
   }
 

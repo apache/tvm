@@ -249,6 +249,13 @@ SECTIONS
     . = ALIGN(16);
   } > SRAM AT > SRAM
 
+  .bss.tvm :
+  {
+    . = ALIGN(16);
+    *(.bss.tvm)
+    . = ALIGN(16);
+  } > DDR
+
   .bss.NoInit :
   {
     . = ALIGN(16);

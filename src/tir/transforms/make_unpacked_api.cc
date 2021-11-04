@@ -57,33 +57,22 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   const Stmt nop = Evaluate(0);
   std::vector<Stmt> device_init;
 
-  // Create arg to buffer binder
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
-  ArgBinder binder(&vmap);
 
   // Collect variables and buffers to map between
   Array<Var> args;
-  std::vector<std::pair<Var, Var>> var_def;
-  bool buffer_map_found = false;
-
-  for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
-    Var param = func_ptr->params[i];
-
-    auto it = func_ptr->buffer_map.find(param);
-    if (it != func_ptr->buffer_map.end()) {
-      args.push_back((*it).second->data);
-      buffer_map_found = true;
-    } else {
-      args.push_back(param);
-    }
+  // We only iterate the function params upto number of buffer_map keys
+  // because if there exist a resource handle, it will not have a buffer
+  for (unsigned int i = 0; i < func->buffer_map.size(); i++) {
+    Var param = func->params[i];
+    args.push_back(func->buffer_map[param]->data);
   }
-
-  if (buffer_map_found) {
-    device_init.push_back(AttrStmt(node, attr::device_id, device_id, nop));
-    device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
+  if (func->params.size() == func->buffer_map.size() + 1) {
+    args.push_back(func->params.back());
   }
+  device_init.push_back(AttrStmt(node, attr::device_id, device_id, nop));
+  device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
 
-  func_ptr->body = MergeNest({device_init, binder.init_nest(), binder.asserts()}, func_ptr->body);
+  func_ptr->body = MergeNest(device_init, func_ptr->body);
   func_ptr->params = args;
   func_ptr->ret_type = PrimType(DataType::Int(32));
 
