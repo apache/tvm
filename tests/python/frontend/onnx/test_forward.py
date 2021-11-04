@@ -4958,8 +4958,6 @@ unsupported_onnx_tests = [
     "test_resize_tf_crop_and_resize",
     "test_rnn_seq_length",
     "test_round",
-    "test_scan9_sum",
-    "test_scan_sum",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
     "test_simple_rnn_defaults",
