@@ -18,7 +18,6 @@
 import sys
 import pytest
 import tvm
-from tvm import tir
 from tvm.script import tir as T
 
 """

@@ -19,6 +19,7 @@
 set -e
 set -u
 set -o pipefail
+source tests/scripts/setup-pytest-env.sh
 
 echo "Checking MyPy Type defs in the TensorIR schedule package."
 mypy  --check-untyped-defs python/tvm/tir/schedule
@@ -33,7 +34,7 @@ echo "Checking MyPy Type defs in the transform package."
 mypy  --check-untyped-defs python/tvm/tir/transform/
 
 echo "Checking MyPy Type defs in the TIR package with unittest"
-mypy --check-untyped-defs tests/python/unittest/test_tvmscript_type.py
+MYPYPATH=$TVM_PATH/python mypy --check-untyped-defs tests/python/unittest/test_tvmscript_type.py
 
 #TODO(@mikepapadim): This is failing atm
 # echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."
