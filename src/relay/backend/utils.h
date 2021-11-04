@@ -327,7 +327,7 @@ inline relay::Function BindParamsByName(
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
-      repeat_var.insert(arg);
+      repeat_var.insert(name_dict[name]);
     } else {
       name_dict[name] = arg;
     }
@@ -428,15 +428,6 @@ inline bool IsAutoSchedulerEnabled() {
 }
 
 /*!
- * \brief Return whether the compile engine cache is disabled in the pass context.
- */
-inline bool IsCompileEngineCacheDisabled() {
-  return transform::PassContext::Current()
-      ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
-      .value();
-}
-
-/*!
  * \brief Get the sequence of Relay optimization passes based on backend type.
  * The prefix of the Relay passes almost overlaps between the vm and graph backend, with some slight
  * difference. This function unifies the shared optimization pass prefix between vm and graph
@@ -446,7 +437,7 @@ inline bool IsCompileEngineCacheDisabled() {
  * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
+Array<Pass> GetPassPrefix(const TargetMap& targets, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {

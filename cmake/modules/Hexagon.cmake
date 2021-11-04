@@ -53,18 +53,22 @@ if(BUILD_FOR_HEXAGON)
   include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
 endif()
 
-if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
-  set(USE_HEXAGON_DEVICE "${PICK_SIM}")
-else()
-  if(USE_HEXAGON_DEVICE STREQUAL "OFF")
-    list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
-    return()
-  elseif(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
-      NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
-    set(ERROR_MSG
-      "USE_HEXAGON_DEVICE must be one of [${PICK_NONE}|${PICK_SIM}|${PICK_HW}]")
-    message(SEND_ERROR "${ERROR_MSG}")
-    return()
+# Don't run these checks when compiling Hexagon device code,
+# e.g. when compiling the TVM runtime for Hexagon.
+if (NOT BUILD_FOR_HEXAGON)
+  if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
+    set(USE_HEXAGON_DEVICE "${PICK_SIM}")
+  else()
+    if(USE_HEXAGON_DEVICE STREQUAL "OFF")
+      list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
+      return()
+    elseif(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
+        NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
+      set(ERROR_MSG
+        "USE_HEXAGON_DEVICE must be one of [${PICK_NONE}|${PICK_SIM}|${PICK_HW}]")
+      message(SEND_ERROR "${ERROR_MSG}")
+      return()
+    endif()
   endif()
 endif()
 
@@ -137,12 +141,12 @@ endif()
 if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
   find_hexagon_toolchain()
   message(STATUS "Hexagon toolchain: ${HEXAGON_TOOLCHAIN}")
-  file(GLOB RUNTIME_HEXAGON_SIM_SRCS src/runtime/hexagon/sim/*.cc)
+  file(GLOB RUNTIME_HEXAGON_SIM_SRCS src/runtime/hexagon/android/sim/*.cc)
   include_directories(SYSTEM "${HEXAGON_TOOLCHAIN}/include/iss")
   link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
   list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
   ExternalProject_Add(sim_dev
-    SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/runtime/hexagon/sim/driver"
+    SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/runtime/hexagon/android/sim/driver"
     CMAKE_ARGS
       "-DCMAKE_C_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
       "-DCMAKE_CXX_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
@@ -152,7 +156,7 @@ if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
 elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
   find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
   find_hexagon_toolchain()
-  file(GLOB RUNTIME_HEXAGON_DEVICE_SRCS src/runtime/hexagon/target/*.cc)
+  file(GLOB RUNTIME_HEXAGON_DEVICE_SRCS src/runtime/hexagon/android/target/*.cc)
 
   include_directories(SYSTEM
     ${HEXAGON_SDK_INCLUDES}
@@ -166,7 +170,10 @@ elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
   endif()
 endif()
 
-file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/*.cc)
+if(BUILD_FOR_HEXAGON AND USE_HEXAGON_DEVICE STREQUAL "${PICK_NONE}")
+  file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/hexagon/*.cc)
+else()
+  file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/android/*.cc)
+endif()
 list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS} ${RUNTIME_HEXAGON_SIM_SRCS}
                          ${RUNTIME_HEXAGON_DEVICE_SRCS})
-

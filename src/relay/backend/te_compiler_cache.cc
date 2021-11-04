@@ -134,6 +134,8 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
     auto outputs = this->VisitExpr(prim_func->body);
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
+    // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
+    //          whenever the value of kMaxFuncNameLength changes
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
@@ -394,6 +396,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     // Generate a name.
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
+    // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
+    //          whenever the value of kMaxFuncNameLength changes
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
@@ -462,8 +466,13 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
   Array<te::Tensor> VisitExpr_(const VarNode* var_node) final {
     auto var = GetRef<Var>(var_node);
-    auto it = param_states_.find(var);
-    if (it == param_states_.end()) {
+    auto it = param_arg_map_.find(var);
+    if (it != param_arg_map_.end()) {
+      // This var is a parameter of a nested function. Visit the corresponding argument in the
+      // function call site.
+      return VisitExpr(it->second);
+    }
+    if (param_states_.find(var) == param_states_.end()) {
       LOG(FATAL) << "Unexpected free variable " << var->name_hint();
       return {};
     } else {
@@ -538,6 +547,12 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   }
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
+    if (auto* func = call_node->op.as<FunctionNode>()) {
+      for (size_t i = 0; i < func->params.size(); ++i) {
+        param_arg_map_[func->params[i]] = call_node->args[i];
+      }
+      return VisitExpr(func->body);
+    }
     static auto fshape_func = Op::GetAttrMap<FShapeFunc>("FShapeFunc");
     static auto tshape_data_dependent = Op::GetAttrMap<TShapeDataDependent>("TShapeDataDependent");
     ICHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
@@ -597,7 +612,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   }
 
   Array<te::Tensor> VisitExpr_(const FunctionNode* op) final {
-    LOG(FATAL) << "Do not support sub function";
+    LOG(FATAL) << "Nested functions are not allowed to be visited.";
     return Array<te::Tensor>();
   }
 
@@ -640,6 +655,10 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   std::vector<bool> data_dependents_per_input_;
   /*! \brief Scalars used in the shape function */
   Array<te::Tensor> scalars_;
+  /*! \brief Map from parameters of a nested function to corresponding arguments in a function
+   * call site.
+   */
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> param_arg_map_;
 };
 
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,

@@ -62,8 +62,9 @@ inline Constant MakeConstant(const std::vector<int64_t>& value) {
 }
 
 inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dtype,
-                        Array<IndexExpr> assert_shape) {
-  auto offset = MakeConstantScalar(DataType::Int(64), 0);
+                        Array<IndexExpr> assert_shape, DLDeviceType offset_device_type) {
+  auto offset =
+      OnDevice(MakeConstantScalar(DataType::Int(64), 0), offset_device_type, /*is_fixed=*/true);
   return AllocTensor(storage, offset, shape, dtype, assert_shape);
 }
 
@@ -267,8 +268,9 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
     auto sto = scope->Push(var, value);
 
     // TODO(@jroesch): There is a bug with typing based on the constant shape.
-    auto tensor = OnDevice(AllocTensor(sto, shape, type->dtype, /*assert_shape=*/type->shape),
-                           dev.device_type, /*is_fixed=*/true);
+    auto tensor = OnDevice(
+        AllocTensor(sto, shape, type->dtype, /*assert_shape=*/type->shape, cpu_device_.device_type),
+        dev.device_type, /*is_fixed=*/true);
     Var tensor_var("tensor_" + name_hint, Type(nullptr));
     return scope->Push(tensor_var, tensor);
   }
@@ -367,7 +369,8 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
       auto out_shape = out_shapes[i];
       auto out_type = out_types[i];
       auto storage = storages[i];
-      auto alloc = OnDevice(AllocTensor(storage, out_shape, out_type->dtype, out_type->shape),
+      auto alloc = OnDevice(AllocTensor(storage, out_shape, out_type->dtype, out_type->shape,
+                                        cpu_device_.device_type),
                             dev.device_type, /*is_fixed=*/true);
       Var out_var("out_" + std::to_string(i), Type(nullptr));
       outs.push_back(scope->Push(out_var, alloc));
@@ -394,7 +397,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
         CHECK(imm) << "expect static int shape";
         shape.push_back(imm->value);
       }
-      shape_expr = MakeConstant(shape);
+      shape_expr = OnDevice(MakeConstant(shape), cpu_device_.device_type, /*is_fixed=*/true);
     }
     return ReshapeTensor(new_args[0], shape_expr, ret_ty->shape);
   }
@@ -415,7 +418,6 @@ Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
   CheckAndUpdateHostConsistency(&targets, &target_host);
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
-        DLOG(INFO) << "tvm::relay::transform::ManifestAlloc";
         // We need to mutate module, therefore making a copy of it.
         mod.CopyOnWrite();
         mod->ImportFromStd("core.rly");

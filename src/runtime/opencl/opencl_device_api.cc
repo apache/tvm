@@ -196,6 +196,10 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
   ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
   cl::BufferDescriptor* desc = new cl::BufferDescriptor;
+  // CL_INVALID_BUFFER_SIZE if size is 0.
+  if (size == 0) {
+    size = 1;
+  }
   desc->buffer = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
   desc->layout = cl::BufferDescriptor::MemoryLayout::kBuffer1D;
   OPENCL_CHECK_ERROR(err_code);

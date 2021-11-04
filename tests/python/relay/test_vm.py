@@ -32,6 +32,8 @@ from tvm import rpc
 import tvm.testing
 from tvm.relay.transform import InferType
 from tvm.relay.testing import mlp
+from tvm.relay.dataflow_pattern import wildcard, is_op
+from tvm.relay.backend.vm import VMCompiler
 
 
 def check_result(target, dev, args, expected_result, mod=None):
@@ -971,6 +973,91 @@ def test_benchmark_end_to_end_rpc():
         remote.device("cuda"), data=data, func_name="main", repeat=2, number=1, end_to_end=True
     )
     assert result.mean > 0
+
+
+def test_shape_func_nested_function():
+    data_shape = (relay.Any(), 16)
+    weight_shape = (relay.Any(), 16)
+
+    dense = relay.nn.dense(
+        relay.var("data", shape=data_shape), relay.var("weight", shape=weight_shape)
+    )
+    mod = tvm.IRModule.from_expr(dense)
+
+    patterns = [("test.dense", is_op("nn.dense")(wildcard(), wildcard()))]
+    passes = tvm.transform.Sequential(
+        [
+            relay.transform.MergeComposite(patterns),
+            relay.transform.AnnotateTarget(["test"]),
+            relay.transform.PartitionGraph(),
+        ]
+    )
+
+    mod = passes(mod)
+
+    compiler = VMCompiler()
+    compiler.lower(mod, "llvm")
+
+
+@tvm.testing.requires_cuda
+def test_storage_size_and_offset_on_cpu():
+    """Tests allocations place sizes and offsets on the CPU host even if the rest
+    of the computation is on a different device type."""
+    # TODO(mbs): Better would be to test ManifestAlloc independently.
+
+    # CPU = device type 1
+    # GPU = device type 2
+    def input():
+        return tvm.parser.fromtext(
+            """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32],
+                      param_device_types=[2], result_device_type=2) {
+              add(%a, %a)
+            }
+        """
+        )
+
+    exe = relay.vm.compile(
+        input(),
+        tvm.target.Target("cuda"),
+    )
+
+    # This program needs two constants:
+    # - The size of the tensor's storage (first arg) to alloc_storage
+    # - The offset of the tensor within the storage (second arg) to alloc_tensor
+    # Both should be on the CPU
+    assert not "on device of type 2" in exe.constants
+    assert "on device of type 1" in exe.constants
+
+
+@tvm.testing.requires_cuda
+def test_reshape_shape_on_cpu():
+    """Tests the argument to a reshape places the shape on the CPU host even if the rest
+    of the computation is on a different device type."""
+    # TODO(mbs): Better would be to test ManifestAlloc independently.
+
+    # CPU = device type 1
+    # GPU = device type 2
+    def input():
+        return tvm.parser.fromtext(
+            """
+            #[version = "0.0.5"]
+            def @main(%x: Tensor[(2, 8), float32],
+                      param_device_types=[2], result_device_type=2) {
+              reshape(%x, newshape=[2, 4, 2])
+            }
+        """
+        )
+
+    exe = relay.vm.compile(
+        input(),
+        tvm.target.Target("cuda"),
+    )
+
+    # The newshape annotation should have been turned into a constant on the CPU.
+    assert not "on device of type 2" in exe.constants
+    assert "on device of type 1" in exe.constants
 
 
 if __name__ == "__main__":

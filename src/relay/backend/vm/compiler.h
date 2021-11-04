@@ -62,7 +62,6 @@ using TagNameMap = std::unordered_map<size_t, tvm::relay::Constructor>;
 using GlobalMap = NodeMap<GlobalVar, Index>;
 using ConstMap = NodeMap<Constant, Index>;
 using ConstTensorShapeMap = NodeMap<TensorType, std::pair<Index, NDArray>>;
-using TargetsMap = Map<tvm::Integer, tvm::Target>;
 
 struct VMCompilerContext {
   // The module context for the compilation
@@ -111,7 +110,7 @@ class VMCompiler : public runtime::ModuleNode {
    *                to target mapping. For homogeneous compilation, it is a singleton build target.
    * \param target_host Host compilation target, if target is device.
    */
-  void Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host);
+  void Lower(IRModule mod, const TargetMap& targets, const tvm::Target& target_host);
 
   /*! \brief Generate the machine code for lowered functions. */
   void Codegen();
@@ -127,7 +126,7 @@ class VMCompiler : public runtime::ModuleNode {
    *
    * \return The optimized IRModule.
    */
-  IRModule OptimizeModule(IRModule mod, const TargetsMap& targets, const Target& target_host);
+  IRModule OptimizeModule(IRModule mod, const TargetMap& targets, const Target& target_host);
 
   /*!
    * \brief Populate the global function names in a map where the value is used
@@ -137,7 +136,7 @@ class VMCompiler : public runtime::ModuleNode {
 
  protected:
   /*! \brief Target devices. */
-  TargetsMap targets_;
+  TargetMap targets_;
   /*! \brief Target host device. */
   tvm::Target target_host_;
   /*! \brief Global shared meta data */

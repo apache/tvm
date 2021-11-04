@@ -26,6 +26,8 @@ extern "C" {
 #include <qurt_hvx.h>
 }
 
+#include <tvm/runtime/object.h>
+
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -106,7 +108,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_set_input)(remote_handle64 handle, int inpu
 
   DLTensor tensor{
       const_cast<unsigned char*>(input_value),
-      Model::device(),
+      Model::external(),
       meta->ndim,
       meta->dtype,
       const_cast<int64_t*>(meta->shape),
@@ -153,6 +155,16 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
   tvm::runtime::PackedFunc get_output = get_module_func(TheModel->graph_executor, "get_output");
   tvm::runtime::NDArray output = get_output(output_idx);
 
+  std::vector<int64_t> shape_vec{output->shape, output->shape + output->ndim};
+
+  auto* container = new tvm::runtime::NDArray::Container(
+      static_cast<void*>(output_value), shape_vec, output->dtype, Model::external());
+  container->SetDeleter([](tvm::Object* container) {
+    delete static_cast<tvm::runtime::NDArray::Container*>(container);
+  });
+
+  tvm::runtime::NDArray host_output(GetObjectPtr<tvm::Object>(container));
+
   if (meta_size != 0) {
     auto* meta = reinterpret_cast<tensor_meta*>(output_meta);
     if (meta_size < meta->meta_size(output->ndim)) {
@@ -170,8 +182,7 @@ AEEResult __QAIC_HEADER(launcher_rpc_get_output)(remote_handle64 handle, int out
       return error_too_small(__func__, "value_size", value_size, data_size);
     }
 
-    auto data = reinterpret_cast<decltype(output_value)>(output->data);
-    std::copy(data, data + data_size, output_value);
+    host_output.CopyFrom(output);
   }
 
   return AEE_SUCCESS;

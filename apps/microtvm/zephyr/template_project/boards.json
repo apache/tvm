@@ -39,7 +39,7 @@
         "board": "qemu_riscv32",
         "model": "host",
         "is_qemu": true,
-        "fpu": true
+        "fpu": false
     },
     "qemu_riscv64": {
         "board": "qemu_riscv64",

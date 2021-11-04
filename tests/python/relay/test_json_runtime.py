@@ -26,7 +26,7 @@ import tvm.relay.testing
 from tvm import relay, runtime
 from tvm.contrib import utils
 from tvm.relay import transform
-from tvm.relay.backend import compile_engine
+from tvm.relay.backend import te_compiler
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.contrib.register import get_pattern_table
 
@@ -47,7 +47,7 @@ def check_result(
         return
 
     # Run the reference result
-    compile_engine.get().clear()
+    te_compiler.get().clear()
     with tvm.transform.PassContext(opt_level=3):
         json, lib, param = relay.build(ref_mod, target=target, params=params)
     rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
@@ -61,7 +61,7 @@ def check_result(
     ref_result = out.numpy()
 
     def check_vm_result():
-        compile_engine.get().clear()
+        te_compiler.get().clear()
         with relay.build_config(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
@@ -71,7 +71,7 @@ def check_result(
         tvm.testing.assert_allclose(out.numpy(), ref_result, rtol=tol, atol=tol)
 
     def check_graph_executor_result():
-        compile_engine.get().clear()
+        te_compiler.get().clear()
         with relay.build_config(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
         rt_mod = tvm.contrib.graph_executor.create(json, lib, device)

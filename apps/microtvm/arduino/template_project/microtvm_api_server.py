@@ -31,10 +31,13 @@ import tarfile
 import tempfile
 import time
 from string import Template
+import re
 
 import serial
 import serial.tools.list_ports
 from tvm.micro.project_api import server
+
+_LOG = logging.getLogger(__name__)
 
 MODEL_LIBRARY_FORMAT_RELPATH = pathlib.Path("src") / "model" / "model.tar"
 API_SERVER_DIR = pathlib.Path(os.path.dirname(__file__) or os.path.getcwd())
@@ -42,6 +45,10 @@ BUILD_DIR = API_SERVER_DIR / "build"
 MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
+
+# Used to check Arduino CLI version installed on the host.
+# We only check two levels of the version.
+ARDUINO_CLI_VERSION = 0.18
 
 
 BOARDS = API_SERVER_DIR / "boards.json"
@@ -77,6 +84,11 @@ PROJECT_OPTIONS = [
     server.ProjectOption(
         "verbose", help="True to pass --verbose flag to arduino-cli compile and upload"
     ),
+    server.ProjectOption(
+        "warning_as_error",
+        choices=(True, False),
+        help="Treat warnings as errors and raise an Exception.",
+    ),
 ]
 
 
@@ -91,7 +103,7 @@ class Handler(server.ProjectAPIHandler):
         return server.ServerInfo(
             platform_name="arduino",
             is_template=IS_TEMPLATE,
-            model_library_format_path=MODEL_LIBRARY_FORMAT_PATH,
+            model_library_format_path="" if IS_TEMPLATE else MODEL_LIBRARY_FORMAT_PATH,
             project_options=PROJECT_OPTIONS,
         )
 
@@ -275,7 +287,25 @@ class Handler(server.ProjectAPIHandler):
         # It's probably a standard C/C++ header
         return include_path
 
+    def _get_platform_version(self, arduino_cli_path: str) -> float:
+        # sample output of this command:
+        # 'arduino-cli alpha Version: 0.18.3 Commit: d710b642 Date: 2021-05-14T12:36:58Z\n'
+        version_output = subprocess.check_output([arduino_cli_path, "version"], encoding="utf-8")
+        full_version = re.findall("version: ([\.0-9]*)", version_output.lower())
+        full_version = full_version[0].split(".")
+        version = float(f"{full_version[0]}.{full_version[1]}")
+
+        return version
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
+        # Check Arduino version
+        version = self._get_platform_version(options["arduino_cli_cmd"])
+        if version != ARDUINO_CLI_VERSION:
+            message = f"Arduino CLI version found is not supported: found {version}, expected {ARDUINO_CLI_VERSION}."
+            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+                raise server.ServerError(message=message)
+            _LOG.warning(message)
+
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
         project_dir.mkdir()
@@ -300,7 +330,7 @@ class Handler(server.ProjectAPIHandler):
 
         # Unpack the MLF and copy the relevant files
         metadata = self._disassemble_mlf(model_library_format_path, source_dir)
-        shutil.copy2(model_library_format_path, source_dir / "model")
+        shutil.copy2(model_library_format_path, project_dir / MODEL_LIBRARY_FORMAT_RELPATH)
 
         # For AOT, template model.h with metadata to minimize space usage
         if options["project_type"] == "example_project":

@@ -38,6 +38,7 @@ from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
 from .common import (
+    autopad,
     AttrCvt,
     Renamer,
     ensure_scalar_shape,
@@ -51,6 +52,7 @@ from .common import (
     infer_value,
     lstm_cell,
     new_var,
+    shape_of,
     try_resolve_var_to_const,
     unbind,
 )
@@ -315,7 +317,6 @@ class Pool(OnnxOpConverter):
                         attr.get("strides", [1] * (ndim - 2)),
                         attr["kernel_shape"],
                         [1] * ndim,
-                        ndim,
                         pad_value=pad_val,
                         mode=attr["auto_pad"],
                     )
@@ -411,69 +412,6 @@ class InstanceNorm(OnnxOpConverter):
         return AttrCvt(op_name="instance_norm")(inputs, attr, params)
 
 
-def autopad(
-    data,
-    strides,
-    kernel_shape,
-    dilations,
-    ndim,
-    pad_type="constant",
-    deconv=False,
-    mode="SAME_UPPER",
-    pad_value=0.0,
-):
-    """
-    Perform autopadding with dynamic input shapes
-    """
-    # get attributes as constants
-    strides = _op.const(np.array(strides), dtype="int64")
-    dilated_kernel_shape = _op.const(
-        np.array(
-            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
-        ),
-        dtype="int64",
-    )
-    # get input shape
-    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
-
-    # set up integer constants
-    zero = _op.const(0, dtype="int64")
-    one = _op.const(1, dtype="int64")
-    two = _op.const(2, dtype="int64")
-
-    # Calculate total padding
-    mod = _op.mod(shape, strides)
-
-    left = _op.maximum(dilated_kernel_shape - strides, zero)
-    right = _op.maximum(dilated_kernel_shape - mod, zero)
-
-    total_pad = _op.where(_op.equal(mod, zero), left, right)
-    if deconv:
-        total_pad = _op.const(np.array(kernel_shape), dtype="int64") - one - total_pad
-
-    # split total padding into before and after
-    pad_before = _op.floor_divide(total_pad, two)
-    pad_after = total_pad - pad_before
-
-    # combine
-    if "LOWER" in mode:
-        pad = _op.concatenate(
-            [_op.reshape(pad_after, [-1, 1]), _op.reshape(pad_before, [-1, 1])], axis=1
-        )
-    else:
-        pad = _op.concatenate(
-            [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
-        )
-
-    # pad N and C with zeros
-    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
-
-    if isinstance(pad_value, (float, int)):
-        pad_value = _op.const(pad_value)
-
-    return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
-
-
 class Conv(OnnxOpConverter):
     """Operator converter for Conv."""
 
@@ -501,7 +439,6 @@ class Conv(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -582,7 +519,6 @@ class ConvTranspose(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     deconv=True,
                     mode=attr["auto_pad"],
                 )
@@ -974,7 +910,6 @@ class LpPool(OnnxOpConverter):
                     attr["strides"],
                     attr["kernel_shape"],
                     [1] * ndim,
-                    ndim,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -1408,14 +1343,6 @@ class Upsample(OnnxOpConverter):
                 align_corners=False,
             )
         return out
-
-
-def shape_of(x, dtype="int64"):
-    ttype = infer_type(x).checked_type
-    if not _ty.is_dynamic(ttype):
-        shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
-    return _op.shape_of(x, dtype)
 
 
 class Shape(OnnxOpConverter):
@@ -3440,7 +3367,6 @@ class QLinearConv(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     pad_value=x_zero_point.data,
                     mode=attr["auto_pad"],
                 )
@@ -3810,7 +3736,6 @@ class ConvInteger(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     pad_value=data_zp,
                     mode=attr["auto_pad"],
                 )

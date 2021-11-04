@@ -41,7 +41,7 @@ namespace runtime {
 struct TypeInfo {
   /*! \brief The current index. */
   uint32_t index{0};
-  /*! \brief Index of the parent in the type hierachy */
+  /*! \brief Index of the parent in the type hierarchy */
   uint32_t parent_index{0};
   // NOTE: the indices in [index, index + num_reserved_slots) are
   // reserved for the child-class of this type.
@@ -58,7 +58,7 @@ struct TypeInfo {
 };
 
 /*!
- * \brief Type context that manages the type hierachy information.
+ * \brief Type context that manages the type hierarchy information.
  */
 class TypeContext {
  public:
