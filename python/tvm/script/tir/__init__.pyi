@@ -124,7 +124,7 @@ def match_buffer(
     param: Union[Var, BufferSlice],
     shape: Sequence[Union[PrimExpr, int]],
     dtype: str = "float32",
-    data=None,
+    data: Var = None,
     strides: Optional[Sequence[int]] = None,
     elem_offset: Optional[int] = None,
     scope: str = "global",
@@ -135,7 +135,7 @@ def match_buffer(
 def buffer_decl(
     shape: Sequence[Union[PrimExpr, int]],
     dtype: str = "float32",
-    data=None,
+    data: Var = None,
     strides: Optional[Sequence[int]] = None,
     elem_offset: Optional[int] = None,
     scope: str = "global",
@@ -146,7 +146,7 @@ def buffer_decl(
 def alloc_buffer(
     shape: Sequence[Union[PrimExpr, int]],
     dtype: str = "float32",
-    data=None,
+    data: Var = None,
     strides: Optional[Sequence[int]] = None,
     elem_offset: Optional[int] = None,
     scope: str = "global",
