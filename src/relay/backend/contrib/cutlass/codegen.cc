@@ -54,19 +54,21 @@ std::string GetDimAsStr(ObjectRef dim) {
   return kAnyDim;
 }
 
-Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
+inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int indent = 2) {
+  for (int i = 0; i < indent; ++i) {
+    os << " ";
+  }
+  os << stmt;
+}
+
+Str2StrMap GemmArgsCommon(const Map<String, ObjectRef>& attrs) {
   Str2StrMap args;
   auto arg0_dtype = std::string(attrs["arg0_dtype"].as<StringObj>()->data);
   auto arg1_dtype = std::string(attrs["arg1_dtype"].as<StringObj>()->data);
   auto ret_dtype = std::string(attrs["ret_dtype"].as<StringObj>()->data);
-  auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
-  auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
   args["ElementInputA"] = dtype_map.at(arg0_dtype);
   args["ElementInputB"] = dtype_map.at(arg1_dtype);
   args["ElementOutput"] = dtype_map.at(ret_dtype);
-  args["M"] = GetDimAsStr(arg0_shape->at(0));
-  args["K"] = GetDimAsStr(arg0_shape->at(1));
-  args["N"] = GetDimAsStr(arg1_shape->at(0));
   args["op_def"] = std::string(attrs["cutlass_op_def"].as<StringObj>()->data);
   args["op_name"] = std::string(attrs["cutlass_op_name"].as<StringObj>()->data);
   args["op_type"] = std::string(attrs["op_type"].as<StringObj>()->data);
@@ -76,23 +78,33 @@ Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
   return args;
 }
 
-inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int indent = 2) {
-  for (int i = 0; i < indent; ++i) {
-    os << " ";
-  }
-  os << stmt;
+Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
+  Str2StrMap args = GemmArgsCommon(attrs);
+  auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
+  auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
+  args["M"] = GetDimAsStr(arg0_shape->at(0));
+  args["K"] = GetDimAsStr(arg0_shape->at(1));
+  args["N"] = GetDimAsStr(arg1_shape->at(0));
+  return args;
 }
 
-std::string DenseOp(std::string id, const Str2StrMap& attrs,
-                    const std::vector<std::string>& func_args) {
-  bool has_bias = false;
-  bool is_gelu =
-      attrs.at("op_type").find("cutlass.dense_bias_gelu") != std::string::npos;  // fp32 or fp16
-  if (attrs.at("op_type") == "cutlass.dense_bias" ||
-      attrs.at("op_type") == "cutlass.dense_bias_relu" || is_gelu) {
-    has_bias = true;
-  }
-  std::ostringstream gemm_decl;
+Str2StrMap BatchMatmulArgs(const Map<String, ObjectRef>& attrs) {
+  Str2StrMap args = GemmArgsCommon(attrs);
+  args["batch"] = GetDimAsStr(attrs["batch"]);
+  args["batch_stride_A"] = GetDimAsStr(attrs["batch_stride_A"]);
+  args["batch_stride_B"] = GetDimAsStr(attrs["batch_stride_B"]);
+  args["batch_stride_C"] = GetDimAsStr(attrs["batch_stride_C"]);
+  auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
+  auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
+  args["M"] = GetDimAsStr(arg0_shape->at(1));
+  args["K"] = GetDimAsStr(arg0_shape->at(2));
+  args["N"] = GetDimAsStr(arg1_shape->at(1));
+  return args;
+}
+
+void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
+                    const std::vector<std::string>& func_args, const std::string& kernel,
+                    bool has_bias, bool is_gelu, int m_axis_idx, int n_axis_idx, int k_axis_idx) {
   CutlassPrint(gemm_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
   CutlassPrint(gemm_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
   CutlassPrint(gemm_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
@@ -107,11 +119,10 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
       return attrs.at(axis);
     }
   };
-  CutlassPrint(gemm_decl, "int M = " + get_dim("M", 0, 0) + ";\n");
-  CutlassPrint(gemm_decl, "int N = " + get_dim("N", 1, 0) + ";\n");
-  CutlassPrint(gemm_decl, "int K = " + get_dim("K", 0, 1) + ";\n");
+  CutlassPrint(gemm_decl, "int M = " + get_dim("M", 0, m_axis_idx) + ";\n");
+  CutlassPrint(gemm_decl, "int N = " + get_dim("N", 1, n_axis_idx) + ";\n");
+  CutlassPrint(gemm_decl, "int K = " + get_dim("K", 0, k_axis_idx) + ";\n");
   CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
-  // Initialize alpha for dot product computation
   CutlassPrint(gemm_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
   if (is_gelu) {
     // GeLU epilogue does not compile with NoBetaScaling, so we explicitly specify the scale.
@@ -120,11 +131,6 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
     CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
   }
 
-  // Split K dimension into 1 partitions
-  CutlassPrint(gemm_decl, "int split_k_slices = 1;\n");
-
-  // Create a tuple of gemm kernel arguments. This is later passed as arguments to launch
-  // instantiated CUTLASS kernel
   ICHECK(func_args.size() >= 2);
   CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + func_args[0] + "->data);\n");
   CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
@@ -132,10 +138,47 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
     ICHECK(func_args.size() >= 3);
     CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + "->data);\n");
   }
+
   CutlassPrint(gemm_decl, "void* ptr_out = (void*)(out0);\n");
 
-  CutlassPrint(gemm_decl, "typename Gemm::Arguments arguments{\n");
+  CutlassPrint(gemm_decl, "using " + kernel + " = Operation_" + attrs.at("op_name") + ";\n");
+  CutlassPrint(gemm_decl, "typename " + kernel + "::Arguments arguments{\n");
   CutlassPrint(gemm_decl, " problem_size,\n");
+}
+
+void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel) {
+  // Using the arguments, query for extra workspace required for matrix multiplication computation
+  CutlassPrint(gemm_decl,
+               "size_t workspace_size = " + kernel + "::get_workspace_size(arguments);\n");
+  // Allocate workspace memory
+  CutlassPrint(gemm_decl,
+               "cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);\n");
+  // Instantiate CUTLASS kernel depending on template
+  CutlassPrint(gemm_decl, kernel + " gemm_op;\n");
+
+  // Check the problem size is supported or not
+  CutlassPrint(gemm_decl, "cutlass::Status status = gemm_op.can_implement(arguments);\n");
+  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
+  // Initialize CUTLASS kernel with arguments and workspace pointer
+  CutlassPrint(gemm_decl, "status = gemm_op.initialize(arguments, workspace.get());\n");
+  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
+  // Launch initialized CUTLASS kernel
+  CutlassPrint(gemm_decl, "status = gemm_op();\n");
+  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
+}
+
+std::string DenseOp(std::string id, const Str2StrMap& attrs,
+                    const std::vector<std::string>& func_args) {
+  bool has_bias = false;
+  bool is_gelu =
+      attrs.at("op_type").find("cutlass.dense_bias_gelu") != std::string::npos;  // fp32 or fp16
+  if (attrs.at("op_type") == "cutlass.dense_bias" ||
+      attrs.at("op_type") == "cutlass.dense_bias_relu" || is_gelu) {
+    has_bias = true;
+  }
+  std::ostringstream gemm_decl;
+  AppendPrologue(gemm_decl, attrs, func_args, "Gemm", has_bias, is_gelu, 0, 0, 1);
+
   CutlassPrint(gemm_decl, " {static_cast<ElementInputA*>(ptr_a), " + attrs.at("lda") + "},\n");
   CutlassPrint(gemm_decl, " {static_cast<ElementInputB*>(ptr_b), " + attrs.at("ldb") + "},\n");
   if (has_bias) {
@@ -150,24 +193,44 @@ std::string DenseOp(std::string id, const Str2StrMap& attrs,
     // For GeLU, we explicitly specify the scale.
     CutlassPrint(gemm_decl, " {alpha, beta},\n");
   }
-  CutlassPrint(gemm_decl, " split_k_slices};\n");
+  CutlassPrint(gemm_decl, " 1};\n");  // split_k_slices
 
-  // Using the arguments, query for extra workspace required for matrix multiplication computation
-  CutlassPrint(gemm_decl, "size_t workspace_size = Gemm::get_workspace_size(arguments);\n");
-  // Allocate workspace memory
-  CutlassPrint(gemm_decl,
-               "cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);\n");
-  // Instantiate CUTLASS kernel depending on template
-  CutlassPrint(gemm_decl, "Gemm gemm_op;\n");
-  // Check the problem size is supported or not
-  CutlassPrint(gemm_decl, "cutlass::Status status = gemm_op.can_implement(arguments);\n");
-  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
-  // Initialize CUTLASS kernel with arguments and workspace pointer
-  CutlassPrint(gemm_decl, "status = gemm_op.initialize(arguments, workspace.get());\n");
-  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
-  // Launch initialized CUTLASS kernel
-  CutlassPrint(gemm_decl, "status = gemm_op();\n");
-  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
+  AppendGemmExecute(gemm_decl, "Gemm");
+  return gemm_decl.str();
+}
+
+std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
+                          const std::vector<std::string>& func_args) {
+  std::ostringstream gemm_decl;
+  AppendPrologue(gemm_decl, attrs, func_args, "BatchedGemm", false, false, 1, 1, 2);
+
+  auto get_batch_stride = [&attrs, &func_args](const std::string& name, int arg0_idx, int arg1_idx,
+                                               int arg0_axis_idx, int arg1_axis_idx) {
+    if (attrs.at(name) == kAnyDim) {
+      return func_args[arg0_idx] + "->shape[" + std::to_string(arg0_axis_idx) + "] * " +
+             func_args[arg1_idx] + "->shape[" + std::to_string(arg1_axis_idx) + "]";
+    } else {
+      return attrs.at(name);
+    }
+  };
+
+  CutlassPrint(gemm_decl, " {static_cast<ElementInputA*>(ptr_a), " + attrs.at("lda") + "},\n");
+  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_A", 0, 0, 1, 2) + ",\n");
+  CutlassPrint(gemm_decl, " {static_cast<ElementInputB*>(ptr_b), " + attrs.at("ldb") + "},\n");
+  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_B", 1, 1, 1, 2) + ",\n");
+  CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
+  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_C", 0, 1, 1, 1) + ",\n");
+  CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
+  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_C", 0, 1, 1, 1) + ",\n");
+  CutlassPrint(gemm_decl, " {alpha, beta},\n");
+
+  if (attrs.at("batch") == kAnyDim) {
+    CutlassPrint(gemm_decl, func_args[0] + "->shape[0]" + "};\n");
+  } else {
+    CutlassPrint(gemm_decl, attrs.at("batch") + "};\n");
+  }
+
+  AppendGemmExecute(gemm_decl, "BatchedGemm");
   return gemm_decl.str();
 }
 
@@ -279,6 +342,11 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
           {"nn.dense", add_or_bias_add, "multiply", "erf", "multiply", "add", "multiply"});
       return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
                           DenseArgs(std::ref(attrs_)));
+    } else if (pattern_name == "cutlass.batch_matmul") {
+      const auto* batch_matmul_call =
+          GetRootCall(callee->body.as<CallNode>(), 0, {"nn.batch_matmul"});
+      return GenerateBody(batch_matmul_call, "cutlass_batch_matmul", GetArgumentNames(caller),
+                          BatchMatmulArgs(std::ref(attrs_)));
     }
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
     return {};
@@ -322,6 +390,8 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     if (func_name == "cutlass_dense" || func_name == "cutlass_dense_bias" ||
         func_name == "cutlass_dense_bias_relu" || func_name == "cutlass_dense_bias_gelu") {
       ret.decl = DenseOp(ext_func_id_, attribute_args, func_args);
+    } else if (func_name == "cutlass_batch_matmul") {
+      ret.decl = BatchMatmulOp(ext_func_id_, attribute_args, func_args);
     }
     return ret;
   }
@@ -374,6 +444,7 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cutlass/util/host_tensor.h>\n";
     code_stream_ << "#include <cutlass/util/reference/host/tensor_fill.h>\n";
     code_stream_ << "#include <cutlass/gemm/device/gemm.h>\n";
+    code_stream_ << "#include <cutlass/gemm/device/gemm_batched.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
 
