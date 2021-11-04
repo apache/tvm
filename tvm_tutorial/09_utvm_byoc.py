@@ -29,8 +29,8 @@ class TorchModel(torch.nn.Module):
     def forward(self, x):
         y = self.conv(x)
         y = x + y
-#        y = y.mean(axis=-1)
-#        y = self.fc(y)
+        y = y.mean(axis=-1)
+        y = self.fc(y)
         return y
 
 pt_inp = torch.rand([1, 16, 32])
@@ -69,6 +69,9 @@ def add_attr(expr):
         shape = tuple(ty.shape)
         print(shape)
         shapes.add(shape)
+
+        if str(ty.dtype) not in ["float32", "int32"]
+            return False
 
     return len(shapes) == 1
 
