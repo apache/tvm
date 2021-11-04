@@ -21,7 +21,7 @@ Python Target Parametrization
 Summary
 -------
 
-For any supported runtime, TVM should should produce numerically
+For any supported runtime, TVM should produce numerically
 correct results.  Therefore, when writing unit tests that validate
 the numeric output, these unit tests should be run on all supported
 runtimes.  Since this is a very common use case, TVM has helper
@@ -29,7 +29,7 @@ functions to parametrize unit tests such that they will run on all
 targets that are enabled and have a compatible device.
 
 A single python function in the test suite can expand to several
-parametrized unit tests, each of which tests a single target device.
+parameterized unit tests, each of which tests a single target device.
 In order for a test to be run, all of the following must be true.
 
 - The test exists in a file or directory that has been passed to
@@ -129,11 +129,11 @@ marks are as follows.
 - ``@pytest.mark.gpu`` - Tags a function as using GPU
   capabilities. This has no effect on its own, but can be paired with
   command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
-  which tests pytest will executed.  This should not be called on its
+  which tests pytest will execute.  This should not be called on its
   own, but is part of other marks used in unit-tests.
 
 - ``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  This
-  should be used to mark a unit tests that may use the GPU, if one is
+  should be used to mark unit tests that may use the GPU, if one is
   present.  This decorator is only needed for tests that explicitly
   loop over ``tvm.testing.enabled_targets()``, but that is no longer
   the preferred style of writing unit tests (see below).  When using
@@ -161,7 +161,7 @@ There also exists a ``tvm.testing.enabled_targets()`` that returns
 all targets that are enabled and runnable on the current machine,
 based on the environment variable ``TVM_TEST_TARGETS``, the build
 configuration, and the physical hardware present.  Most current tests
-explictly loop over the targets returned from ``enabled_targets()``,
+explicitly loop over the targets returned from ``enabled_targets()``,
 but it should not be used for new tests.  The pytest output for this
 style silently skips runtimes that are disabled in ``config.cmake``,
 or do not have a device on which they can run.  In addition, the test
