@@ -115,7 +115,8 @@ class RollingBufferInjector : public StmtExprMutator {
         rolling_buffers.insert(buffer);
 
         auto it{buffer_to_buffer_realize.find(buffer)};
-        ICHECK(it != buffer_to_buffer_realize.end()) << "Rolling buffer injection failed: no BufferRealize found";
+        ICHECK(it != buffer_to_buffer_realize.end())
+            << "Rolling buffer injection failed: no BufferRealize found";
         BufferRealize buffer_realize = it->second;
 
         // If a BufferRealize has been identified as needing to be made into
