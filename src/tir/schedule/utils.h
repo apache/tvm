@@ -53,8 +53,8 @@ namespace tir {
  * \brief A helper macro to convert an sref to the statement it points to,
  * then check if the downcasting succeeded.
  * \param Result The result variable, used for checking
- * \param SRef The SRef to be casted
- * \param Type The type to be casted to, can be Block or For
+ * \param SRef The SRef to be cast
+ * \param Type The type to be cast to, can be Block or For
  */
 #define TVM_SREF_AS_OR_ERR(Result, SRef, Type) \
   SRef->StmtAs<Type>();                        \
@@ -64,7 +64,7 @@ namespace tir {
  * \brief A helper macro to convert an sref to the block it points to,
  * throwing an internal error if downcasting fails
  * \param Result The result variable, used for checking
- * \param SRef The SRef to be casted
+ * \param SRef The SRef to be cast
  */
 #define TVM_SREF_TO_BLOCK(Result, SRef)                   \
   TVM_SREF_AS_OR_ERR(Result, SRef, ::tvm::tir::BlockNode) \
@@ -75,7 +75,7 @@ namespace tir {
  * \brief A helper macro to convert an sref to the for-loop it points to,
  * throwing an internal error if downcasting fails
  * \param Result The name of the result variable, used for checking
- * \param SRef The SRef to be casted
+ * \param SRef The SRef to be cast
  */
 #define TVM_SREF_TO_FOR(Result, SRef)                   \
   TVM_SREF_AS_OR_ERR(Result, SRef, ::tvm::tir::ForNode) \
@@ -86,8 +86,8 @@ namespace tir {
  * \brief Downcast a TVM ObjectRef to its corresponding container using `ObjectRef::as<Type>`,
  * then check if the downcasting succeeded.
  * \param Result The result variable, used for checking
- * \param From The ObjectRef to be downcasted
- * \param Type The type to be downcasted to
+ * \param From The ObjectRef to be downcast
+ * \param Type The type to be downcast to
  */
 #define TVM_TYPE_AS_OR_ERR(Result, From, Type) \
   From.as<Type>();                             \
@@ -97,8 +97,8 @@ namespace tir {
  * \brief Downcast a TVM ObjectRef to its corresponding container using `ObjectRef::as<Type>`,
  * throwing an internal error if downcast fails.
  * \param Result The result variable, used for checking
- * \param From The ObjectRef to be downcasted
- * \param Type The type to be downcasted to
+ * \param From The ObjectRef to be downcast
+ * \param Type The type to be downcast to
  */
 #define TVM_TYPE_AS(Result, From, Type)                                           \
   TVM_TYPE_AS_OR_ERR(Result, From, Type)                                          \
@@ -129,8 +129,8 @@ inline Array<For> LoopSRefs2Loops(const Array<StmtSRef>& loop_srefs) {
  * \param thread_scope The thread scope to be relaxed
  * \return A boolean indicating the result
  */
-inline bool CanRelaxStorageUndereThread(const runtime::StorageScope& storage_scope,
-                                        const runtime::ThreadScope& thread_scope) {
+inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scope,
+                                       const runtime::ThreadScope& thread_scope) {
   if (storage_scope.rank == runtime::StorageRank::kWarp) {
     // for warp memory, we only relax threadIdx.x
     return thread_scope.rank == 1 && thread_scope.dim_index == 0;
@@ -208,6 +208,28 @@ inline Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom) {
     result.emplace(std::move(var), arith::IntSet::FromRange(std::move(range)));
   }
   return {result.begin(), result.end()};
+}
+
+/**************** Loop extents ****************/
+
+/*!
+ * \brief Get the extents of a loop
+ * \param loop The loop to be queried
+ * \return The extents of the loop
+ */
+inline int64_t GetLoopIntExtent(const ForNode* loop) {
+  const auto* int_extent = loop->extent.as<IntImmNode>();
+  return int_extent ? int_extent->value : -1;
+}
+
+/*!
+ * \brief Get the extents of a loop
+ * \param loop_sref The loop to be queried
+ * \return The extents of the loop
+ */
+inline int64_t GetLoopIntExtent(const StmtSRef& loop_sref) {
+  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  return GetLoopIntExtent(loop);
 }
 
 }  // namespace tir

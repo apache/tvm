@@ -22,6 +22,8 @@
 #include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
 
+#include <vector>
+
 namespace tvm {
 namespace tir {
 
@@ -32,8 +34,8 @@ namespace tir {
  * \param max_exclusive The maximum value of the range, exclusive.
  * \return The random integer sampled in the given range.
  */
-TVM_DLL int SampleInt(support::LinearCongruentialEngine::TRandState* rand_state, int min_inclusive,
-                      int max_exclusive);
+TVM_DLL int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_state,
+                          int32_t min_inclusive, int32_t max_exclusive);
 /*!
  * \brief Sample once category from candidates according to the probability weights.
  * \param self The schedule to update
@@ -46,6 +48,40 @@ TVM_DLL int SampleInt(support::LinearCongruentialEngine::TRandState* rand_state,
 TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
                                   const Array<Integer>& candidates, const Array<FloatImm>& probs,
                                   Optional<Integer>* decision);
+/*!
+ * \brief Sample the factors to perfect tile a specific loop
+ * \param rand_state The random state
+ * \param extent The loop extent to be tiled
+ * \param n_split The number of tiles to be sampled
+ * \return A list of length `n`, the random perfect tile sizes sampled
+ */
+TVM_DLL std::vector<int64_t> SamplePerfectTile(
+    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    int32_t extent, int32_t n_splits);
+/*!
+ * \brief Sample the factors to perfect tile a specific loop
+ * \param rand_state The random state
+ * \param extent The loop extent to be tiled
+ * \param n_split The number of tiles to be sampled
+ * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
+ * \return A list of length `n`, the random perfect tile sizes sampled
+ */
+TVM_DLL std::vector<int64_t> SamplePerfectTile(
+    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    int32_t extent, int32_t n_split, int32_t max_innermost_factor);
+/*!
+ * \brief Sample the factors to perfect tile a specific loop
+ * \param rand_state The random state
+ * \param loop_sref The loop to be tiled
+ * \param n_split The number of tiles to be sampled
+ * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
+ * \param decision The sampling decision
+ * \return A list of length `n`, the random perfect tile sizes sampled
+ */
+TVM_DLL std::vector<int64_t> SamplePerfectTile(
+    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    const tir::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
+    Optional<Array<Integer>>* decision);
 
 /******** Schedule: Get blocks & loops ********/
 /*!
