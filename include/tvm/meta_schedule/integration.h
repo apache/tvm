@@ -80,12 +80,12 @@ class MetaScheduleContextNode : public runtime::Object {
    * \param task_name The name of the task
    * \param mod The high-level IR
    * \param dispatched A list of low-level IRs that the high-level IR could potentially dispatch to.
-   * NullOpt means the dispatch needs to be done in the context.
+   *                   NullOpt means the dispatch needs to be done in the context.
    * \return There are different types of the output
-   * 1) NullOpt if there is no feedback hint
-   * 2) tir::PrimFunc if `mod` should be lowered to a PrimFunc
-   * 3) relay::Function if `mod` should be dispatched to BYOC workflow
-   * 4) IRModule for unified dispatch
+   *         1) NullOpt if there is no feedback hint
+   *         2) tir::PrimFunc if `mod` should be lowered to a PrimFunc
+   *         3) relay::Function if `mod` should be dispatched to BYOC workflow
+   *         4) IRModule for unified dispatch
    */
   virtual Optional<ObjectRef> Query(runtime::String task_name, IRModule mod,
                                     Optional<Array<IRModule>> dispatched) = 0;
@@ -118,10 +118,10 @@ class MetaScheduleContext : public runtime::ObjectRef {
    * \param mod The high-level IR
    * \param dispatched A list of low-level IRs that the high-level IR could potentially dispatch to
    * \return There are different types of the output
-   * 1) NullOpt if there is no feedback hint
-   * 2) tir::PrimFunc if `mod` should be lowered to a PrimFunc
-   * 3) relay::Function if `mod` should be dispatched to BYOC workflow
-   * 4) IRModule for unified dispatch
+   *         1) NullOpt if there is no feedback hint
+   *         2) tir::PrimFunc if `mod` should be lowered to a PrimFunc
+   *         3) relay::Function if `mod` should be dispatched to BYOC workflow
+   *         4) IRModule for unified dispatch
    */
   static Optional<ObjectRef> QueryInsideWithScope(runtime::String task_name, IRModule mod,
                                                   Optional<Array<IRModule>> dispatched);
