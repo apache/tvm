@@ -1368,6 +1368,7 @@ _convert_map = {
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
     "nearest_interp_v2": convert_interpolate,
+    "not_equal": convert_elementwise_op,
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
