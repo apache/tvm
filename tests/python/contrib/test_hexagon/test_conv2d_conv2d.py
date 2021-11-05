@@ -260,6 +260,7 @@ class BaseConv2dConv2d:
 
 class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
     @tvm.testing.parametrize_targets("llvm")
+    @pytest.mark.skip("Skip due to being flaky on i386.")
     def test_conv2d(
         self,
         batch,
