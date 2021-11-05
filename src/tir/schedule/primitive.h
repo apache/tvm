@@ -67,11 +67,9 @@ Array<StmtSRef> GetLoops(const StmtSRef& block_sref);
  * \brief Get the leaf blocks of a specific block/loop
  * \param self The schedule state
  * \param parent_sref The query block/loop
- * \param inclusive Whether to include parent_sref
  * \return A list of leaf blocks inside a specific block/loop
  */
-Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref,
-                               bool inclusive = false);
+Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref);
 /******** Schedule: Transform loops ********/
 /*!
  * Split a loop into a list of consecutive loops. It requires:

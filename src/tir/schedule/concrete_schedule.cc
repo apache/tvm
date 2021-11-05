@@ -285,7 +285,7 @@ Array<LoopRV> ConcreteScheduleNode::GetLoops(const BlockRV& block_rv) {
 Array<BlockRV> ConcreteScheduleNode::GetChildBlocks(const BlockRV& block_rv) {
   Array<BlockRV> result;
   TVM_TIR_SCHEDULE_BEGIN();
-  result = CreateRV<BlockRV>(tir::GetChildBlocks(state_, this->GetSRef(block_rv), false));
+  result = CreateRV<BlockRV>(tir::GetChildBlocks(state_, this->GetSRef(block_rv)));
   TVM_TIR_SCHEDULE_END("get-child-blocks", this->error_render_level_);
   this->state_->DebugVerify();
   return result;
@@ -294,7 +294,7 @@ Array<BlockRV> ConcreteScheduleNode::GetChildBlocks(const BlockRV& block_rv) {
 Array<BlockRV> ConcreteScheduleNode::GetChildBlocks(const LoopRV& loop_rv) {
   Array<BlockRV> result;
   TVM_TIR_SCHEDULE_BEGIN();
-  result = CreateRV<BlockRV>(tir::GetChildBlocks(state_, this->GetSRef(loop_rv), false));
+  result = CreateRV<BlockRV>(tir::GetChildBlocks(state_, this->GetSRef(loop_rv)));
   TVM_TIR_SCHEDULE_END("get-child-blocks", this->error_render_level_);
   this->state_->DebugVerify();
   return result;

@@ -55,8 +55,7 @@ Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
   return {result.rbegin(), result.rend()};
 }
 
-Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref,
-                               bool inclusive) {
+Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref) {
   struct Collector : public StmtVisitor {
    private:
     void VisitStmt_(const BlockNode* block) final { result.push_back(self->stmt2ref.at(block)); }
@@ -68,9 +67,7 @@ Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent
     Array<StmtSRef> result;
   };
   Collector collector(self);
-  if (inclusive) {
-    collector(GetRef<Stmt>(parent_sref->stmt));
-  } else if (parent_sref->stmt->IsInstance<ForNode>()) {
+  if (parent_sref->stmt->IsInstance<ForNode>()) {
     const auto* loop = static_cast<const ForNode*>(parent_sref->stmt);
     collector(loop->body);
   } else if (parent_sref->stmt->IsInstance<BlockNode>()) {
