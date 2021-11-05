@@ -133,7 +133,7 @@ class StridedSliceRewriter(DFPatternCallback):
     def callback(
         self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
     ) -> tvm.relay.Expr:
-        input = post.args[0]
+        slice_input = post.args[0]
         attrs = post.op.body.attrs
         begin = attrs.begin
         end = attrs.end
@@ -141,7 +141,7 @@ class StridedSliceRewriter(DFPatternCallback):
         axes = attrs.axes
         slice_mode = attrs.slice_mode
         strided_slice = relay.op.strided_slice(
-            input, begin, end, strides=strides, axes=axes, slice_mode=slice_mode
+            slice_input, begin, end, strides=strides, axes=axes, slice_mode=slice_mode
         )
         return strided_slice
 
@@ -195,7 +195,8 @@ class LegalizeReshape:
 
 
 class NoOpRewriter(DFPatternCallback):
-    """This pass adds and idenity operator to reshape and strided slice to avoid a no op without a consumer"""
+    """This pass adds and idenity operator to reshape and strided slice to avoid a no op
+    without a consumer"""
 
     def __init__(self):
         super().__init__(require_type=True, rewrite_once=True)

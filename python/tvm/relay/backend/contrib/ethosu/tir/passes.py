@@ -27,7 +27,6 @@ from .binary_elementwise import get_binary_elementwise_params
 from .identity import get_identity_params
 from .transform import get_copy_params
 from .utils import get_weights_pointer, get_scale_bias_pointer
-from collections import namedtuple
 
 
 def RemoveZeroStores():
