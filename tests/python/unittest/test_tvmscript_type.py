@@ -35,7 +35,8 @@ def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with T.block("B"):
-                    vi, vj = T.axis.remap("SS", [i0, ax1])
+                    vi = T.axis.S(128, i0)
+                    vj = T.axis.S(128, ax1)
                     T.reads([A[vi, vj]])
                     T.writes([B[vi, vj]])
                     T.block_attr({"buffer_dim_align": [[0, 0, 128, 127]]})
