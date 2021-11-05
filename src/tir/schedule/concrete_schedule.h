@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "./utils.h"
 
@@ -80,16 +81,10 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  /*!
-   * \brief Sample an integer given the probability distribution
-   * \param candidates The candidates
-   * \param probs The probability distribution of the candidates
-   * \param decision The sampling decision, if it's given we would validate the decision, otherwise
-   *  we would sample a decision from the distribution and set the decision accordingly.
-   * \return The random variable sampled from candidates
-   */
   ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
                            Optional<Integer> decision = NullOpt) override;
+  Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
+                                  Optional<Array<Integer>> decision = NullOpt) override;
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
@@ -154,6 +149,12 @@ class ConcreteScheduleNode : public ScheduleNode {
    * \return The new random variable created
    */
   inline ExprRV CreateRV(int64_t value);
+  /*!
+   * \brief Add a list of integers as random variables into the symbol table
+   * \param value The list of integers to be added to the symbol table
+   * \return The new random variables created
+   */
+  inline Array<ExprRV> CreateRV(const std::vector<int64_t>& value);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ObjectRef& rv);
 };
@@ -272,6 +273,15 @@ inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   Var rv("v" + std::to_string(this->symbol_table_.size() + 1), DataType::Int(32));
   this->symbol_table_.Set(rv, Integer(static_cast<int32_t>(value)));
   return std::move(rv);
+}
+
+inline Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value) {
+  Array<ExprRV> results;
+  results.reserve(value.size());
+  for (int64_t v : value) {
+    results.push_back(CreateRV(v));
+  }
+  return results;
 }
 
 inline void ConcreteScheduleNode::RemoveFromSymbolTable(const ObjectRef& obj) {

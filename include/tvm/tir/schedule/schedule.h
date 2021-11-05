@@ -194,6 +194,16 @@ class ScheduleNode : public runtime::Object {
    */
   virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
                                    Optional<Integer> decision = NullOpt) = 0;
+  /*!
+   * \brief Sample the factors to perfect tile a specific loop
+   * \param loop_rv The loop to be tiled
+   * \param n The number of tiles to be sampled
+   * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
+   * \param decision The sampling decision
+   * \return A list of length `n`, the random perfect tile sizes sampled
+   */
+  virtual Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
+                                          Optional<Array<Integer>> decision = NullOpt) = 0;
 
   /******** Schedule: Get blocks & loops ********/
   /*!
