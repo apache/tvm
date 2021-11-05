@@ -325,6 +325,39 @@ class Schedule(Object):
             decision,
         )
 
+    def sample_perfect_tile(
+        self,
+        loop: LoopRV,
+        n: int,
+        max_innermost_factor: int = 16,
+        decision: Optional[List[int]] = None,
+    ) -> List[ExprRV]:
+        """Sample the factors to perfect tile a specific loop
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be tiled
+        n : int
+            The number of tiles to be sampled
+        max_innermost_factor : int
+            The maximum tile size allowed to be sampled in the innermost loop
+        decision: Optional[List[int]]
+            The sampling decision, if any
+
+        Returns
+        -------
+        result : List[ExprRV]
+            A list of length `n`, the random perfect tile sizes sampled
+        """
+        return _ffi_api.ScheduleSamplePerfectTile(  # type: ignore  # pylint: disable=no-member
+            self,
+            loop,
+            n,
+            max_innermost_factor,
+            decision,
+        )
+
     ########## Schedule: Get blocks & loops ##########
     def get_block(
         self,
