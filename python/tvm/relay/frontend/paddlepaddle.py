@@ -1333,6 +1333,7 @@ _convert_map = {
     "elementwise_floordiv": convert_elementwise_op,
     "elementwise_max": convert_elementwise_op,
     "elementwise_min": convert_elementwise_op,
+    "elementwise_mod": convert_elementwise_op,
     "elementwise_mul": convert_elementwise_op,
     "elementwise_pow": convert_elementwise_op,
     "elementwise_prod": convert_elementwise_op,
