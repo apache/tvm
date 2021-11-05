@@ -47,12 +47,6 @@ def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
                     C[vi_1, vj_1] = B[vi_1, vj_1] + T.float32(1)
 
 
-"""
-This prim_func tests the type of
-T.env_thread, T.launch_thread, T.thread_binding
-"""
-
-
 @T.prim_func
 def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     """
