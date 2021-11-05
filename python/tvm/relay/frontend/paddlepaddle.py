@@ -386,7 +386,7 @@ def convert_expand(g, op, block):
         sizes = op.attr("shape")
 
     if isinstance(sizes, _expr.Expr):
-        sizes, infered = try_infer_value(sizes, parameters=g.get_params())
+        sizes = try_infer_value(sizes, parameters=g.get_params())[0]
 
     if isinstance(sizes, np.ndarray):
         sizes = sizes.tolist()
@@ -453,7 +453,7 @@ def convert_fill_constant(g, op, block):
         shape = g.get_node(op.input("ShapeTensor")[0])
 
     if isinstance(shape, _expr.Expr):
-        shape, infered = try_infer_value(shape, parameters=g.get_params())
+        shape = try_infer_value(shape, parameters=g.get_params())[0]
 
     if isinstance(shape, np.ndarray):
         shape = shape.tolist()
