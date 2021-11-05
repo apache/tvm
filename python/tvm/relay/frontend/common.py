@@ -578,14 +578,15 @@ def infer_value_simulated(input_val, params):
     return output_value
 
 
-def try_infer_value(val, on_success=None, on_failure=None, parameters={}):
+def try_infer_value(val, on_success=None, on_failure=None, parameters=None):
     """Try running infer_value on the input val, and if successful, return the inferred value or
     pass it to on_success callback if provided. Otherwise, run on_failure callback if it is
     provided, or return the input val as output. In each case, the second return value
     indicates whether infer_value has succeeded or not.
     """
     try:
-        ret = infer_value(val, parameters).numpy()
+        params = parameters if parameters is not None else {}
+        ret = infer_value(val, params).numpy()
         if on_success:
             return on_success(ret), True
         return ret, True
