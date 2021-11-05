@@ -241,8 +241,7 @@ def check_override(
         if getattr(derived_class, method) is getattr(base_class, method):
             if required:
                 raise NotImplementedError(f"{derived_class}'s {method} method is not implemented!")
-            else:
-                return None
+            return None
         return func
 
     return inner
