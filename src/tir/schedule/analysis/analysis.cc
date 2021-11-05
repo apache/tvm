@@ -505,8 +505,8 @@ Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         if (loop->kind == ForKind::kThreadBinding) {
           const String& thread_tag = loop->thread_binding.value()->thread_tag;
-          if (CanRelaxStorageUndereThread(extra_relax_scope,
-                                          runtime::ThreadScope::Create(thread_tag))) {
+          if (CanRelaxStorageUnderThread(extra_relax_scope,
+                                         runtime::ThreadScope::Create(thread_tag))) {
             result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
           }
         }

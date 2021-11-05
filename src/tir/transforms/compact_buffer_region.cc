@@ -232,7 +232,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     const String& thread_tag = loop->thread_binding.value()->thread_tag;
     // When there is warp memory
     // threadIdx.x must be set to be warp index.
-    return CanRelaxStorageUndereThread(scope, runtime::ThreadScope::Create(thread_tag));
+    return CanRelaxStorageUnderThread(scope, runtime::ThreadScope::Create(thread_tag));
   }
 
   /**************** Class members ****************/

@@ -232,6 +232,16 @@ ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
   throw;
 }
 
+Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int n,
+                                                      int max_innermost_factor,
+                                                      Optional<Array<Integer>> decision) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV(tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
+                                         max_innermost_factor, &decision));
+  TVM_TIR_SCHEDULE_END("sample-perfect-tile", this->error_render_level_);
+  throw;
+}
+
 /******** Schedule: Get blocks & loops ********/
 
 BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
