@@ -187,20 +187,30 @@ class PySearchStrategyNode : public SearchStrategyNode {
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
+    ICHECK(f_initialize_with_tune_context != nullptr)
+        << "PySearchStrategy's InitializeWithTuneContext method not implemented!";
     this->f_initialize_with_tune_context(context);
   }
 
   void PreTuning(const Array<tir::Schedule>& design_spaces) final {
+    ICHECK(f_pre_tuning != nullptr) << "PySearchStrategy's PreTuning method not implemented!";
     this->f_pre_tuning(design_spaces);
   }
 
-  void PostTuning() final { this->f_post_tuning(); }
+  void PostTuning() final {
+    ICHECK(f_post_tuning != nullptr) << "PySearchStrategy's PostTuning method not implemented!";
+    this->f_post_tuning();
+  }
 
   Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final {
+    ICHECK(f_generate_measure_candidates != nullptr)
+        << "PySearchStrategy's GenerateMeasureCandidates method not implemented!";
     return this->f_generate_measure_candidates();
   }
 
   void NotifyRunnerResults(const Array<RunnerResult>& results) final {
+    ICHECK(f_notify_runner_results != nullptr)
+        << "PySearchStrategy's NotifyRunnerResults method not implemented!";
     this->f_notify_runner_results(results);
   }
 

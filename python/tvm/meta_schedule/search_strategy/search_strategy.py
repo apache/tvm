@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Search Strategy"""
-
+"""
+Meta Schedule search strategy that generates the measure
+candidates for measurement.
+"""
 from typing import List, Optional, TYPE_CHECKING
 
 from tvm._ffi import register_object
@@ -25,6 +27,7 @@ from tvm.tir.schedule import Schedule
 from .. import _ffi_api
 from ..arg_info import ArgInfo
 from ..runner import RunnerResult
+from ..utils import check_override
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -126,18 +129,23 @@ class PySearchStrategy(SearchStrategy):
     def __init__(self):
         """Constructor."""
 
+        @check_override(self.__class__, SearchStrategy)
         def f_initialize_with_tune_context(context: "TuneContext") -> None:
             self.initialize_with_tune_context(context)
 
+        @check_override(self.__class__, SearchStrategy)
         def f_pre_tuning(design_spaces: List[Schedule]) -> None:
             self.pre_tuning(design_spaces)
 
+        @check_override(self.__class__, SearchStrategy)
         def f_post_tuning() -> None:
             self.post_tuning()
 
+        @check_override(self.__class__, SearchStrategy)
         def f_generate_measure_candidates() -> List[MeasureCandidate]:
             return self.generate_measure_candidates()
 
+        @check_override(self.__class__, SearchStrategy)
         def f_notify_runner_results(results: List["RunnerResult"]) -> None:
             self.notify_runner_results(results)
 
@@ -149,18 +157,3 @@ class PySearchStrategy(SearchStrategy):
             f_generate_measure_candidates,
             f_notify_runner_results,
         )
-
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
-        raise NotImplementedError
-
-    def pre_tuning(self, design_spaces: List[Schedule]) -> None:
-        raise NotImplementedError
-
-    def post_tuning(self) -> None:
-        raise NotImplementedError
-
-    def generate_measure_candidates(self) -> List[MeasureCandidate]:
-        raise NotImplementedError
-
-    def notify_runner_results(self, results: List["RunnerResult"]) -> None:
-        raise NotImplementedError
