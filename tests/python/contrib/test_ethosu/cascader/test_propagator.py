@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm.contrib.ethosu.cascader import StripeConfig, Propagator
-
 import pytest
+
+pytest.importorskip("ethosu.vela")
+
 from math import isclose
+from tvm.contrib.ethosu.cascader import StripeConfig, Propagator
 
 
 def test_propagator():

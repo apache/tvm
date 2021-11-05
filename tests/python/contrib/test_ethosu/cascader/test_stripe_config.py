@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm.contrib.ethosu.cascader.stripe_config import StripeConfig, count_stripes
-
 import pytest
+
+pytest.importorskip("ethosu.vela")
+
+from tvm.contrib.ethosu.cascader.stripe_config import StripeConfig, count_stripes
 
 
 def test_stripe_config():
