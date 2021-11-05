@@ -30,8 +30,10 @@ class TypeGeneric:  # pylint: disable=too-few-public-methods
         """Return an actual ir.Type Object that this Generic class wraps"""
         raise TypeError("Cannot get tvm.Type from a generic type")
 
+    # This function is added here to avoid a pylint error
+    # for T.int/float below not being callable
     def __call__(self):
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abstract-method
