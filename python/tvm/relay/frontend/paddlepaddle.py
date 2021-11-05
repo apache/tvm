@@ -38,6 +38,7 @@ from .common import (
     infer_shape,
     infer_type,
     infer_value,
+    try_infer_value,
     shape_of,
     new_var,
 )
@@ -385,10 +386,7 @@ def convert_expand(g, op, block):
         sizes = op.attr("shape")
 
     if isinstance(sizes, _expr.Expr):
-        try:
-            sizes = infer_value(sizes, g.get_params()).numpy()
-        except Exception:
-            pass
+        sizes, infered = try_infer_value(sizes, parameters=g.get_params())
 
     if isinstance(sizes, np.ndarray):
         sizes = sizes.tolist()
@@ -455,10 +453,7 @@ def convert_fill_constant(g, op, block):
         shape = g.get_node(op.input("ShapeTensor")[0])
 
     if isinstance(shape, _expr.Expr):
-        try:
-            shape = infer_value(shape, g.get_params()).numpy()
-        except Exception:
-            pass
+        shape, infered = try_infer_value(shape, parameters=g.get_params())
 
     if isinstance(shape, np.ndarray):
         shape = shape.tolist()
@@ -637,10 +632,9 @@ def convert_interpolate(g, op, block):
     if input_out_size:
         # if out_size is a tensor
         out_size = g.get_node(input_out_size[0])
-        try:
-            out_size = infer_value(out_size, g.get_params()).numpy().tolist()
-        except Exception:
-            pass
+        out_size, infered = try_infer_value(out_size, parameters=g.get_params())
+        if infered:
+            out_size = out_size.tolist()
     elif input_size_tensor:
         # if out_size is a list of tensor
         out_size = list()
@@ -650,10 +644,9 @@ def convert_interpolate(g, op, block):
                 shape = _op.reshape(shape, [-1])
             out_size.append(size)
         out_size = _op.concatenate(out_size, axis=0)
-        try:
-            out_size = infer_value(out_size, g.get_params()).numpy().tolist()
-        except Exception:
-            pass
+        out_size, infered = try_infer_value(out_size, parameters=g.get_params())
+        if infered:
+            out_size = out_size.tolist()
     elif input_scale:
         # if out_size is not defined, but scale is defined
         input_scale = g.get_node(input_scale[0])
@@ -663,10 +656,9 @@ def convert_interpolate(g, op, block):
         else:
             out_size = _op.strided_slice(input_shape, begin=[1], end=[3]) * input_scale
         out_size = out_size.astype("int32")
-        try:
-            out_size = infer_value(out_size, g.get_params()).numpy().tolist()
-        except Exception:
-            pass
+        out_size, infered = try_infer_value(out_size, parameters=g.get_params())
+        if infered:
+            out_size = out_size.tolist()
     else:
         # if out_size is a constant value
         out_size = [out_h, out_w]
@@ -1077,10 +1069,9 @@ def convert_reshape(g, op, block):
                 shape = _op.reshape(shape, [-1])
             new_shape.append(shape)
         new_shape = _op.concatenate(new_shape, axis=0)
-        try:
-            new_shape = infer_value(new_shape, g.get_params()).numpy().tolist()
-        except Exception:
-            pass
+        new_shape, infered = try_infer_value(new_shape, parameters=g.get_params())
+        if infered:
+            new_shape = new_shape.tolist()
     else:
         new_shape = op.attr("shape")
     out = _op.reshape(data, new_shape)
