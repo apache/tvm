@@ -333,6 +333,11 @@ class Call : public Expr {
 class Let;
 /*! \brief A binding of a sub-network. */
 class LetNode : public ExprNode {
+ protected:
+  // LetNode uses own deleter to indirectly call non-recursive destructor
+  Object::FDeleter saved_deleter_;
+  static void Deleter_(Object* ptr);
+
  public:
   /*! \brief The variable we bind to */
   Var var;
@@ -364,10 +369,16 @@ class LetNode : public ExprNode {
 
   static constexpr const char* _type_key = "relay.Let";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, ExprNode);
+  friend class Let;
 };
 
 class Let : public Expr {
  public:
+  /*!
+   * \brief The destructor
+   */
+  ~Let();
+
   /*!
    * \brief The constructor
    * \param var The variable that is bound to.
