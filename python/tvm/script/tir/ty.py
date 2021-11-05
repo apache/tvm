@@ -30,6 +30,9 @@ class TypeGeneric:  # pylint: disable=too-few-public-methods
         """Return an actual ir.Type Object that this Generic class wraps"""
         raise TypeError("Cannot get tvm.Type from a generic type")
 
+    def __call__(self):
+        raise NotImplementedError
+
 
 class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods
     """TVM script typing class for uniform Type objects"""
