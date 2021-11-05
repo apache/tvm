@@ -784,7 +784,7 @@ def test_forward_hard_swish():
 
 @tvm.testing.uses_gpu
 def test_forward_interpolate():
-    class Interpolate0(nn.Layer):
+    class Interpolate(nn.Layer):
         def __init__(
             self,
             mode="nearest",
@@ -795,7 +795,7 @@ def test_forward_interpolate():
             use_list=False,
             use_const=False,
         ):
-            super(Interpolate0, self).__init__()
+            super(Interpolate, self).__init__()
             self.mode = mode
             self.align_corners = align_corners
             self.align_mode = align_mode
@@ -837,19 +837,19 @@ def test_forward_interpolate():
                 )
 
     input_data = paddle.rand([1, 2, 8, 12]).astype("float32")
-    verify_model(Interpolate0(), input_data)
-    verify_model(Interpolate0(use_list=True), input_data)
-    verify_model(Interpolate0(use_scale=True), input_data)
-    verify_model(Interpolate0("bilinear", use_scale=True), input_data)
-    verify_model(Interpolate0("bilinear", use_scale=True, align_corners=True), input_data)
+    verify_model(Interpolate(), input_data)
+    verify_model(Interpolate(use_list=True), input_data)
+    verify_model(Interpolate(use_scale=True), input_data)
+    verify_model(Interpolate("bilinear", use_scale=True), input_data)
+    verify_model(Interpolate("bilinear", use_scale=True, align_corners=True), input_data)
     verify_model(
-        Interpolate0(
+        Interpolate(
             "bilinear", use_scale=True, align_corners=True, align_mode=1, data_format="NHWC"
         ),
         input_data,
     )
     verify_model(
-        Interpolate0("bicubic", use_scale=True, align_corners=True, align_mode=1), input_data
+        Interpolate("bicubic", use_scale=True, align_corners=True, align_mode=1), input_data
     )
 
 
