@@ -34,7 +34,7 @@ class TypeGeneric:  # pylint: disable=too-few-public-methods
         raise NotImplementedError
 
 
-class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods
+class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abstract-method
     """TVM script typing class for uniform Type objects"""
 
     def __init__(self, vtype):
@@ -44,7 +44,7 @@ class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods
         return tvm.ir.PrimType(self.type)
 
 
-class GenericPtrType(TypeGeneric):
+class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method
     """TVM script typing class generator for PtrType
 
     [] operator is overloaded, accepts a ConcreteType and returns a ConcreteType wrapping PtrType
@@ -54,7 +54,7 @@ class GenericPtrType(TypeGeneric):
         return ConcreteType(tvm.ir.PointerType(vtype.evaluate()))
 
 
-class GenericTupleType(TypeGeneric):
+class GenericTupleType(TypeGeneric):  # pylint: disable=abstract-method
     """TVM script typing class generator for TupleType
 
     [] operator is overloaded, accepts a list of ConcreteType and returns a ConcreteType
