@@ -210,7 +210,7 @@ def structural_hash(mod: IRModule) -> str:
 def check_override(
     derived_class: Any, base_class: Any, required: bool = True, func_name: str = None
 ) -> Callable:
-    """Check if the derived class has overrided the base class's method.
+    """Check if the derived class has overridden the base class's method.
 
     Parameters
     ----------
@@ -227,8 +227,8 @@ def check_override(
     Returns
     -------
     func : Callable
-        Raise NotImplementedError if the function is required and not overrided. If the
-        function is not overrided return None, other return the overrided function.
+        Raise NotImplementedError if the function is required and not overridden. If the
+        function is not overridden return None, other return the overridden function.
     """
 
     def inner(func: Callable):
