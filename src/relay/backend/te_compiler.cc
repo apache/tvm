@@ -222,7 +222,8 @@ class TECompilerImpl : public TECompilerNode {
       auto global_var = GlobalVar(func_name);
       global_var->checked_type_ = key->source_func->checked_type();
       ir_module->Add(global_var, key->source_func);
-      value->cached_func = CachedFunc(target, global_var, {}, {}, te::Schedule(), {}, ir_module);
+      value->cached_func = CachedFunc(target, global_var, {}, {}, te::Schedule{nullptr},
+                                      tir::PrimFunc{nullptr}, {}, ir_module);
       return value;
     }
 
@@ -243,16 +244,19 @@ class TECompilerImpl : public TECompilerNode {
         return value;
       }
     }
-
-    // NOTE: array will copy on write.
-    Array<te::Tensor> all_args = Array<te::Tensor>(cfunc->inputs);
-    for (te::Tensor arg : cfunc->outputs) {
-      all_args.push_back(arg);
+    if (cfunc->prim_func.defined()) {
+      cfunc->funcs->Update(cfunc->prim_fn_var, cfunc->prim_func.value());
+    } else {
+      // NOTE: array will copy on write.
+      Array<te::Tensor> all_args = Array<te::Tensor>(cfunc->inputs);
+      for (te::Tensor arg : cfunc->outputs) {
+        all_args.push_back(arg);
+      }
+      // lower the function
+      std::unordered_map<te::Tensor, tir::Buffer> binds;
+      auto func_name = cfunc->prim_fn_var->name_hint;
+      cfunc->funcs->Update(tvm::LowerSchedule(cfunc->schedule, all_args, func_name, binds));
     }
-
-    std::unordered_map<te::Tensor, tir::Buffer> binds;
-    auto func_name = cfunc->prim_fn_var->name_hint;
-    cfunc->funcs->Update(tvm::LowerSchedule(cfunc->schedule, all_args, func_name, binds));
     value->cached_func = cfunc;
     return value;
   }
@@ -319,6 +323,7 @@ TECompiler& TECompiler::Global() {
   return *inst;
 }
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_meta_schedule", Bool);
 
 TVM_REGISTER_GLOBAL("relay.backend._TECompilerGlobal").set_body_typed([]() {
   return TECompiler::Global();
