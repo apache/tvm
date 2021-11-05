@@ -28,6 +28,17 @@ from .buffer import Buffer
 
 class Axis(Object):
     """Base class of all the sparse axes."""
+    @property
+    def name(self):
+        return _ffi_api.GetAxisName(self)
+
+    @property
+    def length(self):
+        return _ffi_api.GetAxisLength(self)
+
+    @property
+    def idtype(self):
+        return _ffi_api.GetAxisIndexType(self)
 
 
 class DenseAxis(Axis):
@@ -153,10 +164,10 @@ class AxisTree(Object):
     Parameters
     ----------
     axis_parent_map: Dict
-        A dictionary that maps Axis to parent axis name, value is None if there is not parent axis.
+        A dictionary that maps axis name to parent axis name, value is None if there is not parent axis.
     """
 
-    axis_parent_map: Dict[Axis, Optional[str]]
+    axis_parent_map: Dict[str, Optional[str]]
 
     def __init__(self, axis_parent_map) -> None:
         keys = list(axis_parent_map.keys())
@@ -172,9 +183,6 @@ class SparseBuffer(Object):
 
     Parameters
     ----------
-    tree : AxisTree
-        The axis dependency tree of the sparse buffer
-
     axes : List[Axis]
         The axes of the sparse buffer
 
@@ -183,20 +191,15 @@ class SparseBuffer(Object):
 
     name : str
         The name of the sparse buffer
-
-    dtype : Optional[str]
-        The data type of the sparse buffer
     """
 
-    tree: AxisTree
     axes: List[Axis]
     data: Buffer
     name: str
 
-    def __init__(self, tree, axes, data, name, dtype=None):
-        dtype = "float32" if dtype is None else dtype
+    def __init__(self, axes, data, name):
         self.__init_handle_by_constructor__(
-            _ffi_api.SparseBuffer, tree, axes, data, name, dtype  # type: ignore
+            _ffi_api.SparseBuffer, axes, data, name  # type: ignore
         )
 
 
@@ -214,7 +217,7 @@ class SpIterVar(Object):
 
     kind : int
         The kind of the SpIterVar
-    
+
     is_reduction : bool
         Whether the SpIterVar is a reduction iterator
 
@@ -237,4 +240,3 @@ class SpIterVar(Object):
         self.__init_handle_by_constructor__(
             _ffi_api.SpIterVar, var, max_extent, kind, is_reduction, axis  # type: ignore
         )
-

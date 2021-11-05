@@ -23,9 +23,11 @@ import synr
 import tvm
 from tvm.ir import Span
 from tvm.ir.expr import Range
+from tvm.script.tir.sparse import MatchSparseBuffer
 from tvm.tir import Var, Buffer, PrimExpr, Stmt, MatchBufferRegion
 from tvm.runtime import Object
 from tvm.tir.expr import IterVar
+from tvm.tir.sparse import Axis, SparseBuffer
 from .tir.node import BufferSlice
 
 
@@ -74,6 +76,10 @@ class BlockInfo:
     """List[Buffer]: list of T.alloc_buffer statements in the block signature"""
     match_buffers: List[MatchBufferRegion] = []
     """List[MatchBufferRegion]: list of T.match_buffer statements in the block signature"""
+    axes: List[Axis] = []
+    """List[Axis]: list of sparse axis created in the block signature."""
+    match_sparse_buffers: List[MatchSparseBuffer]
+    """List[MatchSparseBuffer]: list of T.match_sparse_buffer statements in the block signature."""
     iter_values: List[PrimExpr] = []
     """List[PrimExpr]: list of binding values for iter vars"""
     iter_vars: List[IterVar] = []
@@ -119,7 +125,7 @@ class ContextMaintainer:
     """List[BlockInfo]: The block info for the current block scope"""
     loop_stack: Dict[Var, Range] = {}
     """Dict[Var, Range]: The dict from loop var to its domain outside the block"""
-    symbols: List[Dict[str, Union[Var, Buffer]]] = []
+    symbols: List[Dict[str, Union[Var, Buffer, SparseBuffer, Axis]]] = []
     """List[Dict[str, Union[Var, Buffer]]]: Symbol map from name to object for the current scope"""
 
     # function context
@@ -127,6 +133,8 @@ class ContextMaintainer:
     """List[Var]: The function parameters"""
     func_buffer_map: Mapping[Var, Buffer] = {}
     """Mapping[Var, Buffer]: The function buffer map"""
+    func_sparse_buffer_map: Mapping[Var, SparseBuffer] = {}
+    """Mapping[Var, SparseBuffer]: The function sparse buffer map"""
     func_dict_attr: Mapping[str, Object] = {}
     """Mapping[str, Object]: The function attrs"""
     func_var_env_dict: Mapping[Var, str] = {}
@@ -151,6 +159,7 @@ class ContextMaintainer:
         # function context
         self.func_params = []
         self.func_buffer_map = {}
+        self.func_sparse_buffer_map = {}
         self.func_dict_attr = {}
         self.func_var_env_dict = {}
         # parser and analyzer
@@ -208,9 +217,9 @@ class ContextMaintainer:
         # Pop block_info
         self.block_info_stack.pop()
 
-    def update_symbol(self, name: str, symbol: Union[Buffer, Var], node: synr.ast.Node):
+    def update_symbol(self, name: str, symbol: Union[Buffer, Var, SparseBuffer, Axis], node: synr.ast.Node):
         """Append a symbol into current scope"""
-        if isinstance(symbol, Buffer):
+        if isinstance(symbol, (Buffer, Var, SparseBuffer, Axis)):
             if name in self.symbols[0]:
                 self.report_error("Duplicate Buffer name: " + symbol.name, node.span)
             self.symbols[0][name] = symbol
@@ -225,7 +234,7 @@ class ContextMaintainer:
                 return
         raise RuntimeError("Internal error of tvm script parser: no symbol named " + name)
 
-    def lookup_symbol(self, name: str) -> Optional[Union[Buffer, Var]]:
+    def lookup_symbol(self, name: str) -> Optional[Union[Buffer, Var, SparseBuffer, Axis]]:
         """Look up symbol by name"""
         for symbols in reversed(self.symbols):
             if name in symbols:

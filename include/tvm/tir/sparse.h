@@ -44,6 +44,10 @@ class AxisNode : public Object {
    * the current axis. */
   PrimExpr length;
 
+  String GetName() const { return name; }
+  PrimExpr GetLength() const { return length; }
+  DataType GetIndexType() const { return length->dtype; }
+
   static constexpr const char* _type_key = "tir.sparse.Axis";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -139,8 +143,10 @@ class DenseVariableAxisNode : public DenseAxisNode {
     v->Visit("indptr", &indptr);
   }
 
-  bool SEqualReduce(const DenseVariableAxisNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(length, other->length) && equal(indptr, other->indptr);
+  bool SEqualReduce(const DenseVariableAxisNode* other,
+                    SEqualReducer equal) const {
+    return equal(name, other->name) && equal(length, other->length) &&
+           equal(indptr, other->indptr);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -159,9 +165,11 @@ class DenseVariableAxisNode : public DenseAxisNode {
  */
 class DenseVariableAxis : public DenseAxis {
  public:
-  TVM_DLL explicit DenseVariableAxis(String name, PrimExpr length, Buffer indptr);
+  TVM_DLL explicit DenseVariableAxis(String name, PrimExpr length,
+                                     Buffer indptr);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DenseVariableAxis, DenseAxis, DenseVariableAxisNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(DenseVariableAxis, DenseAxis,
+                                DenseVariableAxisNode);
 };
 
 /*!
@@ -198,7 +206,8 @@ class SparseFixedAxisNode : public SparseAxisNode {
     v->Visit("num_cols", &num_cols);
   }
 
-  bool SEqualReduce(const SparseFixedAxisNode* other, SEqualReducer equal) const {
+  bool SEqualReduce(const SparseFixedAxisNode* other,
+                    SEqualReducer equal) const {
     return equal(name, other->name) && equal(length, other->length) &&
            equal(indices, other->indices) && equal(num_cols, other->num_cols);
   }
@@ -220,9 +229,11 @@ class SparseFixedAxisNode : public SparseAxisNode {
  */
 class SparseFixedAxis : public SparseAxis {
  public:
-  TVM_DLL explicit SparseFixedAxis(String name, PrimExpr length, Buffer indices, PrimExpr num_cols);
+  TVM_DLL explicit SparseFixedAxis(String name, PrimExpr length, Buffer indices,
+                                   PrimExpr num_cols);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SparseFixedAxis, SparseAxis, SparseFixedAxisNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(SparseFixedAxis, SparseAxis,
+                                SparseFixedAxisNode);
 };
 
 /*!
@@ -240,7 +251,8 @@ class SparseVariableAxisNode : public SparseAxisNode {
     v->Visit("indices", &indices);
   }
 
-  bool SEqualReduce(const SparseVariableAxisNode* other, SEqualReducer equal) const {
+  bool SEqualReduce(const SparseVariableAxisNode* other,
+                    SEqualReducer equal) const {
     return equal(name, other->name) && equal(length, other->length) &&
            equal(indptr, other->indptr) && equal(indices, other->indices);
   }
@@ -262,9 +274,11 @@ class SparseVariableAxisNode : public SparseAxisNode {
  */
 class SparseVariableAxis : public SparseAxis {
  public:
-  TVM_DLL explicit SparseVariableAxis(String name, PrimExpr length, Buffer indptr, Buffer indices);
+  TVM_DLL explicit SparseVariableAxis(String name, PrimExpr length,
+                                      Buffer indptr, Buffer indices);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SparseVariableAxis, SparseAxis, SparseVariableAxisNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(SparseVariableAxis, SparseAxis,
+                                SparseVariableAxisNode);
 };
 
 /*!
@@ -272,14 +286,13 @@ class SparseVariableAxis : public SparseAxis {
  */
 class AxisTreeNode : public Object {
  public:
-  // mapping from names to axes.
-  std::unordered_map<String, Axis> axis_map;
   // unordered map that stores the parent relationship between axes.
-  std::unordered_map<Axis, Axis, ObjectPtrHash, ObjectPtrEqual> parent;
+  std::unordered_map<String, Optional<String>, ObjectPtrHash, ObjectPtrEqual>
+      parent;
   // unordered map that stores the children relationship between axes.
-  std::unordered_map<Axis, Array<Axis>, ObjectPtrHash, ObjectPtrEqual> children;
-  // The root axis.
-  Axis root;
+  std::unordered_map<Optional<String>, Array<String>, ObjectPtrHash,
+                     ObjectPtrEqual>
+      children;
 
   void VisitAttrs(AttrVisitor* v) {}
 
@@ -293,7 +306,9 @@ class AxisTreeNode : public Object {
  */
 class AxisTree : public ObjectRef {
  public:
-  TVM_DLL AxisTree(Array<Axis> axes, Array<Optional<String>> axis_parent_names);
+  TVM_DLL AxisTree(Array<String> axis_names,
+                   Array<Optional<String>> axis_parent_names);
+
   TVM_DEFINE_OBJECT_REF_METHODS(AxisTree, ObjectRef, AxisTreeNode);
 };
 
@@ -302,38 +317,30 @@ class AxisTree : public ObjectRef {
  */
 class SparseBufferNode : public Object {
  public:
-  /* Root of Axis Dependency Tree. */
-  AxisTree tree;
   /* Axes */
   Array<Axis> axes;
   /* Buffer corresponding to flattened value */
   Buffer data;
   /* Buffer Name */
   String name;
-  /* Data type */
-  runtime::DataType dtype;
 
   inline int ndim() const { return static_cast<int>(axes.size()); }
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &tree);
     v->Visit("length", &axes);
     v->Visit("num_cols", &data);
     v->Visit("name", &name);
-    v->Visit("dtype", &dtype);
   }
 
   bool SEqualReduce(const SparseBufferNode* other, SEqualReducer equal) const {
-    return equal(tree, other->tree) && equal(axes, other->axes) && equal(data, other->data) &&
-           equal(name, other->name) && equal(dtype, other->dtype);
+    return equal(axes, other->axes) && equal(data, other->data) &&
+           equal(name, other->name);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(tree);
     hash_reduce(axes);
     hash_reduce(data);
     hash_reduce(name);
-    hash_reduce(dtype);
   }
 
   static constexpr const char* _type_key = "tir.sparse.SparseBuffer";
@@ -346,8 +353,7 @@ class SparseBufferNode : public Object {
  */
 class SparseBuffer : public ObjectRef {
  public:
-  TVM_DLL explicit SparseBuffer(AxisTree tree, Array<Axis> axes, Buffer data, String name,
-                                DataType dtype);
+  TVM_DLL explicit SparseBuffer(Array<Axis> axes, Buffer data, String name);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SparseBuffer, ObjectRef, SparseBufferNode);
 };
@@ -380,8 +386,8 @@ class SpIterVarNode : public Object {
 
   bool SEqualReduce(const SpIterVarNode* other, SEqualReducer equal) const {
     return equal(var, other->var) && equal(max_extent, other->max_extent) &&
-           equal(axis, other->axis) && equal(is_reduction, other->is_reduction) &&
-           equal(kind, other->kind);
+           equal(axis, other->axis) &&
+           equal(is_reduction, other->is_reduction) && equal(kind, other->kind);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -400,8 +406,8 @@ class SpIterVarNode : public Object {
 
 class SpIterVar : public ObjectRef {
  public:
-  TVM_DLL explicit SpIterVar(String name, PrimExpr max_extent, SpIterKind kind, bool is_reduction,
-                             Optional<Axis> axis = NullOpt);
+  TVM_DLL explicit SpIterVar(String name, PrimExpr max_extent, SpIterKind kind,
+                             bool is_reduction, Optional<Axis> axis = NullOpt);
 
   /*!
    * \return the corresponding var in the IterVar.

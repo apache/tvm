@@ -22,11 +22,12 @@ def test_format_tree_creation():
     j = tir.sparse.DenseFixedAxis('j', 128)
     k = tir.sparse.DenseFixedAxis('k', 128)
     tree = tir.sparse.AxisTree({
-        i: None,
-        j: None,
-        k: None
+        'i': None,
+        'j': None,
+        'k': None
     })
     print(tree)
+    print(i, j, k)
 
 
 if __name__ == "__main__":

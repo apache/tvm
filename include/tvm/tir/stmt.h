@@ -328,6 +328,28 @@ class BufferStore : public Stmt {
 };
 
 /*!
+ * \brief Sparse Block node.
+ */
+class SparseBlockNode : public StmtNode {
+ public:
+  /*! \brief The sparse iteration variables of the block. */
+  Array<SpIterVar> sp_iter_vars;
+  /*! \brief The sparse buffers defined in the block. */
+  Array<SparseBuffer> sp_buffers;
+  /*! \brief The body of the block */
+  Stmt body;
+
+  static constexpr const char* _type_key = "tir.SparseBlock";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SparseBlockNode, StmtNode);
+};
+
+class SparseBlock : public Stmt {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SparseBlock, Stmt, SparseBlockNode);
+};
+
+
+/*!
  * \brief Store value to the high dimension sparse buffer.
  *
  * \code
