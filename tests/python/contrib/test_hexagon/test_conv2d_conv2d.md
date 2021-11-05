@@ -52,7 +52,7 @@ pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_conv2d.py::TestConv2dC
 
 ## Shapes and Layouts
 
-The input is provided and padded in logical layout and then packed into its physical layout prior to compute.  Logical layout / shape information is provided as a reference for phsyical tensors.
+The input is provided and padded in logical layout and then packed into its physical layout prior to compute.  Logical layout / shape information is provided as a reference for physical tensors.
 
 | Tensor       | Type     | Layout      | Shape                  | Logical Layout | Logical Shape    |
 | ------------ | -------- | ----------- | ---------------------- | -------------- | ---------------- |
@@ -71,16 +71,39 @@ This is the conv2d compute schedule:
 ```
   for (ko.outer: int32, 0, 4) {
     for (ho.outer: int32, 0, 8) {
-      // caches computed here
+
+      // input cache read
+
+      for (ko.outer_1: int32, 0, 4) {
+
+        // filter #1 cache read
+
+        // conv2d #1
+        for (wo: int32, 0, 8) {
+          for (rc.outer: int32, 0, 4) {
+            for (hi: int32, 0, 8) {
+              for (wi: int32, 0, 8) {
+                for (ki: int32, 0, 32) {
+                  for (rc.inner: int32, 0, 32) {
+      } // end ko.outer_1
+
+      // filter #2 cache read
+
+      // conv2d #2
       for (wo.c: int32, 0, 8) {
         for (rc.outer_1: int32, 0, 4) {
           for (hi.c: int32, 0, 8) {
             for (wi.c: int32, 0, 8) {
               for (ki.c: int32, 0, 32) {
                 for (rc.inner_1: int32, 0, 32) {
+
+      // write back output cache
+
+    } // end ho.outer
+  } // end ko.outer
 ```
 
-Note that conv2d #1 has an independent loop over the channel out `ko.outer` dimension.  This is because the output channels of conv2d #1 are the input channels to conv2d #2 and we compute over all input channels for each conv2d so we must compute over all output channels of conv2d #1 before we compute conv2d #2.
+Note that conv2d #1 has an independent loop over the channel out `ko.outer_1` dimension.  This is because the output channels of conv2d #1 are the input channels to conv2d #2 and we compute over all input channels for each conv2d so we must compute over all output channels of conv2d #1 before we compute conv2d #2.
 
 ```
       for (ko.outer_1: int32, 0, 2) {
@@ -122,7 +145,17 @@ Note that the input cache is reused to store the results of conv2d #2.
 
 ## To Do
 
-* n/a
+* Reuse of the input cache to store the results of conv2d #2 could be problematic for async copy. e.g.
+
+```
+slice 0: global -> load -> cache0 -> conv2d_0 -> cache1 -> conv2d_1 -> cache0 -> store -> global
+slice 1: global -> load -> cache0 -> conv2d_0 -> cache1 -> conv2d_1 -> cache0 -> store -> global
+```
+
+In this case the store from slice 0: cache0 -> store -> global
+can potentially block the load in slice 1: global -> load -> cache0
+
+StorageRewrite is responsible for planning these caches, we'll need to understand how to avoid this for the async case.
 
 ## Annotated TIR
 
@@ -303,7 +336,7 @@ pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_conv2d.py::TestConv2dC
 
 ## Shapes and Layouts
 
-The input is provided and padded in logical layout and then packed into its physical layout prior to compute.  Logical layout / shape information is provided as a reference for phsyical tensors.
+The input is provided and padded in logical layout and then packed into its physical layout prior to compute.  Logical layout / shape information is provided as a reference for physical tensors.
 
 | Tensor       | Type     | Layout      | Shape                  | Logical Layout | Logical Shape    |
 | ------------ | -------- | ----------- | ---------------------- | -------------- | ---------------- |
@@ -322,7 +355,36 @@ This is the conv2d compute schedule:
 ```
   for (ko.outer: int32, 0, 2) {
     for (ho.outer: int32, 0, 4) {
-      // caches computed here
+
+      // input cache read
+      for (ho.inner: int32, 0, 2) {
+        ...
+      }
+
+      for (ko.outer_1: int32, 0, 2) {
+
+        // filter #1 cache read
+        for (ko.inner: int32, 0, 2) {
+          ...
+        }
+
+        // conv2d #1
+        for (ko.inner: int32, 0, 2) {
+          for (ho.inner: int32, 0, 2) {
+            for (wo: int32, 0, 8) {
+              for (rc.outer: int32, 0, 4) {
+                for (hi: int32, 0, 8) {
+                  for (wi: int32, 0, 8) {
+                    for (ki: int32, 0, 32) {
+                      for (rc.inner: int32, 0, 32) {
+      } // end ko.outer_1
+
+      // filter #2 cache read
+      for (ko.inner: int32, 0, 2) {
+        ...
+      }
+
+      // conv2d #2
       for (ko.c.inner: int32, 0, 2) {
         for (ho.c.inner: int32, 0, 2) {
           for (wo.c: int32, 0, 8) {
@@ -331,9 +393,14 @@ This is the conv2d compute schedule:
                 for (wi.c: int32, 0, 8) {
                   for (ki.c: int32, 0, 32) {
                     for (rc.inner_1: int32, 0, 32) {
+
+      // write back output cache
+
+    } // end ho.outer
+  } // end ko.outer
 ```
 
-The major change here versus above is the presence of `inner` loops for both channel out `ko` and height `ho` dimensions created from the `k_split` and `h_split` schedule parameters respectively:
+The major change here versus above is the presence of `inner` loops for both channel out `ko` and height `ho` dimensions created from the `k_split` and `h_split` schedule parameters respectively, for example:
 
 
 ```
@@ -341,9 +408,9 @@ The major change here versus above is the presence of `inner` loops for both cha
         for (ho.c.inner: int32, 0, 2) {
 ```
 
-The major effect of this change is increased cache usage given that caches are computed at the `ho.outer` level of the loop schedule.  This is documented in the next section.
+The effect of this change is increased cache usage given where the caches are computed in the schedule.  Specifically, the input cache is now computed over `ho.inner` and the filter caches are computed over `ko.inner` which will grow the size of the cache.  Details below.
 
-(Same as above) Note that conv2d #1 has an independent loop over the channel out `ko.outer` dimension.  This is because the output channels of conv2d #1 are the input channels to conv2d #2 and we compute over all input channels for each conv2d so we must compute over all output channels of conv2d #1 before we compute conv2d #2.
+(Same as above) Note that conv2d #1 has an independent loop over the channel out `ko.outer_1` dimension.  This is because the output channels of conv2d #1 are the input channels to conv2d #2 and we compute over all input channels for each conv2d so we must compute over all output channels of conv2d #1 before we compute conv2d #2.
 
 ```
       for (ko.outer_1: int32, 0, 2) {
@@ -421,8 +488,9 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
 
       // NOTE: compute over all output channels of conv2d #1 before computing conv2d #2
       for (ko.outer_1: int32, 0, 2) {
+
+        // filter #1 cache read
         for (ko.inner: int32, 0, 2) {
-          // filter #1 cache read
           for (co: int32, 0, 4) {
             for (cio: int32, 0, 8) {
               for (ki: int32, 0, 32) {
@@ -583,7 +651,7 @@ pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_conv2d.py::TestConv2dC
 
 ## Shapes and Layouts
 
-The input is provided and padded in logical layout and then packed into its physical layout prior to compute.  Logical layout / shape information is provided as a reference for phsyical tensors.
+The input is provided and padded in logical layout and then packed into its physical layout prior to compute.  Logical layout / shape information is provided as a reference for physical tensors.
 
 | Tensor       | Type     | Layout      | Shape                  | Logical Layout | Logical Shape    |
 | ------------ | -------- | ----------- | ---------------------- | -------------- | ---------------- |
@@ -602,7 +670,44 @@ This is the conv2d compute schedule:
 ```
   for (ko.outer: int32, 0, 2) {
     for (ho.outer: int32, 0, 4) {
-      // caches computed here
+
+      for (ko.outer_1: int32, 0, 2) {
+        for (ho.outer_1: int32, 0, 2) {
+
+          // input cache read
+          for (ho.inner: int32, 0, 3) {
+            if ((((ho.outer_1*2) + (ho.outer*2)) + ho.inner) < 8) {
+              ...
+            }
+          }
+
+          // filter #1 cache read
+          for (ko.inner: int32, 0, 2) {
+            ...
+          }
+
+          // conv2d #1
+          for (ko.inner: int32, 0, 2) {
+            for (ho.inner: int32, 0, 2) {
+              for (wo: int32, 0, 8) {
+                if (((ho.outer_1*2) + ho.inner) < 3) {
+                  if ((((ho.outer_1*2) + (ho.outer*2)) + ho.inner) < 8) {
+                    for (rc.outer: int32, 0, 4) {
+                      for (hi: int32, 0, 8) {
+                        for (wi: int32, 0, 8) {
+                          for (rh: int32, 0, 3) {
+                            for (rw: int32, 0, 3) {
+                              for (ki: int32, 0, 32) {
+                                for (rc.inner: int32, 0, 32) {
+        } // end ho.outer_1
+      } // end ko.outer_1
+
+      // filter #2 cache read
+      for (ko.inner: int32, 0, 2) {
+        ...
+      }
+
+      // conv2d #2
       for (ko.c.inner: int32, 0, 2) {
         for (ho.c.inner: int32, 0, 2) {
           for (wo.c: int32, 0, 8) {
@@ -614,25 +719,46 @@ This is the conv2d compute schedule:
                       for (ki.c: int32, 0, 32) {
                         for (rc.inner_1: int32, 0, 32) {
 
+      // write back output cache
+
+    } // end ho.outer
+  } // end ko.outer
 ```
 
-The major change here is the presence of the the kernel height `rh` and width `rw` dimensions.  
+There are two major changes here:
+
+1) The first change is the farily obvious presence of the the kernel height `rh` and width `rw` iterators, for example:
 
 ```
                   for (rh_1: int32, 0, 3) {
                     for (rw_1: int32, 0, 3) {
 ```
 
-(Same as above) Note that conv2d #1 has an independent loop over the channel out `ko.outer` dimension.  This is because the output channels of conv2d #1 are the input channels to conv2d #2 and we compute over all input channels for each conv2d so we must compute over all output channels of conv2d #1 before we compute conv2d #2.
+The effect of this change is to grow the filter cache by the size of the kernel.  Details below.
+
+2) The second change is a bit more tricky.  Remember that we want to produce `h_split` (2) "full width" and "full channel depth" slices from each conv2d.  Given the 3x3 kernel size there are several changes to the schedule regarding the handling of the height dimension.
+
+First, notice that in order to produce `h_split` (2) "full width" and "full channel depth" slices for conv2d #1 we will need `h_split + 1` (3) "full width" and "full channel depth" slices of the input.  This is because a 3x3 kernel (as opposed to a 1x1 kernel) creates a many-to-one relationship between the spatial coordinates of the input relative to the output.  To illustrate, the 3x3 kernel will "fall off the bottom" of the 2nd input slice requiring values from the vertically adjacent 3rd input slice in order to produce the 2nd full output slice.  Hence, we have the following input cache read over `h_split + 1` (3) input slices:
 
 ```
-      for (ko.outer_1: int32, 0, 2) {
+          for (ho.inner: int32, 0, 3) {
+            if ((((ho.outer_1*2) + (ho.outer*2)) + ho.inner) < 8) {
 ```
 
-(Different from above) Note that conv2d #1 also has an independent loop over some portion of the  `ho.outer` dimension.  This is due to the fact that the 3x3 filter will "fall off the bottome" of the input and thus the vertically adjacent "full width" and "full depth" slice of the input must be a) prefetched into the input cache for conv2d #1 and b) produced in the temporary output cache of conv2d #2.
+The `if` statement above indicates NOT to prefetch the vertically adjacent slice at the "bottom" of the input since it does not exist.
+
+Second, notice that conv2d #1 must produce sufficient output in the height dimension before conv2d #2 can proceed.  This is similar to the requirement that conv2d #1 in regard to the channel out dimension, but also different because we do not require *all* output in the height dimenson only *sufficient* output in the height dimension.  How much output in the height dimension is required?  The intuitive guess might be `h_split + 1` (3) slices but that is wrong and the reason is that the output spatial coordinates are "shrinking" relative to the input coordinate space due to lack of padding.  Hence 2 output slices from conv2d #1 are sufficient as intput to calculate 2 output slices from conv2d #2 and we get the following independent loop over `ho.outer_1` for conv2d #1:
 
 ```
         for (ho.outer_1: int32, 0, 2) {
+```
+
+There are similar `if` statements in the conv2d compute schedule to prevent computing off the "bottom" of the input and output.
+
+(Same as above) Note that conv2d #1 has an independent loop over the channel out `ko.outer_1` dimension.  This is because the output channels of conv2d #1 are the input channels to conv2d #2 and we compute over all input channels for each conv2d so we must compute over all output channels of conv2d #1 before we compute conv2d #2.
+
+```
+      for (ko.outer_1: int32, 0, 2) {
 ```
 
 ## Cache Usage
@@ -671,7 +797,7 @@ The output cache scales with the input cache:
 
 ## To Do
 
-* n/a
+* There may be some opportunity to optimized cache reuse in this case as the vertically adjacent input slice from a previous input cache read will be reloaded as in a subsequent input cache read
 
 ## Annotated TIR
 
