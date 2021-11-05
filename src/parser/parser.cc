@@ -1955,7 +1955,8 @@ TVM_REGISTER_GLOBAL("parser.ParseExpr")
 TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed([]() {
   return CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) {
-        auto text = AsText(mod, true);
+        String text = AsText(mod, /*show_meta_data=*/true);
+        VLOG(1) << "AnnotateSpans intermediate text:" << std::endl << text;
         return ParseModule("GeneratedSource", text);
       },
       0, "AnnotateSpans", {});

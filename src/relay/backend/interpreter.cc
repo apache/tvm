@@ -34,6 +34,7 @@
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
+#include <tvm/target/compilation_config.h>
 
 #include "../op/annotation/annotation.h"
 #include "../transforms/pass_utils.h"
@@ -292,8 +293,11 @@ InterpreterState::InterpreterState(Expr current_expr, InterpreterState::Stack st
 class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                     PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
-  Interpreter(IRModule unified_mod, Device device, Target target)
-      : unified_mod_(unified_mod), device_(device), target_(target), debug_op_(Op::Get("debug")) {}
+  Interpreter(IRModule unified_mod, CompilationConfig config, Device device)
+      : unified_mod_(unified_mod),
+        config_(std::move(config)),
+        device_(device),
+        debug_op_(Op::Get("debug")) {}
 
   template <typename T>
   T WithFrame(const Frame& fr, const std::function<T()>& f) {
@@ -386,12 +390,12 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
         per_target_module_std_map = backend::TargetModuleMapToTargetStrModuleMap(per_target_module);
     auto mod_itr = per_target_module_std_map.find(target);
     ICHECK(mod_itr != per_target_module_std_map.end())
-        << "No target module for target '" << target->str() << "'";
+        << "No target module for target " << target->ToDebugString();
     const IRModule& target_module = (*mod_itr).second;
     for (const auto& var : all_tir_fn_vars) {
       ICHECK(target_module->ContainGlobalVar(var->name_hint))
-          << "No global var for '" << var->name_hint << "' in module for target '" << target->str()
-          << "'";
+          << "No global var for '" << var->name_hint << "' in module for target "
+          << target->ToDebugString();
       lowered_projected_mod->Add(var, target_module->Lookup(var->name_hint));
     }
 
@@ -407,8 +411,9 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     // Extract all the packed functions.
     for (const auto& var : all_tir_fn_vars) {
       PackedFunc packed_func = runtime_module.GetFunction(var->name_hint);
-      ICHECK(packed_func != nullptr) << "No packed function for global var '" << var->name_hint
-                                     << "' in compiled module for target '" << target->str() << "'";
+      ICHECK(packed_func != nullptr)
+          << "No packed function for global var '" << var->name_hint
+          << "' in compiled module for target " << target->ToDebugString();
       compiled_packed_funcs_.emplace(std::make_pair(target, var->name_hint), packed_func);
     }
 
@@ -734,9 +739,11 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
               Downcast<Integer>(attrs->metadata.at("prim_shape_fn_num_outputs"))->value);
         }
 
-        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars, target_,
-                                 prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
-                                 num_shape_inputs, num_shape_outputs, cpu_target_, args);
+        ICHECK(config_->optional_homogeneous_target.defined());
+        return InvokePrimitiveOp(GetRef<GlobalVar>(gvn), all_prim_fn_vars,
+                                 config_->optional_homogeneous_target, prim_shape_fn_var,
+                                 all_prim_shape_fn_vars, prim_shape_fn_states, num_shape_inputs,
+                                 num_shape_outputs, config_->host_se_scope->target, args);
       }
     }
 
@@ -884,13 +891,11 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   // Cached packed functions for the primitives and shape functions, keyed by target and
   // global var name.
   std::unordered_map<std::pair<Target, std::string>, PackedFunc, PairHash> compiled_packed_funcs_;
+  /*! \brief Compilation config describing the available targets. */
+  CompilationConfig config_;
   // Unique device on which primitives (but not shape functions) will be executed.
   // (For simplicity we only run the interpreter on a single device.)
   Device device_;
-  // Unique target describing how to compile for primitives (but not shape functions).
-  Target target_;
-  // Default 'CPU' target for shape primitives.
-  Target cpu_target_{"llvm"};
   // Call stack.
   Stack stack_;
   // The distinguished 'debug' operator, which is handled specially.
@@ -898,25 +903,21 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 };
 
 /*!
- * Lowers all calls to primitives in \p mod appropriate for device and target. Returns the
+ * Lowers all calls to primitives in \p mod appropriate for \p config. Returns the
  * rewritten \p mod and target-specific modules containing bindings for all TIR primitive
  * functions needed by the rewritten module.
  */
-IRModule Prepare(IRModule mod, Device device, Target target) {
-  // Things to initialize to pass into tec::LowerTEPass
-  // We only have one device-specific target.
-  tec::TargetMap targets = {{device.device_type, target}};
-  if (device.device_type != kDLCPU) {
-    // However some primitives (eg dynamic shape functions) must always execute on the CPU,
-    // so make sure we have a target for that.
-    targets.emplace(kDLCPU, Target("llvm"));
+IRModule Prepare(IRModule mod, CompilationConfig config) {
+  tec::TargetMap tec_target_map;
+  for (const auto& pair : config->legacy_target_map) {
+    tec_target_map.emplace(static_cast<DLDeviceType>(pair.first->value), pair.second);
   }
-
   // Run minimal transforms on module to establish invariants needed by interpreter.
   transform::Sequential seq(
       {transform::SimplifyInference(),
        // Figure out which devices should be used to execute.
-       transform::PlanDevices(device.device_type),
+       // TODO(mbs): Should ignore all existing annotations when constant folding
+       transform::PlanDevices(config->default_primitive_se_scope->device_type()),
        // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
        // attribute.
        transform::FuseOps(/*fuse_opt_level=*/0),
@@ -926,7 +927,8 @@ IRModule Prepare(IRModule mod, Device device, Target target) {
        transform::EtaExpand(
            /*expand_constructor=*/true, /*expand_global_var=*/false),
        transform::InferType(),
-       tec::LowerTEPass(targets, /*module_name=*/"intrp", [](Function func) { /* no-op */ })});
+       tec::LowerTEPass(tec_target_map, /*module_name=*/"intrp",
+                        [](Function func) { /* no-op */ })});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);
@@ -979,7 +981,15 @@ class NeedsPreparationVisitor : public ExprVisitor {
 TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, Device device,
                                                      Target target) {
   VLOG_CONTEXT << "EvalFunction";
-  VLOG(1) << "evaling module:\n" << PrettyPrint(mod) << "and expression:\n" << PrettyPrint(expr);
+  VLOG(1) << "evaling module:" << std::endl
+          << PrettyPrint(mod) << "and expression:" << std::endl
+          << PrettyPrint(expr);
+
+  ICHECK_EQ(device.device_type, target->kind->device_type);
+  TargetMap targets;
+  targets.Set(device.device_type, target);
+  CompilationConfig config(transform::PassContext::Current(), targets,
+                           /*optional_host_target_arg=*/{});
 
   //
   // Step 1: Prepare mod.
@@ -1024,9 +1034,9 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     // and can just eval it directly.
     expr_to_eval = expr;
   }
-  IRModule lowered_mod = Prepare(mod_with_expr, device, target);
+  IRModule lowered_mod = Prepare(mod_with_expr, config);
 
-  std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(lowered_mod, device, target);
+  std::shared_ptr<Interpreter> intrp = std::make_shared<Interpreter>(lowered_mod, config, device);
 
   //
   // Step 2: Evaluate target function to a closure.
@@ -1065,12 +1075,18 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
 
 ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
                std::unordered_set<String> import_set, Device device, Target target) {
+  ICHECK_EQ(device.device_type, target->kind->device_type);
+  TargetMap targets;
+  targets.Set(device.device_type, target);
+  CompilationConfig config(transform::PassContext::Current(), targets,
+                           /*optional_host_target_arg=*/{});
+
   std::pair<IRModule, GlobalVar> mod_and_global =
       IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
 
-  IRModule mod = Prepare(mod_and_global.first, device, target);
+  IRModule mod = Prepare(mod_and_global.first, config);
 
-  Interpreter intrp(mod, device, target);
+  Interpreter intrp(mod, config, device);
   Expr expr_to_eval = mod->GetGlobalVar(mod_and_global.second->name_hint);
   if (expr.as<BaseFuncNode>() == nullptr) {
     // TODO(mbs): IRModule::FromExpr will implicitly close over the free vars of expr
