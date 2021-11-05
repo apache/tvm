@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file src/relay/backend/contrib/ethosn/ethosn_api.h
+ * \brief The Relay -> Arm(R) Ethos(TM)-N command stream compiler.
+ */
 
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_H_
 #define TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_H_

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration conv2d tests"""
+"""Arm(R) Ethos(TM)-N integration conv2d tests"""
 
 import numpy as np
 import math
