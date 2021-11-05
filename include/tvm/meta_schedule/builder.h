@@ -137,6 +137,7 @@ class PyBuilderNode : public BuilderNode {
   }
 
   Array<BuilderResult> Build(const Array<BuilderInput>& build_inputs) final {
+    ICHECK(f_build != nullptr) << "PyBuilder's Build method not implemented!";
     return f_build(build_inputs);
   }
 
