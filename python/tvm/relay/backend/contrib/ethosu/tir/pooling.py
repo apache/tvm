@@ -83,6 +83,7 @@ def get_pooling_params(
             pool_shape=serial_kernel,
             padding=serial_padding,
             activation=serial_activation,
+            rounding_mode=attrs["rounding_mode"],
             upscale="NONE",
         ),
         output_pointer,

@@ -188,6 +188,7 @@ class Serial2DConvolution(SerializableFormat):
         scale_bias: SerialAddressRange,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
     ):
         self.ifm = ifm
@@ -198,6 +199,7 @@ class Serial2DConvolution(SerializableFormat):
         self.scale_bias = scale_bias
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
 
 
@@ -215,6 +217,7 @@ class Serial2DDepthwise(SerializableFormat):
         scale_bias: SerialAddressRange,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
     ):
         self.ifm = ifm
@@ -225,6 +228,7 @@ class Serial2DDepthwise(SerializableFormat):
         self.scale_bias = scale_bias
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
 
 
@@ -252,6 +256,7 @@ class SerialPooling(SerializableFormat):
         pool_shape: SerialKernel,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
     ):
         self.ifm = ifm
@@ -260,6 +265,7 @@ class SerialPooling(SerializableFormat):
         self.pool_shape = pool_shape
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
 
 
@@ -275,6 +281,7 @@ class SerialBinaryElementwise(SerializableFormat):
         operator_type: str,
         reversed_operands: bool,
         activation: SerialActivation,
+        rounding_mode: str,
     ):
         self.ifm = ifm
         self.ifm2 = ifm2
@@ -282,3 +289,4 @@ class SerialBinaryElementwise(SerializableFormat):
         self.operator_type = operator_type
         self.reversed_operands = reversed_operands
         self.activation = activation
+        self.rounding_mode = rounding_mode
