@@ -38,8 +38,8 @@ from .common import (
     infer_shape,
     infer_type,
     infer_value,
-    try_infer_value,
     shape_of,
+    try_infer_value,
     new_var,
 )
 
