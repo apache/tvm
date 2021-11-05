@@ -17,13 +17,14 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement
 from tvm.script import tir as T
 
+"""
+This prim func include necessary buffer types that need to be checked
+e.g. reads/writes, match_buffer/alloc_buffer, serial/block etc.
+"""
+
 
 @T.prim_func
 def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
-    """
-    This prim func include necessary buffer types that need to be checked
-    e.g. reads/writes, match_buffer/alloc_buffer, serial/block etc.
-    """
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
     # body
@@ -47,12 +48,14 @@ def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
                     C[vi_1, vj_1] = B[vi_1, vj_1] + T.float32(1)
 
 
+"""
+This prim func include necessary thread types that need to be checked
+e.g. env_thread, launch_thread, thread_binding etc.
+"""
+
+
 @T.prim_func
 def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
-    """
-    This prim func include necessary thread types that need to be checked
-    e.g. env_thread, launch_thread, thread_binding etc.
-    """
     j1_0 = T.env_thread("threadIdx.x")
     j0_0 = T.env_thread("threadIdx.x")
     i = T.env_thread("blockIdx.x")
