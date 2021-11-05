@@ -314,7 +314,11 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
  public:
   static Doc PrintHeader(const std::string& tir_prefix) {
     Doc header;
-    header << "from tvm.script import tir as " << tir_prefix << Doc::NewLine();
+    if (tir_prefix != "tir") {
+      header << "# from tvm.script import tir as " << tir_prefix << Doc::NewLine();
+    } else {
+      header << "# from tvm.script import tir" << Doc::NewLine();
+    }
     return header;
   }
 };

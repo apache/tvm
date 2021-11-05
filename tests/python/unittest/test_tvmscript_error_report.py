@@ -548,9 +548,10 @@ def test_reorder_fail_block():
         sch.reorder(l, i)
     expected_sub_error_message = (
         "            # tir.Block#0\n"
-        '            with tir.block("B"):\n'
-        "            ^^^^^^^^^^^^^^^^^^^^\n"
+        '            with T.block("B"):\n'
+        "            ^^^^^^^^^^^^^^^^^^\n"
     )
+    print("expected: ", expected_sub_error_message, "actual: ", str(execinfo.value))
     assert expected_sub_error_message in str(execinfo.value)
 
 
@@ -561,11 +562,12 @@ def test_reorder_fail_nested_loop_inner():
     with pytest.raises(tvm.tir.ScheduleError) as execinfo:
         sch.reorder(k, i)
     expected_sub_error_message = (
-        "        for i in tir.serial(0, 128):\n"
+        "        for i in T.serial(0, 128):\n"
         "            # tir.For#0\n"
-        "            for j in tir.serial(0, 128):\n"
-        "            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "            for j in T.serial(0, 128):\n"
+        "            ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
     )
+    print("expected: ", expected_sub_error_message, "actual: ", str(execinfo.value))
     assert expected_sub_error_message in str(execinfo.value)
 
 
@@ -577,10 +579,11 @@ def test_fuse_fail_nested_loop_outer():
         sch.fuse(k, i)
     expected_sub_error_message = (
         "        # tir.For#1\n"
-        "        for i in tir.serial(0, 128):\n"
-        "        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
-        "            for j in tir.serial(0, 128):\n"
+        "        for i in T.serial(0, 128):\n"
+        "        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "            for j in T.serial(0, 128):\n"
     )
+    print("expected: ", expected_sub_error_message, "actual: ", str(execinfo.value))
     assert expected_sub_error_message in str(execinfo.value)
 
 
