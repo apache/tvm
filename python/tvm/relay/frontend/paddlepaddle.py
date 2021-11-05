@@ -591,7 +591,7 @@ def convert_interpolate(g, op, block):
     """Operator converter for interpolate."""
 
     def get_interpolate_mode(op):
-        """Get parameters for interpolate methos."""
+        """Get parameters for interpolation methods."""
 
         interp_method = op.attr("interp_method")
         align_corners = op.attr("align_corners")
