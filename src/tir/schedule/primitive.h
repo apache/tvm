@@ -38,7 +38,6 @@ TVM_DLL int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_st
                           int32_t min_inclusive, int32_t max_exclusive);
 /*!
  * \brief Sample once category from candidates according to the probability weights.
- * \param self The schedule to update
  * \param rand_state The pointer to schedule's random state
  * \param candidates The candidates
  * \param probs The probability distribution of the candidates
