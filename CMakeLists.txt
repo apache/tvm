@@ -559,6 +559,10 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   target_link_libraries(tvm_runtime PUBLIC Threads::Threads)
 endif()
 
+if(BUILD_FOR_ANDROID AND USE_HEXAGON_SDK)
+  list(APPEND TVM_RUNTIME_LINKER_LIBS cdsprpc)
+endif()
+
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
