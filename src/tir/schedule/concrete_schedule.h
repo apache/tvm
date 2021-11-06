@@ -90,6 +90,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
   Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) override;
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
+  Array<BlockRV> GetProducers(const BlockRV& block_rv) override;
+  Array<BlockRV> GetConsumers(const BlockRV& block_rv) override;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) override;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) override;
