@@ -236,7 +236,7 @@ class SpIterVar(Object):
     SparseFixed = 2
     SparseVariable = 3
 
-    def __init__(self, var, max_extent, kind, axis=None):
+    def __init__(self, var, max_extent, kind, is_reduction, axis=None):
         self.__init_handle_by_constructor__(
             _ffi_api.SpIterVar, var, max_extent, kind, is_reduction, axis  # type: ignore
         )

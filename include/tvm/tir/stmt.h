@@ -328,28 +328,6 @@ class BufferStore : public Stmt {
 };
 
 /*!
- * \brief Sparse Block node.
- */
-class SparseBlockNode : public StmtNode {
- public:
-  /*! \brief The sparse iteration variables of the block. */
-  Array<SpIterVar> sp_iter_vars;
-  /*! \brief The sparse buffers defined in the block. */
-  Array<SparseBuffer> sp_buffers;
-  /*! \brief The body of the block */
-  Stmt body;
-
-  static constexpr const char* _type_key = "tir.SparseBlock";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SparseBlockNode, StmtNode);
-};
-
-class SparseBlock : public Stmt {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(SparseBlock, Stmt, SparseBlockNode);
-};
-
-
-/*!
  * \brief Store value to the high dimension sparse buffer.
  *
  * \code
@@ -1298,6 +1276,61 @@ class BlockRealize : public Stmt {
 
   TVM_DEFINE_OBJECT_REF_METHODS(BlockRealize, Stmt, BlockRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockRealizeNode);
+};
+
+/*!
+ * \brief Sparse Block node.
+ */
+class SparseBlockNode : public StmtNode {
+ public:
+  /*! \brief The sparse iteration variables of the block. */
+  Array<SpIterVar> sp_iter_vars;
+  /*! \brief The sparse buffers defined in the block. */
+  Array<SparseBuffer> sp_buffers;
+  /*! \brief The name of the block */
+  String name;
+  /*! \brief The body of the block */
+  Stmt body;
+  /*! \brief The init statement of the block */
+  Optional<Stmt> init;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("sp_iter_vars", &sp_iter_vars);
+    v->Visit("sp_buffers", &sp_buffers);
+    v->Visit("name", &name);
+    v->Visit("body", &body);
+    v->Visit("init", &init);
+  }
+
+  bool SEqualReduce(const SparseBlockNode* other, SEqualReducer equal) const {
+    return equal(sp_iter_vars, other->sp_iter_vars) && equal(sp_buffers, other->sp_buffers) &&
+           equal(name, other->name) && equal(body, other->body) && equal(init, other->init);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(sp_iter_vars);
+    hash_reduce(sp_buffers);
+    hash_reduce(name);
+    hash_reduce(body);
+    hash_reduce(init);
+  }
+
+  static constexpr const char* _type_key = "tir.SparseBlock";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SparseBlockNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to SparseBufferNode
+ * \sa SparseBufferNode
+ */
+class SparseBlock : public Stmt {
+ public:
+  TVM_DLL explicit SparseBlock(Array<SpIterVar> sp_iter_vars, Array<SparseBuffer> sp_buffers,
+                               String name, Stmt body, Optional<Stmt> init = NullOpt,
+                               Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SparseBlock, Stmt, SparseBlockNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SparseBlockNode);
 };
 
 /*! \brief namespace of possible attribute sin AttrStmt.attr_key */

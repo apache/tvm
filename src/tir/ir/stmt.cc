@@ -876,17 +876,21 @@ void PrintBlockSignature(const BlockNode* op, ReprPrinter* p) {
   }
 }
 
-void PrintBlockBody(const BlockNode* op, ReprPrinter* p) {
-  // Print init
-  if (op->init.defined()) {
+void PrintInitStmt(const Optional<Stmt>& init, ReprPrinter* p) {
+  if (init.defined()) {
     p->PrintIndent();
     p->stream << "with init() {\n";
     p->indent += 2;
-    p->Print(op->init.value());
+    p->Print(init.value());
     p->indent -= 2;
     p->PrintIndent();
     p->stream << "}\n";
   }
+}
+
+void PrintBlockBody(const BlockNode* op, ReprPrinter* p) {
+  // Print init
+  PrintInitStmt(op->init, p);
   // Print body
   p->Print(op->body);
 }
@@ -958,6 +962,59 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       PrintBlockSignature(block_op, p);
       // Print block init and body
       PrintBlockBody(block_op, p);
+
+      p->indent -= 2;
+      p->PrintIndent();
+      p->stream << "}\n";
+    });
+
+SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars, Array<SparseBuffer> sp_buffers, String name,
+                         Stmt body, Optional<Stmt> init, Span span) {
+  ObjectPtr<SparseBlockNode> node = make_object<SparseBlockNode>();
+  node->sp_iter_vars = std::move(sp_iter_vars);
+  node->sp_buffers = std::move(sp_buffers);
+  node->name = std::move(name);
+  node->body = std::move(body);
+  node->init = std::move(init);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.SparseBlock")
+    .set_body_typed([](Array<SpIterVar> sp_iter_vars, Array<SparseBuffer> sp_buffers, String name,
+                       Stmt body, Optional<Stmt> init, Span span) {
+      return SparseBlock(sp_iter_vars, sp_buffers, name, body, init, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(SparseBlockNode);
+
+void PrintSparseBlockTitle(const SparseBlockNode* op, ReprPrinter* p) {
+  p->stream << "sparse_block " << op->name << "(";
+  for (int i = 0; i < static_cast<int>(op->sp_iter_vars.size()); ++i) {
+    p->Print(op->sp_iter_vars[i]);
+    if (i < static_cast<int>(op->sp_iter_vars.size()) - 1) {
+      p->stream << ", ";
+    }
+  }
+  p->stream << ")";
+}
+
+void PrintSparseBlockBody(const SparseBlockNode* op, ReprPrinter* p) {
+  // Print init
+  PrintInitStmt(op->init, p);
+  // Print body
+  p->Print(op->body);
+}
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SparseBlockNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SparseBlockNode*>(node.get());
+      p->PrintIndent();
+      PrintSparseBlockTitle(op, p);
+      p->stream << " {\n";
+      p->indent += 2;
+
+      PrintSparseBlockBody(op, p);
 
       p->indent -= 2;
       p->PrintIndent();
