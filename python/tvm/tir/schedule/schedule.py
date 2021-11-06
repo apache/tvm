@@ -415,6 +415,36 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleGetChildBlocks(self, block_or_loop)  # type: ignore # pylint: disable=no-member
 
+    def get_producers(self, block: BlockRV) -> List[BlockRV]:
+        """Get the producers of a specific block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block in the query
+
+        Returns
+        -------
+        producers : List[BlockRV]
+            A list of producers of the given block
+        """
+        return _ffi_api.ScheduleGetProducers(self, block)  # type: ignore # pylint: disable=no-member
+
+    def get_consumers(self, block: BlockRV) -> List[BlockRV]:
+        """Get the consumers of a specific block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block in the query
+
+        Returns
+        -------
+        consumers : List[BlockRV]
+            A list of consumers of the given block
+        """
+        return _ffi_api.ScheduleGetConsumers(self, block)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Transform loops ##########
     def fuse(self, *loops: List[LoopRV]) -> LoopRV:
         """Fuse a list of consecutive loops into one. It requires:
