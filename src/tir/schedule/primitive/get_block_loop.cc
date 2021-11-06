@@ -55,6 +55,28 @@ Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
   return {result.rbegin(), result.rend()};
 }
 
+Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref) {
+  struct Collector : public StmtVisitor {
+   private:
+    void VisitStmt_(const BlockNode* block) final { result.push_back(self->stmt2ref.at(block)); }
+
+   public:
+    explicit Collector(const ScheduleState& self) : self(self) {}
+
+    const ScheduleState& self;
+    Array<StmtSRef> result;
+  };
+  Collector collector(self);
+  if (parent_sref->stmt->IsInstance<ForNode>()) {
+    const auto* loop = static_cast<const ForNode*>(parent_sref->stmt);
+    collector(loop->body);
+  } else if (parent_sref->stmt->IsInstance<BlockNode>()) {
+    const auto* block = static_cast<const BlockNode*>(parent_sref->stmt);
+    collector(block->body);
+  }
+  return std::move(collector.result);
+}
+
 /******** InstructionKind Registration ********/
 
 struct GetBlockTraits : public UnpackedInstTraits<GetBlockTraits> {
@@ -106,8 +128,40 @@ struct GetLoopsTraits : public UnpackedInstTraits<GetLoopsTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct GetChildBlocksTraits : public UnpackedInstTraits<GetChildBlocksTraits> {
+  static constexpr const char* kName = "GetChildBlocks";
+  static constexpr bool kIsPure = true;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv) {
+    if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
+      return sch->GetChildBlocks(GetRef<BlockRV>(block));
+    }
+    if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
+      return sch->GetChildBlocks(GetRef<LoopRV>(loop));
+    }
+    LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
+    throw;
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_or_loop_rv) {
+    PythonAPICall py("get_child_blocks");
+    py.Input("", block_or_loop_rv);
+    py.OutputList(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(GetBlockTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetLoopsTraits);
+TVM_REGISTER_INST_KIND_TRAITS(GetChildBlocksTraits);
 
 }  // namespace tir
 }  // namespace tvm
