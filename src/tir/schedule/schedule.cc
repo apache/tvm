@@ -130,6 +130,18 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock")
     .set_body_method<Schedule>(&ScheduleNode::GetBlock);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops")
     .set_body_method<Schedule>(&ScheduleNode::GetLoops);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetChildBlocks")
+    .set_body_typed([](Schedule self, ObjectRef rv) {
+      if (const auto* block_rv = rv.as<BlockRVNode>()) {
+        return self->GetChildBlocks(GetRef<BlockRV>(block_rv));
+      }
+      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
+        return self->GetChildBlocks(GetRef<LoopRV>(loop_rv));
+      }
+      LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                 << ". Its value is: " << rv;
+      throw;
+    });
 /******** (FFI) Transform loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);

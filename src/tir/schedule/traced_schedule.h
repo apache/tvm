@@ -54,6 +54,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") final;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) final;
+  Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) final;
+  Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) final;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) final;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs) final;

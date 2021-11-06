@@ -98,6 +98,13 @@ Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const S
  * \return A list of loops above the given block in its scope, from outer to inner
  */
 Array<StmtSRef> GetLoops(const StmtSRef& block_sref);
+/*!
+ * \brief Get the leaf blocks of a specific block/loop
+ * \param self The schedule state
+ * \param parent_sref The query block/loop
+ * \return A list of leaf blocks inside a specific block/loop
+ */
+Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref);
 /******** Schedule: Transform loops ********/
 /*!
  * Split a loop into a list of consecutive loops. It requires:

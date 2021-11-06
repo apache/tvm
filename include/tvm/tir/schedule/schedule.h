@@ -220,6 +220,18 @@ class ScheduleNode : public runtime::Object {
    * \return A list of loops above the given block in its scope, from outer to inner
    */
   virtual Array<LoopRV> GetLoops(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the leaf blocks of a specific scope
+   * \param block_rv The block where the scope is rooted
+   * \return A list of child blocks
+   */
+  virtual Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the leaf blocks of under a specific loop
+   * \param loop_rv The loop under which collecting is conducted
+   * \return A list of child blocks
+   */
+  virtual Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) = 0;
   /******** Schedule: Transform loops ********/
   /*!
    * \brief Fuse a list of consecutive loops into one. It requires:
