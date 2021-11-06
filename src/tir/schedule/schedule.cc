@@ -142,6 +142,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetChildBlocks")
                  << ". Its value is: " << rv;
       throw;
     });
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetProducers")
+    .set_body_method<Schedule>(&ScheduleNode::GetProducers);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetConsumers")
+    .set_body_method<Schedule>(&ScheduleNode::GetConsumers);
 /******** (FFI) Transform loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);

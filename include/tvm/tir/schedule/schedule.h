@@ -232,6 +232,18 @@ class ScheduleNode : public runtime::Object {
    * \return A list of child blocks
    */
   virtual Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) = 0;
+  /*!
+   * \brief Get the producer of a specific block
+   * \param block_rv The block in the query
+   * \return A list of blocks, the producers of the given block
+   */
+  virtual Array<BlockRV> GetProducers(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the consumers of a specific block
+   * \param block_rv The block to be queried
+   * \return A list of blocks, the consumers of the given block
+   */
+  virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
   /******** Schedule: Transform loops ********/
   /*!
    * \brief Fuse a list of consecutive loops into one. It requires:

@@ -310,6 +310,20 @@ Array<BlockRV> ConcreteScheduleNode::GetChildBlocks(const LoopRV& loop_rv) {
   return result;
 }
 
+Array<BlockRV> ConcreteScheduleNode::GetProducers(const BlockRV& block_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV<BlockRV>(tir::GetProducers(state_, this->GetSRef(block_rv)));
+  TVM_TIR_SCHEDULE_END("get-producers", this->error_render_level_);
+  throw;
+}
+
+Array<BlockRV> ConcreteScheduleNode::GetConsumers(const BlockRV& block_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV<BlockRV>(tir::GetConsumers(state_, this->GetSRef(block_rv)));
+  TVM_TIR_SCHEDULE_END("get-consumers", this->error_render_level_);
+  throw;
+}
+
 /******** Schedule: Transform loops ********/
 
 LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs) {

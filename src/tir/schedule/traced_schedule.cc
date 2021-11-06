@@ -119,6 +119,28 @@ Array<BlockRV> TracedScheduleNode::GetChildBlocks(const LoopRV& loop_rv) {
   return results;
 }
 
+Array<BlockRV> TracedScheduleNode::GetProducers(const BlockRV& block_rv) {
+  Array<BlockRV> results = ConcreteScheduleNode::GetProducers(block_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("GetProducers");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{results.begin(), results.end()}));
+  return results;
+}
+
+Array<BlockRV> TracedScheduleNode::GetConsumers(const BlockRV& block_rv) {
+  Array<BlockRV> results = ConcreteScheduleNode::GetConsumers(block_rv);
+
+  static const InstructionKind& kind = InstructionKind::Get("GetConsumers");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{results.begin(), results.end()}));
+  return results;
+}
+
 /******** Schedule: Transform loops ********/
 
 LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs) {
