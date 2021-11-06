@@ -551,7 +551,6 @@ def test_reorder_fail_block():
         '            with T.block("B"):\n'
         "            ^^^^^^^^^^^^^^^^^^\n"
     )
-    print("expected: ", expected_sub_error_message, "actual: ", str(execinfo.value))
     assert expected_sub_error_message in str(execinfo.value)
 
 
@@ -567,7 +566,6 @@ def test_reorder_fail_nested_loop_inner():
         "            for j in T.serial(0, 128):\n"
         "            ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
     )
-    print("expected: ", expected_sub_error_message, "actual: ", str(execinfo.value))
     assert expected_sub_error_message in str(execinfo.value)
 
 
@@ -583,7 +581,6 @@ def test_fuse_fail_nested_loop_outer():
         "        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
         "            for j in T.serial(0, 128):\n"
     )
-    print("expected: ", expected_sub_error_message, "actual: ", str(execinfo.value))
     assert expected_sub_error_message in str(execinfo.value)
 
 
