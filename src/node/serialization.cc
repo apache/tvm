@@ -29,6 +29,8 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/expr_functor.h>
 
 #include <cctype>
 #include <map>
@@ -93,16 +95,35 @@ class NodeIndexer : public AttrVisitor {
     MakeIndex(const_cast<Object*>(value->get()));
   }
 
-  // make index of all the children of node
-  void MakeIndex(Object* node) {
+  void MakeNodeIndex(Object* node) {
     if (node == nullptr) return;
-    ICHECK(node->IsInstance<Object>());
-
-    if (node_index_.count(node)) return;
+    if (node_index_.count(node)) {
+      return;
+    }
     ICHECK_EQ(node_index_.size(), node_list_.size());
     node_index_[node] = node_list_.size();
     node_list_.push_back(node);
+  } 
 
+  // make index of all the children of node
+  void MakeIndex(Object* node) {
+    try {
+      // std::cout << "MakeIndex for " << std::endl << GetRef<ObjectRef>(node) << std::endl;
+    } catch (const std::exception& e) {
+      // std::cout << "MarkIndex for " << std::endl << e.what() << std::endl; 
+    }
+    if (node == nullptr) return;
+    ICHECK(node->IsInstance<Object>());
+
+    if (node_index_.count(node)) {
+      // std::cout << "counted" << std::endl;
+      return;
+    }
+    // std::cout << "not counted" << std::endl;
+    static int cnt = 0;
+    cnt++;
+    // std::cout << "cnt = " << cnt << std::endl;
+    MakeNodeIndex(node);
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
       for (const auto& sp : *n) {
@@ -122,6 +143,21 @@ class NodeIndexer : public AttrVisitor {
           MakeIndex(const_cast<Object*>(kv.first.get()));
           MakeIndex(const_cast<Object*>(kv.second.get()));
         }
+      }
+    } else if (node->IsInstance<relay::LetNode>()) {
+      auto pre_visit = [this](const relay::LetNode* op) {
+        MakeNodeIndex(const_cast<Object*>(static_cast<const Object*>(op)));
+        MakeIndex(const_cast<Object*>(static_cast<const Object*>(op->var.get())));
+        MakeIndex(const_cast<Object*>(static_cast<const Object*>(op->value.get())));
+        MakeIndex(const_cast<Object*>(static_cast<const Object*>(op->span.get())));
+        MakeIndex(const_cast<Object*>(static_cast<const Object*>(op->checked_type_.get())));
+        if (!op->body.as<relay::LetNode>()) {
+          MakeIndex(const_cast<Object*>(static_cast<const Object*>(op->body.get())));
+        }
+      };
+      auto post_visit = [this](const relay::LetNode* op) { };
+      if (!reflection_->GetReprBytes(node, nullptr)) {
+        relay::ExpandANormalForm(static_cast<relay::LetNode*>(node), pre_visit, post_visit);
       }
     } else {
       // if the node already have repr bytes, no need to visit Attrs.
