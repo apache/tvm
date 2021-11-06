@@ -246,8 +246,8 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():
                         Call TaskScheduler's `is_task_running`, which calls ffi
                     C++ side:
                         The ffi calls TaskScheduler's `is_task_running`
-                        But it is overrided in PyTaskScheduler
-                        PyTaskScheduler checks if the function is overrided in python
+                        But it is overridden in PyTaskScheduler
+                        PyTaskScheduler checks if the function is overridden in python
                         If not, it returns the TaskScheduler's vtable, calling
                             TaskScheduler::IsTaskRunning
                     """
