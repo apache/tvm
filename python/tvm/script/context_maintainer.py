@@ -23,7 +23,6 @@ import synr
 import tvm
 from tvm.ir import Span
 from tvm.ir.expr import Range
-from tvm.script.tir.sparse import MatchSparseBuffer
 from tvm.tir import Var, Buffer, PrimExpr, Stmt, MatchBufferRegion
 from tvm.runtime import Object
 from tvm.tir.expr import IterVar
@@ -76,10 +75,6 @@ class BlockInfo:
     """List[Buffer]: list of T.alloc_buffer statements in the block signature"""
     match_buffers: List[MatchBufferRegion] = []
     """List[MatchBufferRegion]: list of T.match_buffer statements in the block signature"""
-    axes: List[Axis] = []
-    """List[Axis]: list of sparse axis created in the block signature."""
-    match_sparse_buffers: List[MatchSparseBuffer]
-    """List[MatchSparseBuffer]: list of T.match_sparse_buffer statements in the block signature."""
     iter_values: List[PrimExpr] = []
     """List[PrimExpr]: list of binding values for iter vars"""
     iter_vars: List[IterVar] = []
@@ -217,7 +212,9 @@ class ContextMaintainer:
         # Pop block_info
         self.block_info_stack.pop()
 
-    def update_symbol(self, name: str, symbol: Union[Buffer, Var, SparseBuffer, Axis], node: synr.ast.Node):
+    def update_symbol(
+        self, name: str, symbol: Union[Buffer, Var, SparseBuffer, Axis], node: synr.ast.Node
+    ):
         """Append a symbol into current scope"""
         if isinstance(symbol, (Buffer, Var, SparseBuffer, Axis)):
             if name in self.symbols[0]:

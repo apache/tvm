@@ -28,6 +28,7 @@ from .buffer import Buffer
 
 class Axis(Object):
     """Base class of all the sparse axes."""
+
     @property
     def name(self):
         return _ffi_api.GetAxisName(self)
@@ -66,9 +67,7 @@ class DenseFixedAxis(DenseAxis):
     length: PrimExpr
 
     def __init__(self, name, length):
-        self.__init_handle_by_constructor__(
-            _ffi_api.DenseFixedAxis, name, length  # type: ignore
-        )
+        self.__init_handle_by_constructor__(_ffi_api.DenseFixedAxis, name, length)  # type: ignore
 
 
 @tvm._ffi.register_object("tir.sparse.DenseVariableAxis")
@@ -198,9 +197,7 @@ class SparseBuffer(Object):
     name: str
 
     def __init__(self, axes, data, name):
-        self.__init_handle_by_constructor__(
-            _ffi_api.SparseBuffer, axes, data, name  # type: ignore
-        )
+        self.__init_handle_by_constructor__(_ffi_api.SparseBuffer, axes, data, name)  # type: ignore
 
 
 @tvm._ffi.register_object("tir.sparse.SpIterVar")
@@ -225,6 +222,7 @@ class SpIterVar(Object):
         The axis over which the SpIterVar iterates. Required to be defined
         when `kind` is not `DenseFixed`
     """
+
     var: Var
     max_extent: PrimExpr
     kind: int
