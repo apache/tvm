@@ -105,6 +105,20 @@ Array<StmtSRef> GetLoops(const StmtSRef& block_sref);
  * \return A list of leaf blocks inside a specific block/loop
  */
 Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref);
+/*!
+ * \brief Get the producers of a specific block
+ * \param self The schedule state
+ * \param block_sref The block in the query
+ * \return A list of blocks, the producers of the given block
+ */
+Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref);
+/*!
+ * \brief Get the consumers of a specific block
+ * \param self The schedule state
+ * \param block_rv The block in the query
+ * \return A list of blocks, the consumers of the given block
+ */
+Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref);
 /******** Schedule: Transform loops ********/
 /*!
  * Split a loop into a list of consecutive loops. It requires:

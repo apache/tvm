@@ -77,6 +77,34 @@ Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent
   return std::move(collector.result);
 }
 
+Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref) {
+  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false,
+                                     /*require_stage_pipeline=*/false);
+  Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsByDst(block_sref);
+  Array<StmtSRef> results;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if (edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) {
+      results.push_back(edge->src);
+    }
+  }
+  return results;
+}
+
+Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref) {
+  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false,
+                                     /*require_stage_pipeline=*/false);
+  Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsBySrc(block_sref);
+  Array<StmtSRef> results;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if (edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) {
+      results.push_back(edge->dst);
+    }
+  }
+  return results;
+}
+
 /******** InstructionKind Registration ********/
 
 struct GetBlockTraits : public UnpackedInstTraits<GetBlockTraits> {
@@ -159,9 +187,59 @@ struct GetChildBlocksTraits : public UnpackedInstTraits<GetChildBlocksTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct GetProducersTraits : public UnpackedInstTraits<GetProducersTraits> {
+  static constexpr const char* kName = "GetProducers";
+  static constexpr bool kIsPure = true;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+    return sch->GetProducers(block_rv);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+    PythonAPICall py("get_producers");
+    py.Input("block", block_rv);
+    py.OutputList(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+struct GetConsumersTraits : public UnpackedInstTraits<GetConsumersTraits> {
+  static constexpr const char* kName = "GetConsumers";
+  static constexpr bool kIsPure = true;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+    return sch->GetConsumers(block_rv);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+    PythonAPICall py("get_consumers");
+    py.Input("block", block_rv);
+    py.OutputList(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(GetBlockTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetLoopsTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetChildBlocksTraits);
+TVM_REGISTER_INST_KIND_TRAITS(GetProducersTraits);
+TVM_REGISTER_INST_KIND_TRAITS(GetConsumersTraits);
 
 }  // namespace tir
 }  // namespace tvm
