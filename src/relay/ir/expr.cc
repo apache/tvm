@@ -115,8 +115,8 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
   n->span = std::move(span);
-  n->saved_deleter_ = n->deleter_;
-  n->deleter_ = CallNode::Deleter_;
+  // n->saved_deleter_ = n->deleter_;
+  // n->deleter_ = CallNode::Deleter_;
   data_ = std::move(n);
 }
 
@@ -140,8 +140,8 @@ Let::Let(Var var, Expr value, Expr body, Span span) {
   n->value = std::move(value);
   n->body = std::move(body);
   n->span = std::move(span);
-  n->saved_deleter_ = n->deleter_;
-  n->deleter_ = LetNode::Deleter_;
+  // n->saved_deleter_ = n->deleter_;
+  // n->deleter_ = LetNode::Deleter_;
   data_ = std::move(n);
 }
 
