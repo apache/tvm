@@ -657,9 +657,10 @@ class TempExpr : public Expr {
 
 namespace runtime {
 
-template <> template<>
+template <>
+template <>
 inline ObjectPtr<relay::LetNode>
-  ObjAllocatorBase<SimpleObjAllocator>::make_object<relay::LetNode>() {
+ObjAllocatorBase<SimpleObjAllocator>::make_object<relay::LetNode>() {
   using Derived = SimpleObjAllocator;
   using T = relay::LetNode;
   using Handler = typename Derived::template Handler<T>;
@@ -671,9 +672,10 @@ inline ObjectPtr<relay::LetNode>
   return ObjectPtr<T>(ptr);
 }
 
-template <> template<>
+template <>
+template <>
 inline ObjectPtr<relay::CallNode>
-  ObjAllocatorBase<SimpleObjAllocator>::make_object<relay::CallNode>() {
+ObjAllocatorBase<SimpleObjAllocator>::make_object<relay::CallNode>() {
   using Derived = SimpleObjAllocator;
   using T = relay::CallNode;
   using Handler = typename Derived::template Handler<T>;

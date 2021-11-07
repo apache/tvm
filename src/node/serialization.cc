@@ -26,11 +26,11 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/expr_functor.h>
 
 #include <cctype>
 #include <map>
@@ -145,7 +145,7 @@ class NodeIndexer : public AttrVisitor {
           MakeIndex(const_cast<Object*>(static_cast<const Object*>(op->body.get())));
         }
       };
-      auto post_visit = [this](const relay::LetNode* op) { };
+      auto post_visit = [](const relay::LetNode* op) {};
       if (!reflection_->GetReprBytes(node, nullptr)) {
         relay::ExpandANormalForm(static_cast<relay::LetNode*>(node), pre_visit, post_visit);
       }
