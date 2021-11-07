@@ -968,11 +968,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "}\n";
     });
 
-SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars, Array<SparseBuffer> sp_buffers, String name,
-                         Stmt body, Optional<Stmt> init, Span span) {
+SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars,
+                         Map<ObjectRef, Array<Var>> sp_struct2param_map, String name, Stmt body,
+                         Optional<Stmt> init, Span span) {
   ObjectPtr<SparseBlockNode> node = make_object<SparseBlockNode>();
   node->sp_iter_vars = std::move(sp_iter_vars);
-  node->sp_buffers = std::move(sp_buffers);
+  node->sp_struct2param_map = std::move(sp_struct2param_map);
   node->name = std::move(name);
   node->body = std::move(body);
   node->init = std::move(init);
@@ -981,9 +982,10 @@ SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars, Array<SparseBuffer> sp_b
 }
 
 TVM_REGISTER_GLOBAL("tir.SparseBlock")
-    .set_body_typed([](Array<SpIterVar> sp_iter_vars, Array<SparseBuffer> sp_buffers, String name,
-                       Stmt body, Optional<Stmt> init, Span span) {
-      return SparseBlock(sp_iter_vars, sp_buffers, name, body, init, span);
+    .set_body_typed([](Array<SpIterVar> sp_iter_vars,
+                       Map<ObjectRef, Array<Var>> sp_struct2param_map, String name, Stmt body,
+                       Optional<Stmt> init, Span span) {
+      return SparseBlock(sp_iter_vars, sp_struct2param_map, name, body, init, span);
     });
 
 TVM_REGISTER_NODE_TYPE(SparseBlockNode);

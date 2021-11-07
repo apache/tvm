@@ -35,7 +35,7 @@ from tvm.runtime import Object, const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import IterVar
+from .expr import Var, IterVar
 from .sparse import SpIterVar, SparseBuffer
 
 
@@ -624,8 +624,8 @@ class SparseBlock(Stmt):
     sp_iter_vars : List[SpIterVar]
         The sparse iteration variables of the block.
 
-    sp_buffers : List[SparseBuffer]
-        The sparse buffers defined in the block.
+    sp_struct2param_map : Mapping[Object, List[Var]]
+        The mapping from sparse data structures to the PrimFunc parameters.
 
     name : str
         The name of the block.
@@ -641,7 +641,7 @@ class SparseBlock(Stmt):
     """
 
     sp_iter_vars: List[SpIterVar]
-    sp_buffers: List[SparseBuffer]
+    sp_struct2param_map: Mapping[Object, List[Var]]
     name: str
     body: Stmt
     init: Optional[Stmt]
@@ -650,7 +650,7 @@ class SparseBlock(Stmt):
     def __init__(
         self,
         sp_iter_vars: List[SpIterVar],
-        sp_buffers: List[SparseBuffer],
+        sp_struct2param_map: Mapping[Object, List[Var]],
         name: str,
         body: Stmt,
         init: Optional[Stmt] = None,
@@ -659,7 +659,7 @@ class SparseBlock(Stmt):
         self.__init_handle_by_constructor__(
             _ffi_api.SparseBlock,  # type: ignore
             sp_iter_vars,
-            sp_buffers,
+            sp_struct2param_map,
             name,
             body,
             init,

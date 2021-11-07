@@ -1285,8 +1285,8 @@ class SparseBlockNode : public StmtNode {
  public:
   /*! \brief The sparse iteration variables of the block. */
   Array<SpIterVar> sp_iter_vars;
-  /*! \brief The sparse buffers defined in the block. */
-  Array<SparseBuffer> sp_buffers;
+  /*! \brief The mapping from sparse data structures to the PrimFunc parameters */
+  Map<ObjectRef, Array<Var>> sp_struct2param_map;
   /*! \brief The name of the block */
   String name;
   /*! \brief The body of the block */
@@ -1296,20 +1296,21 @@ class SparseBlockNode : public StmtNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("sp_iter_vars", &sp_iter_vars);
-    v->Visit("sp_buffers", &sp_buffers);
+    v->Visit("sp_struct2param_map", &sp_struct2param_map);
     v->Visit("name", &name);
     v->Visit("body", &body);
     v->Visit("init", &init);
   }
 
   bool SEqualReduce(const SparseBlockNode* other, SEqualReducer equal) const {
-    return equal(sp_iter_vars, other->sp_iter_vars) && equal(sp_buffers, other->sp_buffers) &&
-           equal(name, other->name) && equal(body, other->body) && equal(init, other->init);
+    return equal(sp_iter_vars, other->sp_iter_vars) &&
+           equal(sp_struct2param_map, other->sp_struct2param_map) && equal(name, other->name) &&
+           equal(body, other->body) && equal(init, other->init);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(sp_iter_vars);
-    hash_reduce(sp_buffers);
+    hash_reduce(sp_struct2param_map);
     hash_reduce(name);
     hash_reduce(body);
     hash_reduce(init);
@@ -1325,9 +1326,9 @@ class SparseBlockNode : public StmtNode {
  */
 class SparseBlock : public Stmt {
  public:
-  TVM_DLL explicit SparseBlock(Array<SpIterVar> sp_iter_vars, Array<SparseBuffer> sp_buffers,
-                               String name, Stmt body, Optional<Stmt> init = NullOpt,
-                               Span span = Span());
+  TVM_DLL explicit SparseBlock(Array<SpIterVar> sp_iter_vars,
+                               Map<ObjectRef, Array<Var>> sp_struct2param_map, String name,
+                               Stmt body, Optional<Stmt> init = NullOpt, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(SparseBlock, Stmt, SparseBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SparseBlockNode);
