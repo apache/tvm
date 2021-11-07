@@ -103,26 +103,16 @@ class NodeIndexer : public AttrVisitor {
     ICHECK_EQ(node_index_.size(), node_list_.size());
     node_index_[node] = node_list_.size();
     node_list_.push_back(node);
-  } 
+  }
 
   // make index of all the children of node
   void MakeIndex(Object* node) {
-    try {
-      // std::cout << "MakeIndex for " << std::endl << GetRef<ObjectRef>(node) << std::endl;
-    } catch (const std::exception& e) {
-      // std::cout << "MarkIndex for " << std::endl << e.what() << std::endl; 
-    }
     if (node == nullptr) return;
     ICHECK(node->IsInstance<Object>());
 
     if (node_index_.count(node)) {
-      // std::cout << "counted" << std::endl;
       return;
     }
-    // std::cout << "not counted" << std::endl;
-    static int cnt = 0;
-    cnt++;
-    // std::cout << "cnt = " << cnt << std::endl;
     MakeNodeIndex(node);
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
