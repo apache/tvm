@@ -123,12 +123,26 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   if (ifm == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<EthosuConv2DAttrs>();
   CHECK(param != nullptr) << "EthosuConv2DAttrs cannot be nullptr.";
-  CHECK(ifm->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_conv2d type(uint8) or type(int8) for ifm but was " << ifm->dtype;
-  CHECK(weight->dtype == DataType::UInt(8) || weight->dtype == DataType::Int(8))
-      << "Expected ethosu_conv2d type(uint8) or type(int8) for weight but was " << weight->dtype;
-  CHECK(scale_bias->dtype == DataType::UInt(8))
-      << "Expected ethosu_conv2d type(uint8) for scale_bias but was " << scale_bias->dtype;
+
+  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: expected ethosu_conv2d input data type "
+                                     << "of type(uint8) or type(int8) but was " << ifm->dtype);
+    return false;
+  }
+
+  if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: expected ethosu_conv2d weight data type "
+                                     << "of type(uint8) or type(int8) but was " << weight->dtype);
+  }
+
+  if (scale_bias->dtype != DataType::UInt(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_conv2d scale bias data type "
+        << "of type(uint8) but was " << scale_bias->dtype);
+  }
 
   // The scale_bias should be provided as a tensor of size {ofm_channels, 10}
   reporter->Assign(types[2], TensorType({weight->shape[0], 10}, DataType::UInt(8)));

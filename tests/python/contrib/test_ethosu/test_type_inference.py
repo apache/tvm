@@ -62,6 +62,34 @@ def test_ethosu_conv2d_type_inference(
 
 
 @pytest.mark.parametrize(
+    "ifm_dtype,weight_dtype,scale_bias_dtype",
+    [("float32", "int8", "uint8"), ("int8", "float32", "uint8"), ("int8", "int8", "float32")],
+)
+def test_ethosu_conv2d_invalid_dtypes(ifm_dtype, weight_dtype, scale_bias_dtype):
+    ifm_channels = 55
+    ofm_channels = 122
+    kernel_shape = (3, 2)
+    padding = (0, 1, 2, 3)
+    strides = (1, 2)
+    dilation = (2, 1)
+    ifm = relay.var("ifm", shape=(1, 56, 72, 55), dtype=ifm_dtype)
+    conv2d = make_ethosu_conv2d(
+        ifm,
+        ifm_channels,
+        ofm_channels,
+        kernel_shape,
+        padding,
+        strides,
+        dilation,
+        weight_dtype=weight_dtype,
+        scale_bias_dtype=scale_bias_dtype,
+    )
+    func = relay.Function([ifm], conv2d)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+@pytest.mark.parametrize(
     "ifm_shape, ifm_layout", [((1, 46, 71, 55), "NHWC"), ((1, 46, 4, 71, 16), "NHCWB16")]
 )
 @pytest.mark.parametrize(
@@ -92,6 +120,33 @@ def test_ethosu_depthwise_conv2d_type_inference(
     func = relay.Function([ifm], depthwise_conv2d)
     func = run_opt_pass(func, relay.transform.InferType())
     assert tuple(func.body.checked_type.shape) == ofm_shape
+
+
+@pytest.mark.parametrize(
+    "ifm_dtype,weight_dtype,scale_bias_dtype",
+    [("float32", "int8", "uint8"), ("int8", "float32", "uint8"), ("int8", "int8", "float32")],
+)
+def test_ethosu_depthwise_conv2d_invalid_dtypes(ifm_dtype, weight_dtype, scale_bias_dtype):
+    channels = 55
+    kernel_shape = (3, 2)
+    padding = (0, 1, 2, 3)
+    strides = (1, 2)
+    dilation = (2, 1)
+    dilation = (2, 1)
+    ifm = relay.var("ifm", shape=(1, 56, 72, 55), dtype=ifm_dtype)
+    depthwise_conv2d = make_ethosu_depthwise_conv2d(
+        ifm,
+        channels,
+        kernel_shape,
+        padding,
+        strides,
+        dilation,
+        weight_dtype=weight_dtype,
+        scale_bias_dtype=scale_bias_dtype,
+    )
+    func = relay.Function([ifm], depthwise_conv2d)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
 
 
 @pytest.mark.parametrize(
