@@ -566,10 +566,11 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
             name="conv2d_transpose_nchw.cuda",
         )
     else:
+        raise NotImplementedError("CUDA schedule is not enable for conv2d transpose when groups > 1. See https://github.com/apache/tvm/pull/9465 for details.")
         # FIXME: Here should be a specialized implementation and schedule instead general one.
         strategy.add_implementation(
             wrap_compute_group_conv2d_transpose(topi.nn.group_conv2d_transpose_nchw),
-            wrap_topi_schedule(topi.generic.schedule_group_conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_group_conv2d_transpose_nchw),
             name="group_conv2d_transpose_nchw.cuda",
         )
     return strategy
