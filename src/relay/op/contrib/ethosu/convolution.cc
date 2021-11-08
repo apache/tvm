@@ -135,6 +135,7 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
                                      << "Invalid operator: expected ethosu_conv2d weight data type "
                                      << "of type(uint8) or type(int8) but was " << weight->dtype);
+    return false;
   }
 
   if (scale_bias->dtype != DataType::UInt(8)) {
@@ -142,6 +143,7 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
         Diagnostic::Error(reporter->GetSpan())
         << "Invalid operator: expected ethosu_conv2d scale bias data type "
         << "of type(uint8) but was " << scale_bias->dtype);
+    return false;
   }
 
   // The scale_bias should be provided as a tensor of size {ofm_channels, 10}
