@@ -2639,6 +2639,12 @@ class Resize(OnnxOpConverter):
     def _impl_v13(cls, inputs, attr, params):
         scale = inputs[2]
         size = inputs[3]
+
+        # Some versions of onnx exporters produce an opset 13 model with the opset 11
+        # resize op, handle that edge case
+        if scale is not None and size is not None:
+            return cls._impl_v11(inputs, attr, params)
+
         if size is not None:
             assert scale is None, "One of scale or size should be passed, not both."
         else:
