@@ -23,24 +23,23 @@ This is a baseline 1x1 conv2d schedule for Hexagon.
 
 ## Command
 
-pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_blocked.py::TestConv2dPackedFilter::test_conv2d[conv2d_nhwc8h8w32c-1-1-0-float32-1-1-1-64-64-128-llvm]"
+pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_blocked.py::TestConv2dPackedFilter::test_conv2d[1-64-64-0-1-1-128-1-1-float32-llvm]"
 
 ## Parameters
 
-| Parameter | Value       |
-| --------- | ----------- |
-| Batch     | 1           |
-| Filter    | 1x1         |
-| Spatial   | 64x64       |
-| Input Ch  | 64          |
-| Output Ch | 128         |
-| Stride    | 1           |
-| Padding   | 0           |
-| Layout    | NHWC8h8w32c |
+| Parameter | Value |
+| --------- | ----- |
+| Batch     | 1     |
+| Spatial   | 64x64 |
+| Input Ch  | 64    |
+| Padding   | 0     |
+| Stride    | 1     |
+| Filter    | 1x1   |
+| Output Ch | 128   |
 
 ## Assumptions
 
-* Pattern matching for microkernels is not senstive to cache reads and writes between the outer height (ho) and outer width (wo) loops.
+* n/a
 
 ## To Do
 
@@ -174,26 +173,25 @@ The key changes in TIR versus the above are...
 
 ## Command
 
-pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_blocked.py::TestConv2dPackedFilter::test_conv2d[conv2d_nhwc8h8w32c-1-1-0-float32-2-2-1-64-64-128-llvm]"
+pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_blocked.py::TestConv2dPackedFilter::test_conv2d[1-64-64-0-1-1-128-2-2-float32-llvm]"
 
 ## Parameters
 
-| Parameter | Value       |
-| --------- | ----------- |
-| Batch     | 1           |
-| Filter    | 1x1         |
-| Spatial   | 64x64       |
-| Input Ch  | 64          |
-| Output Ch | 128         |
-| Stride    | 1           |
-| Padding   | 0           |
-| Layout    | NHWC8h8w32c |
-| k_split   | 2           |
-| h_split   | 2           |
+| Parameter | Value |
+| --------- | ----- |
+| Batch     | 1     |
+| Spatial   | 64x64 |
+| Input Ch  | 64    |
+| Padding   | 0     |
+| Stride    | 1     |
+| Filter    | 1x1   |
+| Output Ch | 128   |
+| k_split   | 2     |
+| h_split   | 2     |
 
 ## Assumptions
 
-* n/a - With the loop splits on `ko` and `ho` the compute schedule is now over `ko.inner` `ho.inner` `wo` etc. This should fit the pattern matching for microkernels.
+* n/a
 
 ## To Do
 
@@ -350,21 +348,21 @@ The `if` statement above indicates NOT to prefetch the vertically adjacent slice
 
 ## Command
 
-pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_blocked.py::TestConv2dPackedFilter::test_conv2d[conv2d_nhwc8h8w32c-3-1-0-float32-2-2-1-64-64-128-llvm]"
+pytest -sv "tests/python/contrib/test_hexagon/test_conv2d_blocked.py::TestConv2dPackedFilter::test_conv2d[1-64-64-0-1-3-128-2-2-float32-llvm]"
 
 ## Parameters
 
-| Parameter | Value       |
-| --------- | ----------- |
-| Batch     | 1           |
-| Filter    | 3x3         |
-| Spatial   | 64x64       |
-| Input Ch  | 64          |
-| Output Ch | 128         |
-| Stride    | 1           |
-| Padding   | 0           |
-| Layout    | NHWC8h8w32c |
-| h_split   | 2           |
+| Parameter | Value |
+| --------- | ----- |
+| Batch     | 1     |
+| Spatial   | 64x64 |
+| Input Ch  | 64    |
+| Padding   | 0     |
+| Stride    | 1     |
+| Filter    | 1x1   |
+| Output Ch | 128   |
+| k_split   | 2     |
+| h_split   | 2     |
 
 ## Assumptions
 

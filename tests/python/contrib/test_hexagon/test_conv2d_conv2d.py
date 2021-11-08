@@ -23,14 +23,12 @@ from tvm import topi
 from tvm.topi import testing
 
 from .infrastructure import (
-    ceildiv,
     build_and_run,
+    conv2d_compute,
+    conv2d_verify,
     get_block_shape,
-    get_conv2d_nhwc_shape,
-    get_filter_block_shape,
-    get_packed_filter_layout,
-    get_packed_activation_layout,
-    verify_conv2d,
+    get_packed_filter_shape,
+    get_packed_shape,
 )
 
 import numpy as np
@@ -61,29 +59,13 @@ def conv2dconv2d(
     """
 
     # nhwc layout
-    X = te.placeholder(shape_input, dtype=dtype)
+    X = te.placeholder(shape_input, dtype=dtype, name="logical_input")
 
     # oihw8i32o4i layout
-    filt_packed1 = te.placeholder(shape_filter1, dtype=dtype)
-    filt_packed2 = te.placeholder(shape_filter2, dtype=dtype)
+    filt_packed1 = te.placeholder(shape_filter1, dtype=dtype, name="packed_filter1")
+    filt_packed2 = te.placeholder(shape_filter2, dtype=dtype, name="packed_filter2")
 
-    # calculate kernel size and output channels
-    # given oihw8i32o4i filter layout
-    kernel_size1 = tuple(shape_filter1[2:4])
-    out_channels1 = shape_filter1[0] * shape_filter1[5]
-
-    # get the the logical output shape of conv2d #1
-    logical_output_shape1 = get_conv2d_nhwc_shape(
-        shape_input,
-        kernel_size1,
-        stride1,
-        pad1,
-        dilation1,
-        out_channels1,
-    )
-
-    block_shape = get_block_shape()
-    block_H, block_W, block_C = block_shape
+    block_H, block_W, block_C = get_block_shape()
 
     # Calculate padded input
     N, H, W, C = shape_input
@@ -94,7 +76,7 @@ def conv2dconv2d(
     )
 
     # Calculate packed input
-    packed_shape = get_packed_activation_layout(X_pad.shape, block_shape)
+    packed_shape = get_packed_shape(X_pad.shape)
     X_packed = te.compute(
         packed_shape,
         lambda n, ho, wo, co, hi, wi, ci: X_pad[
@@ -103,107 +85,18 @@ def conv2dconv2d(
         name="packed_input",
     )
 
-    filter_Cio, filter_Ki, filter_Cii = get_filter_block_shape()
-    filter_Ci = filter_Cio * filter_Cii
+    output_shape1, compute1 = conv2d_compute(X_packed, filt_packed1, pad1, stride1, dilation1)
+    temp_Y = te.compute(output_shape1, compute1, name="temp_output")
 
-    rh = te.reduce_axis((0, kernel_size1[0]), name="rh")
-    rw = te.reduce_axis((0, kernel_size1[1]), name="rw")
-    rc = te.reduce_axis((0, C), name="rc")
-
-    def compute(n, ho, wo, ko, hi, wi, ki):
-        h = ho * block_H + hi
-        h_contig = h * stride1[0] + rh
-        h_block_id = h_contig // block_H
-        h_block_offset = h_contig % block_H
-
-        w = wo * block_W + wi
-        w_contig = w * stride1[1] + rw
-        w_block_id = w_contig // block_W
-        w_block_offset = w_contig % block_W
-
-        c_block_id = rc // block_C
-        c_block_offset = rc % block_C
-
-        rco = rc // filter_Ci
-        rcio = (rc % filter_Ci) // filter_Cii
-        rcii = rc % filter_Cii
-
-        return te.sum(
-            X_packed[
-                n,
-                h_block_id,
-                w_block_id,
-                c_block_id,
-                h_block_offset,
-                w_block_offset,
-                c_block_offset,
-            ]
-            * filt_packed1[ko, rco, rh, rw, rcio, ki, rcii],
-            axis=[rh, rw, rc],
-        )
-
-    output_shape1 = get_packed_activation_layout(logical_output_shape1, block_shape)
-    temp_Y = te.compute(output_shape1, compute, name="temp_output")
-
-    # calculate kernel size and output channels
-    # given oihw8i32o4i filter layout
-    kernel_size2 = tuple(shape_filter2[2:4])
-    out_channels2 = shape_filter2[0] * shape_filter2[5]
-
-    # get the the logical output shape of conv2d #2
-    logical_input_shape2 = logical_output_shape1
-    logical_output_shape2 = get_conv2d_nhwc_shape(
-        logical_input_shape2,
-        kernel_size2,
-        stride2,
-        pad2,
-        dilation2,
-        out_channels2,
-    )
-
-    rh = te.reduce_axis((0, kernel_size2[0]), name="rh")
-    rw = te.reduce_axis((0, kernel_size2[1]), name="rw")
-    rc = te.reduce_axis((0, logical_input_shape2[3]), name="rc")
-
-    def compute2(n, ho, wo, ko, hi, wi, ki):
-        h = ho * block_H + hi
-        h_contig = h * stride2[0] + rh
-        h_block_id = h_contig // block_H
-        h_block_offset = h_contig % block_H
-
-        w = wo * block_W + wi
-        w_contig = w * stride2[1] + rw
-        w_block_id = w_contig // block_W
-        w_block_offset = w_contig % block_W
-
-        c_block_id = rc // block_C
-        c_block_offset = rc % block_C
-
-        rco = rc // filter_Ci
-        rcio = (rc % filter_Ci) // filter_Cii
-        rcii = rc % filter_Cii
-
-        return te.sum(
-            temp_Y[
-                n,
-                h_block_id,
-                w_block_id,
-                c_block_id,
-                h_block_offset,
-                w_block_offset,
-                c_block_offset,
-            ]
-            * filt_packed2[ko, rco, rh, rw, rcio, ki, rcii],
-            axis=[rh, rw, rc],
-        )
-
-    output_shape2 = get_packed_activation_layout(logical_output_shape2, block_shape)
-    Y = te.compute(output_shape2, compute2, name="output")
+    output_shape2, compute2 = conv2d_compute(temp_Y, filt_packed2, pad2, stride2, dilation2)
+    Y = te.compute(output_shape2, compute2, name="packed_output")
     s = te.create_schedule(Y.op)
 
+    # Ensure the padding and array packing is performed inline
     s[X_pad].compute_inline()
     s[X_packed].compute_inline()
 
+    # cache reads and writes
     Xl = s.cache_read(X_packed, storage_scope, [temp_Y])
     F1l = s.cache_read(filt_packed1, storage_scope, [temp_Y])
     F2l = s.cache_read(filt_packed2, storage_scope, [Y])
@@ -218,23 +111,30 @@ def conv2dconv2d(
     s[Xl].compute_at(s[temp_Y], hoo)
     s[F1l].compute_at(s[temp_Y], hoo)
 
+    # cache write schedule
     n, ho, wo, ko, hi, wi, ki = s[Y].op.axis
     koo, koi = s[Y].split(ko, factor=k_split_factor)
     hoo, hoi = s[Y].split(ho, factor=h_split_factor)
     s[Y].reorder(n, koo, hoo, koi, hoi, wo, hi, wi, ki)
     s[Yl].compute_at(s[Y], hoo)
 
+    # compute schedule
     n, ho, wo, ko, hi, wi, ki = s[Yl].op.axis
     rh, rw, rc = s[Yl].op.reduce_axis
     rco, rci = s[Yl].split(rc, factor=block_C)
     koo, koi = s[Yl].split(ko, factor=k_split_factor)
     hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
     s[Yl].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
-
     s[temp_Y].compute_at(s[Yl], hoo)
     s[F2l].compute_at(s[Yl], hoo)
 
-    binds = {}  # TODO
+    binds = {}
+    if storage_scope and storage_scope != "global":
+        with tvm.transform.PassContext():
+            Xb = tvm.tir.decl_buffer(packed_shape, name="Xb", dtype=dtype, scope=storage_scope)
+            Yb = tvm.tir.decl_buffer(output_shape2, name="Yb", dtype=dtype, scope=storage_scope)
+            binds = {X: Xb, Y: Yb}
+
     return (s, [X, filt_packed1, filt_packed2, Y], binds)
 
 
@@ -287,12 +187,12 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
 
         shape_input = [batch, in_size, in_size, in_channel]
         shape_filter1_oihw = [out_channel1, in_channel, kernel_size1, kernel_size1]
-        shape_filter1_oihw8i32o4i = get_packed_filter_layout(
+        shape_filter1_oihw8i32o4i = get_packed_filter_shape(
             out_channel1, in_channel, kernel_size1, kernel_size1
         )
 
         shape_filter2_oihw = [out_channel2, out_channel1, kernel_size2, kernel_size2]
-        shape_filter2_oihw8i32o4i = get_packed_filter_layout(
+        shape_filter2_oihw8i32o4i = get_packed_filter_shape(
             out_channel2, out_channel1, kernel_size2, kernel_size2
         )
 
@@ -334,7 +234,7 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
             dtype=dtype,
         )
 
-        verify_conv2d(output, ref_output, dtype)
+        conv2d_verify(output, ref_output, dtype)
 
 
 if __name__ == "__main__":
