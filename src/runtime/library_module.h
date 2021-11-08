@@ -79,15 +79,34 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
 
 /*!
+ * \brief Type alias for funcion to wrap a TVMBackendPackedCFunc.
+ * \param The function address imported from a module.
+ * \param mptr The module pointer node.
+ * \return Packed function that wraps the invocation of the function at faddr.
+ */
+using PackedFuncWrapper =
+    std::function<PackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr)>;
+
+/*! \brief Return a library object interface over dynamic shared
+ *  libraries in Windows and Linux providing support for
+ *  loading/unloading and symbol lookup.
+ *  \param Full path to shared library.
+ *  \return Returns pointer to the Library providing symbol lookup.
+ */
+ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path);
+
+/*!
  * \brief Create a module from a library.
  *
  * \param lib The library.
+ * \param wrapper Optional function used to wrap a TVMBackendPackedCFunc,
+ * by default WrapPackedFunc is used.
  * \return The corresponding loaded module.
  *
  * \note This function can create multiple linked modules
  *       by parsing the binary blob section of the library.
  */
-Module CreateModuleFromLibrary(ObjectPtr<Library> lib);
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper wrapper = WrapPackedFunc);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_LIBRARY_MODULE_H_

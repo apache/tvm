@@ -22,6 +22,7 @@ from tvm.runtime import Object
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
+from ..utils import check_override
 
 
 @register_object("meta_schedule.RunnerInput")
@@ -158,6 +159,7 @@ class PyRunner(Runner):
     def __init__(self) -> None:
         """Constructor"""
 
+        @check_override(self.__class__, Runner)
         def f_run(runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
             return self.run(runner_inputs)
 
@@ -165,6 +167,3 @@ class PyRunner(Runner):
             _ffi_api.RunnerPyRunner,  # type: ignore # pylint: disable=no-member
             f_run,
         )
-
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
-        raise NotImplementedError

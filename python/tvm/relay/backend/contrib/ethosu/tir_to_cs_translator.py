@@ -85,10 +85,10 @@ def translate(tir_module, params):
     """
 
     buffer_info = extract_buffer_info(tir_module, params)
-    extern_calls = extract_extern_calls(tir_module)
+    call_extern_list = extract_call_extern_list(tir_module)
     _npu_ops = list()
-    for extern_call in extern_calls:
-        _npu_ops.append(translate_ethosu_tir_extern_call(extern_call))
+    for call_extern in call_extern_list:
+        _npu_ops.append(translate_ethosu_tir_call_extern(call_extern))
     _npu_ops, constant_tensor, scratch_size = assign_addresses(buffer_info, _npu_ops)
     target_accel_config = vela_api.get_accelerator_config()
     cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_config)
@@ -97,7 +97,7 @@ def translate(tir_module, params):
     return payload.hex(), hex_value, scratch_size
 
 
-def extract_extern_calls(mod):
+def extract_call_extern_list(mod):
     """This function will obtain all extern
     calls from a TIR module
     Parameters
@@ -115,14 +115,14 @@ def extract_extern_calls(mod):
     assert len(mod.functions.items()) == 1
     primfunc = mod.functions.items()[0][1]
 
-    extern_calls = list()
+    call_extern_list = list()
 
-    def populate_extern_calls(stmt):
+    def populate_call_extern_list(stmt):
         if isinstance(stmt, tvm.tir.Call) and stmt.op.name == "tir.call_extern":
-            extern_calls.append(stmt)
+            call_extern_list.append(stmt)
 
-    stmt_functor.post_order_visit(primfunc.body, populate_extern_calls)
-    return extern_calls
+    stmt_functor.post_order_visit(primfunc.body, populate_call_extern_list)
+    return call_extern_list
 
 
 def extract_buffer_info(
@@ -295,18 +295,19 @@ def assign_addresses(buffer_info, npu_ops):
     return npu_ops, constant_tensor, scratch_size
 
 
-def translate_ethosu_tir_extern_call(tir_extern_call):
+def translate_ethosu_tir_call_extern(tir_call_extern):
     """This is a dispatcher function to dispatch
     correct translation call depending on the extern call's
     first argument"""
-    supported_extern_calls = {
+    supported_call_extern = {
         "ethosu_conv2d": translate_ethosu_conv2d,
         "ethosu_copy": translate_ethosu_copy,
         "ethosu_depthwise_conv2d": translate_ethosu_depthwise_conv2d,
+        "ethosu_pooling": translate_ethosu_pooling,
     }
-    ext_call_type = tir_extern_call.args[0].value
-    assert ext_call_type in supported_extern_calls.keys(), f"{ext_call_type} is not yet supported"
-    npu_op = supported_extern_calls[ext_call_type](tir_extern_call)
+    ext_call_type = tir_call_extern.args[0].value
+    assert ext_call_type in supported_call_extern.keys(), f"{ext_call_type} is not yet supported"
+    npu_op = supported_call_extern[ext_call_type](tir_call_extern)
     # Some conversions return additional outputs
     # if they are needed, the caller should use the function directly
     if isinstance(npu_op, tuple):
@@ -314,20 +315,21 @@ def translate_ethosu_tir_extern_call(tir_extern_call):
     return npu_op
 
 
-def translate_ethosu_copy(tir_extern_call):
-    """This function will translate a tir ethosu_copy extern_call
-    as produced by Relay to TIR compilation.
+def translate_ethosu_copy(tir_call_extern: tvm.tir.Call) -> vapi.NpuDmaOperation:
+    """This function will translate a TIR call_extern
+    as produced by NPU Relay to TIR compilation.
+
     Parameters
     ----------
-    tir_extern_call : tvm.tir.Call
+    tir_call_extern : tvm.tir.Call
 
     Returns
     -------
     ethosu.vela.api.NpuDmaOperation
         The vela object containing the params of ethosu_copy
     """
-    # We skip the first element as it is the extern_call function name
-    serial_object = spec.create_serial_object(spec.SerialCopy, tir_extern_call.args[1:])
+    # We skip the first element as it is the call_extern function name
+    serial_object = spec.create_serial_object(spec.SerialCopy, tir_call_extern.args[1:])
     return _create_npu_dma_op(serial_object)
 
 
@@ -360,7 +362,7 @@ def translate_ethosu_conv2d(tir_call_extern: tvm.tir.Call) -> Tuple[vapi.NpuConv
     Parameters
     ----------
     tir_call_extern : tvm.tir.Call
-        This should be a TIR call_extern that has a agreed upon ordering
+        This should be a TIR call_extern that has agreed upon ordering
         for TIR Compiler. See Serial2DConvolution in
         tvm/relay/backend/contrib/ethosu/tir/spec.py for the ordering.
 
@@ -370,7 +372,6 @@ def translate_ethosu_conv2d(tir_call_extern: tvm.tir.Call) -> Tuple[vapi.NpuConv
         The vela object containing the params of ethosu_conv2d
     weights_zero_point : int
         The zero point of the weights
-
     """
     # We skip the first element as it is the call_extern function name
     serial_object = spec.create_serial_object(spec.Serial2DConvolution, tir_call_extern.args[1:])
@@ -417,25 +418,27 @@ def _create_npu_op_conv2d(
     return npu_conv2d_op, weights_zero_point
 
 
-def translate_ethosu_depthwise_conv2d(tir_extern_call):
-    """This function will translate a tir extern_call
-    as produced by Relay to TIR compilation.
+def translate_ethosu_depthwise_conv2d(
+    tir_call_extern: tvm.tir.Call,
+) -> Tuple[vapi.NpuConvDepthWiseOperation, int]:
+    """This function will translate a TIR call_extern
+    as produced by NPU Relay to TIR compilation.
 
     Parameters
     ----------
-    tir_extern_call : tvm.tir.Call
-        This should be a tir external call that has an agreed upon ordering
-        for NPU TIR Compiler. See Serial2DDepthwise in
+    tir_call_extern : tvm.tir.Call
+        This should be a TIR call_extern that has agreed upon ordering
+        for TIR Compiler. See Serial2DDepthwise in
         tvm/relay/backend/contrib/ethosu/tir/spec.py for the ordering.
 
     Returns
     -------
-    ethosu.vela.api.NpuDepthWiseOperation
+    ethosu.vela.api.NpuConvDepthWiseOperation
         The vela object containing the params of ethosu_depthwise_conv2d
     weights_zero_point : int
         The zero point of the weights
     """
-    serial_object = spec.create_serial_object(spec.Serial2DDepthwise, tir_extern_call.args[1:])
+    serial_object = spec.create_serial_object(spec.Serial2DDepthwise, tir_call_extern.args[1:])
     return _create_npu_op_depthwise_conv2d(serial_object)
 
 
@@ -625,3 +628,52 @@ def _create_npu_dma_op(serial_copy):
         length=int(serial_copy.length.value),
     )
     return vapi.NpuDmaOperation(src, dest)
+
+
+def translate_ethosu_pooling(tir_call_extern: tvm.tir.Call) -> vapi.NpuPoolingOperation:
+    """This function will translate a TIR call_extern
+    as produced by NPU Relay to TIR compilation.
+
+    Parameters
+    ----------
+    tir_call_extern : tvm.tir.Call
+        This should be a TIR call_extern that has agreed upon ordering
+        for TIR Compiler. See SerialPooling in
+        tvm/relay/backend/contrib/ethosu/tir/spec.py for the ordering.
+
+    Returns
+    -------
+    ethosu.vela.api.NpuPoolingOperation
+        The vela object containing the params of ethosu_pooling
+    """
+    serial_object = spec.create_serial_object(spec.SerialPooling, tir_call_extern.args[1:])
+    return _create_npu_op_pooling(serial_object)
+
+
+def _create_npu_op_pooling(serial_pooling: spec.SerialPooling):
+    pooling_type = serial_pooling.pooling_type
+    if pooling_type == "AVG":
+        npu_pooling_op = vapi.NpuPoolingOp.AVERAGE
+    elif pooling_type == "MAX":
+        npu_pooling_op = vapi.NpuPoolingOp.MAX
+
+    npu_pooling_op = vapi.NpuPoolingOperation(npu_pooling_op)
+    npu_pooling_op.ifm = _create_npu_feature_map(serial_pooling.ifm)
+    npu_pooling_op.ofm = _create_npu_feature_map(serial_pooling.ofm)
+    npu_pooling_op.kernel = _create_npu_kernel(serial_pooling.pool_shape)
+    npu_pooling_op.padding = _create_npu_padding(serial_pooling.padding)
+
+    npu_pooling_op.activation = _create_npu_activation(serial_pooling.activation)
+    if (
+        npu_pooling_op.activation
+        and npu_pooling_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+    ):
+        _convert_clip_bounds(npu_pooling_op)
+
+    npu_pooling_op.upscale = _create_npu_resampling_mode(serial_pooling.upscale)
+
+    target_accel_config = vela_api.get_accelerator_config()
+    block_config = vela_api.get_optimal_block_config(npu_pooling_op, target_accel_config)
+    npu_pooling_op.block_config = block_config
+
+    return npu_pooling_op

@@ -204,7 +204,6 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
         tvmc.load(tflite_mobilenet_v1_1_quant, model_format="onnx")
 
 
-@pytest.mark.skip(reason="https://github.com/apache/tvm/issues/7455")
 def test_load_model__pth(pytorch_resnet18):
     # some CI environments wont offer torch, so skip in case it is not present
     pytest.importorskip("torch")

@@ -113,12 +113,9 @@ assert len(tasks) > 0
 # choose other options by choosing from `PLATFORM` list.
 #
 
-repo_root = pathlib.Path(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
-)
 
 module_loader = tvm.micro.AutoTvmModuleLoader(
-    template_project_dir=repo_root / "src" / "runtime" / "crt" / "host",
+    template_project_dir=pathlib.Path(tvm.micro.get_microtvm_template_projects("crt")),
     project_options={"verbose": False},
 )
 builder = tvm.autotvm.LocalBuilder(
@@ -134,7 +131,7 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 # Compiling for physical hardware
 # --------------------------------------------------------------------------
 #    module_loader = tvm.micro.AutoTvmModuleLoader(
-#        template_project_dir=repo_root / "apps" / "microtvm" / "zephyr" / "template_project",
+#        template_project_dir=pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")),
 #        project_options={
 #            "zephyr_board": BOARD,
 #            "west_cmd": "west",
@@ -183,7 +180,7 @@ with pass_context:
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    str(tvm.micro.get_microtvm_template_projects("crt")),
     lowered,
     temp_dir / "project",
     {"verbose": False},
@@ -192,7 +189,7 @@ project = tvm.micro.generate_project(
 # Compiling for physical hardware
 # --------------------------------------------------------------------------
 #    project = tvm.micro.generate_project(
-#        str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
+#        str(tvm.micro.get_microtvm_template_projects("zephyr")),
 #        lowered,
 #        temp_dir / "project",
 #        {
@@ -226,7 +223,7 @@ with tvm.autotvm.apply_history_best("microtvm_autotune.log.txt"):
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    str(tvm.micro.get_microtvm_template_projects("crt")),
     lowered_tuned,
     temp_dir / "project",
     {"verbose": False},
@@ -235,7 +232,7 @@ project = tvm.micro.generate_project(
 # Compiling for physical hardware
 # --------------------------------------------------------------------------
 #    project = tvm.micro.generate_project(
-#        str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
+#        str(tvm.micro.get_microtvm_template_projects("zephyr")),
 #        lowered_tuned,
 #        temp_dir / "project",
 #        {

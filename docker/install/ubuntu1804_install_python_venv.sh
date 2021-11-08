@@ -27,5 +27,5 @@ apt-get install -y python3-dev python3-setuptools python3-venv
 
 python3 -mvenv /opt/tvm-venv
 
-# Pin pip version
-/opt/tvm-venv/bin/pip3 install pip==19.3.1
+# Pin pip and setuptools versions
+/opt/tvm-venv/bin/pip3 install pip==19.3.1 setuptools==58.4.0

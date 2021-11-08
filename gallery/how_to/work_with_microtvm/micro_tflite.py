@@ -269,10 +269,7 @@ os.unlink(model_library_format_tar_path)
 import subprocess
 import pathlib
 
-repo_root = pathlib.Path(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
-)
-template_project_path = repo_root / "src" / "runtime" / "crt" / "host"
+template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
 project_options = {}  # You can use options to provide platform-specific options through TVM.
 
 # Compiling for physical hardware (or an emulated board, like the mps_an521)
@@ -280,7 +277,7 @@ project_options = {}  # You can use options to provide platform-specific options
 #  For physical hardware, you can try out the Zephyr platform by using a different template project
 #  and options:
 #
-#     template_project_path = repo_root / "apps" / "microtvm" / "zephyr" / "template_project"
+#     template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
 #     project_options = {"project_type": "host_driven", zephyr_board": "nucleo_f746zg"}}
 
 # Create a temporary directory
