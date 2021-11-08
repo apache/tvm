@@ -256,6 +256,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
       VisitStmt_(static_cast<const WhileNode*>(stmt));
     } else if (stmt->IsInstance<StoreNode>()) {
       VisitStmt_(static_cast<const StoreNode*>(stmt));
+    } else if (stmt->IsInstance<BufferStoreNode>()) {
+      VisitStmt_(static_cast<const BufferStoreNode*>(stmt));
     } else {
       return false;
     }
@@ -282,17 +284,21 @@ class InplaceOpVerifier : public StmtExprVisitor {
   }
 
   void VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
     ++mem_nest_;
-    this->VisitExpr(op->index);
+    for (const auto& index : op->indices) {
+      this->VisitExpr(index);
+    }
     --mem_nest_;
-    if (op->buffer_var.get() == dst_) {
+    if (op->buffer->data.get() == dst_) {
       store_ = op;
       this->VisitExpr(op->value);
-      this->VisitExpr(op->predicate);
       store_ = nullptr;
     } else {
       this->VisitExpr(op->value);
-      this->VisitExpr(op->predicate);
     }
   }
 
@@ -306,7 +312,11 @@ class InplaceOpVerifier : public StmtExprVisitor {
   }
 
   void VisitExpr_(const LoadNode* op) final {
-    const VarNode* buf = op->buffer_var.get();
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+  }
+
+  void VisitExpr_(const BufferLoadNode* op) final {
+    const VarNode* buf = op->buffer->data.get();
     // cannot read from dst_ (no reduction)
     if (buf == dst_) {
       result_ = false;
@@ -318,10 +328,18 @@ class InplaceOpVerifier : public StmtExprVisitor {
       return;
     }
     if (src_ == buf) {
-      if (store_ == nullptr || store_->value.dtype() != op->dtype ||
-          !tir::ExprDeepEqual()(store_->index, op->index)) {
+      if (store_ == nullptr || store_->value.dtype() != op->dtype) {
         result_ = false;
         return;
+      }
+      ICHECK_EQ(store_->indices.size(), op->indices.size())
+          << "Store/Load occur to the same buffer " << buf->name_hint
+          << " with differing number of indices";
+      for (size_t i = 0; i < store_->indices.size(); i++) {
+        if (!tir::ExprDeepEqual()(store_->indices[i], op->indices[i])) {
+          result_ = false;
+          return;
+        }
       }
     }
     ++mem_nest_;
@@ -340,7 +358,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
   // it is not safe to inplace when there is nested load like A[B[i]]
   int mem_nest_{0};
   // The current store to be inspected
-  const StoreNode* store_{nullptr};
+  const BufferStoreNode* store_{nullptr};
 };
 
 /* \brief Rewrite and merge memory allocation.

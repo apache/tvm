@@ -44,13 +44,21 @@ class VarTouchVisitor : public StmtExprVisitor {
 
   void VisitExpr_(const VarNode* op) final { Handle(op); }
 
+  void VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+  }
+
   void VisitStmt_(const StoreNode* op) final {
-    Handle(op->buffer_var.get());
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
+    Handle(op->buffer->data.get());
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    Handle(op->buffer_var.get());
+  void VisitExpr_(const BufferLoadNode* op) final {
+    Handle(op->buffer->data.get());
     ExprVisitor::VisitExpr_(op);
   }
 

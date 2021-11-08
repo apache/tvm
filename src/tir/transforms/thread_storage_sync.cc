@@ -177,20 +177,52 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 
  private:
   // find conflicting entry in vec.
-  bool FindConflict(const std::vector<AccessEntry>& vec, const AccessEntry& e, bool loop_carry) {
-    for (const AccessEntry& x : vec) {
-      if (x.buffer.same_as(e.buffer)) {
-        // Assumes no race between threads
-        // Same index value means no conflicts
-        // TODO(tqchen) more standard set based testing.
-        if (e.touched.IsSinglePoint() && x.touched.IsSinglePoint()) {
-          if (ExprDeepEqual()(e.touched.PointValue(), x.touched.PointValue())) continue;
-        }
-        if (x.double_buffer_write && e.type == kRead && !loop_carry) continue;
+  bool FindConflict(const std::vector<AccessEntry>& prev, const AccessEntry& curr,
+                    bool loop_carry) {
+    for (const AccessEntry& x : prev) {
+      if (FindConflict(x, curr, loop_carry)) {
         return true;
       }
     }
     return false;
+  }
+
+  bool FindConflict(const AccessEntry& prev, const AccessEntry& curr, bool loop_carry) {
+    // Access to different buffers does not conflict.
+    if (!prev.buffer.same_as(curr.buffer)) {
+      return false;
+    }
+
+    // Assumes no race between threads
+    // Same index value means no conflicts
+    // TODO(tqchen) more standard set based testing.
+    bool has_same_index = true;
+    for (size_t i = 0; i < prev.touched.size(); i++) {
+      const auto& prev_intset = prev.touched[i];
+      const auto& curr_intset = curr.touched[i];
+
+      bool provably_same_index =
+          prev_intset.IsSinglePoint() && curr_intset.IsSinglePoint() &&
+          ExprDeepEqual()(prev_intset.PointValue(), curr_intset.PointValue());
+
+      if (!provably_same_index) {
+        has_same_index = false;
+        break;
+      }
+    }
+    if (has_same_index) {
+      return false;
+    }
+
+    // If this is a read into a double buffer that was previously
+    // swapped out, then it doesn't conflict.
+    if (prev.double_buffer_write && curr.type == kRead && !loop_carry) {
+      return false;
+    }
+
+    // If nothing else allows sharing the same buffer, then they are
+    // in conflict.
+    return true;
   }
 
  private:

@@ -101,11 +101,18 @@ class VarTouchedAnalysis : public StmtVisitor {
     Record(op->var.get(), tc);
     this->VisitStmt(op->body);
   }
+
   void VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->value);
-    tc(op->index);
-    Record(op->buffer_var.get(), tc);
+    for (const auto& index : op->indices) {
+      tc(index);
+    }
+    Record(op->buffer->data.get(), tc);
   }
   void VisitStmt_(const ForNode* op) final {
     ExprTouched tc(touched_var_, false);

@@ -325,7 +325,8 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     Array<arith::IntSet> wset;
     for (const AccessEntry& acc : wvec) {
       ICHECK(acc.dtype == wvec[0].dtype);
-      wset.push_back(acc.touched);
+      ICHECK_EQ(acc.touched.size(), 1) << "CoProcBarrierDetector expects flat memory";
+      wset.push_back(acc.touched[0]);
     }
     Range none;
     Range r = arith::Union(wset).CoverRange(none);

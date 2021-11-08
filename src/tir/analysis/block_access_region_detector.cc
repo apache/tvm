@@ -141,8 +141,7 @@ Array<BufferRegion> BlockReadWriteDetector::CollectOpaques() {
 void BlockReadWriteDetector::VisitExpr_(const VarNode* op) { UpdateOpaque(GetRef<Var>(op)); }
 
 void BlockReadWriteDetector::VisitExpr_(const LoadNode* op) {
-  UpdateOpaque(op->buffer_var);
-  ExprVisitor::VisitExpr_(op);
+  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
 }
 
 void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
@@ -194,8 +193,7 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
 }
 
 void BlockReadWriteDetector::VisitStmt_(const StoreNode* op) {
-  UpdateOpaque(op->buffer_var);
-  StmtVisitor::VisitStmt_(op);
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
