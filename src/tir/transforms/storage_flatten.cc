@@ -37,6 +37,7 @@
 #include <tvm/tir/transform.h>
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
@@ -163,43 +164,49 @@ class BufferShapeLegalize : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
-    ICHECK(op);
-
-    auto it = buf_map_.find(op->buffer);
-    if (it != buf_map_.end()) {
-      const BufferEntry& entry = it->second;
-      ICHECK(entry.in_scope) << "Cannot store to an out-of-scope buffer";
-
-      BufferStore updated = GetRef<BufferStore>(op);
-      auto write_ptr = updated.CopyOnWrite();
-      write_ptr->indices = update_indices(op->indices, entry.index_offsets);
-      write_ptr->buffer = entry.remap_to;
-      stmt = updated;
-    }
-
-    return stmt;
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-    ICHECK(op);
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
 
-    auto it = buf_map_.find(op->buffer);
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    auto it = buf_map_.find(node->buffer);
     if (it != buf_map_.end()) {
       const BufferEntry& entry = it->second;
-      ICHECK(entry.in_scope) << "Cannot read from an out-of-scope buffer";
+      ICHECK(entry.in_scope) << "Cannot access an out-of-scope buffer";
 
-      BufferLoad updated = GetRef<BufferLoad>(op);
-      auto write_ptr = updated.CopyOnWrite();
-      write_ptr->indices = update_indices(op->indices, entry.index_offsets);
+      Array<PrimExpr> indices = node->indices;
+      if (entry.index_offsets.size()) {
+        ICHECK_GE(entry.index_offsets.size(), indices.size())
+            << "Cannot bind buffer to a shape of lower dimension.";
+
+        Array<PrimExpr> new_indices;
+
+        // Pad leading indices with zero, matching the "fuzzy_match"
+        // behavior from ArgBinder::BindBuffer.
+        size_t diff = entry.index_offsets.size() - indices.size();
+        for (size_t i = 0; i < diff; i++) {
+          new_indices.push_back(0);
+        }
+
+        // Offset indices used to access buffers of a reduced size.
+        for (size_t i = 0; i < indices.size(); i++) {
+          PrimExpr offset = entry.index_offsets[i + diff];
+          new_indices.push_back(indices[i] - offset);
+        }
+        indices = new_indices;
+      }
+
+      auto write_ptr = node.CopyOnWrite();
+      write_ptr->indices = indices;
       write_ptr->buffer = entry.remap_to;
-      expr = updated;
     }
-
-    return expr;
+    return node;
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -339,36 +346,6 @@ class BufferShapeLegalize : public StmtExprMutator {
 
     buf_map_.at(key).in_scope = false;
     return stmt;
-  }
-
-  Array<PrimExpr> update_indices(const Array<PrimExpr>& indices, const Array<PrimExpr>& offsets) {
-    // offsets come from BufferRealizeNode::bounds, which is allowed
-    // to be empty to indicate realization of the full shape of the
-    // buffer.  In that case, the indices do not need to be modified,
-    // but may need to be extended with leading zeroes.
-    if (offsets.size() == 0) {
-      return indices;
-    }
-
-    ICHECK_GE(offsets.size(), indices.size())
-        << "Cannot bind buffer to a shape of lower dimension.";
-
-    Array<PrimExpr> new_indices;
-
-    // Pad leading indices with zero, matching the "fuzzy_match"
-    // behavior from ArgBinder::BindBuffer.
-    size_t diff = offsets.size() - indices.size();
-    for (size_t i = 0; i < diff; i++) {
-      new_indices.push_back(0);
-    }
-
-    // Offset indices used to access buffers of a reduced size.
-    for (size_t i = 0; i < indices.size(); i++) {
-      PrimExpr offset = offsets[i + diff];
-      new_indices.push_back(indices[i] - offset);
-    }
-
-    return new_indices;
   }
 
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
@@ -516,6 +493,14 @@ class BufferStrideLegalize : public StmtExprMutator {
     }
   }
 
+  // AllocateNodes may be present from tvm.tir.ir_builder.  This can
+  // be simplified in the future by having AllocateNode hold a buffer,
+  // rather than a buffer_var.
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    allocate_node_var_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     Buffer key = op->buffer;
     Buffer with_strides = WithStrides(op->buffer);
@@ -536,28 +521,37 @@ class BufferStrideLegalize : public StmtExprMutator {
     return BufferRealize(with_strides, op->bounds, op->condition, op->body, op->span);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<BufferLoadNode>();
-
-    auto it = buf_map_.find(op->buffer);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot read a buffer that is already out of scope";
-
-    return BufferLoad(e.remap_to, op->indices, op->span);
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferStoreNode>();
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
 
-    auto it = buf_map_.find(op->buffer);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    auto alloc_key = node->buffer->data.get();
+    if (allocate_node_var_.count(alloc_key)) {
+      BufferEntry entry;
+      entry.remap_to = WithStrides(node->buffer);
+      entry.in_scope = true;
+      entry.is_external = false;
+      buf_map_[node->buffer] = entry;
+      allocate_node_var_.erase(alloc_key);
+    }
+
+    auto it = buf_map_.find(node->buffer);
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << node->buffer;
     const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot write to a buffer that is already out of scope";
+    ICHECK(e.in_scope) << "Cannot access a buffer " << node->buffer->name << ", out of scope";
 
-    return BufferStore(e.remap_to, op->value, op->indices, op->span);
+    auto writer = node.CopyOnWrite();
+    writer->buffer = e.remap_to;
+
+    return node;
   }
 
  private:
@@ -578,6 +572,10 @@ class BufferStrideLegalize : public StmtExprMutator {
   };
 
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
+
+  // Set of vars that have occurred in an AllocateNode, but haven't
+  // yet occurred in a BufferLoad/BufferStore.
+  std::unordered_set<const VarNode*> allocate_node_var_;
 
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
@@ -778,39 +776,13 @@ class BufferBindUnwrapper : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    auto it = var_remap_.find(op->buffer_var.get());
-    if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
-      // TODO(Lunderberg): Change from warning to error once all mixed
-      // use of physical/logical layouts is removed.
-      DLOG(WARNING) << op->buffer_var << " was declared as buffer (buffer_bind_scope), "
-                    << "but is accessed as a pointer (StoreNode).";
-
-      ICHECK(it->second.as<VarNode>());
-      Var new_buf_var = Downcast<Var>(it->second);
-      return Store(new_buf_var, op->value, op->index, op->predicate);
-    } else {
-      return stmt;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<LoadNode>();
-    auto it = var_remap_.find(op->buffer_var.get());
-    if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
-      // TODO(Lunderberg): Change from warning to error once all mixed
-      // use of physical/logical layouts is removed.
-      DLOG(WARNING) << op->buffer_var << " was declared as buffer (buffer_bind_scope), "
-                    << "but is accessed as a pointer (LoadNode).";
-
-      ICHECK(it->second.as<VarNode>());
-      Var new_buf_var = Downcast<Var>(it->second);
-      return Load(op->dtype, new_buf_var, op->index, op->predicate);
-    } else {
-      return expr;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -868,14 +840,19 @@ class BufferBindUnwrapper : public StmtExprMutator {
     return out;
   }
 
+  // AllocateNodes may be present from tvm.tir.ir_builder.  This can
+  // be simplified in the future by having AllocateNode hold a buffer,
+  // rather than a buffer_var.
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    allocate_node_var_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
 
-    auto it = buf_map_.find(op->buffer.get());
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot read from buffer " << op->buffer << ", out of scope.";
+    const BufferEntry& e = GetBufferEntry(op->buffer);
 
     if (e.remap) {
       return BufferLoad(e.remap->target,
@@ -889,10 +866,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
 
-    auto it = buf_map_.find(op->buffer.get());
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << op->buffer;
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot write to buffer" << op->buffer << ", out of scope.";
+    const BufferEntry& e = GetBufferEntry(op->buffer);
 
     if (e.remap) {
       return BufferStore(e.remap->target, op->value,
@@ -933,10 +907,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
     op = stmt.as<PrefetchNode>();
     ICHECK(op != nullptr);
 
-    const auto& key = op->buffer.get();
-    auto it = buf_map_.find(key);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
-    const BufferEntry& e = it->second;
+    const BufferEntry& e = GetBufferEntry(op->buffer);
 
     ICHECK(e.in_scope) << "Read a buffer that is already out of scope";
     ICHECK_EQ(e.buffer->shape.size(), op->bounds.size())
@@ -1066,11 +1037,30 @@ class BufferBindUnwrapper : public StmtExprMutator {
     std::unique_ptr<RemapInfo> remap{nullptr};
   };
 
+  const BufferEntry& GetBufferEntry(Buffer buffer) {
+    auto alloc_key = buffer->data.get();
+    if (allocate_node_var_.count(alloc_key)) {
+      BufferEntry entry;
+      entry.buffer = buffer;
+      buf_map_[buffer.get()] = std::move(entry);
+      allocate_node_var_.erase(alloc_key);
+    }
+
+    auto it = buf_map_.find(buffer.get());
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
+    const BufferEntry& e = it->second;
+    ICHECK(e.in_scope) << "Cannot access a buffer " << buffer->name << ", out of scope";
+    return it->second;
+  }
+
   // The buffer assignment map
   // Variable remap
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // Buffer map
   std::unordered_map<const BufferNode*, BufferEntry> buf_map_;
+  // Set of vars that have occurred in an AllocateNode, but haven't
+  // yet occurred in a BufferLoad/BufferStore.
+  std::unordered_set<const VarNode*> allocate_node_var_;
   // Analyzer for the variable bounds, used to simplify the bounds populator. We really need the
   // analyzer from it. However
   IRVisitorWithAnalyzer* bound_analyzer_;
@@ -1105,16 +1095,13 @@ class StorageFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    auto it = var_remap_.find(op->buffer_var.get());
-    if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
-      ICHECK(it->second.as<VarNode>());
-      Var buf_var = Downcast<Var>(it->second);
-      return Store(buf_var, op->value, op->index, op->predicate);
-    } else {
-      return stmt;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -1130,9 +1117,8 @@ class StorageFlattener : public StmtExprMutator {
     if (op->attr_key == attr::double_buffer_scope && op->node->IsInstance<tir::BufferNode>()) {
       auto buffer = Downcast<tir::Buffer>(op->node);
       Stmt body = this->VisitStmt(op->body);
-      auto it = buf_map_.find(buffer);
-      ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
-      body = AttrStmt(it->second.buffer->data, op->attr_key, op->value, std::move(body));
+      const auto& entry = GetBufferEntry(buffer);
+      body = AttrStmt(entry.flattened_buffer->data, op->attr_key, op->value, std::move(body));
       return body;
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -1143,13 +1129,7 @@ class StorageFlattener : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
 
-    const auto& key = op->buffer;
-
-    auto it = buf_map_.find(key);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
-
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot write to " << op->buffer << ", out of scope.";
+    const BufferEntry& e = GetBufferEntry(op->buffer);
 
     Stmt body = e.buffer.vstore(op->indices, op->value);
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
@@ -1163,6 +1143,14 @@ class StorageFlattener : public StmtExprMutator {
       }
     }
     return body;
+  }
+
+  // AllocateNodes may be present from tvm.tir.ir_builder.  This can
+  // be simplified in the future by having AllocateNode hold a buffer,
+  // rather than a buffer_var.
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    allocate_node_var_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
@@ -1244,19 +1232,6 @@ class StorageFlattener : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<LoadNode>();
-    auto it = var_remap_.find(op->buffer_var.get());
-    if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
-      ICHECK(it->second.as<VarNode>());
-      Var buf_var = Downcast<Var>(it->second);
-      return Load(op->dtype, buf_var, op->index, op->predicate);
-    } else {
-      return expr;
-    }
-  }
-
   PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
@@ -1270,12 +1245,7 @@ class StorageFlattener : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
 
-    const auto& key = op->buffer;
-
-    auto it = buf_map_.find(key);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
-    const BufferEntry& e = it->second;
-    ICHECK(e.in_scope) << "Cannot read to " << op->buffer << ", out of scope.";
+    const BufferEntry& e = GetBufferEntry(op->buffer);
 
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
@@ -1288,10 +1258,7 @@ class StorageFlattener : public StmtExprMutator {
     op = stmt.as<PrefetchNode>();
     ICHECK(op != nullptr);
 
-    const auto& key = op->buffer;
-    auto it = buf_map_.find(key);
-    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
-    const BufferEntry& e = it->second;
+    const BufferEntry& e = GetBufferEntry(op->buffer);
 
     ICHECK(e.in_scope) << "Cannot prefetch " << op->buffer << ", out of scope.";
     ICHECK_EQ(e.buffer->shape.size(), op->bounds.size())
@@ -1392,9 +1359,29 @@ class StorageFlattener : public StmtExprMutator {
     return bound;
   }
 
+  const BufferEntry& GetBufferEntry(Buffer buffer) {
+    auto alloc_key = buffer->data.get();
+    if (allocate_node_var_.count(alloc_key)) {
+      BufferEntry entry;
+      entry.buffer = buffer;
+      entry.flattened_buffer = buffer.GetFlattenedBuffer();
+      buf_map_[buffer] = std::move(entry);
+      allocate_node_var_.erase(alloc_key);
+    }
+
+    auto it = buf_map_.find(buffer);
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
+    const BufferEntry& e = it->second;
+    ICHECK(e.in_scope) << "Cannot access a buffer " << buffer->name << ", out of scope";
+    return it->second;
+  }
+
   // The buffer assignment map
   // Variable remap
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
+  // Set of vars that have occurred in an AllocateNode, but haven't
+  // yet occurred in a BufferLoad/BufferStore.
+  std::unordered_set<const VarNode*> allocate_node_var_;
   // Buffer map
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
   // Collects shapes.
