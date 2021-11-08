@@ -24,6 +24,7 @@
 #include "ir_utils.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/arith/int_solver.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <unordered_map>
@@ -249,6 +250,89 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
 Bool IsFromLegacyTESchedule(PrimFunc f) {
   Optional<Bool> from_legacy_te_schedule = f->GetAttr("from_legacy_te_schedule", Bool(false));
   return from_legacy_te_schedule.value();
+}
+
+Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
+  // extract equations and related vars from condition expression.
+  // currently only extract simple integral equations which could be solvable.
+  arith::Analyzer analyzer;
+  PrimExpr condition = is_true_branch_ ? condition_ : analyzer.Simplify(!condition_);
+  Array<PrimExpr> equations;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set;
+  std::function<void(const PrimExpr&)> fvisit = [&equations, &var_set, &fvisit](const PrimExpr& e) {
+    if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
+        e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
+      bool is_simple = true;
+      std::vector<Var> cand_vars;
+      PostOrderVisit(e, [&cand_vars, &is_simple, &e](const ObjectRef& obj) {
+        if (obj.same_as(e)) {
+          return;
+        } else if (const VarNode* var = obj.as<VarNode>()) {
+          if (var->dtype.is_int() || var->dtype.is_uint()) {
+            cand_vars.push_back(GetRef<Var>(var));
+          }
+        } else {
+          is_simple &= obj->IsInstance<AddNode>() || obj->IsInstance<SubNode>() ||
+                       obj->IsInstance<MulNode>() || obj->IsInstance<FloorDivNode>() ||
+                       obj->IsInstance<FloorModNode>() || obj->IsInstance<IntImmNode>();
+        }
+      });
+      if (is_simple && !cand_vars.empty()) {
+        for (const Var& var : cand_vars) var_set.insert(var);
+        equations.push_back(Downcast<PrimExpr>(e));
+      }
+    } else if (e->IsInstance<AndNode>()) {
+      And op = Downcast<And>(e);
+      fvisit(op->a);
+      fvisit(op->b);
+    } else if (e->IsInstance<CallNode>()) {
+      Call op = Downcast<Call>(e);
+      if (op->op.same_as(builtin::likely())) {
+        fvisit(op->args[0]);
+      }
+    }
+  };
+  fvisit(condition);
+  if (equations.empty() || var_set.empty()) {
+    return Map<Var, Range>();
+  }
+  // build dom ranges for related vars
+  Array<Var> vars = Array<Var>(var_set.begin(), var_set.end());
+  Map<Var, Range> ranges;
+  for (const Var& v : vars) {
+    auto it = dom_map_->find(v.get());
+    if (it != dom_map_->end()) {
+      const auto& int_set = it->second;
+      ranges.Set(v, Range::FromMinExtent(int_set.min(),
+                                         analyzer.Simplify(int_set.max() - int_set.min() + 1)));
+    }
+  }
+  // solve constraints
+  arith::IntConstraints constraint(vars, ranges, equations);
+  auto result = arith::SolveInequalitiesToRange(constraint);
+  return result->ranges;
+}
+
+ConditionalBoundsContext::ConditionalBoundsContext(
+    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
+    bool is_true_branch)
+    : condition_(condition), dom_map_(dom_map), is_true_branch_(is_true_branch) {}
+
+void ConditionalBoundsContext::EnterWithScope() {
+  for (const auto& p : GetVarBoundsFromCondition()) {
+    const auto* var = p.first.get();
+    auto it = dom_map_->find(var);
+    if (it != dom_map_->end()) {
+      origin_map_.emplace(var, it->second);
+      it->second = arith::Intersect({it->second, arith::IntSet::FromRange(p.second)});
+    }
+  }
+}
+
+void ConditionalBoundsContext::ExitWithScope() {
+  for (const auto& p : origin_map_) {
+    (*dom_map_)[p.first] = p.second;
+  }
 }
 
 }  // namespace tir
