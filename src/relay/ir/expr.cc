@@ -115,8 +115,6 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
   n->span = std::move(span);
-  n->saved_deleter_ = n->deleter_;
-  n->deleter_ = CallNode::Deleter_;
   data_ = std::move(n);
 }
 
@@ -282,6 +280,9 @@ inline void Dismantle(const Expr& expr) {
         if (auto* op = const_cast<CallNode*>(node.as<CallNode>())) {
           op->args = Array<Expr>();
         }
+        if (auto* op = const_cast<LetNode*>(node.as<LetNode>())) {
+          op->body = Expr();
+        }
       }
       // eject
       stack.pop();
@@ -307,6 +308,11 @@ inline void Dismantle(const Expr& expr) {
         // do not process tuple if used elsewhere
         if (op->tuple.use_count() < 2) {
           fpush_to_stack(op->tuple);
+        }
+      } else if (const LetNode* op = node.as<LetNode>()) {
+        // do not process let if used elsewhere
+        if (op->body.use_count() < 2) {
+          fpush_to_stack(op->body);
         }
       }
     }
@@ -334,6 +340,29 @@ void CallNode::Deleter_(Object* ptr) {
   p->deleter_ = p->saved_deleter_;
   // create Call reference in order to invoke ~Call
   auto c = GetRef<Call>(p);
+}
+
+/*
+ * Non-recursive destructor
+ */
+Let::~Let() {
+  // attempt to dismantle if referenced one or zero times
+  if (this->use_count() < 2) {
+    if (this->as<LetNode>() && this->as<LetNode>()->body.defined()) {
+      Dismantle(*this);
+    }
+  }
+}
+
+/*
+ * LetNode's deleter
+ */
+void LetNode::Deleter_(Object* ptr) {
+  auto p = reinterpret_cast<LetNode*>(ptr);
+  // resore original deleter
+  p->deleter_ = p->saved_deleter_;
+  // create Let reference in order to invoke ~Let
+  auto c = GetRef<Let>(p);
 }
 
 }  // namespace relay
