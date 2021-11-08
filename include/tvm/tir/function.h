@@ -289,6 +289,13 @@ constexpr const char* kIsEntryFunc = "tir.is_entry_func";
  */
 constexpr const char* kLinkedParams = "tir.linked_params";
 
+/*!
+ * \brief Mark the function as the global function called from the host.
+ *
+ * Type: Integer
+ */
+constexpr const char* kIsGlobalFunc = "tir.is_global_func";
+
 }  // namespace attr
 }  // namespace tir
 }  // namespace tvm
