@@ -71,6 +71,8 @@ IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
 }
 
 IntervalSet Union(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+  if (a->IsEmpty()) return b;
+  if (b->IsEmpty()) return a;
   PrimExpr max_value = max(a->max_value, b->max_value);
   PrimExpr min_value = min(a->min_value, b->min_value);
   return IntervalSet(min_value, max_value);
