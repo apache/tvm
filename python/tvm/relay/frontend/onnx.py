@@ -3130,7 +3130,7 @@ class Scan(OnnxOpConverter):
 
     @classmethod
     def _impl_v8(cls, inputs, attr, params):
-        new_inputs = inputs[1 :]
+        new_inputs = inputs[1:]
         batch_num = infer_shape(inputs[1])[0]
         out = []
         for i in range(batch_num):

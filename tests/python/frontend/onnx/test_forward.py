@@ -5788,7 +5788,7 @@ def test_scan(target, dev):
 
         body_input_shapes = copy.deepcopy(input_shapes)
         num_state_inputs = len(input_shapes) - num_scan_inputs
-        
+
         if opset == 8:
             for i in range(len(input_shapes)):
                 body_input_shapes[i].pop(0)
@@ -5909,19 +5909,24 @@ def test_scan(target, dev):
         input_values = [init0, init1, in0, in1, in2]
 
         verify_with_ort_with_inputs(
-            model, input_values, target=target, dev=dev, opt_level=2, use_vm=True, opset=opset,
+            model,
+            input_values,
+            target=target,
+            dev=dev,
+            opt_level=2,
+            use_vm=True,
+            opset=opset,
         )
 
-    #opset 8
+    # opset 8
     input_shapes = [[2, 6, 7, 8], [2, 3, 3], [2, 5, 6, 7, 8], [2, 5, 3, 4], [2, 5, 4, 3]]
     output_shapes = [[2, 6, 7, 8], [2, 3, 3], [2, 5, 6, 7, 8], [2, 5, 3, 3]]
+    # input_shapes, output_shapes, num_scan_inputs, scan_input_axes, scan_input_directions,
+    # scan_output_axes, scan_output_directions, opset
     verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2, 8)
-    
-    #opset 9
+    # opset 9
     input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [5, 3, 4], [5, 4, 3]]
     output_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [5, 3, 3]]
-    # input_shapes, output_shapes, num_scan_inputs, scan_input_axes, scan_input_directions,
-    # scan_output_axes, scan_output_directions
     verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2, 9)
 
     input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [3, 4, 5], [4, 5, 3]]
