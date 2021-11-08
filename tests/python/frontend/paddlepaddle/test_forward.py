@@ -586,6 +586,24 @@ def test_forward_expand_as():
 
 
 @tvm.testing.uses_gpu
+def test_forward_flatten():
+    class Flatten(nn.Layer):
+        def __init__(self, start_axis=0, stop_axis=-1):
+            super(Flatten, self).__init__()
+            self.start_axis = start_axis
+            self.stop_axis = stop_axis
+
+        @paddle.jit.to_static
+        def forward(self, x):
+            return paddle.flatten(x, start_axis=self.start_axis, stop_axis=self.stop_axis)
+
+    input_data = paddle.rand([2, 3, 4, 5, 2], dtype="float32")
+    verify_model(Flatten(), input_data=input_data)
+    verify_model(Flatten(2), input_data=input_data)
+    verify_model(Flatten(2, -2), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_gather():
     class Gather(nn.Layer):
         def __init__(self, axis=None):
@@ -762,6 +780,77 @@ def test_forward_hard_swish():
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(hard_swish, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_interpolate():
+    class Interpolate(nn.Layer):
+        def __init__(
+            self,
+            mode="nearest",
+            align_corners=False,
+            align_mode=0,
+            data_format="NCHW",
+            use_scale=False,
+            use_list=False,
+            use_const=False,
+        ):
+            super(Interpolate, self).__init__()
+            self.mode = mode
+            self.align_corners = align_corners
+            self.align_mode = align_mode
+            self.data_format = data_format
+            self.use_scale = use_scale
+            self.use_list = use_list
+            self.use_const = use_const
+
+        @paddle.jit.to_static
+        def forward(self, x):
+            size = np.array([15, 19]).astype("int32")
+            scale = np.array([2.0, 1.0]).astype("float32")
+            if not self.use_list and not self.use_const:
+                size = paddle.to_tensor(size)
+                scale = paddle.to_tensor(scale)
+            elif not self.use_const:
+                size0 = paddle.to_tensor(size[0:1])
+                size = [size0, int(size[1])]
+            else:
+                size = size.tolist()
+                scale = scale.tolist()
+            if not self.use_scale:
+                return paddle.nn.functional.interpolate(
+                    x,
+                    size=size,
+                    mode=self.mode,
+                    align_corners=self.align_corners,
+                    align_mode=self.align_mode,
+                    data_format=self.data_format,
+                )
+            else:
+                return paddle.nn.functional.interpolate(
+                    x,
+                    scale_factor=scale,
+                    mode=self.mode,
+                    align_corners=self.align_corners,
+                    align_mode=self.align_mode,
+                    data_format=self.data_format,
+                )
+
+    input_data = paddle.rand([1, 2, 8, 12]).astype("float32")
+    verify_model(Interpolate(), input_data)
+    verify_model(Interpolate(use_list=True), input_data)
+    verify_model(Interpolate(use_scale=True), input_data)
+    verify_model(Interpolate("bilinear", use_scale=True), input_data)
+    verify_model(Interpolate("bilinear", use_scale=True, align_corners=True), input_data)
+    verify_model(
+        Interpolate(
+            "bilinear", use_scale=True, align_corners=True, align_mode=1, data_format="NHWC"
+        ),
+        input_data,
+    )
+    verify_model(
+        Interpolate("bicubic", use_scale=True, align_corners=True, align_mode=1), input_data
+    )
 
 
 @tvm.testing.uses_gpu
