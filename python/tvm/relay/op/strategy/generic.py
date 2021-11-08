@@ -461,6 +461,26 @@ def wrap_compute_conv2d_transpose(topi_compute):
 
     return compute_conv2d_transpose
 
+# FIXME: This is a temporal fix for groups > 1 in Conv2dTranspose. This should be merged with above functions in the future.
+def wrap_compute_group_conv2d_transpose(topi_compute):
+    """wrap conv2d_transpose topi compute"""
+    def compute_conv2d_transpose(attrs, inputs, out_dtype):
+        """Compute definition of conv2d_transpose"""
+        padding = get_const_tuple(attrs.padding)
+        strides = get_const_tuple(attrs.strides)
+        out_dtype = attrs.out_dtype
+        out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+        groups = attrs.groups
+        dilation = attrs.dilation
+        output_padding = get_const_tuple(attrs.output_padding)
+        out = topi_compute(inputs[0], inputs[1], strides, padding, 
+                            output_padding, groups, dilation, out_dtype)
+        return [out]
+
+    return compute_conv2d_transpose
+
+
+
 
 @override_native_generic_func("conv2d_transpose_strategy")
 def conv2d_transpose_strategy(attrs, inputs, out_type, target):
@@ -473,11 +493,18 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
     assert dilation == (1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
-        name="conv2d_transpose_nchw.generic",
-    )
+    if groups == 1:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.generic",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_group_conv2d_transpose(topi.nn.group_conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.generic.schedule_group_conv2d_transpose_nchw), 
+            name="group_conv2d_transpose_nchw.generic",
+        )
     return strategy
 
 
