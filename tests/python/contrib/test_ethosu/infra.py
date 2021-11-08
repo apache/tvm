@@ -17,7 +17,6 @@
 """
 This module provides infrastructure to verify the correctness of
 the command stream produced.
-
 Currently it will invoke vela to generate a vela-optimized tflite
 in which the command stream is contained as a custom operator.
 This class include methods to parse the custom operator to extract
@@ -460,3 +459,51 @@ def make_ethosu_depthwise_conv2d(
         ofm_layout=ofm_layout,
     )
     return depthwise
+
+
+def get_pooling_args(call, include_buffers=False):
+    args = call.args
+    pooling_args = []
+
+    for i, arg in enumerate(args):
+        if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
+            pooling_args.append(arg.value)
+        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
+            pooling_args.append(arg.index)
+        else:
+            pooling_args.append(arg)
+
+    return pooling_args
+
+
+def make_ethosu_pooling(
+    ifm,
+    pooling_type,
+    pool_shape,
+    ofm_channels,
+    strides,
+    padding,
+    activation="NONE",
+    ifm_layout="NHWC",
+    ofm_layout="NHWC",
+):
+    pooling = ethosu_ops.ethosu_pooling(
+        ifm,
+        lut=relay.const([], dtype="int8"),
+        pooling_type=pooling_type,
+        ifm_scale=1,
+        ifm_zero_point=0,
+        ofm_scale=1,
+        ofm_zero_point=0,
+        pool_shape=pool_shape,
+        ofm_channels=ofm_channels,
+        strides=strides,
+        padding=padding,
+        activation=activation,
+        clip_min=10 if activation == "CLIP" else 0,
+        clip_max=100 if activation == "CLIP" else 0,
+        upscale="NONE",
+        ifm_layout=ifm_layout,
+        ofm_layout=ofm_layout,
+    )
+    return pooling

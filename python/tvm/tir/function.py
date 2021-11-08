@@ -143,7 +143,7 @@ class PrimFunc(BaseFunc):
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
-    def script(self, tir_prefix: str = "tir", show_meta: bool = False) -> str:
+    def script(self, tir_prefix: str = "T", show_meta: bool = False) -> str:
         """Print IRModule into TVMScript
 
         Parameters

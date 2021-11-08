@@ -253,7 +253,13 @@ def _sort_tests(items):
     Should be called from pytest_collection_modifyitems.
 
     """
-    items.sort(key=lambda item: item.location)
+
+    def sort_key(item):
+        filename, lineno, test_name = item.location
+        test_name = test_name.split("[")[0]
+        return filename, lineno, test_name
+
+    items.sort(key=sort_key)
 
 
 def _target_to_requirement(target):

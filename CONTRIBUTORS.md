@@ -59,7 +59,7 @@ We do encourage everyone to work anything they are interested in.
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
-- [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
+- [Haichen Shen](https://github.com/icemelon) (PMC): @icemelon - relay, topi
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
@@ -131,12 +131,14 @@ We do encourage everyone to work anything they are interested in.
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994
-- [Haichen Shen](https://github.com/icemelon9): @icemelon9
+- [Haichen Shen](https://github.com/icemelon): @icemelon
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
+- [Mark Shields](https://github.com/mbs-octoml): @mbs-octoml
 - [Christopher Sidebottom](https://github.com/mousius): @mousius
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Jon Soifer](https://github.com/soiferj): @soiferj
+- [Chris Sullivan](https://github.com/csullivan): @csullivan
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Jorn Tuyls](https://github.com/jtuyls): @jtuyls
@@ -149,6 +151,7 @@ We do encourage everyone to work anything they are interested in.
 - [Logan Weber](https://github.com/weberlo): @weberlo
 - [Matt Welsh](https://github.com/mdw-octoml): @mdw-octoml
 - [Jian Weng](https://github.com/were): @were
+- [wrongtest](https://github.com/wrongtest): @wrongtest
 - [Yong Wu](https://github.com/yongwww): @yongwww
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
 - [Bing Xu](https://github.com/antinucleon): @antinucleon

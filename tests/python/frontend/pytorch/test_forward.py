@@ -735,12 +735,29 @@ def test_forward_log_sigmoid():
 
 
 @tvm.testing.uses_gpu
-def test_forward_adaptiveavgpool():
+def test_forward_adaptive_avgpool():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AdaptiveAvgPool2d([1, 1]).eval(), input_data=input_data)
     verify_model(torch.nn.AdaptiveAvgPool2d([10, 10]).eval(), input_data=input_data)
+
+    input_data = torch.rand([1, 3, 10]).float()
+    verify_model(torch.nn.AdaptiveAvgPool1d([1]).eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveAvgPool1d([5]).eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_adaptive_maxpool():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.AdaptiveMaxPool2d([1, 1]).eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveMaxPool2d([10, 10]).eval(), input_data=input_data)
+
+    input_data = torch.rand([1, 3, 10]).float()
+    verify_model(torch.nn.AdaptiveMaxPool1d([1]).eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveMaxPool1d([5]).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -3990,6 +4007,17 @@ def test_bucketize():
 
     verify_model(test_fn(), [values, boundaries])
     verify_model(test_fn(out_int32=True, right=True), [values, boundaries])
+
+
+@tvm.testing.uses_gpu
+def test_roll():
+    def test_fn(shifts, dims):
+        return lambda x: torch.roll(x, shifts, dims)
+
+    x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8]).view(4, 2)
+    verify_model(test_fn(1, 0), [x])
+    verify_model(test_fn(-1, 0), [x])
+    verify_model(test_fn(shifts=(2, 1), dims=(0, 1)), [x])
 
 
 if __name__ == "__main__":

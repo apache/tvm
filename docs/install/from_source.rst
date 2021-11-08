@@ -123,6 +123,9 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
     - Note that apt-package append ``llvm-config`` with version number.
       For example, set ``set(USE_LLVM llvm-config-10)`` if you installed LLVM 10 package
 
+  - If you are a PyTorch user, it is recommended to set ``(USE_LLVM "/path/to/llvm-config --link-static")`` and ``set(HIDE_PRIVATE_SYMBOLS ON)``
+    to avoid potential symbol conflicts between different versions LLVM used by TVM and PyTorch.
+
 - We can then build tvm and related libraries.
 
   .. code:: bash

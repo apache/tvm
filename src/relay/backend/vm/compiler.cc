@@ -80,7 +80,6 @@ namespace vm {
 using namespace tvm::runtime;
 using namespace tvm::runtime::vm;
 using namespace relay::transform;
-using namespace tec;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
@@ -251,7 +250,7 @@ int GetFallbackDevice() {
 
 class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
+  VMFunctionCompiler(VMCompilerContext* context, TargetMap targets, Target target_host)
       : DeviceAwareExprFunctor(context->module),
         last_register_(0),
         registers_num_(0),
@@ -304,7 +303,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       }
       VisitExpr(func);
     }
-    return VMFunction(var->name_hint, params_, instructions_, registers_num_, params_device_type);
+    std::vector<Index> params_device_type_index;
+    params_device_type_index.reserve(params_device_type.size());
+    for (auto device_type : params_device_type) {
+      params_device_type_index.push_back(static_cast<Index>(device_type));
+    }
+    return VMFunction(var->name_hint, params_, instructions_, registers_num_,
+                      params_device_type_index);
   }
 
   /*! \brief Attrs objects for each op. */
@@ -317,7 +322,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
   size_t NewRegister() { return registers_num_++; }
 
   inline void Emit(const Instruction& instr) {
-    VLOG(1) << "VMCompiler::Emit: instr=" << instr;
+    VLOG(2) << "VMCompiler::Emit: instr=" << instr;
     ICHECK((int)instr.op < 100) << "Invalid opcode " << (int)instr.op;
     switch (instr.op) {
       case Opcode::AllocADT:
@@ -458,7 +463,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
-    CCacheKey key(func, target_host_);
+    tec::CCacheKey key(func, target_host_);
     auto cfunc = context_->compiler->LowerShapeFunc(key);
     int op_index = -1;
     // pick the only function inside the context
@@ -534,7 +539,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       }
     }
 
-    CCacheKey key(func, target);
+    tec::CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
     auto cfunc = context_->compiler->Lower(key, mangle_fn);  // <<<< one-func-at-a-time lowering
 
@@ -703,7 +708,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       auto global = GetRef<GlobalVar>(global_node);
       auto it = context_->global_map.find(global);
       ICHECK(it != context_->global_map.end());
-      VLOG(1) << "VisitExpr_: generating invoke for " << global->name_hint
+      VLOG(2) << "VisitExpr_: generating invoke for " << global->name_hint
               << " with func_index=" << it->second;
 
       // TODO(tvm-team):
@@ -904,7 +909,8 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
   params_[name] = data_in;
 }
 
-void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
+void VMCompiler::Lower(IRModule mod, const tvm::TargetMap& targets,
+                       const tvm::Target& target_host) {
   exec_ = make_object<Executable>();
   targets_ = targets;
   target_host_ = target_host;
@@ -941,12 +947,6 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
     }
   }
 
-#if USE_RELAY_DEBUG
-  for (auto vm_func : exec_->functions) {
-    VLOG(1) << vm_func << "-------------";
-  }
-#endif  // USE_RELAY_DEBUG
-
   // populate constants
   for (auto data : context_.constants) {
     exec_->constants.push_back(data);
@@ -967,10 +967,16 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
     exec_->primitive_map.insert({cfunc->prim_fn_var->name_hint, primitive_index++});
   }
 
+#if USE_RELAY_DEBUG
+  for (const auto& vm_func : exec_->functions) {
+    VLOG(1) << vm_func << "-------------";
+  }
+#endif  // USE_RELAY_DEBUG
+
   backend::UpdateAutoSchedulerOpWeights(context_.compiler);
 }
 
-transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
+transform::Sequential MemoryOpt(tvm::Target host_target, tvm::TargetMap targets) {
   Array<Pass> pass_seqs;
   // Remove unused functions
   Array<runtime::String> entry_functions{"main"};
@@ -1016,9 +1022,10 @@ transform::Sequential MemoryOpt(tvm::Target host_target, TargetsMap targets) {
   return transform::Sequential(pass_seqs);
 }
 
-IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetsMap& targets_arg,
+IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets_arg,
                                     const Target& target_host_arg) {
-  TargetsMap targets = targets_arg;
+  VLOG_CONTEXT << "VMCompiler::OptimizeModule";
+  TargetMap targets = targets_arg;
   Target target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&targets, &target_host);
   if (params_.size()) {

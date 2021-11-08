@@ -525,7 +525,7 @@ void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     // DO nothing.
-  } else if (sync == "shared") {
+  } else if (sync == "shared" || sync == "shared.dyn") {
     this->PrintIndent();
     this->stream << "__syncthreads();\n";
   } else if (sync == "global") {

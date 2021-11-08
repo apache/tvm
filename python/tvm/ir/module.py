@@ -256,7 +256,7 @@ class IRModule(Node):
     def __repr__(self):
         return self.astext()
 
-    def script(self, tir_prefix: str = "tir", show_meta: bool = False) -> str:
+    def script(self, tir_prefix: str = "T", show_meta: bool = False) -> str:
         """Print IRModule into TVMScript
 
         Parameters

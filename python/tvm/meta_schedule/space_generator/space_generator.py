@@ -18,7 +18,6 @@
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.
 """
-
 from typing import TYPE_CHECKING, List
 
 from tvm._ffi import register_object
@@ -27,6 +26,7 @@ from tvm.runtime import Object
 from tvm.tir.schedule import Schedule
 
 from .. import _ffi_api
+from ..utils import check_override
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -74,9 +74,11 @@ class PySpaceGenerator(SpaceGenerator):
     def __init__(self):
         """Constructor."""
 
+        @check_override(self.__class__, SpaceGenerator)
         def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
             self.initialize_with_tune_context(tune_context)
 
+        @check_override(self.__class__, SpaceGenerator)
         def f_generate_design_space(mod: IRModule) -> List[Schedule]:
             return self.generate_design_space(mod)
 
@@ -85,9 +87,3 @@ class PySpaceGenerator(SpaceGenerator):
             f_initialize_with_tune_context,
             f_generate_design_space,
         )
-
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
-        raise NotImplementedError
-
-    def generate_design_space(self, mod: IRModule) -> List[Schedule]:
-        raise NotImplementedError

@@ -87,7 +87,7 @@ struct PrimitiveInliner : ExprMutator {
     // in w(...)
     while ((var_node = op.as<VarNode>())) {
       auto var = GetRef<Var>(var_node);
-      DLOG(INFO) << "Var: " << var << std::endl;
+      VLOG(1) << "Var: " << var << std::endl;
       auto it = var_map.find(GetRef<Var>(var_node));
       if (it != var_map.end()) {
         op = it->second;

@@ -52,7 +52,9 @@ class RoundRobinNode final : public TaskSchedulerNode {
   }
 };
 
-TaskScheduler TaskScheduler::RoundRobin(Array<TuneContext> tasks, Builder builder, Runner runner,
+TaskScheduler TaskScheduler::RoundRobin(Array<TuneContext> tasks,  //
+                                        Builder builder,           //
+                                        Runner runner,             //
                                         Database database) {
   ObjectPtr<RoundRobinNode> n = make_object<RoundRobinNode>();
   n->tasks = tasks;
