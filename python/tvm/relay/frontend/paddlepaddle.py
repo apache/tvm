@@ -382,9 +382,11 @@ def convert_expand(g, op, block):
     x = g.get_node(op.input("X")[0])
     if op.input("Shape"):
         sizes = g.get_node(op.input("Shape")[0])
-        sizes = try_infer_value(sizes, g.get_params())[0]
     else:
         sizes = op.attr("shape")
+
+    if isinstance(sizes, _expr.Expr):
+        sizes = try_infer_value(sizes, parameters=g.get_params())[0]
 
     if isinstance(sizes, np.ndarray):
         sizes = sizes.tolist()
@@ -447,15 +449,43 @@ def convert_fill_constant(g, op, block):
     value = _expr.const(value).astype(dtype)
     if "ValueTensor" in op.input_names and op.input("ValueTensor"):
         shape = g.get_node(op.input("ValueTensor")[0])
-        shape = try_infer_value(shape, g.get_params())[0]
     if "ShapeTensor" in op.input_names and op.input("ShapeTensor"):
         shape = g.get_node(op.input("ShapeTensor")[0])
-        shape = try_infer_value(shape, g.get_params())[0]
+
+    if isinstance(shape, _expr.Expr):
+        shape = try_infer_value(shape, parameters=g.get_params())[0]
 
     if isinstance(shape, np.ndarray):
         shape = shape.tolist()
 
     out = _op.full(value, shape=shape, dtype=dtype)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_flatten(g, op, block):
+    """Operator converter for flatten."""
+
+    x = g.get_node(op.input("X")[0])
+    input_shape = list(infer_shape(x))
+
+    start = op.attr("start_axis")
+    end = op.attr("stop_axis")
+    ndim = len(input_shape)
+    if end < 0:
+        end += ndim
+    new_shape = [0] * start
+
+    new_shape.append(-1)
+    squeeze_axes = []
+    for i in range(start + 1, end + 1):
+        new_shape.append(1)
+        squeeze_axes.append(i)
+    for _ in range(end + 1, ndim):
+        new_shape.append(0)
+    out = _op.reshape(x, new_shape)
+    if squeeze_axes:
+        out = _op.squeeze(out, axis=squeeze_axes)
+
     g.add_node(op.output("Out")[0], out)
 
 
@@ -549,6 +579,99 @@ def convert_hard_swish(g, op, block):
     out = _op.clip(x, -1 * offset, offset)
     out = out / _expr.const(threshold) + _expr.const(0.5)
     out = x * out
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_interpolate(g, op, block):
+    """Operator converter for interpolate."""
+
+    def get_interpolate_mode(op):
+        """Get parameters for interpolation methods."""
+
+        interp_method = op.attr("interp_method")
+        align_corners = op.attr("align_corners")
+        align_mode = op.attr("align_mode")
+
+        rounding_method = ""
+        if interp_method == "nearest":
+            interp_method = "nearest_neighbor"
+            coordinate_transformation_mode = "asymmetric"
+            rounding_method = "floor"
+        elif interp_method == "bilinear":
+            interp_method = "linear"
+            if not align_corners and align_mode == 0:
+                coordinate_transformation_mode = "half_pixel"
+            else:
+                if align_corners:
+                    coordinate_transformation_mode = "align_corners"
+                else:
+                    coordinate_transformation_mode = "asymmetric"
+        elif interp_method == "bicubic":
+            interp_method = "cubic"
+            if align_corners:
+                coordinate_transformation_mode = "align_corners"
+            else:
+                coordinate_transformation_mode = "half_pixel"
+        else:
+            msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
+            raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
+        return rounding_method, interp_method, coordinate_transformation_mode
+
+    layout = op.attr("data_layout")
+    out_h = op.attr("out_h")
+    out_w = op.attr("out_w")
+
+    x = g.get_node(op.input("X")[0])
+    x_shape = infer_shape(x)
+    assert len(x_shape) == 4, "Only 4D input tensor is supported for PaddlePaddle's interpolate"
+    input_out_size = op.input("OutSize")
+    input_size_tensor = op.input("SizeTensor")
+    input_scale = op.input("Scale")
+    rounding_method, interp_method, coordinate_transformation_mode = get_interpolate_mode(op)
+
+    if input_out_size:
+        # if out_size is a tensor
+        out_size = g.get_node(input_out_size[0])
+        out_size, infered = try_infer_value(out_size, parameters=g.get_params())
+        if infered:
+            out_size = out_size.tolist()
+    elif input_size_tensor:
+        # if out_size is a list of tensor
+        out_size = list()
+        for name in input_size_tensor:
+            size = g.get_node(name)
+            if len(infer_shape(size)) == 0:
+                shape = _op.reshape(shape, [-1])
+            out_size.append(size)
+        out_size = _op.concatenate(out_size, axis=0)
+        out_size, infered = try_infer_value(out_size, parameters=g.get_params())
+        if infered:
+            out_size = out_size.tolist()
+    elif input_scale:
+        # if out_size is not defined, but scale is defined
+        input_scale = g.get_node(input_scale[0])
+        input_shape = shape_of(x).astype("float32")
+        if layout.startswith("NC"):
+            out_size = _op.strided_slice(input_shape, begin=[2], end=[4]) * input_scale
+        else:
+            out_size = _op.strided_slice(input_shape, begin=[1], end=[3]) * input_scale
+        out_size = out_size.astype("int32")
+        out_size, infered = try_infer_value(out_size, parameters=g.get_params())
+        if infered:
+            out_size = out_size.tolist()
+    else:
+        # if out_size is a constant value
+        out_size = [out_h, out_w]
+
+    out = _op.image.resize2d(
+        x,
+        size=out_size,
+        layout=layout,
+        method=interp_method,
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        rounding_method=rounding_method,
+        cubic_alpha=-0.75,
+    )
     g.add_node(op.output("Out")[0], out)
 
 
@@ -939,18 +1062,16 @@ def convert_reshape(g, op, block):
     if input_shape:
         new_shape = g.get_node(input_shape[0])
     elif input_shape_tensor:
-        tmp_shape = []
+        new_shape = []
         for shape_name in input_shape_tensor:
             shape = g.get_node(shape_name)
             if len(infer_shape(shape)) == 0:
                 shape = _op.reshape(shape, [-1])
-            if isinstance(shape, _expr.Constant):
-                tmp_shape.append(shape)
-            elif isinstance(shape, _expr.Expr):
-                tmp_shape.append(shape)
-            else:
-                tmp_shape.append(_expr.const(np.array(shape).astype("int64")))
-        new_shape = _op.concatenate(tmp_shape, axis=0)
+            new_shape.append(shape)
+        new_shape = _op.concatenate(new_shape, axis=0)
+        new_shape, infered = try_infer_value(new_shape, parameters=g.get_params())
+        if infered:
+            new_shape = new_shape.tolist()
     else:
         new_shape = op.attr("shape")
     out = _op.reshape(data, new_shape)
@@ -1184,6 +1305,8 @@ _convert_map = {
     "assign_value": convert_assign_value,
     "atan": convert_unary_op,
     "batch_norm": convert_batch_norm,
+    "bicubic_interp_v2": convert_interpolate,
+    "bilinear_interp_v2": convert_interpolate,
     "bmm": convert_bmm,
     "brelu": convert_brelu,
     "cast": convert_cast,
@@ -1214,6 +1337,7 @@ _convert_map = {
     "feed": convert_feed,
     "fill_any_like": convert_fill_any_like,
     "fill_constant": convert_fill_constant,
+    "flatten_contiguous_range": convert_flatten,
     "floor": convert_unary_op,
     "floor_mod": convert_elementwise_op,
     "gather": convert_gather,
@@ -1243,6 +1367,7 @@ _convert_map = {
     "matmul": convert_matmul,
     "matmul_v2": convert_matmul,
     "mul": convert_mul,
+    "nearest_interp_v2": convert_interpolate,
     "not_equal": convert_elementwise_op,
     "pad1d": convert_padding,
     "pad2d": convert_padding,

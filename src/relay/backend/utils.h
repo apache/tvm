@@ -428,6 +428,15 @@ inline bool IsAutoSchedulerEnabled() {
 }
 
 /*!
+ * \brief Return whether the meta schedule is enabled in the pass context.
+ */
+inline bool IsMetaScheduleEnabled() {
+  return transform::PassContext::Current()
+      ->GetConfig<Bool>("relay.backend.use_meta_schedule", Bool(false))
+      .value();
+}
+
+/*!
  * \brief Get the sequence of Relay optimization passes based on backend type.
  * The prefix of the Relay passes almost overlaps between the vm and graph backend, with some slight
  * difference. This function unifies the shared optimization pass prefix between vm and graph
@@ -437,7 +446,7 @@ inline bool IsAutoSchedulerEnabled() {
  * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
+Array<Pass> GetPassPrefix(const TargetMap& targets, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {

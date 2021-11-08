@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Testing utilities in meta schedule"""
+"""RPC tracker and server running locally"""
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.server import Server
 

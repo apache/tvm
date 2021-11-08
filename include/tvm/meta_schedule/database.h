@@ -230,18 +230,29 @@ class PyDatabaseNode : public DatabaseNode {
     // `f_size` is not visited
   }
 
-  static constexpr const char* _type_key = "meta_schedule.PyDatabase";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyDatabaseNode, DatabaseNode);
+  Workload CommitWorkload(const IRModule& mod) final {
+    ICHECK(f_commit_workload != nullptr) << "PyDatabase's CommitWorkload method not implemented!";
+    return f_commit_workload(mod);
+  }
 
-  Workload CommitWorkload(const IRModule& mod) final { return f_commit_workload(mod); }
-
-  void CommitTuningRecord(const TuningRecord& record) final { f_commit_tuning_record(record); }
+  void CommitTuningRecord(const TuningRecord& record) final {
+    ICHECK(f_commit_tuning_record != nullptr)
+        << "PyDatabase's CommitTuningRecord method not implemented!";
+    f_commit_tuning_record(record);
+  }
 
   Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
+    ICHECK(f_get_top_k != nullptr) << "PyDatabase's GetTopK method not implemented!";
     return f_get_top_k(workload, top_k);
   }
 
-  int64_t Size() final { return f_size(); }
+  int64_t Size() final {
+    ICHECK(f_size != nullptr) << "PyDatabase's Size method not implemented!";
+    return f_size();
+  }
+
+  static constexpr const char* _type_key = "meta_schedule.PyDatabase";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PyDatabaseNode, DatabaseNode);
 };
 
 /*!

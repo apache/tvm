@@ -489,7 +489,7 @@ struct AttrInitEntry {
   ~AttrInitEntry() DMLC_THROW_EXCEPTION {
     if (value_missing_) {
       std::ostringstream os;
-      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization."
+      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization. "
          << "If the key is defined check that its type matches the declared type.";
       throw AttrError(os.str());
     }
@@ -806,7 +806,7 @@ class AttrsNode : public BaseAttrsNode {
     ICHECK_EQ(args.size() % 2, 0);
     const int kLinearSearchBound = 16;
     int hit_count = 0;
-    // applies two stratgies to lookup
+    // applies two strategies to lookup
     if (args.size() < kLinearSearchBound) {
       // linear search.
       auto ffind = [&args](const char* key, runtime::TVMArgValue* val) {

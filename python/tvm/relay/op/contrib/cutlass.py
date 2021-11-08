@@ -20,13 +20,13 @@ from ...dataflow_pattern import wildcard, is_op, is_constant
 
 
 def make_gelu_pattern(bias_out, out_dtype="float16"):
-    mul = is_op("multiply")(bias_out, is_constant())
+    mul = is_op("multiply")(bias_out, is_constant() | wildcard())
     if out_dtype == "float16":
         erf = is_op("cast")(is_op("erf")(is_op("cast")(mul)))
     else:
         erf = is_op("erf")(mul)
-    mul_half = is_op("multiply")(erf, is_constant())
-    add = is_op("add")(mul_half, is_constant())
+    mul_half = is_op("multiply")(erf, is_constant() | wildcard())
+    add = is_op("add")(mul_half, is_constant() | wildcard())
     return is_op("multiply")(add, bias_out)
 
 
@@ -51,6 +51,10 @@ def make_gemm_pattern(with_bias=True, with_act=None, out_dtype="float16"):
     return make_gelu_pattern(gemm_out, out_dtype)
 
 
+def make_batch_matmul_pattern():
+    return is_op("nn.batch_matmul")(wildcard(), wildcard())
+
+
 def partition_for_cutlass(mod):
     """Partition the input module into CUTLASS-supported subgraphs."""
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
@@ -67,6 +71,7 @@ def partition_for_cutlass(mod):
         dense_bias_relu_pat,
         dense_bias_pat,
         dense_pat,
+        ("cutlass.batch_matmul", make_batch_matmul_pattern()),
     ]
     mod = transform.MergeComposite(cutlass_patterns)(mod)
     mod = transform.AnnotateTarget(["cutlass"])(mod)
