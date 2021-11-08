@@ -222,16 +222,25 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
   }
   PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer_var).rank == StorageRank::kGlobal) {
-      ++rw_stats_[op->buffer_var].read_count;
+        GetScope(op->buffer->data).rank == StorageRank::kGlobal) {
+      ++rw_stats_[op->buffer->data].read_count;
     }
     return StmtExprMutator::VisitExpr_(op);
   }
-  Stmt VisitStmt_(const StoreNode* op) final {
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer_var).rank == StorageRank::kGlobal) {
-      ++rw_stats_[op->buffer_var].write_count;
+        GetScope(op->buffer->data).rank == StorageRank::kGlobal) {
+      ++rw_stats_[op->buffer->data].write_count;
     }
     return StmtExprMutator::VisitStmt_(op);
   }
