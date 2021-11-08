@@ -1053,18 +1053,18 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
 
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
   ICHECK(trans_in_layout.defined())
-      << "Conv only support input layouts that are convertible from NCHW."
+      << "Conv2DTransposed only support input layouts that are convertible from NCHW."
       << " But got " << in_layout;
 
   const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
   ICHECK(trans_kernel_layout.defined())
-      << "Conv only support kernel layouts that are convertible from OIHW."
+      << "Conv2DTransposed only support kernel layouts that are convertible from OIHW."
       << " But got " << kernel_layout;
 
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNCHW);
   ICHECK(trans_out_layout.defined())
-      << "Conv only support output layouts that are convertible from NCHW."
+      << "Conv2DTransposed only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
 
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
@@ -1099,16 +1099,20 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
       // check the size
       ICHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) &&
              reporter->AssertEQ(param->kernel_size[1], wshape[3]))
-          << "Conv2D: shape of weight is inconsistent with kernel_size, "
+          << "Conv2DTransposed: shape of weight is inconsistent with kernel_size, "
           << " kernel_size=" << param->kernel_size << " wshape=" << Array<IndexExpr>(wshape);
     }
     if (param->channels.defined()) {
-      ICHECK(reporter->AssertEQ(param->channels, wshape[1]))
-          << "Conv2D: shape of weight is inconsistent with channels, "
+      ICHECK(reporter->AssertEQ(param->channels, wshape[0]))
+          << "Conv2DTransposed: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
     }
     if (!dshape_nchw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
-      ICHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[0]));
+      ICHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[1]))
+          << "Conv2DTransposed: data.shape[1] // groups != weight.shape[1], "
+          << " data.shape= " << Array<IndexExpr>(dshape_nchw)
+          << " groups= " << param->groups
+          << " weight.shape= " << Array<IndexExpr>(wshape);
     }
     channels = wshape[1];
     dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
