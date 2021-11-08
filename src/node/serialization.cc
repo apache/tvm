@@ -97,6 +97,8 @@ class NodeIndexer : public AttrVisitor {
 
   void MakeNodeIndex(Object* node) {
     if (node == nullptr) return;
+    ICHECK(node->IsInstance<Object>());
+
     if (node_index_.count(node)) {
       return;
     }
