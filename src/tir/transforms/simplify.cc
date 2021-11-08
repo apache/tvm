@@ -82,17 +82,37 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
-  // eliminate useless stores
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    if (const LoadNode* load = op->value.as<LoadNode>()) {
-      if (load->buffer_var.same_as(op->buffer_var) &&
-          tir::ExprDeepEqual()(load->index, op->index)) {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  // eliminate useless stores
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    BufferStore store = Downcast<BufferStore>(Parent::VisitStmt_(op));
+    if (const BufferLoadNode* load = op->value.as<BufferLoadNode>()) {
+      if (load->buffer->data.same_as(op->buffer->data) &&
+          ArrayDeepEqual(load->indices, op->indices) &&
+          tir::ExprDeepEqual()(load->buffer->elem_offset, op->buffer->elem_offset) &&
+          ArrayDeepEqual(load->buffer->shape, op->buffer->shape) &&
+          ArrayDeepEqual(load->buffer->strides, op->buffer->strides)) {
         return Evaluate(0);
       }
     }
-    return GetRef<Stmt>(op);
+    return std::move(store);
+  }
+
+ private:
+  bool ArrayDeepEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+    if (lhs.size() != rhs.size()) {
+      return false;
+    }
+    for (size_t i = 0; i < lhs.size(); i++) {
+      if (!tir::ExprDeepEqual()(lhs[i], rhs[i])) {
+        return false;
+      }
+    }
+    return true;
   }
 };
 

@@ -633,23 +633,51 @@ class IRSubstitute : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr ret = StmtExprMutator::VisitExpr_(op);
-    op = ret.as<LoadNode>();
-    if (auto mapped_var = vmap_(op->buffer_var)) {
-      return Load(op->dtype, Downcast<Var>(mapped_var.value()), op->index, op->predicate);
-    } else {
-      return ret;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<StoreNode>();
-    if (auto mapped_var = vmap_(op->buffer_var)) {
-      return Store(Downcast<Var>(mapped_var.value()), op->value, op->index, op->predicate);
-    } else {
-      return ret;
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    Buffer new_buf = GetRemappedBuffer(node->buffer);
+
+    if (!new_buf.same_as(node->buffer)) {
+      auto writer = node.CopyOnWrite();
+      writer->buffer = new_buf;
     }
+
+    return node;
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf) {
+    auto key = buf.get();
+    auto it = buf_remap_.find(key);
+    if (it != buf_remap_.end()) {
+      return it->second;
+    }
+
+    if (auto mapped_var = vmap_(buf->data)) {
+      auto writer = buf.CopyOnWrite();
+      writer->data = Downcast<Var>(mapped_var);
+    }
+
+    buf_remap_[key] = buf;
+    return buf;
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -665,7 +693,17 @@ class IRSubstitute : public StmtExprMutator {
   }
 
  private:
+  // Caller provided function that defines the variables to be remapped.
   std::function<Optional<PrimExpr>(const Var&)> vmap_;
+
+  /* \brief Generated map to track buffers being remapped.
+   *
+   * If a `Var BufferNode::data` is remapped, then all buffers
+   * containing that data pointer should also be remapped.  This map
+   * is used to track buffer modifications, and ensure all instances
+   * of a buffer are replaced by the same modified buffer object.
+   */
+  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
 Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var&)> vmap) {
