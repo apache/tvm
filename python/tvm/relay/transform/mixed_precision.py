@@ -40,6 +40,8 @@ DEFAULT_ALWAYS_LIST = [
     "nn.conv3d_transpose",
     "nn.dense",
     "nn.batch_matmul",
+    "nn.bias_add",
+    "nn.batch_norm",
 ]
 DEFAULT_FOLLOW_LIST = [
     # These ops add new data or change shape
@@ -80,8 +82,6 @@ DEFAULT_FOLLOW_LIST = [
     "subtract",
     "multiply",
     "divide",
-    "nn.bias_add",
-    "nn.batch_norm",
     "sqrt",
     "shape_of",
     # Simple activations
