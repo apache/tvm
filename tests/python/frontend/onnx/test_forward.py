@@ -5782,13 +5782,21 @@ def test_scan(target, dev):
         scan_input_directions,
         scan_output_axes,
         scan_output_directions,
+        opset,
     ):
         import copy
 
         body_input_shapes = copy.deepcopy(input_shapes)
         num_state_inputs = len(input_shapes) - num_scan_inputs
-        for i in range(num_state_inputs, len(input_shapes)):
-            body_input_shapes[i].pop(scan_input_axes[i - num_state_inputs])
+        
+        if opset == 8:
+            for i in range(len(input_shapes)):
+                body_input_shapes[i].pop(0)
+            for i in range(num_state_inputs, len(input_shapes)):
+                body_input_shapes[i].pop(0)
+        else:
+            for i in range(num_state_inputs, len(input_shapes)):
+                body_input_shapes[i].pop(scan_input_axes[i - num_state_inputs])
 
         initial0 = onnx.helper.make_tensor_value_info(
             "initial0", onnx.TensorProto.FLOAT, body_input_shapes[0]
@@ -5852,17 +5860,27 @@ def test_scan(target, dev):
             [state0, state1, scan_out0, scan_out1],
         )
         # create scan op node
-        scan_node = onnx.helper.make_node(
-            "Scan",
-            inputs=["init0", "init1", "in0", "in1", "in2"],
-            outputs=["s0", "s1", "scan0", "scan1"],
-            num_scan_inputs=num_scan_inputs,
-            body=scan_body,
-            scan_input_axes=scan_input_axes,
-            scan_input_directions=scan_input_directions,
-            scan_output_axes=scan_output_axes,
-            scan_output_directions=scan_output_directions,
-        )
+        scan_node = None
+        if opset == 8:
+            scan_node = onnx.helper.make_node(
+                "Scan",
+                inputs=["", "init0", "init1", "in0", "in1", "in2"],
+                outputs=["s0", "s1", "scan0", "scan1"],
+                num_scan_inputs=num_scan_inputs,
+                body=scan_body,
+            )
+        else:
+            scan_node = onnx.helper.make_node(
+                "Scan",
+                inputs=["init0", "init1", "in0", "in1", "in2"],
+                outputs=["s0", "s1", "scan0", "scan1"],
+                num_scan_inputs=num_scan_inputs,
+                body=scan_body,
+                scan_input_axes=scan_input_axes,
+                scan_input_directions=scan_input_directions,
+                scan_output_axes=scan_output_axes,
+                scan_output_directions=scan_output_directions,
+            )
         input_info = [
             helper.make_tensor_value_info("init0", TensorProto.FLOAT, input_shapes[0]),
             helper.make_tensor_value_info("init1", TensorProto.FLOAT, input_shapes[1]),
@@ -5891,18 +5909,24 @@ def test_scan(target, dev):
         input_values = [init0, init1, in0, in1, in2]
 
         verify_with_ort_with_inputs(
-            model, input_values, target=target, dev=dev, opt_level=2, use_vm=True
+            model, input_values, target=target, dev=dev, opt_level=2, use_vm=True, opset=opset,
         )
 
+    #opset 8
+    input_shapes = [[2, 6, 7, 8], [2, 3, 3], [2, 5, 6, 7, 8], [2, 5, 3, 4], [2, 5, 4, 3]]
+    output_shapes = [[2, 6, 7, 8], [2, 3, 3], [2, 5, 6, 7, 8], [2, 5, 3, 3]]
+    verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2, 8)
+    
+    #opset 9
     input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [5, 3, 4], [5, 4, 3]]
     output_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [5, 3, 3]]
     # input_shapes, output_shapes, num_scan_inputs, scan_input_axes, scan_input_directions,
     # scan_output_axes, scan_output_directions
-    verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2)
+    verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2, 9)
 
     input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [3, 4, 5], [4, 5, 3]]
     output_shapes = [[6, 7, 8], [3, 3], [6, 5, 7, 8], [3, 5, 3]]
-    verify_scan(input_shapes, output_shapes, 3, [0, 2, 1], [1] * 3, [1] * 2, [1] * 2)
+    verify_scan(input_shapes, output_shapes, 3, [0, 2, 1], [1] * 3, [1] * 2, [1] * 2, 9)
 
 
 if __name__ == "__main__":

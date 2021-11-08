@@ -3129,11 +3129,30 @@ class Scan(OnnxOpConverter):
     """Operator converter for Scan"""
 
     @classmethod
+    def _impl_v8(cls, inputs, attr, params):
+        new_inputs = inputs[1 :]
+        batch_num = infer_shape(inputs[1])[0]
+        out = []
+        for i in range(batch_num):
+            v9_inputs = [
+                _op.take(new_inputs[j], _expr.const(i), axis=0) for j in range(len(new_inputs))
+            ]
+            results = cls._impl_v9(v9_inputs, attr, params)
+            results = [_op.expand_dims(results[j], axis=0) for j in range(len(results))]
+            if i == 0:
+                out = results
+            else:
+                out = [_op.concatenate([out[j], results[j]], axis=0) for j in range(len(results))]
+
+        out = _expr.TupleWrapper(_expr.Tuple(out), len(out))
+        return out
+
+    @classmethod
     def _impl_v9(cls, inputs, attr, params):
         body = attr.get("body")
         num_scan_inputs = attr.get("num_scan_inputs")
         num_all_inputs = len(inputs)
-        num_state_inputs = num_all_inputs - num_scan_inputs
+        num_state_inputs = len(body.input) - num_scan_inputs
         num_state_outputs = num_state_inputs
         num_all_outputs = len(body.output)
         num_scan_outputs = num_all_outputs - num_state_outputs
@@ -3200,7 +3219,7 @@ class Scan(OnnxOpConverter):
             shape = list(get_const_tuple(output_node.checked_type.shape))
             shape.insert(scan_output_axes[i], max_loop_count)
             dtype = output_node.checked_type.dtype
-            scan_output_vars.append(_expr.var(name, shape=(shape), dtype=dtype))
+            scan_output_vars.append(_expr.var(name, shape=shape, dtype=dtype))
             scan_output_init.append(_op.zeros(shape, dtype))
 
         # loop vars = [iter_count, scan_state, scan_out]
@@ -3231,22 +3250,18 @@ class Scan(OnnxOpConverter):
             for i in range(num_state_inputs, num_all_inputs):
                 if scan_input_directions[i - num_state_inputs] != 0:
                     input_scan_exprs.append(
-                        relay.squeeze(
-                            relay.take(
-                                inputs[i],
-                                relay.const(max_loop_count - 1, "int32") - loop_count,
-                                axis=scan_input_axes[i - num_state_inputs],
-                            )
+                        relay.take(
+                            inputs[i],
+                            relay.const(max_loop_count - 1, "int32") - loop_count,
+                            axis=scan_input_axes[i - num_state_inputs],
                         )
                     )
                 else:
                     input_scan_exprs.append(
-                        relay.squeeze(
-                            relay.take(
-                                inputs[i],
-                                loop_count,
-                                axis=scan_input_axes[i - num_state_inputs],
-                            )
+                        relay.take(
+                            inputs[i],
+                            loop_count,
+                            axis=scan_input_axes[i - num_state_inputs],
                         )
                     )
 
