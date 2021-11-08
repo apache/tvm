@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
 from tvm import te
 from tvm.topi.transform import reshape
 import tvm.contrib.ethosu.cascader as cs
 from tvm.relay.backend.contrib.ethosu.te.inline import match_ethosu_inline
-
-import pytest
 
 
 def test_ethosu_inline_matcher():

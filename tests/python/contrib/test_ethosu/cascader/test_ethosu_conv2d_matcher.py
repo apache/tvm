@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
 from tvm import te
 import tvm.contrib.ethosu.cascader as cs
 from tvm.relay.backend.contrib.ethosu.te.convolution import match_ethosu_conv2d, conv2d_compute
 
 import numpy as np
-import pytest
 
 
 def _make_matrices(kernel, stride, dilation, padding, ifm_channels, ifm_layout, ofm_layout):

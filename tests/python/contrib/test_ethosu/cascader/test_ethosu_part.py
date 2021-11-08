@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
 import tvm.contrib.ethosu.cascader as pl
 from tvm.contrib.ethosu.cascader.parts import EthosuPart
-
-import pytest
 
 
 def test_ethosu_part():
