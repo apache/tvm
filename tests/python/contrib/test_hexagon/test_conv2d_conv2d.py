@@ -17,6 +17,7 @@
 
 import sys
 
+import platform
 import tvm
 from tvm import te
 from tvm import topi
@@ -102,6 +103,7 @@ def conv2dconv2d(
     F2l = s.cache_read(filt_packed2, storage_scope, [Y])
     Yl = s.cache_write(Y, storage_scope)
 
+    # conv2d #1 schedule
     n, ho, wo, ko, hi, wi, ki = s[temp_Y].op.axis
     rh, rw, rc = s[temp_Y].op.reduce_axis
     rco, rci = s[temp_Y].split(rc, factor=block_C)
@@ -118,7 +120,7 @@ def conv2dconv2d(
     s[Y].reorder(n, koo, hoo, koi, hoi, wo, hi, wi, ki)
     s[Yl].compute_at(s[Y], hoo)
 
-    # compute schedule
+    # conv2d #2 schedule
     n, ho, wo, ko, hi, wi, ki = s[Yl].op.axis
     rh, rw, rc = s[Yl].op.reduce_axis
     rco, rci = s[Yl].split(rc, factor=block_C)
@@ -160,7 +162,7 @@ class BaseConv2dConv2d:
 
 class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
     @tvm.testing.parametrize_targets("llvm")
-    @pytest.mark.skip("Skip due to being flaky on i386.")
+    @pytest.mark.skipif(platform.processor() == "i386", "Test known to be flaky on i386 machines")
     def test_conv2d(
         self,
         batch,

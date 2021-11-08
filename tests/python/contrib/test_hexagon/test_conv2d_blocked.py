@@ -17,6 +17,7 @@
 
 import sys
 
+import platform
 import tvm
 from tvm import te
 from tvm import topi
@@ -70,7 +71,7 @@ def conv2d_nhwc8h8w32c(
         X, [0, pad[0], pad[2], 0], [0, pad_h, pad_w, 0], pad_value=0, name="padded_input"
     )
 
-    # Calculate packed layout
+    # Calculate packed input
     packed_shape = get_packed_shape(X_pad.shape)
     X_packed = te.compute(
         packed_shape,
@@ -138,7 +139,7 @@ class BaseConv2d:
 
 class TestConv2dPackedFilter(BaseConv2d):
     @tvm.testing.parametrize_targets("llvm")
-    @pytest.mark.skip("Skip due to being flaky on i386.")
+    @pytest.mark.skipif(platform.processor() == "i386", "Test known to be flaky on i386 machines")
     def test_conv2d(
         self,
         batch,
