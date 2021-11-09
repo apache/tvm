@@ -42,14 +42,14 @@ def get_filter_block_shape():
 # output:  physical packed shape in nhw8h8w32c layout
 def get_packed_shape(logical_shape_nhwc):
     assert len(logical_shape_nhwc) == 4
-    physical_physical_shape_nhwc8h8w32c = [logical_shape_nhwc[0]]
+    physical_shape_nhwc8h8w32c = [logical_shape_nhwc[0]]
     block_shape = get_block_shape()
     off_h, off_w, off_c = block_shape
-    physical_physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[1], off_h))
-    physical_physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[2], off_w))
-    physical_physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[3], off_c))
-    physical_physical_shape_nhwc8h8w32c.extend(block_shape)
-    return physical_physical_shape_nhwc8h8w32c
+    physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[1], off_h))
+    physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[2], off_w))
+    physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[3], off_c))
+    physical_shape_nhwc8h8w32c.extend(block_shape)
+    return physical_shape_nhwc8h8w32c
 
 
 # input: physical packed shape in nhw8h8w32c layout
