@@ -2628,7 +2628,7 @@ class OperatorConverter(object):
         # paddings
         pad_list = self.get_tensor_value(input_tensors[1])
         # convert list of lists to tuple of tuples
-        paddings = tuple(tuple(l) for l in pad_list)
+        paddings = tuple(tuple(l.astype(np.int32)) for l in pad_list)
 
         assert op.BuiltinOptionsType() == BuiltinOptions.MirrorPadOptions
         op_options = op.BuiltinOptions()
