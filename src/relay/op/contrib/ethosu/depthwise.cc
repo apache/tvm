@@ -132,8 +132,6 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
     return false;
   }
 
-  std::cout << weight->dtype << std::endl;
-
   if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
     reporter->GetDiagCtx().EmitFatal(
         Diagnostic::Error(reporter->GetSpan())
