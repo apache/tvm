@@ -404,7 +404,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     if (const auto* gvn = call_node->op.as<GlobalVarNode>()) {  // Lowered extern function
       ICHECK(!(call_node->attrs.defined())) << "Extern functions should have null attributes.";
 
-      for (auto arg : call_node->args) {
+      for (const auto& arg : call_node->args) {
         VisitExpr(arg);
       }
       call_lowered_props =
@@ -416,7 +416,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
       CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
 
-      for (auto arg : call_lowered_props.arguments) {
+      for (const auto& arg : call_lowered_props.arguments) {
         VisitExpr(arg);
       }
     }
