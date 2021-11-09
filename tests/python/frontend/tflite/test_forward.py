@@ -1879,16 +1879,6 @@ def _test_tan(data):
 
 
 #######################################################################
-# Sqrt
-# ----
-
-
-def _test_sqrt(data):
-    """One iteration of sqrt"""
-    return _test_unary_elemwise(math_ops.sqrt, data)
-
-
-#######################################################################
 # Square
 # ------
 
