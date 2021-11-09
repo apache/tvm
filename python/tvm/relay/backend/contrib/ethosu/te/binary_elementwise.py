@@ -48,7 +48,7 @@ def binary_elementwise_compute(
     ifm : te.Tensor
         The Input Feature Map tensor (IFM).
     ifm2 : te.Tensor
-        The Input Feature Map tensor 1 (IFM2).
+        The Input Feature Map tensor 2 (IFM2).
     lut : te.Tensor
         The look-up table values to use if activation = "LUT".
     operator_type: str
@@ -93,14 +93,14 @@ def binary_elementwise_compute(
     ifm_layout : str, optional
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
     ifm2_layout : str, optional
-        The layout of the Input Feature Map tensor 1. Can be "NHWC" or "NHCWB16".
+        The layout of the Input Feature Map tensor 2. Can be "NHWC" or "NHCWB16".
     ofm_layout : str, optional
         The layout of the Output Feature Map tensor. Can be "NHWC" or "NHCWB16".
 
     Returns
     -------
     te.Tensor
-        The OFM tensor.
+        The Output Feature Map tensor.
     """
     # Compute operation for the IFM DMA pipeline
     dmaed_ifm = dma_ifm_compute(

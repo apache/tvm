@@ -276,8 +276,6 @@ def test_ethosu_pooling(
     dtype = "int8"
 
     def create_tflite_graph():
-        tf.config.run_functions_eagerly(True)
-
         class Model(tf.Module):
             @tf.function
             def tf_function(self, x):
@@ -364,8 +362,6 @@ def test_ethosu_binary_elementwise(
     dtype = "int8"
 
     def create_tflite_graph():
-        tf.config.run_functions_eagerly(True)
-
         class Model(tf.Module):
             @tf.function
             def tf_function(self, lhs, rhs):
@@ -498,14 +494,16 @@ def test_ethosu_left_shift_binary_elemwise(
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
-    "ifm_shape, ifm2_shape, reversed_operands",
+    "ifm_shape, ifm2_shape, reversed_operands, ofm_dtype",
     [
-        ([1, 2, 3, 4], [1, 2, 3, 4], False),
-        ([1, 2, 3, 1], [1, 1, 3, 1], False),
-        ([1, 1, 3, 1], [1, 2, 3, 1], True),
+        ([1, 2, 3, 4], [1, 2, 3, 4], False, "int8"),
+        ([1, 2, 3, 1], [1, 1, 3, 1], False, "int32"),
+        ([1, 1, 3, 1], [1, 2, 3, 1], True, "int32"),
     ],
 )
-def test_ethosu_right_shift_binary_elemwise(ifm_shape, ifm2_shape, reversed_operands, accel_type):
+def test_ethosu_right_shift_binary_elemwise(
+    ifm_shape, ifm2_shape, reversed_operands, accel_type, ofm_dtype
+):
     dtype = "int32"
 
     def create_model():
@@ -519,7 +517,7 @@ def test_ethosu_right_shift_binary_elemwise(ifm_shape, ifm2_shape, reversed_oper
         ifm = relay.reshape(split[0], newshape=ifm_shape)
         ifm2 = relay.reshape(split[1], newshape=ifm2_shape)
         shr_op = infra.make_ethosu_binary_elementwise(
-            ifm, ifm2, ofm_channels, "SHR", dtype, reversed_operands
+            ifm, ifm2, ofm_channels, "SHR", ofm_dtype, reversed_operands
         )
 
         glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")

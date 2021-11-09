@@ -509,17 +509,17 @@ class BinaryElementwiseParams:
         self.activation = clip
         self.operator_type = operator_type
 
-        def brodcastable(x, y):
+        def can_broadcast(x, y):
             for i in range(1, 4):
                 if x.shape[i] == y.shape[i] or y.shape[i] == 1:
                     continue
                 return False
             return True
 
-        if brodcastable(self.ifm, self.ifm2):
+        if can_broadcast(self.ifm, self.ifm2):
             self.reversed_operands = False
             self.valid_broadcast = True
-        elif brodcastable(self.ifm2, self.ifm):
+        elif can_broadcast(self.ifm2, self.ifm):
             self.reversed_operands = True
             self.ifm, self.ifm2 = self.ifm2, self.ifm
             self.valid_broadcast = True

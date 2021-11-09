@@ -122,9 +122,9 @@ TVM_REGISTER_NODE_TYPE(EthosuBinaryElementwiseAttrs);
 
 bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                 const TypeReporter& reporter) {
-  int ifm_index = 0;
-  int ifm2_index = 1;
-  int result_index = 3;
+  const int ifm_index = 0;
+  const int ifm2_index = 1;
+  const int result_index = 3;
   ICHECK_EQ(types.size(), result_index + 1);
 
   const auto* ifm = types[ifm_index].as<TensorTypeNode>();
@@ -251,7 +251,7 @@ Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_
   attrs->ifm2_zero_point = ifm2_zero_point;
   attrs->ofm_scale = ofm_scale;
   attrs->ofm_zero_point = ofm_zero_point;
-  attrs->ofm_channels = ofm_channels;
+  attrs->ofm_channels = std::move(ofm_channels);
   attrs->reversed_operands = reversed_operands;
   attrs->activation = std::move(activation);
   attrs->clip_min = clip_min;

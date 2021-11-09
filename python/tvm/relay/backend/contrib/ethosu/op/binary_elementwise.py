@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=unused-argument
 """Relay operators for binary elementwise operators for Arm(R) Ethos(TM)-U NPU"""
+from typing import Optional
 import tvm
 from tvm.relay.op import _make
 from tvm.topi.generic import schedule_injective
@@ -102,12 +103,12 @@ def ethosu_binary_elementwise(
     ofm_channels: int,
     reversed_operands: bool,
     ofm_dtype: str,
-    activation: str = "NONE",
-    clip_min: int = 0,
-    clip_max: int = 0,
-    ifm_layout: str = "NHWC",
-    ifm2_layout: str = "NHWC",
-    ofm_layout: str = "NHWC",
+    activation: Optional[str] = "NONE",
+    clip_min: Optional[int] = 0,
+    clip_max: Optional[int] = 0,
+    ifm_layout: Optional[str] = "NHWC",
+    ifm2_layout: Optional[str] = "NHWC",
+    ofm_layout: Optional[str] = "NHWC",
 ) -> tvm.relay.Call:
     """This is a quantized binary elementwise operation as supported by
     the NPU. It accepts either NHWC or NHCWB16 format

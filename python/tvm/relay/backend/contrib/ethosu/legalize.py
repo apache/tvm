@@ -640,7 +640,7 @@ class LegalizeEthosU:
     def transform_module(
         self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.ir.IRModule:
-        """This is the method that replace the operations with hardware/codegen supported
+        """This is the method that replaces the operations with hardware/codegen supported
         operations.
         """
         mod = LegalizeSplit()(mod)
