@@ -40,13 +40,13 @@ CompilationConfig TestCompilationConfig() {
   return CompilationConfig(pass_ctx, legacy_target_map, TestDefaultCpuTarget());
 }
 
-TEST(CompilationConfig, Constructor_Homogeneous_DefaultHost) {
+TEST(CompilationConfig, Constructor_Homogeneous_FallbackCPUHost) {
   transform::PassContext pass_ctx = transform::PassContext::Create();
   Target host_target = TestDefaultCpuTarget();
   Target cuda_target = TestCudaTarget();
   TargetMap legacy_target_map;
   legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
-  CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{});
+  CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{});
 
   SEScope expected_default_primitive_se_scope(kDLCUDA, 0,
                                               Target::WithHost(cuda_target, host_target));
@@ -68,7 +68,31 @@ TEST(CompilationConfig, Constructor_Homogeneous_DefaultHost) {
                                 Target::WithHost(cuda_target, host_target)));
 }
 
-TEST(CompilationConfig, Constructor_Hetrogeneous_DefaultHost) {
+TEST(CompilationConfig, Constructor_Homegenoous_InnerHost) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+  Target host_target = TestCpuTarget();
+  Target cuda_target = Target::WithHost(TestCudaTarget(), host_target);
+  TargetMap legacy_target_map;
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
+  CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{});
+
+  EXPECT_TRUE(StructuralEqual()(config->host_target, host_target));
+}
+
+TEST(CompilationConfig, Constructor_Homogenous_CPUHost) {
+  transform::PassContext pass_ctx = transform::PassContext::Create();
+  Target cpu_target = TestCpuTarget();
+  TargetMap legacy_target_map;
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), cpu_target);
+  CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{});
+
+  EXPECT_TRUE(StructuralEqual()(config->host_target, cpu_target));
+  ASSERT_TRUE(config->optional_homogeneous_target.defined());
+  EXPECT_TRUE(StructuralEqual()(config->optional_homogeneous_target,
+                                Target::WithHost(cpu_target, cpu_target)));
+}
+
+TEST(CompilationConfig, Constructor_Hetrogeneous_FallbackCPUHost) {
   transform::PassContext pass_ctx = transform::PassContext::Create();
   pass_ctx->config.Set("relay.fallback_device_type", Integer(static_cast<int>(kDLCUDA)));
   Target host_target = TestDefaultCpuTarget();
@@ -77,7 +101,7 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_DefaultHost) {
   TargetMap legacy_target_map;
   legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), cpu_target);
   legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
-  CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{});
+  CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{});
 
   SEScope expected_default_primitive_se_scope(kDLCUDA, 0,
                                               Target::WithHost(cuda_target, host_target));
@@ -123,7 +147,7 @@ TEST(CompilationConfig, Constructor_InvalidAttribute) {
   TargetMap legacy_target_map;
   legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), TestCudaTarget());
   EXPECT_ANY_THROW(
-      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{}));
+      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{}));
 }
 
 TEST(CompilationConfig, Constructor_NoMatchingPrimitiveTarget) {
@@ -132,7 +156,7 @@ TEST(CompilationConfig, Constructor_NoMatchingPrimitiveTarget) {
   TargetMap legacy_target_map;
   legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), TestCudaTarget());
   EXPECT_ANY_THROW(
-      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{}));
+      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{}));
 }
 
 TEST(CompilationConfig, Constructor_DefaultNoMatchingPrimitiveTarget) {
@@ -141,7 +165,7 @@ TEST(CompilationConfig, Constructor_DefaultNoMatchingPrimitiveTarget) {
   legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), TestCudaTarget());
   legacy_target_map.Set(Integer(static_cast<int>(kDLExtDev)), TestExtDevTarget());
   EXPECT_ANY_THROW(
-      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target=*/{}));
+      CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{}));
 }
 
 TEST(CompilationConfig, CanonicalSEScope) {
