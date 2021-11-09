@@ -96,6 +96,7 @@ def upsampling(
         method = method[2:]
     return topi.image.resize2d(
         data,
+        [0.0] * 8,
         reshape_size,
         layout=layout,
         method=method,
@@ -194,6 +195,7 @@ def upsampling3d(
         method = method[3:]
     return topi.image.resize3d(
         data,
+        [0.0] * 10,
         resize_shape,
         layout=layout,
         method=method,

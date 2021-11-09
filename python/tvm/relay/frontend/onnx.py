@@ -2610,13 +2610,13 @@ class Resize(OnnxOpConverter):
         out = None
         if ndims == 3:
             out_size = fold_constant(_op.strided_slice(size, [2], [3]))
-            out = _op.image.resize1d(inputs[0], out_size, "NCW", method, "asymmetric")
+            out = _op.image.resize1d(inputs[0], out_size, None, "NCW", method, "asymmetric")
         elif ndims == 4:
             out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-            out = _op.image.resize2d(inputs[0], out_size, "NCHW", method, "asymmetric")
+            out = _op.image.resize2d(inputs[0], out_size, None, "NCHW", method, "asymmetric")
         elif ndims == 5:
             out_size = fold_constant(_op.strided_slice(size, [2], [5]))
-            out = _op.image.resize3d(inputs[0], out_size, "NCDHW", method, "asymmetric")
+            out = _op.image.resize3d(inputs[0], out_size, None, "NCDHW", method, "asymmetric")
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
         return out
@@ -2663,6 +2663,9 @@ class Resize(OnnxOpConverter):
         they handle the passing of scale and size. This utility
         provides the implementation for both
         """
+        roi = inputs[1]
+        if roi is not None and infer_shape(roi)[0] == 0:
+            roi = None
         ndims = len(infer_shape(inputs[0]))
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
@@ -2680,27 +2683,55 @@ class Resize(OnnxOpConverter):
         nearest_mode = attr.get("nearest_mode", b"round_prefer_floor").decode("ascii")
         alpha = attr.get("cubic_coeff_a", -0.75)
         exclude = attr.get("exclude_outside", 0)
+        extrapolation_value = attr.get("extrapolation_value", 0.0)
 
         out_size = fold_constant(_op.strided_slice(size, [2], [4]))
         out = None
         if ndims == 3:
             out_size = fold_constant(_op.strided_slice(size, [2], [3]))
             out = _op.image.resize1d(
-                inputs[0], out_size, "NCW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         elif ndims == 4:
             out_size = fold_constant(_op.strided_slice(size, [2], [4]))
             out = _op.image.resize2d(
-                inputs[0], out_size, "NCHW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCHW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         elif ndims == 5:
             out_size = fold_constant(_op.strided_slice(size, [2], [5]))
             out = _op.image.resize3d(
-                inputs[0], out_size, "NCDHW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCDHW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
-
+        print(out)
         return out
 
 
