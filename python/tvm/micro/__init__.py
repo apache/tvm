@@ -22,11 +22,6 @@ from .build import AutoTvmModuleLoader
 from .build import get_standalone_crt_dir
 from .build import get_microtvm_template_projects
 
-if not _RUNTIME_ONLY:
-    from .model_library_format import (
-        export_model_library_format,
-        UnsupportedInModelLibraryFormatError,
-    )
 from .project import generate_project, GeneratedProject, TemplateProject
 from .session import (
     create_local_graph_executor,
@@ -35,3 +30,9 @@ from .session import (
     SessionTerminatedError,
 )
 from .transport import TransportLogger
+
+if not _RUNTIME_ONLY:
+    from .model_library_format import (
+        export_model_library_format,
+        UnsupportedInModelLibraryFormatError,
+    )
