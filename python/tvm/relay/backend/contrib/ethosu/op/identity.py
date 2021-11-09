@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
-"""Relay identity operator"""
+"""Relay identity operator for Arm(R) Ethos(TM)-U NPU"""
 
 import tvm
 from tvm.relay.op import _make
@@ -43,7 +43,7 @@ def create_ethosu_identity_compute(attrs, args, out_type):
 
 
 @tvm.ir.register_op_attr("contrib.ethosu.identity", "FTVMStrategy")
-def pooling_strategy_ethosu(attrs, inputs, out_type, target):
+def identity_strategy_ethosu(attrs, inputs, out_type, target):
     strategy = OpStrategy()
     strategy.add_implementation(
         create_ethosu_identity_compute,
@@ -62,7 +62,7 @@ def ethosu_identity(
     ofm_zero_point: int = 0,
     activation: str = "NONE",
 ) -> tvm.relay.Call:
-    """The Identity operator that runs on Ethos(TM)-U NPU.
+    """The Identity operator that runs on the NPU.
 
     This operator takes in a tensor of any shape and returns the same tensor,
     with the data optionally requantized.

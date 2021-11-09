@@ -67,7 +67,9 @@ def _pad_tensor(
     return _pad
 
 
-def read_compute(tensor: te.Tensor, zero_point: int, scale: float, layout: str = None) -> te.Tensor:
+def read_compute(
+    tensor: te.Tensor, zero_point: int, scale: float, layout: Optional[str] = None
+) -> te.Tensor:
     """A tensor expression which represents a read.
 
     Parameters
@@ -101,7 +103,7 @@ def read_compute(tensor: te.Tensor, zero_point: int, scale: float, layout: str =
 
 
 def write_compute(
-    tensor: te.Tensor, zero_point: int, scale: float, layout: str = None
+    tensor: te.Tensor, zero_point: int, scale: float, layout: Optional[str] = None
 ) -> te.Tensor:
     """A tensor expression which represents a write.
 

@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/op/contrib/ethosu/identity.cc
- * \brief Property def of the Arm Ethos-U identity op.
+ * \brief Property def of the Arm(R) Ethos(TM)-U NPU identity op.
  */
 #include <tvm/relay/op.h>
 
@@ -31,7 +31,7 @@ namespace op {
 namespace contrib {
 namespace ethosu {
 
-/*! \brief Attributes used by the Ethos(TM)-U NPU identity operator */
+/*! \brief Attributes used by the NPU identity operator */
 struct EthosuIdentityAttrs : public tvm::AttrsNode<EthosuIdentityAttrs> {
   double ifm_scale;
   int ifm_zero_point;
@@ -61,8 +61,8 @@ TVM_REGISTER_NODE_TYPE(EthosuIdentityAttrs);
 
 bool EthosuIdentityRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                        const TypeReporter& reporter) {
-  int ifm_index = 0;
-  int result_index = 2;
+  const int ifm_index = 0;
+  const int result_index = 2;
   ICHECK_EQ(types.size(), result_index + 1);
 
   const auto* ifm = types[ifm_index].as<TensorTypeNode>();
@@ -108,10 +108,10 @@ Expr MakeEthosuIdentity(Expr ifm, Expr lut, double ifm_scale, int ifm_zero_point
 TVM_REGISTER_GLOBAL("relay.op._make.ethosu_identity").set_body_typed(MakeEthosuIdentity);
 
 RELAY_REGISTER_OP("contrib.ethosu.identity")
-    .describe(R"code(Identity operator for Ethos-U NPUs.
+    .describe(R"code(Arm(R) Ethos(TM)-U NPU identity operator.
 
-This Relay operator performs the identity operation on Ethos(TM)-U NPU with a capability
-to requantize the data. It accepts input with any shape that is less or equal to 4.
+This Relay operator performs the identity pooling operation on the NPU with a capability
+to requantize the data. It accepts input tensors of 4 dimensions or less.
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<EthosuIdentityAttrs>()

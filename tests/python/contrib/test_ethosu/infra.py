@@ -308,6 +308,33 @@ def generate_ref_data_tflite(model):
     return input_data, expected_output_data
 
 
+def make_partitioned_function(relay_op):
+
+    ifm0 = relay.analysis.free_vars(relay_op)
+    ifm_shape = ifm0[0].type_annotation.shape
+
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+
+    glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
+
+    func = (
+        relay.Function(ifm0, relay_op)
+        .with_attr("Inline", 1)
+        .with_attr("Compiler", "ethos-u")
+        .with_attr("global_symbol", "tvmgen_default_ethosu_main_0")
+        .with_attr("Primitive", 1)
+    )
+    mod = tvm.IRModule()
+    mod[glb_ethosu] = func
+    mod = relay.transform.InferType()(mod)
+
+    call = relay.Call(glb_ethosu, [ifm])
+    mod["main"] = relay.Function([ifm], call)
+    mod = relay.transform.InferType()(mod)
+
+    return mod
+
+
 def generate_weights_data(shape, dtype):
     size = 1
     for dim in shape:
@@ -567,6 +594,8 @@ def make_ethosu_binary_elementwise(
         ofm_layout=ofm_layout,
     )
     return ethosu_binary_elementwise
+
+
 def make_ethosu_identity(
     ifm,
     lut=relay.const([], dtype="int8"),

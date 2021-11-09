@@ -55,7 +55,7 @@ def identity_compute(
     Returns
     -------
     te.Tensor
-        The OFM tensor.
+        The Output Feature Map tensor.
 
     """
 

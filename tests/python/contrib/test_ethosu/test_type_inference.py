@@ -14,20 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm import relay, TVMError
-from tvm import relay
-import tvm
-from tvm.relay.testing import run_opt_pass
-from .infra import make_ethosu_conv2d
-from .infra import make_ethosu_pooling
-from .infra import make_ethosu_identity
-
 import pytest
 
 pytest.importorskip("ethosu.vela")
 
 from tvm import relay, TVMError
-from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from .infra import make_ethosu_conv2d
 from .infra import make_ethosu_depthwise_conv2d
@@ -311,7 +302,6 @@ def test_ethosu_binary_elementwise_invalid_data_types():
         run_opt_pass(func, relay.transform.InferType())
 
 
-
 @pytest.mark.parametrize("operator_type", ["MIN", "MAX"])
 def test_ethosu_binary_elementwise_min_max_invalid_data_type(operator_type):
     invalid_dtype = "int32"
@@ -352,6 +342,17 @@ def test_ethosu_binary_elementwise_shift_invalid_data_type(invalid_dtype, operat
         run_opt_pass(func, relay.transform.InferType())
 
 
+@pytest.mark.parametrize("shape", [(1, 56, 72, 55), (241, 7, 755), (28, 44), (5003,)])
+def test_ethosu_identity_type_inference(shape):
+    dtype = "int8"
+    ifm = relay.var("ifm", shape=shape, dtype=dtype)
+    identity = make_ethosu_identity(ifm)
+    func = relay.Function([ifm], identity)
+    func = run_opt_pass(func, relay.transform.InferType())
+    assert tuple(func.body.checked_type.shape) == shape
+    assert func.body.checked_type.dtype == dtype
+
+
 def test_ethosu_identity_invalid_shape():
     invalid_shape = [1, 2, 3, 4, 5]
     dtype = "int8"
@@ -363,7 +364,7 @@ def test_ethosu_identity_invalid_shape():
         run_opt_pass(func, relay.transform.InferType())
 
 
-def test_ethosu_invalid_invalid_dtype():
+def test_ethosu_invalid_dtype():
     invalid_dtype = "int32"
     ifm = relay.var("ifm", shape=[6000], dtype=invalid_dtype)
 
