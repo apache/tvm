@@ -166,7 +166,7 @@ transform::Pass BindTarget(Target target) {
 }
 
 static transform::Pass AnnotateEntryFunc(bool b) {
-  auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+  auto fpass = [](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
   };
   return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
