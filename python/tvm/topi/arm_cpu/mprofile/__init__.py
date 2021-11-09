@@ -15,4 +15,3 @@
 # specific language governing permissions and limitations
 # under the License.
 """Schedules specialized for cortex-m DSP instructions."""
-
