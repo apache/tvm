@@ -2782,6 +2782,20 @@ def test_forward_pad():
     )
     _test_pad(
         [
+            np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+            np.array([[1, 1], [2, 2]], dtype=np.int64),
+        ],
+        mode="REFLECT",
+    )
+    _test_pad(
+        [
+            np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+            np.array([[1, 1], [2, 2]], dtype=np.int64),
+        ],
+        mode="SYMMETRIC",
+    )
+    _test_pad(
+        [
             np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
             np.array([[1, 1], [2, 2]], dtype=np.int32),
         ],
