@@ -594,6 +594,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
   Expr DeviceAwareVisitExpr_(const CallNode* call_node) override {
     Call call = GetRef<Call>(call_node);
+
     // Look for (indirect) calls to primitives.
     BaseFunc prim_func = ResolveToPrimitive(call_node->op);
     if (!prim_func.defined()) {
@@ -604,10 +605,16 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       return ExprMutator::VisitExpr_(call_node);
     }
 
+    // Similarly transform arguments.
+    Array<Expr> args;
+    for (const auto& arg : call_node->args) {
+      args.push_back(VisitExpr(arg));
+    }
+
     // Already lowered by other means so we don't need to mutate
-    // the call
+    // the call but we do need to mutate the arguments
     if (prim_func->IsInstance<tir::PrimFuncNode>()) {
-      return std::move(call);
+      return Call(call_node->op, args, call_node->attrs);
     }
 
     // Find the desired target device.
@@ -625,12 +632,6 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     // Lower the primitive function for that target.
     Function func = Downcast<Function>(prim_func);
     std::pair<GlobalVar, Attrs> pair = LowerFunction(func, target);
-
-    // Similarly transform arguments.
-    Array<Expr> args;
-    for (const auto& arg : call_node->args) {
-      args.push_back(VisitExpr(arg));
-    }
 
     // Replace with direct call to lowered primitive, and attach annotations to record calling
     // convention.

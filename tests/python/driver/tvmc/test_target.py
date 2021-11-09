@@ -118,6 +118,19 @@ def test_parse_multiple_target():
     assert "llvm" == targets[1]["name"]
 
 
+def test_parse_hybrid_target():
+    """Hybrid Target and external codegen"""
+    targets = tvmc.common.parse_target(
+        "cmsis-nn -accelerator_config=ethos-u55-256, llvm -device=arm_cpu --system-lib"
+    )
+
+    assert len(targets) == 2
+    assert "cmsis-nn" == targets[0]["name"]
+    assert not targets[0]["is_tvm_target"]
+    assert "llvm" == targets[1]["name"]
+    assert targets[1]["is_tvm_target"]
+
+
 def test_parse_quotes_and_separators_on_options():
     targets_no_quote = tvmc.common.parse_target("foo -option1=+v1.0x,+value,+bar")
     targets_single_quote = tvmc.common.parse_target("foo -option1='+v1.0x,+value'")

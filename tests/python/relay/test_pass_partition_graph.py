@@ -326,6 +326,49 @@ def test_extern_ccompiler_default_ops():
     check_result(mod, {"x": x_data, "y": y_data}, (16, 8), res)
 
 
+def test_extern_compiler_sanitized_ops():
+    def expected():
+        mod = tvm.IRModule()
+        x = relay.var("x", shape=(8, 8))
+        y = relay.var("y", shape=(8, 8))
+        x0 = relay.var("x0", shape=(8, 8))
+        y0 = relay.var("y0", shape=(8, 8))
+        add = x0 + y0
+        # Function that uses C compiler
+        func = relay.Function([x0, y0], add)
+        func = set_func_attr(func, "unsanitary-name++", "tvmgen_default_unsanitary_name___main_0")
+        glb_0 = relay.GlobalVar("tvmgen_default_unsanitary_name___main_0")
+        mod[glb_0] = func
+        add_call = relay.Call(glb_0, [x, y])
+        # Function that uses default compiler. Ops are fused in this function.
+        p0 = relay.var("p0", shape=(8, 8))
+        log = relay.log(p0)
+        exp = relay.exp(p0)
+        concat = relay.concatenate([log, exp], axis=0)
+        fused_func = relay.Function([p0], concat)
+        fused_func = fused_func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        fused_call = relay.Call(fused_func, [add_call])
+        main = relay.Function([x, y], fused_call)
+        mod["main"] = main
+        mod = transform.InferType()(mod)
+        return mod
+
+    x = relay.var("x", shape=(8, 8))
+    y = relay.var("y", shape=(8, 8))
+    add = x + y
+    log = relay.log(add)
+    exp = relay.exp(add)
+    concat = relay.concatenate([log, exp], axis=0)
+    f = relay.Function([x, y], concat)
+    mod = tvm.IRModule()
+    mod["main"] = f
+    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "unsanitary-name++")(mod)
+    mod = transform.PartitionGraph()(mod)
+    fused_mod = transform.FuseOps(2)(mod)
+    expected_mod = expected()
+    assert tvm.ir.structural_equal(fused_mod, expected_mod, map_free_vars=True)
+
+
 def test_extern_ccompiler_multiple_functions():
     def expected():
         mod = tvm.IRModule()
