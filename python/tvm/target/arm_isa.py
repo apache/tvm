@@ -33,7 +33,7 @@ class IsaAnalyzer(object):
 
     def __init__(self, target):
         self.target = tvm.target.Target(target)
-        self.mcpu = target.attrs.get("-mcpu", None)
 
+    @property
     def has_dsp_support(self):
-        return self.mcpu is not None and self.mcpu in ARM_MPROFILE_DSP_SUPPORT_LIST
+        return self.target.mcpu is not None and self.target.mcpu in ARM_MPROFILE_DSP_SUPPORT_LIST
