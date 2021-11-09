@@ -186,11 +186,10 @@ class RollingBufferInjector : public StmtExprMutator {
         ICHECK(roll_axis != -1) << "Rolling buffer injection failed: no rolling axis found";
 
         RollingBufferInfo rolling_buffer_info = {
-            .rolling_axis = roll_axis,
-            .rolling_extent = static_cast<int>(
-                Downcast<IntImm>(buffer_realize->bounds[roll_axis]->extent)->value),
-            .axis_overlaps = bound_overlaps,
-            .axis_iter_vars = bound_iter_vars,
+            roll_axis,
+            static_cast<int>(Downcast<IntImm>(buffer_realize->bounds[roll_axis]->extent)->value),
+            bound_overlaps,
+            bound_iter_vars,
         };
         rolling_buffer_to_info[buffer] = rolling_buffer_info;
         Array<Range> new_bounds{};
