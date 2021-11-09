@@ -25,7 +25,6 @@ from .infrastructure import (
     ceildiv,
     build_and_run,
     get_block_shape,
-    get_packed_filter_shape,
     get_packed_shape,
 )
 

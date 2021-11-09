@@ -162,7 +162,9 @@ class BaseConv2dConv2d:
 
 class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
     @tvm.testing.parametrize_targets("llvm")
-    @pytest.mark.skipif(platform.processor() == "i386", "Test known to be flaky on i386 machines")
+    @pytest.mark.skipif(
+        platform.processor() == "i386", reason="Test known to be flaky on i386 machines"
+    )
     def test_conv2d(
         self,
         batch,
@@ -189,14 +191,10 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
 
         shape_input = [batch, in_size, in_size, in_channel]
         shape_filter1_oihw = [out_channel1, in_channel, kernel_size1, kernel_size1]
-        shape_filter1_oihw8i32o4i = get_packed_filter_shape(
-            out_channel1, in_channel, kernel_size1, kernel_size1
-        )
+        shape_filter1_oihw8i32o4i = get_packed_filter_shape(shape_filter1_oihw)
 
         shape_filter2_oihw = [out_channel2, out_channel1, kernel_size2, kernel_size2]
-        shape_filter2_oihw8i32o4i = get_packed_filter_shape(
-            out_channel2, out_channel1, kernel_size2, kernel_size2
-        )
+        shape_filter2_oihw8i32o4i = get_packed_filter_shape(shape_filter2_oihw)
 
         inputs = [
             np.random.uniform(0, 255, size=shape_input).astype(dtype),

@@ -23,49 +23,60 @@ import numpy
 
 
 def ceildiv(o, d):
+    assert o >= 0
+    assert d >= 0
     return tvm.tir.floordiv(o + d - 1, d)
 
 
+# defines inner block shape: 8h8w32c
 def get_block_shape():
     return 8, 8, 32
 
 
+# defines inner filter block shape: 8i32o41
 def get_filter_block_shape():
     return 8, 32, 4
 
 
-def get_packed_shape(shape_nhwc):
-    assert len(shape_nhwc) == 4
-    shape = [shape_nhwc[0]]
+# input: locgical shape in nhwc layout
+# output:  physical packed shape in nhw8h8w32c layout
+def get_packed_shape(logical_shape_nhwc):
+    assert len(logical_shape_nhwc) == 4
+    physical_physical_shape_nhwc8h8w32c = [logical_shape_nhwc[0]]
     block_shape = get_block_shape()
     off_h, off_w, off_c = block_shape
-    shape.append(ceildiv(shape_nhwc[1], off_h))
-    shape.append(ceildiv(shape_nhwc[2], off_w))
-    shape.append(ceildiv(shape_nhwc[3], off_c))
-    shape.extend(block_shape)
-    return shape
+    physical_physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[1], off_h))
+    physical_physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[2], off_w))
+    physical_physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[3], off_c))
+    physical_physical_shape_nhwc8h8w32c.extend(block_shape)
+    return physical_physical_shape_nhwc8h8w32c
 
 
-def get_logical_shape(shape_nhwc8h8w32c):
-    shape = [shape_nhwc8h8w32c[0]]
-    shape.append(shape_nhwc8h8w32c[1] * shape_nhwc8h8w32c[4])
-    shape.append(shape_nhwc8h8w32c[2] * shape_nhwc8h8w32c[5])
-    shape.append(shape_nhwc8h8w32c[3] * shape_nhwc8h8w32c[6])
-    return shape
+# input: physical packed shape in nhw8h8w32c layout
+# output: logical shape in nhwc layout
+def get_logical_shape(physical_shape_nhwc8h8w32c):
+    assert len(physical_shape_nhwc8h8w32c) == 7
+    logical_shape_nhwc = [physical_shape_nhwc8h8w32c[0]]
+    logical_shape_nhwc.append(physical_shape_nhwc8h8w32c[1] * physical_shape_nhwc8h8w32c[4])
+    logical_shape_nhwc.append(physical_shape_nhwc8h8w32c[2] * physical_shape_nhwc8h8w32c[5])
+    logical_shape_nhwc.append(physical_shape_nhwc8h8w32c[3] * physical_shape_nhwc8h8w32c[6])
+    return logical_shape_nhwc
 
 
-def get_packed_filter_shape(out_channel, in_channel, kernel_h, kernel_w):
-    filter_Cio, filter_Ki, filter_Cii = get_filter_block_shape()
+# input: logical shape in oihw layout
+# output: physical packed shape in oihw8i3204i layout
+def get_packed_filter_shape(logical_shape_oihw):
+    assert len(logical_shape_oihw) == 4
+    filter_block_shape = get_filter_block_shape()
+    filter_Cio, filter_Ki, filter_Cii = filter_block_shape
     filter_Ci = filter_Cio * filter_Cii
-    return (
-        int(ceildiv(out_channel, filter_Ki)),
-        int(ceildiv(in_channel, filter_Ci)),
-        kernel_h,
-        kernel_w,
-        filter_Cio,
-        filter_Ki,
-        filter_Cii,
-    )
+    physical_shape_oihw8i32o4i = []
+    physical_shape_oihw8i32o4i.append(int(ceildiv(logical_shape_oihw[0], filter_Ki)))
+    physical_shape_oihw8i32o4i.append(int(ceildiv(logical_shape_oihw[1], filter_Ci)))
+    physical_shape_oihw8i32o4i.append(logical_shape_oihw[2])
+    physical_shape_oihw8i32o4i.append(logical_shape_oihw[3])
+    physical_shape_oihw8i32o4i.extend(filter_block_shape)
+    return physical_shape_oihw8i32o4i
 
 
 def build_and_run(inputs, func, target, target_host, *args, **kwargs):
