@@ -20,13 +20,13 @@
 from tvm import te
 from tvm.topi.utils import traverse_inline
 
-from ..micro_kernel.gemm import (
+from .micro_kernel.gemm import (
     intrin_gemm_MxKxN,
     gemm_MxKxN_impl,
 )
 
 
-def dense_direct_simd_schedule(outs):
+def dense_dsp_schedule(outs):
     """Schedule function for v7e-m DSP instructions of dense."""
     sched = te.create_schedule([x.op for x in outs])
 

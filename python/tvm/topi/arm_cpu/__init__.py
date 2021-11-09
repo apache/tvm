@@ -26,7 +26,6 @@ from . import conv2d_alter_op
 from .bitserial_conv2d import *
 from .bitserial_dense import *
 from .injective import *
-from . import cortex_m7
 from .group_conv2d import *
 from .pooling import *
 from .dense import *

@@ -16,24 +16,24 @@
 # under the License.
 """Defines functions to analyze available opcodes in the ARM ISA."""
 
-import argparse
+import tvm.target
 
-ARM_ISA_MAP = {
-    "armv7e-m": ["SMLAD", "SSUB8", "SEL"],
-    "armv8-m": ["SMLAD", "SSUB8", "SEL"],
-}
+
+ARM_MPROFILE_DSP_SUPPORT_LIST = [
+    "cortex-m7",
+    "cortex-m4",
+    "cortex-m33",
+    "cortex-m35p",
+    "cortex-m55",
+]
 
 
 class IsaAnalyzer(object):
     """Checks ISA support for given target"""
 
     def __init__(self, target):
-        self.target = target
-        parser = argparse.ArgumentParser()
-        parser.add_argument("-mcpu", type=str)
-        parser.add_argument("-march", type=str)
-        args, _ = parser.parse_known_args(str(target).split())
-        self._isa_map = ARM_ISA_MAP[args.march] if args.march in ARM_ISA_MAP else []
+        self.target = tvm.target.Target(target)
+        self.mcpu = target.attrs.get("-mcpu", None)
 
-    def __contains__(self, instruction):
-        return instruction in self._isa_map
+    def has_dsp_support(self):
+        return self.mcpu is not None and self.mcpu in ARM_MPROFILE_DSP_SUPPORT_LIST

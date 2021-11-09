@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name, unused-variable
 """Schedule for pooling operators"""
 
-from .cortex_m7.pool import direct_simd
+from .mprofile.dsp.pool import pool_dsp_schedule
 
 
 def schedule_pool(outs, layout):
-    """Create schedule for avgpool/maxpool with direct_simd"""
-    return direct_simd.pool_direct_simd_schedule(outs, layout)
+    """Create schedule for avgpool/maxpool with dsp"""
+    return pool_dsp_schedule(outs, layout)

@@ -20,17 +20,20 @@ from __future__ import absolute_import as _abs
 
 from tvm import autotvm
 
-from .cortex_m7.conv1d import direct_simd
+from .mprofile.dsp.conv1d import (
+    conv1d_nwc_dsp_compute,
+    conv1d_nwc_dsp_schedule,
+)
 
 
-@autotvm.register_topi_compute("conv1d_nwc_direct_simd.arm_cpu")
-def conv1d_nwc_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype):
+@autotvm.register_topi_compute("conv1d_nwc_dsp.arm_cpu")
+def conv1d_nwc_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv1d with v7e-m DSP instructions."""
-    return direct_simd.conv1d_nwc_direct_simd_compute(
+    return conv1d_nwc_dsp_compute(
         cfg, data, kernel, strides, padding, dilation, out_dtype
     )
 
 
-@autotvm.register_topi_schedule("conv1d_nwc_direct_simd.arm_cpu")
-def schedule_conv1d_nwc_direct_simd(cfg, outs):
-    return direct_simd.conv1d_nwc_direct_simd_schedule(cfg, outs)
+@autotvm.register_topi_schedule("conv1d_nwc_dsp.arm_cpu")
+def schedule_conv1d_nwc_dsp(cfg, outs):
+    return conv1d_nwc_dsp_schedule(cfg, outs)

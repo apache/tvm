@@ -33,7 +33,10 @@ from .conv2d_spatial_pack import (
     schedule_conv2d_spatial_pack_nchw,
     schedule_conv2d_spatial_pack_nhwc,
 )
-from .cortex_m7.conv2d import direct_simd
+from .mprofile.dsp.conv2d import (
+    conv2d_nhwc_dsp_compute,
+    conv2d_nhwc_dsp_schedule,
+)
 
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
@@ -505,15 +508,15 @@ def schedule_conv2d_nchw_winograd_nnpack_without_weight_transform(cfg, outs):
     return s
 
 
-@autotvm.register_topi_compute("conv2d_nhwc_direct_simd.arm_cpu")
-def conv2d_nhwc_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype):
+@autotvm.register_topi_compute("conv2d_nhwc_dsp.arm_cpu")
+def conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d_nhwc with v7e-m DSP instructions."""
-    return direct_simd.conv2d_nhwc_direct_simd_compute(
+    return conv2d_nhwc_dsp_compute(
         cfg, data, kernel, strides, padding, dilation, out_dtype
     )
 
 
-@autotvm.register_topi_schedule("conv2d_nhwc_direct_simd.arm_cpu")
-def schedule_conv2d_nhwc_direct_simd(cfg, outs):
-    """Create schedule for conv2d_nhwc_direct_simd"""
-    return direct_simd.conv2d_nhwc_direct_simd_schedule(cfg, outs)
+@autotvm.register_topi_schedule("conv2d_nhwc_dsp.arm_cpu")
+def schedule_conv2d_nhwc_dsp(cfg, outs):
+    """Create schedule for conv2d_nhwc_dsp"""
+    return conv2d_nhwc_dsp_schedule(cfg, outs)

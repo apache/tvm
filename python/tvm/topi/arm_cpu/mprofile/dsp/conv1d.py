@@ -15,101 +15,86 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-value-for-parameter
-"""Direct implementation of conv2d."""
-
+"""Direct implementation of conv1d."""
 from tvm import autotvm
 from tvm.autotvm.task import deserialize_args
 from tvm import te
 from tvm.topi.utils import simplify, traverse_inline
 from tvm.topi.nn.pad import pad
-from tvm.topi.nn.utils import get_pad_tuple
+from tvm.topi.nn.utils import get_pad_tuple1d
 from tvm.tir.expr import Mul
 
-from ..micro_kernel.gemm import (
+from .micro_kernel.gemm import (
     intrin_gemm_MxKxN,
     gemm_MxKxN_impl,
 )
 
 
-def conv2d_nhwc_direct_simd(*args, **kwargs):
-    """Defines the v7e-m DSP instructions of conv2d."""
+def conv1d_nwc_dsp(*args, **kwargs):
+    """Defines the v7e-m DSP instructions of conv1d on NWC layout."""
     assert not kwargs, "Do not support kwargs in template function call"
     args = deserialize_args(args)
     data, kernel = args[:2]
     layout = args[-2]
     cfg = autotvm.get_config()
     args = [cfg] + args
-    assert layout == "NHWC"
-    conv = conv2d_nhwc_direct_simd_compute(*args)
-    sched = conv2d_nhwc_direct_simd_schedule(cfg, [data, kernel, conv])
+    assert layout == "NWC"
+    conv = conv1d_nwc_dsp_compute(*args)
+    sched = conv1d_nwc_dsp_schedule(cfg, [data, kernel, conv])
     return sched, [data, kernel, conv]
 
 
-conv2d_nhwc_direct_simd.template_key = "direct_simd"
-conv2d_nhwc_direct_simd.default_data_layout = "NHWC"
-conv2d_nhwc_direct_simd.default_kernel_layout = "HWOI"
+conv1d_nwc_dsp.template_key = "dsp"
+conv1d_nwc_dsp.default_data_layout = "NWC"
+conv1d_nwc_dsp.default_kernel_layout = "WOI"
 
 
-def conv2d_nhwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    """Compute function for v7e-m DSP instructions of conv2d."""
-    assert isinstance(strides, int) or len(strides) == 2
-    assert isinstance(dilation, int) or len(dilation) == 2
+def conv1d_nwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute function for v7e-m DSP instructions of conv1d on NWC layout."""
+    if isinstance(strides, (tuple, list)):
+        strides = strides[0]
+    if isinstance(dilation, (tuple, list)):
+        dilation = dilation[0]
 
-    if isinstance(strides, int):
-        stride_h = stride_w = strides
-    else:
-        stride_h, stride_w = strides
+    batch_size, data_width, in_channels = data.shape
+    kernel_size, out_channels, _ = kernel.shape
 
-    if isinstance(dilation, int):
-        dilation_h = dilation_w = dilation
-    else:
-        dilation_h, dilation_w = dilation
+    # Compute the output shape
+    dilated_kernel_size = (kernel_size - 1) * dilation + 1
+    pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size,))
+    out_channels = simplify(out_channels)
+    out_width = simplify((data_width - dilated_kernel_size + pad_left + pad_right) // strides + 1)
 
-    batch_size, in_height, in_width, in_channels = data.shape
-    kernel_h, kernel_w, out_channels, _ = kernel.shape
-
-    # compute the output shape
-    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (dilated_kernel_h, dilated_kernel_w)
-    )
-    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
-
-    pad_before = [0, pad_top, pad_left, 0]
-    pad_after = [0, pad_down, pad_right, 0]
+    # Apply padding
+    pad_before = [0, pad_left, 0]
+    pad_after = [0, pad_right, 0]
     padded_data = pad(data, pad_before, pad_after, name="padded_data")
 
+    # Compute graph
     rc = te.reduce_axis((0, in_channels), name="rc")
-    ry = te.reduce_axis((0, kernel_h), name="ry")
-    rx = te.reduce_axis((0, kernel_w), name="rx")
+    rw = te.reduce_axis((0, kernel_size), name="rw")
 
     conv = te.compute(
-        (batch_size, out_height, out_width, out_channels),
-        lambda nn, yy, xx, ff: te.sum(
-            padded_data[
-                nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rc
-            ].astype(out_dtype)
-            * kernel[ry, rx, ff, rc].astype(out_dtype),
-            axis=[ry, rx, rc],
+        (batch_size, out_width, out_channels),
+        lambda b, w, c: te.sum(
+            padded_data[b, w * strides + rw * dilation, rc].astype(out_dtype)
+            * kernel[rw, c, rc].astype(out_dtype),
+            axis=[rw, rc],
         ),
-        name="conv2d",
-        tag="conv2d_nhwc",
+        name="conv1d",
+        tag="conv1d_nwc",
     )
 
     ###########################
     # Config Space Definition #
     ###########################
-    n, oh, ow, co = (
+    n, ow, co = (
         cfg.axis(batch_size.value),
-        cfg.axis(out_height.value),
         cfg.axis(out_width.value),
         cfg.axis(out_channels.value),
     )
-    kh, kw, ci = (
-        cfg.reduce_axis(kernel_h.value),
-        cfg.reduce_axis(kernel_w.value),
+    kw, ci = (
+        cfg.reduce_axis(kernel_size.value),
         cfg.reduce_axis(in_channels.value),
     )
 
@@ -126,13 +111,13 @@ def conv2d_nhwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilatio
 
     cfg.define_reorder(
         "reorder_0_simd",
-        [n, oh, owo, owi, coo, coi, kh, kw, cio, cii],
+        [n, owo, owi, coo, coi, kw, cio, cii],
         policy="candidate",
         candidate=[
-            [n, oh, kh, kw, owo, coo, cio, owi, coi, cii],
-            [n, oh, kh, kw, coo, owo, cio, owi, coi, cii],
-            [n, kh, kw, oh, owo, coo, cio, owi, coi, cii],
-            [n, kh, kw, oh, coo, owo, cio, owi, coi, cii],
+            [n, kw, owo, coo, cio, owi, coi, cii],
+            [n, kw, coo, owo, cio, owi, coi, cii],
+            [n, kw, owo, coo, cio, owi, coi, cii],
+            [n, kw, coo, owo, cio, owi, coi, cii],
         ],
     )
 
@@ -147,27 +132,25 @@ def conv2d_nhwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilatio
     return conv
 
 
-def conv2d_nhwc_direct_simd_schedule(cfg, outs):
-    """Schedule function for v7e-m DSP instructions of conv2d."""
+def conv1d_nwc_dsp_schedule(cfg, outs):
+    """Schedule function for v7e-m DSP instructions of conv1d on NWC layout."""
     sched = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if "conv2d_nhwc" not in op.tag:
+        if "conv1d_nwc" not in op.tag:
             return
 
         # extract tensors
         output = op.output(0)
         conv = op
         data_vec = conv.input_tensors[0]
-        kernel = conv.input_tensors[1]  # pylint: disable=unused-variable
-        last = outs[0]  # pylint: disable=unused-variable
 
-        source_index_w = output.op.body[0].source[0].a.value.indices[2].a
+        source_index_w = output.op.body[0].source[0].a.value.indices[1].a
         stride_w = source_index_w.b.value if isinstance(source_index_w, Mul) else 1
 
         # tile reduction axes
-        n, oh, ow, co = sched[conv].op.axis
-        kh, kw, ci = sched[conv].op.reduce_axis
+        n, ow, co = sched[conv].op.axis
+        kw, ci = sched[conv].op.reduce_axis
 
         M = cfg["tile_ow"].size[-1]
         K = cfg["tile_ci"].size[-1]
@@ -177,7 +160,7 @@ def conv2d_nhwc_direct_simd_schedule(cfg, outs):
         cio, cii = cfg["tile_ci"].apply(sched, conv, ci)
         coo, coi = cfg["tile_co"].apply(sched, conv, co)
 
-        cfg["reorder_0_simd"].apply(sched, conv, [n, oh, owo, owi, coo, coi, kh, kw, cio, cii])
+        cfg["reorder_0_simd"].apply(sched, conv, [n, owo, owi, coo, coi, kw, cio, cii])
 
         gemm, uniq_id = intrin_gemm_MxKxN(M, K, N, data_vec.dtype, output.dtype, stride_w)
         sched[output].tensorize(owi, gemm)

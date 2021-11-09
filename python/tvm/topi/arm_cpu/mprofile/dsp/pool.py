@@ -23,12 +23,12 @@ import tvm
 from tvm import te
 from tvm.topi.utils import traverse_inline
 
-from ..micro_kernel.max_pool import (
+from .micro_kernel.max_pool import (
     intrin_max,
     max_impl,
 )
 
-from ..micro_kernel.avg_pool import (
+from .micro_kernel.avg_pool import (
     intrin_sum,
     sum_impl,
 )
@@ -100,7 +100,7 @@ def schedule_avgpool_2d_nchw(s, op):
     s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
 
 
-def pool_direct_simd_schedule(outs, layout):
+def pool_dsp_schedule(outs, layout):
     """Schedule function for v7e-m DSP instructions of pooling."""
     s = te.create_schedule([x.op for x in outs])
 

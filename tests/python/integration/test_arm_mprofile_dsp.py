@@ -105,7 +105,7 @@ def test_conv2d(data_shape_nhwc, kernel_size, num_filter, strides, padding, dila
         use_unpacked_api=True,
         target_opts={
             "-keys": "arm_cpu",
-            "-march": "armv7e-m",
+            "-mcpu": "cortex-m7",
         },
     )
 
@@ -169,7 +169,7 @@ def test_conv1d(data_shape_nwc, kernel_size, num_filter, strides, padding, dtype
         use_unpacked_api=True,
         target_opts={
             "-keys": "arm_cpu",
-            "-march": "armv7e-m",
+            "-mcpu": "cortex-m7",
         },
     )
 
@@ -203,7 +203,7 @@ def test_dense(M, K, N):
         use_unpacked_api=True,
         target_opts={
             "-keys": "arm_cpu",
-            "-march": "armv7e-m",
+            "-mcpu": "cortex-m7",
         },
     )
 
@@ -235,7 +235,7 @@ def test_maxpool_2d(data_shape_nhwc, pool_size, strides, padding):
         use_unpacked_api=True,
         target_opts={
             "-keys": "arm_cpu",
-            "-march": "armv7e-m",
+            "-mcpu": "cortex-m7",
         },
     )
 
@@ -266,7 +266,7 @@ def test_maxpool_1d(data_shape_nwc, pool_size, strides, padding):
         use_unpacked_api=True,
         target_opts={
             "-keys": "arm_cpu",
-            "-march": "armv7e-m",
+            "-mcpu": "cortex-m7",
         },
     )
 
@@ -307,7 +307,7 @@ def test_avgpool_2d(data_shape_nchw, pool_size, strides, padding):
         use_unpacked_api=True,
         target_opts={
             "-keys": "arm_cpu",
-            "-march": "armv7e-m",
+            "-mcpu": "cortex-m7",
         },
     )
 
@@ -346,7 +346,7 @@ def test_avgpool_1d(data_shape_ncw, pool_size, strides, padding):
         use_unpacked_api=True,
         target_opts={
             "-keys": "arm_cpu",
-            "-march": "armv7e-m",
+            "-mcpu": "cortex-m7",
         },
     )
 

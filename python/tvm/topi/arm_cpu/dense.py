@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name, unused-variable, no-else-return, unused-argument, import-outside-toplevel
 """Dense schedule for ARM CPU"""
 
-from .cortex_m7.dense import direct_simd
+from .mprofile.dsp.dense import dense_dsp_schedule
 
 
-def schedule_dense_direct_simd(outs):
-    """Create schedule for dense_direct_simd"""
-    return direct_simd.dense_direct_simd_schedule(outs)
+def schedule_dense_dsp(outs):
+    """Create schedule for dense_dsp"""
+    return dense_dsp_schedule(outs)

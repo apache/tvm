@@ -14,6 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Pool implementations for v7e-m DSP instructions."""
+"""Schedules specialized for cortex-m DSP instructions."""
 
-from . import direct_simd

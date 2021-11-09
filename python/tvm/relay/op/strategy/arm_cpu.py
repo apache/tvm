@@ -58,11 +58,10 @@ def schedule_pool_arm_cpu(attrs, outs, target):
     with target:
         if (
             avg_pool
+            and isa.has_dsp_support
             and layout in ("NCW", "NCHW")
-            and "SMLAD" in isa
             or not avg_pool
-            and "SSUB8" in isa
-            and "SEL" in isa
+            and isa.has_dsp_support
             and layout in ("NWC", "NHWC")
         ):
             return topi.arm_cpu.schedule_pool(outs, layout)
@@ -148,11 +147,11 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         elif layout == "NHWC":
-            if "SMLAD" in isa and kernel_layout == "HWOI":
+            if  isa.has_dsp_support and kernel_layout == "HWOI":
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_direct_simd),
-                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_direct_simd),
-                    name="conv2d_nhwc_direct_simd.micro_dev",
+                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_dsp),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_dsp),
+                    name="conv2d_nhwc_dsp.micro_dev",
                 )
             elif kernel_layout == "HWIO":
                 is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
@@ -442,11 +441,11 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
     """dense arm cpu strategy"""
     strategy = _op.OpStrategy()
     isa = arm_isa.IsaAnalyzer(target)
-    if "SMLAD" in isa:
+    if isa.has_dsp_support:
         strategy.add_implementation(
             wrap_compute_dense(topi.nn.dense),
-            wrap_topi_schedule(topi.arm_cpu.schedule_dense_direct_simd),
-            name="dense_direct_simd",
+            wrap_topi_schedule(topi.arm_cpu.schedule_dense_dsp),
+            name="dense_dsp",
         )
     else:
         strategy.add_implementation(
@@ -470,11 +469,11 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
     isa = arm_isa.IsaAnalyzer(target)
 
     if kernel_layout == "WOI":
-        if layout == "NWC" and "SMLAD" in isa:
+        if layout == "NWC" and isa.has_dsp_support:
             strategy.add_implementation(
-                wrap_compute_conv1d(topi.arm_cpu.conv1d_nwc_direct_simd),
-                wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_nwc_direct_simd),
-                name="conv1d_direct_simd",
+                wrap_compute_conv1d(topi.arm_cpu.conv1d_nwc_dsp),
+                wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_nwc_dsp),
+                name="conv1d_dsp",
             )
         else:
             raise RuntimeError(
