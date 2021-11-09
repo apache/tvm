@@ -403,19 +403,15 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     CallLoweredProps call_lowered_props;
     if (const auto* gvn = call_node->op.as<GlobalVarNode>()) {  // Lowered extern function
       ICHECK(!(call_node->attrs.defined())) << "Extern functions should have null attributes.";
-
       for (const auto& arg : call_node->args) {
         VisitExpr(arg);
       }
-      call_lowered_props =
-          CallLoweredProps{std::move(GetRef<GlobalVar>(gvn)), std::move(call_node->args), {}};
+      call_lowered_props = CallLoweredProps{GetRef<GlobalVar>(gvn), call_node->args, {}};
     } else {
       ICHECK(call_node->op == CallLoweredOp()) << "Operators should be transformed away; Try "
                                                   "applying the fuse_ops transformation to the "
                                                   "expression.";
-
-      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
-
+      call_lowered_props = GetCallLoweredProps(call_node);
       for (const auto& arg : call_lowered_props.arguments) {
         VisitExpr(arg);
       }
