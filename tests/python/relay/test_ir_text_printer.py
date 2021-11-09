@@ -254,7 +254,7 @@ def test_null_attribute():
     z = relay.Function([x], y)
     z = z.with_attr("TestAttribute", None)
     txt = astext(z)
-    assert "TestAttribute=(nullptr)" in txt
+    assert "TestAttribute=None" in txt
 
 
 def test_span():

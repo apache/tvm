@@ -66,6 +66,15 @@ class TargetNode : public Object {
   /*! \return The Optional<Target> typed target host of the TargetNode */
   TVM_DLL Optional<Target> GetHost() const;
 
+  /*!
+   * \brief Returns a human readable representation of \p Target which includes all fields,
+   * especially the host. Useful for diagnostic messages and debugging.
+   *
+   * TODO(mbs): The ReprPrinter version should perhaps switch to this form, however currently
+   * code depends on str() and << being the same.
+   */
+  String ToDebugString() const;
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("kind", &kind);
     v->Visit("tag", &tag);
