@@ -123,15 +123,30 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
 
   const auto* param = attrs.as<EthosuDepthwiseConv2DAttrs>();
   ICHECK(param != nullptr) << "EthosuDepthwiseConv2DAttrs cannot be nullptr.";
-  ICHECK(ifm->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for ifm but was "
-      << ifm->dtype;
-  ICHECK(weight->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for weight but was "
-      << weight->dtype;
-  ICHECK(scale_bias->dtype == DataType::UInt(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) for scale_bias but was "
-      << scale_bias->dtype;
+
+  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d input data type "
+        << "of type(uint8) or type(int8) but was " << ifm->dtype);
+    return false;
+  }
+
+  if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d weight data type "
+        << "of type(uint8) or type(int8) but was " << weight->dtype);
+    return false;
+  }
+
+  if (scale_bias->dtype != DataType::UInt(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d scale bias data type "
+        << "of type(uint8) but was " << scale_bias->dtype);
+    return false;
+  }
 
   // Collect the ifm, weight and ofm tensors for using in the inference function
   Array<Type> tensor_types = {types[0], types[1], types[4]};

@@ -382,14 +382,15 @@ def make_ethosu_conv2d(
     ifm_layout="NHWC",
     ofm_layout="NHWC",
     weight_dtype="int8",
+    scale_bias_dtype="uint8",
 ):
     # conv params
     weight_shape = (ofm_channels, kernel_shape[0], kernel_shape[1], ifm_channels)
     padding = get_pad_tuple(padding, kernel_shape)
 
-    scale_bias_data = generate_weights_data((weight_shape[0], 10), "uint8")
-    scale_bias = relay.const(scale_bias_data, dtype="uint8")
-    weight_data = generate_weights_data(weight_shape, "int8")
+    scale_bias_data = generate_weights_data((weight_shape[0], 10), scale_bias_dtype)
+    scale_bias = relay.const(scale_bias_data, dtype=scale_bias_dtype)
+    weight_data = generate_weights_data(weight_shape, weight_dtype)
     weight = relay.const(weight_data, dtype=weight_dtype)
     conv = ethosu_ops.ethosu_conv2d(
         ifm,
@@ -427,13 +428,14 @@ def make_ethosu_depthwise_conv2d(
     ifm_layout="NHWC",
     ofm_layout="NHWC",
     weight_dtype="int8",
+    scale_bias_dtype="uint8",
 ):
     # params
     weight_shape = (channels, kernel_shape[0], kernel_shape[1], 1)
     padding = get_pad_tuple(padding, kernel_shape)
 
-    scale_bias_data = generate_weights_data((weight_shape[0], 10), "uint8")
-    scale_bias = relay.const(scale_bias_data, dtype="uint8")
+    scale_bias_data = generate_weights_data((weight_shape[0], 10), scale_bias_dtype)
+    scale_bias = relay.const(scale_bias_data, dtype=scale_bias_dtype)
     weight_data = generate_weights_data(weight_shape, weight_dtype)
     weight = relay.const(weight_data, dtype=weight_dtype)
     depthwise = ethosu_ops.ethosu_depthwise_conv2d(
