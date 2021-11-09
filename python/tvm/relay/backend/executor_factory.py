@@ -73,6 +73,8 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
 
     Attributes
     ----------
+    ir_mod : :py:class:`~tvm.IRModule`
+        The IR module to build.
     target : tvm.Target
         The Target used to build this module.
     libmod : tvm.Module
@@ -110,11 +112,13 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
     Attributes
     ----------
+    ir_mod : :py:class:`~tvm.IRModule`
+        The IR module to build.
+    target : tvm.Target
+        The Target used to build this module.
     graph_json_str : the json graph to be deployed in json format output by graph compiler.
         The graph can contain operator(tvm_op) that points to the name of
         PackedFunc in the libmod.
-    target : tvm.Target
-        The Target used to build this module.
     libmod : tvm.Module
         The module of the corresponding function
     libmod_name: str
