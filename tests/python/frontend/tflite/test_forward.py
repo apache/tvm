@@ -1858,6 +1858,7 @@ def test_forward_sin():
     _test_sin(np.arange(1, 240, 40, dtype=np.uint8), quantized=True)
     _test_sin(np.arange(1, 240, 40, dtype=np.uint8).reshape((2, 1, 3)), quantized=True)
 
+
 #######################################################################
 # Cos
 # ---
