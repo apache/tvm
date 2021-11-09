@@ -90,6 +90,11 @@ using TNonComputational = bool;
 using TReshapeOp = bool;
 
 /*!
+ * \brief Mark the operator as commutative to allow expr simplifications.
+ */
+using CommutativeOp = bool;
+
+/*!
  * \brief Mark the operator whether output shape is data dependent.
  */
 using TShapeDataDependent = Array<Integer>;

@@ -60,6 +60,7 @@ namespace relay {
       .add_type_rel("Identity", IdentityRel)                                   \
       .set_attr<TOpPattern>("TOpPattern", kElemWise)                           \
       .set_attr<TOpIsStateful>("TOpIsStateful", false)                         \
+      .set_attr<CommutativeOp>("CommutativeOp", false)                         \
       .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 
 /*! Quick helper macro
@@ -84,6 +85,7 @@ namespace relay {
       .add_type_rel("Broadcast", BroadcastRel)                                          \
       .set_attr<TOpPattern>("TOpPattern", kBroadcast)                                   \
       .set_attr<TOpIsStateful>("TOpIsStateful", false)                                  \
+      .set_attr<CommutativeOp>("CommutativeOp", isCommutativeOp(OpName))                \
       .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BinaryBroadcastLayout)
 
 // Comparisons
@@ -99,6 +101,7 @@ namespace relay {
       .add_type_rel("BroadcastComp", BroadcastCompRel)                                  \
       .set_attr<TOpPattern>("TOpPattern", kBroadcast)                                   \
       .set_attr<TOpIsStateful>("TOpIsStateful", false)                                  \
+      .set_attr<CommutativeOp>("CommutativeOp", false)                                  \
       .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BinaryBroadcastLayout)
 
 /*! \brief A helper class for matching and rewriting operators. */
@@ -190,6 +193,10 @@ inline void GetPaddingDepthHeightWidth(const Array<IndexExpr>& padding, IndexExp
   } else {
     ICHECK_EQ(padding.size(), 6) << " Padding size should be 1, 3 or 6, but got " << padding.size();
   }
+}
+
+inline bool isCommutativeOp(const std::string& op_node_name) {
+  return (op_node_name == "add") || (op_node_name == "multiply");
 }
 
 }  // namespace relay

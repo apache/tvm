@@ -111,7 +111,7 @@ class OpNode : public RelayExprNode {
   }
 
   /*!
-   * \brief Check that if current op is a "primtive operator".
+   * \brief Check that if current op is a "primitive operator".
    * That is the arguments are all type variables, and there is a single
    * type relation applied to the input and output types.
    */

@@ -76,6 +76,23 @@ def register_stateful(op_name, stateful, level=10):
     tvm.ir.register_op_attr(op_name, "TOpIsStateful", stateful, level)
 
 
+def register_commutativity(op_name, commutativity, level=10):
+    """Register operator commutativity of lhs an rhs.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    commutativity : bool
+        The commutativity flag.
+
+    level : int
+        The priority level
+    """
+    tvm.ir.register_op_attr(op_name, "CommutativeOp", commutativity, level)
+
+
 class OpPattern(object):
     """Operator generic patterns
 

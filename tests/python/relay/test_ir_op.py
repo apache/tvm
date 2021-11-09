@@ -120,6 +120,12 @@ def test_op_register():
     assert _op.get(op_name).get_attr("TOpIsStateful") == False
 
 
+def test_op_commutative_attr():
+    assert relay.op.get("add").get_attr("CommutativeOp") == 1
+    assert relay.op.get("multiply").get_attr("CommutativeOp") == 1
+    assert relay.op.get("divide").get_attr("CommutativeOp") == 0
+
+
 if __name__ == "__main__":
     test_op_attr()
     test_op_reset_attr()
