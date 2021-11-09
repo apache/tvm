@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 
 import tvm
 
+from tvm.driver import tvmc
 from tvm import relay
 from tvm import transform
 from tvm._ffi import registry
@@ -206,6 +207,7 @@ def parse_target(target):
         a key-value for all options passed via CLI; 'raw',
         containing the plain string for this codegen
     """
+    codegen_names = tvmc.composite_target.get_codegen_names()
     codegens = []
 
     tvm_target_kinds = tvm.target.Target.list_kinds()
@@ -232,7 +234,7 @@ def parse_target(target):
     for codegen_def in split_codegens:
         # the first is expected to be the name
         name = codegen_def[0]
-        is_tvm_target = name in tvm_target_kinds
+        is_tvm_target = name in tvm_target_kinds and name not in codegen_names
         raw_target = " ".join(codegen_def)
         all_opts = codegen_def[1:] if len(codegen_def) > 1 else []
         opts = {}

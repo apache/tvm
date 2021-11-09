@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm(R) CMSIS-NN supported operators for Cortex-M."""
 import tvm.ir
+from tvm.target import Target
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 
@@ -25,7 +26,7 @@ from .register import register_pattern_table
 
 
 def enabled():
-    return bool(tvm.get_global_func("relay.ext.cmsisnn", True))
+    return "cmsis-nn" in Target.list_kinds()
 
 
 def partition_for_cmsisnn(mod, params=None, **opts):
@@ -51,7 +52,7 @@ def partition_for_cmsisnn(mod, params=None, **opts):
         [
             transform.InferType(),
             transform.MergeComposite(pattern_table()),
-            transform.AnnotateTarget("cmsisnn"),
+            transform.AnnotateTarget("cmsis-nn"),
             transform.MergeCompilerRegions(),
             transform.PartitionGraph(),
         ]
@@ -60,9 +61,9 @@ def partition_for_cmsisnn(mod, params=None, **opts):
     return seq(mod)
 
 
-@register_pattern_table("cmsisnn")
+@register_pattern_table("cmsis-nn")
 def pattern_table():
-    """Get the cmsisnn compiler pattern table."""
+    """Get the CMSIS-NN compiler pattern table."""
 
     def softmax_pattern():
         pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
@@ -104,14 +105,14 @@ def pattern_table():
         )
 
     return [
-        ("cmsisnn.quantized_softmax", softmax_pattern(), check_quantized_softmax),
+        ("cmsis-nn.quantized_softmax", softmax_pattern(), check_quantized_softmax),
         (
-            "cmsisnn.quantized_mul",
+            "cmsis-nn.quantized_mul",
             binary_op_pattern("mul"),
             check_quantized_binary_op,
         ),
         (
-            "cmsisnn.quantized_add",
+            "cmsis-nn.quantized_add",
             binary_op_pattern("add"),
             check_quantized_binary_op,
         ),

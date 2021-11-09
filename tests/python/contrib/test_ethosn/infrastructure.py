@@ -170,11 +170,19 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
                 assert (
                     host_op_count == expected_host_ops
                 ), "Got {} host operators, expected {}".format(host_op_count, expected_host_ops)
-                partition_count = 0
-                for global_var in mod.get_global_vars():
-                    if "ethos-n" in global_var.name_hint:
-                        partition_count += 1
 
+                attrs = [
+                    mod[var.name_hint].attrs
+                    for var in mod.get_global_vars()
+                    if mod[var.name_hint].attrs
+                ]
+                partition_count = sum(
+                    [
+                        key == "Compiler" and value == "ethos-n"
+                        for attr in attrs
+                        for key, value in attr.items()
+                    ]
+                )
                 assert (
                     npu_partitions == partition_count
                 ), "Got {} ethos-n partitions, expected {}".format(partition_count, npu_partitions)
