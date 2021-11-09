@@ -910,6 +910,7 @@ def crop_and_resize(
         return _resize_2d(
             indices,
             data,
+            [0.0] * 8,
             image_h,
             image_w,
             target_h,
@@ -919,6 +920,7 @@ def crop_and_resize(
             method=method,
             extrapolation_value=extrapolation_value,
             layout=layout,
+            coordinate_transformation_mode="tf_crop_and_resize",
             out_dtype=out_dtype,
         )
 
