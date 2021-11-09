@@ -727,10 +727,11 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
             Downcast<Integer>(call_lowered_props.attrs.metadata.at("prim_shape_fn_num_outputs"))
                 ->value);
       }
-
-      return InvokePrimitiveOp(call_lowered_props.lowered_func, all_prim_fn_vars, target_,
-                               prim_shape_fn_var, all_prim_shape_fn_vars, prim_shape_fn_states,
-                               num_shape_inputs, num_shape_outputs, cpu_target_, args);
+      ICHECK(config_->optional_homogeneous_target.defined());
+      return InvokePrimitiveOp(call_lowered_props.lowered_func, all_prim_fn_vars,
+                               config_->optional_homogeneous_target, prim_shape_fn_var,
+                               all_prim_shape_fn_vars, prim_shape_fn_states, num_shape_inputs,
+                               num_shape_outputs, config_->host_se_scope->target, args);
     } else {  // All other calls
       // Evaluate all arguments
       std::vector<ObjectRef> args;
