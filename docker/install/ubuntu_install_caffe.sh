@@ -28,7 +28,7 @@ apt-get install -y --no-install-recommends libboost-filesystem-dev libboost-pyth
     libprotobuf-dev libhdf5-serial-dev libopenblas-dev libgflags-dev libgoogle-glog-dev
 
 # install python packages
-pip install "numpy>=1.7.1" "protobuf>=2.5.0" "scikit-image>=0.9.3" "six>=1.1.0"
+pip install "numpy" "protobuf" "scikit-image" "six"
 
 # Build the Caffe and the python wrapper
 echo "Downloading Caffe"
