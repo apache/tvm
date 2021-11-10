@@ -213,8 +213,8 @@ void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
-    const LoadNode* l = op->args[0].as<LoadNode>();
-    StmtExprVisitor::VisitExpr_(l);
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+    StmtExprVisitor::VisitExpr_(load);
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
     ICHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();

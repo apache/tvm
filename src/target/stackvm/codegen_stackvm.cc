@@ -193,11 +193,13 @@ void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
 
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
-    const LoadNode* l = op->args[0].as<LoadNode>();
-    ICHECK(op->args.size() == 1 && l);
-    this->PushOp(StackVM::LOAD_HEAP, GetVarID(l->buffer_var.get()));
-    this->Push(l->index);
-    this->PushOp(StackVM::PUSH_I64, l->dtype.element_of().bytes());
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+    ICHECK(op->args.size() == 1 && load);
+    ICHECK_EQ(load->indices.size(), 0) << "CodeGenStackVM only supports flat memory allocations.";
+
+    this->PushOp(StackVM::LOAD_HEAP, GetVarID(load->buffer->data.get()));
+    this->Push(load->indices[0]);
+    this->PushOp(StackVM::PUSH_I64, load->dtype.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
   } else if (op->op.same_as(builtin::reinterpret())) {

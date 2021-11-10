@@ -585,15 +585,16 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       PrintExpr(op->args[2], os);
       os << ")";
     } else if (op->op.same_as(builtin::address_of())) {
-      const LoadNode* l = op->args[0].as<LoadNode>();
-      ICHECK(op->args.size() == 1 && l);
+      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+      ICHECK(op->args.size() == 1 && load);
+      ICHECK_EQ(load->indices.size(), 0) << "CodeGenC only supports flat memory allocations.";
       os << "((";
-      this->PrintType(l->dtype.element_of(), os);
-      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + "
+      this->PrintType(load->dtype.element_of(), os);
+      os << " *)" << this->GetVarID(load->buffer->data.get()) << " + "
          << "(";
-      this->PrintExpr(l->index, os);
-      if (l->dtype.bits() == 4 || (l->dtype.bits() == 1 && l->dtype.is_int())) {
-        os << " / " << (32 / l->dtype.bits());
+      this->PrintExpr(load->indices[0], os);
+      if (load->dtype.bits() == 4 || (load->dtype.bits() == 1 && load->dtype.is_int())) {
+        os << " / " << (32 / load->dtype.bits());
       }
       os << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {

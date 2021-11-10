@@ -142,8 +142,10 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::address_of())) {
-      const LoadNode* l = op->args[0].as<LoadNode>();
-      this->VisitExpr(l->index);
+      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+      for (const auto& index : load->indices) {
+        this->VisitExpr(index);
+      }
     } else {
       StmtExprVisitor::VisitExpr_(op);
     }

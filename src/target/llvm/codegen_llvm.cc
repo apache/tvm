@@ -976,15 +976,15 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_storage_sync())) {
     return CreateStorageSync(op);
   } else if (op->op.same_as(builtin::address_of())) {
-    const LoadNode* l = op->args[0].as<LoadNode>();
-    ICHECK(op->args.size() == 1 && l);
-    TypedPointer buffer_ptr;
-    if (const RampNode* r = l->index.as<RampNode>()) {
-      PrimExpr index = r->base / make_const(DataType::Int(32), r->lanes);
-      buffer_ptr = CreateBufferPtr(l->dtype, MakeValue(l->buffer_var), MakeValue(index));
-    } else {
-      buffer_ptr = CreateBufferPtr(l->dtype, MakeValue(l->buffer_var), MakeValue(l->index));
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+    ICHECK(op->args.size() == 1 && load);
+    ICHECK_EQ(load->indices.size(), 1) << "LLVM only supports flat memory allocations.";
+    PrimExpr index = load->indices[0];
+    if (const RampNode* r = index.as<RampNode>()) {
+      index = r->base / make_const(DataType::Int(32), r->lanes);
     }
+    TypedPointer buffer_ptr =
+        CreateBufferPtr(load->dtype, MakeValue(load->buffer->data), MakeValue(index));
     unsigned addrspace =
         llvm::dyn_cast<llvm::PointerType>(buffer_ptr.addr->getType())->getAddressSpace();
     return builder_->CreatePointerCast(buffer_ptr.addr, t_char_->getPointerTo(addrspace));
