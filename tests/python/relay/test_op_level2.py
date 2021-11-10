@@ -860,32 +860,6 @@ def test_conv2d_transpose_nchw_run():
 
 
 @tvm.testing.uses_gpu
-def test_conv2d_transpose_nchw_groups_run():
-    # Add groups testing
-    dshape = (1, 16, 18, 18)
-    kshape = (16, 1, 3, 3)
-    oshape = (1, 16, 36, 36)
-    x = relay.var("x", shape=dshape)
-    w = relay.var("w")
-    y = relay.nn.conv2d_transpose(
-        x, w, channels=16, kernel_size=(3, 3), strides=(2, 2), padding=(1, 1), output_padding=(1, 1), groups=16
-    )
-    func = relay.Function([x, w], y)
-    dtype = "float32"
-    data = np.random.uniform(size=dshape).astype(dtype)
-    kernel = np.random.uniform(size=kshape).astype(dtype)
-    # ref_res = tvm.topi.testing.conv2d_transpose_nchw_python(data, kernel, 2, 1, (1, 1))
-    # FIXME: the testing.conv2d_transpose does not support groups yet. Currently only test whether it is exectuable
-    for target, dev in tvm.testing.enabled_targets():
-        if "cuda" in target:
-            continue
-        op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-            data, kernel
-        )
-        # tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-7, atol=1e-7)
-
-
-@tvm.testing.uses_gpu
 def test_conv2d_transpose_nhwc_run():
     dshape_nhwc = (1, 18, 18, 3)
     kshape_hwoi = (3, 3, 10, 3)
