@@ -618,8 +618,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    }
                  })
           .Match("memory.alloc_storage",
-                 [this](const Array<Expr>& args, const Attrs& attrs,
-                                   const Array<Type>& type_arg) {
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    ICHECK_EQ(args.size(), 2);
                    // Compute the size of the allocation.
                    this->VisitExpr(args[0]);
