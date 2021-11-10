@@ -126,7 +126,6 @@ def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype,
             axis=[dc, dh, dw],
         ),
         tag="conv2d_transpose_nchw",
-
     )
 
     return Output
@@ -175,12 +174,12 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
     if out_dtype is None:
         out_dtype = data.dtype
 
-    batch, in_c, in_h, in_w = data.shape
+    batch, in_channels, in_h, in_w = data.shape
     _, out_c, filter_h, filter_w = kernel.shape
-    # assert in_channels % groups == 0, "input channels must divide group size"
-    assert out_c % groups == 0, "output channels must divide group size"
+    assert in_channels % groups == 0, f"input channels {in_channels} must divide group size {groups}"
+    # assert out_c % groups == 0, f"output channels {in_c} must divide group size {groups}"
 
-    strides = _pair(strides)
+    strides = _pair(stride)
     # padding = _pair(padding)
     # output_padding = _pair(output_padding)
     # dilation = _pair(dilation)
@@ -202,21 +201,20 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
     )
     # transform kernel layout from IOHW to OIHW, and rotate kernel by 180 degrees
     kernel_transform = te.compute(
-        (out_c, in_c, filter_h, filter_w),
+        (out_c, in_channels, filter_h, filter_w),
         lambda i, o, h, w: kernel[o][i][filter_h - 1 - h][filter_w - 1 - w],
         name="kernel_transform",
     )
 
-    batch, in_c, in_h, in_w = data_pad.shape
+    batch, in_channels, in_h, in_w = data_pad.shape
     out_c, _, filter_h, filter_w = kernel_transform.shape
 
     # convolution stage
-    out_c = simplify(out_c)
     out_channels = simplify(out_c * groups)
 
     out_h = simplify(in_h - filter_h + 1)
     out_w = simplify(in_w - filter_w + 1)
-    dc = te.reduce_axis((0, in_c // groups), name="dc")
+    dc = te.reduce_axis((0, in_channels // groups), name="dc")
     dh = te.reduce_axis((0, filter_h), name="dh")
     dw = te.reduce_axis((0, filter_w), name="dw")
 
