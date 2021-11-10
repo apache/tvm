@@ -3158,7 +3158,7 @@ class Scan(OnnxOpConverter):
         num_scan_outputs = num_all_outputs - num_state_outputs
         scan_input_axes = attr.get("scan_input_axes", [0] * num_scan_inputs)
         scan_input_directions = attr.get("scan_input_directions", [0] * num_scan_inputs)
-        scan_output_axes = attr.get("scan_output_axes", [0] * num_scan_outputs)
+        scan_output_axes = list(attr.get("scan_output_axes", [0] * num_scan_outputs))
         scan_output_directions = attr.get("scan_output_directions", [0] * num_scan_outputs)
         # loop count are the same for all scan inputs, so get loop count by first input scan
         # strided_slice not support dynamic axes, so assume input shape are static
@@ -3217,6 +3217,8 @@ class Scan(OnnxOpConverter):
             name, _, _, _ = get_info(body.output[i + num_state_outputs])
             output_node = infer_type(loop_outputs[i + num_state_outputs])
             shape = list(get_const_tuple(output_node.checked_type.shape))
+            if scan_output_axes[i] < 0:
+                scan_output_axes[i] = len(shape) + scan_output_axes[i] + 1
             shape.insert(scan_output_axes[i], max_loop_count)
             dtype = output_node.checked_type.dtype
             scan_output_vars.append(_expr.var(name, shape=shape, dtype=dtype))
