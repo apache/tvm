@@ -20,10 +20,6 @@
 if(NOT USE_ETHOSN STREQUAL "OFF")
   find_ethosn(${USE_ETHOSN})
 
-  if(NOT DEFINED TVM_LLVM_VERSION)
-      message(FATAL_ERROR "Support for offloading to Ethos-N requires LLVM Support")
-  endif()
-
   if(NOT ETHOSN_FOUND)
     message(FATAL_ERROR "Cannot find Ethos-N, USE_ETHOSN=" ${USE_ETHOSN})
 
