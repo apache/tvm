@@ -323,6 +323,12 @@ class RelayBuildModule : public runtime::ModuleNode {
         /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/false);
     transform::PassContext pass_ctx = PassContext::Current();
 
+    if (config_->optional_homogeneous_target.defined()) {
+      // This pass currently only supports the homogeneous case.
+      pass_seqs.push_back(transform::SplitArgs(
+          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", -1).value()));
+    }
+
     // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
     // hetrogenous execution.
     pass_seqs.push_back(transform::PlanDevices(config_));
