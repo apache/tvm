@@ -59,9 +59,7 @@ void StmtVisitor::VisitStmt_(const AllocateNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const StoreNode* op) {
-  this->VisitExpr(op->value);
-  this->VisitExpr(op->index);
-  this->VisitExpr(op->predicate);
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
@@ -339,18 +337,8 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
-  PrimExpr index = this->VisitExpr(op->index);
-  PrimExpr predicate = this->VisitExpr(op->predicate);
-  if (value.same_as(op->value) && index.same_as(op->index) && predicate.same_as(op->predicate)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->value = std::move(value);
-    n->index = std::move(index);
-    n->predicate = std::move(predicate);
-    return Stmt(n);
-  }
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  return Stmt();
 }
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
