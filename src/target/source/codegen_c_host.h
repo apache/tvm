@@ -73,6 +73,8 @@ class CodeGenCHost : public CodeGenC {
     std::string func_name_packed;
     /* number of arguments required by the function */
     int64_t num_args;
+    /* \brief name of resource_handle to pass */
+    std::string resource_handle_name;
   };
   std::string module_name_;
   /* \brief mapping global packed func to the unique name */
@@ -82,10 +84,11 @@ class CodeGenCHost : public CodeGenC {
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
 
-  FunctionInfo GetFunctionInfo(const CallNode* op);
+  FunctionInfo GetFunctionInfo(const CallNode* op, bool has_resource_handle = false);
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
   void PrintFuncCall(const std::string& packed_func_name, int num_args);
-  void PrintFuncCallC(const std::string& packed_func_name, int num_args);
+  void PrintFuncCallC(const std::string& packed_func_name, int num_args,
+                      const std::string& resource_handle_name);
 
   /*!
    * \brief Print ternary conditional operator implementing binary `op`

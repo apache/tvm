@@ -348,10 +348,14 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     GlobalVar global_var = call_lowered_props.lowered_func;
+    tir::Var empty_var("no_device_context", DataType::Handle());
     bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
+    bool use_cpacked_api = !use_unpacked_api_;
+
     if (has_c_device_api_context) {
+      // call_extern calling convention with context
       tir::Var context = device_contexts_.Get(global_var).value();
-      args.push_back(device_contexts_[global_var]);
+      args.push_back(context);
 
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
       create_func_call_stmts.push_back(tir::SeqStmt({
@@ -359,7 +363,15 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           func_call,
           GenerateDeviceHook(context, "Close"),
       }));
+    } else if (use_cpacked_api) {
+      // call_cpacked calling convention needs a blank context
+      args.push_back(empty_var);
+
+      tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
+      tir::LetStmt set_zero(empty_var, tir::make_zero(DataType::Handle()), func_call);
+      create_func_call_stmts.push_back(set_zero);
     } else {
+      // call_extern calling convention without context
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
       create_func_call_stmts.push_back(func_call);
     }
