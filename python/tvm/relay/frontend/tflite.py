@@ -1135,8 +1135,6 @@ class OperatorConverter(object):
 
     def convert_abs(self, op):
         """Convert TFLite ABS"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized ABS operator is not supported yet.")
         return self._convert_unary_elemwise(_op.abs, op)
 
     def convert_ceil(self, op):
@@ -1193,8 +1191,6 @@ class OperatorConverter(object):
 
     def convert_sqrt(self, op):
         """Convert TFLite SQRT"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized SQRT operator is not supported yet.")
         return self._convert_unary_elemwise(_op.sqrt, op)
 
     def convert_rsqrt(self, op):
@@ -2632,7 +2628,7 @@ class OperatorConverter(object):
         # paddings
         pad_list = self.get_tensor_value(input_tensors[1])
         # convert list of lists to tuple of tuples
-        paddings = tuple(tuple(l) for l in pad_list)
+        paddings = tuple(tuple(l.astype(np.int32)) for l in pad_list)
 
         assert op.BuiltinOptionsType() == BuiltinOptions.MirrorPadOptions
         op_options = op.BuiltinOptions()

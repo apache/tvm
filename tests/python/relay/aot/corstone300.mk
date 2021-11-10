@@ -64,11 +64,12 @@ CRT_SRCS = $(shell find $(CRT_ROOT))
 CODEGEN_SRCS = $(shell find $(abspath $(CODEGEN_ROOT)/host/src/*.c))
 CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(shell find ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
-CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/*/*.c)
 UART_SRCS = $(shell find ${PLATFORM_PATH}/*.c)
 
+CMSIS_NN_LIBS = $(wildcard ${CMSIS_PATH}/CMSIS/NN/build/Source/*/*.a)
+
 ifdef ETHOSU_TEST_ROOT
-ETHOSU_ARCHIVE=${build_dir}/ethosu_core_driver/libethosu_core_driver.a
+ETHOSU_DRIVER_LIBS = $(wildcard ${DRIVER_PATH}/build/*.a)
 ETHOSU_INCLUDE=-I$(ETHOSU_TEST_ROOT)
 endif
 
@@ -93,24 +94,13 @@ ${build_dir}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_startup.a) $(abspath $(build_dir))/libcmsis_startup/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_startup.a)
 
-${build_dir}/libcmsis_nn.a: $(CMSIS_NN_SRCS)
-	$(QUIET)mkdir -p $(abspath $(build_dir)/libcmsis_nn)
-	$(QUIET)cd $(abspath $(build_dir)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -D${ARM_CPU} $^
-	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_nn.a) $(abspath $(build_dir))/libcmsis_nn/*.o
-	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_nn.a)
-
 ${build_dir}/libuart.a: $(UART_SRCS)
 	$(QUIET)mkdir -p $(abspath $(build_dir)/libuart)
 	$(QUIET)cd $(abspath $(build_dir)/libuart) && $(CC) -c $(PKG_CFLAGS) $^
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libuart.a) $(abspath $(build_dir))/libuart/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libuart.a)
 
-${build_dir}/ethosu_core_driver/libethosu_core_driver.a:
-	$(QUIET)mkdir -p $(@D)
-	$(QUIET)cd $(DRIVER_PATH) && $(CMAKE) -B $(abspath $(build_dir)/ethosu_core_driver) $(DRIVER_CMAKE_FLAGS)
-	$(QUIET)cd $(abspath $(build_dir)/ethosu_core_driver) && $(MAKE)
-
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a $(ETHOSU_ARCHIVE)
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a $(CMSIS_NN_LIBS) $(ETHOSU_DRIVER_LIBS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) $(ETHOSU_INCLUDE) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
 

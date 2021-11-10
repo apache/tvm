@@ -85,7 +85,7 @@ def test_softmax_int8(zero_point, scale):
     assert any(attrs), "At least one function with external attributes was expected."
 
     compilers = [
-        key == "Compiler" and value == "cmsisnn" for attr in attrs for key, value in attr.items()
+        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
     ]
     assert any(compilers), "Module does not contain function for cmsisnn target."
 

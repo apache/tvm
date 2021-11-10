@@ -74,7 +74,7 @@ void CheckAndUpdateHostConsistency(Target* target, Target* host) {
   *host = (*target)->GetHost().value_or(Target());
 }
 
-void CheckAndUpdateHostConsistency(Map<Integer, Target>* targets, Target* host) {
+void CheckAndUpdateHostConsistency(TargetMap* targets, Target* host) {
   Map<Integer, Target> new_targets;
   for (auto& it : *targets) {
     auto target = it.second;
@@ -457,6 +457,7 @@ const std::string& TargetNode::str() const {
     if (Optional<String> attrs_str = TargetInternal::StringifyAttrsToRaw(attrs)) {
       os << ' ' << attrs_str.value();
     }
+
     str_repr_ = os.str();
   }
   return str_repr_;
@@ -529,6 +530,61 @@ Map<String, ObjectRef> TargetNode::Export() const {
 
 Optional<Target> TargetNode::GetHost() const {
   return GetRef<Optional<Target>>(this->host.as<TargetNode>());
+}
+
+String TargetNode::ToDebugString() const {
+  std::ostringstream os;
+  os << "Target(";
+  os << "kind='" << kind->name << "'";
+  if (!tag.empty()) {
+    os << ", tag='" << tag << "'";
+  }
+  if (!keys.empty()) {
+    os << ", keys={";
+    bool first = true;
+    for (const auto& key : keys) {
+      if (!first) {
+        os << ", ";
+      }
+      os << "'" << key << "'";
+      first = false;
+    }
+    os << "}";
+  }
+  if (!attrs.empty()) {
+    os << ", attrs={";
+    bool first = true;
+    for (const auto& pair : attrs) {
+      if (!first) {
+        os << ", ";
+      }
+      os << '"' << pair.first << "': " << pair.second;
+      first = false;
+    }
+    os << "}";
+  }
+  if (host.defined()) {
+    os << ", host=" << GetHost().value()->ToDebugString();
+  }
+#if TVM_LOG_DEBUG
+  // We depend on pointer equality so include that in the debug representation.
+  os << ", id=" << reinterpret_cast<uint64_t>(this);
+#endif
+  os << ")";
+  return os.str();
+}
+
+bool TargetNode::SEqualReduce(const TargetNode* other, SEqualReducer equal) const {
+  return equal(kind.get(), other->kind.get()) && equal(host, other->host) &&
+         equal(tag, other->tag) && equal(keys, other->keys) && equal(attrs, other->attrs);
+}
+
+void TargetNode::SHashReduce(SHashReducer hash_reduce) const {
+  hash_reduce(kind.get());
+  hash_reduce(host);
+  hash_reduce(tag);
+  hash_reduce(keys);
+  hash_reduce(attrs);
 }
 
 /*! \brief Entry to hold the Target context stack. */

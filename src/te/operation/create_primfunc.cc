@@ -22,6 +22,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <algorithm>
+#include <unordered_set>
 
 #include "../schedule/graph.h"
 
@@ -300,9 +301,40 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   return (*complete)(func, info.root_alloc);
 }  // namespace tir
 
-TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed([](const Array<te::Tensor>& tensors) {
-  return CreatePrimFunc(tensors);
-});
+PrimFunc CreatePrimFuncFromOutputs(const Array<te::Tensor>& outputs) {
+  std::vector<te::Tensor> stack;
+  std::unordered_set<const te::TensorNode*> visited;
+  for (const te::Tensor& output : outputs) {
+    if (!visited.count(output.get())) {
+      visited.insert(output.get());
+      stack.push_back(output);
+    }
+  }
+
+  Array<te::Tensor> arg_list;
+  while (!stack.empty()) {
+    te::Tensor tensor = stack.back();
+    stack.pop_back();
+    if (tensor->op->IsInstance<te::PlaceholderOpNode>()) {
+      arg_list.push_back(tensor);
+    } else if (tensor->op->IsInstance<te::ComputeOpNode>()) {
+      Array<te::Tensor> inputs = tensor->op->InputTensors();
+      for (const te::Tensor& input : inputs) {
+        if (!visited.count(input.get())) {
+          visited.insert(input.get());
+          stack.push_back(input);
+        }
+      }
+    }
+  }
+  for (const te::Tensor& output : outputs) {
+    arg_list.push_back(output);
+  }
+  return CreatePrimFunc(arg_list);
+}
+
+TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);
+TVM_REGISTER_GLOBAL("te.CreatePrimFuncFromOutputs").set_body_typed(CreatePrimFuncFromOutputs);
 
 }  // namespace tir
 }  // namespace tvm

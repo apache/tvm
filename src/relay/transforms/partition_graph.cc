@@ -43,6 +43,7 @@
 #include <vector>
 
 #include "../analysis/annotated_region_set.h"
+#include "../backend/name_transforms.h"
 #include "../backend/utils.h"
 #include "pass_utils.h"
 
@@ -501,7 +502,7 @@ class NameMangleExtFuncs : public MixedModeMutator {
       if (auto* fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-          auto fn_name_mangled = mangle_fn_(pair.first->name_hint);
+          auto fn_name_mangled = relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint));
           GlobalVar gvar = GlobalVar(fn_name_mangled);
           mangled_gvars_[pair.first->name_hint] = gvar;
         }
@@ -519,7 +520,8 @@ class NameMangleExtFuncs : public MixedModeMutator {
 
         if (func->GetAttr<String>(attr::kCompiler).defined()) {
           auto new_dict = func->attrs->dict;
-          new_dict.Set(tvm::attr::kGlobalSymbol, String(mangle_fn_(pair.first->name_hint)));
+          new_dict.Set(tvm::attr::kGlobalSymbol,
+                       String(relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint))));
           func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
                           DictAttrs(new_dict));
           new_module->Add(mangled_gvars_[pair.first->name_hint], func);

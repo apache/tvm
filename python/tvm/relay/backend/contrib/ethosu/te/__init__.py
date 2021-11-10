@@ -18,3 +18,4 @@
 
 from .convolution import *
 from .depthwise import *
+from .pooling import *

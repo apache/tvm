@@ -18,6 +18,7 @@
 This file contains functions for processing target inputs for the TVMC CLI
 """
 
+from tvm.driver import tvmc
 from tvm.target import Target
 
 # We can't tell the type inside an Array but all current options are strings so
@@ -25,6 +26,11 @@ from tvm.target import Target
 # between as both are represented by IntImm
 INTERNAL_TO_NATIVE_TYPE = {"runtime.String": str, "IntImm": int, "Array": str}
 INTERNAL_TO_HELP = {"runtime.String": " string", "IntImm": "", "Array": " options"}
+
+
+def _valid_target_kinds():
+    codegen_names = tvmc.composite_target.get_codegen_names()
+    return filter(lambda target: target not in codegen_names, Target.list_kinds())
 
 
 def _generate_target_kind_args(parser, kind):
@@ -45,8 +51,7 @@ def generate_target_args(parser):
         help="compilation target as plain string, inline JSON or path to a JSON file",
         required=True,
     )
-    target_kinds = Target.list_kinds()
-    for target_kind in target_kinds:
+    for target_kind in _valid_target_kinds():
         target = Target(target_kind)
         _generate_target_kind_args(parser, target.kind)
 
@@ -55,7 +60,7 @@ def _reconstruct_target_kind_args(args, kind):
     kind_options = {}
     for target_option, target_type in kind.options.items():
         if target_type in INTERNAL_TO_NATIVE_TYPE:
-            var_name = f"target_{kind.name}_{target_option.replace('-', '_')}"
+            var_name = f"target_{kind.name.replace('-', '_')}_{target_option.replace('-', '_')}"
             option_value = getattr(args, var_name)
             if option_value is not None:
                 kind_options[target_option] = getattr(args, var_name)
@@ -64,9 +69,8 @@ def _reconstruct_target_kind_args(args, kind):
 
 def reconstruct_target_args(args):
     """Reconstructs the target options from the arguments"""
-    target_kinds = Target.list_kinds()
     reconstructed = {}
-    for target_kind in target_kinds:
+    for target_kind in _valid_target_kinds():
         target = Target(target_kind)
         kind_options = _reconstruct_target_kind_args(args, target.kind)
         if kind_options:

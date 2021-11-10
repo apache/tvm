@@ -39,9 +39,6 @@ if sys.platform.startswith("win"):
 
     collect_ignore.append("unittest/test_tir_intrin.py")
 
-if tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON":
-    collect_ignore.append("unittest/test_micro_transport.py")
-
 
 def pytest_addoption(parser):
     parser.addoption(

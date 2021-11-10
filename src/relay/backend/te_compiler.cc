@@ -222,7 +222,8 @@ class TECompilerImpl : public TECompilerNode {
       auto global_var = GlobalVar(func_name);
       global_var->checked_type_ = key->source_func->checked_type();
       ir_module->Add(global_var, key->source_func);
-      value->cached_func = CachedFunc(target, global_var, {}, {}, te::Schedule(), {}, ir_module);
+      value->cached_func = CachedFunc(target, global_var, {}, {}, te::Schedule{nullptr},
+                                      tir::PrimFunc{nullptr}, {}, ir_module);
       return value;
     }
 
@@ -243,16 +244,19 @@ class TECompilerImpl : public TECompilerNode {
         return value;
       }
     }
-
-    // NOTE: array will copy on write.
-    Array<te::Tensor> all_args = Array<te::Tensor>(cfunc->inputs);
-    for (te::Tensor arg : cfunc->outputs) {
-      all_args.push_back(arg);
+    if (cfunc->prim_func.defined()) {
+      cfunc->funcs->Update(cfunc->prim_fn_var, cfunc->prim_func.value());
+    } else {
+      // NOTE: array will copy on write.
+      Array<te::Tensor> all_args = Array<te::Tensor>(cfunc->inputs);
+      for (te::Tensor arg : cfunc->outputs) {
+        all_args.push_back(arg);
+      }
+      // lower the function
+      std::unordered_map<te::Tensor, tir::Buffer> binds;
+      auto func_name = cfunc->prim_fn_var->name_hint;
+      cfunc->funcs->Update(tvm::LowerSchedule(cfunc->schedule, all_args, func_name, binds));
     }
-
-    std::unordered_map<te::Tensor, tir::Buffer> binds;
-    auto func_name = cfunc->prim_fn_var->name_hint;
-    cfunc->funcs->Update(tvm::LowerSchedule(cfunc->schedule, all_args, func_name, binds));
     value->cached_func = cfunc;
     return value;
   }
@@ -319,6 +323,7 @@ TECompiler& TECompiler::Global() {
   return *inst;
 }
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_meta_schedule", Bool);
 
 TVM_REGISTER_GLOBAL("relay.backend._TECompilerGlobal").set_body_typed([]() {
   return TECompiler::Global();
@@ -578,8 +583,18 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     return DeviceAwareExprMutator::PostVisitLet_(pre_let_node, post_let_node);
   }
 
+  Expr DeviceAwareVisitExpr_(const FunctionNode* function_node) override {
+    if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+      // Nothing to lower inside primitive functions.
+      return GetRef<Function>(function_node);
+    } else {
+      return DeviceAwareExprMutator::DeviceAwareVisitExpr_(function_node);
+    }
+  }
+
   Expr DeviceAwareVisitExpr_(const CallNode* call_node) override {
     Call call = GetRef<Call>(call_node);
+
     // Look for (indirect) calls to primitives.
     BaseFunc prim_func = ResolveToPrimitive(call_node->op);
     if (!prim_func.defined()) {
@@ -590,10 +605,16 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       return ExprMutator::VisitExpr_(call_node);
     }
 
+    // Similarly transform arguments.
+    Array<Expr> args;
+    for (const auto& arg : call_node->args) {
+      args.push_back(VisitExpr(arg));
+    }
+
     // Already lowered by other means so we don't need to mutate
-    // the call
+    // the call but we do need to mutate the arguments
     if (prim_func->IsInstance<tir::PrimFuncNode>()) {
-      return std::move(call);
+      return Call(call_node->op, args, call_node->attrs);
     }
 
     // Find the desired target device.
@@ -612,14 +633,9 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     Function func = Downcast<Function>(prim_func);
     std::pair<GlobalVar, Attrs> pair = LowerFunction(func, target);
 
-    // Similarly transform arguments.
-    Array<Expr> args;
-    for (const auto& arg : call_node->args) {
-      args.push_back(VisitExpr(arg));
-    }
-
     // Replace with direct call to lowered primitive, and attach annotations to record calling
     // convention.
+    // =====> in new call_lowered form
     return Call(pair.first, args, pair.second);
   }
 

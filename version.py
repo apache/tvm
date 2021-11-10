@@ -126,19 +126,20 @@ def update(file_name, pattern, repl, dry_run=False):
     update = []
     hit_counter = 0
     need_update = False
-    for l in open(file_name):
-        result = re.findall(pattern, l)
-        if result:
-            assert len(result) == 1
-            hit_counter += 1
-            if result[0] != repl:
-                l = re.sub(pattern, repl, l)
-                need_update = True
-                print("%s: %s -> %s" % (file_name, result[0], repl))
-            else:
-                print("%s: version is already %s" % (file_name, repl))
+    with open(file_name) as file:
+        for l in file:
+            result = re.findall(pattern, l)
+            if result:
+                assert len(result) == 1
+                hit_counter += 1
+                if result[0] != repl:
+                    l = re.sub(pattern, repl, l)
+                    need_update = True
+                    print("%s: %s -> %s" % (file_name, result[0], repl))
+                else:
+                    print("%s: version is already %s" % (file_name, repl))
 
-        update.append(l)
+            update.append(l)
     if hit_counter != 1:
         raise RuntimeError("Cannot find version in %s" % file_name)
 
