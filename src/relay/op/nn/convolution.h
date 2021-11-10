@@ -1044,7 +1044,7 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
-  static const Layout kOIHW("OIHW"); // FIXME: weight layout should be IOHW as discussed in https://github.com/apache/tvm/pull/9336
+  static const Layout kOIHW("OIHW");  // FIXME: weight layout should be IOHW as discussed in https://github.com/apache/tvm/pull/9336
 
   const Conv2DTransposeAttrs* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
