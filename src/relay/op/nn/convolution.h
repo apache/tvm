@@ -1044,7 +1044,7 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
-  static const Layout kOIHW("OIHW");
+  static const Layout kOIHW("OIHW"); // FIXME: weight layout should be IOHW as discussed in https://github.com/apache/tvm/pull/9336
 
   const Conv2DTransposeAttrs* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
@@ -1103,13 +1103,14 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
           << " kernel_size=" << param->kernel_size << " wshape=" << Array<IndexExpr>(wshape);
     }
     if (param->channels.defined()) {
-      ICHECK(reporter->AssertEQ(param->channels, wshape[0]))
-          << "Conv2DTransposed: shape of weight is inconsistent with channels, "
-          << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
+      ICHECK(reporter->AssertEQ(indexdiv(param->channels, param->groups), wshape[1]))
+          << "Conv2DTransposed: shape of weight is inconsistent with out_channels, "
+          << " out_channels // groups != weigt.shape[1] "
+          << " out_channels=" << param->channels << " weigt.shape=" << Array<IndexExpr>(wshape);
     }
     if (!dshape_nchw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
-      ICHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[1]))
-          << "Conv2DTransposed: data.shape[1] // groups != weight.shape[1], "
+      ICHECK(reporter->AssertEQ(dshape_nchw[1],  wshape[0]))
+          << "Conv2DTransposed: shape of weight is inconsistent with in_channels."
           << " data.shape= " << Array<IndexExpr>(dshape_nchw)
           << " groups= " << param->groups
           << " weight.shape= " << Array<IndexExpr>(wshape);
