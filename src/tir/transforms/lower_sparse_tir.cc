@@ -68,7 +68,7 @@ class AccessAndDependencyCollector : public StmtExprVisitor {
         const SpIterVar& sp_iter = kv_pair.second[k];
         if (sp_iter->kind == SpIterKind::kDenseFixed ||
             sp_iter->kind == SpIterKind::kDenseVariable ||
-            !BufferContainsAxis(buffer, sp_iter->axis.value())) {
+            !BufferContainsAxis(buffer, sp_iter->axis)) {
           continue;
         }
 
@@ -169,7 +169,7 @@ class IndexTransformer : public StmtExprMutator {
       } else if (kind == SpIterKind::kSparseFixed) {
         CHECK(!axis->IsInstance<DenseVariableAxisNode>());
         CHECK(sp_iter->axis.defined());
-        const Axis& iterated_axis = sp_iter->axis.value();
+        const Axis& iterated_axis = sp_iter->axis;
         if (const auto* df_axis = axis.as<DenseFixedAxisNode>()) {
           CHECK(ana_.CanProveEqual(sp_iter->max_extent, df_axis->length));
           sp_index = GetDenseValue(sp_iter);
@@ -192,7 +192,7 @@ class IndexTransformer : public StmtExprMutator {
         CHECK(kind == SpIterKind::kSparseVariable);
         CHECK(!axis->IsInstance<DenseVariableAxisNode>());
         CHECK(sp_iter->axis.defined());
-        const Axis& iterated_axis = sp_iter->axis.value();
+        const Axis& iterated_axis = sp_iter->axis;
         if (const auto* df_axis = axis.as<DenseFixedAxisNode>()) {
           CHECK(ana_.CanProveEqual(sp_iter->max_extent, df_axis->length));
           sp_index = GetDenseValue(sp_iter);
@@ -240,7 +240,7 @@ class IndexTransformer : public StmtExprMutator {
   PrimExpr GetDenseValue(const SpIterVarNode* sp_iter) {
     SpIterKind kind = sp_iter->kind;
     CHECK(kind == SpIterKind::kSparseFixed || kind == SpIterKind::kSparseVariable);
-    Axis iterated_axis = sp_iter->axis.value();
+    Axis iterated_axis = sp_iter->axis;
 
     std::pair<SparseBuffer, int> dependent_pair = dependency_map_[GetRef<SpIterVar>(sp_iter)];
     Array<SpIterVar> buffer_access_iters = buffer_access_map_[dependent_pair.first];

@@ -100,22 +100,47 @@ class DenseAxis : public Axis {
 };
 
 /*!
+ * \brief Sparse axis whose column indices is not consecutive.
+ */
+class SparseAxisNode : public AxisNode {
+ public:
+  static constexpr const char* _type_key = "tir.sparse.SparseAxis";
+  TVM_DECLARE_BASE_OBJECT_INFO(SparseAxisNode, AxisNode);
+};
+
+/*!
+ * \brief Managed reference to SparseAxisNode.
+ * \sa SparseAxisNode
+ */
+class SparseAxis : public Axis {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SparseAxis, Axis, SparseAxisNode);
+};
+
+/*!
  * \brief Dense axis with fixed length per row.
  */
 class DenseFixedAxisNode : public DenseAxisNode {
  public:
+  Optional<SparseAxis> from_sparse;
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("length", &length);
+    v->Visit("from_sparse", &from_sparse);
   }
 
-  bool SEqualReduce(const DenseAxisNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(length, other->length);
+  bool SEqualReduce(const DenseFixedAxisNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return equal(name, other->name) && equal(length, other->length) &&
+           equal(from_sparse, other->from_sparse);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
     hash_reduce(name);
     hash_reduce(length);
+    hash_reduce(from_sparse);
   }
 
   static constexpr const char* _type_key = "tir.sparse.DenseFixedAxis";
@@ -128,7 +153,8 @@ class DenseFixedAxisNode : public DenseAxisNode {
  */
 class DenseFixedAxis : public DenseAxis {
  public:
-  TVM_DLL explicit DenseFixedAxis(String name, PrimExpr length);
+  TVM_DLL explicit DenseFixedAxis(String name, PrimExpr length,
+                                  Optional<SparseAxis> from_sparse = NullOpt);
 
   TVM_DEFINE_OBJECT_REF_METHODS(DenseFixedAxis, DenseAxis, DenseFixedAxisNode);
 };
@@ -144,10 +170,12 @@ class DenseVariableAxisNode : public DenseAxisNode {
   }
 
   bool SEqualReduce(const DenseVariableAxisNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(name, other->name) && equal(length, other->length) && equal(indptr, other->indptr);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
     hash_reduce(name);
     hash_reduce(length);
     hash_reduce(indptr);
@@ -169,24 +197,6 @@ class DenseVariableAxis : public DenseAxis {
 };
 
 /*!
- * \brief Sparse axis whose column indices is not consecutive.
- */
-class SparseAxisNode : public AxisNode {
- public:
-  static constexpr const char* _type_key = "tir.sparse.SparseAxis";
-  TVM_DECLARE_BASE_OBJECT_INFO(SparseAxisNode, AxisNode);
-};
-
-/*!
- * \brief Managed reference to SparseAxisNode.
- * \sa SparseAxisNode
- */
-class SparseAxis : public Axis {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(SparseAxis, Axis, SparseAxisNode);
-};
-
-/*!
  * \brief Sparse axis with fixed number of non-zero columns per row.
  */
 class SparseFixedAxisNode : public SparseAxisNode {
@@ -203,11 +213,13 @@ class SparseFixedAxisNode : public SparseAxisNode {
   }
 
   bool SEqualReduce(const SparseFixedAxisNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(name, other->name) && equal(length, other->length) &&
            equal(indices, other->indices) && equal(num_cols, other->num_cols);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
     hash_reduce(name);
     hash_reduce(length);
     hash_reduce(indices);
@@ -245,11 +257,13 @@ class SparseVariableAxisNode : public SparseAxisNode {
   }
 
   bool SEqualReduce(const SparseVariableAxisNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(name, other->name) && equal(length, other->length) &&
            equal(indptr, other->indptr) && equal(indices, other->indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
     hash_reduce(name);
     hash_reduce(length);
     hash_reduce(indptr);
@@ -277,13 +291,27 @@ class SparseVariableAxis : public SparseAxis {
 class AxisTreeNode : public Object {
  public:
   // unordered map that stores the parent relationship between axes.
-  std::unordered_map<String, Optional<String>, ObjectPtrHash, ObjectPtrEqual> parent;
+  Map<String, Optional<String>> parent;
   // unordered map that stores the children relationship between axes.
-  std::unordered_map<Optional<String>, Array<String>, ObjectPtrHash, ObjectPtrEqual> children;
+  Map<Optional<String>, Array<String>> children;
 
-  void VisitAttrs(AttrVisitor* v) {}
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("parent", &parent);
+    v->Visit("children", &children);
+  }
+
+  bool SEqualReduce(const AxisTreeNode* other, SEqualReducer equal) const {
+    return equal(parent, other->parent) && equal(children, other->children);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(parent);
+    hash_reduce(children);
+  }
 
   static constexpr const char* _type_key = "tir.sparse.AxisTree";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(AxisTreeNode, Object);
 };
 
@@ -313,22 +341,26 @@ class SparseBufferNode : public Object {
   inline int ndim() const { return static_cast<int>(axes.size()); }
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("length", &axes);
-    v->Visit("num_cols", &data);
+    v->Visit("axes", &axes);
+    v->Visit("data", &data);
     v->Visit("name", &name);
   }
 
   bool SEqualReduce(const SparseBufferNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(axes, other->axes) && equal(data, other->data) && equal(name, other->name);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
     hash_reduce(axes);
     hash_reduce(data);
     hash_reduce(name);
   }
 
   static constexpr const char* _type_key = "tir.sparse.SparseBuffer";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(SparseBufferNode, Object);
 };
 
@@ -359,7 +391,7 @@ class SpIterVarNode : public Object {
   PrimExpr max_extent;
   SpIterKind kind;
   bool is_reduction;
-  Optional<Axis> axis;
+  Axis axis;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("var", &var);
@@ -392,7 +424,7 @@ class SpIterVarNode : public Object {
 class SpIterVar : public ObjectRef {
  public:
   TVM_DLL explicit SpIterVar(Var var, PrimExpr max_extent, SpIterKind kind, bool is_reduction,
-                             Optional<Axis> axis = NullOpt);
+                             Axis axis);
 
   /*!
    * \return the corresponding var in the IterVar.

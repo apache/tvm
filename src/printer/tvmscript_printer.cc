@@ -119,6 +119,10 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
   /*! \brief Map from Buffer to Declaration Doc */
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_decl_;
+  /*! \brief Map from SparseBuffer to Doc */
+  std::unordered_map<SparseBuffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_sp_buf_;
+  /*! \brief Map from Axis in SparseTIR to Doc */
+  std::unordered_map<Axis, Doc, ObjectPtrHash, ObjectPtrEqual> memo_sp_axis_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief number of children of current node's parent */
@@ -164,6 +168,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const ProducerLoadNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const SparseBufferLoadNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const LoadNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const RampNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const BroadcastNode* op, ExprPrecedence* out_precedence) override;
@@ -178,6 +183,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const AssertStmtNode* op) override;
   Doc VisitStmt_(const StoreNode* op) override;
   Doc VisitStmt_(const BufferStoreNode* op) override;
+  Doc VisitStmt_(const SparseBufferStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
@@ -187,6 +193,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const PrefetchNode* op) override;
   Doc VisitStmt_(const EvaluateNode* op) override;
   Doc VisitStmt_(const BlockRealizeNode* op) override;
+  Doc VisitStmt_(const SparseBlockNode* op) override;
   Doc VisitStmtDefault_(const Object* op) override;
 
   Doc VisitType_(const PrimTypeNode* node) override;
@@ -200,6 +207,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintRange(const RangeNode* op);
   Doc PrintArray(const ArrayNode* op);
   Doc PrintBuffer(const BufferNode* op);
+  Doc PrintSparseBuffer(const SparseBufferNode* op);
+  Doc PrintSpAxis(const AxisNode* op);
   Doc AllocBufferDeclaration(const Buffer& buf);
   Doc PrintBlockVar(const IterVar& iter_var, const PrimExpr& value);
   Doc PrintBlockVarRemaps();
@@ -207,6 +216,9 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBlockAttr(const BlockRealizeNode* op);
   Doc PrintBlockBody(const BlockNode* op);
   virtual Doc PrintBlockName(const BlockNode* block_op);
+  Doc PrintSparseBlockName(const SparseBlockNode* op);
+  Doc PrintSparseStructDefinitions(const SparseBlockNode* sp_block);
+
   Doc PrintBufferRegion(const BufferRegionNode* op);
   Doc PrintMatchBufferRegion(const MatchBufferRegionNode* op);
   Doc PrintCommReducer(const CommReducerNode* op);
@@ -216,6 +228,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc GetUniqueName(std::string prefix);
   Doc AllocVar(const Var& var);
   Doc AllocBuf(const Buffer& buffer);
+  Doc AllocSparseBuf(const SparseBuffer& buffer);
+  Doc AllocAxis(const Axis& axis);
   void TryDeallocVar(const Var& var);
   bool ContainsOptionalInfo(const Stmt& stmt);
 
@@ -423,6 +437,42 @@ Doc TVMScriptPrinter::AllocBuf(const Buffer& buffer) {
   return val;
 }
 
+Doc TVMScriptPrinter::AllocSparseBuf(const SparseBuffer& buffer) {
+  const auto& it = memo_sp_buf_.find(buffer);
+  if (it != memo_sp_buf_.end()) {
+    return it->second;
+  }
+  std::string name = buffer->name;
+  if (name.length() == 0 || !std::isalpha(name[0])) {
+    name = "buf_" + name;
+  }
+  Doc val = GetUniqueName(name);
+  memo_sp_buf_[buffer] = val;
+  return val;
+}
+
+Doc TVMScriptPrinter::AllocAxis(const Axis& axis) {
+  const auto& it = memo_sp_axis_.find(axis);
+  if (it != memo_sp_axis_.end()) {
+    return it->second;
+  }
+  Doc val;
+  const auto* df_axis = axis.as<DenseFixedAxisNode>();
+
+  if (df_axis != nullptr && df_axis->from_sparse.defined()) {
+    val << tir_prefix_ << ".to_dense(" << Print(df_axis->from_sparse.value()) << ")";
+  } else {
+    std::string name = axis->name;
+    if (name.length() == 0 || !std::isalnum(name[0])) {
+      name = "axis_" + name;
+    }
+    val = GetUniqueName(name);
+  }
+
+  memo_sp_axis_[axis] = val;
+  return val;
+}
+
 /*!
  * \brief Check if any optional information exists in annotate_ for
  * a given Stmt.
@@ -519,6 +569,10 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintArray(node.as<ArrayNode>());
   } else if (node->IsInstance<BufferNode>()) {
     return PrintBuffer(node.as<BufferNode>());
+  } else if (node->IsInstance<SparseBufferNode>()) {
+    return PrintSparseBuffer(node.as<SparseBufferNode>());
+  } else if (node->IsInstance<AxisNode>()) {
+    return PrintSpAxis(node.as<AxisNode>());
   } else if (node->IsInstance<StringObj>()) {
     return PrintString(node.as<StringObj>());
   } else if (node->IsInstance<IterVarNode>()) {
@@ -666,6 +720,13 @@ Doc TVMScriptPrinter::VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_p
   } else {
     doc << Print(op->buffer) << Print(op->indices);
   }
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitExpr_(const SparseBufferLoadNode* op, ExprPrecedence* out_precedence) {
+  *out_precedence = ExprPrecedence::kIdentity;
+  Doc doc;
+  doc << Print(op->buffer) << Print(op->indices);
   return doc;
 }
 
@@ -987,6 +1048,12 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferStoreNode* op) {
   return doc;
 }
 
+Doc TVMScriptPrinter::VisitStmt_(const SparseBufferStoreNode* op) {
+  Doc doc;
+  doc << Print(op->buffer) << Print(op->indices) << " = " << Print(op->value);
+  return doc;
+}
+
 /*! Helper functions for block printing. */
 Doc TVMScriptPrinter::PrintBlockVar(const IterVar& iter_var, const PrimExpr& value) {
   Doc doc;
@@ -1152,6 +1219,119 @@ Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
   return doc;
 }
 
+Doc TVMScriptPrinter::PrintSparseBlockName(const SparseBlockNode* op) {
+  Doc doc;
+  doc << "with " << tir_prefix_ << ".iter([";
+
+  int n_iter = static_cast<int>(op->sp_iter_vars.size());
+
+  std::string iter_types = "";
+  std::vector<Doc> sp_iter_docs;
+  std::vector<Doc> sp_iter_name_docs;
+  iter_types.reserve(n_iter);
+  sp_iter_docs.reserve(n_iter);
+  sp_iter_name_docs.reserve(n_iter);
+
+  for (int i = 0; i < n_iter; ++i) {
+    const SpIterVar& sp_iter = op->sp_iter_vars[i];
+    Doc iter_doc;
+    if (sp_iter->kind == SpIterKind::kDenseFixed || sp_iter->kind == SpIterKind::kDenseVariable) {
+      iter_doc << tir_prefix_ << ".cord(" << sp_iter->axis->name << ")";
+    } else {
+      iter_doc << tir_prefix_ << ".pos(" << sp_iter->axis->name << ")";
+    }
+    var_not_in_headers_.insert(sp_iter->var.get());
+    sp_iter_docs.push_back(iter_doc);
+    sp_iter_name_docs.push_back(Print(sp_iter->var));
+    iter_types += sp_iter->is_reduction ? "R" : "S";
+  }
+
+  doc << PrintSep(sp_iter_docs, Doc::Text(", ")) << "], " << Doc::StrLiteral(iter_types) << ", "
+      << Doc::StrLiteral(op->name) << ") as [" << PrintSep(sp_iter_name_docs, Doc::Text(", "))
+      << "]:";
+
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const SparseBlockNode* op) {
+  Doc doc = PrintOptionalInfo(GetRef<Stmt>(op));
+  doc << PrintSparseBlockName(op);
+
+  Doc body;
+  if (op->init.defined()) {
+    Doc init;
+    init << "with " << tir_prefix_ << ".init():";
+    init << Doc::Indent(4, Doc::NewLine() << PrintBody(op->init.value()));
+    body << init << Doc::NewLine();
+  }
+  body << PrintBody(op->body);
+  doc << Doc::Indent(4, Doc::NewLine() << body);
+
+  for (const SpIterVar& sp_iter : op->sp_iter_vars) {
+    TryDeallocVar(sp_iter->var);
+  }
+  return doc;
+}
+
+Doc TVMScriptPrinter::PrintSparseStructDefinitions(const SparseBlockNode* sp_block) {
+  std::vector<Doc> axis_docs;
+  std::vector<Doc> sp_buf_docs;
+
+  for (auto it : sp_block->sp_struct2param_map) {
+    Doc doc;
+    doc << Print(it.first) << " = " << tir_prefix_ << ".";
+
+    if (const auto* sp_buffer = it.first.as<SparseBufferNode>()) {
+      ICHECK_EQ(it.second.size(), 1);
+      Doc axes_doc;
+      if (sp_buffer->axes.size() != 1) {
+        std::vector<Doc> axes_docs;
+        axes_docs.reserve(sp_buffer->axes.size());
+        for (const Axis& axis : sp_buffer->axes) {
+          axes_docs.push_back(Print(axis));
+        }
+        axes_doc << PrintSep(axes_docs, Doc::Text(", "));
+      } else {
+        axes_doc << Print(sp_buffer->axes[0]) << ",";
+      }
+
+      doc << "match_sparse_buffer(" << Print(it.second[0]) << ", (" << axes_doc << "), "
+          << Print(sp_buffer->data->shape[0]) << ", " << PrintDType(sp_buffer->data->dtype) << ")";
+      sp_buf_docs.push_back(doc);
+      continue;
+    }
+
+    if (const auto* df_axis = it.first.as<DenseFixedAxisNode>()) {
+      ICHECK_EQ(it.second.size(), 0);
+      doc << "dense_fixed(" << Print(df_axis->length) << ")";
+    } else if (const auto* dv_axis = it.first.as<DenseVariableAxisNode>()) {
+      ICHECK_EQ(it.second.size(), 1);
+      doc << "dense_variable((" << Print(dv_axis->length) << ", "
+          << Print(dv_axis->indptr->shape[0]) << "), " << Print(it.second[0]) << ", "
+          << PrintDType(dv_axis->indptr->dtype) << ")";
+    } else if (const auto* sf_axis = it.first.as<SparseFixedAxisNode>()) {
+      ICHECK_EQ(it.second.size(), 1);
+      doc << "sparse_fixed((" << Print(sf_axis->length) << ", " << Print(sf_axis->indices->shape[0])
+          << ", " << Print(sf_axis->num_cols) << "), " << Print(it.second[0]) << ", "
+          << PrintDType(sf_axis->indices->dtype) << ")";
+    } else if (const auto* sv_axis = it.first.as<SparseVariableAxisNode>()) {
+      ICHECK_EQ(it.second.size(), 2);
+      doc << "sparse_variable((" << Print(sv_axis->length) << ", "
+          << Print(sv_axis->indptr->shape[0]) << ", " << Print(sv_axis->indices->shape[0]) << "), ("
+          << Print(it.second[0]) << ", " << Print(it.second[1]) << "), "
+          << PrintDType(sv_axis->indptr->dtype) << ")";
+    } else {
+      ICHECK(false) << "Cannot reach here";
+    }
+    axis_docs.push_back(doc);
+  }
+
+  Doc res;
+  res << PrintSep(axis_docs, Doc::NewLine()) << Doc::NewLine()
+      << PrintSep(sp_buf_docs, Doc::NewLine()) << Doc::NewLine();
+  return res;
+}
+
 Doc TVMScriptPrinter::PrintBody(const Stmt& body) {
   int memo_num_child, memo_current_num;
   std::swap(memo_num_child, num_child_);
@@ -1206,6 +1386,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   memo_var_.clear();
   memo_buf_.clear();
   memo_buf_decl_.clear();
+  memo_sp_buf_.clear();
   var_not_in_headers_.clear();
   buf_not_in_headers_.clear();
   // print signature
@@ -1229,6 +1410,10 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     body << Print((*it).second) << " = " << tir_prefix_ << ".match_buffer(";
     body << Print((*it).first) << ", " << memo_buf_decl_[(*it).second];
     body << ")" << Doc::NewLine();
+  }
+  // print sparse data structure definitions
+  if (const auto* sp_block = op->body.as<SparseBlockNode>()) {
+    body << PrintSparseStructDefinitions(sp_block);
   }
   // print body
   body << "# body" << Doc::NewLine();
@@ -1342,6 +1527,16 @@ Doc TVMScriptPrinter::PrintRange(const RangeNode* op) {
 Doc TVMScriptPrinter::PrintBuffer(const BufferNode* op) {
   const Buffer& buffer = GetRef<Buffer>(op);
   return meta_.InMeta(buffer) ? meta_.GetMetaNode(buffer) : AllocBuf(buffer);
+}
+
+Doc TVMScriptPrinter::PrintSparseBuffer(const SparseBufferNode* op) {
+  const SparseBuffer& buffer = GetRef<SparseBuffer>(op);
+  return meta_.InMeta(buffer) ? meta_.GetMetaNode(buffer) : AllocSparseBuf(buffer);
+}
+
+Doc TVMScriptPrinter::PrintSpAxis(const AxisNode* op) {
+  const Axis& axis = GetRef<Axis>(op);
+  return meta_.InMeta(axis) ? meta_.GetMetaNode(axis) : AllocAxis(axis);
 }
 
 Doc TVMScriptPrinter::PrintBufferRegion(const BufferRegionNode* op) {

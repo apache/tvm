@@ -43,18 +43,20 @@ TVM_REGISTER_GLOBAL("tir.sparse.GetAxisIndexType").set_body_typed([](Axis axis) 
 });
 
 // DenseFixedAxis
-DenseFixedAxis::DenseFixedAxis(String name, PrimExpr length) {
+DenseFixedAxis::DenseFixedAxis(String name, PrimExpr length, Optional<SparseAxis> from_sparse) {
   ObjectPtr<DenseFixedAxisNode> node = make_object<DenseFixedAxisNode>();
   node->name = std::move(name);
   node->length = std::move(length);
+  node->from_sparse = std::move(from_sparse);
   data_ = std::move(node);
 }
 
 TVM_REGISTER_NODE_TYPE(DenseFixedAxisNode);
 
-TVM_REGISTER_GLOBAL("tir.sparse.DenseFixedAxis").set_body_typed([](String name, PrimExpr length) {
-  return DenseFixedAxis(name, length);
-});
+TVM_REGISTER_GLOBAL("tir.sparse.DenseFixedAxis")
+    .set_body_typed([](String name, PrimExpr length, Optional<SparseAxis> from_sparse) {
+      return DenseFixedAxis(name, length, from_sparse);
+    });
 
 // DenseVariableAxis
 DenseVariableAxis::DenseVariableAxis(String name, PrimExpr length, Buffer indptr) {
@@ -114,19 +116,26 @@ AxisTree::AxisTree(Array<String> axis_names, Array<Optional<String>> axis_parent
          "axis_parent_names "
          "array.";
   ObjectPtr<AxisTreeNode> node = make_object<AxisTreeNode>();
+  Map<String, Optional<String>> parent;
+  Map<Optional<String>, Array<String>> children;
   for (size_t i = 0; i < axis_names.size(); i++) {
     // update parent map & children map
     String axis_name = axis_names[i];
     Optional<String> parent_name = axis_parent_names[i];
-    node->parent[axis_name] = parent_name;
-    if (node->children.find(parent_name) != node->children.end()) {
-      node->children[parent_name].push_back(axis_name);
+    parent.Set(axis_name, parent_name);
+
+    auto it = children.find(parent_name);
+    if (it != children.end()) {
+      Array<String> value = (*it).second;
+      value.push_back(axis_name);
+      children.Set(parent_name, std::move(value));
     } else {
-      Array<String> children;
-      children.push_back(axis_name);
-      node->children[parent_name] = std::move(children);
+      Array<String> value{axis_name};
+      children.Set(parent_name, std::move(value));
     }
   }
+  node->parent = std::move(parent);
+  node->children = std::move(children);
   data_ = std::move(node);
 }
 
@@ -140,6 +149,8 @@ TVM_REGISTER_GLOBAL("tir.sparse.AxisTree")
 // SparseBuffer
 SparseBuffer::SparseBuffer(Array<Axis> axes, Buffer data, String name) {
   ObjectPtr<SparseBufferNode> node = make_object<SparseBufferNode>();
+  CHECK_GT(static_cast<int>(axes.size()), 0)
+      << "ValueError: A SparseBuffer should have at least one dimension";
   node->axes = std::move(axes);
   node->data = std::move(data);
   node->name = std::move(name);
@@ -153,26 +164,35 @@ TVM_REGISTER_GLOBAL("tir.sparse.SparseBuffer")
       return SparseBuffer(axes, data, name);
     });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SparseBufferNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SparseBufferNode*>(node.get());
+      p->stream << "sparse_buffer(" << op->name << ", [";
+      for (int i = 0, n = static_cast<int>(op->axes.size()); i < n; ++i) {
+        const Axis& axis = op->axes[i];
+        p->stream << axis;
+        if (i < n - 1) {
+          p->stream << ", ";
+        }
+      }
+      p->stream << "], " << op->data << ")";
+    });
+
 // SpIterVar
-SpIterVar::SpIterVar(Var var, PrimExpr max_extent, SpIterKind kind, bool is_reduction,
-                     Optional<Axis> axis) {
+SpIterVar::SpIterVar(Var var, PrimExpr max_extent, SpIterKind kind, bool is_reduction, Axis axis) {
   ObjectPtr<SpIterVarNode> node = make_object<SpIterVarNode>();
 
   arith::Analyzer ana;
-  if (axis.defined()) {
-    CHECK(ana.CanProveEqual(axis.value()->length, max_extent));
-  }
-  if (kind != SpIterKind::kDenseFixed) {
-    CHECK(axis.defined()) << "ValueError: To create a SpIterVar that is not fixed-dense, one must "
-                             "specify the axis over which the SpIterVar iterates";
-    const char* err_str = "ValueError: The given kind doesn't match the type of the given axis";
-    if (kind == SpIterKind::kDenseVariable) {
-      CHECK(axis.value()->IsInstance<DenseFixedAxisNode>()) << err_str;
-    } else if (kind == SpIterKind::kSparseFixed) {
-      CHECK(axis.value()->IsInstance<SparseFixedAxisNode>()) << err_str;
-    } else if (kind == SpIterKind::kSparseVariable) {
-      CHECK(axis.value()->IsInstance<SparseVariableAxisNode>()) << err_str;
-    }
+  CHECK(ana.CanProveEqual(axis->length, max_extent));
+  const char* err_str = "ValueError: The given kind doesn't match the type of the given axis";
+  if (kind == SpIterKind::kDenseFixed) {
+    CHECK(!axis->IsInstance<DenseVariableAxisNode>()) << err_str;
+  } else if (kind == SpIterKind::kDenseVariable) {
+    CHECK(axis->IsInstance<DenseVariableAxisNode>()) << err_str;
+  } else if (kind == SpIterKind::kSparseFixed) {
+    CHECK(axis->IsInstance<SparseFixedAxisNode>()) << err_str;
+  } else if (kind == SpIterKind::kSparseVariable) {
+    CHECK(axis->IsInstance<SparseVariableAxisNode>()) << err_str;
   }
 
   node->var = Var(std::move(var));
@@ -186,8 +206,7 @@ SpIterVar::SpIterVar(Var var, PrimExpr max_extent, SpIterKind kind, bool is_redu
 TVM_REGISTER_NODE_TYPE(SpIterVarNode);
 
 TVM_REGISTER_GLOBAL("tir.sparse.SpIterVar")
-    .set_body_typed([](Var var, PrimExpr max_extent, int kind, bool is_reduction,
-                       Optional<Axis> axis) {
+    .set_body_typed([](Var var, PrimExpr max_extent, int kind, bool is_reduction, Axis axis) {
       return SpIterVar(var, max_extent, SpIterKind(kind), is_reduction, axis);
     });
 

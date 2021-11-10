@@ -61,13 +61,17 @@ class DenseFixedAxis(DenseAxis):
 
     length : PrimExpr
         The length of the axis
+
+    from_sparse : Optional[SparseAxis]
+        The SparseAxis that this axis is created from
     """
 
     name: str
     length: PrimExpr
+    from_sparse: Optional[SparseAxis]
 
-    def __init__(self, name, length):
-        self.__init_handle_by_constructor__(_ffi_api.DenseFixedAxis, name, length)  # type: ignore
+    def __init__(self, name, length, from_sparse=None):
+        self.__init_handle_by_constructor__(_ffi_api.DenseFixedAxis, name, length, from_sparse)  # type: ignore
 
 
 @tvm._ffi.register_object("tir.sparse.DenseVariableAxis")
@@ -218,23 +222,22 @@ class SpIterVar(Object):
     is_reduction : bool
         Whether the SpIterVar is a reduction iterator
 
-    axis : Optional[Axis]
-        The axis over which the SpIterVar iterates. Required to be defined
-        when `kind` is not `DenseFixed`
+    axis : Axis
+        The axis over which the SpIterVar iterates
     """
 
     var: Var
     max_extent: PrimExpr
     kind: int
     is_reduction: bool
-    axis: Optional[Axis]
+    axis: Axis
 
     DenseFixed = 0
     DenseVariable = 1
     SparseFixed = 2
     SparseVariable = 3
 
-    def __init__(self, var, max_extent, kind, is_reduction, axis=None):
+    def __init__(self, var, max_extent, kind, is_reduction, axis):
         self.__init_handle_by_constructor__(
             _ffi_api.SpIterVar, var, max_extent, kind, is_reduction, axis  # type: ignore
         )

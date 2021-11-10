@@ -582,6 +582,14 @@ class TVMScriptParser(Transformer):
                 indexes,
                 span=tvm_span_from_synr(node.span),
             )
+        elif isinstance(symbol, tvm.tir.sparse.SparseBuffer):
+            # SparseBufferStore
+            return tvm.tir.SparseBufferStore(
+                symbol,
+                tvm.runtime.convert(rhs, span=rhs_span),
+                indexes,
+                span=tvm_span_from_synr(node.span),
+            )
         else:
             if len(indexes) != 1:
                 self.report_error(
@@ -876,6 +884,8 @@ class TVMScriptParser(Transformer):
             return BufferSlice(
                 symbol, indexes, self.report_error, span=tvm_span_from_synr(node.span)
             )
+        elif isinstance(symbol, tvm.tir.sparse.SparseBuffer):
+            return tvm.tir.SparseBufferLoad(symbol, indexes, span=tvm_span_from_synr(node.span))
         elif isinstance(symbol, tvm.container.Array):
             if len(indexes) > 1:
                 self.report_error(

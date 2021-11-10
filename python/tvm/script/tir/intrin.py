@@ -17,9 +17,18 @@
 """TVM Script Parser Intrinsic Classes"""
 # pylint: disable=redefined-builtin, relative-beyond-top-level
 import builtins
-from typing import List, Any
+from typing import List, Optional, Any
 
 import tvm.tir
+from tvm.ir import Span
+from tvm.tir.sparse import (
+    Axis,
+    DenseFixedAxis,
+    DenseVariableAxis,
+    SpIterVar,
+    SparseFixedAxis,
+    SparseVariableAxis,
+)
 from ..registry import register
 from ..utils import get_param_list, tvm_span_from_synr
 
@@ -244,3 +253,35 @@ def comm_reducer(lambda_io, identities, span):
         lambda_output = (lambda_output,)
 
     return tvm.tir.CommReducer(x, y, lambda_output, identities, span)
+
+
+@register
+def to_dense(axis: Axis, span: Optional[Span] = None):
+    if isinstance(axis, (SparseFixedAxis, SparseVariableAxis)):
+        return DenseFixedAxis(axis.name + "_dense", axis.length, axis)
+    else:
+        return axis
+
+
+@register
+def cord(axis: Axis, span: Optional[Span] = None):
+    # The field `var` and `is_reduction` will be updated in SparseBlock scope handler
+    var_temp = tvm.te.var()
+    if isinstance(axis, DenseVariableAxis):
+        return SpIterVar(var_temp, axis.length, SpIterVar.DenseVariable, False, axis)
+    else:
+        return SpIterVar(var_temp, axis.length, SpIterVar.DenseFixed, False, axis)
+
+
+@register
+def pos(axis: Axis, span: Optional[Span] = None):
+    # The field `var` and `is_reduction` will be updated in SparseBlock scope handler
+    var_temp = tvm.te.var()
+    if isinstance(axis, DenseFixedAxis):
+        return SpIterVar(var_temp, axis.length, SpIterVar.DenseFixed, False, axis)
+    elif isinstance(axis, DenseVariableAxis):
+        return SpIterVar(var_temp, axis.length, SpIterVar.DenseVariable, False, axis)
+    elif isinstance(axis, SparseFixedAxis):
+        return SpIterVar(var_temp, axis.length, SpIterVar.SparseFixed, False, axis)
+    else:
+        return SpIterVar(var_temp, axis.length, SpIterVar.SparseVariable, False, axis)

@@ -1058,6 +1058,28 @@ class BufferLoad(PrimExprWithOp):
         )
 
 
+@tvm._ffi.register_object("tir.SparseBufferLoad")
+class SparseBufferLoad(PrimExprWithOp):
+    """SparseBufferLoad node.
+
+    Parameters
+    ----------
+    buffer : SparseBuffer
+        The buffer to be loaded.
+
+    indices : List[PrimExpr]
+        The indices location to be loaded.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
+
+    def __init__(self, buffer, indices, span=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.SparseBufferLoad, buffer, indices, span  # type: ignore
+        )
+
+
 @tvm._ffi.register_object("tir.ProducerLoad")
 class ProducerLoad(PrimExprWithOp):
     """Producer load node.

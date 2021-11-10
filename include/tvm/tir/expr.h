@@ -656,7 +656,7 @@ class BufferLoad : public PrimExpr {
  */
 class SparseBufferLoadNode : public PrimExprNode {
  public:
-  /*! \brief The buffer variable. */
+  /*! \brief The buffer to be loaded. */
   SparseBuffer buffer;
   /*! \brief The indices location to be loaded. */
   Array<PrimExpr> indices;

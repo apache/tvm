@@ -24,14 +24,15 @@ from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
 from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, BufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuffle
+from .expr import Select, BufferLoad, SparseBufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuffle
 from .expr import Call, CallEffectKind, Let, IterVar, CommReducer, Any
 
 from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
-from .stmt import BufferStore, BufferRealize, Store, ProducerStore, Allocate, AttrStmt
+from .stmt import BufferStore, SparseBufferStore, BufferRealize, Store, ProducerStore
+from .stmt import Allocate, AttrStmt
 from .stmt import ProducerRealize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
-from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize
+from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize, SparseBlock
 
 from .function import PrimFunc
 

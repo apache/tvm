@@ -335,11 +335,11 @@ class BufferStore : public Stmt {
  *  buffer[i, j] = value;
  *
  * \endcode
- * \sa SparseBufferLoad
+ * \sa SparseBufferStore
  */
 class SparseBufferStoreNode : public StmtNode {
  public:
-  /*! \brief The buffer variable. */
+  /*! \brief The sparse buffer to be accessed. */
   SparseBuffer buffer;
   /*! \brief The value to be stored. */
   PrimExpr value;
@@ -1303,17 +1303,17 @@ class SparseBlockNode : public StmtNode {
   }
 
   bool SEqualReduce(const SparseBlockNode* other, SEqualReducer equal) const {
-    return equal(sp_iter_vars, other->sp_iter_vars) &&
-           equal(sp_struct2param_map, other->sp_struct2param_map) && equal(name, other->name) &&
-           equal(body, other->body) && equal(init, other->init);
+    return equal(sp_iter_vars, other->sp_iter_vars) && equal(name, other->name) &&
+           equal(body, other->body) && equal(init, other->init) &&
+           equal(sp_struct2param_map, other->sp_struct2param_map);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(sp_iter_vars);
-    hash_reduce(sp_struct2param_map);
     hash_reduce(name);
     hash_reduce(body);
     hash_reduce(init);
+    hash_reduce(sp_struct2param_map);
   }
 
   static constexpr const char* _type_key = "tir.SparseBlock";

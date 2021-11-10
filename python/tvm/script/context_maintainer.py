@@ -219,7 +219,7 @@ class ContextMaintainer:
         self, name: str, symbol: Union[Buffer, Var, SparseBuffer, Axis], node: synr.ast.Node
     ):
         """Append a symbol into current scope"""
-        if isinstance(symbol, (Buffer, Var, SparseBuffer, Axis)):
+        if isinstance(symbol, (Buffer, SparseBuffer, Axis)):
             if name in self.symbols[0]:
                 self.report_error("Duplicate Buffer name: " + symbol.name, node.span)
             self.symbols[0][name] = symbol

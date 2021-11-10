@@ -245,6 +245,31 @@ class BufferStore(Stmt):
         )
 
 
+@tvm._ffi.register_object("tir.SparseBufferStore")
+class SparseBufferStore(Stmt):
+    """SparseBufferStore node.
+
+    Parameters
+    ----------
+    buffer : SparseBuffer
+        The sparse buffer to be accessed.
+
+    value : PrimExpr
+        The value to be stored.
+
+    indices : List[PrimExpr]
+        The indices location to be stored.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
+
+    def __init__(self, buffer, value, indices, span=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.SparseBufferStore, buffer, value, indices, span  # type: ignore
+        )
+
+
 @tvm._ffi.register_object("tir.BufferRealize")
 class BufferRealize(Stmt):
     """Buffer realize node.

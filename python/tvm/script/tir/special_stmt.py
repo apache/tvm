@@ -32,7 +32,6 @@ from tvm.tir.sparse import (
     Axis,
     DenseFixedAxis,
     DenseVariableAxis,
-    SpIterVar,
     SparseFixedAxis,
     SparseVariableAxis,
 )
@@ -854,11 +853,16 @@ class DenseFixed(SpecialStmt):
     """Special Stmt for creating dense fixed axis."""
 
     def __init__(self):
-        def dense_fixed(name: str, length: PrimExpr, span: Optional[Span] = None):
-            var_name = self.node.lhs[0].id.name
-            axis = DenseFixedAxis(name, length)
+        def dense_fixed(length: PrimExpr, span: Optional[Span] = None):
+            names = [x.id.name for x in self.node.lhs]
+            if len(names) != 1:
+                self.context.report_error(
+                    f"`dense_fixed` expected assign to only one var, but got {names}", span
+                )
+
+            axis = DenseFixedAxis(names[0], length)
             self.context.sp_struct2param_map[axis] = []
-            self.context.update_symbol(var_name, axis, self.node)
+            self.context.update_symbol(names[0], axis, self.node)
 
         super().__init__(dense_fixed, def_symbol=True)
 
@@ -869,21 +873,25 @@ class DenseVariable(SpecialStmt):
 
     def __init__(self):
         def dense_variable(
-            name: str,
             shape: Tuple[PrimExpr, PrimExpr],
             indptr_var: tvm.tir.Var,
             idtype: str = "int32",
             span: Optional[Span] = None,
         ):
-            indptr_len, length = shape
-            var_name = self.node.lhs[0].id.name
+            names = [x.id.name for x in self.node.lhs]
+            if len(names) != 1:
+                self.context.report_error(
+                    f"`dense_variable` expected assign to only one var, but got {names}", span
+                )
+
+            length, indptr_len = shape
             indptr_buf = tvm.tir.decl_buffer(
-                (indptr_len,), dtype=idtype, name=name + "_indptr", span=span
+                (indptr_len,), dtype=idtype, name=names[0] + "_indptr", span=span
             )
-            axis = DenseVariableAxis(name, length, indptr_buf)
-            self.context.sp_struct2param_map[axis] = indptr_var
-            self.context.update_symbol(var_name, axis, self.node)
-            self.context.update_symbol(name + "_indptr", indptr_buf, self.node)
+            axis = DenseVariableAxis(names[0], length, indptr_buf)
+            self.context.sp_struct2param_map[axis] = [indptr_var]
+            self.context.update_symbol(names[0], axis, self.node)
+            self.context.update_symbol(names[0] + "_indptr", indptr_buf, self.node)
 
         super().__init__(dense_variable, def_symbol=True)
 
@@ -894,21 +902,25 @@ class SparseFixed(SpecialStmt):
 
     def __init__(self):
         def sparse_fixed(
-            name: str,
             shape: Tuple[PrimExpr, PrimExpr, PrimExpr],
             indices_var: tvm.tir.Var,
             idtype: str = "int32",
             span: Optional[Span] = None,
         ):
-            var_name = self.node.lhs[0].id.name
+            names = [x.id.name for x in self.node.lhs]
+            if len(names) != 1:
+                self.context.report_error(
+                    f"`sparse_fixed` expected assign to only one var, but got {names}", span
+                )
+
             length, nnz, nnz_cols = shape
             indices_buf = tvm.tir.decl_buffer(
-                (nnz,), dtype=idtype, name=name + "_indices", span=span
+                (nnz,), dtype=idtype, name=names[0] + "_indices", span=span
             )
-            axis = SparseFixedAxis(name, length, indices_buf, nnz_cols)
+            axis = SparseFixedAxis(names[0], length, indices_buf, nnz_cols)
             self.context.sp_struct2param_map[axis] = [indices_var]
-            self.context.update_symbol(var_name, axis, self.node)
-            self.context.update_symbol(name + "_indices", indices_buf, self.node)
+            self.context.update_symbol(names[0], axis, self.node)
+            self.context.update_symbol(names[0] + "_indices", indices_buf, self.node)
 
         super().__init__(sparse_fixed, def_symbol=True)
 
@@ -919,26 +931,30 @@ class SparseVariable(SpecialStmt):
 
     def __init__(self):
         def sparse_variable(
-            name: str,
             shape: Tuple[PrimExpr, PrimExpr, PrimExpr],
             data: Tuple[tvm.tir.Var, tvm.tir.Var],
             idtype: str = "int32",
             span: Optional[Span] = None,
         ):
-            var_name = self.node.lhs[0].id.name
+            names = [x.id.name for x in self.node.lhs]
+            if len(names) != 1:
+                self.context.report_error(
+                    f"`sparse_variable` expected assign to only one var, but got {names}", span
+                )
+
             length, indptr_len, nnz = shape
             indptr_var, indices_var = data
             indptr_buf = tvm.tir.decl_buffer(
-                (indptr_len,), dtype=idtype, name=name + "_indptr", span=span
+                (indptr_len,), dtype=idtype, name=names[0] + "_indptr", span=span
             )
             indices_buf = tvm.tir.decl_buffer(
-                (nnz,), dtype=idtype, name=name + "_indices", span=span
+                (nnz,), dtype=idtype, name=names[0] + "_indices", span=span
             )
-            axis = SparseVariableAxis(name, length, indptr_buf, indices_buf)
+            axis = SparseVariableAxis(names[0], length, indptr_buf, indices_buf)
             self.context.sp_struct2param_map[axis] = [indptr_var, indices_var]
-            self.context.update_symbol(var_name, axis, self.node)
-            self.context.update_symbol(name + "_indptr", indptr_buf, self.node)
-            self.context.update_symbol(name + "_indices", indices_buf, self.node)
+            self.context.update_symbol(names[0], axis, self.node)
+            self.context.update_symbol(names[0] + "_indptr", indptr_buf, self.node)
+            self.context.update_symbol(names[0] + "_indices", indices_buf, self.node)
 
         super().__init__(sparse_variable, def_symbol=True)
 
@@ -980,35 +996,3 @@ class MatchSparseBuffer(SpecialStmt):
                 )
 
         super().__init__(match_sparse_buffer, def_symbol=True)
-
-
-@register
-def to_dense(axis: Axis, span: Optional[Span] = None):
-    if isinstance(axis, (SparseFixedAxis, SparseVariableAxis)):
-        return DenseFixedAxis(axis.name + "_dense", axis.length)
-    else:
-        return axis
-
-
-@register
-def cord(axis: Axis, span: Optional[Span] = None):
-    # The field `var` and `is_reduction` will be updated in SparseBlock scope handler
-    var_temp = tvm.te.var()
-    if isinstance(axis, DenseVariableAxis):
-        return SpIterVar(var_temp, axis.length, SpIterVar.DenseVariable, False, axis)
-    else:
-        return SpIterVar(var_temp, axis.length, SpIterVar.DenseFixed, False)
-
-
-@register
-def pos(axis: Axis, span: Optional[Span] = None):
-    # The field `var` and `is_reduction` will be updated in SparseBlock scope handler
-    var_temp = tvm.te.var()
-    if isinstance(axis, DenseFixedAxis):
-        return SpIterVar(var_temp, axis.length, SpIterVar.DenseFixed, False)
-    elif isinstance(axis, DenseVariableAxis):
-        return SpIterVar(var_temp, axis.length, SpIterVar.DenseVariable, False, axis)
-    elif isinstance(axis, SparseFixedAxis):
-        return SpIterVar(var_temp, axis.length, SpIterVar.SparseFixed, False, axis)
-    else:
-        return SpIterVar(var_temp, axis.length, SpIterVar.SparseVariable, False, axis)
