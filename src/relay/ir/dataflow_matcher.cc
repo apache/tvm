@@ -213,6 +213,14 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
     }
     return false;
   };
+  auto is_commutative_op = [&get_op_node](const CallPatternNode* op_node) {
+    if (const auto* op_node_ = get_op_node(op_node)) {
+      if ((op_node_->name == "add") || (op_node_->name == "multiply")) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   // logic
   auto watermark = matched_nodes_.size();
@@ -247,7 +255,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
       }
       // Commutative Matching
       if (const OpNode* op_node = get_op_node(op)) {
-        if ((op_node->name == "add") || (op_node->name == "multiply")) {
+        if (is_commutative_op(op)) {
           if (match_args(reverse(op->args), call_node->args)) {
             return true;
           }
