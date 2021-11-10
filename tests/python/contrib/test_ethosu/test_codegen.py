@@ -575,7 +575,7 @@ def test_ethosu_right_shift_binary_elemwise(
 
     output_data = np.array(
         [rounding_right_shift(x[0], x[1]) for x in zip(lhs.flat, rhs.flat)]
-    ).astype("int32")
+    ).astype(ofm_dtype)
 
     compiled_model = infra.build_source(mod, input_data, [output_data], accel_type)
 

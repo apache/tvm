@@ -40,6 +40,7 @@ def binary_elementwise_compute(
     ifm_layout: str,
     ifm2_layout: str,
     ofm_layout: str,
+    ofm_dtype: str,
 ) -> te.Tensor:
     """A compute operator representing the capabilities of binary_elementwise for the NPU.
 
@@ -96,6 +97,17 @@ def binary_elementwise_compute(
         The layout of the Input Feature Map tensor 2. Can be "NHWC" or "NHCWB16".
     ofm_layout : str, optional
         The layout of the Output Feature Map tensor. Can be "NHWC" or "NHCWB16".
+    ofm_dtype: str
+        The Output Feature Map tensor type.
+        MUL, ADD, SUB {IFM}->{OFM}:
+          {uint8, int8 int32} -> {uint8, int8, int32}, any pairing
+        MAX, MIN:
+          IFM and OFM must be of the same type, one of:
+          {int8, uint8}
+        SHR {IFM}->{OFM}:
+          {int32}->{int8, uint8, int32}, any pairing"
+        SHL:
+          {int32}->{int32} only
 
     Returns
     -------
@@ -145,7 +157,7 @@ def binary_elementwise_compute(
                     0 if broadcast[3] else cc,
                 ).astype(ifm.dtype),
                 dmaed_ifm(nn, hh, ww, cc).astype(ifm.dtype),
-            ),
+            ).astype(ofm_dtype),
             name="ethosu_binary_elementwise",
             attrs=binary_elementwise_attrs,
         )
@@ -160,7 +172,7 @@ def binary_elementwise_compute(
                     0 if broadcast[2] else ww,
                     0 if broadcast[3] else cc,
                 ).astype(ifm.dtype),
-            ),
+            ).astype(ofm_dtype),
             name="ethosu_binary_elementwise",
             attrs=binary_elementwise_attrs,
         )

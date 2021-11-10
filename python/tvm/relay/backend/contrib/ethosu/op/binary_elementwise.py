@@ -47,6 +47,7 @@ def _extract_ethosu_binary_elementwise_params(attrs, args):
     ifm_layout = attrs.ifm_layout
     ifm2_layout = attrs.ifm2_layout
     ofm_layout = attrs.ofm_layout
+    ofm_dtype = attrs.ofm_dtype
 
     return (
         ifm,
@@ -67,6 +68,7 @@ def _extract_ethosu_binary_elementwise_params(attrs, args):
         ifm_layout,
         ifm2_layout,
         ofm_layout,
+        ofm_dtype,
     )
 
 

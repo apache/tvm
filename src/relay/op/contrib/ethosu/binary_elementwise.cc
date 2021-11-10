@@ -102,19 +102,17 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
     TVM_ATTR_FIELD(ofm_layout)
         .describe("The layout of the Output Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.")
         .set_default("NHWC");
-    TVM_ATTR_FIELD(ofm_dtype)
-        .describe(
-            "The Output Feature Map tensor type."
-            "MUL, ADD, SUB {IFM}->{OFM}:"
-            "  {uint8, int8 int32} -> {uint8, int8, int32}, any pairing"
-            "MAX, MIN:"
-            "  IFM and OFM must be of the same type, one of:"
-            "  {int8, uint8}"
-            "SHR {IFM}->{OFM}:"
-            "  {int32}->{int8, uint8, int32}, any pairing"
-            "SHL:"
-            "  {int32}->{int32} only")
-        .set_default("NHWC");
+    TVM_ATTR_FIELD(ofm_dtype).describe(
+        "The Output Feature Map tensor type."
+        "MUL, ADD, SUB {IFM}->{OFM}:"
+        "  {uint8, int8 int32} -> {uint8, int8, int32}, any pairing"
+        "MAX, MIN:"
+        "  IFM and OFM must be of the same type, one of:"
+        "  {int8, uint8}"
+        "SHR {IFM}->{OFM}:"
+        "  {int32}->{int8, uint8, int32}, any pairing"
+        "SHL:"
+        "  {int32}->{int32} only");
   }
 };
 

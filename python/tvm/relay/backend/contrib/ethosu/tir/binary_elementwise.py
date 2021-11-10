@@ -23,6 +23,24 @@ from .dma import get_ifm_params, get_ofm_params
 from .spec import SerialActivation, SerialBinaryElementwise
 
 
+def ignore_cast(tir_load: tvm.tir.expr.Load) -> tvm.tir.Var:
+    """When the datatype of the ifm, ifm2 and ofm do not match,
+    casts are inserted in TE to handle the difference in these types.
+    Since TIR is not directly run on the NPU we can simply ignore
+    these, and allow the NPU to handle the difference in datatypes
+    itself.
+
+    Parameters
+    ----------
+    tir_load : tvm.tir.expr.Load
+
+    Returns
+    -------
+    tvm.tir.Var
+    """
+    return tir_load.value if isinstance(tir_load, tvm.tir.Cast) else tir_load
+
+
 def get_binary_elementwise_params(
     stmt: tvm.tir.AttrStmt,
     producers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
@@ -55,8 +73,10 @@ def get_binary_elementwise_params(
     reversed_operands = attrs["reversed_operands"]
 
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
-    input_pointer = inner.value.a.buffer_var
-    input_pointer1 = inner.value.b.buffer_var
+    op = ignore_cast(inner.value)
+    input_pointer = ignore_cast(op.a).buffer_var
+    input_pointer1 = ignore_cast(op.b).buffer_var
+
     if reversed_operands:
         input_pointer, input_pointer1 = input_pointer1, input_pointer
     output_pointer = inner.buffer_var
