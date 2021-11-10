@@ -26,6 +26,7 @@
 #include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
@@ -44,6 +45,7 @@
 #include "../backend/te_compiler.h"
 #include "../backend/te_compiler_cache.h"
 #include "../op/annotation/annotation.h"
+#include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
 #include "../op/memory/memory.h"
 #include "../op/vm/vm.h"
@@ -74,12 +76,11 @@ bool IsReshapeOnly(const Expr& expr) {
     return func->HasNonzeroAttr(attr::kReshapeOnly);
   }
   if (const CallNode* call = expr.as<CallNode>()) {
-    if (call->attrs.defined()) {
-      if (auto tir_call_attrs = call->attrs.as<TIRCallAttrs>()) {
-        Map<String, ObjectRef> metadata = tir_call_attrs->metadata;
-        return metadata.count(attr::kReshapeOnly) &&
-               (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
-      }
+    if (call->op == CallLoweredOp()) {
+      CallLoweredProps call_lowered_props = GetCallLoweredProps(call);
+      Map<String, ObjectRef> metadata = call_lowered_props.attrs.metadata;
+      return metadata.count(attr::kReshapeOnly) &&
+             (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
     }
   }
   return false;
@@ -377,7 +378,8 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
     }
 
     Tuple tuple_outs(outs);
-    auto invoke = OnDevice(InvokeTVMOp(func, ins, tuple_outs), dev.device_type, /*is_fixed=*/true);
+    auto call = InvokeTVMOp(func, ins, tuple_outs);
+    auto invoke = OnDevice(call, dev.device_type, /*is_fixed=*/true);
     scope->Push(invoke);
     return ToTupleType(ret_type,
                        std::vector<Expr>(tuple_outs->fields.begin(), tuple_outs->fields.end()));
