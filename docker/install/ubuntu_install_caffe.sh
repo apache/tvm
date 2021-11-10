@@ -26,7 +26,6 @@ apt-get update --fix-missing
 apt-get install -y --no-install-recommends libboost-filesystem-dev libboost-python-dev \
     libboost-system-dev libboost-thread-dev libboost-regex-dev protobuf-compiler \
     libprotobuf-dev libhdf5-serial-dev libopenblas-dev libgflags-dev libgoogle-glog-dev
-rm -rf /var/lib/apt/lists/*
 
 # install python packages
 pip install "numpy>=1.7.1"
