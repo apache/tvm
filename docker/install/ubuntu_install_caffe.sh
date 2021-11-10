@@ -44,11 +44,11 @@ echo "Building Caffe"
 mkdir /caffe_src/build && cd /caffe_src/build
 cmake .. -DCMAKE_INSTALL_PREFIX=${CAFFE_HOME} -DCMAKE_BUILD_TYPE=Release -DCPU_ONLY=1 \
     -Dpython_version=3 -DUSE_OPENCV=OFF -DUSE_LEVELDB=OFF -DUSE_LMDB=OFF -DBUILD_docs=OFF -DBLAS=open
-make all -j`nproc`
-make pycaffe -j`nproc`
-make test -j`nproc`
-make runtest -j`nproc`
-make pytest -j`nproc`
+make all -j$(expr $(nproc) - 1)
+make pycaffe -j$(expr $(nproc) - 1)
+make test -j$(expr $(nproc) - 1)
+make runtest -j$(expr $(nproc) - 1)
+make pytest -j$(expr $(nproc) - 1)
 
 echo "Installing Caffe to /opt/caffe"
 make install
