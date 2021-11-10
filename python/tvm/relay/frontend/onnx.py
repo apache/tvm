@@ -1461,9 +1461,8 @@ class Split(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         splits = attr.get("split", None)
-        if splits is not None:
+        if splits is not None and len(splits) > 1:
             indices = []
-            attr["indices_or_sections"] = []
             index = 0
             for i in splits[:-1]:
                 index += i
