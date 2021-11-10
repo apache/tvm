@@ -107,7 +107,12 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    this->HandleUse(op->buffer_var);
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    this->HandleUse(op->buffer->data);
     return StmtExprMutator::VisitStmt_(op);
   }
 
@@ -155,8 +160,31 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    this->HandleUse(op->buffer_var);
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    this->HandleUse(op->buffer->data);
     return StmtExprMutator::VisitExpr_(op);
+  }
+
+  void VisitBuffer(Buffer buffer) {
+    this->HandleUse(buffer->data);
+    auto visit_arr = [&](Array<PrimExpr> arr) {
+      for (const auto& element : arr) {
+        this->VisitExpr(element);
+      }
+    };
+
+    visit_arr(buffer->shape);
+    visit_arr(buffer->strides);
+    if (buffer->pre_flattened_shape) {
+      visit_arr(buffer->pre_flattened_shape.value());
+    }
+    if (buffer->pre_flattened_strides) {
+      visit_arr(buffer->pre_flattened_strides.value());
+    }
   }
 
   void HandleDef(const VarNode* v) {

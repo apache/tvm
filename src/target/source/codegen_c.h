@@ -126,6 +126,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // expression
   void VisitExpr_(const VarNode* op, std::ostream& os) override;        // NOLINT(*)
   void VisitExpr_(const LoadNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const BufferLoadNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const LetNode* op, std::ostream& os) override;        // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) override;       // NOLINT(*)
   void VisitExpr_(const AddNode* op, std::ostream& os) override;        // NOLINT(*)
@@ -155,6 +156,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // statment
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -206,7 +208,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * does not implement volatile member functions. CUDA codegen will cast
    * away volatile qualifier from CUDA __half types.
    */
-  virtual void HandleVolatileLoads(const std::string& value, const LoadNode* op, std::ostream& os) {
+  virtual void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+                                   std::ostream& os) {
     // By default, do nothing but print the loaded value.
     os << value;
   }

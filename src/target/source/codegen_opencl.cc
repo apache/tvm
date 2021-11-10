@@ -337,13 +337,17 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 }
 
 void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+}
+
+void CodeGenOpenCL::VisitStmt_(const BufferStoreNode* op) {
   if (auto call = op->value.as<CallNode>()) {
     if (call->op.same_as(builtin::texture2d_load())) {
       need_texture_ssa_ = false;
       // If storing a texture load into a buffer, don't use an
       // intermediate local unless the buffer allocation is a
       // single element selected from the texture read.
-      auto it = allocation_size_.find(op->buffer_var.get());
+      auto it = allocation_size_.find(op->buffer->data.get());
       if (it != allocation_size_.end() && it->second == 1) {
         need_texture_ssa_ = true;
       }
