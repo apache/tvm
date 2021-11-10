@@ -416,7 +416,7 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
             for name in mlf_package.getnames()
             if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
         ]
-        assert len(c_source_files) == 3
+        assert len(c_source_files) == 4
 
 
 @pytest.mark.skipif(
