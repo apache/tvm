@@ -24,6 +24,7 @@
 
 #include "./device_copy.h"
 
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
@@ -31,6 +32,8 @@
 #include <tvm/topi/elemwise.h>
 
 #include "../../transforms/infer_layout_utils.h"
+#include "../annotation/annotation.h"
+#include "../call/call.h"
 #include "../type_relations.h"
 
 namespace tvm {
@@ -86,6 +89,7 @@ on different devices.
                              return {topi::identity(inputs[0])};
                            });
 
+// Get device copy props for original device copy op
 DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node) {
   if (call_node->op == DeviceCopyOp()) {
     ICHECK_EQ(call_node->args.size(), 1) << "device_copy expects one argument";
@@ -102,6 +106,19 @@ DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node) {
       return {inner.body, inner.src_dev_type, inner.dst_dev_type};
     } else {
       return {call_node->args[0], src_dev_type, dst_dev_type};
+    }
+  } else if (call_node->op == CallLoweredOp()) {
+    /* Get device props for a TIR function */
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+
+    if (call_lowered_props.attrs.metadata.count("source_device") == 1 &&
+        call_lowered_props.attrs.metadata.count("dst_device") == 1) {
+      ICHECK_EQ(call_lowered_props.arguments.size(), 1) << "device_copy is of arity 1";
+      return {call_lowered_props.lowered_func,
+              static_cast<DLDeviceType>(
+                  Downcast<Integer>(call_lowered_props.attrs.metadata["source_device"])->value),
+              static_cast<DLDeviceType>(
+                  Downcast<Integer>(call_lowered_props.attrs.metadata["dst_device"])->value)};
     }
   }
   return {};
