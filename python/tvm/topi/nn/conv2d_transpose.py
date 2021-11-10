@@ -39,6 +39,7 @@ _pair = _ntuple(2)
 _triple = _ntuple(3)
 _quadruple = _ntuple(4)
 
+
 def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype, output_padding):
     """Transposed 2D convolution nchw forward operator.
 
@@ -131,25 +132,63 @@ def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype,
     return Output
 
 
-def group_conv2d_transpose_nchw(data, kernel, strides=1, padding=0, output_padding=0, groups=1, dilation=1, out_dtype=None):
+def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output_padding, groups):
+    """Group convolution operator in NCHW layout.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        4-D with shape [batch, in_channel, in_height, in_width]
+    
+    kernel : tvm.te.Tensor
+        4-D with shape [in_channel, out_channel // groups, filter_height, filter_width]
+    
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+    
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
+    
+    out_dtype : str
+        The output data type. This is used for mixed precision.
+    
+    output_padding : tuple of ints
+        Used to get the right output shape for gradients
+    
+    groups : int
+        number of groups
+    
+    out_dtype : str
+        The output type. This is used for mixed precision.
+    
+    Returns
+    -------
+    Output : tvm.te.Tensor
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    if groups == 1:
+        return conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output_padding)
+    
     # some pre-processing and prelimnary checks 
     if out_dtype is None:
         out_dtype = data.dtype
 
-    # strides = _pair(strides)
+    batch, in_c, in_h, in_w = data.shape
+    _, out_c, filter_h, filter_w = kernel.shape
+    # assert in_channels % groups == 0, "input channels must divide group size"
+    assert out_c % groups == 0, "output channels must divide group size"
+
+    strides = _pair(strides)
     # padding = _pair(padding)
     # output_padding = _pair(output_padding)
     # dilation = _pair(dilation)
-    batch, in_channels, in_height, in_width = data.shape
-    _, out_c, filter_h, filter_w = kernel.shape
-    assert in_channels % groups == 0, "input channels must divide group size"
-    # assert out_c % groups == 0, "output channels must divide group size"
-
-    batch, in_c, in_h, in_w = data.shape
-    _, out_c, filter_h, filter_w = kernel.shape
+    
     stride_h, stride_w = strides
     opad_h, opad_w = output_padding
-    assert opad_h < stride_h and opad_w < stride_w, f"[{output_padding}] opad_h:{opad_h} < stride_h:{stride_h} and opad_w:{opad_w} < stride_w:{stride_w} does not satisfy."
+    assert opad_h < stride_h and opad_w < stride_w, \
+        f"[{output_padding}] opad_h:{opad_h} < stride_h:{stride_h} and opad_w:{opad_w} < stride_w:{stride_w} does not satisfy."
     # dilate data
     data_dilate = dilate(data, [1, 1, stride_h, stride_w], name="data_dilate")
     # pad data
@@ -200,7 +239,7 @@ def group_conv2d_transpose_nchw(data, kernel, strides=1, padding=0, output_paddi
             ].astype(out_dtype),
             axis=[dc, dh, dw],
         ),
-        tag="conv2d_transpose_nchw",
+        tag="group_conv2d_transpose_nchw",
     )
 
 
