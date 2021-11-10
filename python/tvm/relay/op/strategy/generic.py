@@ -477,11 +477,6 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
     assert dilation == (1, 1), "not support dilate now"
     # assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    # strategy.add_implementation(
-    #     wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
-    #     wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
-    #     name="conv2d_transpose_nchw.generic",
-    # )
     if groups == 1:
         strategy.add_implementation(
             wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
