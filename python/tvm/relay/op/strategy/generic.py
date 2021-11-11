@@ -475,7 +475,6 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
     groups = attrs.groups
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
-    # assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
     if groups == 1:
         strategy.add_implementation(
@@ -1189,12 +1188,7 @@ def wrap_compute_all_class_nms(topi_compute):
         score_threshold = inputs[4]
         output_format = attrs.output_format
         return topi_compute(
-            inputs[0],
-            inputs[1],
-            max_output_size,
-            iou_threshold,
-            score_threshold,
-            output_format,
+            inputs[0], inputs[1], max_output_size, iou_threshold, score_threshold, output_format,
         )
 
     return _compute_nms

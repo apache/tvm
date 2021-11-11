@@ -281,13 +281,7 @@ def conv2d_transpose_strategy_cpu(attrs, inputs, out_type, target):
     groups = attrs.groups
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
-    # assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    # strategy.add_implementation(
-    #     wrap_compute_conv2d_transpose(topi.x86.conv2d_transpose_nchw),
-    #     wrap_topi_schedule(topi.x86.schedule_conv2d_transpose_nchw),
-    #     name="conv2d_transpose_nchw.x86",
-    # )
     if groups == 1:
         strategy.add_implementation(
             wrap_compute_conv2d_transpose(topi.x86.conv2d_transpose_nchw),
@@ -331,9 +325,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
         # or packed layouts.
         if layout == "NCDHW":
             strategy.add_implementation(
-                wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
-                naive_schedule,
-                name="conv3d_ncdhw.x86",
+                wrap_compute_conv3d(topi.nn.conv3d_ncdhw), naive_schedule, name="conv3d_ncdhw.x86",
             )
         elif layout == "NDHWC":
             strategy.add_implementation(
@@ -452,9 +444,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
                 "Recommend to use cblas/mkl/mkldnn for better performance."
             )
         strategy.add_implementation(
-            wrap_compute_matmul(topi.nn.matmul),
-            naive_schedule,
-            name="matmul.generic",
+            wrap_compute_matmul(topi.nn.matmul), naive_schedule, name="matmul.generic",
         )
     return strategy
 
