@@ -39,7 +39,7 @@ from tvm.relay.backend import te_compiler
 from tvm.relay.backend.te_compiler import TECompiler
 from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
-
+from tvm.micro.testing import mlf_extract_workspace_size_bytes
 
 _LOG = logging.getLogger(__name__)
 
@@ -538,12 +538,6 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
         header_file.write("};\n\n")
 
 
-def extract_main_workspace_size_bytes(extract_dir):
-    with open(os.path.join(extract_dir, "metadata.json")) as json_f:
-        metadata = json.load(json_f)
-        return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
-
-
 def compile_models(
     models: Union[List[AOTTestModel], AOTTestModel],
     interface_api: str,
@@ -626,7 +620,7 @@ def run_and_check(
         t.extractall(base_path)
 
         workspace_bytes += model.extra_memory_in_bytes
-        workspace_bytes += extract_main_workspace_size_bytes(base_path)
+        workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
 
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)

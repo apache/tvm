@@ -35,9 +35,6 @@ from tvm.target import Target
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
 
-pytest.importorskip("tvm.micro.testing")
-from tvm.micro.testing import check_tune_log
-
 BUILD = True
 DEBUG = False
 
@@ -222,6 +219,7 @@ def test_platform_timer():
 def test_autotune():
     """Verify that autotune works with micro."""
     import tvm.relay as relay
+    from tvm.micro.testing import check_tune_log
 
     data = relay.var("data", relay.TensorType((1, 3, 64, 64), "float32"))
     weight = relay.var("weight", relay.TensorType((8, 3, 5, 5), "float32"))

@@ -34,32 +34,31 @@ Before installing Arm Compute Library, it is important to know what architecture
 to determine this is to use `lscpu` and look for the "Model name" of the CPU. You can then use this to
 determine the architecture by looking online.
 
-We recommend two different ways to build and install ACL:
+TVM only supports a single version of ACL, currently this is v21.08, there are two recommended ways to build and install 
+the required libraries:
 
-* Use the script located at `docker/install/ubuntu_install_arm_compute_lib.sh`. You can use this
-  script for building ACL from source natively or for cross-compiling the library on an x86 machine.
-  You may need to change the architecture of the device you wish to compile for by altering the
-  `target_arch` variable. Binaries will be built from source and installed to the location denoted by
-  `install_path`.
-* Alternatively, you can download and use pre-built binaries from:
+* Use the script located at `docker/install/ubuntu_download_arm_compute_lib_binaries.sh`. You can use this
+  script for downloading ACL binaries for the architecture and extensions specified in `target_lib`, these
+  will be installed to the location denoted by `install_path`.
+* Alternatively, you can download the pre-built binaries from:
   https://github.com/ARM-software/ComputeLibrary/releases. When using this package, you will need to
-  select the binaries for the architecture you require and make sure they are visible to cmake. This
-  can be done like so:
+  select the binaries for the architecture and extensions you require, then make sure they are visible
+  to CMake:
 
   .. code:: bash
 
       cd <acl-prebuilt-package>/lib
-      mv ./linux-<architecture-to-build-for>-neon/* .
+      mv ./<architecture-and-extensions-required>/* .
 
 
 In both cases you will need to set USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR to the path where the ACL package
-is located. Cmake will look in /path-to-acl/ along with /path-to-acl/lib and /path-to-acl/build for the
+is located. CMake will look in /path-to-acl/ along with /path-to-acl/lib and /path-to-acl/build for the
 required binaries. See the section below for more information on how to use these configuration options.
 
 Building with ACL support
 -------------------------
 
-The current implementation has two separate build options in cmake. The reason for this split is
+The current implementation has two separate build options in CMake. The reason for this split is
 because ACL cannot be used on an x86 machine. However, we still want to be able compile an ACL
 runtime module on an x86 machine.
 
@@ -73,7 +72,7 @@ need to use USE_ARM_COMPUTE_LIB=ON on the x86 machine and USE_ARM_COMPUTE_LIB_GR
 AArch64 device.
 
 By default both options are set to OFF. Using USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR=ON will mean that ACL
-binaries are searched for by cmake in the default locations
+binaries are searched for by CMake in the default locations
 (see https://cmake.org/cmake/help/v3.4/command/find_library.html). In addition to this,
 /path-to-tvm-project/acl/ will also be searched. It is likely that you will need to set your own path to
 locate ACL. This can be done by specifying a path in the place of ON.

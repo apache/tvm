@@ -1437,8 +1437,8 @@ class Parser {
                   String attr_key = Downcast<String>(raw_attrs["attrs_type_key"]);
                   if (attr_key.size()) {
                     raw_attrs.erase("attrs_type_key");
-                    auto tbl = tvm::ReflectionVTable::Global();
-                    auto attr_obj = tbl->CreateObject(attr_key, raw_attrs);
+                    auto attr_obj =
+                        tvm::ReflectionVTable::Global()->CreateObject(attr_key, raw_attrs);
                     ICHECK(attr_obj.defined());
                     attrs = Downcast<Attrs>(attr_obj);
                   }
@@ -1955,7 +1955,8 @@ TVM_REGISTER_GLOBAL("parser.ParseExpr")
 TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed([]() {
   return CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) {
-        auto text = AsText(mod, true);
+        String text = AsText(mod, /*show_meta_data=*/true);
+        VLOG(1) << "AnnotateSpans intermediate text:" << std::endl << text;
         return ParseModule("GeneratedSource", text);
       },
       0, "AnnotateSpans", {});

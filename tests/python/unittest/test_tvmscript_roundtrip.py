@@ -3155,5 +3155,26 @@ def test_primfunc_with_multiple_commreducer():
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
 
+@T.prim_func
+def func_div_mod():
+    a = T.var("int32")
+    b = T.var("int32")
+    T.evaluate(a // b)
+    T.evaluate(a % b)
+    T.evaluate(a / b)
+    T.evaluate(T.truncmod(a, b))
+
+
+def test_div_mod():
+    func = func_div_mod
+    rt_func = tvm.script.from_source(func.script())
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+    assert isinstance(func.body[0].value, tvm.tir.FloorDiv)
+    assert isinstance(func.body[1].value, tvm.tir.FloorMod)
+    assert isinstance(func.body[2].value, tvm.tir.Div)
+    assert isinstance(func.body[3].value, tvm.tir.Mod)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -344,6 +344,34 @@ def test_vectorize():
 
 
 @tvm.testing.requires_gpu
+def test_vectorize_half():
+    N = 1024
+
+    A = te.placeholder((N, N), name="A", dtype="float16")
+    B = te.compute((N, N), lambda i, j: A[i, j])
+
+    s = te.create_schedule([B.op])
+
+    i, j = s[B].op.axis
+
+    s[B].bind(i, te.thread_axis("blockIdx.x"))
+    jo, ji = s[B].split(j, factor=8)
+    s[B].bind(jo, te.thread_axis("threadIdx.x"))
+    s[B].vectorize(ji)
+
+    for target in ["opencl", "cuda"]:
+        if not tvm.testing.device_enabled(target):
+            continue
+
+        valid = [None]
+        with tvm.transform.PassContext(
+            config={"tir.add_lower_pass": [(2, get_verify_pass(valid, max_vector_bytes=16))]}
+        ):
+            tvm.lower(s, [A, B])
+        assert valid[0]
+
+
+@tvm.testing.requires_gpu
 def test_vthread():
     N = 1024
 
@@ -409,5 +437,6 @@ if __name__ == "__main__":
     test_multiple_kernels()
     test_wrong_bind()
     test_vectorize()
+    test_vectorize_half()
     test_vthread()
     test_redundant_kernels()

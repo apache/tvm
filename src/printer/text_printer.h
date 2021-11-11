@@ -77,9 +77,42 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   // numbers to be reused and prevents hoisted vars from escaping too far
   Doc PrintScope(const ObjectRef& node);
   Doc PrintFinal(const ObjectRef& node);
-  Doc PrintAttrs(const Attrs& attrs);
+
+  /*!
+   * \brief Returns \p attrs printed using the generic attribute visitor, as a sequence
+   * of key=value entries, if any.
+   */
+  void AppendGenericAttrs(std::vector<Doc>* docs, const Attrs& attrs, bool include_type_key);
+
+  /*!
+   * \brief Returns \p attrs printed as a sequence of key=value entries, if any.
+   * This is used for call attributes.
+   */
   std::vector<Doc> PrintCallAttrs(const Attrs& attrs, const Expr& op);
-  std::vector<Doc> PrintFuncAttrs(const Attrs& attrs);
+
+  /*!
+   * \brief Returns \p dict_attrs printed as a sequence of key=value entries, if any.
+   * This is used for function definition attributes.
+   */
+  std::vector<Doc> PrintDictAttrs(const DictAttrs& dict_attrs);
+  std::vector<Doc> PrintDictAttrs(const Map<String, ObjectRef>& dict_attrs);
+
+  /*!
+   * \brief Returns \p value printed as the rhs of an attribute key=value entry. If \p force_meta
+   * is true then value is printed in meta[...] for irrespective of the show_meta_data_ flag.
+   */
+  Doc PrintAttributeValue(const ObjectRef& value, bool force_meta = false);
+
+  /*!
+   * \brief Returns \p attrs printed as a self-contained value, ie wrapped in braces.
+   */
+  Doc PrintAttrsAsAttributeValue(const Attrs& attrs);
+
+  /*!
+   * \brief Returns \p map printed as a self-contained value, ie wrapped in braces.
+   */
+  Doc PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& map);
+
   Doc PrintSpan(const Span& span);
 
   Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false);
@@ -162,7 +195,6 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   //------------------------------------
   // Overload of Attr printing functions
   //------------------------------------
-  Doc PrintAttr(const ObjectRef& value, bool meta = false);
   Doc VisitAttrDefault_(const Object* op) final;
   Doc VisitAttr_(const ArrayNode* op) final;
   Doc VisitAttr_(const tir::IntImmNode* op) final;

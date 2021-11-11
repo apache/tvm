@@ -70,7 +70,8 @@ CCacheKey::CCacheKey(Function source_func, Target target) {
 
 CachedFunc::CachedFunc(tvm::Target target, GlobalVar prim_fn_var, tvm::Array<te::Tensor> inputs,
                        tvm::Array<te::Tensor> outputs, te::Schedule schedule,
-                       tvm::Array<Integer> shape_func_param_states, IRModule funcs) {
+                       tir::PrimFunc prim_func, tvm::Array<Integer> shape_func_param_states,
+                       IRModule funcs) {
   auto n = make_object<CachedFuncNode>();
   n->target = target;
   n->prim_fn_var = prim_fn_var;
@@ -117,11 +118,12 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
         create_schedule_(create_schedule) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
+    use_meta_schedule_ = backend::IsMetaScheduleEnabled();
   }
 
-  CachedFunc Create(const Function& prim_func, std::function<std::string(std::string)> renamer) {
+  CachedFunc Create(const Function& relay_func, std::function<std::string(std::string)> renamer) {
     Array<tvm::te::Tensor> fn_inputs;
-    for (Var param : prim_func->params) {
+    for (Var param : relay_func->params) {
       Array<tvm::te::Tensor> inputs;
       for (const auto& ttype : FlattenTupleType(param->checked_type())) {
         tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
@@ -131,7 +133,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
       memo_[param] = inputs;
     }
     readable_name_stream_ << "fused";
-    auto outputs = this->VisitExpr(prim_func->body);
+    auto outputs = this->VisitExpr(relay_func->body);
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
     // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
@@ -151,7 +153,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
       prim_fn_name = renamer(prim_fn_name);
     }
     auto prim_fn_var = GlobalVar(prim_fn_name);
-    prim_fn_var->checked_type_ = prim_func->checked_type();
+    prim_fn_var->checked_type_ = relay_func->checked_type();
 
     // Fusion over tupled results may leave identity relationships
     // between inputs and outputs, and those should not be scheduled.
@@ -163,7 +165,8 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
       }
     }
 
-    te::Schedule schedule;
+    te::Schedule schedule{nullptr};
+    tir::PrimFunc prim_func{nullptr};
     // No need to register schedule for device copy op.
     if (anchor_attrs_.as<DeviceCopyAttrs>() == nullptr && create_schedule_) {
       if (use_auto_scheduler_) {
@@ -176,20 +179,39 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
           schedule = Downcast<te::Schedule>(obj);
         }
       }
+      if (use_meta_schedule_) {
+        const auto* f_create_func = runtime::Registry::Get("te.CreatePrimFuncFromOutputs");
+        const auto* f_meta_schedule =
+            runtime::Registry::Get("meta_schedule.MetaScheduleContextQueryInsideWithScope");
+        ICHECK(f_create_func) << "te.CreatePrimFuncFromOutputs is not registered";
+        ICHECK(f_meta_schedule)
+            << "meta_schedule.MetaScheduleContextQueryInsideWithScope is not registered";
+        prim_func = (*f_create_func)(tensor_outs);
+        Optional<ObjectRef> opt_mod_or_base_func =
+            (*f_meta_schedule)(prim_fn_name, IRModule({{GlobalVar(prim_fn_name), relay_func}}),
+                               Array<IRModule>{IRModule({{GlobalVar(prim_fn_name), prim_func}})});
+        if (const auto* result = opt_mod_or_base_func.as<tir::PrimFuncNode>()) {
+          prim_func = GetRef<tir::PrimFunc>(result);
+        } else {
+          prim_func = tir::PrimFunc(nullptr);
+        }
+      }
 
       // Use TOPI schdule if user specificed, or the function has no auto_scheduler schedule.
-      if (!schedule.defined()) {
+      if (!schedule.defined() && !prim_func.defined()) {
         ICHECK(anchor_implementation_.defined());
         schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
       }
-      for (const auto& scalar : scalars_) {
-        if (schedule->Contain(scalar)) {
-          schedule[scalar].compute_inline();
+      if (schedule.defined()) {
+        for (const auto& scalar : scalars_) {
+          if (schedule->Contain(scalar)) {
+            schedule[scalar].compute_inline();
+          }
         }
       }
     }
 
-    return CachedFunc(target_, prim_fn_var, fn_inputs, outputs, schedule, {});
+    return CachedFunc(target_, prim_fn_var, fn_inputs, outputs, schedule, prim_func, {});
   }
 
   Array<te::Tensor> VisitExpr_(const VarNode* op) final {
@@ -336,6 +358,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;
   bool use_auto_scheduler_;
+  bool use_meta_schedule_;
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
@@ -450,8 +473,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     std::unordered_map<te::Tensor, tir::Buffer> binds;
     IRModule ir_module = tvm::LowerSchedule(schedule, all_args, func_name, binds);
 
-    return CachedFunc(target, prim_fn_gvar, inputs, outputs, schedule, shape_func_param_states,
-                      ir_module);
+    return CachedFunc(target, prim_fn_gvar, inputs, outputs, schedule, tir::PrimFunc{nullptr},
+                      shape_func_param_states, ir_module);
   }
 
   Array<te::Tensor> VisitExpr(const Expr& expr) final {
@@ -466,8 +489,13 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
   Array<te::Tensor> VisitExpr_(const VarNode* var_node) final {
     auto var = GetRef<Var>(var_node);
-    auto it = param_states_.find(var);
-    if (it == param_states_.end()) {
+    auto it = param_arg_map_.find(var);
+    if (it != param_arg_map_.end()) {
+      // This var is a parameter of a nested function. Visit the corresponding argument in the
+      // function call site.
+      return VisitExpr(it->second);
+    }
+    if (param_states_.find(var) == param_states_.end()) {
       LOG(FATAL) << "Unexpected free variable " << var->name_hint();
       return {};
     } else {
@@ -542,6 +570,12 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   }
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
+    if (auto* func = call_node->op.as<FunctionNode>()) {
+      for (size_t i = 0; i < func->params.size(); ++i) {
+        param_arg_map_[func->params[i]] = call_node->args[i];
+      }
+      return VisitExpr(func->body);
+    }
     static auto fshape_func = Op::GetAttrMap<FShapeFunc>("FShapeFunc");
     static auto tshape_data_dependent = Op::GetAttrMap<TShapeDataDependent>("TShapeDataDependent");
     ICHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
@@ -601,7 +635,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   }
 
   Array<te::Tensor> VisitExpr_(const FunctionNode* op) final {
-    LOG(FATAL) << "Do not support sub function";
+    LOG(FATAL) << "Nested functions are not allowed to be visited.";
     return Array<te::Tensor>();
   }
 
@@ -644,6 +678,10 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   std::vector<bool> data_dependents_per_input_;
   /*! \brief Scalars used in the shape function */
   Array<te::Tensor> scalars_;
+  /*! \brief Map from parameters of a nested function to corresponding arguments in a function
+   * call site.
+   */
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> param_arg_map_;
 };
 
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,

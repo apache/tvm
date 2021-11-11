@@ -52,7 +52,7 @@ String ScheduleError::RenderReport(const String& primitive) const {
 
   os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
      << "'.\n\nThe IR with diagnostic is:\n"
-     << AsTVMScriptWithDiagnostic(mod, "tir", false, annotate);
+     << AsTVMScriptWithDiagnostic(mod, "T", false, annotate);
 
   // print error message
   os << "Error message: " << msg;

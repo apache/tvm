@@ -310,6 +310,17 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     }
     return doc;
   }
+
+ public:
+  static Doc PrintHeader(const std::string& tir_prefix) {
+    Doc header;
+    if (tir_prefix != "tir") {
+      header << "# from tvm.script import tir as " << tir_prefix << Doc::NewLine();
+    } else {
+      header << "# from tvm.script import tir" << Doc::NewLine();
+    }
+    return header;
+  }
 };
 
 Doc TVMScriptPrinter::GetUniqueName(std::string prefix) {
@@ -578,7 +589,8 @@ Doc TVMScriptPrinter::VisitExpr_(const VarNode* op, ExprPrecedence* out_preceden
 
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", ExprPrecedence::kMultiplicationDivision)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(ModNode, " % ", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorDivNode, " // ", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorModNode, " % ", ExprPrecedence::kMultiplicationDivision)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", ExprPrecedence::kAdditionSubtraction)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", ExprPrecedence::kAdditionSubtraction)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", ExprPrecedence::kRelational)
@@ -590,17 +602,10 @@ TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", ExprPrecedence::kEquality)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", ExprPrecedence::kAnd)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", ExprPrecedence::kOr)
 
-Doc TVMScriptPrinter::VisitExpr_(const FloorDivNode* op, ExprPrecedence* out_precedence) {
+Doc TVMScriptPrinter::VisitExpr_(const ModNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << tir_prefix_ << ".floordiv(" << Print(op->a) << ", " << Print(op->b) << ")";
-  return doc;
-}
-
-Doc TVMScriptPrinter::VisitExpr_(const FloorModNode* op, ExprPrecedence* out_precedence) {
-  *out_precedence = ExprPrecedence::kIdentity;
-  Doc doc;
-  doc << tir_prefix_ << ".floormod(" << Print(op->a) << ", " << Print(op->b) << ")";
+  doc << tir_prefix_ << ".truncmod(" << Print(op->a) << ", " << Print(op->b) << ")";
   return doc;
 }
 
@@ -1437,7 +1442,10 @@ Doc TVMScriptPrinterWithDiagnostic::PrintLoop(const For& loop) {
 
 String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  return TVMScriptPrinter(tir_prefix, show_meta).Print(mod).str() + "\n";
+  Doc doc;
+  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
+      << TVMScriptPrinter(tir_prefix, show_meta).Print(mod);
+  return doc.str() + "\n";
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
@@ -1445,7 +1453,10 @@ TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  return TVMScriptPrinterWithDiagnostic(tir_prefix, show_meta, annotate).Print(mod).str() + "\n";
+  Doc doc;
+  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
+      << TVMScriptPrinterWithDiagnostic(tir_prefix, show_meta, annotate).Print(mod);
+  return doc.str() + "\n";
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScriptWithDiagnostic").set_body_typed(AsTVMScriptWithDiagnostic);

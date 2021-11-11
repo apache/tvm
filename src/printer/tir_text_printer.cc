@@ -27,6 +27,7 @@
 #include <tvm/ir/type.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/node/serialization.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
@@ -71,6 +72,8 @@ Doc TIRTextPrinter::Print(const ObjectRef& node) {
     return PrintString(node.as<StringObj>());
   } else if (node->IsInstance<BufferRegionNode>()) {
     return PrintBufferRegion(node.as<BufferRegionNode>());
+  } else if (node->IsInstance<TargetNode>()) {
+    return Doc::Text(node.as<TargetNode>()->ToDebugString());
   } else {
     return this->meta_->GetMetaNode(node);
   }

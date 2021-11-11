@@ -249,7 +249,7 @@ IntSet UnionLowerBound(const Array<IntSet>& sets);
 Array<IntSet> UnionRegionLowerBound(const Array<Array<IntSet>>& nd_int_sets);
 
 /*!
- * \brief Create an union set of all sets
+ * \brief Create an intersected set of all sets
  * \param sets The sets to be intersected
  * \return the set after intersected
  */

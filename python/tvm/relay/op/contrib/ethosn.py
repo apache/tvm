@@ -46,7 +46,7 @@ def ethosn_available():
     return Available.SW_AND_HW if hw else Available.SW_ONLY
 
 
-def partition_for_ethosn(mod, params=None, **opts):
+def partition_for_ethosn77(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Ethos-N NPU.
 
@@ -61,6 +61,49 @@ def partition_for_ethosn(mod, params=None, **opts):
     -------
     ret : annotated and partitioned module.
     """
+    if opts:
+        tops = opts.get("tops", None)
+        ple_ratio = opts.get("ple_ratio", None)
+        sram_size = opts.get("sram_size", None)
+        if tops or ple_ratio or sram_size:
+            raise ValueError(
+                "Setting tops, ple_ratio or sram_size has no effect when targeting Ethos(TM)-N77"
+            )
+
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+    seq = tvm.transform.Sequential(
+        [
+            transform.InferType(),
+            transform.MergeComposite(pattern_table()),
+            transform.AnnotateTarget("ethos-n"),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+        ]
+    )
+
+    return seq(mod)
+
+
+def partition_for_ethosn78(mod, params=None, **opts):
+    """Partition the graph greedily offloading supported
+    operators to Arm Ethos(TM)-N NPU.
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+    params : Optional[Dict[str, NDArray]]
+        Constant input parameters.
+
+    Returns
+    -------
+    ret : annotated and partitioned module.
+    """
+    if not opts or opts.get("variant", "").lower() != "ethos-n78":
+        raise ValueError("When targeting Ethos(TM)-N78, -variant=Ethos-N78 should be set.")
+
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 

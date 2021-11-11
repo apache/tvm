@@ -26,6 +26,7 @@
 #include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
@@ -44,6 +45,7 @@
 #include "../backend/te_compiler.h"
 #include "../backend/te_compiler_cache.h"
 #include "../op/annotation/annotation.h"
+#include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
 #include "../op/memory/memory.h"
 #include "../op/vm/vm.h"
@@ -62,8 +64,9 @@ inline Constant MakeConstant(const std::vector<int64_t>& value) {
 }
 
 inline Expr AllocTensor(const Expr& storage, tvm::relay::Expr shape, DataType dtype,
-                        Array<IndexExpr> assert_shape) {
-  auto offset = MakeConstantScalar(DataType::Int(64), 0);
+                        Array<IndexExpr> assert_shape, DLDeviceType offset_device_type) {
+  auto offset =
+      OnDevice(MakeConstantScalar(DataType::Int(64), 0), offset_device_type, /*is_fixed=*/true);
   return AllocTensor(storage, offset, shape, dtype, assert_shape);
 }
 
@@ -73,12 +76,11 @@ bool IsReshapeOnly(const Expr& expr) {
     return func->HasNonzeroAttr(attr::kReshapeOnly);
   }
   if (const CallNode* call = expr.as<CallNode>()) {
-    if (call->attrs.defined()) {
-      if (auto tir_call_attrs = call->attrs.as<TIRCallAttrs>()) {
-        Map<String, ObjectRef> metadata = tir_call_attrs->metadata;
-        return metadata.count(attr::kReshapeOnly) &&
-               (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
-      }
+    if (call->op == CallLoweredOp()) {
+      CallLoweredProps call_lowered_props = GetCallLoweredProps(call);
+      Map<String, ObjectRef> metadata = call_lowered_props.attrs.metadata;
+      return metadata.count(attr::kReshapeOnly) &&
+             (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
     }
   }
   return false;
@@ -267,8 +269,9 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
     auto sto = scope->Push(var, value);
 
     // TODO(@jroesch): There is a bug with typing based on the constant shape.
-    auto tensor = OnDevice(AllocTensor(sto, shape, type->dtype, /*assert_shape=*/type->shape),
-                           dev.device_type, /*is_fixed=*/true);
+    auto tensor = OnDevice(
+        AllocTensor(sto, shape, type->dtype, /*assert_shape=*/type->shape, cpu_device_.device_type),
+        dev.device_type, /*is_fixed=*/true);
     Var tensor_var("tensor_" + name_hint, Type(nullptr));
     return scope->Push(tensor_var, tensor);
   }
@@ -367,14 +370,16 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
       auto out_shape = out_shapes[i];
       auto out_type = out_types[i];
       auto storage = storages[i];
-      auto alloc = OnDevice(AllocTensor(storage, out_shape, out_type->dtype, out_type->shape),
+      auto alloc = OnDevice(AllocTensor(storage, out_shape, out_type->dtype, out_type->shape,
+                                        cpu_device_.device_type),
                             dev.device_type, /*is_fixed=*/true);
       Var out_var("out_" + std::to_string(i), Type(nullptr));
       outs.push_back(scope->Push(out_var, alloc));
     }
 
     Tuple tuple_outs(outs);
-    auto invoke = OnDevice(InvokeTVMOp(func, ins, tuple_outs), dev.device_type, /*is_fixed=*/true);
+    auto call = InvokeTVMOp(func, ins, tuple_outs);
+    auto invoke = OnDevice(call, dev.device_type, /*is_fixed=*/true);
     scope->Push(invoke);
     return ToTupleType(ret_type,
                        std::vector<Expr>(tuple_outs->fields.begin(), tuple_outs->fields.end()));
@@ -394,7 +399,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
         CHECK(imm) << "expect static int shape";
         shape.push_back(imm->value);
       }
-      shape_expr = MakeConstant(shape);
+      shape_expr = OnDevice(MakeConstant(shape), cpu_device_.device_type, /*is_fixed=*/true);
     }
     return ReshapeTensor(new_args[0], shape_expr, ret_ty->shape);
   }
@@ -415,7 +420,6 @@ Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets) {
   CheckAndUpdateHostConsistency(&targets, &target_host);
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
-        DLOG(INFO) << "tvm::relay::transform::ManifestAlloc";
         // We need to mutate module, therefore making a copy of it.
         mod.CopyOnWrite();
         mod->ImportFromStd("core.rly");

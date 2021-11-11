@@ -325,6 +325,39 @@ class Schedule(Object):
             decision,
         )
 
+    def sample_perfect_tile(
+        self,
+        loop: LoopRV,
+        n: int,
+        max_innermost_factor: int = 16,
+        decision: Optional[List[int]] = None,
+    ) -> List[ExprRV]:
+        """Sample the factors to perfect tile a specific loop
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be tiled
+        n : int
+            The number of tiles to be sampled
+        max_innermost_factor : int
+            The maximum tile size allowed to be sampled in the innermost loop
+        decision: Optional[List[int]]
+            The sampling decision, if any
+
+        Returns
+        -------
+        result : List[ExprRV]
+            A list of length `n`, the random perfect tile sizes sampled
+        """
+        return _ffi_api.ScheduleSamplePerfectTile(  # type: ignore  # pylint: disable=no-member
+            self,
+            loop,
+            n,
+            max_innermost_factor,
+            decision,
+        )
+
     ########## Schedule: Get blocks & loops ##########
     def get_block(
         self,
@@ -366,6 +399,51 @@ class Schedule(Object):
             A list of loops above the given block in its scope, from outer to inner
         """
         return _ffi_api.ScheduleGetLoops(self, block)  # type: ignore # pylint: disable=no-member
+
+    def get_child_blocks(self, block_or_loop: Union[BlockRV, LoopRV]) -> List[BlockRV]:
+        """Get the leaf blocks of a specific block/loop
+
+        Parameters
+        ----------
+        block_or_loop : Union[BlockRV, LoopRV]
+            The query block/loop
+
+        Returns
+        -------
+        blocks : List[LoopRV]
+            A list of leaf blocks inside a specific block/loop
+        """
+        return _ffi_api.ScheduleGetChildBlocks(self, block_or_loop)  # type: ignore # pylint: disable=no-member
+
+    def get_producers(self, block: BlockRV) -> List[BlockRV]:
+        """Get the producers of a specific block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block in the query
+
+        Returns
+        -------
+        producers : List[BlockRV]
+            A list of producers of the given block
+        """
+        return _ffi_api.ScheduleGetProducers(self, block)  # type: ignore # pylint: disable=no-member
+
+    def get_consumers(self, block: BlockRV) -> List[BlockRV]:
+        """Get the consumers of a specific block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block in the query
+
+        Returns
+        -------
+        consumers : List[BlockRV]
+            A list of consumers of the given block
+        """
+        return _ffi_api.ScheduleGetConsumers(self, block)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Transform loops ##########
     def fuse(self, *loops: List[LoopRV]) -> LoopRV:

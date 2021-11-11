@@ -70,7 +70,7 @@ struct EthosuConv2DAttrs : public tvm::AttrsNode<EthosuConv2DAttrs> {
         .describe("The 2 dimensional kernel shape as (kernel_height, kernel_width).")
         .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(ofm_channels)
-        .describe("The number of OFM channels.")
+        .describe("The number of the Output Feature Map channels.")
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1}))
@@ -123,12 +123,28 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   if (ifm == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<EthosuConv2DAttrs>();
   CHECK(param != nullptr) << "EthosuConv2DAttrs cannot be nullptr.";
-  CHECK(ifm->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_conv2d type(uint8) or type(int8) for ifm but was " << ifm->dtype;
-  CHECK(weight->dtype == DataType::UInt(8) || weight->dtype == DataType::Int(8))
-      << "Expected ethosu_conv2d type(uint8) or type(int8) for weight but was " << weight->dtype;
-  CHECK(scale_bias->dtype == DataType::UInt(8))
-      << "Expected ethosu_conv2d type(uint8) for scale_bias but was " << scale_bias->dtype;
+
+  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: expected ethosu_conv2d input data type "
+                                     << "of type(uint8) or type(int8) but was " << ifm->dtype);
+    return false;
+  }
+
+  if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: expected ethosu_conv2d weight data type "
+                                     << "of type(uint8) or type(int8) but was " << weight->dtype);
+    return false;
+  }
+
+  if (scale_bias->dtype != DataType::UInt(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_conv2d scale bias data type "
+        << "of type(uint8) but was " << scale_bias->dtype);
+    return false;
+  }
 
   // The scale_bias should be provided as a tensor of size {ofm_channels, 10}
   reporter->Assign(types[2], TensorType({weight->shape[0], 10}, DataType::UInt(8)));
@@ -179,7 +195,7 @@ RELAY_REGISTER_OP("contrib.ethosu.conv2d")
     .describe(R"code(Arm(R) Ethos(TM)-U NPU 2D quantized convolution operator.
 
 This Relay operator corresponds to the hardware-implemented quantized
-convolution operation found on Ethos(TM)-U NPUs. It accepts either NHWC
+convolution operation found on Ethos(TM)-U NPU. It accepts either NHWC
 or NHCWB16 format for the input data (Input Feature Map, or IFM) and
 OHWI format for the kernel weights.
 
@@ -201,7 +217,7 @@ of type uint8. For more detail, refer to the Technical Reference Manual linked a
     .add_argument("ifm", "Tensor", "The Input Feature Map tensor (IFM).")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .add_argument("scale_bias", "Tensor", "The packed per-channel weight scale and bias tensor.")
-    .add_argument("lut", "Tensor", "The look-up table values to use if activation = 'LUT'.")
+    .add_argument("lut", "Tensor", "The look-up table of values to use if activation = 'LUT'.")
     .set_support_level(11)
     .add_type_rel("EthosuConv2D", EthosuConv2DRel);
 

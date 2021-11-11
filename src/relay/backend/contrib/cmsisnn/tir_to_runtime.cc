@@ -25,21 +25,23 @@
 
 #include "../../../../runtime/file_utils.h"
 #include "../../../../target/source/codegen_c.h"
+#include "../../../../target/source/codegen_c_host.h"
 
 namespace tvm {
-namespace codegen {
-
 using namespace tir;
+namespace relay {
+namespace contrib {
+namespace cmsisnn {
 
-class CodeGenCMSISNN : public CodeGenC {
+class CodeGenCMSISNN : public codegen::CodeGenCHost {
  public:
-  void Init(bool output_ssa) {
+  void Init(bool output_ssa, bool emit_asserts, std::string target_str) {
     decl_stream << "#include <stdio.h>\n";
     decl_stream << "#include <stdlib.h>\n";
     decl_stream << "#include <dlpack/dlpack.h>\n";
     decl_stream << "#include <tvm/runtime/crt/module.h>\n";
     decl_stream << "#include <arm_nnfunctions.h>\n";
-    CodeGenC::Init(output_ssa);
+    CodeGenCHost::Init(output_ssa, emit_asserts, target_str);
   }
 
   /*!
@@ -47,92 +49,26 @@ class CodeGenCMSISNN : public CodeGenC {
    *
    * \return string of code that offloads a subgraph to the Cortex-M
    */
-  void AddFunction(const PrimFunc& prim_func) {
-    PrintExternCPrefix(stream);
-    CodeGenC::AddFunction(prim_func);
-    PrintExternCPostfix(stream);
-  }
-
- private:
-  /*!  * \brief Creates a cplusplus guard prefix for extern "C" printing */
-  void PrintExternCPrefix(std::ostringstream& ss) {
-    PrintIndent();
-    ss << "#ifdef __cplusplus\n";
-    ss << "extern \"C\" {\n";
-    ss << "#endif\n";
-  }
-
-  /*!  * \brief Creates a cplusplus guard postfix for extern "C" printing */
-  void PrintExternCPostfix(std::ostringstream& ss) {
-    PrintIndent();
-    ss << "#ifdef __cplusplus\n";
-    ss << "}\n";
-    ss << "#endif\n";
-  }
+  void AddFunction(const PrimFunc& prim_func) { CodeGenC::AddFunction(prim_func); }
 };
 
-class CMSISNNModuleNode : public runtime::ModuleNode {
- public:
-  CMSISNNModuleNode(const std::string& code, const std::string& fmt,
-                    const Array<String>& func_names)
-      : code_(code), fmt_(fmt), func_names_(func_names) {}
-
-  std::string GetSource(const std::string& format) final { return code_; }
-
-  const char* type_key() const { return "c"; }
-
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    if (name == "get_symbol") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_[0]; });
-    } else if (name == "get_func_names") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_; });
-    } else {
-      return PackedFunc(nullptr);
-    }
-  }
-
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
-    std::string fmt = runtime::GetFileFormat(file_name, format);
-    std::string meta_file = runtime::GetMetaFilePath(file_name);
-    if (fmt == "c") {
-      ICHECK_NE(code_.length(), 0);
-      runtime::SaveBinaryToFile(file_name, code_);
-    } else {
-      ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
-    }
-  }
-
- protected:
-  std::string code_;
-  std::string fmt_;
-  Array<String> func_names_;
-};
-
-static runtime::Module CMSISNNModuleNodeCreate(IRModule mod) {
+runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
-  CodeGenCMSISNN cg;
+  bool emit_asserts = false;
+  CodeGenCMSISNN codegen;
   Array<String> function_names;
-  cg.Init(output_ssa);
-  ICHECK(mod->functions.size() == 1) << "Supports modules with single PrimFunc.";
+  codegen.Init(output_ssa, emit_asserts, target->str());
   for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCMSISNN: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined())
-        << "CodeGenCHost: Expect PrimFunc to have the global_symbol attribute";
+    auto prim_func = Downcast<PrimFunc>(kv.second);
+    auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     function_names.push_back(global_symbol.value());
-    cg.AddFunction(f);
+    codegen.AddFunction(prim_func);
   }
-  std::string code = cg.Finish();
-  auto n = make_object<CMSISNNModuleNode>(code, "c", function_names);
-  return runtime::Module(n);
+  std::string code = codegen.Finish();
+  return codegen::CSourceModuleCreate(code, "c", function_names);
 }
 
-TVM_REGISTER_GLOBAL("runtime.CMSISNNModuleNodeCreate").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = CMSISNNModuleNodeCreate(args[0]);
-});
-
-}  // namespace codegen
+}  // namespace cmsisnn
+}  // namespace contrib
+}  // namespace relay
 }  // namespace tvm

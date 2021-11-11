@@ -53,7 +53,7 @@ def conv2d_compute(
     scale_bias : te.Tensor
         The packed per-channel weight scale and bias tensor.
     lut : te.Tensor
-        The look-up table values to use if activation = "LUT".
+        The look-up table of values to use if activation = "LUT".
     ifm_scale : float
         The quantization scale for the Input Feature Map tensor.
     ifm_zero_point : int
