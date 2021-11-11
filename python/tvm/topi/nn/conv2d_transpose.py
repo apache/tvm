@@ -141,30 +141,30 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
     ----------
     data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
-    
+
     kernel : tvm.te.Tensor
         4-D with shape [in_channel, out_channel // groups, filter_height, filter_width]
-    
+
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
-    
+
     padding : int or a list/tuple of 2 or 4 ints
         padding size, or
         [pad_height, pad_width] for 2 ints, or
         [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
-    
+
     out_dtype : str
         The output data type. This is used for mixed precision.
-    
+
     output_padding : tuple of ints
         Used to get the right output shape for gradients
-    
+
     groups : int
         number of groups
-    
+
     out_dtype : str
         The output type. This is used for mixed precision.
-    
+
     Returns
     -------
     Output : tvm.te.Tensor

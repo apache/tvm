@@ -1188,7 +1188,12 @@ def wrap_compute_all_class_nms(topi_compute):
         score_threshold = inputs[4]
         output_format = attrs.output_format
         return topi_compute(
-            inputs[0], inputs[1], max_output_size, iou_threshold, score_threshold, output_format,
+            inputs[0],
+            inputs[1],
+            max_output_size,
+            iou_threshold,
+            score_threshold,
+            output_format,
         )
 
     return _compute_nms

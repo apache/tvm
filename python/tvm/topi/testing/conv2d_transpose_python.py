@@ -145,27 +145,27 @@ def conv2d_transpose_nhwc_python(
 
 def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding, groups=1):
     """Convolution operator in NCHW layout.
-    
+
     Parameters
     ----------
     a_np : numpy.ndarray
         4-D with shape [batch, in_channel, in_height, in_width]
-    
+
     w_np : numpy.ndarray
         4-D with shape [in_channel, num_filter // groups, filter_height, filter_width]
-    
+
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
-    
+
     padding : int or str
         Padding size, or ['VALID', 'SAME']
-    
+
     output_padding : int or a list/tuple of two ints
         Use to disambiguate the output shape.
-    
+
     groups : int
         Number of groups
-    
+
     Returns
     -------
     b_np : np.ndarray
