@@ -193,7 +193,8 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
     opad_h, opad_w = output_padding
     assert (
         opad_h < stride_h and opad_w < stride_w
-    ), f"[{output_padding}] opad_h:{opad_h} < stride_h:{stride_h} and opad_w:{opad_w} < stride_w:{stride_w} does not satisfy."
+    ), f"[{output_padding}] opad_h:{opad_h} < stride_h:{stride_h} \
+        and opad_w:{opad_w} < stride_w:{stride_w} does not satisfy."
     # dilate data
     data_dilate = dilate(data, [1, 1, stride_h, stride_w], name="data_dilate")
     # pad data
