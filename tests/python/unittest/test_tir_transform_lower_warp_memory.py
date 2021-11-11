@@ -326,7 +326,7 @@ def test_lower_warp_memory_divide_by_factor():
 
     stmt = ib.get()
     func = tvm.tir.PrimFunc([], stmt)
-    func = func.with_attr('from_legacy_te_schedule', True)
+    func = func.with_attr("from_legacy_te_schedule", True)
     cuda_target = tvm.target.Target("cuda")
     mod = tvm.lower(func, name="f")
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
