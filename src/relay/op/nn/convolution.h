@@ -1044,8 +1044,8 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
-  // FIXME: weight layout should be IOHW as discussed in https://github.com/apache/tvm/pull/9336
-  static const Layout kOIHW("OIHW");  
+  // FIXME: weight layout should be IOHW.
+  static const Layout kOIHW("OIHW");
 
   const Conv2DTransposeAttrs* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
@@ -1110,10 +1110,9 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
           << " out_channels=" << param->channels << " weight.shape=" << Array<IndexExpr>(wshape);
     }
     if (!dshape_nchw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
-      ICHECK(reporter->AssertEQ(dshape_nchw[1],  wshape[0]))
+      ICHECK(reporter->AssertEQ(dshape_nchw[1], wshape[0]))
           << "Conv2DTransposed: shape of weight is inconsistent with in_channels."
-          << " data.shape= " << Array<IndexExpr>(dshape_nchw)
-          << " groups= " << param->groups
+          << " data.shape= " << Array<IndexExpr>(dshape_nchw) << " groups= " << param->groups
           << " weight.shape= " << Array<IndexExpr>(wshape);
     }
     channels = wshape[1];
