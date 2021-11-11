@@ -55,8 +55,20 @@ class ConcreteBufferType(TypeGeneric):  # pylint: disable=too-few-public-methods
     def evaluate(self):
         return tvm.ir.PrimType(self.type)
 
-    def __call__(self, shape, dtype, elem_offset):
-        pass
+    def __call__(
+        self,
+        shape,
+        dtype="float32",
+        data=None,
+        strides=None,
+        elem_offset=None,
+        scope="global",
+        align=-1,
+        offset_factor=0,
+        buffer_type="default",
+        span=None,
+    ):
+        self.name = "match_buffer"
 
 
 class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method
