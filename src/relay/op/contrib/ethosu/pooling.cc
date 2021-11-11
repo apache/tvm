@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/op/contrib/ethosu/pooling.cc
- * \brief Pooling operators definitions for the Arm(R) Ethos(TM)-U NPU convolution ops.
+ * \brief Pooling operators definitions for the Arm(R) Ethos(TM)-U NPU.
  */
 #include <tvm/relay/op.h>
 
