@@ -26,13 +26,16 @@ from .pad import pad
 from .utils import get_pad_tuple
 from ..utils import simplify
 
+
 def _ntuple(n):
     def parse(x):
         if isinstance(x, collections.abc.Iterable):
             assert len(x) == n, f"Input can only have {n} elements, but got {len(x)} instead: {x}."
             return x
         return tuple(repeat(x, n))
+
     return parse
+
 
 _single = _ntuple(1)
 _pair = _ntuple(2)
@@ -169,25 +172,28 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
     """
     if groups == 1:
         return conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output_padding)
-    
-    # some pre-processing and prelimnary checks 
+
+    # some pre-processing and prelimnary checks
     if out_dtype is None:
         out_dtype = data.dtype
 
     batch, in_channels, in_h, in_w = data.shape
     _, out_c, filter_h, filter_w = kernel.shape
-    assert in_channels % groups == 0, f"input channels {in_channels} must divide group size {groups}"
+    assert (
+        in_channels % groups == 0
+    ), f"input channels {in_channels} must divide group size {groups}"
     # assert out_c % groups == 0, f"output channels {in_c} must divide group size {groups}"
 
     strides = _pair(stride)
     # padding = _pair(padding)
     # output_padding = _pair(output_padding)
     # dilation = _pair(dilation)
-    
+
     stride_h, stride_w = strides
     opad_h, opad_w = output_padding
-    assert opad_h < stride_h and opad_w < stride_w, \
-        f"[{output_padding}] opad_h:{opad_h} < stride_h:{stride_h} and opad_w:{opad_w} < stride_w:{stride_w} does not satisfy."
+    assert (
+        opad_h < stride_h and opad_w < stride_w
+    ), f"[{output_padding}] opad_h:{opad_h} < stride_h:{stride_h} and opad_w:{opad_w} < stride_w:{stride_w} does not satisfy."
     # dilate data
     data_dilate = dilate(data, [1, 1, stride_h, stride_w], name="data_dilate")
     # pad data
@@ -224,16 +230,13 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
         (batch, out_channels, out_h, out_w),
         lambda b, c, h, w: te.sum(
             data_pad[
-                b, 
-                c // (out_channels // groups) * (in_channels // groups) + dc, 
-                h + dh, 
-                w + dw
+                b, c // (out_channels // groups) * (in_channels // groups) + dc, h + dh, w + dw
             ].astype(out_dtype)
             * kernel_transform[
-                c % (out_channels // groups), 
-                c // (out_channels // groups) * (in_channels // groups) + dc, 
-                dh, 
-                dw
+                c % (out_channels // groups),
+                c // (out_channels // groups) * (in_channels // groups) + dc,
+                dh,
+                dw,
             ].astype(out_dtype),
             axis=[dc, dh, dw],
         ),
