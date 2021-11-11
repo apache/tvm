@@ -101,5 +101,33 @@ def test_syntax_sugar_fail():
     check_error(loop_syntax_sugar_fail, 3)
 
 
+# match buffer - use kwargs
+@T.prim_func
+def elementwise(
+    a: T.Buffer(shape=(128, 128, 128, 128), dtype="float32", elem_offset=1),
+    b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32", elem_offset=2),
+) -> None:
+    # A = T.match_buffer(a, (128, 128, 128, 128))
+    # B = T.match_buffer(b, (128, 128, 128, 128))
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
+
+
+# match buffer - no kwargs
+@T.prim_func
+def elementwise(
+    a: T.Buffer[(128, 128, 128, 128), "float32"],
+    b: T.Buffer[(128, 128, 128, 128), "float32"],
+) -> None:
+    # A = T.match_buffer(a, (128, 128, 128, 128))
+    # B = T.match_buffer(b, (128, 128, 128, 128))
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -46,6 +46,19 @@ class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abst
         return tvm.ir.PrimType(self.type)
 
 
+class ConcreteBufferType(TypeGeneric):  # pylint: disable=too-few-public-methods, abstract-method
+    """TVM script typing class for uniform Type objects"""
+
+    def __init__(self, vtype):
+        self.type = vtype
+
+    def evaluate(self):
+        return tvm.ir.PrimType(self.type)
+
+    def __call__(self, shape, dtype, elem_offset):
+        pass
+
+
 class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method
     """TVM script typing class generator for PtrType
 
@@ -78,3 +91,4 @@ boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
+Buffer = ConcreteBufferType("Buffer")
