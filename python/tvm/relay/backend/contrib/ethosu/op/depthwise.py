@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
-"""Relay operator for depthwise convolution"""
+"""Relay operator for depthwise convolution for Arm(R) Ethos(TM)-U NPU"""
+
 from typing import Tuple
 
 import tvm
@@ -112,8 +113,8 @@ def ethosu_depthwise_conv2d(
     ifm_layout: str = "NHWC",
     ofm_layout: str = "NHWC",
 ) -> tvm.relay.Call:
-    """This is a quantized 2D depthwise convolution operation as supported by the
-    Ethos(TM)-U NPU. It accepts either NHWC or NHCWB16 format
+    """This is a quantized 2D depthwise convolution operation as supported by
+    the NPU. It accepts either NHWC or NHCWB16 format
     for the input data and OHWI format for the kernel weights.
 
     Reference: https://developer.arm.com/documentation/102420/0200/
