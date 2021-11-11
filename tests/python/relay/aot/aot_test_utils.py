@@ -567,8 +567,7 @@ def compile_models(
         with tvm.transform.PassContext(opt_level=3, config=config):
             executor_factory = tvm.relay.build(
                 model.module,
-                target,
-                target_host=target,
+                tvm.target.Target(target, host=target),
                 params=model.params,
                 mod_name=model.name,
             )

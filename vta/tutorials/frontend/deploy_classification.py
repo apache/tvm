@@ -200,7 +200,7 @@ with autotvm.tophub.context(target):
     if target.device_name != "vta":
         with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, params = relay.build(
-                relay_prog, target=target, params=params, target_host=env.target_host
+                relay_prog, target=tvm.target.Target(target, host=env.target_host), params=params
             )
     else:
         if env.TARGET == "intelfocl":
@@ -208,7 +208,7 @@ with autotvm.tophub.context(target):
             target = {"cpu": env.target_vta_cpu, "ext_dev": target}
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, params = relay.build(
-                relay_prog, target=target, params=params, target_host=env.target_host
+                relay_prog, target=tvm.target.Target(target, host=env.target_host), params=params
             )
 
     # Measure Relay build time
