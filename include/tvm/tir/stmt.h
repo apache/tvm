@@ -628,8 +628,14 @@ class AllocateConstNode : public StmtNode {
  public:
   /*! \brief The buffer variable. */
   Var buffer_var;
-  /*! \brief The data associated to the constant. */
-  ::tvm::runtime::NDArray data;
+  /*! \brief The optional data associated to the constant.
+   */
+  Optional<runtime::NDArray> data;
+  /*! \brief If the PrimFunc containing the Stmt is added to IRModule,
+       this is an optional index to indicate the index within
+       "Constants" attribute, that is a Array<NDArray> of IRModule.
+   */
+  Optional<Integer> irmod_storage_idx;
   /*! \brief The type of the buffer. */
   DataType dtype;
   /*! \brief The extents of the buffer. */
@@ -677,14 +683,17 @@ class AllocateConstNode : public StmtNode {
 };
 
 /*!
- * \brief Managed reference to AllocateNode.
- * \sa AllocateNode
+ * \brief Managed reference to AllocateConstNode.
+ * \sa AllocateConstNode
  */
 class AllocateConst : public Stmt {
  public:
-  TVM_DLL AllocateConst(Var buffer_var, ::tvm::runtime::NDArray data, DataType dtype,
-                        Array<PrimExpr> extents, Stmt body, Span span = Span());
-
+  /* The constructor to create a IRNode with constant data
+   * depending on the type of ObjectRef, it will either
+   * create AllocateConstNode with irmod_storage_idx or data
+   */
+  TVM_DLL AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                        ObjectRef data_or_idx, Stmt body, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
 };
 

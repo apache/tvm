@@ -1374,7 +1374,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     Array<PrimExpr> extents = op->extents;
     extents.Set(extents.size() - 1,
                 extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
-    return AllocateConst(new_buffer_var, op->data, info.new_element_dtype, extents, op->body);
+    return AllocateConst(new_buffer_var, info.new_element_dtype, extents, op->data, op->body);
   }
 
   /* Update the parameters and all remaining variable references

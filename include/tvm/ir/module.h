@@ -32,6 +32,7 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
+#include <tvm/tir/function.h>
 
 #include <string>
 #include <unordered_map>
@@ -349,6 +350,9 @@ class IRModuleNode : public Object {
    */
   std::unordered_set<String> import_set_;
   friend class IRModule;
+
+ public:
+  void ExtractPrimFuncConstants(tir::PrimFunc func);
 };
 
 /*!
@@ -357,6 +361,8 @@ class IRModuleNode : public Object {
  */
 class IRModule : public ObjectRef {
  public:
+  static constexpr const char* _constants_attrs_key = "Constants";
+
   /*!
    * \brief constructor
    * \param functions Functions in the module.

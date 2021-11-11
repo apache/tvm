@@ -1481,7 +1481,8 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const AllocateConstNode* op) {
-  auto array = NDArrayToLLVMArray(ctx_, op->data);
+  auto data = op->data.value();
+  auto array = NDArrayToLLVMArray(ctx_, data);
   std::string symbol_name = op->buffer_var->name_hint;
   llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
       *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);

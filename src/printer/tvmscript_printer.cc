@@ -1038,24 +1038,26 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
 
 Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   std::stringstream ss;
+  ICHECK(alloc->data) << "Should be presented";
+  const auto& data = alloc->data.value();
 
   if (alloc->dtype.is_int()) {
     if (alloc->dtype.bits() == 8) {
-      NDArrayToTIR<int8_t>(alloc->data, ss);
+      NDArrayToTIR<int8_t>(data, ss);
     } else if (alloc->dtype.bits() == 16) {
-      NDArrayToTIR<int16_t>(alloc->data, ss);
+      NDArrayToTIR<int16_t>(data, ss);
     } else if (alloc->dtype.bits() == 32) {
-      NDArrayToTIR<int32_t>(alloc->data, ss);
+      NDArrayToTIR<int32_t>(data, ss);
     } else {
       LOG(FATAL) << "DataType not supported";
     }
   } else if (alloc->dtype.is_float()) {
     if (alloc->dtype.bits() == 16) {
-      NDArrayToTIR<int16_t>(alloc->data, ss);
+      NDArrayToTIR<int16_t>(data, ss);
     } else if (alloc->dtype.bits() == 32) {
-      NDArrayToTIR<float>(alloc->data, ss);
+      NDArrayToTIR<float>(data, ss);
     } else if (alloc->dtype.bits() == 64) {
-      NDArrayToTIR<double>(alloc->data, ss);
+      NDArrayToTIR<double>(data, ss);
     } else {
       LOG(FATAL) << "DataType not supported";
     }

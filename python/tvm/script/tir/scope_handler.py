@@ -19,11 +19,11 @@
 from typing import Tuple, Any, Callable, Optional, List, Union, Mapping
 
 import synr
+import numpy as np
 import tvm.tir
 from tvm.runtime import Object
 from tvm.ir import Span, Range
 from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
-import numpy as np
 
 from .node import BufferSlice
 from .utils import buffer_slice_to_region
@@ -168,7 +168,7 @@ class AllocateConst(WithScopeHandler):
             for i in raw_data:
                 list_data.append(i.value)
             nd_data = tvm.nd.array(np.asarray(list_data, dtype=dtype))
-            n = tvm.tir.AllocateConst(self.buffer_var, nd_data, dtype, shape, self.body, span=span)
+            n = tvm.tir.AllocateConst(self.buffer_var, dtype, shape, nd_data, self.body, span=span)
             return n
 
         super().__init__(allocate_const, concise_scope=True, def_symbol=True)

@@ -652,7 +652,8 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
 void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
   std::string symbol_name = op->buffer_var->name_hint;
   int64_t num_elements = 1;
-  for (int64_t dim : op->data.Shape()) {
+  const auto& data = op->data.value();
+  for (int64_t dim : data.Shape()) {
     num_elements *= dim;
   }
 
@@ -662,11 +663,11 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
               << "#endif\n"
               << "static const ";
 
-  PrintType(op->data.DataType(), decl_stream);
+  PrintType(data.DataType(), decl_stream);
 
   // Allocate the global static variable
   decl_stream << " " << symbol_name << "[" << num_elements << "] = {\n";
-  NDArrayDataToC(op->data, 4, decl_stream);
+  NDArrayDataToC(data, 4, decl_stream);
 
   decl_stream << "};\n"
               << "#ifdef __cplusplus\n"

@@ -649,7 +649,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         int shape = kv.second->data->shape[i];
         extents.push_back(tir::make_const(DataType::Int(32), shape));
       }
-      body = tir::AllocateConst(buffer_var, kv.second->data, dtype, extents, body);
+      body = tir::AllocateConst(buffer_var, dtype, extents, kv.second->data, body);
     }
 
     // Define the PrimFunc attributes

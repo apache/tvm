@@ -35,19 +35,20 @@
 #include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
 
 namespace tvm {
-
+constexpr const char* IRModule::_constants_attrs_key;
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
                    std::unordered_set<String> import_set, parser::SourceMap source_map,
                    DictAttrs attrs) {
   auto n = make_object<IRModuleNode>();
-  n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
   n->global_type_var_map_ = {};
   n->global_var_map_ = {};
@@ -56,11 +57,10 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->source_map = source_map;
   n->attrs = std::move(attrs);
 
-  for (const auto& kv : n->functions) {
-    // set global var map
-    ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
-        << "Duplicate global function name " << kv.first->name_hint;
-    n->global_var_map_.Set(kv.first->name_hint, kv.first);
+  if (functions.defined()) {
+    for (const auto& kv : functions) {
+      n->Add(kv.first, kv.second);
+    }
   }
 
   for (const auto& kv : n->type_definitions) {
@@ -202,6 +202,10 @@ void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {
     WarnIfMalformed(GetRef<IRModule>(this), GetRef<relay::Function>(ptr));
   }
 
+  if (f->IsInstance<tir::PrimFuncNode>()) {
+    ExtractPrimFuncConstants(Downcast<tir::PrimFunc>(f));
+  }
+
   AddUnchecked(var, checked_func);
 }
 
@@ -217,6 +221,63 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
   }
 
   global_var_map_.Set(var->name_hint, var);
+}
+
+// Replaces constant data to index into mod's "Constants" attrs array.
+void IRModuleNode::ExtractPrimFuncConstants(tir::PrimFunc func) {
+  using ConstArrayType = Array<runtime::NDArray>;
+  class Applicator : public tir::StmtExprVisitor {
+   protected:
+    // returns index of the a in constant_array_, if not found - appends
+    // TODO(@d-smirnov): make real content comparision with already existing NDArrays
+    // instead of reference comparision
+    size_t deDup(const runtime::NDArray& a) {
+      auto it = std::find(constant_array_.begin(), constant_array_.end(), a);
+      if (it != constant_array_.end()) {
+        return it - constant_array_.begin();
+      }
+      constant_array_.push_back(std::move(a));
+      return constant_array_.size() - 1;
+    }
+
+   public:
+    ConstArrayType Apply(tir::Stmt body, const ConstArrayType& constant_array) {
+      constant_array_ = constant_array;
+      this->VisitStmt(body);
+      return constant_array_;
+    }
+
+    void VisitStmt_(const tir::AllocateConstNode* acn) override {
+      tir::AllocateConstNode* node = const_cast<tir::AllocateConstNode*>(acn);
+      // Check whether the data already defined within the module's attrs
+      // and replace it with array index;
+      ICHECK(node->data) << "data field should be defined";
+      if (node->data) {
+        node->irmod_storage_idx = Optional<Integer>(Integer(deDup(node->data.value())));
+      }
+      tir::StmtExprVisitor::VisitStmt_(acn);
+    }
+
+   private:
+    ConstArrayType constant_array_;
+  };
+
+  std::pair<const char*, const ObjectRef> default_value = {IRModule::_constants_attrs_key,
+                                                           Array<runtime::NDArray>()};
+  if (attrs.defined()) {
+    if (!attrs->dict.count(IRModule::_constants_attrs_key))
+      attrs.CopyOnWrite()->dict.Set(default_value.first, default_value.second);
+  } else {
+    Map<String, ObjectRef> dict = {default_value};
+    attrs = DictAttrs(dict);
+  }
+
+  ConstArrayType constant_array_ =
+      Downcast<ConstArrayType>(attrs->dict[IRModule::_constants_attrs_key]);
+
+  const ConstArrayType constant_list =
+      Applicator().Apply(func.CopyOnWrite()->body, constant_array_);
+  attrs.CopyOnWrite()->dict.Set(IRModule::_constants_attrs_key, constant_list);
 }
 
 void IRModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {

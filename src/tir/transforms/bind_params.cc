@@ -107,10 +107,10 @@ Pass BindParams(const std::vector<const relay::ConstantNode*>& constants) {
         extents.push_back(make_const(DataType::Int(32), shape));
       }
       DataType dtype = DataType(constant_map[var]->data->dtype);
-      n->body = tir::AllocateConst(var, constant_map[var]->data, dtype, extents, n->body);
+      n->body = tir::AllocateConst(var, dtype, extents, constant_map[var]->data, n->body);
     }
-
-    return std::move(f);
+    m->ExtractPrimFuncConstants(f);
+    return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BindParams", {});
 }
