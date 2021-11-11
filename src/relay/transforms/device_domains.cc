@@ -51,10 +51,8 @@ DeviceCopyProps GetPrimitiveDeviceCopyProps(const CallNode* call_node) {
         call_lowered_props.attrs.metadata.count("dst_device") == 1) {
       ICHECK_EQ(call_lowered_props.arguments.size(), 1) << "device_copy is of arity 1";
       return {call_lowered_props.arguments[0],
-              static_cast<DLDeviceType>(
-                  Downcast<Integer>(call_lowered_props.attrs.metadata["source_device"])->value),
-              static_cast<DLDeviceType>(
-                  Downcast<Integer>(call_lowered_props.attrs.metadata["dst_device"])->value)};
+              Downcast<SEScope>(call_lowered_props.attrs.metadata["src_se_scope"]),
+              Downcast<SEScope>(call_lowered_props.attrs.metadata["dst_se_scope"])};
     }
   }
   return {};

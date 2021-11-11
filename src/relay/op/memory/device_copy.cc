@@ -105,19 +105,6 @@ DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node) {
     } else {
       return {call_node->args[0], device_copy_attrs->src_se_scope, device_copy_attrs->dst_se_scope};
     }
-  } else if (call_node->op == CallLoweredOp()) {
-    /* Get device props for a TIR function */
-    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
-
-    if (call_lowered_props.attrs.metadata.count("source_device") == 1 &&
-        call_lowered_props.attrs.metadata.count("dst_device") == 1) {
-      ICHECK_EQ(call_lowered_props.arguments.size(), 1) << "device_copy is of arity 1";
-      return {call_lowered_props.lowered_func,
-              static_cast<DLDeviceType>(
-                  Downcast<Integer>(call_lowered_props.attrs.metadata["source_device"])->value),
-              static_cast<DLDeviceType>(
-                  Downcast<Integer>(call_lowered_props.attrs.metadata["dst_device"])->value)};
-    }
   }
   return {};
 }
