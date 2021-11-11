@@ -39,7 +39,8 @@ def _extract_ethosu_binary_elementwise_params(attrs, args):
     ifm2_zero_point = attrs.ifm2_zero_point
     ofm_scale = attrs.ofm_scale
     ofm_zero_point = attrs.ofm_zero_point
-    ofm_channels = attrs.ofm_channels
+    ifm_channels = attrs.ifm_channels
+    ifm2_channels = attrs.ifm2_channels
     reversed_operands = attrs.reversed_operands
     activation = attrs.activation
     clip_min = attrs.clip_min
@@ -60,7 +61,8 @@ def _extract_ethosu_binary_elementwise_params(attrs, args):
         ifm2_zero_point,
         ofm_scale,
         ofm_zero_point,
-        ofm_channels,
+        ifm_channels,
+        ifm2_channels,
         reversed_operands,
         activation,
         clip_min,
@@ -102,7 +104,8 @@ def ethosu_binary_elementwise(
     ifm2_zero_point: int,
     ofm_scale: float,
     ofm_zero_point: int,
-    ofm_channels: int,
+    ifm_channels: int,
+    ifm2_channels: int,
     reversed_operands: bool,
     ofm_dtype: str,
     activation: Optional[str] = "NONE",
@@ -145,8 +148,10 @@ def ethosu_binary_elementwise(
         The quantization scale for the Output Feature Map tensor.
     ofm_zero_point : int
        The quantization zero point for the Output Feature Map tensor.
-    ofm_channels : int
-        The number of the Output Feature Map channels.
+    ifm_channels : int
+        The number of the Input Feature Map channels.
+    ifm2_channels : int
+        The number of the Input Feature Map 2 channels.
     reversed_operands : bool
         True if IFM2 is the first operand and IFM is the second operand.
     ofm_dtype: str
@@ -197,7 +202,8 @@ def ethosu_binary_elementwise(
         ifm2_zero_point,
         ofm_scale,
         ofm_zero_point,
-        ofm_channels,
+        ifm_channels,
+        ifm2_channels,
         reversed_operands,
         activation,
         clip_min,

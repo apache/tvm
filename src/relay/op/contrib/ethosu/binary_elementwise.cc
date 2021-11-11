@@ -40,7 +40,8 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
   int ifm2_zero_point;
   double ofm_scale;
   int ofm_zero_point;
-  IndexExpr ofm_channels;
+  IndexExpr ifm_channels;
+  IndexExpr ifm2_channels;
   bool reversed_operands;
   String activation;
   int clip_min;
@@ -71,7 +72,8 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
     TVM_ATTR_FIELD(ofm_scale).describe("The quantization scale for the Output Feature Map tensor.");
     TVM_ATTR_FIELD(ofm_zero_point)
         .describe("The quantization zero point for the Output Feature Map tensor.");
-    TVM_ATTR_FIELD(ofm_channels).describe("The number of the Output Feature Map channels.");
+    TVM_ATTR_FIELD(ifm_channels).describe("The number of the Input Feature Map channels.");
+    TVM_ATTR_FIELD(ifm2_channels).describe("The number of the Input Feature Map 2 channels.");
     TVM_ATTR_FIELD(reversed_operands)
         .describe("True if IFM2 is the first operand and IFM is the second operand.")
         .set_default(false);
@@ -229,7 +231,7 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
 
   // Assign ofm type
   auto ofm_shape = EthosuInferBinaryElementwiseOutputShape(ifm->shape, param->ifm_layout,
-                                                           param->ofm_layout, param->ofm_channels);
+                                                           param->ofm_layout, param->ifm_channels);
   reporter->Assign(types[result_index], TensorType(ofm_shape, ofm_dtype));
   return true;
 }
@@ -237,8 +239,9 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
 Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_type,
                                  double ifm_scale, int ifm_zero_point, double ifm2_scale,
                                  int ifm2_zero_point, double ofm_scale, int ofm_zero_point,
-                                 IndexExpr ofm_channels, bool reversed_operands, String activation,
-                                 int clip_min, int clip_max, String ifm_layout, String ifm2_layout,
+                                 IndexExpr ifm_channels, IndexExpr ifm2_channels,
+                                 bool reversed_operands, String activation, int clip_min,
+                                 int clip_max, String ifm_layout, String ifm2_layout,
                                  String ofm_layout, String ofm_dtype) {
   auto attrs = make_object<EthosuBinaryElementwiseAttrs>();
 
@@ -249,7 +252,8 @@ Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_
   attrs->ifm2_zero_point = ifm2_zero_point;
   attrs->ofm_scale = ofm_scale;
   attrs->ofm_zero_point = ofm_zero_point;
-  attrs->ofm_channels = std::move(ofm_channels);
+  attrs->ifm_channels = std::move(ifm_channels);
+  attrs->ifm2_channels = std::move(ifm2_channels);
   attrs->reversed_operands = reversed_operands;
   attrs->activation = std::move(activation);
   attrs->clip_min = clip_min;
@@ -279,7 +283,7 @@ Reference: https://developer.arm.com/documentation/102420/0200/
            NHCWB16 - (1, ifm_height, ifm_channels // 16, ifm_width, 16)
 - **ifm2**: NHWC - (1, ifm_height, ifm_width, ifm_channels)
            NHCWB16 - (1, ifm_height, ifm_channels // 16, ifm_width, 16)
-- **ofm**: (1, ofm_height, ofm_width, ofm_channels)
+- **ofm**: (1, ofm_height, ofm_width, ifm_channels)
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<EthosuBinaryElementwiseAttrs>()

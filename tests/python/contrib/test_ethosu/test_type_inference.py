@@ -188,11 +188,12 @@ def test_ethosu_binary_elementwise_type_inference(
     ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
     ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=dtype)
     operator_type = "ADD"
-    ofm_channels = 33
+    ifm_channels, ifm2_channels = 33, 33
     binary_elementwise = make_ethosu_binary_elementwise(
         ifm,
         ifm2,
-        ofm_channels,
+        ifm_channels,
+        ifm2_channels,
         operator_type,
         dtype,
         ifm_layout=ifm_layout,
@@ -211,11 +212,12 @@ def test_ethosu_binary_elementwise_invalid_operator_type():
     dtype = "int8"
     ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
     ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=dtype)
-    ofm_channels = 33
+    ifm_channels, ifm2_channels = 33, 33
     binary_elementwise = make_ethosu_binary_elementwise(
         ifm,
         ifm2,
-        ofm_channels,
+        ifm_channels,
+        ifm2_channels,
         invalid_operator_type,
         dtype,
     )
@@ -231,11 +233,12 @@ def test_ethosu_binary_elementwise_invalid_data_types():
     ifm_shape = [1, 4, 5, 33]
     ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
     ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=dtype2)
-    ofm_channels = 33
+    ifm_channels, ifm2_channels = 33, 33
     binary_elementwise = make_ethosu_binary_elementwise(
         ifm,
         ifm2,
-        ofm_channels,
+        ifm_channels,
+        ifm2_channels,
         operator_type,
         dtype,
     )
@@ -250,11 +253,12 @@ def test_ethosu_binary_elementwise_min_max_invalid_data_type(operator_type):
     ifm_shape = [1, 4, 5, 33]
     ifm = relay.var("ifm", shape=ifm_shape, dtype=invalid_dtype)
     ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=invalid_dtype)
-    ofm_channels = 33
+    ifm_channels, ifm2_channels = 33, 33
     binary_elementwise = make_ethosu_binary_elementwise(
         ifm,
         ifm2,
-        ofm_channels,
+        ifm_channels,
+        ifm2_channels,
         operator_type,
         invalid_dtype,
     )
@@ -269,11 +273,12 @@ def test_ethosu_binary_elementwise_shift_invalid_data_type(invalid_dtype, operat
     ifm_shape = [1, 4, 5, 33]
     ifm = relay.var("ifm", shape=ifm_shape, dtype=invalid_dtype)
     ifm2 = relay.var("ifm2", shape=ifm_shape, dtype=invalid_dtype)
-    ofm_channels = 33
+    ifm_channels, ifm2_channels = 33, 33
     binary_elementwise = make_ethosu_binary_elementwise(
         ifm,
         ifm2,
-        ofm_channels,
+        ifm_channels,
+        ifm2_channels,
         operator_type,
         invalid_dtype,
     )

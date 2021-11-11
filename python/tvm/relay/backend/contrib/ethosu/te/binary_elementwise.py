@@ -32,7 +32,8 @@ def binary_elementwise_compute(
     ifm2_zero_point: int,
     ofm_scale: float,
     ofm_zero_point: int,
-    ofm_channels: int,
+    ifm_channels: int,
+    ifm2_channels: int,
     reversed_operands: bool,
     activation: str,
     clip_min: int,
@@ -73,8 +74,10 @@ def binary_elementwise_compute(
         The quantization scale for the Output Feature Map tensor.
     ofm_zero_point : int
         The quantization zero point for the Output Feature Map tensor.
-    ofm_channels : int
-        The number of the Output Feature Map channels.
+    ifm_channels : int
+        The number of the Input Feature Map channels.
+    ifm2_channels : int
+        The number of the Input Feature Map 2 channels.
     reversed_operands : bool
         True if IFM2 is the first operand and IFM is the second operand.
     activation : str
@@ -116,10 +119,10 @@ def binary_elementwise_compute(
     """
     # Compute operation for the IFM DMA pipeline
     dmaed_ifm = dma_ifm_compute(
-        ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, (0, 0, 0, 0)
+        ifm, ifm_layout, ifm_zero_point, ifm_scale, ifm_channels, (0, 0, 0, 0)
     )
     dmaed_ifm2 = dma_ifm_compute(
-        ifm2, ifm2_layout, ifm2_zero_point, ifm2_scale, ofm_channels, (0, 0, 0, 0)
+        ifm2, ifm2_layout, ifm2_zero_point, ifm2_scale, ifm2_channels, (0, 0, 0, 0)
     )
 
     # Binary elementwise compute operation
@@ -144,11 +147,11 @@ def binary_elementwise_compute(
         "SHR": operator.add,
         "SHL": operator.add,
     }
-    broadcast = [value == 1 for value in ifm2.shape]
+    broadcast = [value == 1 for value in dmaed_ifm2.shape]
 
     if reversed_operands:
         binary_elementwise = te.compute(
-            (1, ofm_height, ofm_width, ofm_channels),
+            (1, ofm_height, ofm_width, ifm_channels),
             lambda nn, hh, ww, cc: operators[operator_type](
                 dmaed_ifm2(
                     0 if broadcast[0] else nn,
@@ -163,7 +166,7 @@ def binary_elementwise_compute(
         )
     else:
         binary_elementwise = te.compute(
-            (1, ofm_height, ofm_width, ofm_channels),
+            (1, ofm_height, ofm_width, ifm_channels),
             lambda nn, hh, ww, cc: operators[operator_type](
                 dmaed_ifm(nn, hh, ww, cc).astype(ifm.dtype),
                 dmaed_ifm2(
@@ -178,4 +181,4 @@ def binary_elementwise_compute(
         )
 
     # Compute operation for the OFM DMA pipeline
-    return dma_ofm_compute(binary_elementwise, ofm_layout, ofm_zero_point, ofm_scale, ofm_channels)
+    return dma_ofm_compute(binary_elementwise, ofm_layout, ofm_zero_point, ofm_scale, ifm_channels)

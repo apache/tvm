@@ -347,8 +347,8 @@ def test_ethosu_pooling(
     "ifm_shape, ifm2_shape",
     [
         ([1, 2, 3, 4], [1, 2, 3, 4]),
-        ([1, 2, 3, 4], [1, 1, 3, 1]),
-        ([1, 1, 3, 1], [1, 2, 3, 4]),
+        ([1, 2, 3, 4], [1, 1, 1, 1]),
+        ([1, 1, 1, 1], [1, 2, 3, 4]),
     ],
 )
 @pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
@@ -507,7 +507,6 @@ def test_ethosu_right_shift_binary_elemwise(
     dtype = "int32"
 
     def create_model():
-        ofm_channels = max(ifm_shape[3], ifm2_shape[3])
         ifm_count = int(np.prod(ifm_shape))
         ifm2_count = int(np.prod(ifm2_shape))
 
@@ -517,7 +516,7 @@ def test_ethosu_right_shift_binary_elemwise(
         ifm = relay.reshape(split[0], newshape=ifm_shape)
         ifm2 = relay.reshape(split[1], newshape=ifm2_shape)
         shr_op = infra.make_ethosu_binary_elementwise(
-            ifm, ifm2, ofm_channels, "SHR", ofm_dtype, reversed_operands
+            ifm, ifm2, ifm_shape[3], ifm2_shape[3], "SHR", ofm_dtype, reversed_operands
         )
 
         glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
