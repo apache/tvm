@@ -58,6 +58,16 @@ TVM_REGISTER_GLOBAL("tir.sparse.DenseFixedAxis")
       return DenseFixedAxis(name, length, from_sparse);
     });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<DenseFixedAxisNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const DenseFixedAxisNode*>(node.get());
+      p->stream << "dense_fixed(" << op->name << ", " << op->length;
+      if (op->from_sparse.defined()) {
+        p->stream << ", from_sparse=" << op->from_sparse.value();
+      }
+      p->stream << ")";
+    });
+
 // DenseVariableAxis
 DenseVariableAxis::DenseVariableAxis(String name, PrimExpr length, Buffer indptr) {
   ObjectPtr<DenseVariableAxisNode> node = make_object<DenseVariableAxisNode>();
@@ -72,6 +82,12 @@ TVM_REGISTER_NODE_TYPE(DenseVariableAxisNode);
 TVM_REGISTER_GLOBAL("tir.sparse.DenseVariableAxis")
     .set_body_typed([](String name, PrimExpr length, Buffer indptr) {
       return DenseVariableAxis(name, length, indptr);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<DenseVariableAxisNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const DenseVariableAxisNode*>(node.get());
+      p->stream << "dense_variable(" << op->name << ", " << op->length << ", " << op->indptr->name;
     });
 
 // SparseFixedAxis
@@ -91,6 +107,13 @@ TVM_REGISTER_GLOBAL("tir.sparse.SparseFixedAxis")
       return SparseFixedAxis(name, length, indices, num_cols);
     });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SparseFixedAxisNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SparseFixedAxisNode*>(node.get());
+      p->stream << "sparse_fixed(" << op->name << ", " << op->length << ", " << op->num_cols << ", "
+                << op->indices->name << ")";
+    });
+
 // SparseVariableAxis
 SparseVariableAxis::SparseVariableAxis(String name, PrimExpr length, Buffer indptr,
                                        Buffer indices) {
@@ -107,6 +130,13 @@ TVM_REGISTER_NODE_TYPE(SparseVariableAxisNode);
 TVM_REGISTER_GLOBAL("tir.sparse.SparseVariableAxis")
     .set_body_typed([](String name, PrimExpr length, Buffer indptr, Buffer indices) {
       return SparseVariableAxis(name, length, indptr, indices);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SparseVariableAxisNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SparseVariableAxisNode*>(node.get());
+      p->stream << "sparse_variable(" << op->name << ", " << op->length << ", " << op->indptr->name
+                << ", " << op->indices->name << ")";
     });
 
 // AxisTree
@@ -178,6 +208,27 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "], " << op->data << ")";
     });
 
+// SpIterKind
+std::ostream& operator<<(std::ostream& out, SpIterKind type) {
+  switch (type) {
+    case SpIterKind::kDenseFixed:
+      out << "dense-fixed";
+      break;
+    case SpIterKind::kDenseVariable:
+      out << "dense-variable";
+      break;
+    case SpIterKind::kSparseFixed:
+      out << "sparse-fixed";
+      break;
+    case SpIterKind::kSparseVariable:
+      out << "sparse-variable";
+      break;
+    default:
+      LOG(FATAL) << "Cannot reach here";
+  }
+  return out;
+}
+
 // SpIterVar
 SpIterVar::SpIterVar(Var var, PrimExpr max_extent, SpIterKind kind, bool is_reduction, Axis axis) {
   ObjectPtr<SpIterVarNode> node = make_object<SpIterVarNode>();
@@ -208,6 +259,14 @@ TVM_REGISTER_NODE_TYPE(SpIterVarNode);
 TVM_REGISTER_GLOBAL("tir.sparse.SpIterVar")
     .set_body_typed([](Var var, PrimExpr max_extent, int kind, bool is_reduction, Axis axis) {
       return SpIterVar(var, max_extent, SpIterKind(kind), is_reduction, axis);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SpIterVarNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const SpIterVarNode*>(node.get());
+      p->stream << "sp_iter_var(" << op->var->name_hint << ", " << op->max_extent << ", "
+                << op->kind << ", " << (op->is_reduction ? "reduction" : "spatial") << ", "
+                << op->axis->name << ")";
     });
 
 }  // namespace tir

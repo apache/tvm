@@ -382,6 +382,9 @@ enum class SpIterKind : int {
   kSparseVariable = 3
 };
 
+// overload printing of for type.
+TVM_DLL std::ostream& operator<<(std::ostream& os, SpIterKind kind);
+
 /*!
  * \brief Iterator variables in SparseTIR
  */
@@ -436,6 +439,22 @@ class SpIterVar : public ObjectRef {
 
 // inline implementations
 inline SpIterVar::operator PrimExpr() const { return (*this)->var; }
+
+// inline implementations
+inline const char* SpIterKind2String(SpIterKind t) {
+  switch (t) {
+    case SpIterKind::kDenseFixed:
+      return "dense_fixed";
+    case SpIterKind::kDenseVariable:
+      return "dense_variable";
+    case SpIterKind::kSparseFixed:
+      return "sparse_fixed";
+    case SpIterKind::kSparseVariable:
+      return "sparse_variable";
+  }
+  LOG(FATAL) << "Unknown SpIterKind" << t;
+  throw;
+}
 
 }  // namespace tir
 }  // namespace tvm
