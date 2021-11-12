@@ -1044,7 +1044,7 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
-  static const Layout kOIHW("OIHW");
+  static const Layout kIOHW("IOHW");
 
   const Conv2DTransposeAttrs* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
@@ -1056,9 +1056,9 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
       << "Conv only support input layouts that are convertible from NCHW."
       << " But got " << in_layout;
 
-  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
+  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kIOHW);
   ICHECK(trans_kernel_layout.defined())
-      << "Conv only support kernel layouts that are convertible from OIHW."
+      << "Conv only support kernel layouts that are convertible from IOHW."
       << " But got " << kernel_layout;
 
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
