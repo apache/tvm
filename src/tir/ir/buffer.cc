@@ -246,79 +246,120 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
 // The buffer offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
-PrimExpr BufferNode::ElemOffset(Array<PrimExpr> index) const {
-  PrimExpr base = this->elem_offset;
+Array<PrimExpr> BufferNode::ElemOffset(Array<PrimExpr> input_indices) const {
+  ICHECK_EQ(shape.size(), input_indices.size())
+      << "Dimensionality of buffer must match dimensionality of index used to access it";
+
+  if (strides.size()) {
+    ICHECK_EQ(this->strides.size(), input_indices.size())
+        << "If strides are defined, "
+        << "the index's dimensionality must match the dimensionality of the index given.";
+  }
+
+  PrimExpr output_index = 0;
+
   arith::Analyzer ana;
-  if (this->strides.size() == 0) {
-    // Scalar case
-    if (this->shape.size() == 0 && index.size() == 1) {
-      auto is_int = index[0].as<IntImmNode>();
-      ICHECK(is_int && is_int->value == 0);
-      base = base + index[0];
+
+  for (size_t i = 0; i < input_indices.size(); i++) {
+    if (strides.size()) {
+      output_index = output_index + input_indices[i] * strides[i];
     } else {
-      ICHECK_EQ(this->shape.size(), index.size());
-      if (index.size() > 0) {
-        PrimExpr offset = index[0];
-        for (size_t i = 1; i < index.size(); ++i) {
-          offset = MergeMulMod(&ana, offset * this->shape[i] + index[i]);
-        }
-        base = base + offset;
-      }
+      output_index = output_index * this->shape[i] + input_indices[i];
     }
-  } else {
-    ICHECK_EQ(this->strides.size(), index.size());
-    if (is_zero(base)) {
-      base = MergeMulMod(&ana, index[0] * this->strides[0]);
-    } else {
-      base = MergeMulMod(&ana, base + index[0] * this->strides[0]);
-    }
-    for (size_t i = 1; i < index.size(); ++i) {
-      base = MergeMulMod(&ana, base + index[i] * this->strides[i]);
+
+    if (i > 0) {
+      output_index = MergeMulMod(&ana, output_index);
     }
   }
-  return base;
+
+  if (elem_offset.defined() && !is_zero(elem_offset)) {
+    output_index = output_index + elem_offset;
+  }
+
+  return {output_index};
 }
 
-inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataType dtype) {
-  PrimExpr offset = n->ElemOffset(index);
+inline Array<PrimExpr> BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataType dtype) {
+  Array<PrimExpr> offsets = n->ElemOffset(index);
+  // If the Buffer has element type with more than one lane, scale to
+  // get the offset in number of scalars.
   if (n->dtype.lanes() != 1) {
-    offset = offset * make_const(offset.dtype(), dtype.lanes());
+    PrimExpr last_offset = offsets[offsets.size() - 1];
+    offsets.Set(offsets.size() - 1, last_offset * make_const(last_offset.dtype(), dtype.lanes()));
   }
+
+  // If the requested type has more than one lane, make a RampNode at
+  // that offset.
   if (dtype.lanes() != 1) {
-    return tir::Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
-  } else {
-    return offset;
+    PrimExpr last_offset = offsets[offsets.size() - 1];
+    PrimExpr stride = make_const(last_offset.dtype(), 1);
+    offsets.Set(offsets.size() - 1, tir::Ramp(last_offset, stride, dtype.lanes()));
   }
+
+  return offsets;
 }
 
-PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
+Buffer Buffer::GetFlattenedBuffer() const {
+  auto self = operator->();
+
+  PrimExpr output_size;
+  if (self->strides.size()) {
+    // If strides are defined, then the extent of each flattened
+    // buffer is the stride*size for the first input axis used for
+    // each output axis.
+    ICHECK_EQ(self->shape.size(), self->strides.size());
+    output_size = self->strides[0] * self->shape[0];
+
+  } else {
+    // Otherwise, the extent of each flattened buffer is the product
+    // of the extents of each input axis used to generate that output
+    // axis.  This also "flattens" rank-0 tensors to a rank-1 buffer
+    // of shape [1].
+
+    output_size = 1;
+    for (size_t i = 0; i < self->shape.size(); i++) {
+      output_size = output_size * self->shape[i];
+    }
+  }
+
+  Buffer output = *this;
+  auto writer = output.CopyOnWrite();
+  writer->shape = {output_size};
+
+  return output;
+}
+
+PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType value_dtype) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
   ICHECK(n != nullptr);
-  ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
-      << "Cannot load " << dtype << " from buffer of " << n->dtype;
-  if (dtype == DataType::Bool()) {
-    return tir::Cast(DataType::Bool(),
-                     tir::Load(DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
-                               const_true()));
-  } else {
-    return tir::Load(dtype, n->data, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
+  ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
+         value_dtype.lanes() % n->dtype.lanes() == 0)
+      << "Cannot load " << value_dtype << " from buffer of " << n->dtype;
+
+  Array<PrimExpr> indices = begin;
+  int factor = value_dtype.lanes() / n->dtype.lanes();
+  if (factor > 1) {
+    indices.Set(indices.size() - 1, Ramp(indices[indices.size() - 1], 1, factor));
   }
+  return BufferLoad(*this, indices);
 }
 
 Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
   ICHECK(n != nullptr);
-  DataType dtype = value.dtype();
-  ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
-      << "Cannot store " << dtype << " to buffer of " << n->dtype;
-  if (value.dtype() == DataType::Bool()) {
-    return tir::Store(n->data, tir::Cast(DataType::Int(8), value),
-                      BufferOffset(n, begin, DataType::Int(8)), const_true());
-  } else {
-    return tir::Store(n->data, value, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
+  DataType value_dtype = value.dtype();
+  ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
+         value_dtype.lanes() % n->dtype.lanes() == 0)
+      << "Cannot store " << value_dtype << " to buffer of " << n->dtype;
+
+  Array<PrimExpr> indices = begin;
+  int factor = value_dtype.lanes() / n->dtype.lanes();
+  if (factor > 1) {
+    indices.Set(indices.size() - 1, Ramp(indices[indices.size() - 1], 1, factor));
   }
+  return BufferStore(*this, value, indices);
 }
 
 String Buffer::scope() const {
@@ -353,7 +394,10 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
-  PrimExpr elem_offset = ana.Simplify(n->ElemOffset(begins));
+  Array<PrimExpr> elem_offset = n->ElemOffset(begins);
+  elem_offset.MutateByApply([&](const PrimExpr& expr) { return ana.Simplify(expr); });
+  ICHECK_EQ(elem_offset.size(), 1) << "MakeSlice currently supports only flat 1-d memory.";
+
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
     bool can_relax = true;
@@ -372,7 +416,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
       return MakeStrideView().MakeSlice(begins, extents);
     }
   }
-  return Buffer(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice",
+  return Buffer(n->data, n->dtype, extents, strides, elem_offset[0], n->name + "_slice",
                 n->data_alignment, 0, n->buffer_type);
 }
 

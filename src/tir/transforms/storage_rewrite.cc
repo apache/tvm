@@ -1232,11 +1232,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // divisible by the number of number of lanes, and the predicate
     // does not apply any masking, then this array access could be
     // vectorized.
-    const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
-    if (ramp_index && is_one(ramp_index->stride)) {
-      arith::ModularSet me = analyzer_.modular_set(ramp_index->base);
-      if ((me->coeff % ramp_index->lanes == 0) && (me->base % ramp_index->lanes == 0)) {
-        lanes_used = ramp_index->lanes;
+    if (indices.size()) {
+      const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
+      if (ramp_index && is_one(ramp_index->stride)) {
+        arith::ModularSet me = analyzer_.modular_set(ramp_index->base);
+        if ((me->coeff % ramp_index->lanes == 0) && (me->base % ramp_index->lanes == 0)) {
+          lanes_used = ramp_index->lanes;
+        }
       }
     }
 

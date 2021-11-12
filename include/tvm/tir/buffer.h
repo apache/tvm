@@ -127,7 +127,7 @@ class BufferNode : public Object {
    * without adjusting for number of lanes.  (e.g. The number of
    * float16x4 elements in a buffer of type float16x4.)
    */
-  PrimExpr ElemOffset(Array<PrimExpr> index) const;
+  Array<PrimExpr> ElemOffset(Array<PrimExpr> index) const;
 
   static constexpr const char* _type_key = "tir.Buffer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -185,6 +185,11 @@ class Buffer : public ObjectRef {
    * \param value The value to be stored.
    */
   TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value) const;
+
+  /*!
+   * \brief Get a flattened version of the buffer
+   */
+  Buffer GetFlattenedBuffer() const;
 
   /*!
    * \brief Return the storage scope associated with this buffer.

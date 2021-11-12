@@ -1074,9 +1074,12 @@ class StorageFlattener : public StmtExprMutator {
 
       bound_analyzer(func->body);
 
+      auto pass = StorageFlattener(func->buffer_map, cache_line_size, create_bound_attributes,
+                                   &bound_analyzer);
+
       auto fptr = func.CopyOnWrite();
-      fptr->body = StorageFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
-                                    &bound_analyzer)(std::move(fptr->body));
+      fptr->body = pass(std::move(fptr->body));
+      fptr->buffer_map = pass.UpdatedBufferMap();
       return func;
     };
     return transform::CreatePrimFuncPass(pass_func, 0, "tir.StorageFlattener", {});
@@ -1088,11 +1091,24 @@ class StorageFlattener : public StmtExprMutator {
     for (auto kv : extern_buffer_map) {
       BufferEntry e;
       e.buffer = kv.second;
+      e.flattened_buffer = e.buffer.GetFlattenedBuffer();
+      // TODO(Lunderberg): Move the handling of boolean into a
+      // dedicated pass.
+
+      // Boolean tensors are backed by a Int8 array.
+      if (e.buffer->dtype == DataType::Bool()) {
+        auto writer = e.buffer.CopyOnWrite();
+        writer->dtype = DataType::Int(8);
+      }
       e.external = true;
       buf_map_[kv.second] = e;
+
+      updated_extern_buffer_map_.Set(kv.first, e.flattened_buffer);
     }
     cache_line_size_ = cache_line_size;
   }
+
+  Map<Var, Buffer> UpdatedBufferMap() { return updated_extern_buffer_map_; }
 
   Stmt VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
@@ -1131,7 +1147,18 @@ class StorageFlattener : public StmtExprMutator {
 
     const BufferEntry& e = GetBufferEntry(op->buffer);
 
-    Stmt body = e.buffer.vstore(op->indices, op->value);
+    // Handle casts from the value's dtype to the dtype of the backing
+    // array.
+    PrimExpr value = op->value;
+    if (value.dtype() == DataType::Bool()) {
+      ICHECK_EQ(e.flattened_buffer->dtype, DataType::Int(8))
+          << "Expected int8 backing array for boolean tensor";
+      value = tir::Cast(DataType::Int(8), value);
+    }
+
+    auto flattened_indices = e.buffer->ElemOffset(op->indices);
+
+    Stmt body = BufferStore(e.flattened_buffer, value, flattened_indices, op->span);
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
     }
@@ -1179,12 +1206,11 @@ class StorageFlattener : public StmtExprMutator {
                "Please run BufferShapeLegalize first.";
       }
 
-      Array<PrimExpr> shape = op->buffer->shape;
       StorageScope skey = StorageScope::Create(GetPtrStorageScope(op->buffer->data));
 
       // use small alignment for small arrays
       auto dtype = op->buffer->dtype;
-      int32_t const_size = AllocateNode::constant_allocation_size(shape);
+      int32_t const_size = AllocateNode::constant_allocation_size(op->buffer->shape);
       int align = GetTempAllocaAlignment(dtype, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
@@ -1194,35 +1220,27 @@ class StorageFlattener : public StmtExprMutator {
               << "Allocation exceed bound of memory tag " << skey.to_string();
         }
       }
-      Array<PrimExpr> strides = op->buffer->strides;
 
-      e.buffer = Buffer(op->buffer->data, op->buffer->dtype, shape, strides, PrimExpr(),
-                        op->buffer->name, align, 0, kDefault);
+      e.buffer = Buffer(op->buffer->data, op->buffer->dtype, op->buffer->shape, op->buffer->strides,
+                        PrimExpr(), op->buffer->name, align, 0, kDefault);
+      e.flattened_buffer = e.buffer.GetFlattenedBuffer();
+
+      // TODO(Lunderberg): Move the handling of boolean into a
+      // dedicated pass.
+
+      // Boolean tensors are backed by a Int8 array.
+      if (e.buffer->dtype == DataType::Bool()) {
+        auto writer = e.buffer.CopyOnWrite();
+        writer->dtype = DataType::Int(8);
+      }
 
       buf_map_[key] = e;
       Stmt body = this->VisitStmt(op->body);
       buf_map_[key].in_scope = false;
-      Stmt ret;
 
-      DataType storage_type = e.buffer->dtype;
-      // specially handle bool, lower its storage
-      // type to beDataType::Int(8)(byte)
-      if (storage_type == DataType::Bool()) {
-        storage_type = DataType::Int(8);
-      }
-      if (strides.size() != 0) {
-        int first_dim = 0;
-        ret = Allocate(e.buffer->data, storage_type,
-                       {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
-                       make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
-      } else {
-        shape = e.buffer->shape;
-        if (shape.size() == 0) {
-          shape.push_back(make_const(DataType::Int(32), 1));
-        }
-        ret = Allocate(e.buffer->data, storage_type, shape,
-                       make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
-      }
+      Stmt ret =
+          Allocate(e.flattened_buffer->data, e.flattened_buffer->dtype, e.flattened_buffer->shape,
+                   make_const(DataType::Bool(e.flattened_buffer->dtype.lanes()), true), body);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
         ret = AttrStmt(e.buffer->data, tir::attr::buffer_bound,
@@ -1250,7 +1268,17 @@ class StorageFlattener : public StmtExprMutator {
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
     }
-    return e.buffer.vload(op->indices, e.buffer->dtype);
+
+    auto flattened_indices = e.buffer->ElemOffset(op->indices);
+    PrimExpr val = BufferLoad(e.flattened_buffer, flattened_indices, op->span);
+
+    if (op->dtype == DataType::Bool()) {
+      ICHECK_EQ(e.flattened_buffer->dtype, DataType::Int(8))
+          << "Expected int8 backing array for boolean tensor";
+      val = tir::Cast(DataType::Bool(), val);
+    }
+
+    return val;
   }
 
   Stmt VisitStmt_(const PrefetchNode* op) final {
@@ -1330,8 +1358,10 @@ class StorageFlattener : public StmtExprMutator {
   };
   // The buffer entry in the flatten map
   struct BufferEntry {
-    // the buffer of storage
+    // The buffer object
     Buffer buffer;
+    // The updated buffer object, after flattening has been applied.
+    Buffer flattened_buffer;
     // Whether the buffer is external
     bool external{false};
     // Whether the buffer is currently in scope.
@@ -1386,6 +1416,8 @@ class StorageFlattener : public StmtExprMutator {
   std::unordered_set<const VarNode*> allocate_node_var_;
   // Buffer map
   std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
+  // The extern buffer map, updated to include flattened buffers.
+  Map<Var, Buffer> updated_extern_buffer_map_;
   // Collects shapes.
   std::vector<std::pair<Var, Array<PrimExpr>>> shape_collector_;
   // bounds populator. We really need the analyzer from it.
