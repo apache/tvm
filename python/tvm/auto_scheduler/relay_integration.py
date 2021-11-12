@@ -25,6 +25,7 @@ Integrate auto_scheduler into relay. It implements the following items:
 import json
 import logging
 import threading
+import warnings
 
 import tvm
 from tvm import autotvm, transform
@@ -109,6 +110,11 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
 
     target, target_host = Target.check_and_update_host_consist(target, target_host)
 

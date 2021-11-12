@@ -130,7 +130,6 @@ def test_export_model_library_format_c(executor, target, should_generate_interfa
             factory = tvm.relay.build(
                 relay_mod,
                 target,
-                target_host=target,
                 mod_name="add",
                 params={"c": numpy.array([[2.0, 4.0]], dtype="float32")},
             )
@@ -213,7 +212,6 @@ def test_export_model_library_format_llvm():
             factory = tvm.relay.build(
                 relay_mod,
                 target,
-                target_host=target,
                 mod_name="add",
                 params={"c": numpy.array([[2.0, 4.0]], dtype="float32")},
             )
@@ -291,7 +289,7 @@ def test_export_model_library_format_workspace(target):
             }
             """
         )
-        factory = tvm.relay.build(relay_mod, target, target_host=target, mod_name="qnn_conv2d")
+        factory = tvm.relay.build(relay_mod, target, mod_name="qnn_conv2d")
 
     temp_dir = utils.tempdir()
     mlf_tar_path = temp_dir.relpath("lib.tar")
