@@ -651,7 +651,17 @@ def run_and_check(
         t.extractall(base_path)
 
         workspace_bytes += model.extra_memory_in_bytes
-        workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
+        mlf_workspace_size = mlf_extract_workspace_size_bytes(tar_file)
+        workspace_bytes += mlf_workspace_size
+
+        if interface_api == "c":
+            header_path = os.path.join(base_path, f"codegen/host/include/tvmgen_{model.name}.h")
+            with open(header_path, "r") as header_file:
+                header_contents = header_file.read()
+                assert (
+                    f"#define TVMGEN_{model.name.upper()}_WORKSPACE_SIZE {mlf_workspace_size}"
+                    in header_contents
+                )
 
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)
