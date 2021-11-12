@@ -19,7 +19,7 @@
 ## Compilation
 
 The launcher consists of two parts: part running on Hexagon, and part running
-on Android. Each component must be compiled separately. 
+on Android. Each component must be compiled separately.
 
 The supported Snapdragon architectures are 855, 865, and 888.
 
@@ -37,9 +37,9 @@ Building the Hexagon launcher application as a component of the main TVM build
 used for Hexagon codegen can be achieved by setting `USE_HEXAGON_LAUNCHER=ON`.
 This option will compile core tvm, the android launcher binary and its corresponding
 tvm_runtime, as well as the Hexagon launcher shared library and its corresponding
-tvm_runtime. As described in the [Manual compilation](#Manual compilation) section 
-each component requires Hexagon and android dependencies. When building the launcher 
-along with TVM these configurations must be providing when invoking cmake. A minimal 
+tvm_runtime. As described in the [Manual compilation](#Manual compilation) section
+each component requires Hexagon and android dependencies. When building the launcher
+along with TVM these configurations must be providing when invoking cmake. A minimal
 example invocation for compiling TVM along with the Hexagon launcher is included below:
 
 ```
@@ -59,9 +59,9 @@ cmake -DCMAKE_C_COMPILER=/path/to/clang \
 ```
 
 where `v65|v66|v68` means "one of" these architecture versions.
-The Hexagon launcher application is an android binary and thus requires the use 
-of an android toolchain for compilation. Similarly, the Hexagon tvm runtime 
-requires the use of the Hexagon toolchain and depends on the Hexagon SDK. The 
+The Hexagon launcher application is an android binary and thus requires the use
+of an android toolchain for compilation. Similarly, the Hexagon tvm runtime
+requires the use of the Hexagon toolchain and depends on the Hexagon SDK. The
 resulting hexagon launcher binaries can be found in the `apps_hexagon_launcher`
 subdirectory of the cmake build directory. Please note that the above command
 will not build support for Hexagon codegen in the TVM library, for that please
@@ -70,7 +70,7 @@ additionally define the `USE_HEXAGON_DEVICE` variable. Also, the LLVM used in
 
 ### Manual compilation
 
-Since some source files are shared between the Hexagon and android builds, 
+Since some source files are shared between the Hexagon and android builds,
 make sure to delete all object files between compilations. Compile the Hexagon
 code first.
 
@@ -157,7 +157,7 @@ mod, params = relay.frontend.from_tflite(
 
 target = tvm.target.hexagon('v68', link_params=True)
 with tvm.transform.PassContext(opt_level=3):
-    lib = relay.build(mod, target, target_host=target, params=params, mod_name="default")
+    lib = relay.build(mod, tvm.target.Target(target, host=target), params=params, mod_name="default")
 
 # Save model.so and model.json:
 with open('model.json', 'w') as f:

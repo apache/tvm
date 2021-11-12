@@ -35,7 +35,7 @@ def test_add(target_dir):
     bx, tx = s[C].split(C.op.axis[0], factor=64)
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
-    fadd_cuda = tvm.build(s, [A, B, C], "cuda", target_host="llvm", name="myadd")
+    fadd_cuda = tvm.build(s, [A, B, C], tvm.target.Target("cuda", host="llvm"), name="myadd")
 
     fadd_cuda.save(os.path.join(target_dir, "add_cuda.o"))
     fadd_cuda.imported_modules[0].save(os.path.join(target_dir, "add_cuda.ptx"))

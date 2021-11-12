@@ -148,6 +148,11 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
+        if target_host is not None:
+            warnings.warn(
+                "target_host parameter is going to be deprecated. "
+                "Please pass in tvm.target.Target(target, host=target_host) instead."
+            )
         target = build_target_by_device_type_map(target)
         target, target_host = Target.check_and_update_host_consist(
             target, target_host, target_is_dict_key=False
@@ -332,15 +337,22 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning,
         )
+
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
+
+    target, target_host = Target.check_and_update_host_consist(
+        target, target_host, target_is_dict_key=False
+    )
+
     target = build_target_by_device_type_map(target)
     if isinstance(target_host, (str, Target)):
         target_host = Target(target_host)
     elif target_host:
         raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
-
-    target, target_host = Target.check_and_update_host_consist(
-        target, target_host, target_is_dict_key=False
-    )
 
     # Retrieve the executor from the target
     executor = get_executor_from_target(target, target_host)
