@@ -2731,7 +2731,7 @@ class Resize(OnnxOpConverter):
             )
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
-        print(out)
+
         return out
 
 

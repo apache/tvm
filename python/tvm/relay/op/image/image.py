@@ -51,8 +51,11 @@ def resize1d(
     size: Tuple of Int or Expr
         The out size to which the image will be resized.
 
-    roi: Tuple of Float or Expr
-        The region of interest for tf_crop_and_resize.
+    roi: Tuple of Float or Expr, optional
+        The region of interest for cropping the input image. Expected to be of
+        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
+        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
+        is tf_crop_and_resize.
 
     layout : str, optional
         Layout of the input.
@@ -62,9 +65,10 @@ def resize1d(
 
     coordinate_transformation_mode : string, optional
         Describes how to transform the coordinate in the resized tensor
-        to the coordinate in the original tensor.
-        Refer to the ONNX Resize operator specification for details.
-        [half_pixel, align_corners, asymmetric]
+        to the coordinate in the original tensor. Defintions can be found
+        in topi/image/resize.py.
+        [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
+         tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -143,8 +147,11 @@ def resize2d(
     size: Tuple of Int or Expr
         The out size to which the image will be resized.
 
-    roi: Tuple of Float or Expr
-        The region of interest for tf_crop_and_resize.
+    roi: Tuple of Float or Expr, optional
+        The region of interest for cropping the input image. Expected to be of
+        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
+        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
+        is tf_crop_and_resize.
 
     layout : str, optional
         Layout of the input.
@@ -154,9 +161,10 @@ def resize2d(
 
     coordinate_transformation_mode : string, optional
         Describes how to transform the coordinate in the resized tensor
-        to the coordinate in the original tensor.
-        Refer to the ONNX Resize operator specification for details.
-        [half_pixel, align_corners, asymmetric]
+        to the coordinate in the original tensor. Defintions can be found
+        in topi/image/resize.py.
+        [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
+         tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -249,8 +257,11 @@ def resize3d(
     size: Tuple of Int or Expr
         The out size to which the image will be resized.
 
-    roi: Tuple of Float or Expr
-        The region of interest for tf_crop_and_resize.
+    roi: Tuple of Float or Expr, optional
+        The region of interest for cropping the input image. Expected to be of
+        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
+        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
+        is tf_crop_and_resize.
 
     layout : str, optional
         Layout of the input.
@@ -260,9 +271,10 @@ def resize3d(
 
     coordinate_transformation_mode : string, optional
         Describes how to transform the coordinate in the resized tensor
-        to the coordinate in the original tensor.
-        Refer to the ONNX Resize operator specification for details.
-        [half_pixel, align_corners, asymmetric]
+        to the coordinate in the original tensor. Defintions can be found
+        in topi/image/resize.py.
+        [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
+         tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
