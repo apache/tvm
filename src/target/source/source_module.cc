@@ -240,7 +240,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
                                     const std::string& mod_name) {
     code_ << "#include <" << mod_name << ".h>\n";
     code_ << "TVM_DLL int32_t " << run_func << "(";
-    unsigned int total_args = (metadata_->inputs.size() + metadata_->num_outputs);
+    unsigned int total_args =
+        (metadata_->inputs.size() + metadata_->devices.size() + metadata_->num_outputs);
     for (unsigned int i = 0; i < total_args; ++i) {
       code_ << "void* arg" << i;
       if (i + 1 != total_args) {
@@ -249,10 +250,16 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     }
     code_ << ");\n";
     code_ << "int32_t " << entrypoint_name << "(";
-    code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,"
-          << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs"
-          << ") {";
-    code_ << "return " << run_func << "(";
+    code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
+    if (!metadata_->devices.empty()) {
+      code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
+      code_ << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices";
+    } else {
+      code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs";
+    }
+
+    code_ << ") {"
+          << "return " << run_func << "(";
     for (const auto& input : metadata_->inputs) {
       std::string sanitised_input = input;
       std::replace_if(sanitised_input.begin(), sanitised_input.end(), isNotAlnum, '_');
@@ -268,6 +275,17 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         }
       }
     }
+
+    if (!metadata_->devices.empty()) {
+      code_ << ",";
+      for (const String& device : metadata_->devices) {
+        code_ << "devices->" << device;
+        if (device != metadata_->devices.back()) {
+          code_ << ",";
+        }
+      }
+    }
+
     code_ << ");\n";
     code_ << "}\n";
   }
