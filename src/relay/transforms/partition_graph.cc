@@ -49,6 +49,7 @@
 
 namespace tvm {
 namespace relay {
+
 namespace partitioning {
 
 /*! \brief This struct maintains the required metadata for a region to generate a corresponding

@@ -154,7 +154,7 @@ def round_up(a: int, b: int) -> int:
 
 def get_accelerator_config():
     """Get the variant of the accelerator to compile for"""
-    compiler_attrs = tvm.get_global_func("relay.ext.ethosu.get_compiler_attrs")()
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     return compiler_attrs.accelerator_config
 
 

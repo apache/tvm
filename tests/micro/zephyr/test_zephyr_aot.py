@@ -89,7 +89,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
                 model_files_path = os.path.join(tar_temp_dir, "include")
                 os.mkdir(model_files_path)
                 header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                    lowered.libmod_name, ["input_1"], ["output"], [], model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
@@ -150,7 +150,7 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
                 model_files_path = os.path.join(tar_temp_dir, "include")
                 os.mkdir(model_files_path)
                 header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                    lowered.libmod_name, ["input_1"], ["output"], [], model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
             test_utils.create_header_file(

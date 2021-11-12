@@ -35,7 +35,7 @@ RANLIB = arm-none-eabi-ranlib
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${STANDALONE_CRT_PATH}/include \
 	-I${STANDALONE_CRT_PATH}/src/runtime/crt/include \
-	-Iinclude \
+	-I${PWD}/include \
 	-I${CORSTONE_300_PATH} \
 	-I${ETHOSU_PATH}/core_driver/include \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
@@ -95,7 +95,7 @@ ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a:
 	$(QUIET)cd $(abspath $(BUILD_DIR)/ethosu_core_driver) && $(MAKE)
 
 # Build demo application
-$(BUILD_DIR)/demo: src/demo.c $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/libuart.a
+$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/libuart.a
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS)
 

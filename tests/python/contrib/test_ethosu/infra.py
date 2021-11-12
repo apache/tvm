@@ -198,11 +198,16 @@ def _create_test_runner(accel):
         prologue="""
         uart_init();
         EthosuInit();
+
+        struct ethosu_driver* ethos_u = ethosu_reserve_driver();
+        """,
+        epilogue="""
+        ethosu_release_driver(ethos_u);
         """,
         includes=["uart.h", "ethosu_55.h", "ethosu_mod.h", "hard_fault.h"],
         parameters={"ETHOSU_TEST_ROOT": test_root, "NPU_VARIANT": ethosu_macs},
         pass_config={
-            "relay.ext.ethosu.options": {
+            "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,
             }
         },

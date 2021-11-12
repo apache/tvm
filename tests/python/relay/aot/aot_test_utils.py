@@ -116,6 +116,8 @@ class AOTTestRunner(NamedTuple):
         Premade Makefile to use from the AOT test folder
     prologue: str
         Code to prepend to the main function
+    epilogue: str
+        Code to append to the main function
     includes: List[str]
         Additional includes required to run the AOT test runner
     parameters: Dict[str, str]
@@ -126,6 +128,7 @@ class AOTTestRunner(NamedTuple):
 
     makefile: str = "default"
     prologue: str = ""
+    epilogue: str = ""
     includes: List[str] = []
     parameters: Dict[str, str] = {}
     pass_config: Dict[str, Any] = {}
@@ -320,6 +323,16 @@ def emit_main_data(main_file, input_map, output_list, mod_name):
         main_file.write(f'#include "{mangle_name(mod_name,"output_data")}{i}.h"\n')
 
 
+def emit_main_device_structs(main_file, devices, mod_name):
+    if devices:
+        main_file.write(
+            f"struct {mangle_name(mod_name, 'devices')} {mangle_name(mod_name, 'devices')} = {{"
+        )
+        for device in devices:
+            main_file.write(f"\t.{device} = {device},\n")
+        main_file.write("};\n")
+
+
 def emit_main_data_structs(main_file, input_map, output_list, mod_name):
     main_file.write(
         f"struct {mangle_name(mod_name, 'inputs')} {mangle_name(mod_name, 'inputs')} = {{"
@@ -359,10 +372,20 @@ def emit_main_data_setup(main_file, input_map, output_list, mod_name):
     main_file.write("};\n")
 
 
-def emit_main_c_interface_call(main_file, mod_name):
-    main_file.write(
-        f'{mangle_name(mod_name,"run")}(&{mangle_name(mod_name,"inputs")}, &{mangle_name(mod_name,"outputs")});\n'
-    )
+def emit_main_c_interface_call(main_file, devices, mod_name):
+    if devices:
+        main_file.write(
+            f'{mangle_name(mod_name,"run")}('
+            f'&{mangle_name(mod_name,"inputs")}, '
+            f'&{mangle_name(mod_name,"outputs")}, '
+            f'&{mangle_name(mod_name,"devices")});\n'
+        )
+    else:
+        main_file.write(
+            f'{mangle_name(mod_name,"run")}('
+            f'&{mangle_name(mod_name,"inputs")}, '
+            f'&{mangle_name(mod_name,"outputs")});\n'
+        )
 
 
 def emit_main_fake_packed_values(main_file):
@@ -446,7 +469,8 @@ def emit_main_init_memory_manager(main_file):
     main_file.write("\n")
 
 
-def emit_main_epilogue(main_file):
+def emit_main_epilogue(main_file, custom_epilogue):
+    main_file.write(custom_epilogue)
     main_file.write(f'printf("{AOT_SUCCESS_TOKEN}\\n");')
     main_file.write("return 0;")
     main_file.write("}\n")
@@ -469,10 +493,11 @@ def emit_main_micro_include(main_file, mod_name):
 
 def create_main(
     test_name,
-    models,
+    compiled_models,
     output_path,
     custom_includes,
     custom_prologue,
+    custom_epilogue,
     data_linkage,
     interface_api,
     workspace_bytes,
@@ -484,27 +509,34 @@ def create_main(
         emit_main_common_includes(main_file, custom_includes)
 
         if interface_api == "c":
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
                 emit_main_micro_include(main_file, model.name)
-        for model in models:
+        for compiled_model in compiled_models:
+            model = compiled_model.model
             emit_main_data(main_file, model.inputs, model.outputs, model.name)
 
         emit_main_prologue(main_file, custom_prologue, workspace_bytes, data_linkage)
         emit_main_init_memory_manager(main_file)
 
         if interface_api == "c":
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
+                devices = compiled_model.executor_factory.get_devices()
+                emit_main_device_structs(main_file, devices, model.name)
                 emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
-                emit_main_c_interface_call(main_file, model.name)
+                emit_main_c_interface_call(main_file, devices, model.name)
         else:
             emit_main_fake_packed_values(main_file)
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
                 emit_main_data_setup(main_file, model.inputs, model.outputs, model.name)
                 emit_main_packed_call(main_file, model.inputs, model.outputs, model.name)
 
-        for model in models:
+        for compiled_model in compiled_models:
+            model = compiled_model.model
             emit_main_compare(main_file, model.outputs, model.output_tolerance, model.name)
-        emit_main_epilogue(main_file)
+        emit_main_epilogue(main_file, custom_epilogue)
 
 
 def create_header_file(tensor_name, npy_data, output_path, data_linkage):
@@ -646,10 +678,11 @@ def run_and_check(
 
     create_main(
         "test.c",
-        [compiled_model.model for compiled_model in models],
+        models,
         build_path,
         runner.includes,
         runner.prologue,
+        runner.epilogue,
         data_linkage,
         interface_api,
         workspace_bytes,

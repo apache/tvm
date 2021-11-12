@@ -58,6 +58,8 @@ class MetadataNode : public Object {
   Array<String> inputs;
   /*! \brief number of outputs of the main function */
   int num_outputs = 1;
+  /*! \brief device contexts information for the main function */
+  Array<String> devices;
   /*! \brief the executor to be used to run the model */
   String executor = kTvmExecutorGraph;
 
@@ -73,9 +75,11 @@ class MetadataNode : public Object {
  */
 class Metadata : public ObjectRef {
  public:
-  TVM_DLL Metadata(Array<String> inputs, int num_outputs, String executor, String mod_name) {
+  TVM_DLL Metadata(Array<String> inputs, Array<String> devices, int num_outputs, String executor,
+                   String mod_name) {
     auto n = make_object<MetadataNode>();
     n->inputs = inputs;
+    n->devices = devices;
     n->num_outputs = num_outputs;
     n->executor = executor;
     n->mod_name = mod_name;
