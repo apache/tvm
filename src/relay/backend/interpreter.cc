@@ -922,16 +922,12 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * functions needed by the rewritten module.
  */
 IRModule Prepare(IRModule mod, CompilationConfig config) {
-  tec::TargetMap tec_target_map;
-  for (const auto& pair : config->legacy_target_map) {
-    tec_target_map.emplace(static_cast<DLDeviceType>(pair.first->value), pair.second);
-  }
   // Run minimal transforms on module to establish invariants needed by interpreter.
   transform::Sequential seq(
       {transform::SimplifyInference(),
        // Figure out which devices should be used to execute.
        // TODO(mbs): Should ignore all existing annotations when constant folding
-       transform::PlanDevices(config->default_primitive_se_scope->device_type()),
+       transform::PlanDevices(std::move(config)),
        // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
        // attribute.
        transform::FuseOps(/*fuse_opt_level=*/0),
@@ -941,8 +937,7 @@ IRModule Prepare(IRModule mod, CompilationConfig config) {
        transform::EtaExpand(
            /*expand_constructor=*/true, /*expand_global_var=*/false),
        transform::InferType(),
-       tec::LowerTEPass(tec_target_map, /*module_name=*/"intrp",
-                        [](Function func) { /* no-op */ })});
+       tec::LowerTEPass(/*module_name=*/"intrp", [](Function func) { /* no-op */ })});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);

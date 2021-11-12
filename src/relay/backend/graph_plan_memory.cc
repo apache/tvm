@@ -53,21 +53,19 @@ struct StorageToken {
   size_t max_bytes{0};
   /*! \brief The corresponding tensor type. */
   TensorType ttype{nullptr};
-  /*! \brief Device on which memory will reside. */
-  Device device{kInvalidDeviceType, -1};
+  /*! \brief SEScope on which the memory will reside. */
+  SEScope se_scope = SEScope::FullyUnconstrained();
   /*! \brief The storage id */
   int64_t storage_id{-1};
 
-  bool is_valid() const { return device.device_type != kInvalidDeviceType; }
+  bool is_valid() const { return !se_scope->IsFullyUnconstrained(); }
 
-  bool is_compatible(const StorageToken& that) const {
-    return device.device_type == that.device.device_type;
-  }
+  bool is_compatible(const StorageToken& that) const { return se_scope == that.se_scope; }
 
   std::string ToString() const {
     std::ostringstream os;
-    os << "{id: " << storage_id << ", bytes: " << max_bytes << ", type: " << PrettyPrint(ttype)
-       << ", device: " << device.device_type << "}";
+    os << "{storage_id: " << storage_id << ", max_bytes: " << max_bytes
+       << ", ttype: " << PrettyPrint(ttype) << ", se_scope: " << se_scope << "}";
     return os.str();
   }
 };
@@ -169,15 +167,14 @@ class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
    * the result of evaluating \p op.
    */
   void CreateToken(const ExprNode* expr_node, bool can_realloc) {
-    return CreateTokenOnDevice(expr_node, GetInScopeDeviceType(GetRef<Expr>(expr_node)),
-                               can_realloc);
+    return CreateTokenOnDevice(expr_node, GetSEScope(GetRef<Expr>(expr_node)), can_realloc);
   }
 
   /*!
    * \brief Allocates (or reuses if \p can_realloc is true) a storage token for holding
    * the result of evaluating \p op on \p device_type.
    */
-  virtual void CreateTokenOnDevice(const ExprNode* op, DLDeviceType device_type,
+  virtual void CreateTokenOnDevice(const ExprNode* op, const SEScope& se_scope,
                                    bool can_realloc) = 0;
 };
 
@@ -196,16 +193,13 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
  protected:
   using StorageAllocaBaseVisitor::VisitExpr_;
 
-  void CreateTokenOnDevice(const ExprNode* op, DLDeviceType device_type,
-                           bool can_realloc) override {
+  void CreateTokenOnDevice(const ExprNode* op, const SEScope& se_scope, bool can_realloc) override {
     ICHECK(!token_map_.count(op));
     std::vector<StorageToken*> tokens;
     for (const auto& ttype : FlattenTupleType(op->checked_type())) {
-      StorageToken* token = arena_->make<StorageToken>();
+      auto* token = arena_->make<StorageToken>();
       token->ttype = ttype;
-      // TODO(mbs): Should be TargetDevice.
-      token->device.device_type = device_type;
-      token->device.device_id = 0;
+      token->se_scope = se_scope;
       tokens.push_back(token);
     }
     token_map_[op] = tokens;
@@ -261,8 +255,11 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
 
     for (const auto& kv : token_map_) {
       std::vector<int64_t> storage_ids;
-      std::vector<DLDeviceType> device_types;
+      storage_ids.reserve(kv.second.size());
+      std::vector<SEScope> se_scopes;
+      se_scopes.reserve(kv.second.size());
       std::vector<int64_t> sid_sizes_byte;
+      sid_sizes_byte.reserve(kv.second.size());
 
       for (StorageToken* tok : kv.second) {
         VLOG(1) << "token: " << tok->ToString();
@@ -271,10 +268,11 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         }
         num_nodes++;
         storage_ids.push_back(tok->storage_id);
-        device_types.push_back(static_cast<DLDeviceType>(tok->device.device_type));
+        se_scopes.push_back(tok->se_scope);
         sid_sizes_byte.push_back(GetMemorySize(tok));
       }
-      auto storage_info = backend::StorageInfo(storage_ids, device_types, sid_sizes_byte);
+      auto storage_info = backend::StorageInfo(std::move(storage_ids), std::move(se_scopes),
+                                               std::move(sid_sizes_byte));
       smap.Set(GetRef<Expr>(kv.first), storage_info);
     }
     // Either all or none of the nodes should be annotated.
@@ -288,20 +286,20 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
 
  protected:
   // override create token by getting token as prototype requirements.
-  void CreateTokenOnDevice(const ExprNode* op, DLDeviceType device_type, bool can_realloc) final {
+  void CreateTokenOnDevice(const ExprNode* op, const SEScope& se_scope, bool can_realloc) final {
     ICHECK(!token_map_.count(op));
     auto it = prototype_.find(op);
     ICHECK(it != prototype_.end());
     std::vector<StorageToken*> tokens;
 
     for (StorageToken* tok : it->second) {
-      ICHECK_EQ(tok->device.device_type, device_type);
+      ICHECK(tok->se_scope == se_scope);
       if (can_realloc) {
         tokens.push_back(Request(tok));
       } else {
         // Allocate a new token,
         StorageToken* allocated_tok = Alloc(tok, GetMemorySize(tok));
-        allocated_tok->device = tok->device;
+        allocated_tok->se_scope = tok->se_scope;
         // ensure it never get de-allocated.
         allocated_tok->ref_counter += 1;
         tokens.push_back(allocated_tok);
@@ -372,7 +370,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
    * \param size The original size.
    * \param word_size The element size.
    */
-  static size_t DivRoundUp(size_t size, size_t word_size) {
+  static int64_t DivRoundUp(int64_t size, int64_t word_size) {
     return (size + word_size - 1) / word_size;
   }
   /*!
@@ -398,16 +396,19 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
    * \brief Get the memory requirement.
    * \param prototype The prototype token.
    * \return The required memory size.
+   *
+   * TODO(mbs): Gf GetMemorySizeBytes in aot_executor_codegen.cc,
+   * CalculateRelayExprSizeBytes in utils.cc
    */
-  size_t GetMemorySize(StorageToken* prototype) {
+  static int64_t GetMemorySize(StorageToken* prototype) {
     TensorType ttype = prototype->ttype;
     ICHECK(ttype.defined());
-    size_t size = 1;
+    int64_t size = 1;
     for (IndexExpr dim : ttype->shape) {
       const int64_t* pval = tir::as_const_int(dim);
       ICHECK(pval != nullptr) << "Cannot allocate memory symbolic tensor shape " << ttype->shape;
       ICHECK_GE(*pval, 0) << "Cannot allocate memory for tensor with negative shape" << *pval;
-      size *= static_cast<size_t>(pval[0]);
+      size *= pval[0];
     }
     size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
     return size;

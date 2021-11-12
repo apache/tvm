@@ -31,6 +31,8 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/topi/elemwise.h>
 
+#include <utility>
+
 #include "../../transforms/infer_layout_utils.h"
 #include "../annotation/annotation.h"
 #include "../call/call.h"
@@ -47,28 +49,26 @@ const Op& DeviceCopyOp() {
   return op;
 }
 
-Expr DeviceCopy(Expr expr, DLDeviceType src_dev_type, DLDeviceType dst_dev_type) {
+Expr DeviceCopy(Expr expr, SEScope src_se_scope, SEScope dst_se_scope) {
+  ICHECK(!src_se_scope->IsFullyUnconstrained());
+  ICHECK(!dst_se_scope->IsFullyUnconstrained());
   auto attrs = make_object<DeviceCopyAttrs>();
-  attrs->src_dev_type = src_dev_type;
-  attrs->dst_dev_type = dst_dev_type;
+  attrs->src_se_scope = std::move(src_se_scope);
+  attrs->dst_se_scope = std::move(dst_se_scope);
   Span span = expr->span;
-  return Call(DeviceCopyOp(), {std::move(expr)}, Attrs(attrs), /*type_args=*/{}, span);
+  return Call(DeviceCopyOp(), {std::move(expr)}, Attrs(std::move(attrs)), /*type_args=*/{},
+              std::move(span));
 }
 
-Expr OptDeviceCopy(Expr expr, DLDeviceType src_dev_type, DLDeviceType dst_dev_type) {
-  if (src_dev_type == dst_dev_type) {
+TVM_REGISTER_GLOBAL("relay.op._make.DeviceCopy").set_body_typed(DeviceCopy);
+
+Expr MaybeDeviceCopy(Expr expr, SEScope src_se_scope, SEScope dst_se_scope) {
+  if (src_se_scope == dst_se_scope) {
+    // No copy needed.
     return expr;
   }
-  ICHECK_NE(src_dev_type, kInvalidDeviceType);
-  ICHECK_NE(dst_dev_type, kInvalidDeviceType);
-  return DeviceCopy(expr, src_dev_type, dst_dev_type);
+  return DeviceCopy(std::move(expr), std::move(src_se_scope), std::move(dst_se_scope));
 }
-
-TVM_REGISTER_GLOBAL("relay.op._make.device_copy")
-    .set_body_typed([](Expr expr, int src_dev_type, int dst_dev_type) {
-      return DeviceCopy(expr, static_cast<DLDeviceType>(src_dev_type),
-                        static_cast<DLDeviceType>(dst_dev_type));
-    });
 
 RELAY_REGISTER_OP("device_copy")
     .describe(R"code(
@@ -96,29 +96,14 @@ DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node) {
     ICHECK(call_node->attrs.defined()) << "device_copy requires attributes";
     const auto* device_copy_attrs = call_node->attrs.as<DeviceCopyAttrs>();
     ICHECK(device_copy_attrs != nullptr) << "device_copy requires DeviceCopyAttrs";
-    auto src_dev_type = static_cast<DLDeviceType>(device_copy_attrs->src_dev_type);
-    auto dst_dev_type = static_cast<DLDeviceType>(device_copy_attrs->dst_dev_type);
     // Follow nesting:
-    //   device_copy(device_copy(expr, src_dev_type=1, dst_dev_type=2),
-    //               src_dev_type=2, dst_dev_type=3) ==> {expr, 1, 3}
+    //   device_copy(device_copy(expr, src_se_scope=S, dst_se_scope=T),
+    //               src_se_scope=T, dst_se_scope=U) ==> {expr, S, U}
     auto inner = GetDeviceCopyProps(call_node->args[0]);
     if (inner.body.defined()) {
-      return {inner.body, inner.src_dev_type, inner.dst_dev_type};
+      return {inner.body, inner.src_se_scope, device_copy_attrs->dst_se_scope};
     } else {
-      return {call_node->args[0], src_dev_type, dst_dev_type};
-    }
-  } else if (call_node->op == CallLoweredOp()) {
-    /* Get device props for a TIR function */
-    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
-
-    if (call_lowered_props.attrs.metadata.count("source_device") == 1 &&
-        call_lowered_props.attrs.metadata.count("dst_device") == 1) {
-      ICHECK_EQ(call_lowered_props.arguments.size(), 1) << "device_copy is of arity 1";
-      return {call_lowered_props.lowered_func,
-              static_cast<DLDeviceType>(
-                  Downcast<Integer>(call_lowered_props.attrs.metadata["source_device"])->value),
-              static_cast<DLDeviceType>(
-                  Downcast<Integer>(call_lowered_props.attrs.metadata["dst_device"])->value)};
+      return {call_node->args[0], device_copy_attrs->src_se_scope, device_copy_attrs->dst_se_scope};
     }
   }
   return {};

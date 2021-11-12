@@ -19,22 +19,22 @@
 
 /*!
  * \file src/relay/transforms/device_planner.cc
- * \brief Determines a unique device to hold the result of every Relay sub-expression.
+ * \brief Determines a unique \p SEScope to hold the result of every Relay sub-expression.
  *
  * We say a Relay expression E is 'on device D' if the result of executing E is stored on D.
- * Currently we only track the 'device_type' of D and not its 'device id'. We do not track the
- * specific target associated with D (this is recovered independently via a TargetMap), and we
- * do not track the storage scope within D (this is yet to be implemented).
+ * We represent D by an \p SEScope, which means we can track anywhere from an arbitrary device
+ * of some \p DLDeviceType to a specific memory scope on a specific (virtual) \p Device who's
+ * code is compiled with a specific \p Target.
  *
  * Note that 'stored on device D' is almost but not quite the same as 'executes on device D',
  * see below.
  *
  * This pass assumes the module already contains some "on_device" and/or "device_copy" CallNodes:
- *  - "device_copy" CallNodes (with a \p DeviceCopyAttrs attribute) specify a 'src_dev_type' and
- *    'dst_dev_type' device type, which constrain the argument and context of the call
+ *  - "device_copy" CallNodes (with a \p DeviceCopyAttrs attribute) specify a 'src_se_scope' and
+ *    'dst_se_scope' \p SEScopes, which constrain the argument and context of the call
  *     respectively. It is ok if source and destination devices are the same, such no-op copies
  *     will be removed after accounting for the device preference.
- *  - "on_device" CallNodes (with a \p OnDeviceAttrs attribute) specify a 'device_type', which
+ *  - "on_device" CallNodes (with a \p OnDeviceAttrs attribute) specify an 'se_scope', which
  *    constrains the argument of the call, but (usually, see below) leaves the context
  *    unconstrained. These are called 'annotations' in the rest of the code, have no operational
  *    significance by themselves, but may trigger the insertion of a new "device_copy".
@@ -63,15 +63,16 @@
  * -------
  * We flow constraints from the "on_device" and "device_copy" calls (and some special ops, see
  * below) to all other Relay sub-expressions. (For idempotence we also respect any existing
- * "param_device_types" and "result_device_type" function attributes we introduce below.)
+ * "param_se_scopes" and "result_se_scope" function attributes we introduce below.)
  *
  * For a primitive such as \code add(e1, e2) \endcode all arguments and results must be on the
  * same device. However each call site can use a different device. In other words primitives are
- * 'device polymorphic' since we compile and execute them for each required device.
+ * 'device polymorphic' since we compile and execute them for each required device. ADT constructors
+ * are similarly polymorphic.
  *
  * For most Relay expressions the device for the overall expression is the same as the device
- * for it's sub-expressions. E.g. each field of a tuple must be on the same device as the tuple
- * itself, the condition and arms of an \p if must all be on the same device as the overall if,
+ * for its sub-expressions. E.g. each field of a tuple must be on the same device as the tuple
+ * itself, the condition and arms of an \p if must all be on the same device as the overall \p if,
  * and so on.
  *
  * Some special ops (or 'dialects') are handled:
@@ -91,18 +92,18 @@
  *
  * Phase 2
  * -------
- * After flowing constraints we apply some defaulting heuristics (using a global default device)
+ * After flowing constraints we apply some defaulting heuristics (using a global default \p SEScope)
  * to fix the device for any as-yet unconstrained sub-expressions.
  *  - Unconstrained function result devices default to the global default device.
  *  - Unconstrained function parameters devices default to the device for the function result.
  *  - Unconstrained let-bound expression devices default to the device for the overall let.
- * TODO(mbs): I may have over-innovated here and we simply want to bind all free domaints to
- * the global default device. Worth a design doc with motivating examples I think.
+ * TODO(mbs): These are very simple minded heuristics, and ultimately we'd like to treat the
+ * assignment of the remaining unconstrained sub-expressions as an optimiziation problem in itself.
  *
  * Phase 3
  * -------
  * Finally, the result of this analysis is reified into the result as:
- *  - Additional "param_device_types" (an Array<Integer>) and "result_device_type" (Integer)
+ *  - Additional "param_se_scopes" (an \p Array<SEScope>) and "result_se_scope" (an \p SEScope)
  *    attributes for every function (both top-level and local). These describe the devices for
  *    the function's parameters and the result.
  *  - Additional "device_copy" CallNodes where a copy is required in order to respect the
@@ -124,14 +125,15 @@
  * passes must preserve the lexical scoping of the "on_device" CallNodes. E.g. conversion
  * to ANF must respect the lexical scoping convention:
  * \code
- * f(on_device(g(h(a, b), c), device_type=CPU))
+ * f(on_device(g(h(a, b), c), se_scope=CPU))
  * ==>
- * let %x0 = on_device(h(a, b), device_type=CPU)
- * let %x1 = on_device(g(%x0), device-type=CPU)
- * f(on_device(%x1, device_type=CPU))
+ * let %x0 = on_device(h(a, b), se_scope=CPU)
+ * let %x1 = on_device(g(%x0), se_scope=CPU)
+ * f(on_device(%x1, se_scope=CPU))
  * \endcode
  *
  * This pass can be run before FuseOps it can use device-specific fusion rules.
+ * TODO(mbs): We also need to support running after FuseOps.
  *
  * 'Stored on' vs 'Executes on'
  * ----------------------------
@@ -147,7 +149,7 @@
  * pass, but we'd like to fold that into device planning here to ensure everything is consistent.
  *
  * Obviously since tensors are passed-by-pointer it's quite possible to execute a Relay
- * expression (eg an if expression) on one device even though the tensor data resides on
+ * expression (eg an \p if expression) on one device even though the tensor data resides on
  * another. But for AOT that flexibility seems excessive. So we'd like to just take 'executes on'
  * to be 'stored on' exactly. In particular, for a Relay function, we'd like to be able to just
  * compile the function body for the function's result device.
@@ -157,7 +159,7 @@
  * minimize cross-device calls by moving device copies out of functions. E.g.:
  * \code
  *   def @f() {  // execute on CPU
- *     let x = on_device(...GPU computation..., device_type=GPU);
+ *     let x = on_device(...GPU computation..., se_scope=GPU);
  *     device_copy(...GPU computation..., src_dev_type=GPU, dst_dev_type=CPU)
  *   }
  *   def @main() {
@@ -189,7 +191,7 @@
  * \code
  *   let f = fn(x, y) { ... }
  *   let g = fn(f, z) { f(z, z) }
- *   g(f, on_device(..., device_type=CPU))
+ *   g(f, on_device(..., se_scope=CPU))
  * \endcode
  * the parameters \p x and \p y will be on the CPU.
  *
@@ -226,28 +228,16 @@
  *    `-- Mark's stamp of completeness :-)
  *
  * TODO(mbs):
- *  * Though on_device is the identity for all types we can't wrap it around functions/constructors
- *    taking type args (or at least not without changing type_infer.cc to see through them).
- *    This is not currently handled generally.
  *  * Proper diagnostics for unification failure using spans.
- *  * Make sure the pass is idempotent even after FuseOps etc.
- *  * Support application of constructors properly. Are they device polymorphic?
- *  * Replace DLDeviceType with TargetDevice, and unify 'target annotation' with 'device planning'.
  *  * Support running the pass post FuseOps (so need to understand primitive functions, both
  *    outlines and lined) and post the VM transforms (probably need to support more intrinsic
  *    forms?).
  *  * Don't hardcode the 'CPU' device for shape funcs etc, and distinguish between the default
  *    device for primitives vs the default device for the rest of Relay.
- *  * We'll probably need some support for partial 'device polymorphism' for functions once we
- *    incorporate targets and memory scopes into the domain. For example it's ok for the function
- *    body to be executed on different device ids provided they have the same target and memory
- *    scope.
- *  * Might be simpler to just let every type have a device annotation rather than work in
- *    a separate domain?
+ *  * We may want some 'device polymorphism' for Relay functions. Eg it's ok for the function
+ *    to be called with params/result on different (virtual) device ids provided the target and
+ *    memory scopes are consistent.
  *  * Switch to expr.CopyWith(...) form once implemented to avoid unnecessary copies.
- *  * The original device_annotation.cc RewriteAnnotatedOps removed all "on_device" calls
- *    in tuples at the top level of function bodies or main expression, irrespective of the
- *    "on_device" body. What's up with that?
  */
 
 #include <tvm/ir/transform.h>
@@ -267,6 +257,7 @@
 
 #include "../op/annotation/annotation.h"
 #include "../op/memory/device_copy.h"
+#include "../op/memory/on_device.h"
 #include "./device_domains.h"
 
 namespace tvm {
@@ -283,11 +274,11 @@ namespace {
  * \brief Rewrites "on_device" calls to handle some special cases.
  *
  * \code
- * let %x = on_device(e, device_type=d)
- * ==> let %x = on_device(e, device_type=d, is_fixed=True)
+ * let %x = on_device(e, se_scope=d)
+ * ==> let %x = on_device(e, se_scope=d, is_fixed=True)
  *
- * fn(%x) { on_device(e, device_type=d) }
- * ==> fn(%x) { on_device(e, device_type=d, is_fixed=True)
+ * fn(%x) { on_device(e, se_scope=d) }
+ * ==> fn(%x) { on_device(e, se_scope=d, is_fixed=True)
  *
  * on_device(e).0
  * ==> on_device(e.0)
@@ -303,12 +294,12 @@ class RewriteOnDevices : public ExprMutator {
     // TODO(mbs): Avoid copy.
     Expr tuple_get_item =
         TupleGetItem(tuple, tuple_get_item_node->index, tuple_get_item_node->span);
-    auto props = GetOnDeviceProps(tuple);
+    OnDeviceProps props = GetOnDeviceProps(tuple);
     if (props.body.defined() && !props.is_fixed) {
-      VLOG(1) << "wrapping tuple get item:" << std::endl
+      VLOG(2) << "wrapping tuple get item:" << std::endl
               << PrettyPrint(GetRef<TupleGetItem>(tuple_get_item_node)) << std::endl
-              << "with \"on_device\" for device " << props.device_type;
-      return OnDevice(tuple_get_item, props.device_type, /*is_fixed=*/false);
+              << "with \"on_device\" for SEScope " << props.se_scope;
+      return OnDevice(tuple_get_item, props.se_scope, /*is_fixed=*/false);
     } else {
       return tuple_get_item;
     }
@@ -320,12 +311,12 @@ class RewriteOnDevices : public ExprMutator {
     while (const auto* inner_let_node = expr.as<LetNode>()) {
       Expr inner_let = GetRef<Let>(inner_let_node);
       Expr value = VisitExpr(inner_let_node->value);
-      auto props = GetOnDeviceProps(value);
+      OnDeviceProps props = GetOnDeviceProps(value);
       if (props.body.defined() && !props.is_fixed) {
-        VLOG(1) << "revising let-bound expression of let:" << std::endl
+        VLOG(2) << "revising let-bound expression of let:" << std::endl
                 << PrettyPrint(expr) << std::endl
-                << "to be fixed to device " << props.device_type;
-        value = OnDevice(props.body, props.device_type, /*is_fixed=*/true);
+                << "to be fixed to SEScope " << props.se_scope;
+        value = OnDevice(props.body, props.se_scope, /*is_fixed=*/true);
       }
       bindings.emplace_back(inner_let_node->var, value, inner_let_node->span);
       expr = inner_let_node->body;
@@ -341,12 +332,12 @@ class RewriteOnDevices : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* function_node) final {
     Expr body = VisitExpr(function_node->body);
-    auto props = GetOnDeviceProps(body);
+    OnDeviceProps props = GetOnDeviceProps(body);
     if (props.body.defined() && !props.is_fixed) {
-      VLOG(1) << "revising body of function:" << std::endl
+      VLOG(2) << "revising body of function:" << std::endl
               << PrettyPrint(GetRef<Function>(function_node)) << std::endl
-              << "to be fixed to device " << props.device_type;
-      body = OnDevice(props.body, props.device_type, /*is_fixed=*/true);
+              << "to be fixed to SEScope " << props.se_scope;
+      body = OnDevice(props.body, props.se_scope, /*is_fixed=*/true);
     }
     // TODO(mbs): Avoid copy
     return Function(function_node->params, body, function_node->ret_type,
@@ -363,12 +354,12 @@ class RewriteOnDevices : public ExprMutator {
  * It is possible some devices remain free and will need to be defaulted by \p DeviceDefaulter.
  *
  * Eg from \code add(%x, %y) \endcode we know \p %x and \p %y must be on the same device. Later,
- * from \code on_device(%x, device_type=d) \endcode we know \p %x must be on device \p d, and thus
+ * from \code on_device(%x, se_scope=d) \endcode we know \p %x must be on device \p d, and thus
  * so must \p %y.
  *
  * Constraints can flow in interesting ways. E.g. in:
  * \code
- *   let %f = fn(%x, %y) { add(%x, on_device(%y, device_type=d)) }
+ *   let %f = fn(%x, %y) { add(%x, on_device(%y, se_scope=d)) }
  *   let %g = fn(%f, %x, %y) { %f(%x, %y) }
  *   %g(%f, %a, %b)
  * \endcode
@@ -376,8 +367,8 @@ class RewriteOnDevices : public ExprMutator {
  */
 class DeviceAnalyzer : public ExprVisitor {
  public:
-  explicit DeviceAnalyzer(IRModule mod)
-      : mod_(std::move(mod)), domains_(std::make_unique<DeviceDomains>()) {}
+  DeviceAnalyzer(IRModule mod, CompilationConfig config)
+      : mod_(std::move(mod)), domains_(std::make_unique<DeviceDomains>(std::move(config))) {}
 
   /*!
    * \brief Returns the expression-to-device-domain map for all expressions in all the global
@@ -387,7 +378,7 @@ class DeviceAnalyzer : public ExprVisitor {
   std::unique_ptr<DeviceDomains> Analyze() {
     VLOG_CONTEXT << "DeviceAnalyzer";
     for (const auto& pair : mod_->functions) {
-      VLOG(1) << "collecting constraints for '" << PrettyPrint(pair.first) << "'";
+      VLOG(2) << "collecting constraints for '" << PrettyPrint(pair.first) << "'";
       domains_->UnifyExprExact(pair.first, pair.second);
       VisitExpr(pair.second);
     }
@@ -413,9 +404,9 @@ class DeviceAnalyzer : public ExprVisitor {
     }
     args_and_result_domains.emplace_back(domains_->DomainFor(call));
     auto implied_domain =
-        DeviceDomains::MakeDomain(std::move(args_and_result_domains));  // higher-order
+        domains_->MakeHigherOrderDomain(std::move(args_and_result_domains));  // higher-order
 
-    VLOG(1) << "initial call function domain:" << std::endl
+    VLOG(2) << "initial call function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
             << "and implied domain:" << std::endl
             << domains_->ToString(implied_domain) << std::endl
@@ -423,21 +414,18 @@ class DeviceAnalyzer : public ExprVisitor {
             << PrettyPrint(call);
 
     // The above must match.
-    try {
-      domains_->Unify(func_domain, implied_domain);  // higher-order
-    } catch (const Error& e) {
+    if (domains_->UnifyOrNull(func_domain, implied_domain) == nullptr) {  // higher-order
       // TODO(mbs): Proper diagnostics.
-      LOG(FATAL) << "Function parameters and result devices do not match those of call. Call:"
+      LOG(FATAL) << "Function parameters and result SEScopes do not match those of call. Call:"
                  << std::endl
                  << PrettyPrint(call) << std::endl
-                 << "with function devices:" << std::endl
+                 << "with function scopes:" << std::endl
                  << domains_->ToString(func_domain) << std::endl
-                 << "and implied call devices:" << std::endl
-                 << domains_->ToString(implied_domain) << std::endl
-                 << e.what();
+                 << "and implied call scopes:" << std::endl
+                 << domains_->ToString(implied_domain);
     }
 
-    VLOG(1) << "final call function domain:" << std::endl
+    VLOG(2) << "final call function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
             << "for call:" << std::endl
             << PrettyPrint(call);
@@ -477,7 +465,7 @@ class DeviceAnalyzer : public ExprVisitor {
     domains_->UnifyExprExact(function_node->body,
                              func_domain->function_result());  // may be higher-order
 
-    VLOG(1) << "initial function domain:" << std::endl
+    VLOG(2) << "initial function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
             << "and function body domain:" << std::endl
             << domains_->ToString(domains_->DomainFor(function_node->body)) << std::endl
@@ -492,37 +480,33 @@ class DeviceAnalyzer : public ExprVisitor {
       VisitExpr(function_node->params[i]);
     }
 
-    // If the function already has device attributes then we can further constrain the
+    // If the function already has SEScope attributes then we can further constrain the
     // function's domain to match them.
-    if (GetFunctionResultDeviceType(function_node) != kInvalidDeviceType) {
+    if (!GetFunctionResultSEScope(function_node)->IsFullyUnconstrained()) {
       std::vector<DeviceDomainPtr> args_and_result;
       for (size_t i = 0; i < function_node->params.size(); ++i) {
-        args_and_result.emplace_back(
-            domains_->ForDeviceType(function_node->params[i]->checked_type(),
-                                    GetFunctionParamDeviceType(function_node, i)));
+        args_and_result.emplace_back(domains_->ForSEScope(
+            function_node->params[i]->checked_type(), GetFunctionParamSEScope(function_node, i)));
       }
-      args_and_result.emplace_back(domains_->ForDeviceType(
-          function_node->body->checked_type(), GetFunctionResultDeviceType(function_node)));
-      auto annotation_domain = domains_->MakeDomain(std::move(args_and_result));
-      try {
-        domains_->Unify(func_domain, annotation_domain);  // higher-order
-      } catch (const Error& e) {
+      args_and_result.emplace_back(domains_->ForSEScope(function_node->body->checked_type(),
+                                                        GetFunctionResultSEScope(function_node)));
+      auto annotation_domain = domains_->MakeHigherOrderDomain(std::move(args_and_result));
+      if (domains_->UnifyOrNull(func_domain, annotation_domain) == nullptr) {  // higher-order
         // TODO(mbs): Proper diagnostics.
         LOG(FATAL)
-            << "Function devices are incompatible with its \"on_device\" annotation. Function:"
+            << "Function SEScopes are incompatible with its \"on_device\" annotation. Function:"
             << std::endl
             << PrettyPrint(function) << std::endl
-            << "with function devices:" << std::endl
+            << "with function scopes:" << std::endl
             << domains_->ToString(func_domain) << std::endl
-            << "and annotation devices:" << std::endl
-            << domains_->ToString(annotation_domain) << std::endl
-            << e.what();
+            << "and annotation scopes:" << std::endl
+            << domains_->ToString(annotation_domain);
       }
     }
 
     VisitExpr(function_node->body);
 
-    VLOG(1) << "final function domain:" << std::endl
+    VLOG(2) << "final function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
             << "and function body domain:" << std::endl
             << domains_->ToString(domains_->DomainFor(function_node->body)) << std::endl
@@ -652,7 +636,7 @@ class DeviceAnalyzer : public ExprVisitor {
  * \code
  *   def @main(%x, %y, %z) {
  *     let %a = add(%x, %y);
- *     multiply(%a, on_device(%z, device_type=d))
+ *     multiply(%a, on_device(%z, se_scope=d))
  * \endcode
  * we know the parameter \p %z must be on device \p d, but the devices for \p %x and \p %y,
  * and the device for the function result, are still 'free'. The global 'default' device type
@@ -664,17 +648,14 @@ class DeviceAnalyzer : public ExprVisitor {
  */
 class DeviceDefaulter : public ExprVisitor {
  public:
-  DeviceDefaulter(IRModule mod, std::unique_ptr<DeviceDomains> domains,
-                  DLDeviceType default_device_type)
-      : mod_(std::move(mod)),
-        domains_(std::move(domains)),
-        default_device_type_(default_device_type) {}
+  DeviceDefaulter(IRModule mod, std::unique_ptr<DeviceDomains> domains)
+      : mod_(std::move(mod)), domains_(std::move(domains)) {}
 
   std::unique_ptr<DeviceDomains> Default() {
     VLOG_CONTEXT << "DeviceDefaulter";
-    VLOG(0) << "using default device type " << default_device_type_;
+    VLOG(0) << "defaulting to SEScope " << domains_->config()->default_primitive_se_scope;
     for (const auto& pair : mod_->functions) {
-      VLOG(1) << "defaulting devices for '" << PrettyPrint(pair.first) << "'";
+      VLOG(2) << "defaulting devices for '" << PrettyPrint(pair.first) << "'";
       VisitExpr(pair.second);
     }
     return std::move(domains_);
@@ -689,10 +670,11 @@ class DeviceDefaulter : public ExprVisitor {
     auto function = GetRef<Function>(function_node);
     auto func_domain = domains_->DomainFor(function);  // higher-order
     ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
-    if (domains_->AnyFree(func_domain)) {
-      VLOG(1) << "before defaulting function:" << std::endl << domains_->ToString(func_domain);
-      domains_->SetResultDefaultThenParams(func_domain, default_device_type_);
-      VLOG(1) << "after defaulting function:" << std::endl << domains_->ToString(func_domain);
+    if (!domains_->IsFullyConstrained(func_domain)) {
+      VLOG(2) << "before defaulting function:" << std::endl << domains_->ToString(func_domain);
+      domains_->SetResultDefaultThenParams(func_domain,
+                                           domains_->config()->default_primitive_se_scope);
+      VLOG(2) << "after defaulting function:" << std::endl << domains_->ToString(func_domain);
     }
     VisitExpr(function_node->body);
   }
@@ -701,13 +683,14 @@ class DeviceDefaulter : public ExprVisitor {
     auto call = GetRef<Call>(call_node);
     auto func_domain = domains_->DomainForCallee(call);  // higher-order
     ICHECK_EQ(func_domain->function_arity(), call_node->args.size());
-    if (domains_->AnyFree(func_domain)) {
+    if (!domains_->IsFullyConstrained(func_domain)) {
       // For calls to Relay functions this step is identical to that for VisitExpr_(FunctionNode*)
       // above. But for calls to primitives we may still need to force free domains to be
       // defaulted.
-      VLOG(1) << "before defaulting callee:" << std::endl << domains_->ToString(func_domain);
-      domains_->SetResultDefaultThenParams(func_domain, default_device_type_);
-      VLOG(1) << "after defaulting callee:" << std::endl << domains_->ToString(func_domain);
+      VLOG(2) << "before defaulting callee:" << std::endl << domains_->ToString(func_domain);
+      domains_->SetResultDefaultThenParams(func_domain,
+                                           domains_->config()->default_primitive_se_scope);
+      VLOG(2) << "after defaulting callee:" << std::endl << domains_->ToString(func_domain);
     }
     return ExprVisitor::VisitExpr_(call_node);
   }
@@ -719,13 +702,13 @@ class DeviceDefaulter : public ExprVisitor {
       Let let = Downcast<Let>(expr);
       // If the let-var device is still free force it to match the overall let.
       auto let_domain = domains_->DomainFor(let);  // may be higher-order
-      DLDeviceType let_device_type = domains_->ResultDeviceType(let_domain);
-      ICHECK_NE(let_device_type, kInvalidDeviceType);
+      SEScope let_se_scope = domains_->ResultSEScope(let_domain);
+      ICHECK(!let_se_scope->IsFullyUnconstrained());
       auto let_var_domain = domains_->DomainFor(let->var);  // may be higher-order
-      if (domains_->AnyFree(let_var_domain)) {
-        VLOG(1) << "before defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
-        domains_->SetDefault(let_var_domain, let_device_type);
-        VLOG(1) << "after defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
+      if (!domains_->IsFullyConstrained(let_var_domain)) {
+        VLOG(2) << "before defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
+        domains_->SetDefault(let_var_domain, let_se_scope);
+        VLOG(2) << "after defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
       }
       VisitExpr(let->var);
       VisitExpr(let->value);
@@ -738,8 +721,6 @@ class DeviceDefaulter : public ExprVisitor {
   IRModule mod_;
   /*! \brief The domains for all expressions.  */
   std::unique_ptr<DeviceDomains> domains_;
-  /*! \brief The default device type. */
-  DLDeviceType default_device_type_;
 };
 
 /******
@@ -754,7 +735,7 @@ class DeviceDefaulter : public ExprVisitor {
  * - Discard any existing "on_device" CallNodes since their job is done. Similarly, discard
  *   any existing "device_copy" CallNodes which are no-ops.
  *
- * - Functions are given "param_device_types" and "result_device_type" attributes to capture
+ * - Functions are given "param_se_scopes" and "result_se_scope" attributes to capture
  *   the device type for its parameters and result.
  *
  * - Additional "device_copy" CallNodes are inserted wherever there's a transition between
@@ -773,10 +754,10 @@ class DeviceDefaulter : public ExprVisitor {
  *
  * For example, we'll end up with programs that look like:
  * \code
- *   def @main(%x, %y, param_device_types=[...], result_device_type=...) {
- *     let %a = on_device(..., device_type=..., is_fixed=True)
- *     @f(%a, device_copy(on_device(..., device_type=..., is_fixed=True),
- *                        src_device_type=..., dst_device_type=...))
+ *   def @main(%x, %y, param_se_scopes=[...], result_se_scope=...) {
+ *     let %a = on_device(..., se_scope=..., is_fixed=True)
+ *     @f(%a, device_copy(on_device(..., se_scope=..., is_fixed=True),
+ *                        src_se_scope=..., dst_se_scope=...))
  *   }
  * \endcode
  */
@@ -789,7 +770,7 @@ class DeviceCapturer : public ExprMutator {
     VLOG_CONTEXT << "CaptureDevices";
     IRModule result(/*functions=*/{}, mod_->type_definitions, mod_->Imports(), mod_->source_map);
     for (const auto& pair : mod_->functions) {
-      VLOG(1) << "capturing devices for '" << PrettyPrint(pair.first) << "'";
+      VLOG(2) << "capturing devices for '" << PrettyPrint(pair.first) << "'";
       result->Add(pair.first, Downcast<BaseFunc>(Mutate(pair.second)));
     }
     return result;
@@ -816,39 +797,39 @@ class DeviceCapturer : public ExprMutator {
 
     auto function = GetRef<Function>(function_node);
     auto func_domain = domains_->DomainFor(function);  // higher-order
-    VLOG(1) << "capturing function:" << std::endl
+    VLOG(2) << "capturing function:" << std::endl
             << PrettyPrint(function) << std::endl
             << "with domain:" << std::endl
             << domains_->ToString(func_domain);
 
     // Gather the parameter and result device types for the function attributes.
     ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
-    DLDeviceType result_device_type = domains_->ResultDeviceType(func_domain);
-    ICHECK_NE(result_device_type, kInvalidDeviceType);
-    Array<Integer> param_device_types;
-    param_device_types.reserve(function_node->params.size());
+    SEScope result_se_scope = domains_->ResultSEScope(func_domain);
+    ICHECK(!result_se_scope->IsFullyUnconstrained());
+    Array<SEScope> param_se_scopes;
+    param_se_scopes.reserve(function_node->params.size());
     for (size_t i = 0; i < function_node->params.size(); ++i) {
-      DLDeviceType param_device_type = domains_->ResultDeviceType(func_domain->function_param(i));
-      ICHECK_NE(param_device_type, kInvalidDeviceType);
-      param_device_types.push_back(param_device_type);
+      SEScope param_se_scope = domains_->ResultSEScope(func_domain->function_param(i));
+      ICHECK(!param_se_scope->IsFullyUnconstrained());
+      param_se_scopes.push_back(param_se_scope);
     }
 
     // Rewrite the body. Note that the body may have begun with an "on_device" so
     // be prepared to insert a "device_copy".
     Expr body = VisitChild(
-        /*lexical_device_type=*/result_device_type,
-        /*expected_device_type=*/result_device_type,
-        /*child_device_type=*/GetDeviceType(function_node->body), function_node->body);
+        /*lexical_se_scope=*/result_se_scope,
+        /*expected_se_scope=*/result_se_scope,
+        /*child_se_scope=*/GetSEScope(function_node->body), function_node->body);
 
     // TODO(mbs): Avoid copy
     Function func = Function(function_node->params, body, function_node->ret_type,
                              function_node->type_params, function_node->attrs, function_node->span);
-    return FunctionOnDevice(func, param_device_types, result_device_type);
+    return FunctionOnDevice(func, std::move(param_se_scopes), std::move(result_se_scope));
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = GetRef<Call>(call_node);
-    DLDeviceType call_device_type = GetDeviceType(call);
+    SEScope call_se_scope = GetSEScope(call);
 
     auto on_device_props = GetOnDeviceProps(call_node);
     if (on_device_props.body.defined()) {
@@ -857,31 +838,36 @@ class DeviceCapturer : public ExprMutator {
       return VisitExpr(on_device_props.body);
     }
 
-    auto device_copy_props = GetDeviceCopyProps(call_node);
+    DeviceCopyProps device_copy_props = GetDeviceCopyProps(call_node);
     if (device_copy_props.body.defined()) {
-      DLDeviceType src_device_type = device_copy_props.src_dev_type;
-      ICHECK_EQ(call_device_type, device_copy_props.dst_dev_type);
-      if (call_device_type == src_device_type) {
+      SEScope src_se_scope = domains_->config()->CanonicalSEScope(device_copy_props.src_se_scope);
+      SEScope dst_se_scope = domains_->config()->CanonicalSEScope(device_copy_props.dst_se_scope);
+      ICHECK_EQ(call_se_scope, dst_se_scope);
+      if (src_se_scope == dst_se_scope) {
         // We can pinch out existing "device_copy" CallNodes if their source and destinations
         // match.
         return VisitExpr(device_copy_props.body);
+      } else {
+        return VisitChild(/*lexical_se_scope=*/dst_se_scope,
+                          /*expected_se_scope=*/dst_se_scope,
+                          /*child_se_scope=*/src_se_scope, device_copy_props.body);
       }
-      // else: handle as for any other call.
     }
 
+    // Generic call.
     auto func_domain = domains_->DomainForCallee(call);  // higher-order
-    VLOG(1) << "considering call:" << std::endl
+    VLOG(2) << "considering call:" << std::endl
             << PrettyPrint(call) << std::endl
-            << "on device " << call_device_type << " with function domain:" << std::endl
+            << "in scope " << call_se_scope << " with function domain:" << std::endl
             << domains_->ToString(func_domain);
-    DLDeviceType result_device_type = domains_->ResultDeviceType(func_domain);
-    ICHECK_NE(result_device_type, kInvalidDeviceType);
+    SEScope result_se_scope = domains_->ResultSEScope(func_domain);
+    ICHECK(!result_se_scope->IsFullyUnconstrained());
 
     // The callee is on the current device.
     Expr op = VisitChild(
-        /*lexical_device_type=*/call_device_type,
-        /*expected_device_type=*/call_device_type,
-        /*child_device_type=*/result_device_type, call_node->op);
+        /*lexical_se_scope=*/call_se_scope,
+        /*expected_se_scope=*/call_se_scope,
+        /*child_se_scope=*/result_se_scope, call_node->op);
 
     // Each argument can be on the device for the corresponding function parameter. However if
     // any of those differ from the overall call device then wrap them in an "on_device" to
@@ -890,13 +876,13 @@ class DeviceCapturer : public ExprMutator {
     args.reserve(call_node->args.size());
     ICHECK_EQ(func_domain->function_arity(), call->args.size());
     for (size_t i = 0; i < call_node->args.size(); ++i) {
-      DLDeviceType param_device_type = domains_->ResultDeviceType(func_domain->function_param(i));
-      ICHECK_NE(param_device_type, kInvalidDeviceType)
+      SEScope param_se_scope = domains_->ResultSEScope(func_domain->function_param(i));
+      ICHECK(!param_se_scope->IsFullyUnconstrained())
           << "for parameter " << i << " for call:" << std::endl
           << PrettyPrint(call);
-      args.push_back(VisitChild(/*lexical_device_type=*/call_device_type,
-                                /*expected_device_type=*/param_device_type,
-                                /*child_device_type=*/GetDeviceType(call_node->args[i]),
+      args.push_back(VisitChild(/*lexical_se_scope=*/call_se_scope,
+                                /*expected_se_scope=*/param_se_scope,
+                                /*child_se_scope=*/GetSEScope(call_node->args[i]),
                                 call_node->args[i]));
     }
     // TODO(mbs): Avoid copy
@@ -907,27 +893,27 @@ class DeviceCapturer : public ExprMutator {
   Expr VisitExpr_(const LetNode* let_node) final {
     Expr expr = GetRef<Expr>(let_node);
     // Iterate through chained lets, provided they all agree on their device type.
-    DLDeviceType let_device_type = GetDeviceType(expr);
+    SEScope let_se_scope = GetSEScope(expr);
     std::vector<std::tuple<Var, Expr, Span>> bindings;
     while (const auto* inner_let_node = expr.as<LetNode>()) {
       Expr inner_let = GetRef<Let>(inner_let_node);
-      if (GetDeviceType(inner_let) != let_device_type) {
+      if (GetSEScope(inner_let) != let_se_scope) {
         // We have a device transition which needs to be handled.
         break;
       }
       // The let-bound value can be on a different device than the overall let. However if those
       // devices don't agree wrap the let-bound value in an "on_device" to help downstream
       // transforms track devices lexically.
-      Expr value = VisitChild(/*lexical_device_type=*/let_device_type,
-                              /*expected_device_type=*/GetDeviceType(inner_let_node->var),
-                              /*child_device_type=*/GetDeviceType(inner_let_node->value),
-                              inner_let_node->value);
+      Expr value =
+          VisitChild(/*lexical_se_scope=*/let_se_scope,
+                     /*expected_se_scope=*/GetSEScope(inner_let_node->var),
+                     /*child_se_scope=*/GetSEScope(inner_let_node->value), inner_let_node->value);
       bindings.emplace_back(inner_let_node->var, value, inner_let_node->span);
       expr = inner_let_node->body;
     }
-    Expr body = VisitChild(/*lexical_device_type=*/let_device_type,
-                           /*expected_device_type=*/let_device_type,
-                           /*child_device_type=*/GetDeviceType(expr), expr);
+    Expr body = VisitChild(/*lexical_se_scope=*/let_se_scope,
+                           /*expected_se_scope=*/let_se_scope,
+                           /*child_se_scope=*/GetSEScope(expr), expr);
     for (auto itr = bindings.rbegin(); itr != bindings.rend(); ++itr) {
       body = Let(/*var=*/std::get<0>(*itr), /*value=*/std::get<1>(*itr), body,
                  /*span=*/std::get<2>(*itr));
@@ -987,69 +973,69 @@ class DeviceCapturer : public ExprMutator {
     return Match(data, std::move(clauses), match_node->complete, match_node->span);
   }
 
-  DLDeviceType GetDeviceType(const Expr& expr) {
+  SEScope GetSEScope(const Expr& expr) {
     // Look through any "on_device" CallNodes, to mimic how we will be pinching them out.
-    auto props = GetOnDeviceProps(expr);
+    OnDeviceProps props = GetOnDeviceProps(expr);
     Expr true_expr = props.body.defined() ? props.body : expr;
     ICHECK(domains_->contains(true_expr));
-    // If expr is higher order we'll return only the result domain's device type.
-    DLDeviceType device_type = domains_->ResultDeviceType(domains_->DomainFor(true_expr));
-    ICHECK_NE(device_type, kInvalidDeviceType)
-        << "no device type was determined for expression:" << std::endl
+    // If expr is higher order we'll return only the result domain's SEScope.
+    SEScope se_scope = domains_->ResultSEScope(domains_->DomainFor(true_expr));
+    ICHECK(!se_scope->IsFullyUnconstrained())
+        << "no SEScope was determined for expression:" << std::endl
         << PrettyPrint(true_expr);
-    return device_type;
+    return std::move(se_scope);
   }
 
   /*!
-   * \brief Reconcile the \p child_device_type for \p child with both the \p expected_device_type
-   * (as required by the expression context the \p child is in) and the \p lexical_device_type
+   * \brief Reconcile the \p child_se_scope for \p child with both the \p expected_se_scope
+   * (as required by the expression context the \p child is in) and the \p lexical_se_scope
    * (as a downstream transform would infer based only on lexically enclosing "on_device"
-   * CallNodes and function attributes.) Generally \p lexical_device_type and \p
-   * expected_device_type are the same by definition, but may differ in arguments to  functions
+   * CallNodes and function attributes.) Generally \p lexical_se_scope and \p
+   * expected_se_scope are the same by definition, but may differ in arguments to  functions
    * and let-bound expressions.
    *
-   * If \p child_device_type differs from \p expected_device_type, wrap it as:
+   * If \p child_se_scope differs from \p expected_se_scope, wrap it as:
    * \code
-   *   device_copy(on_device(child', device_type=child_device_type),
-   *               src_dev_type=child_device_type, dst_dev_type=expected_device_type)
+   *   device_copy(on_device(child', se_scope=child_se_scope),
+   *               src_dev_type=child_se_scope, dst_dev_type=expected_se_scope)
    * \endcode
    * (where child is rewritten to child'). Note the pedantic spelling out of "on_device" on the
    * child.
    *
-   * If \p expected_device_type differs from \p lexical_device_type, then (also) wrap
+   * If \p expected_se_scope differs from \p lexical_se_scope, then (also) wrap
    * the expression as:
    * \code
-   *   on_device(..., device_type=expected_device_type)
+   *   on_device(..., se_scope=expected_se_scope)
    * \endcode
    *
    * TODO(mbs): There's no attempt at sharing here. If usage of child's node could be wrapped
    * by a "device_copy", even though those copies will generally all be to the same destination
    * device.
    */
-  Expr VisitChild(DLDeviceType lexical_device_type, DLDeviceType expected_device_type,
-                  DLDeviceType child_device_type, const Expr& child) {
-    ICHECK_NE(lexical_device_type, kInvalidDeviceType);
-    ICHECK_NE(expected_device_type, kInvalidDeviceType);
-    if (child->IsInstance<OpNode>()) {
-      // Primitive operators don't need to be rewritten and can have a different domain for
-      // each call site.
+  Expr VisitChild(const SEScope& lexical_se_scope, const SEScope& expected_se_scope,
+                  const SEScope& child_se_scope, const Expr& child) {
+    ICHECK(!lexical_se_scope->IsFullyUnconstrained());
+    ICHECK(!expected_se_scope->IsFullyUnconstrained());
+    if (child->IsInstance<OpNode>() || child->IsInstance<ConstructorNode>()) {
+      // Primitive operators and contructors don't need to be rewritten and can have a
+      // different domain at each call site.
       return child;
     }
     Expr result = VisitExpr(child);
-    if (child_device_type != expected_device_type) {
-      VLOG(1) << "creating " << DeviceCopyOp()->name << " from device type " << child_device_type
-              << " to device type " << expected_device_type << " for:" << std::endl
+    if (child_se_scope != expected_se_scope) {
+      VLOG(2) << "creating " << DeviceCopyOp()->name << " from scope " << child_se_scope
+              << " to scope " << expected_se_scope << " for:" << std::endl
               << PrettyPrint(result);
       // Also wrap the child in an "on_device" so downstream transforms can track devices
       // lexically.
-      result = MaybeOnDevice(result, child_device_type, /*is_fixed=*/true);
-      result = DeviceCopy(result, child_device_type, expected_device_type);
+      result = MaybeOnDevice(result, child_se_scope, /*is_fixed=*/true);
+      result = DeviceCopy(result, child_se_scope, expected_se_scope);
     }
-    if (expected_device_type != lexical_device_type) {
-      VLOG(1) << "creating " << OnDeviceOp()->name << " for device type " << expected_device_type
+    if (expected_se_scope != lexical_se_scope) {
+      VLOG(2) << "creating " << OnDeviceOp()->name << " for scope " << expected_se_scope
               << " for:" << std::endl
               << PrettyPrint(result);
-      result = MaybeOnDevice(result, expected_device_type, /*is_fixed=*/true);
+      result = MaybeOnDevice(result, expected_se_scope, /*is_fixed=*/true);
     }
     return result;
   }
@@ -1059,9 +1045,9 @@ class DeviceCapturer : public ExprMutator {
    * is expected to be on the same device as the \p parent.
    */
   Expr VisitChild(const Expr& parent, const Expr& child) {
-    DLDeviceType expected_device_type = GetDeviceType(parent);
-    DLDeviceType child_device_type = GetDeviceType(child);
-    return VisitChild(expected_device_type, expected_device_type, child_device_type, child);
+    SEScope expected_se_scope = GetSEScope(parent);
+    SEScope child_se_scope = GetSEScope(child);
+    return VisitChild(expected_se_scope, expected_se_scope, child_se_scope, child);
   }
 
   /*! \brief Module we are rewriting, so we can lookup global variables. */
@@ -1079,21 +1065,22 @@ tvm::transform::Pass Rewrite() {
 }
 
 /*! \brief Run the remaining phases. */
-tvm::transform::Pass PlanDevicesCore(DLDeviceType default_device_type) {
+tvm::transform::Pass PlanDevicesCore(CompilationConfig config) {
   return tvm::transform::CreateModulePass(
-      [=](IRModule mod, tvm::transform::PassContext pass_cnxt) -> IRModule {
+      [config = std::move(config)](IRModule mod,
+                                   tvm::transform::PassContext pass_cnxt) -> IRModule {
         // Collect the system of constraints for every sub-expression using existing "on_device"
         // and "device_copy" calls.
-        std::unique_ptr<DeviceDomains> domains = DeviceAnalyzer(mod).Analyze();
-        VLOG(1) << "Domains after analysis:" << std::endl << domains->ToString();
+        std::unique_ptr<DeviceDomains> domains = DeviceAnalyzer(mod, config).Analyze();
+        VLOG(3) << "Domains after analysis:" << std::endl << domains->ToString();
 
         // Choose sensible default devices for every sub-expression if otherwise unconstrained
         // by existing "on_device" or "device_copy" calls.
-        domains = DeviceDefaulter(mod, std::move(domains), default_device_type).Default();
-        VLOG(1) << "Domains after defaulting: " << std::endl << domains->ToString();
+        domains = DeviceDefaulter(mod, std::move(domains)).Default();
+        VLOG(3) << "Domains after defaulting: " << std::endl << domains->ToString();
 
         // Insert "device_copy" and "on_device" CallNodes where needed to unambiguously capture
-        // the above map, and attach additional "param_device_types" and "result_device_type"
+        // the above map, and attach additional "param_se_scopes" and "result_se_scope"
         // attributes to all function definitions.
         return DeviceCapturer(mod, std::move(domains)).Capture();
       },
@@ -1107,17 +1094,14 @@ tvm::transform::Pass PlanDevicesCore(DLDeviceType default_device_type) {
 *******/
 
 // This function is declared in the public <tvm/relay/transform.h>.
-TVM_DLL tvm::transform::Pass PlanDevices(DLDeviceType default_device_type) {
+tvm::transform::Pass PlanDevices(CompilationConfig config) {
   std::vector<Pass> passes;
   passes.emplace_back(Rewrite());
-  passes.emplace_back(PlanDevicesCore(default_device_type));
-  return tvm::transform::Sequential(std::move(passes), "PlanDevices");
+  passes.emplace_back(PlanDevicesCore(std::move(config)));
+  return tvm::transform::Sequential(passes, "PlanDevices");
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.PlanDevices")
-    .set_body_typed([](const Device& default_device) {
-      return PlanDevices(default_device.device_type);
-    });
+TVM_REGISTER_GLOBAL("relay._transform.PlanDevices").set_body_typed(PlanDevices);
 
 }  // namespace transform
 }  // namespace relay

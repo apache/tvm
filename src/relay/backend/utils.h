@@ -31,6 +31,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
+#include <tvm/target/se_scope.h>
 #include <tvm/te/operation.h>
 
 #include <string>
@@ -57,15 +58,17 @@ namespace backend {
 using Pass = tvm::transform::Pass;
 
 /*!
- * \brief The static storage information produced by memory planning.
+ * \brief The static storage information for each Tensor in the result of a Relay expression
+ * (as per relay::FlattenTupleType).
  */
 class StorageInfoNode : public Object {
  public:
+  // TODO(mbs): Switch from struct-of-array to array-of-struct repr throughout.
   /*! \brief The set of storage ids where the expression is stored. */
   std::vector<int64_t> storage_ids;
-  /* \brief The type of "virtual devices" these expressions are stored on. */
-  std::vector<DLDeviceType> device_types;
-  /* \brief The sizes of each storage element. */
+  /* \brief The SEScopes these expressions are stored within. */
+  std::vector<SEScope> se_scopes;
+  /* \brief The sizes of each storage element, in bytes. */
   std::vector<int64_t> storage_sizes_in_bytes;
 
   // TODO(@jroesch): expose the fields
@@ -78,7 +81,7 @@ class StorageInfoNode : public Object {
 /*! \brief The storage information for a single expression. */
 class StorageInfo : public ObjectRef {
  public:
-  StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceType> device_types,
+  StorageInfo(std::vector<int64_t> storage_ids, std::vector<SEScope> se_scopes,
               std::vector<int64_t> storage_sizes_in_bytes);
   TVM_DEFINE_OBJECT_REF_METHODS(StorageInfo, ObjectRef, StorageInfoNode);
 };
@@ -442,11 +445,11 @@ inline bool IsMetaScheduleEnabled() {
  * difference. This function unifies the shared optimization pass prefix between vm and graph
  * runtime, and returns the pass prefix given the backend type.
  *
- * \param targets The device type to `Target` mapping.
- * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
+ * \param is_homogenous True if all primitives are to be executed on the same device and target.
+ * \param is_vm True if passes are to be used for the vm executor.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(const TargetMap& targets, bool is_vm);
+Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {
