@@ -330,9 +330,8 @@ def test_lower_warp_memory_divide_by_factor():
     cuda_target = tvm.target.Target("cuda")
     mod = tvm.lower(func, name="f")
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(tvm.error.TVMError, match="Divide by zero") as cm:
         tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
-        assert "Divide by zero" in str(cm.execption)
 
 
 if __name__ == "__main__":
