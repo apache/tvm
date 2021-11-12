@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import sys
 from collections import defaultdict
+import sys
 
 import pytest
-import tvm
+
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
-from tvm.tir.schedule import Trace
 
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -30,9 +29,9 @@ from tvm.tir.schedule import Trace
 
 @T.prim_func
 def elementwise(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128, 128))
-    B = T.match_buffer(b, (128, 128, 128))
-    for i, j, k in T.grid(128, 128, 128):
+    A = T.match_buffer(a, (128, 257, 1470))
+    B = T.match_buffer(b, (128, 257, 1470))
+    for i, j, k in T.grid(128, 257, 1470):
         with T.block("B"):
             vi, vj, vk = T.axis.remap("SSS", [i, j, k])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
@@ -42,7 +41,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
 
 
 def test_sample_categorical():
-    """Test sample categprical sampling function"""
+    """Test sample categorical sampling function"""
     n = 1000
     sch = tir.Schedule(elementwise, seed=42, debug_mask="all")
     counter = defaultdict(int)
@@ -85,6 +84,36 @@ def test_sample_categorical_serialize():
     new_sch = verify_trace_roundtrip(sch, mod=elementwise)
     for i, new_inst in enumerate(new_sch.trace.insts):
         assert decisions[i] == candidates[new_sch.trace.decisions[new_inst].value]
+
+
+def test_sample_perfect_tile_power_of_two():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    i, _, _ = sch.get_loops(sch.get_block("B"))
+    factors = sch.sample_perfect_tile(i, n=4)
+    factors = [sch.get(i) for i in factors]
+    prod = factors[0] * factors[1] * factors[2] * factors[3]
+    assert prod == 128
+    verify_trace_roundtrip(sch, mod=elementwise)
+
+
+def test_sample_perfect_tile_prime():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    _, i, _ = sch.get_loops(sch.get_block("B"))
+    factors = sch.sample_perfect_tile(i, n=4)
+    factors = [sch.get(i) for i in factors]
+    prod = factors[0] * factors[1] * factors[2] * factors[3]
+    assert prod == 257
+    verify_trace_roundtrip(sch, mod=elementwise)
+
+
+def test_sample_perfect_tile_composite():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    _, _, i = sch.get_loops(sch.get_block("B"))
+    factors = sch.sample_perfect_tile(i, n=4)
+    factors = [sch.get(i) for i in factors]
+    prod = factors[0] * factors[1] * factors[2] * factors[3]
+    assert prod == 1470
+    verify_trace_roundtrip(sch, mod=elementwise)
 
 
 if __name__ == "__main__":

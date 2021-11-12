@@ -166,7 +166,7 @@ transform::Pass BindTarget(Target target) {
 }
 
 static transform::Pass AnnotateEntryFunc(bool b) {
-  auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+  auto fpass = [](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
   };
   return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
@@ -237,10 +237,10 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::LowerInitBlock());
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
   pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
+  pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::CompactBufferAllocation());
   pass_list.push_back(tir::transform::LowerMatchBuffer());
   pass_list.push_back(tir::transform::FlattenBuffer());
-  pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
@@ -590,7 +590,6 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(BindTarget(target));
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
-  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
 
   if (ShouldAnnotateEntryFunc(target, mixed_mod)) {
     mixed_pass_list.push_back(AnnotateEntryFunc(true));
@@ -603,11 +602,16 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   }
 
   mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
+  mixed_pass_list.push_back(tir::transform::ThreadSync("shared.dyn"));
+  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+  // The host Target contains these parameters at the moment rather than
+  // the specific Target
+  // TODO(Mousius) - Move these to the Executor object rather than Target
+  if (target->GetHost().value()->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));

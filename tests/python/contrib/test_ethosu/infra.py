@@ -17,7 +17,6 @@
 """
 This module provides infrastructure to verify the correctness of
 the command stream produced.
-
 Currently it will invoke vela to generate a vela-optimized tflite
 in which the command stream is contained as a custom operator.
 This class include methods to parse the custom operator to extract
@@ -383,14 +382,15 @@ def make_ethosu_conv2d(
     ifm_layout="NHWC",
     ofm_layout="NHWC",
     weight_dtype="int8",
+    scale_bias_dtype="uint8",
 ):
     # conv params
     weight_shape = (ofm_channels, kernel_shape[0], kernel_shape[1], ifm_channels)
     padding = get_pad_tuple(padding, kernel_shape)
 
-    scale_bias_data = generate_weights_data((weight_shape[0], 10), "uint8")
-    scale_bias = relay.const(scale_bias_data, dtype="uint8")
-    weight_data = generate_weights_data(weight_shape, "int8")
+    scale_bias_data = generate_weights_data((weight_shape[0], 10), scale_bias_dtype)
+    scale_bias = relay.const(scale_bias_data, dtype=scale_bias_dtype)
+    weight_data = generate_weights_data(weight_shape, weight_dtype)
     weight = relay.const(weight_data, dtype=weight_dtype)
     conv = ethosu_ops.ethosu_conv2d(
         ifm,
@@ -428,13 +428,14 @@ def make_ethosu_depthwise_conv2d(
     ifm_layout="NHWC",
     ofm_layout="NHWC",
     weight_dtype="int8",
+    scale_bias_dtype="uint8",
 ):
     # params
     weight_shape = (channels, kernel_shape[0], kernel_shape[1], 1)
     padding = get_pad_tuple(padding, kernel_shape)
 
-    scale_bias_data = generate_weights_data((weight_shape[0], 10), "uint8")
-    scale_bias = relay.const(scale_bias_data, dtype="uint8")
+    scale_bias_data = generate_weights_data((weight_shape[0], 10), scale_bias_dtype)
+    scale_bias = relay.const(scale_bias_data, dtype=scale_bias_dtype)
     weight_data = generate_weights_data(weight_shape, weight_dtype)
     weight = relay.const(weight_data, dtype=weight_dtype)
     depthwise = ethosu_ops.ethosu_depthwise_conv2d(
@@ -460,3 +461,104 @@ def make_ethosu_depthwise_conv2d(
         ofm_layout=ofm_layout,
     )
     return depthwise
+
+
+def get_pooling_args(call, include_buffers=False):
+    args = call.args
+    pooling_args = []
+
+    for i, arg in enumerate(args):
+        if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
+            pooling_args.append(arg.value)
+        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
+            pooling_args.append(arg.index)
+        else:
+            pooling_args.append(arg)
+
+    return pooling_args
+
+
+def make_ethosu_pooling(
+    ifm,
+    pooling_type,
+    pool_shape,
+    ofm_channels,
+    strides,
+    padding,
+    activation="NONE",
+    ifm_layout="NHWC",
+    ofm_layout="NHWC",
+):
+    pooling = ethosu_ops.ethosu_pooling(
+        ifm,
+        lut=relay.const([], dtype="int8"),
+        pooling_type=pooling_type,
+        ifm_scale=1,
+        ifm_zero_point=0,
+        ofm_scale=1,
+        ofm_zero_point=0,
+        pool_shape=pool_shape,
+        ofm_channels=ofm_channels,
+        strides=strides,
+        padding=padding,
+        activation=activation,
+        clip_min=10 if activation == "CLIP" else 0,
+        clip_max=100 if activation == "CLIP" else 0,
+        upscale="NONE",
+        ifm_layout=ifm_layout,
+        ofm_layout=ofm_layout,
+    )
+    return pooling
+
+
+def get_binary_elementwise_args(call, include_buffers=False):
+    args = call.args
+    binary_elementwise_args = []
+
+    for i, arg in enumerate(args):
+        if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
+            binary_elementwise_args.append(arg.value)
+        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
+            binary_elementwise_args.append(arg.index)
+        else:
+            binary_elementwise_args.append(arg)
+
+    return binary_elementwise_args
+
+
+def make_ethosu_binary_elementwise(
+    ifm,
+    ifm2,
+    ifm_channels,
+    ifm2_channels,
+    operator_type,
+    ofm_dtype,
+    reversed_operands=False,
+    activation="NONE",
+    ifm_layout="NHWC",
+    ifm2_layout="NHWC",
+    ofm_layout="NHWC",
+):
+    ethosu_binary_elementwise = ethosu_ops.ethosu_binary_elementwise(
+        ifm=ifm,
+        ifm2=ifm2,
+        lut=relay.const([], dtype="int8"),
+        operator_type=operator_type,
+        ifm_scale=1,
+        ifm_zero_point=0,
+        ifm2_scale=1,
+        ifm2_zero_point=0,
+        ofm_scale=1,
+        ofm_zero_point=0,
+        ifm_channels=ifm_channels,
+        ifm2_channels=ifm2_channels,
+        reversed_operands=reversed_operands,
+        activation=activation,
+        ofm_dtype=ofm_dtype,
+        clip_min=10 if activation == "CLIP" else 0,
+        clip_max=100 if activation == "CLIP" else 0,
+        ifm_layout=ifm_layout,
+        ifm2_layout=ifm2_layout,
+        ofm_layout=ofm_layout,
+    )
+    return ethosu_binary_elementwise

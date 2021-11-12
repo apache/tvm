@@ -260,11 +260,6 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
-  // TODO (mehrdadh): Update this when zephyr version has updated to 2.6.
-  // Update zephyr to latest version to use with qemu_riscv32.
-#ifdef CONFIG_BOARD_QEMU_RISCV32
-  k_float_enable(_current, 0);
-#endif
 
 #ifdef CONFIG_LED
   int ret;

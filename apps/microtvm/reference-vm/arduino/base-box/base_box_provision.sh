@@ -31,8 +31,12 @@ cd ~
 sudo apt-get install -y ca-certificates
 
 # Install Arduino-CLI (specific version)
+# To keep in sync with the version 
+# defined in apps/microtvm/arduino/template_project/microtvm_api_server.py
+ARDUINO_CLI_VERSION="0.18.3"
+
 export PATH="/home/vagrant/bin:$PATH"
-wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 0.18.3
+wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s ${ARDUINO_CLI_VERSION}
 
 # Arduino (the CLI and GUI) require the dialout permission for uploading
 sudo usermod -a -G dialout $USER

@@ -61,6 +61,8 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
   } else if (name == "get_bytecode") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetBytecode(); });
+  } else if (name == "get_constants") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetConstants(); });
   } else if (name == "get_stats") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Stats(); });
   } else if (name == "save") {
@@ -143,6 +145,34 @@ std::string Executable::GetBytecode() const {
     oss << std::endl;
   }
 
+  return oss.str();
+}
+
+namespace {
+String ShapeString(const ShapeTuple& shape_tuple, DLDataType dtype) {
+  std::stringstream sizes;
+  sizes << DLDataType2String(dtype) << "[";
+  for (size_t i = 0; i < shape_tuple.size(); i++) {
+    if (i != 0) {
+      sizes << ", ";
+    }
+    sizes << shape_tuple.data()[i];
+  }
+  sizes << "]";
+  return String(sizes.str());
+}
+}  // namespace
+
+std::string Executable::GetConstants() const {
+  std::ostringstream oss;
+
+  for (size_t i = 0; i < constants.size(); ++i) {
+    const auto& constant = constants[i];
+    auto ndarray = Downcast<NDArray>(constant);
+    DLDeviceType device_type = static_cast<DLDeviceType>(const_device_type[i]);
+    oss << "VM Constant[" << i << "]: has shape " << ShapeString(ndarray.Shape(), ndarray->dtype)
+        << " on device of type " << device_type << std::endl;
+  }
   return oss.str();
 }
 
@@ -308,7 +338,7 @@ void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
 VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
   std::vector<Index> fields;
   // Save the opcode.
-  DLOG(INFO) << "Serializing: " << instr << std::endl;
+  VLOG(1) << "Serializing: " << instr << std::endl;
   switch (instr.op) {
     case Opcode::Move: {
       // Number of fields = 2

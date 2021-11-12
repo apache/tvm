@@ -123,15 +123,30 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
 
   const auto* param = attrs.as<EthosuDepthwiseConv2DAttrs>();
   ICHECK(param != nullptr) << "EthosuDepthwiseConv2DAttrs cannot be nullptr.";
-  ICHECK(ifm->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for ifm but was "
-      << ifm->dtype;
-  ICHECK(weight->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for weight but was "
-      << weight->dtype;
-  ICHECK(scale_bias->dtype == DataType::UInt(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) for scale_bias but was "
-      << scale_bias->dtype;
+
+  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d input data type "
+        << "of type(uint8) or type(int8) but was " << ifm->dtype);
+    return false;
+  }
+
+  if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d weight data type "
+        << "of type(uint8) or type(int8) but was " << weight->dtype);
+    return false;
+  }
+
+  if (scale_bias->dtype != DataType::UInt(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d scale bias data type "
+        << "of type(uint8) but was " << scale_bias->dtype);
+    return false;
+  }
 
   // Collect the ifm, weight and ofm tensors for using in the inference function
   Array<Type> tensor_types = {types[0], types[1], types[4]};
@@ -186,7 +201,7 @@ RELAY_REGISTER_OP("contrib.ethosu.depthwise_conv2d")
     .describe(R"code(Arm(R) Ethos(TM)-U NPU 2D quantized depthwise operator.
 
 This Relay operator corresponds to the hardware-implemented quantized
-depthwise operation found on Ethos(TM)-U NPUs. It accepts either NHWC or NHCWB16 format
+depthwise operation found on Ethos(TM)-U NPU. It accepts either NHWC or NHCWB16 format
 for the input data (input feature map, or IFM) and OHWI format for the kernel weights.
 
 - **ifm**: NHWC - (1, ifm_height, ifm_width, ifm_channels)
@@ -201,7 +216,7 @@ for the input data (input feature map, or IFM) and OHWI format for the kernel we
     .add_argument("ifm", "Tensor", "The Input Feature Map tensor (IFM).")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .add_argument("scale_bias", "Tensor", "The packed per-channel weight scale and bias tensor.")
-    .add_argument("lut", "Tensor", "The look-up table values to use if activation = 'LUT'")
+    .add_argument("lut", "Tensor", "The look-up table of values to use if activation = 'LUT'")
     .set_support_level(11)
     .add_type_rel("EthosuDepthwiseConv2D", EthosuDepthwiseConv2DRel);
 

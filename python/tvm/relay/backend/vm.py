@@ -275,14 +275,18 @@ class VMExecutor(Executor):
         self.mod = mod
         self.device = device
         self.target = target
-        self.executable = compile(mod, target)
-        self.vm = vm_rt.VirtualMachine(self.executable, device)
+        self.executable = None
+        self.vm = None
 
     def _make_executor(self, expr=None):
-        main = self.mod["main"]
+        if expr:
+            self.mod["main"] = expr
+
+        self.executable = compile(self.mod, self.target)
+        self.vm = vm_rt.VirtualMachine(self.executable, self.device)
 
         def _vm_wrapper(*args, **kwargs):
-            args = self._convert_args(main, args, kwargs)
+            args = self._convert_args(self.mod["main"], args, kwargs)
             return self.vm.run(*args)
 
         return _vm_wrapper

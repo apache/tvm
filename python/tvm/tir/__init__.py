@@ -25,7 +25,7 @@ from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuffle
-from .expr import Call, CallEffectKind, Let, IterVar, Any
+from .expr import Call, CallEffectKind, Let, IterVar, CommReducer, Any
 
 from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
 from .stmt import BufferStore, BufferRealize, Store, ProducerStore, Allocate, AttrStmt

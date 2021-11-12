@@ -133,7 +133,7 @@ fadd = tvm.build(s, [A, B, C], tgt, name="myadd")
 
 ################################################################################
 # Let's run the function, and compare the output to the same computation in
-# numpy. The compiled TVM function is exposes a concise C API that can be invoked
+# numpy. The compiled TVM function exposes a concise C API that can be invoked
 # from any language. We begin by creating a device, which is a device (CPU in this
 # example) that TVM can compile the schedule to. In this case the device is an
 # LLVM CPU target. We can then initialize the tensors in our device and
@@ -258,8 +258,8 @@ evaluate_addition(fadd_vector, tgt, "vector", log=log)
 print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ################################################################################
-# Comparing the Diferent Schedules
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Comparing the Different Schedules
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can now compare the different schedules
 
 baseline = log[0][1]
@@ -347,7 +347,7 @@ if run_cuda:
     fadd = tvm.build(s, [A, B, C], target=tgt_gpu, name="myadd")
 
     ################################################################################
-    # The compiled TVM function is exposes a concise C API that can be invoked from
+    # The compiled TVM function exposes a concise C API that can be invoked from
     # any language.
     #
     # We provide a minimal array API in python to aid quick testing and prototyping.

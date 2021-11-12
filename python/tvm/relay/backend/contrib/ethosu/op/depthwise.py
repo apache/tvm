@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
-"""Relay operator for depthwise convolution"""
+"""Relay operator for depthwise convolution for Arm(R) Ethos(TM)-U NPU"""
+
 from typing import Tuple
 
 import tvm
@@ -112,8 +113,8 @@ def ethosu_depthwise_conv2d(
     ifm_layout: str = "NHWC",
     ofm_layout: str = "NHWC",
 ) -> tvm.relay.Call:
-    """This is a quantized 2D depthwise convolution operation as supported
-    by the NPU. It accepts either NHWC or NHCWB16 format
+    """This is a quantized 2D depthwise convolution operation as supported by
+    the NPU. It accepts either NHWC or NHCWB16 format
     for the input data and OHWI format for the kernel weights.
 
     Reference: https://developer.arm.com/documentation/102420/0200/
@@ -132,7 +133,7 @@ def ethosu_depthwise_conv2d(
     scale_bias : tvm.relay.Expr
         The packed per-channel weight scale and bias tensor.
     lut : tvm.relay.Expr
-        The look-up table values to use if activation = "LUT"
+        The look-up table of values to use if activation = "LUT"
     ifm_scale : float
         The quantization scale for the Input Feature Map tensor.
     ifm_zero_point : int
@@ -146,7 +147,7 @@ def ethosu_depthwise_conv2d(
     kernel_shape : tuple of int
         The 2 dimensional kernel shape as (kernel_height, kernel_width).
     ofm_channels : int
-        The number of OFM channels.
+        The number of the Output Feature Map channels.
     strides : tuple of int, optional
         The 2 dimensional strides as (stride_height, stride_width).
     padding : tuple of int, optional

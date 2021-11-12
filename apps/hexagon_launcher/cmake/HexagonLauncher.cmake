@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(NOT "${FASTRPC_LIBS}" STREQUAL "SKEL" AND
-    NOT "${FASTRPC_LIBS}" STREQUAL "STUB")
-  message(SEND_ERROR "Please set FASTRPC_LIBS to either SKEL or STUB")
-endif()
-
 if(NOT DEFINED USE_HEXAGON_SDK)
   message(SEND_ERROR "Please set USE_HEXAGON_SDK to the location of Hexagon SDK")
 endif()

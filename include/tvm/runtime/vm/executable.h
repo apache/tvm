@@ -132,6 +132,13 @@ class Executable : public ModuleNode {
   std::string GetBytecode() const;
 
   /*!
+   * \brief Returns a description of all the contants in the executable in human-readable
+   * format. Not intended to be machine readable, but rather to help with debugging and
+   * diffing generated code.
+   */
+  std::string GetConstants() const;
+
+  /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
    * globls and constants, etc.
    */

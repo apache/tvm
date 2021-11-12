@@ -174,10 +174,10 @@ capabilities, and set the stage for understanding how TVM works.
 # data types. For this reason, most models require some pre and
 # post-processing, to ensure the input is valid and to interpret the output.
 # TVMC has adopted NumPy's ``.npz`` format for both input and output data. This
-# is a well-supported NumPy format to serialize multiple arrays into a file
+# is a well-supported NumPy format to serialize multiple arrays into a file.
 #
 # As input for this tutorial, we will use the image of a cat, but you can feel
-# free to substitute image for any of your choosing.
+# free to substitute this image for any of your choosing.
 #
 # .. image:: https://s3.amazonaws.com/model-server/inputs/kitten.jpg
 #    :height: 224px
@@ -197,8 +197,8 @@ capabilities, and set the stage for understanding how TVM works.
 # requirement for the script.
 #
 # .. code-block:: python
-#    :caption: preprocess.py
-#    :name: preprocess.py
+#     :caption: preprocess.py
+#     :name: preprocess.py
 #
 #     #!python ./preprocess.py
 #     from tvm.contrib.download import download_testdata

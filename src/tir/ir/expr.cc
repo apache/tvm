@@ -90,6 +90,18 @@ Var Var::copy_with_suffix(const String& suffix) const {
   return Var(new_ptr);
 }
 
+Var Var::copy_with_dtype(DataType dtype) const {
+  const VarNode* node = get();
+  ObjectPtr<VarNode> new_ptr;
+  if (auto* ptr = this->as<SizeVarNode>()) {
+    new_ptr = make_object<SizeVarNode>(*ptr);
+  } else {
+    new_ptr = make_object<VarNode>(*node);
+  }
+  new_ptr->dtype = std::move(dtype);
+  return Var(new_ptr);
+}
+
 TVM_REGISTER_GLOBAL("tir.Var").set_body_typed([](String name_hint, runtime::TVMArgValue type,
                                                  Span span) {
   if (type.IsObjectRef<Type>()) {
@@ -904,6 +916,35 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // CommReducer
 CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
                          Array<PrimExpr> identity_element, Span span) {
+  size_t n_group = result.size();
+  CHECK_EQ(lhs.size(), n_group) << "ValueError: The number of vars in `lhs` must equal to the "
+                                   "number of elements in `results`";
+  CHECK_EQ(rhs.size(), n_group) << "ValueError: The number of vars in `rhs` must equal to the "
+                                   "number of elements in `results`";
+  CHECK_EQ(identity_element.size(), n_group)
+      << "ValueError: The number of identities must equal to the number of elements in `results`";
+
+  // Change the dtype of input vars to adapt to the dtype of identities
+  ArrayNode* p_lhs = lhs.CopyOnWrite();
+  ArrayNode* p_rhs = rhs.CopyOnWrite();
+  std::unordered_map<const VarNode*, PrimExpr> var_map;
+  var_map.reserve(n_group * 2);
+  for (int i = 0; i < static_cast<int>(n_group); ++i) {
+    DataType dtype = identity_element[i].dtype();
+    Var l = lhs[i].copy_with_dtype(dtype);
+    Var r = rhs[i].copy_with_dtype(dtype);
+    var_map[lhs[i].get()] = l;
+    var_map[rhs[i].get()] = r;
+
+    p_lhs->SetItem(i, l);
+    p_rhs->SetItem(i, r);
+  }
+
+  ArrayNode* p_result = result.CopyOnWrite();
+  for (int i = 0; i < static_cast<int>(n_group); ++i) {
+    p_result->SetItem(i, Substitute(result[i], var_map));
+  }
+
   auto node = make_object<CommReducerNode>();
   node->lhs = lhs;
   node->rhs = rhs;

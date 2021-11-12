@@ -33,8 +33,7 @@ from tvm.meta_schedule.search_strategy import ReplayTrace
 from tvm.meta_schedule.builder import PyBuilder, BuilderInput, BuilderResult
 from tvm.meta_schedule.runner import PyRunner, RunnerInput, RunnerFuture, RunnerResult
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.task_scheduler import RoundRobin
-from tvm.meta_schedule.utils import structural_hash
+from tvm.meta_schedule.task_scheduler import RoundRobin, PyTaskScheduler
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
@@ -220,6 +219,78 @@ def test_meta_schedule_task_scheduler_multiple():
     round_robin.tune()
     assert len(database) == num_trials_total * len(tasks)
     print(database.workload_reg)
+    for task in tasks:
+        assert len(database.get_top_k(database.commit_workload(task.mod), 1e9)) == num_trials_total
+
+
+def test_meta_schedule_task_scheduler_NIE():
+    class MyTaskScheduler(PyTaskScheduler):
+        pass
+
+    with pytest.raises(NotImplementedError):
+        MyTaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
+
+
+def test_meta_schedule_task_scheduler_override_next_task_id_only():
+    class MyTaskScheduler(PyTaskScheduler):
+        done = set()
+
+        def next_task_id(self) -> int:
+            while len(self.done) != len(tasks):
+                x = random.randint(0, len(tasks) - 1)
+                task = tasks[x]
+                if not task.is_stopped:
+                    """Calling base func via following route:
+                    Python side:
+                        PyTaskScheduler does not have `_is_task_running`
+                        Call TaskScheduler's `is_task_running`, which calls ffi
+                    C++ side:
+                        The ffi calls TaskScheduler's `is_task_running`
+                        But it is overridden in PyTaskScheduler
+                        PyTaskScheduler checks if the function is overridden in python
+                        If not, it returns the TaskScheduler's vtable, calling
+                            TaskScheduler::IsTaskRunning
+                    """
+                    if self._is_task_running(x):
+                        # Same Here
+                        self._join_running_task(x)
+                    return x
+                else:
+                    self.done.add(x)
+            return -1
+
+    num_trials_per_iter = 6
+    num_trials_total = 101
+    tasks = [
+        TuneContext(
+            MatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="Matmul",
+            rand_state=42,
+        ),
+        TuneContext(
+            MatmulReluModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="MatmulRelu",
+            rand_state=0xDEADBEEF,
+        ),
+        TuneContext(
+            BatchMatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_batch_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="BatchMatmul",
+            rand_state=0x114514,
+        ),
+    ]
+    database = DummyDatabase()
+    scheduler = MyTaskScheduler(tasks, DummyBuilder(), DummyRunner(), database)
+    scheduler.tune()
+    assert len(database) == num_trials_total * len(tasks)
     for task in tasks:
         assert len(database.get_top_k(database.commit_workload(task.mod), 1e9)) == num_trials_total
 

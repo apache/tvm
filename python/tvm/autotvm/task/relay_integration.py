@@ -127,12 +127,12 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
             assert isinstance(
                 mod, tvm.IRModule
             ), "only support relay Module or Function to be tuned"
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
             build_thread = threading.Thread(target=_lower, args=(mod, target, param))
             build_thread.start()
             build_thread.join()
-            relay.backend.compile_engine.get().clear()
+            relay.backend.te_compiler.get().clear()
             # Clear the warning message cache in FallbackContext
             if isinstance(DispatchContext.current, FallbackContext):
                 DispatchContext.current.memory = {}

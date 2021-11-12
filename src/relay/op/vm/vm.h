@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_OP_VM_VM_H_
 #define TVM_RELAY_OP_VM_VM_H_
 
-#include "tvm/relay/expr.h"
+#include <tvm/relay/expr.h>
 
 namespace tvm {
 namespace relay {
