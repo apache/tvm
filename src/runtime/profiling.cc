@@ -677,6 +677,56 @@ TVM_REGISTER_GLOBAL("runtime.profiling.FromJSON").set_body_typed(Report::FromJSO
 TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device dev) {
   return DeviceWrapper(dev);
 });
+
+PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
+                           Array<MetricCollector> collectors) {
+  // Module::GetFunction is not const, so this lambda has to be mutable
+  return PackedFunc([=](TVMArgs args, TVMRetValue* ret) mutable {
+    PackedFunc f = mod.GetFunction(func_name);
+    Device dev{static_cast<DLDeviceType>(device_type), device_id};
+
+    // warmup
+    for (size_t i = 0; i < 10; i++) {
+      f.CallPacked(args, ret);
+    }
+
+    for (auto& collector : collectors) {
+      collector->Init({DeviceWrapper(dev)});
+    }
+    std::vector<ObjectRef> collector_data;
+    for (auto& collector : collectors) {
+      collector_data.push_back(collector->Start(dev));
+    }
+    // TODO(tkonolige): repeated calls if the runtime is small?
+    f.CallPacked(args, ret);
+    std::unordered_map<String, ObjectRef> results;
+    for (size_t i = 0; i < collectors.size(); i++) {
+      auto r = collectors[i]->Stop(collector_data[i]);
+      // We might want to do this in a separate loop to avoid unnecessary time
+      // spent before stopping subsequent collectors.
+      for (auto kv : r) {
+        results[kv.first] = kv.second;
+      }
+    }
+    *ret = Map<String, ObjectRef>(results);
+  });
+}
+
+TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
+    .set_body_typed<PackedFunc(Module, String, int, int,
+                               Array<MetricCollector>)>([](Module mod, String func_name,
+                                                           int device_type, int device_id,
+                                                           Array<MetricCollector> collectors) {
+      if (mod->type_key() == std::string("rpc")) {
+        LOG(FATAL)
+            << "Profiling a module over RPC is not yet supported";  // because we can't send
+                                                                    // MetricCollectors over rpc.
+        throw;
+      } else {
+        return ProfileFunction(mod, func_name, device_type, device_id, collectors);
+      }
+    });
+
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm
