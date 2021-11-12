@@ -3818,9 +3818,9 @@ class Unique(OnnxOpConverter):
         trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
 
         unique_vals = trim_unique_lambda(unique[0])
-        indices = trim_unique_lambda(unique[1])
-        inverse_indices = unique[2]
-        counts = trim_unique_lambda(unique[4])
+        indices = _op.cast(trim_unique_lambda(unique[1]), "int64")  # ONNX always returns int64
+        inverse_indices = _op.cast(unique[2], "int64")  # ONNX always returns int64
+        counts = _op.cast(trim_unique_lambda(unique[4]), "int64")  # ONNX always returns int64
         # ONNX unique returns unique, indices, inverse_indices, (optional) counts
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
