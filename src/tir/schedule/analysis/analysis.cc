@@ -523,7 +523,6 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
     if (set == nullptr) {
       continue;
     }
-
     Array<Var> vars_in_binding = UndefinedVars(iter_value);
     for (const Var& var : vars_in_binding) {
       set->insert(var.get());
@@ -1166,14 +1165,13 @@ class InitBodyNotSameBufferAccessError : public ScheduleError {
   Block block_;
 };
 
-template <bool in_schedule>
-std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(const ScheduleState& self,
-                                                                      const Block& block) {
-  const char* error_str1 =
+std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(
+    const Optional<ScheduleState>& self, const Block& block) {
+  static constexpr const char* error_str1 =
       "ValueError: The `init` and `body` of the reduction block are required to be both "
       "BufferStore so that rfactor or cross-thread reduction can be applied. However, a reduction "
       "block that doesn't meet this requirement is ";
-  const char* error_str2 =
+  static constexpr const char* error_str2 =
       "ValueError: The `init` and `body` of the reduction block are required to have the same "
       "buffer access pattern so that rfactor or cross-thread reduction can be applied. However, a "
       "reduction block that doesn't meet this requirement is ";
@@ -1181,15 +1179,15 @@ std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(const Sche
   const auto* init = block->init.as<BufferStoreNode>();
   const auto* body = block->body.as<BufferStoreNode>();
   if (!(init && body)) {
-    if (in_schedule) {
-      throw InitBodyNotBufferStoreError(self->mod, block, init != nullptr, body != nullptr);
+    if (self.defined()) {
+      throw InitBodyNotBufferStoreError(self.value()->mod, block, init != nullptr, body != nullptr);
     } else {
       LOG(FATAL) << error_str1 << block;
     }
   }
   if (!init->buffer.same_as(body->buffer)) {
-    if (in_schedule) {
-      throw InitBodyNotSameBufferAccessError(self->mod, block);
+    if (self.defined()) {
+      throw InitBodyNotSameBufferAccessError(self.value()->mod, block);
     } else {
       LOG(FATAL) << error_str2 << block;
     }
@@ -1197,8 +1195,8 @@ std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(const Sche
   int ndim = static_cast<int>(init->buffer->shape.size());
   for (int i = 0; i < ndim; ++i) {
     if (!ExprDeepEqual()(init->indices[i], body->indices[i])) {
-      if (in_schedule) {
-        throw InitBodyNotSameBufferAccessError(self->mod, block);
+      if (self.defined()) {
+        throw InitBodyNotSameBufferAccessError(self.value()->mod, block);
       } else {
         LOG(FATAL) << error_str2 << block;
       }
@@ -1231,26 +1229,30 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
   for (const BufferRegion& write_region : block->writes) {
     buffer_written.insert(write_region->buffer.get());
   }
+  auto f_uses_reduction_block_var = [&](const PrimExpr& expr) -> bool {
+    return UsesVar(expr, [&](const VarNode* var) {  //
+      return reduction_block_iters.count(var);
+    });
+  };
   bool affected = false;
   PreOrderVisit(block->body, [&](const ObjectRef& obj) {
     if (affected) {
       return false;
     }
-    if (const auto* store = obj.as<BufferStoreNode>()) {
-      ICHECK(buffer_written.count(store->buffer.get()))
-          << "ValueError: The buffer \"" << store->buffer
-          << "\" is written in the block but is not in the block's signature";
-      for (const PrimExpr& index : store->indices) {
-        if (UsesVar(index, [&reduction_block_iters](const VarNode* var) {
-              return reduction_block_iters.count(var);
-            })) {
-          affected = true;
-          return false;
-        }
-      }
-      return false;
+    const auto* store = obj.as<BufferStoreNode>();
+    if (!store) {
+      return true;
     }
-    return true;
+    ICHECK(buffer_written.count(store->buffer.get()))
+        << "ValueError: The buffer \"" << store->buffer
+        << "\" is written in the block but is not in the block's signature";
+    for (const PrimExpr& index : store->indices) {
+      if (f_uses_reduction_block_var(index)) {
+        affected = true;
+        return false;
+      }
+    }
+    return false;
   });
   return !affected;
 }
@@ -1281,15 +1283,14 @@ class NoMatchedReducerError : public ScheduleError {
   BufferStore combiner_;
 };
 
-template <bool in_schedule>
 std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
-    const ScheduleState& self, const PrimExpr& identity, const BufferStore& combiner) {
+    const Optional<ScheduleState>& self, const PrimExpr& identity, const BufferStore& combiner) {
   CommReducer reducer{nullptr};
   PrimExpr combiner_lhs{nullptr}, combiner_rhs{nullptr};
   bool matched = FromIdentityCombiner(identity, combiner, &reducer, &combiner_lhs, &combiner_rhs);
   if (!matched) {
-    if (in_schedule) {
-      throw NoMatchedReducerError(self->mod, identity, combiner);
+    if (self.defined()) {
+      throw NoMatchedReducerError(self.value()->mod, identity, combiner);
     } else {
       LOG(FATAL) << "ValueError: No matched reducer for the identity and the combiner of the "
                     "reduction block. So rfactor and cross-thread reduction cannot be applied.";
@@ -1297,15 +1298,6 @@ std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
   }
   return std::make_tuple(std::move(reducer), std::move(combiner_lhs), std::move(combiner_rhs));
 }
-
-template std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock<true>(
-    const ScheduleState& self, const Block& block);
-template std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock<false>(
-    const ScheduleState& self, const Block& block);
-template std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs<true>(
-    const ScheduleState& self, const PrimExpr& identity, const BufferStore& combiner);
-template std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs<false>(
-    const ScheduleState& self, const PrimExpr& identity, const BufferStore& combiner);
 
 /******** Commutative Reducer ********/
 

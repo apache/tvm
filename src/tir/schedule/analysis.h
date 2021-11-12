@@ -19,6 +19,7 @@
 #ifndef TVM_TIR_SCHEDULE_ANALYSIS_H_
 #define TVM_TIR_SCHEDULE_ANALYSIS_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/schedule/state.h>
 
 #include <tuple>
@@ -331,16 +332,14 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
 
 /*!
  * \brief Convert the `init` and `body` of the input block to BufferStores
- * \tparam in_schedule Whether the function is called by schedule primitives
  * \param self The schedule state
  * \param block The block to be analyzed
  * \return The BufferStores of the `init` and `body` of the input block
  * \throw ScheduleError If the `init` or `body` is not BufferStore, or they don't write to the same
  * buffer
  */
-template <bool in_schedule>
-std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(const ScheduleState& self,
-                                                                      const Block& block);
+std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(
+    const Optional<ScheduleState>& self, const Block& block);
 
 /*!
  * \brief Check whether the input array of IterVars only contains data-parallel and reduction block
@@ -363,16 +362,14 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block);
 /*!
  * \brief Given a reduction identity and a reduction combiner, detect the corresponding commutative
  * reducer, and extract the combiner lhs and combiner rhs
- * \tparam in_schedule Whether the function is called by schedule primitives
  * \param self The schedule state
  * \param identity The reduction identity to be analyzed
  * \param combiner The reduction combiner to be analyzed
  * \return The corresponding CommReducer, the combiner lhs and the combiner rhs
  * \throw ScheduleError If no corresponding commutative reducer can be matched
  */
-template <bool in_schedule>
 std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
-    const ScheduleState& self, const PrimExpr& identity, const BufferStore& combiner);
+    const Optional<ScheduleState>& self, const PrimExpr& identity, const BufferStore& combiner);
 
 /******** Commutative Reducer ********/
 
@@ -381,7 +378,7 @@ std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters();
+std::vector<runtime::TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters();
 
 /*!
  * \brief Given the input identity and the combiner BufferStore of a reduction, extract the

@@ -283,14 +283,13 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // both be BufferStores with the same buffer and indices.
     BufferStore init;
     BufferStore update;
-    std::tie(init, update) =
-        GetBufferStoresFromReductionBlock<false>(ScheduleState{nullptr}, GetRef<Block>(block));
+    std::tie(init, update) = GetBufferStoresFromReductionBlock(NullOpt, GetRef<Block>(block));
 
     // Condition 5. Extract the commutative reducer, combiner lhs and combiner rhs from the
     // reduction identity and the reduction combiner.
     PrimExpr combiner_lhs;
     std::tie(reducer_, combiner_lhs, combiner_rhs_) =
-        GetReducerAndCombinerLhsRhs<false>(ScheduleState{nullptr}, init->value, update);
+        GetReducerAndCombinerLhsRhs(NullOpt, init->value, update);
 
     // Condition 6. The block should be the last block under the first reduction-related loop.
     bool visit = false;

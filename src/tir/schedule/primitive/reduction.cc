@@ -1041,9 +1041,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   BufferStore update;
   CommReducer reducer;
   PrimExpr combiner_lhs, combiner_rhs;
-  std::tie(init, update) = GetBufferStoresFromReductionBlock<true>(self, block);
+  std::tie(init, update) = GetBufferStoresFromReductionBlock(self, block);
   std::tie(reducer, combiner_lhs, combiner_rhs) =
-      GetReducerAndCombinerLhsRhs<true>(self, init->value, update);
+      GetReducerAndCombinerLhsRhs(self, init->value, update);
 
   // Step 6. Check whether `factor_axis` is in a correct range, and convert it to non-negative if it
   // is negative.
