@@ -55,7 +55,7 @@ def test_rpc_module(host, port, key, mode):
     s[B].bind(xo, te.thread_axis("blockIdx.x"))
     # Build the dynamic lib.
     # If we don't want to do metal and only use cpu, just set target to be target
-    f = tvm.build(s, [A, B], "metal", target_host=target, name="myadd")
+    f = tvm.build(s, [A, B], tvm.target.Target("metal", host=target), name="myadd")
     path_dso1 = temp.relpath("dev_lib.dylib")
     f.export_library(path_dso1, xcode.create_dylib, arch=arch, sdk=sdk)
 
