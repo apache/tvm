@@ -20,6 +20,7 @@ from tvm.contrib.nvcc import have_fp16
 
 import numpy as np
 import tvm.testing
+import pytest
 
 
 @tvm.testing.requires_cuda
@@ -310,11 +311,28 @@ def test_lower_warp_memory_same_thread():
     assert "tvm_warp_shuffle" not in fdevice.astext()
 
 
+@tvm.testing.requires_cuda
+def test_lower_warp_memory_divide_by_factor():
+    ib = tvm.tir.ir_builder.IRBuilder()
+    bx = te.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+
+    with ib.new_scope():
+        ib.scope_attr(bx, "thread_extent", 32)
+        ib.scope_attr(tx, "thread_extent", 32)
+        t = ib.allocate("float32", 16, name="t", scope="warp")
+        n = ib.allocate("float32", 16, name="n", scope="local")
+        n[0] = t[0]
+
+    stmt = ib.get()
+    func = tvm.tir.PrimFunc([], stmt)
+    func = func.with_attr("from_legacy_te_schedule", True)
+    cuda_target = tvm.target.Target("cuda")
+    mod = tvm.lower(func, name="f")
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
+    with pytest.raises(tvm.error.TVMError, match="Divide by zero") as cm:
+        tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
+
+
 if __name__ == "__main__":
-    test_lower_warp_memory_local_scope()
-    test_lower_warp_memory_correct_indices()
-    test_lower_warp_memory_cuda_end_to_end()
-    test_lower_warp_memory_cuda_half_a_warp()
-    test_lower_warp_memory_cuda_2_buffers()
-    test_lower_warp_memory_roundup()
-    test_lower_warp_memory_same_thread()
+    pytest.main([__file__])
