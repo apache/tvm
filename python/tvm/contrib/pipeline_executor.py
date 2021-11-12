@@ -17,7 +17,6 @@
 """Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
 import os
-import numpy as np
 import tvm._ffi
 from tvm import relay
 from tvm.relay.transform import InferType
@@ -53,6 +52,8 @@ def build(pipe_configs):
     config = pipe_configs.get_config()
     if "module_connection" not in config:
         raise RuntimeError('"module_connection" is missing')
+    if "input_connection" not in config:
+        raise RuntimeError('"input_connection" is missing')
 
     mod_n_configs = config["module_connection"]
     config_len = len(mod_n_configs)
@@ -84,8 +85,6 @@ def build(pipe_configs):
     # Merge the "input_connection", the "param_connection" and the "module_connection" into one
     # configuration.
     string_config = {}
-    if "input_connection" not in config:
-        raise RuntimeError('"input_connection" is missing')
     string_config["input_connection"] = config["input_connection"]
     string_config["param_connection"] = config["param_connection"]
     string_config["module_connection"] = module_string_config
@@ -147,11 +146,9 @@ class PipelineModule(object):
         params_data : dict of str to NDArray
             A list of params data and params key name.
         """
-        if params_data:
-            keys = list(params_data.keys())
-            keys.sort(key=lambda x: -np.prod(params_data[x].shape))
-            for k in keys:
-                self._set_param(params_name, k, tvm.nd.array(params_data[k], tvm.cpu()))
+        keys = list(params_data.keys())
+        for k in keys:
+            self._set_param(params_name, k, tvm.nd.array(params_data[k], tvm.cpu()))
 
     def get_input(self, key):
         """Get the input via a input name.
@@ -159,18 +156,22 @@ class PipelineModule(object):
         ----------
         key : str
             The input key
+
+        Returns
+        -------
+        data : NDArray
+            Then input data.
         """
         self._get_input(key)
 
     def get_output(self):
         """Get the output.
 
-        Parameters:
+        Returns:
         -----------
-        out : Array[NDArray]
+        data : Array[NDArray]
             A list of output data.
         """
-
         return self._get_output()
 
     @property
@@ -259,7 +260,6 @@ class PipelineConfig(object):
             self.bindings = []
             # Parents interfaces that this interface depend on.
             self.parents = []
-
             self.data_type = data_type
 
         def get_name(self):
@@ -287,21 +287,43 @@ class PipelineConfig(object):
             return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
 
         def __repr__(self):
-            # Get all binding information in the form of string.
-            ret, _ = self.format()
-            return ret
-
-        def format(self):
-            """Obtain binding information in the form of string and dictionary."""
+            # Get the binding information in the form of string.
             str_format = "  |{}: ".format(self.name)
-            dict_format = {"interface_name": self.name, "connection": []}
             for binding in self.bindings:
                 mname, dname = binding.get_name()
-                midx = binding.get_owner_idx()
-                dict_format["connection"].append({"mod_idx": midx, "interface_name": dname})
                 str_format += "{0}:{1} ".format(mname, dname)
 
-            return str_format, dict_format
+            return str_format
+
+        def check_dict(self, connection_dict):
+            """Check the dict form of this binding.
+            Parameter
+            ---------
+            connection_dict : Dict[str, Any]
+                The dict of input or parameters connection.
+            """
+            if "interface_name" not in connection_dict:
+                raise RuntimeError(f'"inteface_name" is missing in global config!"')
+            if "connection" not in connection_dict:
+                raise RuntimeError(f'"connection" is missing!"')
+            # The global interface mapping should be one-to-one.
+            if not connection_dict["connection"]:
+                raise RuntimeError(f"The global interface map is empty!")
+            if len(connection_dict["connection"]) > 1:
+                raise RuntimeError(f"A global interface maps multiple module interfaces!")
+            if "mod_idx" not in connection_dict["connection"][0]:
+                raise RuntimeError(f'"mod_idx" is missing!')
+
+        def get_binding_dict(self):
+            # Return the binding information in the form of dict.
+            dict_format = {"interface_name": self.name, "connection": []}
+            for binding in self.bindings:
+                _, dname = binding.get_name()
+                midx = binding.get_owner_idx()
+                dict_format["connection"].append({"mod_idx": midx, "interface_name": dname})
+
+            self.check_dict(dict_format)
+            return dict_format
 
         def check_dag_acyclic(self, start, inputs):
             """This is to check whether the DAG containing these input interfaces is acyclic.
@@ -588,19 +610,6 @@ class PipelineConfig(object):
         will be used to create pipeline executor.
         """
 
-        def check_data_param(data_dict):
-            if "interface_name" not in data_dict:
-                raise RuntimeError(f'"inteface_name" is missing in global config!"')
-            if "connection" not in data_dict:
-                raise RuntimeError(f'"connection" is missing!"')
-            # The global interface mapping should be one-to-one.
-            if len(data_dict["connection"]) == 0:
-                raise RuntimeError(f"The global interface map is empty!")
-            if len(data_dict["connection"]) > 1:
-                raise RuntimeError(f"A global interface maps multiple module interfaces!")
-            if "mod_idx" not in data_dict["connection"][0]:
-                raise RuntimeError(f'"mod_idx" is missing!')
-
         # Use topological sort to get the correct order of modules.
         self.dag_topology_sort()
         mconfig = {}
@@ -646,11 +655,9 @@ class PipelineConfig(object):
         # Create a mapping of global input and module input.
         input_connection = []
         for input_name in self.input_bindings.bindings:
-            _, input_dict = self.input_bindings.bindings[input_name].format()
-            # Check the correctness of "input_dict".
-            check_data_param(input_dict)
+            input_dict = self.input_bindings.bindings[input_name].get_binding_dict()
             if "interface_name" not in input_dict["connection"][0]:
-                raise RuntimeError(f'"interface_name is missing in connection config"!')
+                raise RuntimeError(f"interface_name is missing in connection config!")
             # Establish the mapping of global interface and the mapping of module interfaces.
             input_map = {
                 "global_interface_name": input_dict["interface_name"],
@@ -662,8 +669,7 @@ class PipelineConfig(object):
         # Create a mapping of global param and module param.
         param_connection = []
         for param_name in self.param_bindings.bindings:
-            _, param_dict = self.param_bindings.bindings[param_name].format()
-            check_data_param(param_dict)
+            param_dict = self.param_bindings.bindings[param_name].get_binding_dict()
             param_map = {
                 "global_param_name": param_dict["interface_name"],
                 "mod_idx": param_dict["connection"][0]["mod_idx"],

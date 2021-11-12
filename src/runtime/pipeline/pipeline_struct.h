@@ -34,23 +34,14 @@ namespace runtime {
 #define GLOBAL_MODULE_INDEX -1
 /*!
  *\brief The mapping of a module output and a global output in the graph module.
+ * The first int is a module output index, the second int is a global output index.
  */
-struct GlobalOutputPair {
-  int mod_output_idx;
-  int global_output_idx;
-  GlobalOutputPair(const int idx, const int gidx) : mod_output_idx(idx), global_output_idx(gidx) {}
-  GlobalOutputPair() {}
-};
-
+using GlobalOutputPair = std::pair<int, int>;
 /*!
  *\brief Use the module index and the output index to specify a module output.
+ * The first int is a module index, the second int is a module output index.
  */
-struct ModuleOutputPair {
-  int mod_idx;
-  int output_idx;
-  ModuleOutputPair(const int midx, const int idx) : mod_idx(midx), output_idx(idx) {}
-  ModuleOutputPair() {}
-};
+using ModuleOutputPair = std::pair<int, int>;
 /*!
  * \brief All binding information of a output interface.
  */
@@ -60,19 +51,19 @@ class ConfigBindings {
    *  uses this output data as the input interface data, 'string' is the input interface name
    *  of the module.
    */
-  std::unordered_map<int, std::string> bindings;
+  std::unordered_map<int, std::string> bindings_;
   /*! The index value of the global interface to which the current output are bound.*/
-  int global_output_index = std::numeric_limits<int>::min();
+  int global_output_index_ = std::numeric_limits<int>::min();
 
  public:
   /*!
-   *\brief Return the memeber variable "bindings".
+   *\brief Return the memeber variable "bindings_".
    */
-  std::unordered_map<int, std::string>& Get() { return bindings; }
+  std::unordered_map<int, std::string>& Get() { return bindings_; }
   /*!\brief Get the value of global outpu index.*/
-  int GetGlobalOutputIndex() const { return global_output_index; }
+  int GetGlobalOutputIndex() const { return global_output_index_; }
   /*!\brief Whether this binding is bound to the PipelineExecutor output interface.*/
-  bool IsGlobalOutput() const { return global_output_index >= 0; }
+  bool IsGlobalOutput() const { return global_output_index_ > GLOBAL_MODULE_INDEX; }
 
   /*!
    *\brief The number of bindings of input and output. one input only can bind with one
@@ -82,7 +73,7 @@ class ConfigBindings {
    */
   size_t GetInputOutputBindingNum(void) {
     size_t ret = 0;
-    for (auto connection : bindings) {
+    for (auto connection : bindings_) {
       // Filter out the global output.
       if (connection.first == GLOBAL_MODULE_INDEX) continue;
       ret++;
@@ -109,8 +100,8 @@ class ConfigBindings {
           reader->Read(&input_name);
         } else if (key == "global_output_index") {
           // There should be only one global binding.
-          ICHECK(global_output_index < 0);
-          reader->Read(&global_output_index);
+          ICHECK(global_output_index_ < 0);
+          reader->Read(&global_output_index_);
           // When the key value is 'global_output_index', it means that this output is bound to
           // a global interface.
           global_binding = true;
@@ -121,12 +112,12 @@ class ConfigBindings {
       // When this output is bound to a global interface, check if the global interface index
       // start from 0.
       if (global_binding) {
-        ICHECK(global_output_index >= 0);
+        ICHECK(global_output_index_ >= 0);
       } else {
         // When this output is bound to a graph executor module interface, check if the module
         // index start from 0.
         ICHECK(mod_idx >= 0);
-        bindings[mod_idx] = input_name;
+        bindings_[mod_idx] = input_name;
       }
     }
   }
@@ -136,30 +127,32 @@ class ConfigBindings {
  */
 class ConfigOutputBindings {
  private:
-  /*! \brief Output binding map, 'int' is output interface index.*/
-  std::unordered_map<int, ConfigBindings> output_binding_map;
+  /*!\brief Output binding map, 'int' is output interface index.*/
+  std::unordered_map<int, ConfigBindings> output_binding_map_;
 
  public:
   ConfigOutputBindings& operator=(const ConfigOutputBindings& output) {
-    output_binding_map = output.output_binding_map;
+    output_binding_map_ = output.GetOutBindings();
     return *this;
   }
 
   ConfigBindings& operator[](const int key) {
-    ICHECK(output_binding_map.find(key) != output_binding_map.end());
-    return output_binding_map[key];
+    ICHECK(output_binding_map_.find(key) != output_binding_map_.end());
+    return output_binding_map_[key];
   }
+  /*!brief Return the variable "output_binding_map_".*/
+  std::unordered_map<int, ConfigBindings> GetOutBindings() const { return output_binding_map_; }
   /*!
    *\brief Check if there is a output with the specify index in this map.
    */
   bool FindOutputInMap(int output_idx) {
-    return output_binding_map.find(output_idx) != output_binding_map.end();
+    return output_binding_map_.find(output_idx) != output_binding_map_.end();
   }
   /*!
    *\brief This function is used to verify whether ConfigOutputBindings is successfully loaded.
    *\return Return true to indicate that this class has not been successfully loaded.
    */
-  bool Empty() { return output_binding_map.empty(); }
+  bool Empty() { return output_binding_map_.empty(); }
   /*!
    * \brief The pipeline outputs is the final outputs of pipeline, this function is used to
    *  get how many pipeline outputs are in this Outputmap
@@ -167,7 +160,7 @@ class ConfigOutputBindings {
    */
   size_t GetGlobalOutputNum(void) const {
     size_t num_output = 0;
-    for (auto bindings : output_binding_map) {
+    for (auto bindings : output_binding_map_) {
       num_output += bindings.second.IsGlobalOutput() ? 1 : 0;
     }
     return num_output;
@@ -178,7 +171,7 @@ class ConfigOutputBindings {
    */
   std::vector<GlobalOutputPair> GetGlobalConfigOutputBindings(void) {
     std::vector<GlobalOutputPair> ret;
-    for (auto bindings : output_binding_map) {
+    for (auto bindings : output_binding_map_) {
       if (bindings.second.IsGlobalOutput()) {
         ret.push_back(GlobalOutputPair(bindings.first, bindings.second.GetGlobalOutputIndex()));
       }
@@ -190,7 +183,7 @@ class ConfigOutputBindings {
    */
   size_t GetInputOutputBindingNum() {
     size_t ret = 0;
-    for (auto x : output_binding_map) {
+    for (auto x : output_binding_map_) {
       ret += x.second.GetInputOutputBindingNum();
     }
     return ret;
@@ -216,7 +209,7 @@ class ConfigOutputBindings {
         }
       }
       ICHECK(output_idx >= 0);
-      output_binding_map[output_idx] = binding;
+      output_binding_map_[output_idx] = binding;
     }
   }
 };
@@ -318,54 +311,49 @@ class ConfigPipelineExecution {
    *!\brief The key is the module index, this variable records all module pipeline configuration
    * information.
    */
-  std::unordered_map<int, ConfigOutputBindings> config;
+  std::unordered_map<int, ConfigOutputBindings> config_;
   /*
    *\brief The key is the global output index, this variable records the mapping of global output
    * and the module output.
    */
-  std::unordered_map<int, ModuleOutputPair> global_output_map;
+  std::unordered_map<int, ModuleOutputPair> global_output_map_;
   /*
    *\brief The number of binding of module outputs and inputs.
    */
-  size_t module_input_output_binding_total_num;
+  size_t module_input_output_binding_total_num_;
 
  public:
   ConfigOutputBindings& operator[](int key) {
-    ICHECK(config.find(key) != config.end());
-    return config[key];
+    ICHECK(config_.find(key) != config_.end());
+    return config_[key];
   }
   /*!
    *\brief Check if the module index existing in the "config".
    */
-  bool FindModuleInConfig(int mod_idx) { return config.find(mod_idx) != config.end(); }
-  /*!
-   *\brief Build the mapping of key and "ConfigOutputBindings", key is module index.
-   */
-  void Insert(int key, const ConfigOutputBindings& map) { config[key] = map; }
-
+  bool FindModuleInConfig(int mod_idx) { return config_.find(mod_idx) != config_.end(); }
   /*
    *!\brief This function is used to verify whether config is loaded successfully.
    * \return Return true to indicate that this class has not been successfully loaded.
    */
-  bool Empty() { return config.empty(); }
+  bool Empty() { return config_.empty(); }
   /*!
    * \brief Get the number of global outputs.
    * \return The number of outputs the entire pipeline has.
    */
   size_t GetGlobalOutputNum() const {
     // The number of pipeline outputs is the size of "global_output_map";
-    return global_output_map.size();
+    return global_output_map_.size();
   }
   /*
    *!\brief Get the map of global outputs and module outputs.
    */
   std::unordered_map<int, ModuleOutputPair>& GetGlobalConfigOutputBindings(void) {
-    return global_output_map;
+    return global_output_map_;
   }
   /*
    *!\brief Get the number of module output and module input bindings.
    */
-  size_t GetInputOutputBindingNum() const { return module_input_output_binding_total_num; }
+  size_t GetInputOutputBindingNum() const { return module_input_output_binding_total_num_; }
   /*
    *!\brief Parse the config to construct data struct using in pipeline execution.
    */
@@ -373,17 +361,16 @@ class ConfigPipelineExecution {
     if (config.empty()) {
       LOG(FATAL) << "The Configuration loading not finish yet.";
     }
-    module_input_output_binding_total_num = 0;
+    module_input_output_binding_total_num_ = 0;
     for (auto mod_output : config) {
       // Get the numbers of binding of input and output.
-      module_input_output_binding_total_num += mod_output.second.GetInputOutputBindingNum();
+      module_input_output_binding_total_num_ += mod_output.second.GetInputOutputBindingNum();
       // Use global output index as key to create a mapping of global index and module output.
       const std::vector<GlobalOutputPair>& global_output =
           mod_output.second.GetGlobalConfigOutputBindings();
 
       for (auto output : global_output) {
-        global_output_map[output.global_output_idx] =
-            ModuleOutputPair(mod_output.first, output.mod_output_idx);
+        global_output_map_[output.second] = ModuleOutputPair(mod_output.first, output.first);
       }
     }
     return;
@@ -414,10 +401,11 @@ class ConfigPipelineExecution {
       ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
       // Check if the output is successfully read.
       ICHECK(!output.Empty()) << "Invalid output binding result.";
-      Insert(mod_idx, output);
+      // Build the mapping of mod_idx and "ConfigOutputBindings".
+      config_[mod_idx] = output;
     }
     // Call this function after "config" loading finished.
-    ParseConfiguration(config);
+    ParseConfiguration(config_);
   }
 };
 /*
@@ -426,25 +414,29 @@ class ConfigPipelineExecution {
 class BackendRuntime {
  private:
   /*\brief The index of runtime indicate the position in the pipeline.*/
-  int runtime_idx;
+  int runtime_idx_;
   /*\brief The Runtime module of a backedn graph executor.*/
-  Module module;
+  Module module_;
   /*!
    *\brief To transfer data between two different backends, we need a local
    * tensor variable as a medium. This variable is a mapping of input data and local
    * data.
    */
-  std::unordered_map<DLTensor*, DLTensor*> input_tensor_local_copy;
+  std::unordered_map<DLTensor*, DLTensor*> input_tensor_local_copy_;
   /*!\brief The packed functions.*/
-  tvm::runtime::PackedFunc run;
-  tvm::runtime::PackedFunc set_input;
-  tvm::runtime::PackedFunc get_input;
-  tvm::runtime::PackedFunc get_output;
-  tvm::runtime::PackedFunc get_num_output;
-  tvm::runtime::PackedFunc get_num_inputs;
-  tvm::runtime::PackedFunc get_input_index;
-  /*!\brief The new DLTensor have same shape, data type with a existing DLTensor.*/
-  DLTensor* CreateFromDLTensor(const DLTensor* from) {
+  tvm::runtime::PackedFunc run_;
+  tvm::runtime::PackedFunc set_input_;
+  tvm::runtime::PackedFunc get_input_;
+  tvm::runtime::PackedFunc get_output_;
+  tvm::runtime::PackedFunc get_num_output_;
+  tvm::runtime::PackedFunc get_num_inputs_;
+  tvm::runtime::PackedFunc get_input_index_;
+  /*!
+   * \brief The new DLTensor have same shape, data type with a existing DLTensor and
+   *  the new DLTensor device type is CPU. This function is used to do cross device data
+   *  copy.
+   */
+  inline DLTensor* CopyDLTensorToCPU(const DLTensor* from) {
     DLTensor* ret = NULL;
     TVMArrayAlloc(from->shape, from->ndim, from->dtype.code, from->dtype.bits, from->dtype.lanes,
                   kDLCPU, 0, &ret);
@@ -466,14 +458,14 @@ class BackendRuntime {
   void CopyFromTo(DLTensor* from, DLTensor* to) {
     // If the source device and target device is not same, we use a local DLTensor
     // as a medium to do the cross device copy work.
-    if (!(from->device.device_type == to->device.device_type ||
-          from->device.device_type == kDLCPU || to->device.device_type == kDLCPU)) {
+    if (from->device.device_type != to->device.device_type && from->device.device_type != kDLCPU &&
+        to->device.device_type != kDLCPU) {
       DLTensor* dltensor_local = nullptr;
-      if (input_tensor_local_copy.find(to) == input_tensor_local_copy.end()) {
-        dltensor_local = CreateFromDLTensor(from);
-        input_tensor_local_copy[to] = dltensor_local;
+      if (input_tensor_local_copy_.find(to) == input_tensor_local_copy_.end()) {
+        dltensor_local = CopyDLTensorToCPU(from);
+        input_tensor_local_copy_[to] = dltensor_local;
       } else {
-        dltensor_local = input_tensor_local_copy[to];
+        dltensor_local = input_tensor_local_copy_[to];
       }
       TVMArrayCopyFromTo(from, dltensor_local, nullptr);
       from = dltensor_local;
@@ -484,36 +476,36 @@ class BackendRuntime {
 
  public:
   BackendRuntime(Module mod, int mod_idx) {
-    module = mod;
-    runtime_idx = mod_idx;
-    get_input_index = module.GetFunction("get_input_index");
-    get_num_output = module.GetFunction("get_num_outputs");
-    get_num_inputs = module.GetFunction("get_num_inputs");
-    set_input = module.GetFunction("set_input");
-    get_input = module.GetFunction("get_input");
-    get_output = module.GetFunction("get_output");
-    run = module.GetFunction("run");
+    module_ = mod;
+    runtime_idx_ = mod_idx;
+    get_input_index_ = module_.GetFunction("get_input_index");
+    get_num_output_ = module_.GetFunction("get_num_outputs");
+    get_num_inputs_ = module_.GetFunction("get_num_inputs");
+    set_input_ = module_.GetFunction("set_input");
+    get_input_ = module_.GetFunction("get_input");
+    get_output_ = module_.GetFunction("get_output");
+    run_ = module_.GetFunction("run");
   }
   BackendRuntime(void) {}
   ~BackendRuntime() {
-    for (auto data : input_tensor_local_copy) {
+    for (auto data : input_tensor_local_copy_) {
       TVMArrayFree(data.second);
     }
   }
   /*!\brief Create a new NDArray which have same shape, data type with a module output. */
   NDArray CreateFromOutput(int idx) {
-    NDArray data = get_output(idx);
+    NDArray data = get_output_(idx);
     return CreateNDArrayFromDLTensor(const_cast<DLTensor*>(data.operator->()));
   }
   /*!\brief Return the moudle index.*/
-  int GetModuleIndex() { return runtime_idx; }
+  int GetModuleIndex() { return runtime_idx_; }
   /*!\brief Return the number of output*/
-  int NumOutputs() const { return get_num_output(); }
+  int NumOutputs() const { return get_num_output_(); }
   /*!\brief Return the number of input*/
-  int NumInputs() const { return get_num_inputs(); }
+  int NumInputs() const { return get_num_inputs_(); }
   /*!\brief Use input index to set data to the runtime module.*/
   void SetInput(const int index, DLTensor* data_in) {
-    NDArray input = get_input(index);
+    NDArray input = get_input_(index);
     DLTensor* dltensor_input = const_cast<DLTensor*>(input.operator->());
     CopyFromTo(data_in, dltensor_input);
   }
@@ -523,13 +515,13 @@ class BackendRuntime {
     SetInput(index, data_in);
   }
   /*!\brief Use output index to get a module output.*/
-  NDArray GetOutput(int index) { return get_output(index); }
+  NDArray GetOutput(int index) { return get_output_(index); }
   /*!\brief Run the runtime.*/
-  void Run() { run(); }
+  void Run() { run_(); }
   /*!\brief Use the index to a module input.*/
-  NDArray GetInput(int index) const { return get_input(index); }
+  NDArray GetInput(int index) const { return get_input_(index); }
   /*!\bief Use a input name to get the corresponding index of input.*/
-  int GetInputIndex(const std::string& name) { return get_input_index(name); }
+  int GetInputIndex(const std::string& name) { return get_input_index_(name); }
 };
 /*!
  * \brief The information used to initialize the graph executor module, the information

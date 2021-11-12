@@ -72,8 +72,8 @@ def get_mannual_mod():
 
 
 def recreate_parameters(mod):
-    # Get the binding parameters from a module, then create a same parameters which have different
-    # data value. This function can be used to test "set_param" function.
+    # Get the binding parameters from a module, then create the same parameters with different data.
+    # This function can be used to test "set_param" function.
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, "llvm")
 
@@ -281,6 +281,7 @@ def test_pipeline():
 
             # The mod3 output[0] will be connected to pipeline output[1].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
+            print(pipe_config)
             # Print configueration (print(pipe_config)), the result looks like following.
             #
             # Inputs

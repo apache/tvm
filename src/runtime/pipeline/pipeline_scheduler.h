@@ -49,17 +49,17 @@ class PipelineScheduler {
    * \brief Execute pipeline.
    * \param runtimes A list of backend runtimes module.
    * \param pipeline_config The dependency information of each graph executor module.
-   * \param serialize_mode If the execution is serialized.
+   * \param sequential_mode If the execution is in Sequential mode.
    */
   void PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
-                   ConfigPipelineExecution pipeline_config, bool serialize_mode = false);
+                   ConfigPipelineExecution pipeline_config, bool sequential_mode = false);
   /*!
-   * \brief Exeute in the serialized mode.
+   * \brief Exeute in the sequential mode.
    * \param runtimes A list of backend runtimes module.
    * \param pipeline_config The dependency information of each graph executor module.
    */
-  void PipelineRunSerial(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
-                         ConfigPipelineExecution pipeline_config);
+  void PipelineRunSequential(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
+                             ConfigPipelineExecution pipeline_config);
   /*!
    * \brief Stop the pipeline exection.
    */

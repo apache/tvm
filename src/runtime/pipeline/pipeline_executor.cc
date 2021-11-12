@@ -77,9 +77,9 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
   return nullptr;
 }
 /*!
- * \brief There are some input called pipeline global input that user need to use function
-    "set_input" to set the data for it, this function return the number of such global input.
-   \return Return the number of pipeline global input.
+ * \brief Pipeline global inputs are the data inputs that have to be set by users with
+ *  "set_input". This function returns the number of pipeline global inputs.
+ * \return Return the number of pipeline global inputs.
  */
 
 int PipelineExecutor::NumInputs() const {
@@ -90,19 +90,19 @@ int PipelineExecutor::NumInputs() const {
   for (auto runtime : runtimes_) {
     ret += runtime->NumInputs();
   }
-  // Use the summary of all backend runtime module input number to minus the internal inputs
-  // number, then we will get the pipeline global input number
+  // Remove module inputs that are only used internally.
   ret -= internal_inputs_num;
   // Check whether these two numbers are equal.
   if (config_inputs_num != ret) {
-    LOG(FATAL) << "The number of inputs from the configuration file is inconsistent!";
+    LOG(FATAL) << "Incorrect input number in configuration: Expected " << ret << " but got "
+               << config_inputs_num;
   }
   return ret;
 }
 /*!
  * \brief Return the input index and module index for a given input name.
  * \param name The input name.
- * \return std::pair<int, int> The module index and the input index.
+ * \return std::pair<int, int> A pair of module index and the input index.
  */
 std::pair<int, int> PipelineExecutor::GetInputIndex(const std::string& name) {
   std::pair<int, std::string> index = input_connection_config[name];
@@ -124,6 +124,10 @@ int PipelineExecutor::GetParamModuleIndex(const std::string& name) {
  */
 void PipelineExecutor::SetInput(std::string input_name, DLTensor* data_in) {
   std::pair<int, int> indexs = this->GetInputIndex(input_name);
+  if (indexs.first < 0 || indexs.first >= static_cast<int>(runtimes_.size())) {
+    this->Stop();
+    LOG(FATAL) << "input name " << input_name << " not found.";
+  }
   runtimes_[indexs.first]->SetInput(indexs.second, data_in);
 }
 
@@ -134,6 +138,10 @@ void PipelineExecutor::SetInput(std::string input_name, DLTensor* data_in) {
  */
 NDArray PipelineExecutor::GetInput(std::string input_name) {
   std::pair<int, int> indexs = this->GetInputIndex(input_name);
+  if (indexs.first < 0 || indexs.first >= static_cast<int>(runtimes_.size())) {
+    this->Stop();
+    LOG(FATAL) << "input name " << input_name << " not found.";
+  }
   return runtimes_[indexs.first]->GetInput(indexs.second);
 }
 /*!

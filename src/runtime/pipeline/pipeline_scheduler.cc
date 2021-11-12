@@ -44,18 +44,18 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
       LOG(FATAL) << "Not find global output index " << i;
     }
     ModuleOutputPair& output_pair = global_output_map[i];
-    NDArray output = runtimes[output_pair.mod_idx]->CreateFromOutput(output_pair.output_idx);
+    NDArray output = runtimes[output_pair.first]->CreateFromOutput(output_pair.second);
     output_array.push_back(output);
   }
   return runtimes;
 }
 
 /*!
- * \brief Exeute in the serialized mode.
+ * \brief Exeute in the sequential mode.
  * \param runtimes A list of backend runtimes module.
  * \param pipeline_config The dependency information of each graph executor module.
  */
-void PipelineScheduler::PipelineRunSerial(
+void PipelineScheduler::PipelineRunSequential(
     const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
     ConfigPipelineExecution pipeline_config) {
   for (size_t i = 0; i < runtimes.size(); i++) {
@@ -97,23 +97,22 @@ void PipelineScheduler::PipelineRunSerial(
  * \brief Execute pipeline.
  * \param runtimes A list of backend runtimes module.
  * \param pipeline_config The dependency information of each graph executor module.
- * \param serialize_mode If the execution is serialized.
+ * \param sequential_mode If the execution is in sequential mode.
  */
 void PipelineScheduler::PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
-                                    ConfigPipelineExecution pipeline_config, bool serialize_mode) {
-  if (!serialize_mode) {
+                                    ConfigPipelineExecution pipeline_config, bool sequential_mode) {
+  if (!sequential_mode) {
     // TODO(huajsj) remove this check after all of pipeline features in.
-    LOG(FATAL) << "Currently Only supports serialized mode.";
+    LOG(FATAL) << "Currently Only supports sequential mode.";
   } else {
-    PipelineRunSerial(runtimes, pipeline_config);
+    PipelineRunSequential(runtimes, pipeline_config);
   }
 }
 /*!
  * \brief Stop the pipeline exection.
  */
 void PipelineScheduler::PipelineStop() {
-  // TODO(huajsj) Remove this.
-  std::cout << __FUNCTION__ << std::endl;
+  // TODO(huajsj) Add stop logic.
 }
 /*!
  * \brief Get a list of outputs of the pipeline execution.
