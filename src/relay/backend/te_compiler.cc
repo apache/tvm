@@ -45,6 +45,7 @@
 
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
+#include "../op/memory/device_copy.h"
 #include "../transforms/device_aware_visitors.h"
 #include "./te_compiler_cache.h"
 #include "./utils.h"
@@ -361,21 +362,6 @@ TVM_REGISTER_GLOBAL("relay.backend._TECompilerListItems").set_body_typed([](TECo
 
 using AnalysisRemapping = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>;
 
-std::tuple<bool, int, int> IsDeviceCopy(const Function& func) {
-  if (auto call_node = func->body.as<CallNode>()) {
-    if (auto op_node = call_node->op.as<OpNode>()) {
-      if (op_node->name == "device_copy") {
-        auto attrs = call_node->attrs.as<DeviceCopyAttrs>();
-        auto dst = attrs->dst_dev_type;
-        auto src = attrs->src_dev_type;
-        return std::tuple<bool, int, int>(true, src, dst);
-      }
-    }
-  }
-
-  return std::tuple<bool, int, int>(false, -1, -1);
-}
-
 /*!
  * \brief Rewrites call expressions to Relay functions marked as 'primitive'
  * to calls to the corresponding TIR primitive for the appropriate target.
@@ -417,11 +403,10 @@ std::tuple<bool, int, int> IsDeviceCopy(const Function& func) {
  */
 class LowerTensorExprMutator : public DeviceAwareExprMutator {
  public:
-  LowerTensorExprMutator(const IRModule& module, const TargetMap& targets, ProcessFn process_fn,
-                         const String& module_name, TECompiler compiler)
+  LowerTensorExprMutator(const IRModule& module, ProcessFn process_fn, const String& module_name,
+                         TECompiler compiler)
       : DeviceAwareExprMutator(module),
         module_(module),
-        targets_(targets),
         process_fn_(process_fn),
         module_name_(module_name),
         compiler_(compiler),
@@ -488,7 +473,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
     } else {
       // Non-External Relay Function
-      VLOG(1) << "lowering to target '" << target->str() << "' for primitive:\n"
+      VLOG(1) << "lowering to target " << target->ToDebugString() << " for primitive:\n"
               << PrettyPrint(func);
       CCacheKey key = CCacheKey(func, target);
       CachedFunc lowered_func = compiler_->Lower(key, module_name_);
@@ -519,14 +504,12 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         call_lowered_attrs->metadata.Set(attr::kReshapeOnly, tvm::Integer(1));
       }
 
-      auto device_copy = IsDeviceCopy(func);
-      if (std::get<0>(device_copy)) {
-        // Record that device copy source and destination devices so the device planner can
-        // still follow along.
-        auto source_device = std::get<1>(device_copy);
-        auto dst_device = std::get<2>(device_copy);
-        call_lowered_attrs->metadata.Set("source_device", tvm::Integer(source_device));
-        call_lowered_attrs->metadata.Set("dst_device", tvm::Integer(dst_device));
+      DeviceCopyProps props = GetDeviceCopyProps(func);
+      if (props.body.defined()) {
+        // Record the device copy source and destination scopes so the device planner can
+        // still follow along even after lowering.
+        call_lowered_attrs->metadata.Set("src_se_scope", props.src_se_scope);
+        call_lowered_attrs->metadata.Set("dst_se_scope", props.dst_se_scope);
       }
 
       call_lowered_attrs->metadata.Set("relay_attrs", func->attrs);
@@ -539,8 +522,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         // on the host cpu irrespective of where the primitive runs.
         // TODO(mbs): Cleanup target handling.
         Target shape_target("llvm");
-        VLOG(1) << "lowering to target '" << shape_target->str()
-                << "' for dynamic shape function for primitive";
+        VLOG(1) << "lowering to target " << shape_target->ToDebugString()
+                << " for dynamic shape function for primitive";
         CCacheKey shape_key(func, shape_target);
         CachedFunc lowered_shape_func = compiler_->LowerShapeFunc(shape_key);
         // Capture the shape function's global var and parameters 'states' in call
@@ -635,9 +618,10 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       target = Target("ext_dev");
     } else {
       // The target corresponding to the call_node expression's annotation.
-      DLDeviceType device_type = GetInScopeDeviceType(call);
-      // TODO(mbs): Replace device_type with target so this lookup is unnecessary.
-      target = GetTargetFromInteger(device_type, targets_);
+      SEScope se_scope = GetSEScope(call);
+      ICHECK(!se_scope->IsFullyUnconstrained());
+      target = se_scope->target;
+      ICHECK(target.defined());
     }
     Array<Expr> visited_args;
     for (const auto& arg : call_node->args) {
@@ -649,7 +633,6 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
   }
 
   IRModule module_;
-  TargetMap targets_;
   ProcessFn process_fn_;
   // Map from in-scope let-bound variables to Relay functions known to be
   // primitive. We'll rewrite these to the fresh global vars bound to the lowered
@@ -695,11 +678,11 @@ Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
   }
 }
 
-Pass LowerTensorExpr(TargetMap targets, const String& module_name, TECompiler compiler,
+Pass LowerTensorExpr(const String& module_name, TECompiler compiler,
                      std::function<void(Function)> process_fn) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function func, IRModule module, PassContext ctx) {
-        LowerTensorExprMutator lower_te(module, targets, process_fn, module_name, compiler);
+        LowerTensorExprMutator lower_te(module, process_fn, module_name, compiler);
         return Downcast<Function>(lower_te.Mutate(func));
       };
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
@@ -716,6 +699,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
   }
 
   // This is a Map<device,Map<storage_id, size>>
+  // TODO(mbs): Collapsing SEScopes to just device type.
   std::unordered_map<DLDeviceType, std::unordered_map<int, int>, backend::EnumClassHash>
       sid_workspace;
   // This is a Map<device, size_of_inputs_and_outputs>
@@ -726,15 +710,15 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
   // Initialize the mapping from all storage identifiers to workspace sizes,
   // the amount of device io, and the device constants.
   for (const auto& kv : storage_info_map) {
-    backend::StorageInfo storage_info = kv.second;
-    std::vector<int64_t> storage_ids = storage_info->storage_ids;
-    std::vector<DLDeviceType> devices = storage_info->device_types;
-
-    CHECK_EQ(storage_ids.size(), devices.size());
-    for (uint32_t i = 0; i < devices.size(); i++) {
-      sid_workspace[devices[i]][storage_ids[i]] = 0;
-      device_io[devices[i]] = 0;
-      device_consts[devices[i]] = 0;
+    const backend::StorageInfo& storage_info = kv.second;
+    const std::vector<int64_t>& storage_ids = storage_info->storage_ids;
+    const std::vector<SEScope>& se_scopes = storage_info->se_scopes;
+    CHECK_EQ(storage_ids.size(), se_scopes.size());
+    for (uint32_t i = 0; i < se_scopes.size(); i++) {
+      DLDeviceType device_type = se_scopes[i]->device_type();
+      sid_workspace[device_type][storage_ids[i]] = 0;
+      device_io[device_type] = 0;
+      device_consts[device_type] = 0;
     }
   }
 
@@ -763,18 +747,20 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
             << PrettyPrint(expr->checked_type()) << std::endl
             << "has size " << size_bytes << " and storage info:" << std::endl
             << storage_info;
-    std::vector<int64_t> storage_ids = storage_info->storage_ids;
-    std::vector<DLDeviceType> devices = storage_info->device_types;
+    const std::vector<int64_t>& storage_ids = storage_info->storage_ids;
+    const std::vector<SEScope>& se_scopes = storage_info->se_scopes;
 
     if (expr->IsInstance<ConstantNode>()) {
-      for (const auto& dev : devices) {
-        ICHECK_EQ(device_consts.count(dev), 1);
-        device_consts[dev] += size_bytes;
+      for (const auto& se_scope : se_scopes) {
+        DLDeviceType device_type = se_scope->device_type();
+        ICHECK_EQ(device_consts.count(device_type), 1);
+        device_consts[device_type] += size_bytes;
       }
     } else if (expr->IsInstance<VarNode>() || expr.same_as(func->body)) {
-      CHECK_GE(devices.size(), 1) << "must be at least one device";
-      for (const auto& dev : devices) {
-        device_io[dev] += size_bytes;
+      CHECK_GE(se_scopes.size(), 1) << "must be at least one device";
+      for (const auto& se_scope : se_scopes) {
+        DLDeviceType device_type = se_scope->device_type();
+        device_io[device_type] += size_bytes;
       }
     } else {
       // TODO(@electriclilies): This code is never being called which means sid_workspace is not
@@ -784,8 +770,9 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
         // Here we record the largest size of the tensor
         // that share the same storage id, because storage_id will
         // be shared between multiple tensors that are not live simultaneously.
-        if (size_bytes > sid_workspace[devices[i]][storage_ids[i]]) {
-          sid_workspace[devices[i]][storage_ids[i]] = size_bytes;
+        DLDeviceType device_type = se_scopes[i]->device_type();
+        if (size_bytes > sid_workspace[device_type][storage_ids[i]]) {
+          sid_workspace[device_type][storage_ids[i]] = size_bytes;
         }
       }
     }
@@ -830,8 +817,9 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
     constant_sizes.Set(tgt, dev_and_size.second);
   }
 
-  backend::FunctionInfo func_info(workspace_sizes, io_sizes, constant_sizes, tir_primfuncs,
-                                  relay_primfuncs);
+  backend::FunctionInfo func_info(std::move(workspace_sizes), std::move(io_sizes),
+                                  std::move(constant_sizes), std::move(tir_primfuncs),
+                                  std::move(relay_primfuncs));
   VLOG(1) << "func_info: " << func_info;
   return std::move(func_info);
 }
@@ -889,6 +877,7 @@ void UpdateFunctionMetadata(Function relay_func,
     workspace_sizes.Set(prim_fn_target, workspace_size);
 
     // Calculating size for I/O
+    // TODO(mbs): See also the other three utils for calculating tensor bytesize.
     for (auto const& param : prim_fn->params) {
       auto p_shape = prim_fn->buffer_map[param]->shape;
       int num_of_elements = 1;
@@ -909,8 +898,9 @@ void UpdateFunctionMetadata(Function relay_func,
     relay_primfuncs.Set(prim_fn_target, relay_func);
   }
 
-  backend::FunctionInfo fi = backend::FunctionInfo(workspace_sizes, io_sizes, constant_sizes,
-                                                   tir_primfuncs, relay_primfuncs);
+  backend::FunctionInfo fi = backend::FunctionInfo(
+      std::move(workspace_sizes), std::move(io_sizes), std::move(constant_sizes),
+      std::move(tir_primfuncs), std::move(relay_primfuncs));
 
   VLOG(1) << "FunctionInfo: " << prim_fn_var.value()->name_hint << " = " << PrettyPrint(fi);
 
@@ -919,11 +909,11 @@ void UpdateFunctionMetadata(Function relay_func,
   function_metadata.Set(prim_fn_var.value()->name_hint, fi);
 }
 
-IRModule LowerTE(const IRModule& module, TargetMap targets, const String& module_name,
+IRModule LowerTE(const IRModule& module, const String& module_name,
                  std::function<void(Function)> process_fn) {
   TECompiler compiler;
 
-  auto updated_module = LowerTensorExpr(targets, module_name, compiler, process_fn)(module);
+  auto updated_module = LowerTensorExpr(module_name, compiler, process_fn)(module);
 
   backend::UpdateAutoSchedulerOpWeights(compiler);
 
@@ -968,12 +958,9 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-Pass LowerTEPass(TargetMap targets, const String& module_name,
-                 std::function<void(Function)> process_fn) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
-                                                                            PassContext ctx) {
-    return LowerTE(module, targets, module_name, process_fn);
-  };
+Pass LowerTEPass(const String& module_name, std::function<void(Function)> process_fn) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+      [=](IRModule module, PassContext ctx) { return LowerTE(module, module_name, process_fn); };
 
   return tvm::transform::Sequential({tvm::relay::transform::RelayToTIRTargetHook(),
                                      tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {}),

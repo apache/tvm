@@ -205,7 +205,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     VLOG_CONTEXT << "GraphExecutorCodegen";
     VLOG(1) << "compiling:" << std::endl << PrettyPrint(func);
     for (const auto& pair : targets_) {
-      VLOG(1) << "target: " << pair.first << " = " << pair.second->str();
+      VLOG(1) << "target: " << pair.first << " = " << pair.second->ToDebugString();
     }
 
     // This first phase moves from implicit use of compile engine,
@@ -225,7 +225,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       mod = WithAttr(mod, "main_func_info", func_info);
     }
 
-    IRModule lowered_mod = tec::LowerTEPass(targets_, mod_name_, [this](Function func) {
+    IRModule lowered_mod = tec::LowerTEPass(mod_name_, [this](Function func) {
       // We need to maintain the constant map for external
       // functions so we pass this processing function which
       // allows us to process each function as we lower it.
@@ -320,8 +320,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     node->attrs_["storage_id"] = std::move(storage_ids);
     // type
     std::vector<int64_t> device_types;
-    for (auto v : storage_info->device_types) {
-      device_types.push_back(static_cast<int64_t>(v));
+    for (const auto& se_scope : storage_info->se_scopes) {
+      // TODO(mbs): Keeping only the device type.
+      ICHECK_GT(se_scope->device_type(), 0);
+      device_types.push_back(se_scope->device_type());
     }
     size_t num_unknown_devices = std::count(device_types.begin(), device_types.end(), 0);
     if (num_unknown_devices != 0 && num_unknown_devices != device_types.size()) {
@@ -468,7 +470,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const CallNode* call_node) override {
-    auto props = GetOnDeviceProps(call_node);
+    relay::Call call = GetRef<Call>(call_node);
+    OnDeviceProps props = GetOnDeviceProps(call_node);
     if (props.body.defined()) {
       // See through "on_device" calls.
       return VisitExpr(props.body);
@@ -485,6 +488,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     auto vtuple = VisitExpr(op->tuple);
     return {vtuple[op->index]};
   }
+
   std::vector<GraphNodeRef> VisitExpr_(const OpNode* op) override {
     LOG(FATAL) << "All OpNodes should have been expanded";
     return {};

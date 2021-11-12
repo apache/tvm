@@ -18,7 +18,6 @@
 import datetime
 import json
 import os
-import sys
 import tarfile
 
 import numpy
@@ -409,4 +408,6 @@ def test_export_byoc_c_module():
 
 
 if __name__ == "__main__":
+    import sys
+
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

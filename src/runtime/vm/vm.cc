@@ -232,12 +232,11 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
   const auto& param_names = vm_func.params;
   ICHECK_EQ(args.size() - offset, param_names.size())
       << "The number of provided parameters doesn't match the number of arguments";
-  ICHECK_EQ(param_names.size(), vm_func.params_device_type.size())
+  ICHECK_EQ(param_names.size(), vm_func.param_device_indexes.size())
       << "The number of provided parameters doesn't match the number of assigned devices";
   std::vector<ObjectRef> func_args(param_names.size());
   for (int i = offset; i < args.size(); ++i) {
-    Index device_type = vm_func.params_device_type[i - offset];
-    Device dev = GetDevice(device_type);
+    Device dev = GetDevice(vm_func.param_device_indexes[i - offset]);
 
     if (args[i].type_code() == kTVMDLTensorHandle) {
       // Automatically convert input DLTensors to NDArray
@@ -258,13 +257,14 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
   inputs_.emplace(func_name, func_args);
 }
 
-inline Device VirtualMachine::GetDevice(Index device_type) const {
-  ICHECK_GE(devices_.size(), device_type) << "devices_ doesn't contain device:" << device_type;
+inline Device VirtualMachine::GetDevice(Index device_index) const {
+  ICHECK_GE(devices_.size(), device_index) << "invalid device index: " << device_index;
+  return devices_[device_index];
+}
 
-  auto dev = devices_[device_type];
-  ICHECK_EQ(static_cast<Index>(dev.device_type), device_type)
-      << "device type " << device_type << " has not been initialized in the device list.";
-  return dev;
+inline Allocator* VirtualMachine::GetAllocator(Index device_index) const {
+  ICHECK_GE(allocators_.size(), device_index) << "invalid device index: " << device_index;
+  return allocators_[device_index];
 }
 
 void VirtualMachine::PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func) {
@@ -297,7 +297,12 @@ void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Obje
 }
 
 ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<ObjectRef>& args) {
-  VLOG(2) << "Executing Function: " << std::endl << func;
+  DLOG(INFO) << "Executing Function: " << std::endl << func;
+  for (int i = 0; i < static_cast<int>(devices_.size()); ++i) {
+    DLOG(INFO) << "Device " << i << " has device type " << devices_[i].device_type
+               << " and device id " << devices_[i].device_id
+               << (i == exec_->host_device_index ? " (using as host device)" : "");
+  }
 
   InvokeGlobal(func, args);
   RunLoop();
@@ -383,19 +388,31 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
   }
 }
 
-void VirtualMachine::Init(const std::vector<Device>& devs,
+void VirtualMachine::Init(const std::vector<Device>& physical_devices,
                           const std::vector<AllocatorType>& alloc_types) {
-  ICHECK_EQ(devs.size(), alloc_types.size());
-  // Cache the device
-  for (size_t i = 0; i < devs.size(); i++) {
-    auto dev_type = static_cast<size_t>(devs[i].device_type);
-    auto alloc = MemoryManager::GetOrCreateAllocator(devs[i], alloc_types[i]);
-    if (devices_.size() <= dev_type) {
-      devices_.resize(dev_type + 1);
-      allocators_.resize(dev_type + 1);
-    }
-    devices_[dev_type] = devs[i];
-    allocators_[dev_type] = alloc;
+  ICHECK_EQ(physical_devices.size(), alloc_types.size());
+
+  // Find a physical device to represent each virtual device the VM code requires.
+  // (Recall the VM instructions refer to devices by "device index" into this vector of
+  // virtual devices.)
+  const size_t num_virtual_devices = exec_->virtual_devices.size();
+  devices_.reserve(num_virtual_devices);
+  allocators_.reserve(num_virtual_devices);
+
+  for (size_t device_index = 0; device_index < num_virtual_devices; ++device_index) {
+    // We'll retain the legacy behaviour and just match by device type.
+    // TODO(mbs): Generalize.
+    DLDeviceType virtual_device_type = exec_->virtual_devices[device_index].device_type;
+    auto itr = std::find_if(physical_devices.begin(), physical_devices.end(),
+                            [virtual_device_type](const Device& physical_device) {
+                              return physical_device.device_type == virtual_device_type;
+                            });
+    CHECK(itr != physical_devices.end())
+        << "Unable to find a physical device (from among the " << physical_devices.size()
+        << " given) to match the virtual device with device type " << virtual_device_type;
+    const size_t i = std::distance(physical_devices.begin(), itr);
+    devices_.push_back(*itr);
+    allocators_.push_back(MemoryManager::GetOrCreateAllocator(*itr, alloc_types[i]));
   }
 }
 
@@ -408,7 +425,7 @@ ObjectRef VirtualMachine::ReadRegister(Index r) const { return frames_.back().re
 int64_t VirtualMachine::LoadScalarInt(Index r) const {
   int64_t result = 0;
   const auto& obj = ReadRegister(r);
-  NDArray array = Downcast<NDArray>(CopyTo(obj, {kDLCPU, 0}));
+  NDArray array = Downcast<NDArray>(CopyTo(obj, GetDevice(exec_->host_device_index)));
 
   switch (array->dtype.bits) {
     case 1: {
@@ -473,7 +490,7 @@ void VirtualMachine::RunLoop() {
         }
 
         if (!const_pool_[instr.const_index].defined()) {
-          Device dev = GetDevice(exec_->const_device_type[instr.const_index]);
+          Device dev = GetDevice(exec_->const_device_indexes[instr.const_index]);
           const_pool_[instr.const_index] = CopyTo(constant_obj, dev);
         }
         WriteRegister(instr.dst, const_pool_[instr.const_index]);
@@ -484,7 +501,7 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::LoadConsti: {
-        auto tensor = NDArray::Empty({1}, {kDLInt, 64, 1}, {kDLCPU, 0});
+        auto tensor = NDArray::Empty({1}, {kDLInt, 64, 1}, GetDevice(exec_->host_device_index));
         reinterpret_cast<int64_t*>(tensor->data)[0] = instr.load_consti.val;
         WriteRegister(instr.dst, tensor);
         pc_++;
@@ -544,7 +561,7 @@ void VirtualMachine::RunLoop() {
         auto object = ReadRegister(instr.get_tag.object);
         const auto& adt = Downcast<ADT>(object);
         auto tag = adt.tag();
-        auto tag_tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
+        auto tag_tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, GetDevice(exec_->host_device_index));
         reinterpret_cast<int32_t*>(tag_tensor->data)[0] = tag;
         WriteRegister(instr.dst, tag_tensor);
         pc_++;
@@ -600,7 +617,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::AllocTensorReg: {
         OpStartHook(instr);
-        Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
+        Device cpu_dev = GetDevice(exec_->host_device_index);
         auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
         NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_dev));
         auto shape = ToShape(shape_tensor);
@@ -637,16 +654,15 @@ void VirtualMachine::RunLoop() {
         OpStartHook(instr);
         auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
         auto alignment = instr.alloc_storage.alignment;
+
         auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
-        auto dev_type = instr.alloc_storage.device_type;
-        ICHECK_LT(static_cast<size_t>(dev_type), allocators_.size())
-            << "Memory allocator for device " << dev_type << " has not been initialized";
-        auto* alloc = allocators_[dev_type];
-        ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
+        Allocator* allocator = GetAllocator(instr.alloc_storage.device_index);
+        ICHECK(allocator) << "Did you forget to init the VirtualMachine with devices?";
         VLOG(2) << "AllocStorage: allocation_size=" << size << ", alignment=" << alignment
                 << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
-                << ", device_type=" << instr.alloc_storage.device_type;
-        storage_obj->buffer = alloc->Alloc(size, alignment, instr.alloc_storage.dtype_hint);
+                << ", device_index=" << instr.alloc_storage.device_index;
+
+        storage_obj->buffer = allocator->Alloc(size, alignment, instr.alloc_storage.dtype_hint);
         Storage storage(storage_obj);
         WriteRegister(instr.dst, storage);
         OpStopHook();
@@ -657,7 +673,8 @@ void VirtualMachine::RunLoop() {
         auto input = ReadRegister(instr.shape_of.tensor);
         NDArray input_array = Downcast<NDArray>(input);
         int ndim = input_array->ndim;
-        auto out_tensor = NDArray::Empty({ndim}, {kDLInt, 64, 1}, {kDLCPU, 0});
+        auto out_tensor =
+            NDArray::Empty({ndim}, {kDLInt, 64, 1}, GetDevice(exec_->host_device_index));
         for (int i = 0; i < ndim; ++i) {
           reinterpret_cast<int64_t*>(out_tensor->data)[i] = input_array->shape[i];
         }
@@ -682,7 +699,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::ReshapeTensor: {
         OpStartHook(instr);
-        Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
+        Device cpu_dev = GetDevice(exec_->host_device_index);
         auto tensor_obj = ReadRegister(instr.reshape_tensor.tensor);
         NDArray tensor_arr = Downcast<NDArray>(tensor_obj);
         // Read the shape from shape tensor
@@ -703,14 +720,13 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::DeviceCopy: {
         OpStartHook(instr);
-        auto tensor_src = ReadRegister(instr.src);
+        auto tensor_src = ReadRegister(instr.device_copy.src);
         NDArray src_data = Downcast<NDArray>(tensor_src);
-        Device src_dev = src_data->device;
-        ICHECK_EQ(static_cast<Index>(src_dev.device_type), instr.src_device_type);
-
-        Device dst_dev;
-        dst_dev.device_type = static_cast<DLDeviceType>(instr.dst_device_type);
-        dst_dev.device_id = 0;
+        Device actual_src_dev = src_data->device;
+        Device inst_src_dev = GetDevice(instr.device_copy.src_device_index);
+        ICHECK_EQ(actual_src_dev.device_type, inst_src_dev.device_type);
+        ICHECK_EQ(actual_src_dev.device_id, inst_src_dev.device_id);
+        Device dst_dev = GetDevice(instr.device_copy.dst_device_index);
 
         NDArray dst_data = src_data.CopyTo(dst_dev);
         WriteRegister(instr.dst, dst_data);

@@ -196,4 +196,7 @@ def test_report_serialization():
 
 
 if __name__ == "__main__":
-    test_papi("llvm", tvm.cpu())
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -45,24 +45,32 @@ IRModule TestModule() {
 }
 
 TEST(DeviceDomains, SmokeTest) {
-  DeviceDomains domains;
+  SEScope cpu = SEScope::ForDeviceType(kDLCPU);
+  SEScope cuda = SEScope::ForDeviceType(kDLCUDA);
+  TargetMap target_map;
+  target_map.Set(Integer(static_cast<int>(kDLCPU)), Target("llvm"));
+  target_map.Set(Integer(static_cast<int>(kDLCUDA)), Target("cuda"));
+  transform::PassContext ctxt = transform::PassContext::Create();
+  CompilationConfig config(ctxt, target_map, /*optional_host_target=*/{});
+  DeviceDomains domains(config);
   IRModule mod = TestModule();
   Function f = Downcast<Function>(mod->Lookup("f"));
 
   DeviceDomainPtr actual_add_domain = domains.DomainForCallee(Downcast<Call>(f->body));
   DeviceDomainPtr x_domain = domains.DomainFor(f->params[0]);
   DeviceDomainPtr y_domain = domains.DomainFor(f->params[1]);
-  DeviceDomainPtr result_domain = DeviceDomains::Free(f->ret_type);
+  DeviceDomainPtr result_domain = domains.Free(f->ret_type);
   std::vector<DeviceDomainPtr> arg_and_results;
   arg_and_results.push_back(x_domain);
   arg_and_results.push_back(y_domain);
   arg_and_results.push_back(result_domain);
-  DeviceDomainPtr implied_add_domain = DeviceDomains::MakeDomain(std::move(arg_and_results));
-  domains.Unify(actual_add_domain, implied_add_domain);
-  domains.Unify(x_domain, DeviceDomains::ForDeviceType(f->params[0]->checked_type(), kDLCUDA));
+  DeviceDomainPtr implied_add_domain = domains.MakeHigherOrderDomain(std::move(arg_and_results));
+  EXPECT_FALSE(domains.UnifyOrNull(actual_add_domain, implied_add_domain) == nullptr);
+  EXPECT_FALSE(domains.UnifyOrNull(
+                   x_domain, domains.ForSEScope(f->params[0]->checked_type(), cuda)) == nullptr);
 
-  EXPECT_EQ(domains.ResultDeviceType(y_domain), kDLCUDA);
-  EXPECT_EQ(domains.ResultDeviceType(result_domain), kDLCUDA);
+  EXPECT_EQ(domains.ResultSEScope(y_domain), config->CanonicalSEScope(cuda));
+  EXPECT_EQ(domains.ResultSEScope(result_domain), config->CanonicalSEScope(cuda));
 }
 
 }  // namespace

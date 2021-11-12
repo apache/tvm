@@ -37,6 +37,7 @@
 
 #include "../analysis/dependency_graph.h"
 #include "../op/annotation/annotation.h"
+#include "../op/memory/on_device.h"
 #include "./let_list.h"
 
 namespace tvm {

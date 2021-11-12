@@ -32,12 +32,14 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/topi/elemwise.h>
 
+#include <utility>
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
 #include "../annotation/annotation.h"
 #include "../op_common.h"
 #include "../type_relations.h"
+#include "on_device.h"
 
 namespace tvm {
 namespace relay {
@@ -48,13 +50,12 @@ TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 // The passing value in attrs and args doesn't seem super great.
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
-Expr AllocStorage(Expr size, Expr alignment, Device dev, DataType dtype_hint) {
+Expr AllocStorage(Expr size, Expr alignment, SEScope se_scope, DataType dtype_hint) {
   auto attrs = make_object<AllocStorageAttrs>();
   attrs->dtype = dtype_hint;
-  attrs->device_id = dev.device_id;
-  attrs->device_type = dev.device_type;
+  attrs->se_scope = std::move(se_scope);
   static const Op& op = Op::Get("memory.alloc_storage");
-  return Call(op, {size, alignment}, Attrs(attrs), {});
+  return Call(op, {std::move(size), std::move(alignment)}, Attrs(std::move(attrs)), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage").set_body_typed(AllocStorage);

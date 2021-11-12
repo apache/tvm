@@ -78,17 +78,21 @@ struct VMCompilerContext {
   tec::TECompiler compiler;
   // List of constants
   std::vector<NDArray> constants;
-  // Device type for constants
-  std::vector<Index> const_device_type;
+  // Device indexes  for constants
+  std::vector<Index> const_device_indexes;
   // List of cached functions
   std::vector<tec::CachedFunc> cached_funcs;
   // The functions that have been lowered.
   std::unordered_map<tir::PrimFunc, size_t, ObjectPtrHash, ObjectPtrEqual> seen_funcs;
+  // The SEScopes corresponding to each device index. The first device always corresponds
+  // to the host device, and all remaining devices are for the primitive operations.
+  std::vector<SEScope> se_scopes_;
 };
 
 class VMCompiler : public runtime::ModuleNode {
  public:
-  virtual ~VMCompiler() {}
+  VMCompiler() = default;
+  virtual ~VMCompiler() = default;
 
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
@@ -110,7 +114,7 @@ class VMCompiler : public runtime::ModuleNode {
    *                to target mapping. For homogeneous compilation, it is a singleton build target.
    * \param target_host Host compilation target, if target is device.
    */
-  void Lower(IRModule mod, const TargetMap& targets, const tvm::Target& target_host);
+  void Lower(IRModule mod, TargetMap targets, Target target_host);
 
   /*! \brief Generate the machine code for lowered functions. */
   void Codegen();
@@ -128,6 +132,8 @@ class VMCompiler : public runtime::ModuleNode {
    */
   IRModule OptimizeModule(IRModule mod, const TargetMap& targets, const Target& target_host);
 
+  IRModule OptimizeModuleImpl(IRModule mod);
+
   /*!
    * \brief Populate the global function names in a map where the value is used
    *        as the index by the VMFunctions.
@@ -135,10 +141,8 @@ class VMCompiler : public runtime::ModuleNode {
   void PopulateGlobalMap();
 
  protected:
-  /*! \brief Target devices. */
-  TargetMap targets_;
-  /*! \brief Target host device. */
-  tvm::Target target_host_;
+  /*! \brief Targets and scopes needed for compilation. */
+  CompilationConfig config_;
   /*! \brief Global shared meta data */
   VMCompilerContext context_;
   /*! \brief Compiled executable. */

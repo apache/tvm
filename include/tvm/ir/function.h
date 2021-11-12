@@ -191,24 +191,24 @@ constexpr const char* kTarget = "target";
 constexpr const char* kGlobalSymbol = "global_symbol";
 
 /*!
- * \brief The device type which will hold each of the functions parameters.
+ * \brief The SEScope which will hold each of the functions parameters.
  *
  * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
  * may be included as an annotation on user programs.
  *
- * Type: Array<Integer> (but interpreted as Array<DLDeviceType>)
+ * Type: Array<SEScope>
  */
-constexpr const char* kParamDeviceTypes = "param_device_types";
+constexpr const char* kParamSEScopes = "param_se_scopes";
 
 /*!
- * \brief The device type which will hold the function result.
+ * \brief The SEScope which will hold the function result.
  *
  * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
  * may be included as an annotation on user programs.
  *
- * Type: Integer (but interpreted as DLDeviceType)
+ * Type: SEScope
  */
-constexpr const char* kResultDeviceType = "result_device_type";
+constexpr const char* kResultSEScope = "result_se_scope";
 
 }  // namespace attr
 }  // namespace tvm
