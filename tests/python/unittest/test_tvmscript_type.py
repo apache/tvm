@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement
-from tvm.ir.expr import PrimExpr
 from tvm.script import tir as T
 
 """
