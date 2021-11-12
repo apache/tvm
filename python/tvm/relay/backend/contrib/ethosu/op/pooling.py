@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
-"""Relay operators for pooling"""
+"""Relay operators for pooling for Arm(R) Ethos(TM)-U NPU"""
 from typing import Tuple
 
 import tvm
@@ -107,8 +107,8 @@ def ethosu_pooling(
     ifm_layout: str = "NHWC",
     ofm_layout: str = "NHWC",
 ) -> tvm.relay.Call:
-    """This is a quantized 2D pooling operation as supported by the
-    Ethos(TM)-U NPU. It accepts either NHWC or NHCWB16 format
+    """This is a quantized 2D pooling operation as supported by
+    the NPU. It accepts either NHWC or NHCWB16 format
     for the input data.
 
     Parameters

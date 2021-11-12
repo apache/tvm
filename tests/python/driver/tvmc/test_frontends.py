@@ -217,6 +217,21 @@ def test_load_model__pth(pytorch_resnet18):
     assert "layer1.0.conv1.weight" in tvmc_model.params.keys()
 
 
+def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
+    # some CI environments wont offer torch, so skip in case it is not present
+    pytest.importorskip("torch")
+    pytest.importorskip("torchvision")
+
+    tvmc_model = tvmc.load(pytorch_mobilenetv2_quantized, shape_dict={"input": [1, 3, 224, 224]})
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
+
+    # checking weights remain quantized and are not float32
+    for p in tvmc_model.params.values():
+        assert p.dtype in ["int8", "uint8", "int32"]  # int32 for bias
+
+
 def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer pytorch, so skip in case it is not present
     pytest.importorskip("torch")

@@ -166,7 +166,7 @@ transform::Pass BindTarget(Target target) {
 }
 
 static transform::Pass AnnotateEntryFunc(bool b) {
-  auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+  auto fpass = [](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
   };
   return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
@@ -608,7 +608,10 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+  // The host Target contains these parameters at the moment rather than
+  // the specific Target
+  // TODO(Mousius) - Move these to the Executor object rather than Target
+  if (target->GetHost().value()->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));

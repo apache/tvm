@@ -24,9 +24,11 @@
 
 #include "./device_domains.h"
 
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/attrs/memory.h>
 
 #include "../op/annotation/annotation.h"
+#include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
 
 namespace tvm {
@@ -47,20 +49,19 @@ constexpr size_t mix(size_t h1, size_t h2) {
  * See te_compiler.cc for where this rewriting occurs.
  */
 DeviceCopyProps GetPrimitiveDeviceCopyProps(const CallNode* call_node) {
-  auto tir_call_attrs = call_node->attrs.as<TIRCallAttrs>();
-  if (tir_call_attrs == nullptr) {
-    return {};
+  if (call_node->op == CallLoweredOp()) {
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    if (call_lowered_props.attrs.metadata.count("source_device") == 1 &&
+        call_lowered_props.attrs.metadata.count("dst_device") == 1) {
+      ICHECK_EQ(call_lowered_props.arguments.size(), 1) << "device_copy is of arity 1";
+      return {call_lowered_props.arguments[0],
+              static_cast<DLDeviceType>(
+                  Downcast<Integer>(call_lowered_props.attrs.metadata["source_device"])->value),
+              static_cast<DLDeviceType>(
+                  Downcast<Integer>(call_lowered_props.attrs.metadata["dst_device"])->value)};
+    }
   }
-  if (tir_call_attrs->metadata.count("source_device") != 1 ||
-      tir_call_attrs->metadata.count("dst_device") != 1) {
-    return {};
-  }
-  ICHECK_EQ(call_node->args.size(), 1) << "device_copy is of arity 1";
-  return {
-      call_node->args[0],
-      static_cast<DLDeviceType>(
-          Downcast<Integer>(tir_call_attrs->metadata["source_device"])->value),
-      static_cast<DLDeviceType>(Downcast<Integer>(tir_call_attrs->metadata["dst_device"])->value)};
+  return {};
 }
 
 }  // namespace
@@ -319,8 +320,12 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
       args_and_result.emplace_back(param_domain);
     }
     args_and_result.emplace_back(result_domain);
+  } else if (call->op == CallLoweredOp()) {
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call.get());
+    return DomainFor(call_lowered_props.lowered_func);
   } else {
-    // Defer to normal case where op can be an arbitrary expression.
+    // We still need to handle the case where the function / op is not lowered
+    // because the device planner runs before and after lowering.
     return DomainFor(call->op);
   }
   auto domain = MakeDomain(std::move(args_and_result));

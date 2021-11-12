@@ -119,7 +119,7 @@ def convert_qnn_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
 
     # Handle default kernel layouts
     if desired_data_layout == "NCHW":
-        new_attrs["kernel_layout"] = "OIHW"
+        new_attrs["kernel_layout"] = "IOHW"
         return relay.qnn.op.conv2d_transpose(*inputs, **new_attrs)
     if desired_data_layout == "NHWC":
         new_attrs["kernel_layout"] = "HWIO"

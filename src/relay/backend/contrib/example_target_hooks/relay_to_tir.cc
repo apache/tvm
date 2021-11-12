@@ -17,13 +17,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/memory.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
+
+#include "../../../op/call/call.h"
 
 namespace tvm {
 namespace relay {
@@ -109,7 +113,13 @@ class ConvertAddToSubtract : public MixedModeMutator {
         GlobalVar new_global_var(func_name.value());
         new_global_var->checked_type_ = func->checked_type();
         ReplaceAddWithSubtractPrimFunc(new_global_var, GetRef<Function>(func));
-        return Call(new_global_var, call->args, call->attrs, call->type_args, call->span);
+
+        // Since we are replacing the Relay function with a call to a TIR function, we must use the
+        // call_lowered op.
+        auto call_lowered_attrs = make_object<CallLoweredAttrs>();
+        call_lowered_attrs->metadata.Set("relay_attrs", call->attrs);
+        return CallLowered(std::move(new_global_var), call->args,
+                           std::move(Attrs(call_lowered_attrs)), call->type_args, call->span);
       }
     }
 

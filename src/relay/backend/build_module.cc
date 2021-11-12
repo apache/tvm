@@ -501,7 +501,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         ret_.mod = tvm::codegen::CSourceModuleCreate(";", "", Array<String>{});
       }
     } else {
-      ret_.mod = tvm::build(lowered_funcs, target_host_);
+      ret_.mod = tvm::build(lowered_funcs, target_host);
     }
 
     auto ext_mods = executor_codegen_->GetExternalModules();

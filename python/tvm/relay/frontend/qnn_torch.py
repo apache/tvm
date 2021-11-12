@@ -19,7 +19,6 @@
 import logging
 
 import numpy as np
-
 import tvm
 from tvm import relay
 from tvm.relay import expr as _expr
@@ -1043,11 +1042,8 @@ def _quantized_conv_transpose2d(with_relu=False):
 
         weight_shape = list(infer_shape(weight))
 
-        # Swap I and O dims to match shape relay expects for OIHW
-        weight_shape[0], weight_shape[1] = weight_shape[1], weight_shape[0]
-
         kernel_size = (weight_shape[2], weight_shape[3])
-        out_channels = weight_shape[0]
+        out_channels = weight_shape[1]
 
         conv_out = relay.qnn.op.conv2d_transpose(
             inputs[0],
@@ -1064,7 +1060,7 @@ def _quantized_conv_transpose2d(with_relu=False):
             channels=out_channels,
             output_padding=output_padding,
             out_dtype="int32",
-            kernel_layout="OIHW",
+            kernel_layout="IOHW",
         )
 
         return _do_bias_and_requantize(

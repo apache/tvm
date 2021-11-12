@@ -295,6 +295,8 @@ class CallNode : public ExprNode {
 
   static constexpr const char* _type_key = "relay.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
+  template <typename>
+  friend class runtime::ObjAllocatorBase;
   friend class Call;
 };
 
@@ -333,6 +335,11 @@ class Call : public Expr {
 class Let;
 /*! \brief A binding of a sub-network. */
 class LetNode : public ExprNode {
+ protected:
+  // LetNode uses own deleter to indirectly call non-recursive destructor
+  Object::FDeleter saved_deleter_;
+  static void Deleter_(Object* ptr);
+
  public:
   /*! \brief The variable we bind to */
   Var var;
@@ -364,10 +371,18 @@ class LetNode : public ExprNode {
 
   static constexpr const char* _type_key = "relay.Let";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, ExprNode);
+  template <typename>
+  friend class runtime::ObjAllocatorBase;
+  friend class Let;
 };
 
 class Let : public Expr {
  public:
+  /*!
+   * \brief The destructor
+   */
+  ~Let();
+
   /*!
    * \brief The constructor
    * \param var The variable that is bound to.
@@ -639,5 +654,40 @@ class TempExpr : public Expr {
 };
 
 }  // namespace relay
+
+namespace runtime {
+
+template <>
+template <>
+inline ObjectPtr<relay::LetNode>
+ObjAllocatorBase<SimpleObjAllocator>::make_object<relay::LetNode>() {
+  using Derived = SimpleObjAllocator;
+  using T = relay::LetNode;
+  using Handler = typename Derived::template Handler<T>;
+  static_assert(std::is_base_of<Object, T>::value, "make can only be used to create Object");
+  T* ptr = Handler::New(static_cast<Derived*>(this));
+  ptr->type_index_ = T::RuntimeTypeIndex();
+  ptr->saved_deleter_ = Handler::Deleter();
+  ptr->deleter_ = relay::LetNode::Deleter_;
+  return ObjectPtr<T>(ptr);
+}
+
+template <>
+template <>
+inline ObjectPtr<relay::CallNode>
+ObjAllocatorBase<SimpleObjAllocator>::make_object<relay::CallNode>() {
+  using Derived = SimpleObjAllocator;
+  using T = relay::CallNode;
+  using Handler = typename Derived::template Handler<T>;
+  static_assert(std::is_base_of<Object, T>::value, "make can only be used to create Object");
+  T* ptr = Handler::New(static_cast<Derived*>(this));
+  ptr->type_index_ = T::RuntimeTypeIndex();
+  ptr->saved_deleter_ = Handler::Deleter();
+  ptr->deleter_ = relay::CallNode::Deleter_;
+  return ObjectPtr<T>(ptr);
+}
+
+}  // namespace runtime
+
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_
