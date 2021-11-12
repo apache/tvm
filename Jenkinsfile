@@ -487,11 +487,10 @@ stage('Build packages') {
 
 stage('Deploy') {
     node('doc') {
-      ws(per_exec_ws('tvm/deploy-docs')) {
-        if (env.BRANCH_NAME == 'main') {
-        unpack_lib('mydocs', 'docs.tgz')
-        sh 'cp docs.tgz /var/docs/docs.tgz'
-        sh 'tar xf docs.tgz -C /var/docs'
+      ws(per_exec_ws("tvm/deploy-docs")) {
+        if (env.BRANCH_NAME == "v0.8") {
+           unpack_lib('mydocs', 'docs.tgz')
+           sh "cp docs.tgz /var/docs/docs.v0.8.tgz"
         }
       }
     }
