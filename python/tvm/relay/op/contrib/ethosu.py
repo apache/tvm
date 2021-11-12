@@ -186,7 +186,7 @@ class QnnConv2DParams:
     and extract quantization information of all the associated tensors.
     """
 
-    composite_name = "ethosu.qnn_conv2d"
+    composite_name = "ethos-u.qnn_conv2d"
     # The NPU only supports padding upto the numbers as follows
     padding_bounds = [31, 31, 32, 32]
     activation_map = {"clip": "CLIP"}
@@ -275,7 +275,7 @@ class QnnDepthwiseConv2DParams(QnnConv2DParams):
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.depthwise_conv2d"
+    composite_name = "ethos-u.depthwise_conv2d"
     # The hardware only supports padding upto the numbers as follows
     padding_bounds = [31, 31, 32, 32]
 
@@ -343,11 +343,11 @@ def qnn_depthwise_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
 
 class MaxPool2DParams:
     """
-    This class will parse a call to a ethosu.maxpool2d composite function
+    This class will parse a call to a ethos-u.maxpool2d composite function
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.maxpool2d"
+    composite_name = "ethos-u.maxpool2d"
     # The hardware only supports padding upto the numbers as follows
     padding_bounds = [127, 127, 128, 128]
 
@@ -399,11 +399,11 @@ def qnn_maxpool2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
 
 class AvgPool2DParams:
     """
-    This class will parse a call to a ethosu.avgpool2d composite function
+    This class will parse a call to a ethos-u.avgpool2d composite function
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.avgpool2d"
+    composite_name = "ethos-u.avgpool2d"
     # The hardware only supports padding upto the numbers as follows
     padding_bounds = [127, 127, 128, 128]
 
@@ -547,7 +547,7 @@ class AddParams(BinaryElementwiseParams):
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.add"
+    composite_name = "ethos-u.add"
 
     def __init__(self, func_body: Call):
         BinaryElementwiseParams.__init__(self, func_body, "ADD", True)
@@ -589,7 +589,7 @@ class SubParams(BinaryElementwiseParams):
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.sub"
+    composite_name = "ethos-u.sub"
 
     def __init__(self, func_body: Call):
         BinaryElementwiseParams.__init__(self, func_body, "SUB", True)
@@ -631,7 +631,7 @@ class MulParams(BinaryElementwiseParams):
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.mul"
+    composite_name = "ethos-u.mul"
 
     def __init__(self, func_body: Call):
         BinaryElementwiseParams.__init__(self, func_body, "MUL", True)
@@ -673,7 +673,7 @@ class MinParams(BinaryElementwiseParams):
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.min"
+    composite_name = "ethos-u.min"
 
     def __init__(self, func_body: Call):
         BinaryElementwiseParams.__init__(self, func_body, "MIN", False)
@@ -708,7 +708,7 @@ class MaxParams(BinaryElementwiseParams):
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.max"
+    composite_name = "ethos-u.max"
 
     def __init__(self, func_body: Call):
         BinaryElementwiseParams.__init__(self, func_body, "MAX", False)
@@ -743,7 +743,7 @@ class ShlParams(BinaryElementwiseParams):
     and extract the parameter information.
     """
 
-    composite_name = "ethosu.shl"
+    composite_name = "ethos-u.shl"
 
     def __init__(self, func_body: Call):
         BinaryElementwiseParams.__init__(self, func_body, "SHL", False)
@@ -768,7 +768,7 @@ def shl_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return pattern
 
 
-@register_pattern_table("ethosu")
+@register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
         (
@@ -848,10 +848,10 @@ def partition_for_ethosu(
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
-    pattern = relay.op.contrib.get_pattern_table("ethosu")
+    pattern = relay.op.contrib.get_pattern_table("ethos-u")
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.MergeComposite(pattern)(mod)
-    mod = relay.transform.AnnotateTarget("ethosu")(mod)
+    mod = relay.transform.AnnotateTarget("ethos-u")(mod)
     mod = relay.transform.MergeCompilerRegions()(mod)
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.PartitionGraph()(mod)

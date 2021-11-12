@@ -128,7 +128,7 @@ class Conv2DRewriter(DFPatternCallback):
 
     def __init__(self):
         super().__init__(require_type=True)
-        self.pattern = (wildcard().has_attr({"Composite": "ethosu.qnn_conv2d"}))(wildcard())
+        self.pattern = (wildcard().has_attr({"Composite": "ethos-u.qnn_conv2d"}))(wildcard())
 
     def callback(
         self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map

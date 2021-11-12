@@ -24,7 +24,7 @@ from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
 from tvm.relay.backend.contrib.ethosu import util
 
 
-@tvm._ffi.register_func("relay.ext.ethosu")
+@tvm._ffi.register_func("relay.ext.ethos-u")
 def ethosu_compiler(external_function):
     """The entry-point to a compile a external relay function of
     NPU compatible operators to generated command stream.
@@ -38,11 +38,11 @@ def ethosu_compiler(external_function):
     input_size = util.calculate_size_bytes(external_function.params[0])
     output_size = util.calculate_size_bytes(external_function.body)
     cmms, encoded_constants, scratch_size = _compile(external_function)
-    ethosu_runtime = tvm._ffi.get_global_func("runtime.module.ethosu.create")
+    ethosu_runtime = tvm._ffi.get_global_func("runtime.module.ethos-u.create")
     return ethosu_runtime(func_name, cmms, encoded_constants, scratch_size, input_size, output_size)
 
 
-@tvm._ffi.register_func("relay.ext.ethosu.constant_updater")
+@tvm._ffi.register_func("relay.ext.ethos-u.constant_updater")
 def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     """
     The constant updater process happen after lowering in the core compiler.

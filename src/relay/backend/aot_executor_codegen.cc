@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file relay/backend/graph_codegen.cc
- * \brief Graph runtime codegen
+ * \file src/relay/backend/aot_executor_codegen.cc
+ * \brief AOT executor codegen
  */
 
 #include <tvm/ir/module.h>
@@ -43,6 +43,7 @@
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
 #include "../transforms/device_aware_visitors.h"
+#include "./name_transforms.h"
 #include "./te_compiler.h"
 #include "./utils.h"
 
@@ -316,7 +317,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   void CreateFuncCall(CallLoweredProps call_lowered_props, Call call) {
     std::string func_name = call_lowered_props.lowered_func->name_hint;
-
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
 
@@ -346,15 +346,21 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       calling_pattern = tvm::tir::builtin::call_extern();
     }
 
-    create_func_call_stmts.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Int(32), calling_pattern, args)));
+    GlobalVar global_var = call_lowered_props.lowered_func;
+    bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
+    if (has_c_device_api_context) {
+      args.push_back(device_contexts_[global_var]);
+    }
+
+    tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
+    create_func_call_stmts.push_back(func_call);
 
     tir::Stmt body = tir::SeqStmt(create_func_call_stmts);
     stmts_.push_back(body);
   }
 
   /*!
-   * brief Copy a variable to the output. This function is mainly used in edge cases
+   * \brief Copy a variable to the output. This function is mainly used in edge cases
    * when we want to return an input or a parameter.
    * TODO(giuseros): we should try to avoid unnecessary copy to the output, e.g., in a
    * copy-on-write fashion.
@@ -385,6 +391,39 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         loop_idx, 0, ConstInt32(size), tir::ForKind::kSerial,
         tir::Store(tmp1, tir::Let(tmp0, retval_get, retval_i), loop_idx, tir::const_true()));
     stmts_.push_back(tir::LetStmt(tmp1, tostore, copy));
+  }
+
+  /*
+   * \brief Collects device context variables for passing to operators
+   */
+  void CollectDeviceVariables(const Map<GlobalVar, String>& device_contexts) {
+    Map<TargetKind, tir::Var> target_contexts;
+    TargetKindAttrMap<Bool> target_attr_map = tvm::TargetKind::GetAttrMap<Bool>("use_device_api");
+
+    for (const auto& it : device_contexts) {
+      const GlobalVar& global_var = it.first;
+      const std::string device_context_name = it.second;
+
+      Optional<TargetKind> target_kind = tvm::TargetKind::Get(device_context_name);
+      if (!target_kind || !target_attr_map.count(target_kind.value())) {
+        return;
+      }
+      if (target_attr_map[target_kind.value()]) {
+        std::string context_name = SanitizeName(device_context_name);
+        tir::Var device_context_var("device_context_" + context_name, DataType::Handle());
+
+        auto pair = target_contexts.find(target_kind.value());
+        if (pair != target_contexts.end()) {
+          device_context_var = (*pair).second;
+        } else {
+          main_signature_.push_back(device_context_var);
+          devices_.push_back(context_name);
+          target_contexts.Set(target_kind.value(), device_context_var);
+        }
+
+        device_contexts_.Set(global_var, device_context_var);
+      }
+    }
   }
 
   /*!
@@ -558,6 +597,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   runtime::Module* mod_;
   /*! \brief list of input expressions (i.e., variable passed by the user) */
   std::vector<Var> input_vars_;
+  /*! \brief list of device contexts used */
+  std::vector<String> devices_;
+  /*! \brief map of GlobalVars to C Device API contexts */
+  Map<GlobalVar, tir::Var> device_contexts_;
   /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
   /*! \brief target device */
@@ -671,6 +714,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       main_signature_.push_back(tir::Var("output", DataType::Handle()));
     }
 
+    CollectDeviceVariables(lowered_mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value());
     VisitExpr(lowered_main_func->body);
 
     // Create the runner function. Please note that the function is not legal yet
@@ -734,11 +778,18 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     std::vector<String> input_var_names(input_vars_.size());
     std::transform(input_vars_.begin(), input_vars_.end(), input_var_names.begin(),
                    [](Var input_var) -> String { return input_var->name_hint(); });
-    ret.metadata =
-        runtime::Metadata(input_var_names, return_sid_.size(), runtime::kTvmExecutorAot, mod_name);
+
+    ret.metadata = runtime::Metadata(input_var_names, devices_, return_sid_.size(),
+                                     runtime::kTvmExecutorAot, mod_name);
     return ret;
   }
-};
+
+  /*!
+   * \brief Get list of devices found
+   * \return List of devices
+   */
+  Array<String> ListDevices() { return devices_; }
+};  // namespace backend
 
 class AOTExecutorCodegenModule : public runtime::ModuleNode {
  public:
@@ -780,6 +831,10 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_function_metadata") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.function_metadata;
+      });
+    } else if (name == "get_devices") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->codegen_->ListDevices();
       });
     } else if (name == "get_metadata") {
       return PackedFunc(

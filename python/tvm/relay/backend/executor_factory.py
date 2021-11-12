@@ -85,9 +85,11 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         The parameters of module
     function_metadata : Map of String to FunctionInfo
         This holds a map function names to their information
+    devices : List[str]
+        List of devices used in the module
     """
 
-    def __init__(self, ir_mod, target, libmod, libmod_name, params, function_metadata):
+    def __init__(self, ir_mod, target, libmod, libmod_name, params, function_metadata, devices):
         self.ir_mod = ir_mod
         self.target = target
         self.lib = libmod
@@ -95,6 +97,10 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         self.params = params
         self.iter_cnt = 0
         self.function_metadata = function_metadata
+        self.devices = devices
+
+    def get_devices(self):
+        return self.devices
 
     def get_params(self):
         return self.params
@@ -151,6 +157,9 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
+
+    def get_devices(self):
+        return []
 
     def get_params(self):
         return self.params

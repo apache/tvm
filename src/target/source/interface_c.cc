@@ -40,8 +40,9 @@ using namespace tvm::relay::backend;
 
 class InterfaceCNode : public runtime::ModuleNode {
  public:
-  InterfaceCNode(std::string module_name, Array<String> inputs, Array<String> outputs)
-      : module_name_(module_name), inputs_(inputs), outputs_(outputs) {}
+  InterfaceCNode(std::string module_name, Array<String> inputs, Array<String> outputs,
+                 Array<String> devices)
+      : module_name_(module_name), inputs_(inputs), outputs_(outputs), devices_(devices) {}
   const char* type_key() const { return "h"; }
 
   std::string GetSource(const std::string& format) final {
@@ -52,6 +53,12 @@ class InterfaceCNode : public runtime::ModuleNode {
     EmitStruct(code, "inputs", inputs_);
     EmitBrief(code, "Output tensor pointers");
     EmitStruct(code, "outputs", outputs_);
+
+    if (!devices_.empty()) {
+      EmitBrief(code, "Device context pointers");
+      EmitStruct(code, "devices", devices_);
+    }
+
     EmitRunFunction(code);
     EmitLowerHeaderGuard(code);
 
@@ -108,26 +115,40 @@ class InterfaceCNode : public runtime::ModuleNode {
     std::string run_function = ToCVariableStyle(PrefixGeneratedName({module_name_, "run"}));
     std::string inputs_struct = ToCVariableStyle(PrefixGeneratedName({module_name_, "inputs"}));
     std::string outputs_struct = ToCVariableStyle(PrefixGeneratedName({module_name_, "outputs"}));
+    std::string devices_struct = ToCVariableStyle(PrefixGeneratedName({module_name_, "devices"}));
 
     code_stream << "/*!\n"
                 << " * \\brief entrypoint function for TVM module \"" << module_name_ << "\"\n"
                 << " * \\param inputs Input tensors for the module \n"
-                << " * \\param outputs Output tensors for the module \n"
-                << " */\n"
+                << " * \\param outputs Output tensors for the module \n";
+
+    if (!devices_.empty()) {
+      code_stream << " * \\param devices Device context pointers for the module \n";
+    }
+
+    code_stream << " */\n"
                 << "int32_t " << run_function << "(\n"
-                << "  struct " << inputs_struct << "* inputs,\n"
-                << "  struct " << outputs_struct << "* outputs\n"
-                << ");\n";
+                << "  struct " << inputs_struct << "* inputs,\n";
+
+    if (!devices_.empty()) {
+      code_stream << "  struct " << outputs_struct << "* outputs,\n";
+      code_stream << "  struct " << devices_struct << "* devices\n";
+    } else {
+      code_stream << "  struct " << outputs_struct << "* outputs\n";
+    }
+
+    code_stream << ");\n";
   }
 
   std::string module_name_;
   Array<String> inputs_;
   Array<String> outputs_;
+  Array<String> devices_;
 };
 
 runtime::Module InterfaceCCreate(std::string module_name, Array<String> inputs,
-                                 Array<String> outputs) {
-  auto n = make_object<InterfaceCNode>(module_name, inputs, outputs);
+                                 Array<String> outputs, Array<String> devices) {
+  auto n = make_object<InterfaceCNode>(module_name, inputs, outputs, devices);
   return runtime::Module(n);
 }
 

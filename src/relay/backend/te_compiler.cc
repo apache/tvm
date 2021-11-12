@@ -178,6 +178,8 @@ class TECompilerImpl : public TECompilerNode {
     return ret;
   }
 
+  Map<GlobalVar, String> GetDeviceContexts() { return device_contexts_; }
+
   void Clear() final { cache_.clear(); }
 
   // List all items in the cache.
@@ -227,6 +229,9 @@ class TECompilerImpl : public TECompilerNode {
       ir_module->Add(global_var, key->source_func);
       value->cached_func = CachedFunc(target, global_var, {}, {}, te::Schedule{nullptr},
                                       tir::PrimFunc{nullptr}, {}, ir_module);
+      // Collect these here as it's removed in LowerExternalFunctions()
+      std::string codegen_name = key->source_func->GetAttr<String>(attr::kCompiler).value();
+      device_contexts_.Set(global_var, codegen_name);
       return value;
     }
 
@@ -313,6 +318,8 @@ class TECompilerImpl : public TECompilerNode {
   std::unordered_map<CCacheKey, CCacheValue> shape_func_cache_;
   /*! \brief the cache key of the function that is being lowered currently*/
   CCacheKey cur_ccache_key_;
+  /*! \brief Map of GlobalVar to C Device API context names */
+  Map<GlobalVar, String> device_contexts_;
 };
 
 TECompiler::TECompiler() {
@@ -920,8 +927,12 @@ IRModule LowerTE(const IRModule& module, const String& module_name,
   // Copy the lowered functions into the return module
   updated_module->Update(compiler->GetLoweredFunctions());
 
-  // Annotate the module with the external modules and function info
-  updated_module = WithAttr(updated_module, "external_mods", compiler->LowerExternalFunctions());
+  // Annotate the module with C Device API context mapping, the external modules and function info
+  // this is until we have Target's annotated for the C Device API
+  // TODO(Mousius) - Remove "device_contexts" as soon as we have the graph annotated properly with
+  // Target's
+  updated_module = WithAttrs(updated_module, {{"external_mods", compiler->LowerExternalFunctions()},
+                                              {"device_contexts", compiler->GetDeviceContexts()}});
 
   return updated_module;
 }
