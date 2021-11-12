@@ -81,6 +81,9 @@ using namespace tvm::runtime;
 using namespace tvm::runtime::vm;
 using namespace relay::transform;
 
+/*! \brief The host device is always stored at device index 0. */
+constexpr Index kHostDeviceIndex = 0;
+
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
 
@@ -93,9 +96,9 @@ using MatchValuePtr = std::shared_ptr<MatchValue>;
 // A runtime object that resides in a register
 struct RegisterValue : MatchValue {
   // The register num
-  RegName rergister_num;
+  RegName register_num;
 
-  explicit RegisterValue(RegName reg) : rergister_num(reg) {}
+  explicit RegisterValue(RegName reg) : register_num(reg) {}
 
   ~RegisterValue() {}
 };
@@ -227,44 +230,17 @@ std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
   return raw_shape;
 }
 
-/*!
- * \brief Create a default type.
- * \param device_type The device type index.
- * \return the default target for the device.
- */
-Target CreateDefaultTarget(int device_type) {
-  std::string name = runtime::DeviceName(device_type);
-  if (name == "cpu") return Target("llvm");
-  if (name == "cuda") return Target("cuda");
-  return Target(name);
-}
-
-int GetFallbackDevice() {
-  transform::PassContext pass_ctx = PassContext::Current();
-  Optional<Integer> opt_fallback_dev =
-      pass_ctx->GetConfig("relay.fallback_device_type", Integer(static_cast<int>(kDLCPU)));
-  auto fallback_dev = opt_fallback_dev.value();
-  ICHECK_GT(fallback_dev->value, 0U);
-  return fallback_dev->value;
-}
-
 class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, TargetMap targets, Target target_host)
+  VMFunctionCompiler(VMCompilerContext* context, SEScope host_se_scope)
       : DeviceAwareExprFunctor(context->module),
         last_register_(0),
         registers_num_(0),
         context_(context),
-        target_host_(target_host) {
-    CheckAndUpdateHostConsistency(&targets, &target_host);
-    for (const auto& it : targets) {
-      targets_[it.first->value] = it.second;
-    }
-    target_host_ = target_host;
-  }
+        host_se_scope_(std::move(host_se_scope)) {}
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
-    std::vector<DLDeviceType> params_device_type;
+    std::vector<Index> param_device_indexes;
     if (IsClosure(func)) {
       // After lifting we'll have functions of the form:
       //   fn(closure args) { fn(lifted function args) { body } }
@@ -273,16 +249,21 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       // Do that flattening on-the-fly here.
       Function inner_func = Downcast<Function>(func->body);
       std::vector<Var> params;
-      std::vector<DLDeviceType> param_device_types;
+      std::vector<SEScope> param_se_scopes;
       params.reserve(func->params.size() + inner_func->params.size());
-      param_device_types.reserve(func->params.size() + inner_func->params.size());
+      param_se_scopes.reserve(func->params.size() + inner_func->params.size());
+      param_device_indexes.reserve(func->params.size() + inner_func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
         params.emplace_back(func->params[i]);
-        params_device_type.push_back(GetFunctionParamDeviceType(func.get(), i));
+        SEScope param_se_scope = GetFunctionParamSEScope(func.get(), i);
+        param_se_scopes.push_back(param_se_scope);
+        param_device_indexes.push_back(GetDeviceIndex(param_se_scope));
       }
       for (size_t i = 0; i < inner_func->params.size(); ++i) {
         params.emplace_back(inner_func->params[i]);
-        params_device_type.push_back(GetFunctionParamDeviceType(inner_func.get(), i));
+        SEScope param_se_scope = GetFunctionParamSEScope(inner_func.get(), i);
+        param_se_scopes.push_back(param_se_scope);
+        param_device_indexes.push_back(GetDeviceIndex(param_se_scope));
       }
       std::vector<TypeVar> type_params;
       type_params.reserve(func->type_params.size() + inner_func->type_params.size());
@@ -294,22 +275,17 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       }
       Function flattened_func = Function(params, inner_func->body, inner_func->ret_type,
                                          type_params, func->attrs, func->span);
-      VisitExpr(MaybeFunctionOnDevice(flattened_func, params_device_type,
-                                      GetFunctionResultDeviceType(inner_func.get())));
+      VisitExpr(MaybeFunctionOnDevice(flattened_func, param_se_scopes,
+                                      GetFunctionResultSEScope(inner_func.get())));
     } else {
-      params_device_type.reserve(func->params.size());
+      param_device_indexes.reserve(func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
-        params_device_type.push_back(GetFunctionParamDeviceType(func.get(), i));
+        param_device_indexes.push_back(GetDeviceIndex(GetFunctionParamSEScope(func.get(), i)));
       }
       VisitExpr(func);
     }
-    std::vector<Index> params_device_type_index;
-    params_device_type_index.reserve(params_device_type.size());
-    for (auto device_type : params_device_type) {
-      params_device_type_index.push_back(static_cast<Index>(device_type));
-    }
     return VMFunction(var->name_hint, params_, instructions_, registers_num_,
-                      params_device_type_index);
+                      std::move(param_device_indexes));
   }
 
   /*! \brief Attrs objects for each op. */
@@ -352,6 +328,48 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
     instructions_.push_back(instr);
   }
 
+  /*!
+   * \brief Returns the "device index" to represent \p se_scope for primitives
+   * in emitted code. Note that the host device is always at index 0.
+   */
+  Index GetDeviceIndex(const SEScope& se_scope) {
+    VLOG(2) << "getting device index for " << se_scope;
+    auto itr = std::find(context_->se_scopes_.begin(), context_->se_scopes_.end(), se_scope);
+    if (itr != context_->se_scopes_.end()) {
+      VLOG(2) << "reusing existing scope";
+      return std::distance(context_->se_scopes_.begin(), itr);
+    }
+
+    ICHECK_GT(context_->se_scopes_.size(), 0);
+    ICHECK_NE(se_scope, host_se_scope_);
+
+    if (se_scope->device_type() == context_->se_scopes_.front()->device_type()) {
+      // It's ok if we see distinct scopes which share the host device type. This is because
+      // we allow the SEScope for the host to be different from the SEScope for primitive
+      // operations which happen to be, eg, on the CPU.
+      return 0;
+    }
+
+    // However, otherwise we allow at most one SEScope per device type.
+    // TODO(mbs): This will eventually need to account for memory scopes somehow so device_copy
+    // instructions can do the right thing.
+    itr = std::find_if(context_->se_scopes_.begin() + 1, context_->se_scopes_.end(),
+                       [&se_scope](const SEScope& existing_se_scope) {
+                         return existing_se_scope->device_type() == se_scope->device_type();
+                       });
+    CHECK(itr == context_->se_scopes_.end())
+        << "The VM does not currently support using more than one device with the same device type "
+           "for primitives, however the program is using the distinct scopes "
+        << se_scope << " and " << *itr << " of device type " << se_scope->device_type();
+
+    ICHECK(se_scope != host_se_scope_);
+    Index index = context_->se_scopes_.size();
+    VLOG(2) << "adding new scope";
+    context_->se_scopes_.push_back(se_scope);
+
+    return index;
+  }
+
   using DeviceAwareExprFunctor<void(const Expr&)>::VisitExpr_;
 
   void VisitExpr_(const ConstantNode* const_node) final {
@@ -359,7 +377,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
     NDArray data = const_node->data;
     size_t konst_idx = context_->constants.size();
     auto con = GetRef<Constant>(const_node);
-    context_->const_device_type.push_back(GetInScopeDeviceType(con));
+    context_->const_device_indexes.push_back(GetDeviceIndex(GetSEScope(con)));
     context_->constants.push_back(const_node->data);
     Emit(Instruction::LoadConst(konst_idx, NewRegister()));
   }
@@ -463,7 +481,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
-    tec::CCacheKey key(func, target_host_);
+    tec::CCacheKey key(func, host_se_scope_->target);
     auto cfunc = context_->compiler->LowerShapeFunc(key);
     int op_index = -1;
     // pick the only function inside the context
@@ -498,7 +516,8 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                                    argument_registers));
   }
 
-  void EmitInvokeTVMOp(const Function& func, const Expr& inputs, const Expr& outputs) {
+  void EmitInvokeTVMOp(const Function& func, const Expr& inputs, const Expr& outputs,
+                       SEScope se_scope) {
     std::vector<Index> argument_registers;
 
     ICHECK(func->HasNonzeroAttr(attr::kPrimitive))
@@ -531,13 +550,9 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
     } else {
-      int dev_type = GetInScopeDeviceType(func);
-      if (targets_.count(dev_type) == 0) {
-        target = CreateDefaultTarget(dev_type);
-      } else {
-        target = targets_[dev_type];
-      }
+      target = se_scope->target;
     }
+    ICHECK(target.defined()) << "No target for function:" << std::endl << PrettyPrint(func);
 
     tec::CCacheKey key(func, target);
     auto mangle_fn = [](String name) { return name; };
@@ -577,9 +592,11 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       OpMatch<void> matcher;
       matcher
           .Match("vm.invoke_tvm_op",
-                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                 [this, call_node](const Array<Expr>& args, const Attrs& attrs,
+                                   const Array<Type>& type_arg) {
                    ICHECK_EQ(args.size(), 3);
-                   EmitInvokeTVMOp(Downcast<Function>(args[0]), args[1], args[2]);
+                   EmitInvokeTVMOp(Downcast<Function>(args[0]), args[1], args[2],
+                                   GetSEScope(GetRef<Call>(call_node)));
                  })
           .Match("memory.alloc_tensor",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
@@ -638,7 +655,8 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    auto dtype = alloc_attrs->dtype;
 
                    Emit(Instruction::AllocStorage(size_register, alignment, dtype,
-                                                  alloc_attrs->device_type, NewRegister()));
+                                                  GetDeviceIndex(alloc_attrs->se_scope),
+                                                  NewRegister()));
                  })
           .Match("vm.shape_func",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
@@ -670,17 +688,17 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    Emit(Instruction::ReshapeTensor(tensor_reg, shape_reg, NewRegister()));
                  })
           .Match("device_copy",
-                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                 [this, call_node](const Array<Expr>& args, const Attrs& attrs,
+                                   const Array<Type>& type_arg) {
                    ICHECK_EQ(args.size(), 1U);
                    this->VisitExpr(args[0]);
                    auto src_reg = last_register_;
 
                    auto device_copy_attrs = attrs.as<DeviceCopyAttrs>();
                    ICHECK(device_copy_attrs != nullptr) << "Must be the device copy attrs";
-                   Index src_device_type = device_copy_attrs->src_dev_type;
-                   Index dst_device_type = device_copy_attrs->dst_dev_type;
-                   Emit(Instruction::DeviceCopy(src_reg, src_device_type, dst_device_type,
-                                                NewRegister()));
+                   Emit(Instruction::DeviceCopy(
+                       src_reg, GetDeviceIndex(device_copy_attrs->src_se_scope),
+                       GetDeviceIndex(device_copy_attrs->dst_se_scope), NewRegister()));
                  })
           .Match("memory.kill",
                  [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
@@ -780,7 +798,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
   RegName CompileMatchValue(MatchValuePtr val) {
     if (std::dynamic_pointer_cast<RegisterValue>(val)) {
       auto r = std::dynamic_pointer_cast<RegisterValue>(val);
-      return r->rergister_num;
+      return r->register_num;
     } else {
       auto path = std::dynamic_pointer_cast<AccessField>(val);
       auto p = CompileMatchValue(path->parent);
@@ -857,18 +875,15 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
   size_t registers_num_;
   /*! \brief Global shared meta data */
   VMCompilerContext* context_;
-  /*! \brief Target devices. */
-  std::unordered_map<int, tvm::Target> targets_;
-  /*! \brief Host target. */
-  Target target_host_;
+  /*! \brief SEScope for data and computation which must reside on a CPU. */
+  SEScope host_se_scope_;
 };
 
 PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "lower") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_EQ(args.num_args, 3);
-      IRModule mod = args[0];
-      this->Lower(mod, args[1], args[2]);
+      this->Lower(args[0], args[1], args[2]);
     });
   } else if (name == "codegen") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -908,15 +923,16 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
   params_[name] = data_in;
 }
 
-void VMCompiler::Lower(IRModule mod, const tvm::TargetMap& targets,
-                       const tvm::Target& target_host) {
+void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host) {
   exec_ = make_object<Executable>();
-  targets_ = targets;
-  target_host_ = target_host;
-  CheckAndUpdateHostConsistency(&targets_, &target_host_);
+  config_ = CompilationConfig(PassContext::Current(), std::move(targets), std::move(target_host));
+
+  // The first device is always for the host.
+  CHECK(context_.se_scopes_.empty());
+  context_.se_scopes_.push_back(config_->host_se_scope);
 
   // Run the optimizations necessary to target the VM.
-  context_.module = OptimizeModule(mod, targets_, target_host_);
+  context_.module = OptimizeModuleImpl(std::move(mod));
 
   // Populate the global map.
   //
@@ -932,7 +948,7 @@ void VMCompiler::Lower(IRModule mod, const tvm::TargetMap& targets,
     auto gvar = named_func.first;
     if (auto* n = named_func.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(n);
-      VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
+      VMFunctionCompiler func_compiler(&context_, config_->host_se_scope);
       auto vm_func = func_compiler.Compile(gvar, func);
 
       size_t func_index = context_.global_map.at(gvar);
@@ -946,17 +962,27 @@ void VMCompiler::Lower(IRModule mod, const tvm::TargetMap& targets,
     }
   }
 
+  // Populate virtual devices and the host device index.
+  for (const auto& se_scope : context_.se_scopes_) {
+    ICHECK(!se_scope->IsFullyUnconstrained());
+    ICHECK_GT(se_scope->device_type(), 0);
+    // TODO(mbs): We forget the memory scope.
+    exec_->virtual_devices.push_back(
+        Device{/*device_type=*/se_scope->device_type(), /*device_id=*/se_scope->virtual_device_id});
+  }
+  exec_->host_device_index = kHostDeviceIndex;
+
   // populate constants
-  for (auto data : context_.constants) {
+  for (const auto& data : context_.constants) {
     exec_->constants.push_back(data);
   }
 
-  for (auto i : context_.const_device_type) {
-    exec_->const_device_type.push_back(i);
+  for (auto index : context_.const_device_indexes) {
+    exec_->const_device_indexes.push_back(index);
   }
 
   // update global function map
-  for (auto gv : context_.global_map) {
+  for (const auto& gv : context_.global_map) {
     exec_->global_map.insert({gv.first->name_hint, gv.second});
   }
 
@@ -966,22 +992,21 @@ void VMCompiler::Lower(IRModule mod, const tvm::TargetMap& targets,
     exec_->primitive_map.insert({cfunc->prim_fn_var->name_hint, primitive_index++});
   }
 
-#if USE_RELAY_DEBUG
-  for (const auto& vm_func : exec_->functions) {
-    VLOG(1) << vm_func << "-------------";
-  }
-#endif  // USE_RELAY_DEBUG
+  VLOG(1) << std::endl
+          << "-------------------------------------------------" << std::endl
+          << exec_->GetVirtualDevices() << exec_->GetConstants() << exec_->GetBytecode()
+          << "-------------------------------------------------";
 
   backend::UpdateAutoSchedulerOpWeights(context_.compiler);
 }
 
-transform::Sequential MemoryOpt(tvm::Target host_target, tvm::TargetMap targets) {
+transform::Sequential MemoryOpt(const SEScope& cpu_se_scope) {
   Array<Pass> pass_seqs;
   // Remove unused functions
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
-  pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
+  pass_seqs.push_back(transform::ManifestAlloc(cpu_se_scope));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
@@ -990,7 +1015,7 @@ transform::Sequential MemoryOpt(tvm::Target host_target, tvm::TargetMap targets)
   pass_seqs.push_back(transform::FuseOps());
 
   // Manifest the allocations needed for the shape functions.
-  pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
+  pass_seqs.push_back(transform::ManifestAlloc(cpu_se_scope));
 
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());
@@ -1008,7 +1033,7 @@ transform::Sequential MemoryOpt(tvm::Target host_target, tvm::TargetMap targets)
   pass_seqs.push_back(transform::FuseOps());
 
   // Create allocations for math introduced by dynamic region math.
-  pass_seqs.push_back(transform::ManifestAlloc(host_target, targets));
+  pass_seqs.push_back(transform::ManifestAlloc(cpu_se_scope));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
@@ -1018,15 +1043,22 @@ transform::Sequential MemoryOpt(tvm::Target host_target, tvm::TargetMap targets)
   //  instructions need to access to constant
   // pass_seqs.push_back(transform::LiftConstants());
 
-  return transform::Sequential(pass_seqs);
+  return transform::Sequential(std::move(pass_seqs));
 }
 
-IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets_arg,
-                                    const Target& target_host_arg) {
+IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets,
+                                    const Target& target_host) {
+  config_ = CompilationConfig(PassContext::Current(), targets, target_host);
+  // The first device always corresponds to the host.
+  CHECK(context_.se_scopes_.empty());
+  context_.se_scopes_.push_back(config_->host_se_scope);
+  // TODO(mbs): exec_ is not allocated. What is the API here?
+  CHECK(exec_ == nullptr);
+  return OptimizeModuleImpl(std::move(mod));
+}
+
+IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   VLOG_CONTEXT << "VMCompiler::OptimizeModule";
-  TargetMap targets = targets_arg;
-  Target target_host = target_host_arg;
-  CheckAndUpdateHostConsistency(&targets, &target_host);
   if (params_.size()) {
     BaseFunc base_func = mod->Lookup("main");
     ICHECK(base_func->IsInstance<FunctionNode>())
@@ -1036,29 +1068,24 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets_arg,
     mod->Add(gvar, f);
   }
 
-  Array<Pass> pass_seqs = relay::backend::GetPassPrefix(targets, true);
+  Array<Pass> pass_seqs = relay::backend::GetPassPrefix(
+      /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/true);
 
-  // TODO(mbs): Reconcile with relay/backend/build_module.cc
-  DLDeviceType default_device_type;
-  if (targets_arg.size() == 1) {
-    default_device_type =
-        static_cast<DLDeviceType>(static_cast<int>((*targets_arg.begin()).first->value));
-  } else {
-    default_device_type = static_cast<DLDeviceType>(GetFallbackDevice());
-  }
-  pass_seqs.push_back(PlanDevices(default_device_type));
+  // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
+  // hetrogeneous execution.
+  pass_seqs.push_back(transform::PlanDevices(config_));
 
   pass_seqs.push_back(transform::FuseOps());
 
   // Do layout rewrite for auto-scheduler.
   transform::PassContext pass_ctx = PassContext::Current();
-  if (backend::IsAutoSchedulerEnabled() && targets.size() == 1) {
-    const auto& target = (*targets.begin()).second;
+  if (backend::IsAutoSchedulerEnabled() && config_->optional_homogeneous_target.defined()) {
     Pass major_pass = transform::AutoSchedulerLayoutRewrite();
     bool enable_layout_rewrite_targets =
-        target->kind->device_type == kDLCPU || target->GetAttr<String>("device", "") == "mali";
+        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
     if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
-      With<Target> tctx(target);
+      With<Target> tctx(config_->optional_homogeneous_target);
       pass_seqs.push_back(major_pass);
       // Defuse ops to fold constants, then fuse them again
       pass_seqs.push_back(transform::DefuseOps());
@@ -1079,18 +1106,18 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets_arg,
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  pass_seqs.push_back(MemoryOpt(target_host, targets));
+  pass_seqs.push_back(MemoryOpt(config_->host_se_scope));
   pass_seqs.push_back(transform::InferType());
   pass_seqs.push_back(transform::LabelOps());
 
   transform::Sequential seq(pass_seqs);
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
-  if (targets.size() == 1) {
-    const auto& it = targets.begin();
-    With<Target> tctx((*it).second);
-    return seq(mod);
+  if (config_->optional_homogeneous_target.defined()) {
+    With<Target> tctx(config_->optional_homogeneous_target);
+    return seq(std::move(mod));
+  } else {
+    return seq(std::move(mod));
   }
-  return seq(mod);
 }
 
 void VMCompiler::PopulateGlobalMap() {
@@ -1137,13 +1164,14 @@ void VMCompiler::Codegen() {
 
   runtime::Module lib;
   if (funcs.size() > 0) {
-    lib = tvm::build(funcs, target_host_);
+    lib = tvm::build(funcs, config_->host_target);
   } else {
     // There is no function handled by TVM. We create a virtual main module
     // to make sure a DSO module will be also available.
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }
-  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, target_host_, runtime::Metadata());
+  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
+                                      runtime::Metadata());
   exec_->SetLib(lib);
 }
 

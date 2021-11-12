@@ -173,7 +173,6 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod);
  * to TE expressions, schedules them, and then to TIR.
  *
  * \param module The IRModule.
- * \param targets The mapping for devices to targets.
  * \param memory_plan The memory plan used during lowering
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
@@ -181,8 +180,8 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod);
  * \return The lowered module, see above.
  */
 IRModule LowerTE(
-    const IRModule& module, TargetMap targets, backend::StaticMemoryPlan memory_plan,
-    const String& module_name, ProcessFn process_fn = [](Function f) {});
+    const IRModule& module, backend::StaticMemoryPlan memory_plan, const String& module_name,
+    ProcessFn process_fn = [](Function f) {});
 
 /*! \brief Pass to lower an IRModule's primitive functions to TIR.
  *
@@ -190,14 +189,12 @@ IRModule LowerTE(
  * to TE expressions, schedules them, and then to TIR. It annotates all functions
  * with their target.
  *
- * \param targets The mapping for devices to targets.
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
  * \returns The pass which lowers primitive functions to TIR
  */
-transform::Pass LowerTEPass(TargetMap targets, const String& module_name,
-                            std::function<void(Function)> process_fn);
+transform::Pass LowerTEPass(const String& module_name, std::function<void(Function)> process_fn);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

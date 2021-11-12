@@ -131,18 +131,18 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
 
   void VisitExpr_(const TupleNode* op) final {
     std::vector<int64_t> storage_ids;
-    std::vector<DLDeviceType> device_types;
+    std::vector<SEScope> se_scopes;
     std::vector<int64_t> storage_sizes_in_bytes;
     Expr expr = GetRef<Expr>(op);
     for (Expr field : op->fields) {
       auto sid = GetStorage(field);
       storage_ids.insert(storage_ids.end(), sid->storage_ids.begin(), sid->storage_ids.end());
-      device_types.insert(device_types.end(), sid->device_types.begin(), sid->device_types.end());
+      se_scopes.insert(se_scopes.end(), sid->se_scopes.begin(), sid->se_scopes.end());
       storage_sizes_in_bytes.insert(storage_sizes_in_bytes.end(),
                                     sid->storage_sizes_in_bytes.begin(),
                                     sid->storage_sizes_in_bytes.end());
     }
-    storage_device_map_[expr] = StorageInfo(storage_ids, device_types, storage_sizes_in_bytes);
+    storage_device_map_[expr] = StorageInfo(storage_ids, se_scopes, storage_sizes_in_bytes);
     AssignReturnSid(expr);
   }
 
@@ -151,7 +151,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     auto sids = GetStorage(op->tuple);
     ICHECK_LT(static_cast<size_t>(op->index), sids->storage_ids.size());
     storage_device_map_[expr] =
-        StorageInfo({sids->storage_ids[op->index]}, {sids->device_types[op->index]},
+        StorageInfo({sids->storage_ids[op->index]}, {sids->se_scopes[op->index]},
                     {sids->storage_sizes_in_bytes[op->index]});
     AssignReturnSid(expr);
   }
@@ -185,7 +185,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    * \param prototype The prototype token.
    * \return The required memory size.
    *
-   * TODO(mbs): Cf CalculateRelayExprSizeBytes in utils.cc
+   * TODO(mbs): Cf CalculateRelayExprSizeBytes in utils.cc, GetMemorySize is graph_plan_memory.cc
    */
   size_t GetMemorySizeBytes(const TensorType& ttype) {
     size_t size = 1;
@@ -217,24 +217,25 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    */
   void CreateStorage(const ExprNode* op) {
     Expr expr = GetRef<Expr>(op);
-    return CreateStorage(expr, GetInScopeDeviceType(expr));
+    return CreateStorage(expr, GetSEScope(expr));
   }
 
   /*!
-   * \brief Create storage to hold the result of evaluating \p expr on \p device_type.
+   * \brief Create storage to hold the result of evaluating \p expr in \p se_scope.
    */
-  void CreateStorage(const Expr& expr, DLDeviceType device_type) {
-    ICHECK(device_type != kInvalidDeviceType) << "invalid device type for expr:" << std::endl
+  void CreateStorage(const Expr& expr, SEScope se_scope) {
+    ICHECK(!se_scope->IsFullyUnconstrained()) << "invalid SEScope for expr:" << std::endl
                                               << PrettyPrint(expr);
     std::vector<int64_t> storage_ids;
-    std::vector<DLDeviceType> device_types;
+    std::vector<SEScope> se_scopes;
     std::vector<int64_t> storage_sizes_in_bytes;
     for (const auto& ttype : FlattenTupleType(expr->checked_type())) {
       storage_ids.push_back(next_available_sid_++);
-      device_types.push_back(device_type);
+      se_scopes.push_back(se_scope);
       storage_sizes_in_bytes.push_back(GetMemorySizeBytes(ttype));
     }
-    storage_device_map_[expr] = StorageInfo(storage_ids, device_types, storage_sizes_in_bytes);
+    storage_device_map_[expr] = StorageInfo(std::move(storage_ids), std::move(se_scopes),
+                                            std::move(storage_sizes_in_bytes));
   }
 
   /*! \brief mapping of expression -> storageInfo */
@@ -622,7 +623,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       mod = WithAttr(mod, "main_func_info", func_info);
     }
 
-    IRModule lowered_mod = tec::LowerTEPass(targets_, mod_name, [this](Function func) {
+    IRModule lowered_mod = tec::LowerTEPass(mod_name, [this](Function func) {
       // We need to maintain the constant map for external
       // functions so we pass this processing function which
       // allows us to process each function as we lower it.
