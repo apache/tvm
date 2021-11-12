@@ -373,7 +373,7 @@ TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
 
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("devices");
 
-TVM_REGISTER_TARGET_KIND("ethos-u", kDLCPU).set_attr<Bool>("c_device_api", Bool(true));
+TVM_REGISTER_TARGET_KIND("ethos-u", kDLCPU).set_attr<Bool>("use_device_api", Bool(true));
 
 /**********  Registry  **********/
 

@@ -397,7 +397,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   void CollectDeviceVariables(const Map<GlobalVar, String>& device_contexts) {
     Map<TargetKind, tir::Var> target_contexts;
-    TargetKindAttrMap<Bool> target_attr_map = tvm::TargetKind::GetAttrMap<Bool>("c_device_api");
+    TargetKindAttrMap<Bool> target_attr_map = tvm::TargetKind::GetAttrMap<Bool>("use_device_api");
 
     for (const auto& it : device_contexts) {
       const GlobalVar& global_var = it.first;
