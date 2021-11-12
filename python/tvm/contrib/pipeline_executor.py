@@ -134,7 +134,10 @@ class PipelineModule(object):
         value : array_like.
             The input value
         """
-        self._set_input(key, tvm.nd.array(value, tvm.cpu()))
+        v = self._get_input(key)
+        if v is None:
+            raise RuntimeError("Could not find '%s' in pipeline's inputs" % key)
+        v.copyfrom(value)
 
     def set_params(self, params_name, params_data):
         """Set params to the module via param name and params data.
@@ -148,7 +151,7 @@ class PipelineModule(object):
         """
         keys = list(params_data.keys())
         for k in keys:
-            self._set_param(params_name, k, tvm.nd.array(params_data[k], tvm.cpu()))
+            self._set_param(params_name, k, params_data[k])
 
     def get_input(self, key):
         """Get the input via a input name.
