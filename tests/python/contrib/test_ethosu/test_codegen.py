@@ -159,7 +159,7 @@ def test_ethosu_conv2d(accel_type):
         ethosu_module = imported_modules[0]
 
         # Verify generated C source
-        get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+        get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
         cmms = get_cs(ethosu_module)
         cmms = bytes.fromhex(cmms)
         infra.print_payload(cmms)
@@ -246,7 +246,7 @@ def test_tflite_depthwise_conv2d(
     ethosu_module = imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
     cmms = get_cs(ethosu_module)
     cmms = bytes.fromhex(cmms)
 
@@ -333,7 +333,7 @@ def test_ethosu_pooling(
     ethosu_module = imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
     cmms = get_cs(ethosu_module)
     cmms = bytes.fromhex(cmms)
 
@@ -427,7 +427,7 @@ def test_ethosu_binary_elementwise(
     ethosu_module = imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
     cmms = get_cs(ethosu_module)
     cmms = bytes.fromhex(cmms)
 
@@ -484,7 +484,7 @@ def test_ethosu_left_shift_binary_elemwise(
     ethosu_module = imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
     cmms = get_cs(ethosu_module)
     cmms = bytes.fromhex(cmms)
 
@@ -519,12 +519,12 @@ def test_ethosu_right_shift_binary_elemwise(
             ifm, ifm2, ifm_shape[3], ifm2_shape[3], "SHR", ofm_dtype, reversed_operands
         )
 
-        glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
+        glb_ethosu = relay.GlobalVar("tvmgen_default_ethos_u_main_0")
         func = (
             relay.Function([ifms], shr_op)
             .with_attr("Inline", 1)
-            .with_attr("Compiler", "ethosu")
-            .with_attr("global_symbol", "tvmgen_default_ethosu_main_0")
+            .with_attr("Compiler", "ethos-u")
+            .with_attr("global_symbol", "tvmgen_default_ethos_u_main_0")
             .with_attr("Primitive", 1)
         )
         mod = tvm.IRModule()
@@ -583,7 +583,7 @@ def test_ethosu_right_shift_binary_elemwise(
     ethosu_module = imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
     cmms = get_cs(ethosu_module)
     cmms = bytes.fromhex(cmms)
 

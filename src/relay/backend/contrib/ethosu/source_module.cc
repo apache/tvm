@@ -183,7 +183,7 @@ class EthosUModuleNode : public ModuleNode {
    */
   void PrintRuntimeFunctionHeader(std::stringstream& ss, std::string func_name) {
     ss << "TVM_DLL int32_t ";
-    ss << func_name << "(void* input, void* output) {\n";
+    ss << func_name << "(void* input, void* output, void* resource_handle) {\n";
   }
 
   /*!
@@ -219,7 +219,7 @@ class EthosUModuleNode : public ModuleNode {
     ss << "#include <stdio.h>\n";
     ss << "#include <stdlib.h>\n";
     ss << "#include <tvm/runtime/crt/module.h>\n";
-    ss << "#include <ethosu_driver.h>\n";
+    ss << "#include <tvm_ethosu_runtime.h>\n";
     ss << "\n";
     size_t weights_size = (weights_bias_hex.size() / 2);
     ss << "static const size_t weights_size = " << std::to_string(weights_size) << ";\n";
@@ -243,7 +243,7 @@ class EthosUModuleNode : public ModuleNode {
 
     PrintExternCPrefix(ss);
     ss << "static int32_t " << func_no_dashes + "_(int8_t* in0, "
-       << "size_t in0_size, int8_t* out0, size_t out0_size) {\n";
+       << "size_t in0_size, int8_t* out0, size_t out0_size, void* resource_handle) {\n";
     ss << "  int num_tensors = 5;\n";
     ss << "  void* cms_data = (void*)(cms_data_data);\n";
     ss << "  int64_t device_type = kDLCPU;\n";
@@ -263,30 +263,25 @@ class EthosUModuleNode : public ModuleNode {
     ss << SetBaseAddress(3, "in0");
     ss << SetBaseAddress(4, "out0");
     ss << "\n";
-    ss << "  struct ethosu_driver *drv = ethosu_reserve_driver();\n";
-    ss << "  int32_t result = ethosu_invoke(drv, cms_data, cms_data_size, base_addrs, "
-          "base_addrs_size, "
-          "num_tensors);\n";
-    ss << "  ethosu_release_driver(drv);\n";
+    ss << "  int32_t result = TVMEthosULaunch(resource_handle, cms_data, cms_data_size, "
+          "base_addrs, base_addrs_size, num_tensors);\n";
     if (scratch_size > 0) {
       ss << "  TVMBackendFreeWorkspace(device_type, device_id, scratch);\n";
     }
-    ss << "  if (result != 0) {\n";
-    ss << "    return -1;\n";
-    ss << "  } else {\n";
-    ss << "    return 0;\n";
-    ss << "  }\n";
+    ss << "  return result;\n";
     ss << "}\n";
     ss << "\n";
     PrintExternCPostfix(ss);
     ss << "\n";
     PrintExternCPrefix(ss);
     ss << "// Wrapper function is provided to allow for easier debugging\n";
-    ss << "inline static int32_t " + func_no_dashes + "_wrapper_(void* input, void* output) {\n";
+    ss << "inline static int32_t " + func_no_dashes +
+              "_wrapper_(void* input, void* output, void* resource_handle) {\n";
     ss << "  size_t input_data_size = " << input_size << ";\n";
     ss << "  size_t output_data_size = " << output_size << ";\n";
     ss << "  return " + func_no_dashes +
-              "_((int8_t*)input, input_data_size, (int8_t*)output, output_data_size);\n";
+              "_((int8_t*)input, input_data_size, (int8_t*)output, output_data_size, " +
+              "resource_handle);\n";
     ss << "}\n";
     PrintExternCPostfix(ss);
     ss << "\n";
@@ -294,7 +289,7 @@ class EthosUModuleNode : public ModuleNode {
     PrintRuntimeFunctionHeader(ss, func_name);
     EnterScope();
     PrintIndents(ss);
-    ss << "return " << func_no_dashes << "_wrapper_(input, output);\n";
+    ss << "return " << func_no_dashes << "_wrapper_(input, output, resource_handle);\n";
     ExitScope();
     ss << "}\n";
     PrintExternCPostfix(ss);
@@ -317,14 +312,14 @@ inline EthosUModuleNode* EthosUModule::operator->() {
   return static_cast<EthosUModuleNode*>(get_mutable());
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.ethosu.create")
+TVM_REGISTER_GLOBAL("runtime.module.ethos-u.create")
     .set_body_typed([](String func_name, String cmms_hex, String weights_bias_hex,
                        Integer scratch_size, Integer input_size, Integer output_size) {
       return EthosUModuleNode::Create(func_name, cmms_hex, weights_bias_hex, scratch_size,
                                       input_size, output_size);
     });
 
-TVM_REGISTER_GLOBAL("runtime.module.ethosu.getcs").set_body_typed([](EthosUModule mod) {
+TVM_REGISTER_GLOBAL("runtime.module.ethos-u.getcs").set_body_typed([](EthosUModule mod) {
   return mod->GetCS();
 });
 

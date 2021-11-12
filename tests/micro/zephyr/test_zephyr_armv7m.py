@@ -112,7 +112,7 @@ def _generate_project(temp_dir, board, west_cmd, lowered, build_config, sample, 
                 test_utils.loadCMSIS(model_files_path)
                 tf.add(model_files_path, arcname=os.path.relpath(model_files_path, tar_temp_dir))
                 header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                    lowered.libmod_name, ["input_1"], ["output"], [], model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 

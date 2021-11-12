@@ -44,13 +44,13 @@ class UnsupportedInModelLibraryFormatError(Exception):
     """Raised when export_model_library_format does not support the given Module tree."""
 
 
-def generate_c_interface_header(module_name, inputs, outputs, include_path):
+def generate_c_interface_header(module_name, inputs, outputs, devices, include_path):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
     metadata_header = os.path.join(include_path, f"{mangled_name}.h")
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
-    interface_c_module = interface_c_create(module_name, inputs, outputs)
+    interface_c_module = interface_c_create(module_name, inputs, outputs, devices)
 
     with open(metadata_header, "w") as header_file:
         header_file.write(interface_c_module.get_source())
@@ -318,7 +318,8 @@ def _export_graph_model_library_format(
         include_path = codegen_dir / "host" / "include"
         include_path.mkdir()
         inputs, outputs = _get_inputs_and_outputs_from_module(mod)
-        generate_c_interface_header(mod.libmod_name, inputs, outputs, include_path)
+        devices = mod.get_devices()
+        generate_c_interface_header(mod.libmod_name, inputs, outputs, devices, include_path)
 
     parameters_dir = tempdir / "parameters"
     parameters_dir.mkdir()

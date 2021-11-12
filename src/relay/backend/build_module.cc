@@ -96,6 +96,8 @@ struct ExecutorCodegen {
     return CallFunc<Map<Target, IRModule>>("get_irmodule", nullptr);
   }
 
+  Array<String> ListDevices() { return CallFunc<Array<String>>("get_devices"); }
+
   runtime::Metadata GetMetadata() { return CallFunc<runtime::Metadata>("get_metadata"); }
   virtual ~ExecutorCodegen() {}
 
@@ -194,6 +196,10 @@ class RelayBuildModule : public runtime::ModuleNode {
         for (const auto& kv : params) {
           this->SetParam(kv.first, kv.second->data);
         }
+      });
+    } else if (name == "get_devices") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->executor_codegen_->ListDevices();
       });
     } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

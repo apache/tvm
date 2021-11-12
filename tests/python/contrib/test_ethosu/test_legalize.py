@@ -40,7 +40,7 @@ def partition_ethosu_by_table(mod, pattern_table):
     wouldn't attempt to offload an operator without full stack support."""
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.MergeComposite(pattern_table)(mod)
-    mod = relay.transform.AnnotateTarget("ethosu")(mod)
+    mod = relay.transform.AnnotateTarget("ethos-u")(mod)
     mod = relay.transform.MergeCompilerRegions()(mod)
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.PartitionGraph()(mod)
@@ -59,7 +59,7 @@ def test_split_indices_legalize():
     def expected_mod_axis1():
         expected_ir_string = """
         #[version = "0.0.5"]
-        def @tvmgen_default_ethosu_main_0(%x: Tensor[(1, 50, 50, 3), float32]) -> (Tensor[(1, 5, 50, 3), float32],\
+        def @tvmgen_default_ethos_u_main_0(%x: Tensor[(1, 50, 50, 3), float32]) -> (Tensor[(1, 5, 50, 3), float32],\
                                                                Tensor[(1, 15, 50, 3), float32],\
                                                                Tensor[(1, 25, 50, 3), float32],\
                                                                Tensor[(1, 5, 50, 3), float32]) {
@@ -80,7 +80,7 @@ def test_split_indices_legalize():
     def expected_mod_axis2():
         expected_ir_string = """
         #[version = "0.0.5"]
-        def @tvmgen_default_ethosu_main_0(%x: Tensor[(1, 50, 50, 3), float32]) -> (Tensor[(1, 50, 5, 3), float32],\
+        def @tvmgen_default_ethos_u_main_0(%x: Tensor[(1, 50, 50, 3), float32]) -> (Tensor[(1, 50, 5, 3), float32],\
                                                                Tensor[(1, 50, 15, 3), float32],\
                                                                Tensor[(1, 50, 25, 3), float32],\
                                                                Tensor[(1, 50, 5, 3), float32]) {
@@ -99,13 +99,13 @@ def test_split_indices_legalize():
         return tvm.parser.fromtext(expected_ir_string)
 
     mod_axis1 = tvm.IRModule()
-    mod_axis1["tvmgen_default_ethosu_main_0"] = create_graph(1)
+    mod_axis1["tvmgen_default_ethos_u_main_0"] = create_graph(1)
     mod_axis1 = legalize.LegalizeSplit()(mod_axis1)
     expected_axis1 = expected_mod_axis1()
     tvm.ir.assert_structural_equal(mod_axis1, expected_axis1)
 
     mod_axis2 = tvm.IRModule()
-    mod_axis2["tvmgen_default_ethosu_main_0"] = create_graph(2)
+    mod_axis2["tvmgen_default_ethos_u_main_0"] = create_graph(2)
     mod_axis2 = legalize.LegalizeSplit()(mod_axis2)
     expected_axis2 = expected_mod_axis2()
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
@@ -127,7 +127,7 @@ def test_split_sections_legalize():
     def expected_mod_axis1():
         expected_ir_string = """
         #[version = "0.0.5"]
-        def @tvmgen_default_ethosu_main_0(%x: Tensor[(1, 50, 50, 3), float32]) -> (Tensor[(1, 10, 50, 3), float32],\
+        def @tvmgen_default_ethos_u_main_0(%x: Tensor[(1, 50, 50, 3), float32]) -> (Tensor[(1, 10, 50, 3), float32],\
                                                                Tensor[(1, 10, 50, 3), float32],\
                                                                Tensor[(1, 10, 50, 3), float32],\
                                                                Tensor[(1, 10, 50, 3), float32],\
@@ -162,7 +162,7 @@ def test_split_sections_legalize():
     def expected_mod_axis2():
         expected_ir_string = """
         #[version = "0.0.5"]
-        def @tvmgen_default_ethosu_main_0(%x: Tensor[(1, 50, 50, 3), float32]) -> (Tensor[(1, 50, 10, 3), float32],\
+        def @tvmgen_default_ethos_u_main_0(%x: Tensor[(1, 50, 50, 3), float32]) -> (Tensor[(1, 50, 10, 3), float32],\
                                                                Tensor[(1, 50, 10, 3), float32],\
                                                                Tensor[(1, 50, 10, 3), float32],\
                                                                Tensor[(1, 50, 10, 3), float32],\
@@ -195,13 +195,13 @@ def test_split_sections_legalize():
         return tvm.parser.fromtext(expected_ir_string)
 
     mod_axis1 = tvm.IRModule()
-    mod_axis1["tvmgen_default_ethosu_main_0"] = create_graph(1, 5)
+    mod_axis1["tvmgen_default_ethos_u_main_0"] = create_graph(1, 5)
     mod_axis1 = legalize.LegalizeSplit()(mod_axis1)
     expected_axis1 = expected_mod_axis1()
     tvm.ir.assert_structural_equal(mod_axis1, expected_axis1)
 
     mod_axis2 = tvm.IRModule()
-    mod_axis2["tvmgen_default_ethosu_main_0"] = create_graph(2, 5)
+    mod_axis2["tvmgen_default_ethos_u_main_0"] = create_graph(2, 5)
     mod_axis2 = legalize.LegalizeSplit()(mod_axis2)
     expected_axis2 = expected_mod_axis2()
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
@@ -314,7 +314,7 @@ def test_ethosu_conv2d_legalize():
         mod, conv_params = test_case[0](*test_case[1])
         mod = ethosu.partition_for_ethosu(mod)
         mod = legalize.LegalizeConv2D()(mod)
-        verify_linear(mod["tvmgen_default_ethosu_main_0"], conv_params)
+        verify_linear(mod["tvmgen_default_ethos_u_main_0"], conv_params)
 
 
 def test_ethosu_conv2d_legalize_errors():
@@ -457,10 +457,10 @@ def test_tflite_depthwise_conv_2d_legalize(
     mod["main"] = bind_params_by_name(mod["main"], params)
     mod = partition_ethosu_by_table(mod, depthwise_pattern_table)
 
-    mod["tvmgen_default_ethosu_main_0"] = dataflow_pattern.rewrite(
-        legalize.DepthwiseConv2DRewriter(), mod["tvmgen_default_ethosu_main_0"]
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.DepthwiseConv2DRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
-    verify(mod["tvmgen_default_ethosu_main_0"])
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 @pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
@@ -552,10 +552,10 @@ def test_tflite_pool2d_legalize(
     )
     mod = partition_ethosu_by_table(mod, pattern_table)
 
-    mod["tvmgen_default_ethosu_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethosu_main_0"]
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
     )
-    verify(mod["tvmgen_default_ethosu_main_0"])
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 @pytest.mark.parametrize("operator_type", ["ADD", "SUB", "MUL", "MIN", "MAX"])
@@ -687,10 +687,10 @@ def test_tflite_binary_elemwise_legalize(
     )
     mod = partition_ethosu_by_table(mod, pattern_table)
 
-    mod["tvmgen_default_ethosu_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethosu_main_0"]
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
     )
-    verify(mod["tvmgen_default_ethosu_main_0"])
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 @pytest.mark.parametrize(
@@ -740,10 +740,10 @@ def test_ethosu_left_shift_binary_elemwise_legalize(ifm_shape, ifm2_shape, rever
     mod = create_graph()
     mod = partition_ethosu_by_table(mod, pattern_table)
 
-    mod["tvmgen_default_ethosu_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethosu_main_0"]
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
     )
-    verify(mod["tvmgen_default_ethosu_main_0"])
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 if __name__ == "__main__":
