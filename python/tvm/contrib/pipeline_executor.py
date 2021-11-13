@@ -149,9 +149,8 @@ class PipelineModule(object):
         params_data : dict of str to NDArray
             A list of params data and params key name.
         """
-        keys = list(params_data.keys())
-        for k in keys:
-            self._set_param(params_name, k, params_data[k])
+        for key, val in params_data.items():
+            self._set_param(params_name, key, val)
 
     def get_input(self, key):
         """Get the input via a input name.
@@ -298,7 +297,7 @@ class PipelineConfig(object):
 
             return str_format
 
-        def check_dict(self, connection_dict):
+        def check_binding_dict(self, connection_dict):
             """Check the dict form of this binding.
             Parameter
             ---------
@@ -318,14 +317,19 @@ class PipelineConfig(object):
                 raise RuntimeError(f'"mod_idx" is missing!')
 
         def get_binding_dict(self):
-            # Return the binding information in the form of dict.
+            """Return the binding information in the form of dict.
+            Returns
+            -------
+            data : Dict[str, Any]
+                The binding information in the form of dict.
+            """
             dict_format = {"interface_name": self.name, "connection": []}
             for binding in self.bindings:
                 _, dname = binding.get_name()
                 midx = binding.get_owner_idx()
                 dict_format["connection"].append({"mod_idx": midx, "interface_name": dname})
 
-            self.check_dict(dict_format)
+            self.check_binding_dict(dict_format)
             return dict_format
 
         def check_dag_acyclic(self, start, inputs):

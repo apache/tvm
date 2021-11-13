@@ -456,8 +456,8 @@ class BackendRuntime {
    *\brief Copy data from a DLTensor to another DLTensor.
    */
   void CopyFromTo(DLTensor* from, DLTensor* to) {
-    // If the source device and target device is not same, we use a local DLTensor
-    // as a medium to do the cross device copy work.
+    // If the source device and target device are not the same, we use a temporary DLTensor
+    // on CPU as the bridge.
     if (from->device.device_type != to->device.device_type && from->device.device_type != kDLCPU &&
         to->device.device_type != kDLCPU) {
       DLTensor* dltensor_local = nullptr;
