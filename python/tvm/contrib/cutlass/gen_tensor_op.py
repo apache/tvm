@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""GEMM kernel generator and profiler for CUTLASS."""
+"""Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 import logging
 import os
-import re
 import tempfile
 import subprocess
 import multiprocessing
@@ -56,7 +55,7 @@ def generate_tensor_op_common(
 
 
 def generate_sm75_tensor_op_1688(out_dtype, op_creator):
-    """Generate GEMM kernels for Turing."""
+    """Generate GEMM or Conv2D kernels for Turing."""
     assert out_dtype in ["float32", "float16"]
     math_instructions = {
         "float32": [
@@ -102,7 +101,7 @@ def generate_sm75_tensor_op_1688(out_dtype, op_creator):
 
 
 def generate_sm80_tensor_op_16816(out_dtype, op_creator):
-    """Generate GEMM kernels for Ampere."""
+    """Generate GEMM or Conv2D kernels for Ampere."""
     assert out_dtype in ["float32", "float16"]
     math_instructions = {
         "float32": [

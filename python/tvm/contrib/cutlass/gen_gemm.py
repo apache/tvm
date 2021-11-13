@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """GEMM kernel generator and profiler for CUTLASS."""
+from functools import partial
 import os
 import re
 import tempfile
@@ -37,7 +38,7 @@ from .library import (
 )
 
 
-def _create_gemm_operator(
+def create_gemm_operator(
     tile_descriptions,
     data_type,
     alignment_constraints,
@@ -132,25 +133,6 @@ def _create_gemm_operator(
     return ret
 
 
-def create_gemm_operator(batched):
-    # TODO: replace with partial
-    def op_creator(
-        tile_descriptions,
-        data_type,
-        alignment_constraints,
-        swizzling_functor=SwizzlingFunctor.Identity8,
-    ):
-        return _create_gemm_operator(
-            tile_descriptions,
-            data_type,
-            alignment_constraints,
-            swizzling_functor,
-            batched=batched,
-        )
-
-    return op_creator
-
-
 GENERATOR_FUNC_TABLE = {
     75: generate_sm75_tensor_op_1688,
     80: generate_sm80_tensor_op_16816,
@@ -193,7 +175,7 @@ class CutlassGemmProfiler:
         For now, the default kernel was picked arbitrary.
         """
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, op_creator=create_gemm_operator(batched)
+            out_dtype, op_creator=partial(create_gemm_operator, batched=batched)
         )
         default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
@@ -211,7 +193,7 @@ class CutlassGemmProfiler:
             return self.cache[(M, N, K)]
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, op_creator=create_gemm_operator(batched)
+            out_dtype, op_creator=partial(create_gemm_operator, batched=batched)
         )
         ops = list(filter(lambda op: self.check_align(op["name"], M), ops))
 
