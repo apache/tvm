@@ -607,15 +607,15 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     }
 
     // Similarly transform arguments.
-    Array<Expr> args;
+    Array<Expr> visited_args;
     for (const auto& arg : call_node->args) {
-      args.push_back(VisitExpr(arg));
+      visited_args.push_back(VisitExpr(arg));
     }
 
     // Already lowered by other means so we don't need to mutate
     // the call but we do need to mutate the arguments
     if (prim_func->IsInstance<tir::PrimFuncNode>()) {
-      return Call(call_node->op, args, call_node->attrs);
+      return Call(call_node->op, visited_args, call_node->attrs);
     }
 
     // Find the desired target device.
@@ -630,10 +630,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       target = se_scope->target;
       ICHECK(target.defined());
     }
-    Array<Expr> visited_args;
-    for (const auto& arg : call_node->args) {
-      visited_args.push_back(VisitExpr(arg));
-    }
+
     // Lower the primitive function for that target.
     Function func = Downcast<Function>(prim_func);
     return MakeLoweredCall(func, visited_args, call_node->type_args, call_node->span, target);
