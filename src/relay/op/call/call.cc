@@ -108,8 +108,7 @@ CallLoweredProps GetCallLoweredProps(const CallNode* call_node) {
   const auto* attrs = call_node->attrs.as<CallLoweredAttrs>();
   ICHECK(attrs) << "Expected call_lowered op to have CallLoweredAttrs, but found "
                 << call_node->attrs->GetTypeKey();
-  return CallLoweredProps{std::move(GetRef<GlobalVar>(function)), std::move(tuple_args->fields),
-                          std::move(*attrs)};
+  return CallLoweredProps{GetRef<GlobalVar>(function), tuple_args->fields, *attrs};
 }
 
 }  // namespace relay
