@@ -23,7 +23,7 @@ import subprocess
 import multiprocessing
 from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
-from gen_tensor_op import (
+from .gen_tensor_op import (
     ProfilerEngine,
     generate_sm75_tensor_op_1688,
     generate_sm80_tensor_op_16816,
