@@ -76,7 +76,7 @@ bool IsDominantBlock(const Block& scope_block, const Block& block) {
 
 /*!
  * \brief Check whether the input block is a reduction block.
- * \param block_realize The block to be checked
+ * \param realize The block to be checked
  * \param loop_range_map The mapping from the loop variables outside the input block to their ranges
  * \param scope_block The scope block of the input block
  * \param analyzer The analyzer
@@ -85,15 +85,15 @@ bool IsDominantBlock(const Block& scope_block, const Block& block) {
  * based on `tir.Schedule`. Here we have no schedule information, and thus we must implement the
  * check again.
  */
-bool IsReductionBlock(const BlockRealize& block_realize, const Map<Var, Range>& loop_range_map,
+bool IsReductionBlock(const BlockRealize& realize, const Map<Var, Range>& loop_range_map,
                       const Block& scope_block, arith::Analyzer* analyzer) {
-  const auto* block = block_realize->block.as<BlockNode>();
+  const auto* block = realize->block.as<BlockNode>();
   // Cond 1. The block has the `init` statement.
   if (!block->init.defined()) {
     return false;
   }
   // Cond 2. All the block bindings are quasi-affine expressions.
-  if (!IsAffineBinding(block_realize, loop_range_map, analyzer)) {
+  if (!IsAffineBinding(realize, loop_range_map, analyzer)) {
     return false;
   }
   // Cond 3. All block vars are either data parallel block vars or reduction block vars. Meanwhile,
@@ -116,9 +116,16 @@ bool IsReductionBlock(const BlockRealize& block_realize, const Map<Var, Range>& 
  * \param dtype The specified data type
  * \return The created buffer
  */
-Buffer CreateReductionBuffer(String name, const DataType& dtype) {
-  Var var(name, PointerType(PrimType(dtype), "local"));
-  return Buffer(var, dtype, {1}, {1}, PrimExpr(), std::move(name), 0, 0, kDefault);
+Buffer MakeScratchpad(String name, const DataType& dtype) {
+  return Buffer(/*ptr=*/Var(name, PointerType(PrimType(dtype), "local")),
+                /*dtype=*/dtype,
+                /*shape=*/{Integer(1)},
+                /*strides=*/{Integer(1)},
+                /*elem_offset=*/PrimExpr{nullptr},
+                /*name=*/std::move(name),
+                /*data_alignment=*/0,
+                /*offset_factor=*/0,
+                /*buffer_type=*/kDefault);
 }
 
 /*!
@@ -142,12 +149,16 @@ Array<BufferRegion> RemoveBufferFromBufferRegions(const Array<BufferRegion>& buf
 /*!
  * \brief Substitute a given source buffer with a given target buffer in statements or expressions
  */
-class BufferAccessReplacer : public StmtExprMutator {
+class BufferReplacer : private StmtExprMutator {
  public:
-  explicit BufferAccessReplacer(Buffer src_buffer, Buffer tgt_buffer)
-      : src_buffer_(std::move(src_buffer)), tgt_buffer_(std::move(tgt_buffer)) {}
+  static Stmt Run(Buffer src_buffer, Buffer tgt_buffer, Stmt stmt) {
+    return BufferReplacer(src_buffer, tgt_buffer)(std::move(stmt));
+  }
 
  private:
+  explicit BufferReplacer(Buffer src_buffer, Buffer tgt_buffer)
+      : src_buffer_(std::move(src_buffer)), tgt_buffer_(std::move(tgt_buffer)) {}
+
   PrimExpr VisitExpr_(const BufferLoadNode* load) final {
     return load->buffer.same_as(src_buffer_) ? BufferLoad(tgt_buffer_, {0})
                                              : GetRef<BufferLoad>(load);
@@ -219,26 +230,202 @@ class InThreadReducerMaker : private StmtMutator {
 };
 
 /*!
+ * \brief Create the lowered allreduce block transformed from the input reduction block
+ * \param reduction_block The input reduction block
+ * \param it_buffer The buffer to store in-thread reduction results
+ * \param ct_buffer The buffer to store cross-thread reduction results
+ * \param reducer The reduction function
+ * \param combiner_rhs The RHS of the combiner
+ * \param reduction_loops The reduction loops
+ */
+Stmt TransformReductionBlock(const BlockRealizeNode* realize, const Optional<Buffer>& it_buffer,
+                             const Buffer& ct_buffer, const CommReducer& reducer,
+                             const PrimExpr& combiner_rhs,
+                             const std::vector<const ForNode*>& reduction_loops) {
+  const BlockNode* block = realize->block.get();
+  Buffer wb_buffer = block->writes[0]->buffer;
+  Array<Range> wb_region = block->writes[0]->region;
+
+  BufferRegion ct_buffer_region(ct_buffer, {Range::FromMinExtent(0, 1)});
+  Optional<BufferRegion> it_buffer_region = NullOpt;
+  if (it_buffer.defined()) {
+    it_buffer_region = BufferRegion(it_buffer.value(), {Range::FromMinExtent(0, 1)});
+  }
+  // In total, the block is transformed into at most 4 statements
+  // - Stmt 1: initialize the buffer for in-thread reduction
+  // - Stmt 2: do in-thread reduction
+  // - Stmt 3: do cross-thread reduction
+  // - Stmt 4: write cross-thread reduction result to the original buffer
+  Array<Stmt> stmts;
+  stmts.reserve(4);
+  // Stmt 1: initialize the buffer for in-thread reduction
+  if (it_buffer.defined()) {
+    BufferStore init = Downcast<BufferStore>(block->init);
+    stmts.push_back(BlockRealize(
+        /*iter_values=*/{},
+        /*predicate=*/const_true(),
+        /*block=*/
+        Block(/*iter_vars=*/{},
+              /*reads=*/{},
+              /*writes=*/{it_buffer_region.value()},
+              /*name_hint=*/block->name_hint + "_in_thread_init",
+              /*body=*/
+              BufferStore(/*buffer=*/it_buffer.value(),
+                          /*value=*/init->value,
+                          /*indices=*/{Integer(0)}))));
+  }
+  // Stmt 2: do in-thread reduction
+  {
+    Optional<BlockRealize> new_realize = NullOpt;
+    // If need to generate in-thread reduction,
+    // then replace `wb_buffer` with `it_buffer` accordingly in given BlockRealize
+    // otherwise, directly remove given BlockRealize
+    if (it_buffer.defined()) {
+      ObjectPtr<BlockNode> new_block = make_object<BlockNode>(*block);
+      new_block->reads = RemoveBufferFromBufferRegions(std::move(new_block->reads), wb_buffer);
+      new_block->reads.push_back(it_buffer_region.value());
+      new_block->writes = {it_buffer_region.value()};
+      new_block->name_hint = new_block->name_hint + "_in_thread";
+      new_block->body =
+          BufferReplacer::Run(wb_buffer, it_buffer.value(), std::move(new_block->body));
+      new_block->init = NullOpt;
+      ObjectPtr<BlockRealizeNode> n = make_object<BlockRealizeNode>(*realize);
+      n->block = Block(new_block);
+      new_realize = BlockRealize(n);
+    }
+    For loop = GetRef<For>(reduction_loops[0]);
+    if (Optional<Stmt> stmt = InThreadReducerMaker::Make(realize, new_realize, std::move(loop))) {
+      stmts.push_back(stmt.value());
+    }
+  }
+  // Stmt 3: do cross-thread reduction
+  {
+    // Step 3.1. Create the parameters to the intrinsic
+    Array<PrimExpr> parameters;
+    parameters.reserve(reduction_loops.size() + 4);
+    // 1-st argument: size
+    parameters.push_back(make_const(DataType::UInt(32), 1));
+    // 2-nd argument: source
+    if (it_buffer.defined()) {
+      parameters.push_back(BufferLoad(it_buffer.value(), {Integer(0)}));
+    } else {
+      parameters.push_back(combiner_rhs);
+    }
+    // 3-rd argument: predicate
+    parameters.push_back(const_true());
+    // 4-th argument: destination
+    parameters.push_back(ct_buffer->data);
+    // next arguments: all the reduction threads
+    for (const ForNode* reduction_loop : reduction_loops) {
+      if (reduction_loop->thread_binding.defined()) {
+        parameters.push_back(reduction_loop->loop_var);
+      }
+    }
+    // Step 3.2. Create the block and the block-realize.
+    Array<IterVar> iter_vars{nullptr};
+    Array<PrimExpr> bindings{nullptr};
+    Array<BufferRegion> reads{nullptr};
+    if (it_buffer.defined()) {
+      iter_vars = Array<IterVar>{};
+      bindings = Array<PrimExpr>{};
+      reads = {it_buffer_region.value()};
+    } else {
+      iter_vars = block->iter_vars;
+      bindings = realize->iter_values;
+      reads = {RemoveBufferFromBufferRegions(block->reads, wb_buffer)};
+    }
+    stmts.push_back(BlockRealize(
+        /*iter_values=*/std::move(bindings),
+        /*predicate=*/const_true(),
+        /*block=*/
+        Block(/*iter_vars=*/std::move(iter_vars),
+              /*reads=*/std::move(reads),
+              /*writes=*/{ct_buffer_region},
+              /*name_hint=*/block->name_hint + "_cross_thread",
+              /*body=*/
+              AttrStmt(/*node=*/reducer,
+                       /*attr_key=*/tir::attr::reduce_scope,
+                       /*value=*/make_zero(DataType::Handle()),
+                       /*body=*/
+                       Evaluate(Call(/*dtype=*/DataType::Handle(),
+                                     /*op=*/tir::builtin::tvm_thread_allreduce(),
+                                     /*args=*/std::move(parameters)))))));
+  }
+  // Stmt 4: write cross-thread reduction result to the original buffer
+  {
+    ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
+    int n_iter = static_cast<int>(block->iter_vars.size());
+    Array<IterVar> iter_vars;
+    Array<PrimExpr> bindings;
+    Map<Var, PrimExpr> var_map;
+    iter_vars.reserve(n_iter);
+    bindings.reserve(n_iter);
+    for (int i = 0; i < n_iter; ++i) {
+      const IterVar& iter_var = block->iter_vars[i];
+      const PrimExpr& binding = realize->iter_values[i];
+      if (iter_var->iter_type != kCommReduce) {
+        IterVar new_iter_var{nullptr};
+        {
+          ObjectPtr<IterVarNode> n = make_object<IterVarNode>(*iter_var.get());
+          ObjectPtr<VarNode> v = make_object<VarNode>(*iter_var->var.get());
+          n->var = Var(v);
+          new_iter_var = IterVar(n);
+        }
+        iter_vars.push_back(new_iter_var);
+        bindings.push_back(binding);
+        var_map.Set(iter_var->var, new_iter_var->var);
+      }
+    }
+    BufferStore update = Downcast<BufferStore>(block->body);
+    update = Downcast<BufferStore>(Substitute(std::move(update), var_map));
+    stmts.push_back(BlockRealize(
+        /*iter_values=*/std::move(bindings),
+        /*predicate=*/const_true(),
+        /*block=*/
+        Block(
+            /*iter_vars=*/std::move(iter_vars),
+            /*reads=*/{std::move(ct_buffer_region)},
+            /*writes=*/{BufferRegion(wb_buffer, Substitute(wb_region, var_map))},
+            /*name_hint=*/block->name_hint + "_write_back",
+            /*body=*/
+            BufferStore(/*buffer=*/wb_buffer,
+                        /*value=*/BufferLoad(ct_buffer, {Integer(0)}),
+                        /*indices=*/update->indices))));
+  }
+  // Final step: Wrap all the above four statements with the reduction loops bound to threadIdx
+  Stmt new_stmt = SeqStmt::Flatten(std::move(stmts));
+  for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
+    const ForNode* loop = *rit;
+    if (loop->thread_binding.defined()) {
+      ObjectPtr<ForNode> n = make_object<ForNode>(*loop);
+      n->body = std::move(new_stmt);
+      new_stmt = For(n);
+    }
+  }
+  return new_stmt;
+}
+
+/*!
  * \brief Detect cross-thread reduction pattern and then transform
  */
 class CrossThreadReductionTransformer : public StmtMutator {
  private:
   // Check if the input block needs cross-thread reduction.
-  bool NeedCrossThreadReduction(const BlockRealizeNode* block_realize) {
+  std::vector<const ForNode*> NeedCrossThreadReduction(const BlockRealizeNode* realize) {
     // Step 0. If the block is the root block, just return.
     if (block_stack_.empty()) {
-      return false;
+      return {};
     }
 
     // Step 1. If the block is not a reduction block, cross-thread reduction is not needed.
-    if (!IsReductionBlock(GetRef<BlockRealize>(block_realize), loop_range_map_,
+    if (!IsReductionBlock(GetRef<BlockRealize>(realize), loop_range_map_,
                           GetRef<Block>(block_stack_.back()), &analyzer_)) {
-      return false;
+      return {};
     }
 
     // Step 2. Collect all the vars that appear in the bindings of reduction block iters.
     std::unordered_set<const VarNode*> reduction_vars;
-    GetVarsTouchedByBlockIters(GetRef<BlockRealize>(block_realize), nullptr, &reduction_vars);
+    GetVarsTouchedByBlockIters(GetRef<BlockRealize>(realize), nullptr, &reduction_vars);
 
     // Step 3. Collect the loops whose loop vars appear in the bindings of reduction block iters.
     // We call these loops "reduction-related".
@@ -246,25 +433,25 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // so, cross-thread reduction is needed. If none of the reduction-related loops is bound to
     // thread axis, cross-thread reduction is not needed for the input block.
     bool need = false;
-    reduction_loops_.clear();
+    std::vector<const ForNode*> reduction_loops;
     for (const ForNode* loop : loop_stack_) {
       if (reduction_vars.count(loop->loop_var.get())) {
         // Step 3. Collect the loop.
-        reduction_loops_.push_back(loop);
+        reduction_loops.push_back(loop);
         // Step 4. See whether the loop is bound to some thread axis.
         if (loop->thread_binding.defined()) {
           need = true;
         }
       }
     }
-
-    return need;
+    return need ? reduction_loops : std::vector<const ForNode*>{};
   }
 
   // Given that the input block needs cross-thread reduction, check if cross-thread reduction can
   // be applied to the block (i.e., the block satisfies all necessary conditions of cross-thread
   // reduction).
-  void CheckCanApplyCrossThreadReduction(const BlockNode* block) {
+  std::tuple<int, CommReducer, PrimExpr> CheckCanApplyCrossThreadReduction(
+      const BlockNode* block, const std::vector<const ForNode*>& reduction_loops) const {
     // Condition 1. The block being applied cross-thread reduction should write to single buffer.
     CHECK_EQ(block->writes.size(), 1)
         << "ValueError: Cross-thread reduction requires the block to only "
@@ -278,14 +465,14 @@ class CrossThreadReductionTransformer : public StmtMutator {
       const StmtNode* stmt = *rit;
       if (stmt->IsInstance<ForNode>()) {
         const ForNode* loop = static_cast<const ForNode*>(stmt);
-        if (std::find(reduction_loops_.begin(), reduction_loops_.end(), loop) ==
-            reduction_loops_.end()) {
+        if (std::find(reduction_loops.begin(), reduction_loops.end(), loop) ==
+            reduction_loops.end()) {
           break;
         }
         ++n_deepest_reduction_loops;
       }
     }
-    CHECK_EQ(n_deepest_reduction_loops, reduction_loops_.size())
+    CHECK_EQ(n_deepest_reduction_loops, reduction_loops.size())
         << "ValueError: Cross-thread reduction requires all the reduction-related loops to be the "
            "deepest among all statements outside the desired block. However, block "
         << block->name_hint
@@ -294,10 +481,10 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
     // Condition 3. All the reduction-related loops that are bound to thread axes should only be
     // bound to `threadIdx.x/y/z`.
-    n_bound_reduction_loops_ = 0;
-    for (const ForNode* reduction_loop : reduction_loops_) {
+    int n_bound_reduction_loops = 0;
+    for (const ForNode* reduction_loop : reduction_loops) {
       if (reduction_loop->thread_binding.defined()) {
-        ++n_bound_reduction_loops_;
+        ++n_bound_reduction_loops;
         CHECK(IsBoundToThreadIdx(reduction_loop))
             << "ValueError: Cross-thread reduction requires all the reduction-related loops that "
                "are bound to GPU thread axes to only be bound `threadIdx.x/y/z`. However, loop "
@@ -311,14 +498,16 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // and the reduction combiner.
     BufferStore init{nullptr};
     BufferStore update{nullptr};
+    CommReducer reducer{nullptr};
     PrimExpr combiner_lhs{nullptr};
+    PrimExpr combiner_rhs{nullptr};
     std::tie(init, update) = GetBufferStoresFromReductionBlock(NullOpt, GetRef<Block>(block));
-    std::tie(this->reducer_, combiner_lhs, this->combiner_rhs_) =
+    std::tie(reducer, combiner_lhs, combiner_rhs) =
         GetReducerAndCombinerLhsRhs(NullOpt, init->value, update);
 
     // Condition 5. The block should be the last block under the first reduction-related loop.
     bool visit = false;
-    PreOrderVisit(GetRef<For>(reduction_loops_[0]), [block, &visit](const ObjectRef& obj) {
+    PreOrderVisit(GetRef<For>(reduction_loops[0]), [block, &visit](const ObjectRef& obj) {
       if (const auto* realize = obj.as<BlockRealizeNode>()) {
         CHECK(!visit) << "ValueError: Cross-thread reduction cannot be applied when the reduction "
                          "block isn't the last block under its first reduction-related loop";
@@ -329,169 +518,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
       }
       return true;
     });
-  }
-
-  void TransformReductionBlock(const BlockRealizeNode* realize, bool with_in_thread_reduction) {
-    const BlockNode* block = realize->block.get();
-    Buffer wb_buffer = block->writes[0]->buffer;
-    Array<Range> wb_region = block->writes[0]->region;
-
-    BufferRegion ct_buffer_region(ct_buffer_, {Range::FromMinExtent(0, 1)});
-    Optional<BufferRegion> it_buffer_region = NullOpt;
-    if (with_in_thread_reduction) {
-      it_buffer_region = BufferRegion(it_buffer_, {Range::FromMinExtent(0, 1)});
-    }
-    // In total, the block is transformed into at most 4 statements
-    // - Stmt 1: initialize the buffer for in-thread reduction
-    // - Stmt 2: do in-thread reduction
-    // - Stmt 3: do cross-thread reduction
-    // - Stmt 4: write cross-thread reduction result to the original buffer
-    Array<Stmt> stmts;
-    stmts.reserve(4);
-    // Stmt 1: initialize the buffer for in-thread reduction
-    if (with_in_thread_reduction) {
-      BufferStore init = Downcast<BufferStore>(block->init);
-      stmts.push_back(BlockRealize(
-          /*iter_values=*/{},
-          /*predicate=*/const_true(),
-          /*block=*/
-          Block(/*iter_vars=*/{},
-                /*reads=*/{},
-                /*writes=*/{it_buffer_region.value()},
-                /*name_hint=*/block->name_hint + "_in_thread_init",
-                /*body=*/
-                BufferStore(/*buffer=*/it_buffer_,
-                            /*value=*/init->value,
-                            /*indices=*/{Integer(0)}))));
-    }
-    // Stmt 2: do in-thread reduction
-    {
-      Optional<BlockRealize> new_realize = NullOpt;
-      // If need to generate in-thread reduction,
-      // then replace `wb_buffer` with `it_buffer` accordingly in given BlockRealize
-      // otherwise, directly remove given BlockRealize
-      if (with_in_thread_reduction) {
-        ObjectPtr<BlockNode> new_block = make_object<BlockNode>(*block);
-        new_block->reads = RemoveBufferFromBufferRegions(std::move(new_block->reads), wb_buffer);
-        new_block->reads.push_back(it_buffer_region.value());
-        new_block->writes = {it_buffer_region.value()};
-        new_block->name_hint = new_block->name_hint + "_in_thread";
-        new_block->body = BufferAccessReplacer(wb_buffer, it_buffer_)(std::move(new_block->body));
-        new_block->init = NullOpt;
-        ObjectPtr<BlockRealizeNode> n = make_object<BlockRealizeNode>(*realize);
-        n->block = Block(new_block);
-        new_realize = BlockRealize(n);
-      }
-      For loop = GetRef<For>(reduction_loops_[0]);
-      if (Optional<Stmt> stmt = InThreadReducerMaker::Make(realize, new_realize, std::move(loop))) {
-        stmts.push_back(stmt.value());
-      }
-    }
-    // Stmt 3: do cross-thread reduction
-    {
-      // Step 3.1. Create the parameters to the intrinsic
-      Array<PrimExpr> parameters;
-      parameters.reserve(reduction_loops_.size() + 4);
-      // 1-st argument: size
-      parameters.push_back(make_const(DataType::UInt(32), 1));
-      // 2-nd argument: source
-      if (with_in_thread_reduction) {
-        parameters.push_back(BufferLoad(it_buffer_, {Integer(0)}));
-      } else {
-        parameters.push_back(combiner_rhs_);
-      }
-      // 3-rd argument: predicate
-      parameters.push_back(const_true());
-      // 4-th argument: destination
-      parameters.push_back(ct_buffer_->data);
-      // next arguments: all the reduction threads
-      for (const ForNode* reduction_loop : reduction_loops_) {
-        if (reduction_loop->thread_binding.defined()) {
-          parameters.push_back(reduction_loop->loop_var);
-        }
-      }
-      // Step 3.2. Create the block and the block-realize.
-      Array<IterVar> iter_vars{nullptr};
-      Array<PrimExpr> bindings{nullptr};
-      Array<BufferRegion> reads{nullptr};
-      if (with_in_thread_reduction) {
-        iter_vars = Array<IterVar>{};
-        bindings = Array<PrimExpr>{};
-        reads = {it_buffer_region.value()};
-      } else {
-        iter_vars = block->iter_vars;
-        bindings = realize->iter_values;
-        reads = {RemoveBufferFromBufferRegions(block->reads, wb_buffer)};
-      }
-      stmts.push_back(BlockRealize(
-          /*iter_values=*/std::move(bindings),
-          /*predicate=*/const_true(),
-          /*block=*/
-          Block(/*iter_vars=*/std::move(iter_vars),
-                /*reads=*/std::move(reads),
-                /*writes=*/{ct_buffer_region},
-                /*name_hint=*/block->name_hint + "_cross_thread",
-                /*body=*/
-                AttrStmt(/*node=*/reducer_,
-                         /*attr_key=*/tir::attr::reduce_scope,
-                         /*value=*/make_zero(DataType::Handle()),
-                         /*body=*/
-                         Evaluate(Call(/*dtype=*/DataType::Handle(),
-                                       /*op=*/tir::builtin::tvm_thread_allreduce(),
-                                       /*args=*/std::move(parameters)))))));
-    }
-    // Stmt 4: write cross-thread reduction result to the original buffer
-    {
-      ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
-      int n_iter = static_cast<int>(block->iter_vars.size());
-      Array<IterVar> iter_vars;
-      Array<PrimExpr> bindings;
-      Map<Var, PrimExpr> var_map;
-      iter_vars.reserve(n_iter);
-      bindings.reserve(n_iter);
-      for (int i = 0; i < n_iter; ++i) {
-        const IterVar& iter_var = block->iter_vars[i];
-        const PrimExpr& binding = realize->iter_values[i];
-        if (iter_var->iter_type != kCommReduce) {
-          IterVar new_iter_var{nullptr};
-          {
-            ObjectPtr<IterVarNode> n = make_object<IterVarNode>(*iter_var.get());
-            ObjectPtr<VarNode> v = make_object<VarNode>(*iter_var->var.get());
-            n->var = Var(v);
-            new_iter_var = IterVar(n);
-          }
-          iter_vars.push_back(new_iter_var);
-          bindings.push_back(binding);
-          var_map.Set(iter_var->var, new_iter_var->var);
-        }
-      }
-      BufferStore update = Downcast<BufferStore>(block->body);
-      update = Downcast<BufferStore>(Substitute(std::move(update), var_map));
-      stmts.push_back(BlockRealize(
-          /*iter_values=*/std::move(bindings),
-          /*predicate=*/const_true(),
-          /*block=*/
-          Block(
-              /*iter_vars=*/std::move(iter_vars),
-              /*reads=*/{std::move(ct_buffer_region)},
-              /*writes=*/{BufferRegion(wb_buffer, Substitute(wb_region, var_map))},
-              /*name_hint=*/block->name_hint + "_write_back",
-              /*body=*/
-              BufferStore(/*buffer=*/wb_buffer,
-                          /*value=*/BufferLoad(ct_buffer_, {0}),
-                          /*indices=*/update->indices))));
-    }
-    // Final step: Wrap all the above four statements with the reduction loops bound to threadIdx
-    Stmt new_stmt = SeqStmt::Flatten(std::move(stmts));
-    for (auto rit = reduction_loops_.rbegin(); rit != reduction_loops_.rend(); ++rit) {
-      const ForNode* loop = *rit;
-      if (loop->thread_binding.defined()) {
-        ObjectPtr<ForNode> n = make_object<ForNode>(*loop);
-        n->body = std::move(new_stmt);
-        new_stmt = For(n);
-      }
-    }
-    loop2new_stmt_[reduction_loops_[0]] = std::move(new_stmt);
+    return {n_bound_reduction_loops, reducer, combiner_rhs};
   }
 
   Stmt VisitStmt(const Stmt& stmt) final {
@@ -539,39 +566,39 @@ class CrossThreadReductionTransformer : public StmtMutator {
     return new_block;
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* block_realize) final {
-    const BlockNode* block = block_realize->block.get();
-
+  Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+    const BlockNode* block = realize->block.get();
     // Step 1. Check whether cross-thread reduction is needed. If no, skip this block.
-    if (!NeedCrossThreadReduction(block_realize)) {
-      return StmtMutator::VisitStmt_(block_realize);
+    std::vector<const ForNode*> reduction_loops = NeedCrossThreadReduction(realize);
+    if (reduction_loops.empty()) {
+      return StmtMutator::VisitStmt_(realize);
     }
     ++reduction_id_;
-
     // Step 2. Check whether cross-thread reduction can be applied. If no, throw an exception on
     // which condition the block violates.
-    CheckCanApplyCrossThreadReduction(block);
-
+    int n_bound_reduction_loops = 0;
+    CommReducer reducer{nullptr};
+    PrimExpr combiner_rhs{nullptr};
+    std::tie(n_bound_reduction_loops, reducer, combiner_rhs) =
+        CheckCanApplyCrossThreadReduction(block, reduction_loops);
     // Step 3. When not all the reduction-related loops are bound to thread axes, in-thread
     // reduction is needed in this cross-thread reduction.
     bool need_in_thread_reduction =
-        n_bound_reduction_loops_ < static_cast<int>(reduction_loops_.size());
-
-    // Step 4. Create intermediate buffers, storing them in `ct_buffer_` and
-    // `it_buffer_`. Let the scope block allocate these new buffers.
+        n_bound_reduction_loops < static_cast<int>(reduction_loops.size());
+    // Step 4. Create intermediate buffers, storing them in `ct_buffer` and
+    // `it_buffer`. Let the scope block allocate these new buffers.
     std::vector<Buffer>& new_buffers = block2new_buffers_[block_stack_.back()];
     DataType dtype = block->writes[0]->buffer->dtype;
-    ct_buffer_ = CreateReductionBuffer("reduce_temp" + std::to_string(reduction_id_), dtype);
-    new_buffers.push_back(ct_buffer_);
+    Buffer ct_buffer = MakeScratchpad("cross_thread_" + std::to_string(reduction_id_), dtype);
+    new_buffers.push_back(ct_buffer);
+    Optional<Buffer> it_buffer = NullOpt;
     if (need_in_thread_reduction) {
-      it_buffer_ =
-          CreateReductionBuffer("normal_reduce_temp" + std::to_string(reduction_id_), dtype);
-      new_buffers.push_back(it_buffer_);
+      it_buffer = MakeScratchpad("in_thread_" + std::to_string(reduction_id_), dtype);
+      new_buffers.push_back(it_buffer.value());
     }
-
     // Step 5. Transform.
-    TransformReductionBlock(block_realize, need_in_thread_reduction);
-
+    loop2new_stmt_[reduction_loops[0]] = TransformReductionBlock(
+        realize, it_buffer, ct_buffer, reducer, combiner_rhs, reduction_loops);
     // Step 6. Return an empty statement, because the transformation result will be inserted when
     // returning to the first reduction-related loop.
     return Stmt{nullptr};
@@ -579,24 +606,12 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
  private:
   int reduction_id_ = -1;
-
   std::vector<const StmtNode*> statement_stack_;
   std::vector<const ForNode*> loop_stack_;
   std::vector<const BlockNode*> block_stack_;
-  Map<Var, Range> loop_range_map_;
-
-  int n_bound_reduction_loops_ = 0;
-  std::vector<const ForNode*> reduction_loops_;
-
-  CommReducer reducer_;
-  PrimExpr combiner_rhs_;
-
-  Buffer ct_buffer_;
-  Buffer it_buffer_;
-
   std::unordered_map<const BlockNode*, std::vector<Buffer>> block2new_buffers_;
   std::unordered_map<const ForNode*, Stmt> loop2new_stmt_;
-
+  Map<Var, Range> loop_range_map_;
   arith::Analyzer analyzer_;
 };
 
