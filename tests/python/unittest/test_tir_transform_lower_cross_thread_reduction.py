@@ -58,7 +58,10 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
     normal_reduce_temp0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
-            normal_reduce_temp0[0] = T.float32(0)
+            with T.block("B_in_thread_init"):
+                T.reads([])
+                T.writes([normal_reduce_temp0[0]])
+                normal_reduce_temp0[0] = T.float32(0)
             for ko in T.serial(0, 4):
                 with T.block("B_normal_reduction"):
                     vi = T.axis.S(128, i)
@@ -217,7 +220,10 @@ def lowered_multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> No
     normal_reduce_temp0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.thread_binding(0, 16, thread="blockIdx.x"):
         for k0o in T.thread_binding(0, 4, thread="threadIdx.x"):
-            normal_reduce_temp0[0] = T.float32(0)
+            with T.block("B_in_thread_init"):
+                T.reads([])
+                T.writes([normal_reduce_temp0[0]])
+                normal_reduce_temp0[0] = T.float32(0)
             for k0i0, k1 in T.grid(4, 16):
                 with T.block("B_rf"):
                     vk0 = T.axis.spatial(16, k0o * 4 + k0i0)
@@ -284,7 +290,10 @@ def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
     normal_reduce_temp0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
-            normal_reduce_temp0[0] = T.float32(0)
+            with T.block("B_in_thread_init"):
+                T.reads([])
+                T.writes([normal_reduce_temp0[0]])
+                normal_reduce_temp0[0] = T.float32(0)
             for ko in T.serial(0, 4):
                 with T.block("B_normal_reduction"):
                     vi = T.axis.spatial(128, i)
@@ -557,7 +566,10 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
     normal_reduce_temp1 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i0 in T.thread_binding(0, 256, thread="blockIdx.x"):
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-            normal_reduce_temp0[0] = T.min_value("float32")
+            with T.block("T_softmax_maxelem_normal_reduction_init"):
+                T.reads([])
+                T.writes([normal_reduce_temp0[0]])
+                normal_reduce_temp0[0] = T.min_value("float32")
             for ax0_0 in T.serial(0, 8):
                 with T.block("T_softmax_maxelem_normal_reduction"):
                     i0_1 = T.axis.spatial(256, i0)
@@ -589,7 +601,10 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                 T.writes([T_softmax_maxelem_shared[i0_2]])
                 T_softmax_maxelem_shared[i0_2] = reduce_temp0[0]
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-            normal_reduce_temp1[0] = T.float32(0)
+            with T.block("T_softmax_expsum_normal_reduction_init"):
+                T.reads([])
+                T.writes([normal_reduce_temp1[0]])
+                normal_reduce_temp1[0] = T.float32(0)
             for ax0_0 in T.serial(0, 8):
                 with T.block("T_softmax_expsum_normal_reduction"):
                     i0_3 = T.axis.spatial(256, i0)
