@@ -42,7 +42,7 @@ def create_conv2d_operator(
     kernel_emitter = EmitConv2dInstance()
 
     element_a, element_b, element_c, element_epilogue = data_type
-    iterator_algorithms = [IteratorAlgorithm.Analytic, IteratorAlgorithm.Optimized]
+    iterator_algorithms = [IteratorAlgorithm.Optimized, IteratorAlgorithm.Analytic]
 
     layout = (LayoutType.TensorNHWC, LayoutType.TensorNHWC, LayoutType.TensorNHWC)
     for tile in tile_descriptions:
@@ -83,10 +83,10 @@ def create_conv2d_operator(
 
                     op_entry[opdef] = kernel_emitter.emit(op)
 
-                op = op_entry["opdef"]
-                op_entry["op"] = op
-                op_entry["name"] = op.procedural_name()
-                op_entry["runtime"] = 9999999
+                    if epilogue == EpilogueFunctor.LinearCombination:
+                        op_entry["op"] = op
+                        op_entry["name"] = op.procedural_name()
+                        op_entry["runtime"] = 9999999
 
                 ret.append(op_entry)
 
@@ -114,9 +114,9 @@ class CutlassConv2DProfiler:
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
-        B, H, W, C = d_shape.shape
-        K, R, S, _ = w_shape.shape
-        _, P, Q, _ = out_shape.shape
+        B, H, W, C = d_shape
+        K, R, S, _ = w_shape
+        _, P, Q, _ = out_shape
 
         M = B * H * W
         K = R * S * C

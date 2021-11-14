@@ -323,11 +323,11 @@ def test_conv2d():
 
     mod = partition_for_cutlass(mod)
 
-    tmp_dir = "."
+    tmp_dir = "tmp"
     sm = 80
 
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
+        mod, sm, profile_all=True, use_multiprocessing=True, tmp_dir=tmp_dir
     )
 
     print(mod)
