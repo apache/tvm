@@ -519,7 +519,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
       }
       return true;
     });
-    return {n_bound_reduction_loops, reducer, combiner_rhs};
+    return std::make_tuple(n_bound_reduction_loops, reducer, combiner_rhs);
   }
 
   Stmt VisitStmt(const Stmt& stmt) final {
