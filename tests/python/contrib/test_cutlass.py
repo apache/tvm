@@ -110,6 +110,14 @@ def get_batch_matmul(batch, M, N, K, out_dtype="float16"):
     return get_batch_matmul_with_shape((batch, M, K), (batch, N, K), out_dtype="float16")
 
 
+def get_conv2d_nchw(d_shape, w_shape):
+    data = relay.var("data", shape=d_shape, dtype="float16")
+    weight = relay.var("weight", shape=w_shape, dtype="float16")
+    out_channel = w_shape[0]
+    return relay.nn.conv2d(
+        data=data, weight=weight, kernel_size=(3, 3), channels=out_channel, padding=(1, 1), out_dtype="float16")
+
+
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
@@ -289,5 +297,54 @@ def test_batch_matmul():
         )
 
 
-if __name__ == "__main__":
-    pytest.main([__file__])
+def test_conv2d():
+    d_shape = (1, 64, 64, 64)
+    w_shape = (64, 64, 3, 3)
+    conv2d_nchw = get_conv2d_nchw(d_shape, w_shape)
+    mod = tvm.IRModule.from_expr(conv2d_nchw)
+
+    np_data = np.random.uniform(-1, 1, d_shape).astype("float16")
+    np_weight = np.random.uniform(-1, 1, w_shape).astype("float16")
+
+    params = {"weight": np_weight}
+
+    with tvm.transform.PassContext(opt_level=3):
+        desired_layouts = {'nn.conv2d': ['NHWC', "OHWI"]}
+        seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
+        mod_weight_ohwi = seq(mod)
+        # print(mod_weight_ohwi)
+
+        desired_layouts = {'nn.conv2d': ['NHWC', "HWIO"]}
+        seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
+        mod_weight_hwio = seq(mod)
+
+        # mod = mod_weight_hwio
+        mod = mod_weight_ohwi
+
+    mod = partition_for_cutlass(mod)
+
+    tmp_dir = "."
+    sm = 80
+
+    mod, num_cutlass_partition = tune_cutlass_kernels(
+        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
+    )
+
+    print(mod)
+
+    # target = "vulkan -from_device=0"
+    # with tvm.transform.PassContext(opt_level=3):
+    #     lib = relay.build(mod, target=target, params=params)
+
+    # dev = tvm.device(target, 0)
+    # rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    # rt_mod.set_input("data", np_data)
+    # rt_mod.run()
+
+    # out = rt_mod.get_output(0).asnumpy()
+
+
+# if __name__ == "__main__":
+#     pytest.main([__file__])
+test_conv2d()

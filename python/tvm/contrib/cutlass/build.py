@@ -65,7 +65,7 @@ def _get_cutlass_compile_options(sm, threads):
     return kwargs
 
 
-class GemmAnnotator(tvm.relay.ExprVisitor):
+class OpAnnotator(tvm.relay.ExprVisitor):
     """Annotates partitioned functions with shape and dtype information."""
 
     def __init__(self):
@@ -125,6 +125,8 @@ def handle_batch_matmul(
     else:
         raise ValueError("%s pattern is not implemented." % op_type)
 
+    assert "tn_align" in out["name"], "Only supports (row_major, col_major) input layout for now."
+
     return {
         "batch": arg0_shape[0],
         "batch_stride_A": arg0_shape[1] * arg0_shape[2],
@@ -132,6 +134,9 @@ def handle_batch_matmul(
         "batch_stride_C": arg0_shape[1] * arg1_shape[1],
         "cutlass_op_def": cutlass_op_def,
         "cutlass_op_name": out["name"],
+        "lda": "K",
+        "ldb": "K",
+        "ldc": "N"
     }
 
 
@@ -158,9 +163,14 @@ def handle_dense(
     else:
         raise ValueError("%s pattern is not implemented." % op_type)
 
+    assert "tn_align" in out["name"], "Only supports (row_major, col_major) input layout for now."
+
     return {
         "cutlass_op_def": cutlass_op_def,
         "cutlass_op_name": out["name"],
+        "lda": "K",
+        "ldb": "K",
+        "ldc": "N"
     }
 
 
@@ -200,7 +210,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
     for var in mod.get_global_vars():
         fun_name = var.name_hint
         func = mod[fun_name]
-        annotator = GemmAnnotator()
+        annotator = OpAnnotator()
         if "cutlass" in fun_name:
             num_cutlass_partition += 1
             annotator.visit(func)
@@ -213,7 +223,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             arg0_shape = new_attrs["arg0_shape"]
             arg1_shape = new_attrs["arg1_shape"]
 
-            if "batch_matmul" in op_type:
+            if "conv2d" in op_type:
+                print(annotator.signature)
+            elif "batch_matmul" in op_type:
                 new_attrs.update(
                     handle_batch_matmul(
                         cutlass_profiler,
@@ -239,13 +251,6 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                 )
             else:
                 raise ValueError("%s unsupported composite" % op_type)
-
-            if new_attrs["cutlass_op_name"].find("_tn_align") > 0:
-                new_attrs["lda"] = "K"
-                new_attrs["ldb"] = "K"
-                new_attrs["ldc"] = "N"
-            else:
-                raise ValueError("%s unsupported operation" % new_attrs["cutlass_op_name"])
 
             new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
             new_func = relay.Function(
