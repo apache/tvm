@@ -56,6 +56,8 @@ endif()
 # Don't run these checks when compiling Hexagon device code,
 # e.g. when compiling the TVM runtime for Hexagon.
 if (NOT BUILD_FOR_HEXAGON)
+  # append select runtime sources for unit testing
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_buffer.cc)
   if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
     set(USE_HEXAGON_DEVICE "${PICK_SIM}")
   else()

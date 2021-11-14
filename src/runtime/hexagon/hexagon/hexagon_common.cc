@@ -57,7 +57,9 @@ void HexagonLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   std::vector<int64_t> shape_vec{template_tensor->shape,
                                  template_tensor->shape + template_tensor->ndim};
 
-  auto* param_buffer = new HexagonBuffer(static_cast<void*>(opaque_handle));
+  Optional<String> scope("global");
+  auto* param_buffer =
+      new HexagonBuffer(static_cast<void*>(opaque_handle), GetDataSize(*template_tensor), scope);
   auto* container = new NDArray::Container(static_cast<void*>(param_buffer), shape_vec,
                                            template_tensor->dtype, dev);
   container->SetDeleter([](Object* container) {

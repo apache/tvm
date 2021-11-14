@@ -26,6 +26,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <memory>
 #include <vector>
 
 namespace tvm {
@@ -36,24 +37,7 @@ struct Allocation;
 
 class HexagonBuffer {
  public:
-  /* \brief Allocate memory within hexagon accessible memory
-   * scopes.
-   *
-   * \param ndim The number of dimensions of physical storage
-   * to allocate.
-   *
-   * \param shape The shape of the ndarray for which to allocate
-   * physical storage.
-   *
-   * \param dtype The data type of the physical storage.
-   *
-   * \param scope Optional storage scope indicating the memory
-   * space in which to allocate. Defaults to global system
-   * memory (DDR).
-   */
-  HexagonBuffer(int ndim, const int64_t* shape, DLDataType dtype, Optional<String> scope);
-
-  /* \brief Allocate memory within hexagon accessible memory
+  /* \brief Allocate memory within Hexagon accessible memory
    * scopes.
    *
    * \param nbytes The number of bytes of flat physical storage
@@ -67,15 +51,35 @@ class HexagonBuffer {
    */
   HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope);
 
+  /* \brief Allocate memory within Hexagon accessible memory
+   * scopes.
+   *
+   * \param ndim The number of dimensions of physical storage
+   * to allocate.
+   *
+   * \param nbytes The number of bytes of flat physical storage
+   * to allocate per dimension of physical storage.
+   *
+   * \param alignment The byte alignment to be used when allocating.
+   *
+   * \param scope Optional storage scope indicating the memory
+   * space in which to allocate. Defaults to global system
+   * memory (DDR).
+   */
+  HexagonBuffer(size_t ndim, size_t nbytes, size_t alignment, Optional<String> scope);
+
   /* \brief Construct a hexagon buffer from externally allocated storage.
    *
    * \param data The externally allocated storage.
    *
+   * \param nbytes The number of bytes of flat physical storage
+   * to allocate.
+   *
    * \param scope Optional storage scope indicating the memory
-   * space in the external allocation belongs. Assumes global system
-   * memory if not provided.
+   * space in which to allocate. Defaults to global system
+   * memory (DDR).
    */
-  explicit HexagonBuffer(void* data, Optional<String> scope = Optional<String>());
+  explicit HexagonBuffer(void* data, size_t nbytes, Optional<String> scope);
 
   //! \brief Destruction deallocates the underlying allocations.
   ~HexagonBuffer();
@@ -86,14 +90,14 @@ class HexagonBuffer {
   //! \brief Prevent copy assignment with HexagonBuffers.
   HexagonBuffer& operator=(const HexagonBuffer&) = delete;
 
-  //! \brief Allow move construction.
-  HexagonBuffer(HexagonBuffer&&);
+  //! \brief Prevent move construction.
+  HexagonBuffer(HexagonBuffer&&) = delete;
 
-  //! \brief Allow move assignment.
-  HexagonBuffer& operator=(HexagonBuffer&&);
+  //! \brief Prevent move assignment.
+  HexagonBuffer& operator=(HexagonBuffer&&) = delete;
 
-  //! \brief Return pointer to allocation or allocations.
-  void* GetPointer();
+  //! \brief Return pointer to allocations.
+  void** GetPointer();
 
   //! \brief Memory scopes managed by a Hexagon Buffer.
   enum class StorageScope {
@@ -107,6 +111,28 @@ class HexagonBuffer {
 
   //! \brief Return storage scope of underlying allocation.
   StorageScope GetStorageScope() const;
+
+  /* \brief Copy data from a Hexagon Buffer an external buffer.
+   *
+   * \param data The externally allocated storage.
+   *
+   * \param nbytes The number of bytes to copy.
+   */
+  void CopyTo(void* data, size_t nbytes);
+
+  /* \brief Copy data from an external buffer to a Hexagon Buffer.
+   *
+   * \param data The externally allocated storage.
+   *
+   * \param nbytes The number of bytes to copy.
+   */
+  void CopyFrom(void* data, size_t nbytes);
+
+  /* \brief Copy data from one Hexagon Buffer to another.
+   *
+   * \param other The other Hexagon Buffer.
+   */
+  void CopyFrom(const HexagonBuffer& other);
 
  private:
   //! \brief Assign a storage scope to the buffer.
@@ -125,10 +151,10 @@ class HexagonBuffer {
   /*! \brief The underlying storage type in which the allocation
    *  resides.
    */
+  size_t ndim_;
+  size_t nbytes_;
   StorageScope storage_scope_;
 };
-
-HexagonBuffer* IsHexagonBuffer(DLTensor* tensor);
 
 }  // namespace hexagon
 }  // namespace runtime
