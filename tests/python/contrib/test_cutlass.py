@@ -328,7 +328,7 @@ def test_conv2d():
     sm = 80
 
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=True, use_multiprocessing=True, tmp_dir=tmp_dir
+        mod, sm, profile_all=False, use_multiprocessing=True, tmp_dir=tmp_dir
     )
 
     print(mod)
@@ -336,7 +336,7 @@ def test_conv2d():
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
 
-    lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path)
+    lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path, threads=1)
 
 
     # target = "vulkan -from_device=0"

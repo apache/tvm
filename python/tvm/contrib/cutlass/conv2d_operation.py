@@ -143,7 +143,7 @@ class EmitConv2dInstance:
     def __init__(self):
         self.template = """
   // Conv2d${conv_kind_name} ${iterator_algorithm_name} kernel instance "${operation_name}"
-  using ${operation_name}_base =
+  using ${operation_name} =
   typename cutlass::conv::kernel::DefaultConv2d${conv_kind_name}<
     ${element_a},
     ${layout_a},
