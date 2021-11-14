@@ -358,6 +358,13 @@ TVM_DLL Pass PointerValueTypeRewrite();
 TVM_DLL Pass HoistIfThenElse();
 
 /*!
+ * \brief Lower cross-thread reduction from thread
+ * bindings to intrinsic function calls.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerCrossThreadReduction();
+
+/*!
  * \brief Lower block init stmt into IfThenElse stmts
  * \return The pass.
  */

@@ -370,69 +370,6 @@ class NotSerialLoopKindError : public ScheduleError {
   For loop_;
 };
 
-class InitBodyNotBufferStoreError : public ScheduleError {
- public:
-  explicit InitBodyNotBufferStoreError(IRModule mod, Block block, bool init_is_bufferstore,
-                                       bool body_is_bufferstore)
-      : mod_(std::move(mod)),
-        block_(std::move(block)),
-        init_is_bufferstore_(init_is_bufferstore),
-        body_is_bufferstore_(body_is_bufferstore) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The `init` and `body` of reduction block are required to be both "
-           "BufferStore";
-  }
-
-  String DetailRenderTemplate() const final {
-    if (!init_is_bufferstore_ && !body_is_bufferstore_) {
-      return "The `init` and `body` of block {0} are required to be BufferStore so that rfactor "
-             "can be applied";
-    } else if (!init_is_bufferstore_) {
-      return "The `init` of block {0} is required to be BufferStore so that rfactor can be applied";
-    } else {
-      ICHECK(!body_is_bufferstore_);
-      return "The `body` of block {0} is required to be BufferStore so that rfactor can be applied";
-    }
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-
-  IRModule mod_;
-  Block block_;
-  bool init_is_bufferstore_;
-  bool body_is_bufferstore_;
-};
-
-class InitBodyNotSameBufferAccessError : public ScheduleError {
- public:
-  explicit InitBodyNotSameBufferAccessError(IRModule mod, Block block)
-      : mod_(std::move(mod)), block_(std::move(block)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The `init` and `body` of the reduction block are required to have the "
-           "same buffer access pattern";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    const auto* init = block_->init.as<BufferStoreNode>();
-    const auto* update = block_->body.as<BufferStoreNode>();
-    os << "The `init` and `body` of the block {0} is required to have the same buffer access "
-          "pattern. However, in block {0} the `init` writes to "
-       << init->buffer->name << init->indices << ", and the `body` writes to "
-       << update->buffer->name << update->indices;
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-
-  IRModule mod_;
-  Block block_;
-};
-
 class FactorAxisOutOfRangeError : public ScheduleError {
  public:
   explicit FactorAxisOutOfRangeError(IRModule mod, Buffer buffer, int factor_axis)
@@ -471,32 +408,6 @@ class FactorAxisOutOfRangeError : public ScheduleError {
   IRModule mod_;
   Buffer buffer_;
   int factor_axis_;
-};
-
-class NoMatchedReducerError : public ScheduleError {
- public:
-  explicit NoMatchedReducerError(IRModule mod, PrimExpr identity, BufferStore combiner)
-      : mod_(std::move(mod)), identity_(std::move(identity)), combiner_(std::move(combiner)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: No matched reducer for the identity and the combiner of this reduction "
-           "block. So rfactor cannot be applied.";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    os << "No matched reducer for identity " << identity_ << " and combiner " << combiner_
-       << "In this case rfactor cannot be applied. You can check tvm::tir::ReducerRegistry for "
-          "default reducers or registering new reducers.";
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
-
-  IRModule mod_;
-  PrimExpr identity_;
-  BufferStore combiner_;
 };
 
 class LoopPropertyError : public ScheduleError {
@@ -590,53 +501,6 @@ class LoopPropertyError : public ScheduleError {
   For loop_;
   ErrorType error_type_;
 };
-
-/*!
- * \brief Convert the `init` and `body` of the input block to BufferStores
- * \param self The schedule state
- * \param block The block to be analyzed
- * \return The BufferStores of the `init` and `body` of the input block
- * \throw ScheduleError If the `init` or `body` is not BufferStore, or they don't write to the same
- * buffer
- */
-std::pair<BufferStore, BufferStore> GetBufferStoreNodes(const ScheduleState& self,
-                                                        const Block& block) {
-  const auto* init = block->init.as<BufferStoreNode>();
-  const auto* body = block->body.as<BufferStoreNode>();
-  if (!(init && body)) {
-    throw InitBodyNotBufferStoreError(self->mod, block, init != nullptr, body != nullptr);
-  }
-  if (!init->buffer.same_as(body->buffer)) {
-    throw InitBodyNotSameBufferAccessError(self->mod, block);
-  }
-  int ndim = static_cast<int>(init->buffer->shape.size());
-  for (int i = 0; i < ndim; ++i) {
-    if (!ExprDeepEqual()(init->indices[i], body->indices[i])) {
-      throw InitBodyNotSameBufferAccessError(self->mod, block);
-    }
-  }
-  return std::make_pair(GetRef<BufferStore>(init), GetRef<BufferStore>(body));
-}
-
-/*!
- * \brief Given a reduction identity and a reduction combiner, detect the corresponding commutative
- * reducer, and extract the combiner lhs and combiner rhs
- * \param self The schedule state
- * \param identity The reduction identity to be analyzed
- * \param combiner The reduction combiner to be analyzed
- * \return The corresponding CommReducer, the combiner lhs and the combiner rhs
- * \throw ScheduleError If no corresponding commutative reducer can be matched
- */
-std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
-    const ScheduleState& self, const PrimExpr& identity, const BufferStore& combiner) {
-  CommReducer reducer{nullptr};
-  PrimExpr combiner_lhs{nullptr}, combiner_rhs{nullptr};
-  bool matched = FromIdentityCombiner(identity, combiner, &reducer, &combiner_lhs, &combiner_rhs);
-  if (!matched) {
-    throw NoMatchedReducerError(self->mod, identity, combiner);
-  }
-  return std::make_tuple(std::move(reducer), std::move(combiner_lhs), std::move(combiner_rhs));
-}
 
 /*!
  * \brief For each loop in the given array of loop, associate its loop var with the loop itself
@@ -1177,7 +1041,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   BufferStore update;
   CommReducer reducer;
   PrimExpr combiner_lhs, combiner_rhs;
-  std::tie(init, update) = GetBufferStoreNodes(self, block);
+  std::tie(init, update) = GetBufferStoresFromReductionBlock(self, block);
   std::tie(reducer, combiner_lhs, combiner_rhs) =
       GetReducerAndCombinerLhsRhs(self, init->value, update);
 
