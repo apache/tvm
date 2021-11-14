@@ -269,7 +269,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             arg1_shape = new_attrs["arg1_shape"]
 
             if "conv2d" in op_type:
-                print(annotator.signature)
+                new_attrs["padding"] = annotator.op_attrs.padding
+                new_attrs["strides"] = annotator.op_attrs.strides
+                new_attrs["dilation"] = annotator.op_attrs.dilation
                 new_attrs.update(
                     handle_conv2d(
                         conv2d_profiler,
