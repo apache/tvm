@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name
 """Conv2d kernel generator and profiler for CUTLASS."""
 from .conv2d_operation import Conv2dOperation, EmitConv2dInstance
-from .conv2d_profiler import Conv2dProfilerEmitter
 from .gen_gemm import CutlassGemmProfiler
 from .library import (
     EpilogueFunctor,
@@ -40,7 +39,6 @@ def create_conv2d_operator(
     """Exhaustively instantiate all kernels from a given configuration."""
     ret = []
 
-    profiler_emitter = Conv2dProfilerEmitter()
     kernel_emitter = EmitConv2dInstance()
 
     element_a, element_b, element_c, element_epilogue = data_type
@@ -88,32 +86,11 @@ def create_conv2d_operator(
                 op = op_entry["opdef"]
                 op_entry["op"] = op
                 op_entry["name"] = op.procedural_name()
-                op_entry["src"] = profiler_emitter.emit(
-                    op.procedural_name(),
-                    op,
-                    DataTypeTag[element_a],
-                    DataTypeTag[element_b],
-                    DataTypeTag[element_c],
-                    op.leading_dim(),
-                )
                 op_entry["runtime"] = 9999999
 
                 ret.append(op_entry)
 
     return ret
-
-
-# TODO(masahi): A sensible way to pick reasonable default kernels
-DEFAULT_KERNELS = {
-    75: {
-        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align4",
-        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align4",
-    },
-    80: {
-        "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
-        "float32": "cutlass_tensorop_s16816gemm_f16_128x128_32x3_tn_align4",
-    },
-}
 
 
 class CutlassConv2DProfiler:
