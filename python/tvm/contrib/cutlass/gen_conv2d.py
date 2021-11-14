@@ -100,6 +100,13 @@ class CutlassConv2DProfiler:
         self.gemm_profiler = CutlassGemmProfiler(sm, cutlass_path, binary_path)
         self.sm = sm
 
+    def get_default(out_dtype):
+        gemm_profile_result = self.gemm_profiler.get_default(out_dtype)
+        tile_description = gemm_profile_result["tile_description"]
+        alignment = gemm_profile_result["alignment"]
+        data_type = gemm_profile_result["data_type"]
+        return create_conv2d_operator([tile_description], data_type, [alignment])[0]
+
     def profile(
         self, d_shape, w_shape, out_shape, out_dtype, profile_all=True, use_multiprocessing=False
     ):

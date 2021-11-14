@@ -190,23 +190,22 @@ def handle_conv2d(
     use_multiprocessing,
 ):
     """Profile and select a kernel fo conv2d  op workload."""
-    # if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
-    #     out = cutlass_profiler.get_default(out_dtype, batched=batched)
-    #     logger.info("Picked the default kernel %s", out["name"])
-    # else:
-
-    out = cutlass_profiler.profile(
-        d_shape,
-        w_shape,
-        out_shape,
-        out_dtype,
-        profile_all=profile_all,
-        use_multiprocessing=use_multiprocessing,
-    )
-    if profile_all:
-        logger.info("The best kernel is %s", out["name"])
+    if any(isinstance(s, tvm.tir.Any) for s in d_shape):
+        out = cutlass_profiler.get_default(out_dtype)
+        logger.info("Picked the default kernel %s", out["name"])
     else:
-        logger.info("Picked the first kernel found %s", out["name"])
+        out = cutlass_profiler.profile(
+            d_shape,
+            w_shape,
+            out_shape,
+            out_dtype,
+            profile_all=profile_all,
+            use_multiprocessing=use_multiprocessing,
+        )
+        if profile_all:
+            logger.info("The best kernel is %s", out["name"])
+        else:
+            logger.info("Picked the first kernel found %s", out["name"])
 
     if op_type == "cutlass.conv2d":
         cutlass_op_def = out["opdef"]
@@ -277,7 +276,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         op_type,
                         arg0_shape,
                         arg1_shape,
-                        annotator.ret_shape,
+                        annotator.signature["ret_shape"],
                         out_dtype,
                         profile_all,
                         use_multiprocessing,
