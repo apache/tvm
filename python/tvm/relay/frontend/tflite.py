@@ -1174,8 +1174,6 @@ class OperatorConverter(object):
 
     def convert_sin(self, op):
         """Convert TFLite SIN"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized SIN operator is not supported yet.")
         return self._convert_unary_elemwise(_op.sin, op)
 
     def convert_tan(self, op):
