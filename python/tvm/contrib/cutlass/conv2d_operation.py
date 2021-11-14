@@ -20,7 +20,7 @@ import enum
 import os.path
 import shutil
 
-from library import *
+from .library import *
 
 ###################################################################################################
 

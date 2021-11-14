@@ -23,6 +23,7 @@ import tvm
 from tvm import runtime, relay
 from tvm.contrib.nvcc import find_cuda_path, get_cuda_version
 from .gen_gemm import CutlassGemmProfiler
+from .gen_conv2d import CutlassConv2DProfiler
 
 logger = logging.getLogger("cutlass")
 
@@ -81,6 +82,10 @@ class OpAnnotator(tvm.relay.ExprVisitor):
                 self.signature["arg%d_dtype" % i] = arg.checked_type.dtype
             self.signature["ret_shape"] = op.ret_type.shape
             self.signature["ret_dtype"] = op.ret_type.dtype
+            self.visit(op.body)
+
+        if str(op) == "nn.conv2d":
+            self.op_attrs = call.attrs
 
 
 def select_gemm_kernel(
@@ -136,7 +141,7 @@ def handle_batch_matmul(
         "cutlass_op_name": out["name"],
         "lda": "K",
         "ldb": "K",
-        "ldc": "N"
+        "ldc": "N",
     }
 
 
@@ -170,7 +175,47 @@ def handle_dense(
         "cutlass_op_name": out["name"],
         "lda": "K",
         "ldb": "K",
-        "ldc": "N"
+        "ldc": "N",
+    }
+
+
+def handle_conv2d(
+    cutlass_profiler,
+    op_type,
+    d_shape,
+    w_shape,
+    out_shape,
+    out_dtype,
+    profile_all,
+    use_multiprocessing,
+):
+    """Profile and select a kernel fo conv2d  op workload."""
+    # if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
+    #     out = cutlass_profiler.get_default(out_dtype, batched=batched)
+    #     logger.info("Picked the default kernel %s", out["name"])
+    # else:
+
+    out = cutlass_profiler.profile(
+        d_shape,
+        w_shape,
+        out_shape,
+        out_dtype,
+        profile_all=profile_all,
+        use_multiprocessing=use_multiprocessing,
+    )
+    if profile_all:
+        logger.info("The best kernel is %s", out["name"])
+    else:
+        logger.info("Picked the first kernel found %s", out["name"])
+
+    if op_type == "cutlass.conv2d":
+        cutlass_op_def = out["opdef"]
+    else:
+        raise ValueError("%s pattern is not implemented." % op_type)
+
+    return {
+        "cutlass_op_def": cutlass_op_def,
+        "cutlass_op_name": out["name"],
     }
 
 
@@ -205,7 +250,8 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
     num_cutlass_partition : int
         The number of partitioned functions created for CUTLASS.
     """
-    cutlass_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
+    gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
+    conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
     num_cutlass_partition = 0
     for var in mod.get_global_vars():
         fun_name = var.name_hint
@@ -225,10 +271,22 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
 
             if "conv2d" in op_type:
                 print(annotator.signature)
+                new_attrs.update(
+                    handle_conv2d(
+                        conv2d_profiler,
+                        op_type,
+                        arg0_shape,
+                        arg1_shape,
+                        annotator.ret_shape,
+                        out_dtype,
+                        profile_all,
+                        use_multiprocessing,
+                    )
+                )
             elif "batch_matmul" in op_type:
                 new_attrs.update(
                     handle_batch_matmul(
-                        cutlass_profiler,
+                        gemm_profiler,
                         op_type,
                         arg0_shape,
                         arg1_shape,
@@ -240,7 +298,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             elif "dense" in op_type:
                 new_attrs.update(
                     handle_dense(
-                        cutlass_profiler,
+                        gemm_profiler,
                         op_type,
                         arg0_shape,
                         arg1_shape,
