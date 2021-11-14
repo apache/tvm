@@ -463,14 +463,15 @@ class CrossThreadReductionTransformer : public StmtMutator {
     int n_deepest_reduction_loops = 0;
     for (auto rit = statement_stack_.rbegin() + 1; rit != statement_stack_.rend(); ++rit) {
       const StmtNode* stmt = *rit;
-      if (stmt->IsInstance<ForNode>()) {
-        const ForNode* loop = static_cast<const ForNode*>(stmt);
-        if (std::find(reduction_loops.begin(), reduction_loops.end(), loop) ==
-            reduction_loops.end()) {
-          break;
-        }
-        ++n_deepest_reduction_loops;
+      if ((*rit)->IsInstance<SeqStmtNode>()) {
+        // Skip SeqStmt.
+        continue;
       }
+      if (std::find(reduction_loops.begin(), reduction_loops.end(),
+                    reinterpret_cast<const ForNode*>(stmt)) == reduction_loops.end()) {
+        break;
+      }
+      ++n_deepest_reduction_loops;
     }
     CHECK_EQ(n_deepest_reduction_loops, reduction_loops.size())
         << "ValueError: Cross-thread reduction requires all the reduction-related loops to be the "
