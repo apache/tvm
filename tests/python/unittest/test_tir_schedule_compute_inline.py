@@ -272,6 +272,63 @@ def elementwise_multi_loads_inlined(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * 2.0 + A[vi, vj + 1] * 2.0 + A[vi, vj + 2] * 2.0
 
 
+@T.prim_func
+def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [1024])
+    B = T.match_buffer(b, [1024])
+    A_cache = T.alloc_buffer([1024])
+    BB = T.alloc_buffer([1024])
+    with T.block("opaque"):
+        # annotated opaque partial access
+        T.reads(A[0:512])
+        T.writes(A_cache[0:512])
+        T.evaluate(
+            T.tvm_access_ptr(
+                T.type_annotation(dtype="float32"), A.data, 0, 512, "r", dtype="handle"
+            )
+        )
+        T.evaluate(
+            T.tvm_access_ptr(
+                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, "w", dtype="handle"
+            )
+        )
+    for i in range(512):
+        with T.block("BB"):
+            vi = T.axis.remap("S", [i])
+            BB[vi] = A_cache[vi] * 2.0
+    for i in range(512):
+        with T.block("B"):
+            vi = T.axis.remap("S", [i])
+            B[vi] = BB[vi] + 1.0
+
+
+@T.prim_func
+def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [1024], dtype="float32")
+    B = T.match_buffer(b, [1024], dtype="float32")
+    A_cache = T.alloc_buffer([1024], dtype="float32")
+    with T.block("opaque"):
+        # annotated opaque partial access should be kept
+        T.reads(A[0:512])
+        T.writes([A_cache[0:512]])
+        T.evaluate(
+            T.tvm_access_ptr(
+                T.type_annotation(dtype="float32"), A.data, 0, 512, "r", dtype="handle"
+            )
+        )
+        T.evaluate(
+            T.tvm_access_ptr(
+                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, "w", dtype="handle"
+            )
+        )
+    for i in T.serial(0, 512):
+        with T.block("B"):
+            vi = T.axis.spatial(512, i)
+            T.reads([A_cache[vi]])
+            T.writes([B[vi]])
+            B[vi] = A_cache[vi] * 2.0 + 1.0
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -415,6 +472,14 @@ def test_compute_inline_multi_loads():
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_multi_loads_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_loads)
+
+
+def test_compute_inline_with_opaque_access():
+    """Test not rewrite opaque reads/writes after irrelavant compute inline"""
+    sch = tir.Schedule(access_opaque_ptr_then_elemwise, debug_mask="all")
+    BB = sch.get_block("BB")
+    sch.compute_inline(BB)
+    tvm.ir.assert_structural_equal(access_opaque_ptr_then_elemwise_inline, sch.mod["main"])
 
 
 if __name__ == "__main__":
