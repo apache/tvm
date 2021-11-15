@@ -2643,7 +2643,7 @@ class Resize(OnnxOpConverter):
 
         if size is not None:
             scale_shape = scale_type.checked_type.shape
-            is_empty = scale is None or len(scale_shape) == 0 or scale_shape[0] == 0
+            is_empty = scale is None or not scale_shape or scale_shape[0] == 0
             assert is_empty, "One of scale or size should be passed, not both."
         else:
             scale_type = infer_type(scale)
