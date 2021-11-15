@@ -190,7 +190,7 @@ struct ConstantUpdater : public ExprVisitor {
  * \param func The function from which to get the constant params.
  * \param params The params to update with the constants.
  */
-inline void UpdateConstants(Function func,
+inline void UpdateConstants(BaseFunc func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
   VLOG_CONTEXT << "UpdateConstants";
   VLOG(1) << "updating constants for:" << std::endl << PrettyPrint(func);

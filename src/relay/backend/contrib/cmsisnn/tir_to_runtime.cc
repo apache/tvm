@@ -228,8 +228,6 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
     auto prim_func = Downcast<PrimFunc>(kv.second);
     auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     function_names.push_back(global_symbol.value());
-    LOG(INFO) << "------------------------";
-    LOG(INFO) << PrettyPrint(prim_func);
     codegen.AddFunction(prim_func);
   }
   std::string code = codegen.Finish();

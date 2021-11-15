@@ -38,7 +38,9 @@ namespace cmsisnn {
 class RelayToTIRVisitor : public MixedModeMutator {
  public:
   explicit RelayToTIRVisitor(IRModule ir_module, Target target)
-      : ir_module_(ir_module), target_(target) { context_buffer_id_ = 0; }
+      : ir_module_(ir_module), target_(target) {
+    context_buffer_id_ = 0;
+  }
 
   IRModule Mutate() {
     GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
@@ -71,8 +73,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
         tvm::tir::Call(DataType::Int(8), tir::builtin::call_extern(), call_extern_args));
 
     if (context_buffer_size) {
-      tir::Var buffer_var(
-          context_buffer_name, PointerType(PrimType(DataType::Int(8)), "global.workspace"));
+      tir::Var buffer_var(context_buffer_name,
+                          PointerType(PrimType(DataType::Int(8)), "global.workspace"));
       body = tir::Allocate(buffer_var, DataType::Int(8), {context_buffer_size}, tir::const_true(),
                            body);
       body =
@@ -82,8 +84,6 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     tir::PrimFunc replacement_func(func_signature, body, VoidType(), Map<tir::Var, tir::Buffer>(),
                                    DictAttrs(dict_attrs));
-
-    LOG(INFO) << PrettyPrint(replacement_func);
 
     ir_module_->Add(global_var, replacement_func);
   }
@@ -95,8 +95,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
                            ToArg(qnn::get_const_int(shape[3]))};
   }
 
-void EmitConv2D(const GlobalVar& global_var, const Expr& expr) {
-
+  void EmitConv2D(const GlobalVar& global_var, const Expr& expr) {
     const CallNode* clip_call = nullptr;
     const CallNode* requantize_call = nullptr;
     const CallNode* bias_add_call = nullptr;
@@ -194,7 +193,8 @@ void EmitConv2D(const GlobalVar& global_var, const Expr& expr) {
     if (context_buffer_size) {
       context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
     }
-    tvm::Array<PrimExpr> context_buffer_args = { tir::StringImm(context_buffer_name), ToArg(context_buffer_size) };
+    tvm::Array<PrimExpr> context_buffer_args = {tir::StringImm(context_buffer_name),
+                                                ToArg(context_buffer_size)};
 
     scalar_args = tvm::runtime::Concat(context_buffer_args, scalar_args);
     scalar_args = tvm::runtime::Concat(scalar_args, input_dims);
@@ -211,8 +211,8 @@ void EmitConv2D(const GlobalVar& global_var, const Expr& expr) {
     func_signature.push_back(shift);
     func_signature.push_back(output);
 
-    CreatePrimFuncForExtern(global_var, func_signature, call_ext_args,
-                            context_buffer_name, context_buffer_size);
+    CreatePrimFuncForExtern(global_var, func_signature, call_ext_args, context_buffer_name,
+                            context_buffer_size);
   }
 
   void EmitSoftMax(const GlobalVar& global_var, const Expr& expr) {

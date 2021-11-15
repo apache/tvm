@@ -63,7 +63,7 @@ namespace tec {
 using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
 using DeviceMap =
     std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
-using ProcessFn = std::function<void(Function)>;
+using ProcessFn = std::function<void(BaseFunc)>;
 
 /*!
  * \brief A compiler which lowers primitive Relay functions to tensor expressions
@@ -140,10 +140,10 @@ class TECompiler : public ObjectRef {
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
- * \param relay_func The function to calculate function metadata for
+ * \param func The function to calculate function metadata for
  * \param function_metadata The map that stores all the function metadatas
  */
-void UpdateFunctionMetadata(Function relay_func,
+void UpdateFunctionMetadata(BaseFunc func,
                             Map<String, backend::FunctionInfo>& function_metadata);  // NOLINT(*)
 
 /*!
@@ -188,7 +188,7 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod);
  */
 IRModule LowerTE(
     const IRModule& module, backend::StaticMemoryPlan memory_plan, const String& module_name,
-    ProcessFn process_fn = [](Function f) {});
+    ProcessFn process_fn = [](BaseFunc f) {});
 
 /*! \brief Pass to lower an IRModule's primitive functions to TIR.
  *
@@ -201,7 +201,7 @@ IRModule LowerTE(
  * each function that we lower
  * \returns The pass which lowers primitive functions to TIR
  */
-transform::Pass LowerTEPass(const String& module_name, std::function<void(Function)> process_fn);
+transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm
