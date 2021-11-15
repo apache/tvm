@@ -17,6 +17,7 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
 import tvm._ffi
+from tvm.ir.instrument import pass_instrument
 
 # pylint: disable=unused-argument, import-outside-toplevel
 def _debugger_init(expr, stack):
@@ -42,3 +43,50 @@ def _debug_interp(*args):
     print("--------------")
     print("--------------")
     _debugger_init(ist.current_expr, ist.stack)
+
+@pass_instrument
+class PassBisection:
+    """Tool to bisect passes.
+
+    with tvm.transform.PassContext(instruments=[PassBisection(limit=N)]):
+        ...
+
+    Parameters
+    ----------
+    limit : int
+        Pass after which passes are skipped.
+    """
+
+    def __init__(self, limit=0):
+        assert limit >= 0, "Please specify a bisection limit greater than 0"
+        self._limit = limit
+        self._pass_cnt = 0
+        self._total_cnt = 0
+        self._done = False
+        self._nested = 0
+
+    def run_before_pass(self, mod, info):
+        self._nested += 1
+
+    def should_run(self, mod, info):
+        self._total_cnt += 1
+
+        if self._limit > 0 and self._pass_cnt >= self._limit:
+            self._done = True
+        self._pass_cnt += 1
+
+        # Passes required for legality
+        if info.run_always:
+            print("{}{} {} (required)".format(self._total_cnt, " "*self._nested, info.name))
+            return True
+
+        # Skip once we're passed the limit
+        if self._done:
+            print("{}{} {} (skipped)".format(self._total_cnt, " "*self._nested, info.name))
+            return False
+        
+        print("{}{} {}".format(self._total_cnt, " "*self._nested, info.name))
+        return True
+
+    def run_after_pass(self, mod, info):
+        self._nested -= 1

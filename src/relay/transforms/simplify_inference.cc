@@ -248,7 +248,7 @@ Pass SimplifyInference() {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(SimplifyInference(f));
       };
-  return CreateFunctionPass(pass_func, 0, "SimplifyInference", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "SimplifyInference", {"InferType"}, true);
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.SimplifyInference").set_body_typed(SimplifyInference);

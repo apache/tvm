@@ -115,8 +115,8 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 
 Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required) {
-  PassInfo pass_info = PassInfo(opt_level, name, required);
+    int opt_level, String name, tvm::Array<String> required, bool run_always) {
+  PassInfo pass_info = PassInfo(opt_level, name, required, run_always);
   return PrimFuncPass(pass_func, pass_info);
 }
 

@@ -323,7 +323,7 @@ Pass MakePackedAPI(int num_unpacked_args) {
     return m;
   };
 
-  return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakePackedAPI", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakePackedAPI", {}, true);
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.MakePackedAPI").set_body_typed(MakePackedAPI);

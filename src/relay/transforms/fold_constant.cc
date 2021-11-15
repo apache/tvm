@@ -424,7 +424,7 @@ Pass FoldConstant() {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(FoldConstantExpr(f, m));
       };
-  return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
+  return CreateFunctionPass(pass_func, 2, "FoldConstant", {}, true);
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FoldConstant").set_body_typed(FoldConstant);

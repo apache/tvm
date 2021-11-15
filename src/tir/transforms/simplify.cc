@@ -108,7 +108,7 @@ Pass Simplify() {
     n->body = arith::StmtSimplifier(&analyzer).Simplify(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.Simplify", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.Simplify", {}, true);
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.Simplify").set_body_typed(Simplify);

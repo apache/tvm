@@ -827,7 +827,7 @@ void AddGlobalTypes(IRModule mod) {
 namespace transform {
 
 Pass InferType() {
-  auto pass_info = PassInfo(0, "InferType", {});
+  auto pass_info = PassInfo(0, "InferType", {}, true);
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
         // Execute the pass function and return a new module.
@@ -883,7 +883,7 @@ Pass InferType() {
 
         return updated_mod;
       },
-      0, "InferType", {});
+      0, "InferType", {}, true);
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.InferType").set_body_typed([]() { return InferType(); });

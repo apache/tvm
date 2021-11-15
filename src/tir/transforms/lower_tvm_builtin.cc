@@ -444,7 +444,7 @@ Pass LowerTVMBuiltin() {
     n->body = BuiltinLower().Build(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {}, true);
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.LowerTVMBuiltin").set_body_typed(LowerTVMBuiltin);

@@ -588,7 +588,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.VectorizeLoop", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.VectorizeLoop", {}, true);
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.VectorizeLoop").set_body_typed(VectorizeLoop);

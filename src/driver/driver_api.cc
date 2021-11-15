@@ -165,7 +165,7 @@ transform::Pass BindTarget(Target target) {
   auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tvm::attr::kTarget, target);
   };
-  return tir::transform::CreatePrimFuncPass(fpass, 0, "BindTarget", {});
+  return tir::transform::CreatePrimFuncPass(fpass, 0, "BindTarget", {}, true);
 }
 
 static transform::Pass AnnotateEntryFunc(bool b) {
@@ -184,7 +184,7 @@ transform::Pass Filter(FCond fcond) {
       return tir::PrimFunc(nullptr);
     }
   };
-  return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
+  return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {}, true);
 }
 
 Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {

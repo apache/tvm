@@ -814,7 +814,7 @@ Pass LowerTensorExpr(const String& module_name, TECompiler compiler, ProcessFn p
         LowerTensorExprMutator lower_te(module, process_fn, module_name, compiler, host_se_scope);
         return Downcast<Function>(lower_te.Mutate(func));
       };
-  return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
+  return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {}, true);
 }
 
 backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
@@ -1169,7 +1169,8 @@ Pass LowerTEPass(const String& module_name, ProcessFn process_fn, SEScope host_s
 
   return tvm::transform::Sequential(
       {tvm::relay::transform::RelayToTIRTargetHook(),
-       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType()});
+       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}, true),
+       InferType()});
 }
 }  // namespace tec
 }  // namespace relay

@@ -70,7 +70,7 @@ class BufferShapeLegalize : public StmtExprMutator {
       fptr->body = BufferShapeLegalize(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
       return func;
     };
-    return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferShapeLegalize", {});
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferShapeLegalize", {}, true);
   }
 
   explicit BufferShapeLegalize(const Map<Var, Buffer>& extern_buffer_map,
@@ -406,7 +406,7 @@ class BufferStrideLegalize : public StmtExprMutator {
       fptr->body = BufferStrideLegalize(fptr->buffer_map, &bound_analyzer)(std::move(fptr->body));
       return func;
     };
-    return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferStrideLegalize", {});
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.BufferStrideLegalize", {}, true);
   }
 
   explicit BufferStrideLegalize(const Map<Var, Buffer>& extern_buffer_map,
@@ -1089,7 +1089,7 @@ class StorageFlattener : public StmtExprMutator {
                                     &bound_analyzer)(std::move(fptr->body));
       return func;
     };
-    return transform::CreatePrimFuncPass(pass_func, 0, "tir.StorageFlattener", {});
+    return transform::CreatePrimFuncPass(pass_func, 0, "tir.StorageFlattener", {}, true);
   }
 
   explicit StorageFlattener(const Map<Var, Buffer>& extern_buffer_map, int cache_line_size,
@@ -1515,7 +1515,7 @@ Pass StorageFlatten(int cache_line_size, bool create_bound_attributes) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return StorageFlatten(std::move(f), cache_line_size, create_bound_attributes);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.StorageFlatten", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.StorageFlatten", {}, true);
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.StorageFlatten").set_body_typed(StorageFlatten);

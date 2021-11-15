@@ -1030,7 +1030,7 @@ Pass FuseOps(int fuse_opt_level) {
         auto max_fuse_depth = pc->GetConfig("relay.FuseOps.max_depth", Integer(kMaxFusedOps));
         return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));
       };
-  return CreateFunctionPass(pass_func, 0, "FuseOps", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "FuseOps", {"InferType"}, true);
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FuseOps").set_body_typed(FuseOps);

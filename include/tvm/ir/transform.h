@@ -291,12 +291,16 @@ class PassInfoNode : public Object {
   /*! \brief The passes that are required to perform the current pass. */
   Array<String> required;
 
+  /*! \brief If this pass is required for legality purposes at compile time. */
+  bool run_always;
+
   PassInfoNode() = default;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("name", &name);
     v->Visit("required", &required);
+    v->Visit("run_always", &run_always);
   }
 
   static constexpr const char* _type_key = "transform.PassInfo";
@@ -316,7 +320,7 @@ class PassInfo : public ObjectRef {
    * \param name Name of the pass.
    * \param required  The passes that are required to perform the current pass.
    */
-  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required);
+  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required, bool run_always = false);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -433,7 +437,7 @@ class Sequential : public Pass {
  */
 TVM_DLL Pass
 CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                 int opt_level, String name, Array<runtime::String> required);
+                 int opt_level, String name, Array<runtime::String> required, bool run_always = false);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).

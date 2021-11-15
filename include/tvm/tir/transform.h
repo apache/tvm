@@ -49,12 +49,13 @@ using tvm::transform::Sequential;
  * \param opt_level The optimization level of the function pass.
  * \param name The name of the function pass.
  * \param required The list of the passes that the function pass is dependent on.
+ * \param run_always If this pass is required for legality purposes at compile time.
  *
  * \return The created function pass.
  */
 TVM_DLL Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
+    int opt_level, String name, tvm::Array<String> required, bool run_always = false);
 
 /*!
  * \brief Inject prefetch instructions into stmt.
