@@ -269,16 +269,8 @@ class BF16LowerRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    // NOTE: we do not explicit recursivly mutate op->buffer_var
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<StoreNode>();
-
-    auto it = var_remap_.find(op->buffer_var);
-    if (it != var_remap_.end()) {
-      return Store(it->second, op->value, op->index, op->predicate);
-    } else {
-      return ret;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -294,16 +286,8 @@ class BF16LowerRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr ret = StmtExprMutator::VisitExpr_(op);
-    op = ret.as<LoadNode>();
-
-    if (op->dtype.is_bfloat16()) {
-      auto it = var_remap_.find(op->buffer_var);
-      ICHECK(it != var_remap_.end()) << "bfloat* var needs to be remapped";
-      return Load(DataType::UInt(16, op->dtype.lanes()), it->second, op->index, op->predicate);
-    } else {
-      return ret;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
   PrimExpr VisitExpr_(const FloatImmNode* op) final {

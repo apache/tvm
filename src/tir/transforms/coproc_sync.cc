@@ -39,18 +39,24 @@ namespace tir {
 class CoProcTouchedBuffer : public StmtExprVisitor {
  public:
   void VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+  }
+  void VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+  void VisitExpr_(const BufferLoadNode* op) final {
     if (in_scope_) {
-      touched_[op->buffer_var.get()].coproc = true;
+      touched_[op->buffer->data.get()].coproc = true;
     } else {
-      touched_[op->buffer_var.get()].normal = true;
+      touched_[op->buffer->data.get()].normal = true;
     }
     StmtExprVisitor::VisitExpr_(op);
   }
-  void VisitStmt_(const StoreNode* op) final {
+  void VisitStmt_(const BufferStoreNode* op) final {
     if (in_scope_) {
-      touched_[op->buffer_var.get()].coproc = true;
+      touched_[op->buffer->data.get()].coproc = true;
     } else {
-      touched_[op->buffer_var.get()].normal = true;
+      touched_[op->buffer->data.get()].normal = true;
     }
     StmtExprVisitor::VisitStmt_(op);
   }
