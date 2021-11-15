@@ -51,9 +51,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
    * \return string of code that offloads a subgraph to the Cortex-M
    */
   void AddFunction(const PrimFunc& prim_func) {
-    PrintExternCPrefix(stream);
     CodeGenC::AddFunction(prim_func);
-    PrintExternCPostfix(stream);
   }
 
  private:
@@ -67,6 +65,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern */
   void VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     if (!op->op.same_as(builtin::call_extern())) {
+      CodeGenCHost::VisitExpr_(op, os);
       return;
     }
     std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
@@ -129,7 +128,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
 
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern */
   void EmitConv2D(const CallNode* op) {
-    static const int max_num_args = 33;
+    static const int max_num_args = 35;
     std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
 
     bool bias_enabled = false;
@@ -154,6 +153,8 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     std::string shift = get_var_name(op, ++arg_id);
     std::string output_data = get_var_name(op, ++arg_id);
 
+    std::string context_buffer_name = op->args[++arg_id].as<StringImmNode>()->value;
+    int context_buffer_size = get_arg_value(op, ++arg_id);
     int input_offset = get_arg_value(op, ++arg_id);
     int output_offset = get_arg_value(op, ++arg_id);
     int stride_w = get_arg_value(op, ++arg_id);
@@ -181,7 +182,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     int output_w = get_arg_value(op, ++arg_id);
     int output_c = get_arg_value(op, ++arg_id);
 
-    std::string context = EmitCMSISNNContext(stream, context_buffer_name_, context_buffer_size_);
+    std::string context = EmitCMSISNNContext(stream, context_buffer_name, context_buffer_size);
     std::string conv_params =
         EmitCMSISNNConvParams(stream, input_offset, output_offset, stride_w, stride_h, padding_w,
                               padding_h, dilation_w, dilation_h, clip_min, clip_max);
@@ -207,25 +208,9 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "if (status != ARM_MATH_SUCCESS) {\n";
     PrintIndent();
     PrintIndent();
-    stream << "//TODO(@ashutosh-arm): Need to add returns when callee supports it\n";
+    stream << "return -1;\n";
     PrintIndent();
     stream << "}\n";
-  }
-
-  /*!  * \brief Creates a cplusplus guard prefix for extern "C" printing */
-  void PrintExternCPrefix(std::ostringstream& ss) {
-    PrintIndent();
-    ss << "#ifdef __cplusplus\n";
-    ss << "extern \"C\" {\n";
-    ss << "#endif\n";
-  }
-
-  /*!  * \brief Creates a cplusplus guard postfix for extern "C" printing */
-  void PrintExternCPostfix(std::ostringstream& ss) {
-    PrintIndent();
-    ss << "#ifdef __cplusplus\n";
-    ss << "}\n";
-    ss << "#endif\n";
   }
 
  private:
@@ -243,6 +228,8 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
     auto prim_func = Downcast<PrimFunc>(kv.second);
     auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     function_names.push_back(global_symbol.value());
+    LOG(INFO) << "------------------------";
+    LOG(INFO) << PrettyPrint(prim_func);
     codegen.AddFunction(prim_func);
   }
   std::string code = codegen.Finish();
