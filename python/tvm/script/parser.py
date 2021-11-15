@@ -36,7 +36,7 @@ from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from . import tir
 
-from .context_maintainer import BlockInfo, ContextMaintainer
+from .context_maintainer import ContextMaintainer
 from .meta_unparser import MetaUnparser
 from .registry import Registry
 from .diagnostics import TVMDiagnosticCtx
