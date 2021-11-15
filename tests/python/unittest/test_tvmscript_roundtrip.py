@@ -3176,5 +3176,19 @@ def test_div_mod():
     assert isinstance(func.body[3].value, tvm.tir.Mod)
 
 
+@T.prim_func
+def loop_extent_dependent(a: T.handle) -> None:
+    A = T.match_buffer(a, [], dtype="int32")
+    for i in T.serial(0, 128):
+        for j in T.serial(0, i):
+            A[()] = A[()] + j
+
+
+def test_loop_extent_dependent():
+    func = loop_extent_dependent
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
