@@ -251,7 +251,7 @@ def _resize_1d(
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -424,7 +424,7 @@ def resize1d(
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method:
         Method for rounding coordinate locations
@@ -570,7 +570,7 @@ def _resize_2d(
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -779,7 +779,7 @@ def resize2d(
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method:
         Method for rounding coordinate locations
@@ -1030,7 +1030,7 @@ def _resize_3d(
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -1251,7 +1251,7 @@ def resize3d(
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method:
         Method for rounding coordinate locations

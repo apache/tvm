@@ -68,7 +68,7 @@ def resize1d(
         to the coordinate in the original tensor. Defintions can be found
         in topi/image/resize.py.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -164,7 +164,7 @@ def resize2d(
         to the coordinate in the original tensor. Defintions can be found
         in topi/image/resize.py.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -274,7 +274,7 @@ def resize3d(
         to the coordinate in the original tensor. Defintions can be found
         in topi/image/resize.py.
         [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
-         tf_half_pixel_for_nn, and tf_crop_and_resize].
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
