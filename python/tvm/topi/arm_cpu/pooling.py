@@ -14,18 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Schedule for ARM CPU"""
+# pylint: disable=invalid-name, unused-variable
+"""Schedule for pooling operators"""
 
-from .conv1d import *
-from .conv2d import *
-from .depthwise_conv2d import *
-from .conv2d_transpose import *
-from .conv2d_int8 import *
-from . import conv2d_alter_op
-from .bitserial_conv2d import *
-from .bitserial_dense import *
-from .injective import *
-from .group_conv2d import *
-from .pooling import *
-from .dense import *
+from .mprofile.dsp.pool import pool_dsp_schedule
+
+
+def schedule_pool(outs, layout):
+    """Create schedule for avgpool/maxpool with dsp"""
+    return pool_dsp_schedule(outs, layout)

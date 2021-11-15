@@ -23,15 +23,16 @@ from tvm import te
 from tvm.topi.utils import simplify, traverse_inline
 from tvm.topi.nn.pad import pad
 from tvm.topi.nn.utils import get_pad_tuple
+from tvm.tir.expr import Mul
 
-from ..micro_kernel.gemm import (
+from .micro_kernel.gemm import (
     intrin_gemm_MxKxN,
     gemm_MxKxN_impl,
 )
 
 
-def conv2d_nhwc_direct_simd(*args, **kwargs):
-    """Defines the Cortex-M7 SIMD implementation of conv2d."""
+def conv2d_nhwc_dsp(*args, **kwargs):
+    """Defines the v7e-m DSP instructions of conv2d."""
     assert not kwargs, "Do not support kwargs in template function call"
     args = deserialize_args(args)
     data, kernel = args[:2]
@@ -39,18 +40,18 @@ def conv2d_nhwc_direct_simd(*args, **kwargs):
     cfg = autotvm.get_config()
     args = [cfg] + args
     assert layout == "NHWC"
-    conv = conv2d_nhwc_direct_simd_compute(*args)
-    sched = conv2d_nhwc_direct_simd_schedule(cfg, [data, kernel, conv])
+    conv = conv2d_nhwc_dsp_compute(*args)
+    sched = conv2d_nhwc_dsp_schedule(cfg, [data, kernel, conv])
     return sched, [data, kernel, conv]
 
 
-conv2d_nhwc_direct_simd.template_key = "direct_simd"
-conv2d_nhwc_direct_simd.default_data_layout = "NHWC"
-conv2d_nhwc_direct_simd.default_kernel_layout = "HWOI"
+conv2d_nhwc_dsp.template_key = "dsp"
+conv2d_nhwc_dsp.default_data_layout = "NHWC"
+conv2d_nhwc_dsp.default_kernel_layout = "HWOI"
 
 
-def conv2d_nhwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    """Compute function for Cortex-M7 SIMD implementation of conv2d."""
+def conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute function for v7e-m DSP instructions of conv2d."""
     assert isinstance(strides, int) or len(strides) == 2
     assert isinstance(dilation, int) or len(dilation) == 2
 
@@ -146,8 +147,8 @@ def conv2d_nhwc_direct_simd_compute(cfg, data, kernel, strides, padding, dilatio
     return conv
 
 
-def conv2d_nhwc_direct_simd_schedule(cfg, outs):
-    """Schedule function for Cortex-M7 SIMD implementation of conv2d."""
+def conv2d_nhwc_dsp_schedule(cfg, outs):
+    """Schedule function for v7e-m DSP instructions of conv2d."""
     sched = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -160,6 +161,9 @@ def conv2d_nhwc_direct_simd_schedule(cfg, outs):
         data_vec = conv.input_tensors[0]
         kernel = conv.input_tensors[1]  # pylint: disable=unused-variable
         last = outs[0]  # pylint: disable=unused-variable
+
+        source_index_w = output.op.body[0].source[0].a.value.indices[2].a
+        stride_w = source_index_w.b.value if isinstance(source_index_w, Mul) else 1
 
         # tile reduction axes
         n, oh, ow, co = sched[conv].op.axis
@@ -175,7 +179,7 @@ def conv2d_nhwc_direct_simd_schedule(cfg, outs):
 
         cfg["reorder_0_simd"].apply(sched, conv, [n, oh, owo, owi, coo, coi, kh, kw, cio, cii])
 
-        gemm, uniq_id = intrin_gemm_MxKxN(M, K, N, data_vec.dtype, output.dtype)
+        gemm, uniq_id = intrin_gemm_MxKxN(M, K, N, data_vec.dtype, output.dtype, stride_w)
         sched[output].tensorize(owi, gemm)
         sched[output].pragma(n, "import_c", gemm_MxKxN_impl(M, K, N, uniq_id))
 
