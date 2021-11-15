@@ -209,8 +209,6 @@ class Conv2DRewriter(DFPatternCallback):
         channels_map = {
             "NHWC": 3,
         }
-        if str(params.ofm.layout) not in channels_map.keys():
-            raise UnsupportedLayout(str(params.ofm.layout))
         kernel_size_map = {
             "HWIO": params.weights.shape[0:2],
             "OHWI": params.weights.shape[1:3],
