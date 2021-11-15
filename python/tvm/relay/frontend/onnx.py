@@ -2639,8 +2639,12 @@ class Resize(OnnxOpConverter):
     def _impl_v13(cls, inputs, attr, params):
         scale = inputs[2]
         size = inputs[3]
+        scale_type = infer_type(scale)
+
         if size is not None:
-            assert scale is None, "One of scale or size should be passed, not both."
+            scale_shape = scale_type.checked_type.shape
+            is_empty = scale is None or len(scale_shape) == 0 or scale_shape[0] == 0
+            assert is_empty, "One of scale or size should be passed, not both."
         else:
             scale_type = infer_type(scale)
             scale_shape = scale_type.checked_type.shape
