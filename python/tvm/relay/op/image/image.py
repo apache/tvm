@@ -53,9 +53,8 @@ def resize1d(
 
     roi: Tuple of Float or Expr, optional
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 2, and format [start_w, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     layout : str, optional
         Layout of the input.
@@ -92,7 +91,7 @@ def resize1d(
         The resized result.
     """
     if roi is None:
-        roi = [0.0] * 6
+        roi = [0.0] * 2
     if isinstance(size, Constant):
         size = list(size.data.numpy().astype("int32"))
     if isinstance(roi, Constant):
@@ -149,9 +148,8 @@ def resize2d(
 
     roi: Tuple of Float or Expr, optional
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 4, and format [start_h, start_w, end_h, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     layout : str, optional
         Layout of the input.
@@ -188,7 +186,7 @@ def resize2d(
         The resized result.
     """
     if roi is None:
-        roi = [0.0] * 8
+        roi = [0.0] * 4
     if isinstance(size, Constant):
         size = list(size.data.numpy().astype("int32"))
     if isinstance(roi, Constant):
@@ -259,9 +257,8 @@ def resize3d(
 
     roi: Tuple of Float or Expr, optional
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 6, and format [start_d, start_h, start_w, end_d, end_h, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     layout : str, optional
         Layout of the input.
@@ -298,7 +295,7 @@ def resize3d(
         The resized result.
     """
     if roi is None:
-        roi = [0.0] * 10
+        roi = [0.0] * 6
     if isinstance(size, Constant):
         size = list(size.data.numpy().astype("int32"))
     if isinstance(roi, Constant):

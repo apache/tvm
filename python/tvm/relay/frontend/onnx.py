@@ -2685,10 +2685,21 @@ class Resize(OnnxOpConverter):
         exclude = attr.get("exclude_outside", 0)
         extrapolation_value = attr.get("extrapolation_value", 0.0)
 
-        out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+        if roi is not None:
+            roi = fold_constant(
+                _op.concatenate(
+                    [
+                        _op.strided_slice(roi, [2], [ndims]),
+                        _op.strided_slice(roi, [ndims + 2], [2 * ndims]),
+                    ],
+                    axis=0,
+                )
+            )
+
+        out_size = fold_constant(_op.strided_slice(size, [2], [ndims]))
+
         out = None
         if ndims == 3:
-            out_size = fold_constant(_op.strided_slice(size, [2], [3]))
             out = _op.image.resize1d(
                 inputs[0],
                 out_size,
@@ -2702,7 +2713,6 @@ class Resize(OnnxOpConverter):
                 extrapolation_value,
             )
         elif ndims == 4:
-            out_size = fold_constant(_op.strided_slice(size, [2], [4]))
             out = _op.image.resize2d(
                 inputs[0],
                 out_size,
@@ -2716,7 +2726,6 @@ class Resize(OnnxOpConverter):
                 extrapolation_value,
             )
         elif ndims == 5:
-            out_size = fold_constant(_op.strided_slice(size, [2], [5]))
             out = _op.image.resize3d(
                 inputs[0],
                 out_size,

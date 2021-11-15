@@ -220,9 +220,8 @@ def _resize_1d(
 
     roi: Tuple of Float or Expr
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 2, and format [start_w, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     image_width : integer
         Input image width
@@ -289,8 +288,8 @@ def _resize_1d(
         image_width,
         target_width,
         coordinate_transformation_mode,
-        roi[2],
-        roi[5],
+        roi[0],
+        roi[1],
     )
 
     if method == "nearest_neighbor":
@@ -401,9 +400,8 @@ def resize1d(
 
     roi: Tuple of Float or Expr
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 2, and format [start_w, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     size: Tuple
         Output resolution scale to
@@ -533,9 +531,8 @@ def _resize_2d(
 
     roi: Tuple of Float or Expr
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 4, and format [start_h, start_w, end_h, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     image_height : integer
         Input image height
@@ -612,9 +609,9 @@ def _resize_2d(
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
-        in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[3], roi[7])
+        in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[1], roi[3])
         in_y = get_inx(
-            y, image_height, target_height, coordinate_transformation_mode, roi[2], roi[6]
+            y, image_height, target_height, coordinate_transformation_mode, roi[0], roi[2]
         )
 
     if method == "nearest_neighbor":
@@ -756,9 +753,8 @@ def resize2d(
 
     roi: Tuple of Float or Expr
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 4, and format [start_h, start_w, end_h, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     size: Tuple
         Output resolution scale to
@@ -934,7 +930,7 @@ def crop_and_resize(
         return _resize_2d(
             indices,
             data,
-            [0.0] * 8,
+            [0.0] * 4,
             image_h,
             image_w,
             target_h,
@@ -987,9 +983,8 @@ def _resize_3d(
 
     roi: Tuple of Float or Expr
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 6, and format [start_d, start_h, start_w, end_d, end_h, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     image_depth : integer
         Input image depth
@@ -1063,9 +1058,9 @@ def _resize_3d(
     if boxes is not None:
         # TODO(mbrookhart): Find an example of this
         raise NotImplementedError("resize1d with image boxes not yet implemented")
-    in_z = get_inx(z, image_depth, target_depth, coordinate_transformation_mode, roi[4], roi[9])
-    in_y = get_inx(y, image_height, target_height, coordinate_transformation_mode, roi[3], roi[8])
-    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[2], roi[7])
+    in_z = get_inx(z, image_depth, target_depth, coordinate_transformation_mode, roi[2], roi[5])
+    in_y = get_inx(y, image_height, target_height, coordinate_transformation_mode, roi[1], roi[4])
+    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[0], roi[3])
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -1234,9 +1229,8 @@ def resize3d(
 
     roi: Tuple of Float or Expr
         The region of interest for cropping the input image. Expected to be of
-        size 2 * ndim(data), and format [start_1, start_2, ..., start_x,
-        end_1, end_2, ..., end_x]. Only used if coordinate_transformation_mode
-        is tf_crop_and_resize.
+        size 6, and format [start_d, start_h, start_w, end_d, end_h, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
 
     size: Tuple
         Output resolution scale to

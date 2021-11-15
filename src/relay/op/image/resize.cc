@@ -69,7 +69,7 @@ bool Resize1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Resize1DAttrs* param = attrs.as<Resize1DAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->size.size() == 1);
-  ICHECK(param->roi.size() == 6);
+  ICHECK(param->roi.size() == 2);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCW);
   ICHECK(layout_converter.defined())
@@ -147,7 +147,7 @@ bool Resize2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Resize2DAttrs* param = attrs.as<Resize2DAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->size.size() == 2);
-  ICHECK(param->roi.size() == 8);
+  ICHECK(param->roi.size() == 4);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   ICHECK(layout_converter.defined())
@@ -226,7 +226,7 @@ bool Resize3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Resize3DAttrs* param = attrs.as<Resize3DAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->size.size() == 3);
-  ICHECK(param->roi.size() == 10);
+  ICHECK(param->roi.size() == 6);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
   ICHECK(layout_converter.defined())
