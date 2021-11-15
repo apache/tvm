@@ -1277,12 +1277,14 @@ Doc TVMScriptPrinter::PrintSparseStructDefinitions(const SparseBlockNode* sp_blo
   std::vector<Doc> axis_docs;
   std::vector<Doc> sp_buf_docs;
 
-  for (auto it : sp_block->sp_struct2param_map) {
-    Doc doc;
-    doc << Print(it.first) << " = " << tir_prefix_ << ".";
+  for (const ObjectRef& obj : sp_block->sp_structs) {
+    Array<Var> params = sp_block->sp_struct2param_map.Get(obj).value();
 
-    if (const auto* sp_buffer = it.first.as<SparseBufferNode>()) {
-      ICHECK_EQ(it.second.size(), 1);
+    Doc doc;
+    doc << Print(obj) << " = " << tir_prefix_ << ".";
+
+    if (const auto* sp_buffer = obj.as<SparseBufferNode>()) {
+      ICHECK_EQ(params.size(), 1);
       Doc axes_doc;
       if (sp_buffer->axes.size() != 1) {
         std::vector<Doc> axes_docs;
@@ -1295,30 +1297,30 @@ Doc TVMScriptPrinter::PrintSparseStructDefinitions(const SparseBlockNode* sp_blo
         axes_doc << Print(sp_buffer->axes[0]) << ",";
       }
 
-      doc << "match_sparse_buffer(" << Print(it.second[0]) << ", (" << axes_doc << "), "
+      doc << "match_sparse_buffer(" << Print(params[0]) << ", (" << axes_doc << "), "
           << Print(sp_buffer->data->shape[0]) << ", " << PrintDType(sp_buffer->data->dtype) << ")";
       sp_buf_docs.push_back(doc);
       continue;
     }
 
-    if (const auto* df_axis = it.first.as<DenseFixedAxisNode>()) {
-      ICHECK_EQ(it.second.size(), 0);
+    if (const auto* df_axis = obj.as<DenseFixedAxisNode>()) {
+      ICHECK_EQ(params.size(), 0);
       doc << "dense_fixed(" << Print(df_axis->length) << ")";
-    } else if (const auto* dv_axis = it.first.as<DenseVariableAxisNode>()) {
-      ICHECK_EQ(it.second.size(), 1);
+    } else if (const auto* dv_axis = obj.as<DenseVariableAxisNode>()) {
+      ICHECK_EQ(params.size(), 1);
       doc << "dense_variable((" << Print(dv_axis->length) << ", "
-          << Print(dv_axis->indptr->shape[0]) << "), " << Print(it.second[0]) << ", "
+          << Print(dv_axis->indptr->shape[0]) << "), " << Print(params[0]) << ", "
           << PrintDType(dv_axis->indptr->dtype) << ")";
-    } else if (const auto* sf_axis = it.first.as<SparseFixedAxisNode>()) {
-      ICHECK_EQ(it.second.size(), 1);
+    } else if (const auto* sf_axis = obj.as<SparseFixedAxisNode>()) {
+      ICHECK_EQ(params.size(), 1);
       doc << "sparse_fixed((" << Print(sf_axis->length) << ", " << Print(sf_axis->indices->shape[0])
-          << ", " << Print(sf_axis->num_cols) << "), " << Print(it.second[0]) << ", "
+          << ", " << Print(sf_axis->num_cols) << "), " << Print(params[0]) << ", "
           << PrintDType(sf_axis->indices->dtype) << ")";
-    } else if (const auto* sv_axis = it.first.as<SparseVariableAxisNode>()) {
-      ICHECK_EQ(it.second.size(), 2);
+    } else if (const auto* sv_axis = obj.as<SparseVariableAxisNode>()) {
+      ICHECK_EQ(params.size(), 2);
       doc << "sparse_variable((" << Print(sv_axis->length) << ", "
           << Print(sv_axis->indptr->shape[0]) << ", " << Print(sv_axis->indices->shape[0]) << "), ("
-          << Print(it.second[0]) << ", " << Print(it.second[1]) << "), "
+          << Print(params[0]) << ", " << Print(params[1]) << "), "
           << PrintDType(sv_axis->indptr->dtype) << ")";
     } else {
       ICHECK(false) << "Cannot reach here";

@@ -365,7 +365,8 @@ class SparseBlock(WithScopeHandler):
 
             block = tvm.tir.SparseBlock(
                 sp_iters,
-                self.context.sp_struct2param_map,
+                self.context.sp_struct,
+                self.context.sp_struct_params,
                 name,
                 self.body,
                 block_info.init,

@@ -131,13 +131,11 @@ class DenseFixedAxisNode : public DenseAxisNode {
   }
 
   bool SEqualReduce(const DenseFixedAxisNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
     return equal(name, other->name) && equal(length, other->length) &&
            equal(from_sparse, other->from_sparse);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(name);
     hash_reduce(length);
     hash_reduce(from_sparse);
@@ -170,12 +168,10 @@ class DenseVariableAxisNode : public DenseAxisNode {
   }
 
   bool SEqualReduce(const DenseVariableAxisNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
     return equal(name, other->name) && equal(length, other->length) && equal(indptr, other->indptr);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(name);
     hash_reduce(length);
     hash_reduce(indptr);
@@ -213,13 +209,11 @@ class SparseFixedAxisNode : public SparseAxisNode {
   }
 
   bool SEqualReduce(const SparseFixedAxisNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
     return equal(name, other->name) && equal(length, other->length) &&
            equal(indices, other->indices) && equal(num_cols, other->num_cols);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(name);
     hash_reduce(length);
     hash_reduce(indices);
@@ -257,13 +251,11 @@ class SparseVariableAxisNode : public SparseAxisNode {
   }
 
   bool SEqualReduce(const SparseVariableAxisNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
     return equal(name, other->name) && equal(length, other->length) &&
            equal(indptr, other->indptr) && equal(indices, other->indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(name);
     hash_reduce(length);
     hash_reduce(indptr);
@@ -347,12 +339,10 @@ class SparseBufferNode : public Object {
   }
 
   bool SEqualReduce(const SparseBufferNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
     return equal(axes, other->axes) && equal(data, other->data) && equal(name, other->name);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(axes);
     hash_reduce(data);
     hash_reduce(name);

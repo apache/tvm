@@ -968,11 +968,42 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "}\n";
     });
 
-SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars,
-                         Map<ObjectRef, Array<Var>> sp_struct2param_map, String name, Stmt body,
+SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars, Array<ObjectRef> sp_structs,
+                         Array<Array<Var>> sp_struct_params, String name, Stmt body,
                          Optional<Stmt> init, Span span) {
+  CHECK_EQ(sp_structs.size(), sp_struct_params.size())
+      << "ValueError: The length of `sp_struct_params` is expected to be equal to the length "
+         "`sp_structs`, which is the number of sparse data structures";
+  Map<ObjectRef, Array<Var>> sp_struct2param_map;
+  for (int i = 0; i < static_cast<int>(sp_structs.size()); ++i) {
+    ObjectRef obj = sp_structs[i];
+    Array<Var> params = sp_struct_params[i];
+
+    if (obj->IsInstance<DenseFixedAxisNode>()) {
+      CHECK(params.size() == 0)
+          << "ValueError: The number of function parameters for dense-fixed axes should be 0";
+    } else if (obj->IsInstance<DenseVariableAxisNode>()) {
+      CHECK(params.size() == 1)
+          << "ValueError: The number of function parameters for dense-variable axes should be 1";
+    } else if (obj->IsInstance<SparseFixedAxisNode>()) {
+      CHECK(params.size() == 1)
+          << "ValueError: The number of function parameters for sparse-fixed axes should be 1";
+    } else if (obj->IsInstance<SparseVariableAxisNode>()) {
+      CHECK(params.size() == 2)
+          << "ValueError: The number of function parameters for sparse-variable axes should be 2";
+    } else if (obj->IsInstance<SparseBufferNode>()) {
+      CHECK(params.size() == 1)
+          << "ValueError: The number of function parameters for SparseBuffer should be 1";
+    } else {
+      LOG(FATAL) << "ValueError: " << obj->_type_key << " is not a sparse data structure";
+    }
+
+    sp_struct2param_map.Set(obj, params);
+  }
+
   ObjectPtr<SparseBlockNode> node = make_object<SparseBlockNode>();
   node->sp_iter_vars = std::move(sp_iter_vars);
+  node->sp_structs = std::move(sp_structs);
   node->sp_struct2param_map = std::move(sp_struct2param_map);
   node->name = std::move(name);
   node->body = std::move(body);
@@ -982,10 +1013,10 @@ SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars,
 }
 
 TVM_REGISTER_GLOBAL("tir.SparseBlock")
-    .set_body_typed([](Array<SpIterVar> sp_iter_vars,
-                       Map<ObjectRef, Array<Var>> sp_struct2param_map, String name, Stmt body,
+    .set_body_typed([](Array<SpIterVar> sp_iter_vars, Array<ObjectRef> sp_structs,
+                       Array<Array<Var>> sp_struct_params, String name, Stmt body,
                        Optional<Stmt> init, Span span) {
-      return SparseBlock(sp_iter_vars, sp_struct2param_map, name, body, init, span);
+      return SparseBlock(sp_iter_vars, sp_structs, sp_struct_params, name, body, init, span);
     });
 
 TVM_REGISTER_NODE_TYPE(SparseBlockNode);

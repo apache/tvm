@@ -861,7 +861,8 @@ class DenseFixed(SpecialStmt):
                 )
 
             axis = DenseFixedAxis(names[0], length)
-            self.context.sp_struct2param_map[axis] = []
+            self.context.sp_struct.append(axis)
+            self.context.sp_struct_params.append([])
             self.context.update_symbol(names[0], axis, self.node)
 
         super().__init__(dense_fixed, def_symbol=True)
@@ -889,7 +890,8 @@ class DenseVariable(SpecialStmt):
                 (indptr_len,), dtype=idtype, name=names[0] + "_indptr", span=span
             )
             axis = DenseVariableAxis(names[0], length, indptr_buf)
-            self.context.sp_struct2param_map[axis] = [indptr_var]
+            self.context.sp_struct.append(axis)
+            self.context.sp_struct_params.append([indptr_var])
             self.context.update_symbol(names[0], axis, self.node)
             self.context.update_symbol(names[0] + "_indptr", indptr_buf, self.node)
 
@@ -918,7 +920,8 @@ class SparseFixed(SpecialStmt):
                 (nnz,), dtype=idtype, name=names[0] + "_indices", span=span
             )
             axis = SparseFixedAxis(names[0], length, indices_buf, nnz_cols)
-            self.context.sp_struct2param_map[axis] = [indices_var]
+            self.context.sp_struct.append(axis)
+            self.context.sp_struct_params.append([indices_var])
             self.context.update_symbol(names[0], axis, self.node)
             self.context.update_symbol(names[0] + "_indices", indices_buf, self.node)
 
@@ -951,7 +954,8 @@ class SparseVariable(SpecialStmt):
                 (nnz,), dtype=idtype, name=names[0] + "_indices", span=span
             )
             axis = SparseVariableAxis(names[0], length, indptr_buf, indices_buf)
-            self.context.sp_struct2param_map[axis] = [indptr_var, indices_var]
+            self.context.sp_struct.append(axis)
+            self.context.sp_struct_params.append([indptr_var, indices_var])
             self.context.update_symbol(names[0], axis, self.node)
             self.context.update_symbol(names[0] + "_indptr", indptr_buf, self.node)
             self.context.update_symbol(names[0] + "_indices", indices_buf, self.node)
@@ -987,7 +991,8 @@ class MatchSparseBuffer(SpecialStmt):
             if param in self.context.func_params:
                 data = tvm.tir.decl_buffer(nnz, dtype, buffer_name + "_data", span=span)
                 buffer = tvm.tir.sparse.SparseBuffer(axes, data, buffer_name)
-                self.context.sp_struct2param_map[buffer] = [param]
+                self.context.sp_struct.append(buffer)
+                self.context.sp_struct_params.append([param])
                 self.context.update_symbol(buffer_name + "_data", data, self.node)
                 self.context.update_symbol(buffer_name, buffer, self.node)
             else:

@@ -234,7 +234,6 @@ SpIterVar::SpIterVar(Var var, PrimExpr max_extent, SpIterKind kind, bool is_redu
   ObjectPtr<SpIterVarNode> node = make_object<SpIterVarNode>();
 
   arith::Analyzer ana;
-  CHECK(ana.CanProveEqual(axis->length, max_extent));
   const char* err_str = "ValueError: The given kind doesn't match the type of the given axis";
   if (kind == SpIterKind::kDenseFixed) {
     CHECK(!axis->IsInstance<DenseVariableAxisNode>()) << err_str;

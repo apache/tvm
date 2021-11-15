@@ -134,8 +134,10 @@ class ContextMaintainer:
     """Mapping[Var, str]: The map from var to env thread"""
 
     # sparse block context
-    sp_struct2param_map: Mapping[Object, List[Var]] = {}
-    """Mapping[Object, List[Var]]: The mapping from sparse data structures to the func parameters"""
+    sp_struct: List[Object] = []
+    """List[Object]: The sparse data structures"""
+    sp_struct_params: List[List[Var]] = []
+    """List[List[Var]]: The function parameters that corresponding to each sparse data structures"""
 
     # parser and analyzer
     analyzer: tvm.arith.Analyzer = tvm.arith.Analyzer()
@@ -159,7 +161,8 @@ class ContextMaintainer:
         self.func_dict_attr = {}
         self.func_var_env_dict = {}
         # sparse block context
-        self.sp_struct2param_map = {}
+        self.sp_struct = []
+        self.sp_struct_params = []
         # parser and analyzer
         self._report_error = _report_error
         self.analyzer = tvm.arith.Analyzer()

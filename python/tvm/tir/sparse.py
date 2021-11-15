@@ -26,6 +26,7 @@ from . import _ffi_api
 from .buffer import Buffer
 
 
+@tvm._ffi.register_object("tir.sparse.Axis")
 class Axis(Object):
     """Base class of all the sparse axes."""
 
@@ -42,10 +43,12 @@ class Axis(Object):
         return _ffi_api.GetAxisIndexType(self)
 
 
+@tvm._ffi.register_object("tir.sparse.DenseAxis")
 class DenseAxis(Axis):
     pass
 
 
+@tvm._ffi.register_object("tir.sparse.SparseAxis")
 class SparseAxis(Axis):
     pass
 

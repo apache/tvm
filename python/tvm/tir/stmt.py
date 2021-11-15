@@ -649,6 +649,12 @@ class SparseBlock(Stmt):
     sp_iter_vars : List[SpIterVar]
         The sparse iteration variables of the block.
 
+    sp_struct : List[Object]
+    The sparse data structures
+
+    sp_struct_params : List[List[Var]]
+    The function parameters that corresponding to each sparse data structures
+
     sp_struct2param_map : Mapping[Object, List[Var]]
         The mapping from sparse data structures to the PrimFunc parameters.
 
@@ -666,6 +672,7 @@ class SparseBlock(Stmt):
     """
 
     sp_iter_vars: List[SpIterVar]
+    sp_struct: List[Object]
     sp_struct2param_map: Mapping[Object, List[Var]]
     name: str
     body: Stmt
@@ -675,7 +682,8 @@ class SparseBlock(Stmt):
     def __init__(
         self,
         sp_iter_vars: List[SpIterVar],
-        sp_struct2param_map: Mapping[Object, List[Var]],
+        sp_struct: List[Object],
+        sp_struct_params: List[List[Var]],
         name: str,
         body: Stmt,
         init: Optional[Stmt] = None,
@@ -684,7 +692,8 @@ class SparseBlock(Stmt):
         self.__init_handle_by_constructor__(
             _ffi_api.SparseBlock,  # type: ignore
             sp_iter_vars,
-            sp_struct2param_map,
+            sp_struct,
+            sp_struct_params,
             name,
             body,
             init,

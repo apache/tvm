@@ -141,11 +141,11 @@ def batch_mm(
     B = T.match_sparse_buffer(b, (Batch, J_b, K_b), nnz_b2, "float32")
     C = T.match_sparse_buffer(c, (Batch, I, K_c), nnz_c2, "float32")
 
-    with T.iter([T.cord(Batch), T.cord(I), T.cord(K_b), T.cord(J_a)], "SSSR", "batch_mm") as [
+    with T.iter([T.cord(Batch), T.cord(I), T.cord(J_a), T.cord(K_b)], "SSSR", "batch_mm") as [
         vb,
         vi,
-        vk,
         vj,
+        vk,
     ]:
         with T.init():
             C[vb, vi, vk] = 0.0
