@@ -440,18 +440,18 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * \return Statement with function calls for each device
    */
   tir::Stmt GenerateAllDeviceHook(const String& hook) {
-    std::vector<tir::Stmt> device_activations;
+    std::vector<tir::Stmt> device_hooks;
     for (const auto& it : devices_) {
       const String& device_name = it.first;
       const tir::Var& context = it.second;
       Array<String> sections = {"Device", device_name, hook};
-      String device_activation = ToCFunctionStyle(PrefixName(sections));
+      String device_hook_name = ToCFunctionStyle(PrefixName(sections));
 
       tir::Evaluate device_hook(tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(),
-                                               {tvm::tir::StringImm(device_activation), context}));
-      device_activations.push_back(device_hook);
+                                               {tvm::tir::StringImm(device_hook_name), context}));
+      device_hooks.push_back(device_hook);
     }
-    return tir::SeqStmt(device_activations);
+    return tir::SeqStmt(device_hooks);
   }
 
   /**

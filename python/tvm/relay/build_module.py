@@ -251,7 +251,7 @@ class BuildModule(object):
         return ret
 
     def get_irmodule(self):
-        """Returns the Target IRModule's from code generation"""
+        """Returns the Target IRModule's post-lowering"""
         return self._get_irmodule()
 
 
@@ -381,11 +381,18 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
         )
         func_metadata = bld_mod.get_function_metadata()
         devices = bld_mod.get_devices()
-        final_ir_mods = bld_mod.get_irmodule()
+        lowered_ir_mods = bld_mod.get_irmodule()
 
         if executor == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
-                ir_mod, final_ir_mods, target, runtime_mod, mod_name, params, func_metadata, devices
+                ir_mod,
+                lowered_ir_mods,
+                target,
+                runtime_mod,
+                mod_name,
+                params,
+                func_metadata,
+                devices,
             )
         elif executor == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(

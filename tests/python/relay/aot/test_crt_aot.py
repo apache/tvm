@@ -751,7 +751,7 @@ def test_device_api_hooks():
         input_data,
         output_data,
     )
-    main_ir_module = list(compiled_models[0].executor_factory.built_ir_mods.values())[0]
+    main_ir_module = list(compiled_models[0].executor_factory.lowered_ir_mods.values())[0]
     main_func = main_ir_module["run_model"]
 
     # Activate Device

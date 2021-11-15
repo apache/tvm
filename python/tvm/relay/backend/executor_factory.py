@@ -75,8 +75,8 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
     ----------
     ir_mod : :py:class:`~tvm.IRModule`
         The IR module to build.
-    built_ir_mods : dict[Target, IRModule]
-        The IR modules built per Target.
+    lowered_ir_mods : dict[Target, IRModule]
+        The IR modules lowered per Target.
     target : tvm.Target
         The Target used to build this module.
     libmod : tvm.Module
@@ -92,10 +92,18 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
     """
 
     def __init__(
-        self, ir_mod, built_ir_mods, target, libmod, libmod_name, params, function_metadata, devices
+        self,
+        ir_mod,
+        lowered_ir_mods,
+        target,
+        libmod,
+        libmod_name,
+        params,
+        function_metadata,
+        devices,
     ):
         self.ir_mod = ir_mod
-        self.built_ir_mods = built_ir_mods
+        self.lowered_ir_mods = lowered_ir_mods
         self.target = target
         self.lib = libmod
         self.libmod_name = libmod_name
@@ -141,7 +149,14 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
     """
 
     def __init__(
-        self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
+        self,
+        ir_mod,
+        target,
+        graph_json_str,
+        libmod,
+        libmod_name,
+        params,
+        function_metadata,
     ):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_executor_factory.create")
