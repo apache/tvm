@@ -14,6 +14,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Conv2d implementations for cortex-m7."""
-
-from . import direct_simd
+"""Schedules specialized for cortex-m DSP instructions."""
