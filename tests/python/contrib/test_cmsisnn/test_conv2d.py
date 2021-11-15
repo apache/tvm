@@ -190,7 +190,7 @@ def test_conv2d_symmetric_padding_int8(
         relu_type,
     )
     orig_mod = make_module(model)
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+    cmsisnn_mod, _ = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
@@ -280,7 +280,7 @@ def test_conv2d_asymmetric_padding_int8(
         relu_type,
     )
     orig_mod = make_module(model)
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+    cmsisnn_mod, _ = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
@@ -385,7 +385,7 @@ def test_depthwise_int8(
         relu_type,
     )
     orig_mod = make_module(model)
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+    cmsisnn_mod, _ = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
@@ -473,7 +473,7 @@ def test_invalid_parameters(
         relu_type="NONE",
     )
     orig_mod = make_module(model)
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+    cmsisnn_mod, _ = cmsisnn.partition_for_cmsisnn(orig_mod, params)
     assert_no_external_function(cmsisnn_mod)
 
 

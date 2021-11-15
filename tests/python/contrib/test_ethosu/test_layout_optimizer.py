@@ -70,7 +70,7 @@ def _compile_and_compare_model(tflite_graph, ifm_shape, dtype):
             "ifm": dtype,
         },
     )
-    mod = partition_for_ethosu(mod, params)
+    mod, _ = partition_for_ethosu(mod, params)
 
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
@@ -720,7 +720,7 @@ def test_layout_optimizer_runs_in_compilation_pipeline():
         return tvm.IRModule.from_expr(func)
 
     mod = get_graph()
-    mod = partition_for_ethosu(mod)
+    mod, _ = partition_for_ethosu(mod)
 
     external_gv_name = mod["main"].body.op.name_hint
     external_func = mod[external_gv_name]

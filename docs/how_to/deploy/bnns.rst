@@ -69,7 +69,7 @@ For your convenience "partition_for_bnns" can do this for you if params dictiona
 .. code:: python
 
     from tvm.relay.op.contrib.bnns import partition_for_bnns
-    model = partition_for_bnns(model, params=params)
+    model, config = partition_for_bnns(model, params=params)
 
 
 Input data layout for operations to be offloaded to BNNS execution
@@ -128,7 +128,7 @@ After that you need to compile new module with target corresponding to required 
     # target for macOS Big Sur 11.1:
     target = "llvm -mtriple=x86_64-apple-darwin20.2.0"
 
-    model = partition_for_bnns(model, params=params)  # to markup operations to be offloaded to BNNS
+    model, _ = partition_for_bnns(model, params=params)  # to markup operations to be offloaded to BNNS
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(model, target=target, params=params)
 

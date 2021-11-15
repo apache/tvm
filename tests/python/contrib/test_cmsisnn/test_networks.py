@@ -94,7 +94,7 @@ def test_cnn_small():
     input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
 
     orig_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+    cmsisnn_mod, _ = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate CMSIS-NN output against CPU output
     interface_api = "c"

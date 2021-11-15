@@ -120,7 +120,7 @@ Annotate and partition the graph for ACL.
 .. code:: python
 
     from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
-    module = partition_for_arm_compute_lib(module)
+    module, _ = partition_for_arm_compute_lib(module)
 
 
 Build the Relay graph.

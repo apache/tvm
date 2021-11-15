@@ -262,7 +262,7 @@ def profile_and_build(
     use_fast_math=False,
     use_3xtf32=True,
 ):
-    mod = partition_for_cutlass(mod)
+    mod, _ = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
         mod,
         sm,
@@ -292,7 +292,7 @@ def profile_and_build_vm(
     use_fast_math=False,
     use_3xtf32=True,
 ):
-    mod = partition_for_cutlass(mod)
+    mod, _ = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
         mod,
         sm,

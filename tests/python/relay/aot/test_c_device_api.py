@@ -74,7 +74,7 @@ def device_api_main_func():
         shape_dict={"x": [1, 3, 4, 3]},
         dtype_dict={"x": "int8"},
     )
-    mod = partition_for_ethosu(relay_module, params)
+    mod, _ = partition_for_ethosu(relay_module, params)
 
     # Generate reference data
     input_data, output_data = generate_ref_data_tflite(tflite_graph)

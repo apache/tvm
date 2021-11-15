@@ -101,7 +101,7 @@ def test_tflite_reshape_and_strided_slice():
         dtype_dict={"input": dtype},
     )
     mod["main"] = bind_params_by_name(mod["main"], params)
-    mod = ethosu.partition_for_ethosu(mod)
+    mod, _ = ethosu.partition_for_ethosu(mod)
     mod = legalize.LegalizeEthosU()(mod)
 
     verify(mod["tvmgen_default_ethos_u_main_0"])

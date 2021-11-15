@@ -58,7 +58,7 @@ def test_forward_mobilenet_v1(accel_type):
     input_data = {input_tensor: input_data}
     output_data = generate_ref_data(relay_mod, input_data)
 
-    mod = partition_for_ethosu(relay_mod, params)
+    mod, _ = partition_for_ethosu(relay_mod, params)
     compiled_models = infra.build_source(
         mod, input_data, output_data, accel_type, output_tolerance=10
     )

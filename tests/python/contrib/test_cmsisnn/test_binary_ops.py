@@ -116,7 +116,7 @@ def test_op_int8(op, input_0_scale, input_0_zero_point, input_1_scale, input_1_z
     )
     orig_mod = make_module(model)
 
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+    cmsisnn_mod, _ = cmsisnn.partition_for_cmsisnn(orig_mod)
 
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
@@ -264,7 +264,7 @@ def test_invalid_parameters(
     )
 
     orig_mod = make_module(model)
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+    cmsisnn_mod, _ = cmsisnn.partition_for_cmsisnn(orig_mod)
     assert_no_external_function(cmsisnn_mod)
 
 

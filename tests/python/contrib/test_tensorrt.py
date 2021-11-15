@@ -1315,7 +1315,7 @@ def test_dynamic_offload():
     mod = tvm.IRModule()
     mod["main"] = f
     mod = relay.transform.InferType()(mod)
-    mod_trt, config = tensorrt.partition_for_tensorrt(mod, params={})
+    mod_trt, _ = tensorrt.partition_for_tensorrt(mod, params={})
 
     # Get the expected relay graph and compare
     mod_exp = get_expected()
@@ -1403,7 +1403,7 @@ def test_maskrcnn_resnet50(run_module) -> None:
         input_name = "input0"
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(traced_module, shape_list)
-        mod, config = tensorrt.partition_for_tensorrt(mod, params, remove_no_mac_subgraphs=True)
+        mod, _ = tensorrt.partition_for_tensorrt(mod, params, remove_no_mac_subgraphs=True)
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
             vm_trt_exec = relay.vm.compile(mod, target=target, params=params)
 

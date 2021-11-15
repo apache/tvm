@@ -1073,7 +1073,7 @@ def test_tflite_tanh_legalize():
         dtype_dict={"input": dtype},
     )
 
-    mod = ethosu.partition_for_ethosu(mod, params)
+    mod, _ = ethosu.partition_for_ethosu(mod, params)
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
         legalize.TanhRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
@@ -1364,7 +1364,7 @@ def test_tflite_sigmoid_legalize():
         dtype_dict={"input": dtype},
     )
 
-    mod = ethosu.partition_for_ethosu(mod, params)
+    mod, _ = ethosu.partition_for_ethosu(mod, params)
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
         legalize.SigmoidRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
@@ -1440,7 +1440,7 @@ def test_tflite_split_legalize(ifm_shape, num_or_size_splits, axis):
         shape_dict={"input": ifm_shape},
         dtype_dict={"input": dtype},
     )
-    mod = ethosu.partition_for_ethosu(mod)
+    mod, _ = ethosu.partition_for_ethosu(mod)
 
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
         legalize.PartitionedSplitRewriter(), mod["tvmgen_default_ethos_u_main_0"]
@@ -1522,7 +1522,7 @@ def test_tflite_split_v_legalize(ifm_shape, num_or_size_splits, axis):
         shape_dict={"input": ifm_shape},
         dtype_dict={"input": dtype},
     )
-    mod = ethosu.partition_for_ethosu(mod)
+    mod, _ = ethosu.partition_for_ethosu(mod)
 
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
         legalize.PartitionedSplitRewriter(), mod["tvmgen_default_ethos_u_main_0"]
@@ -1629,7 +1629,7 @@ def test_multiple_requantize_offload():
         assert isinstance(op, relay.Var)
 
     mod = create_model()
-    mod = ethosu.partition_for_ethosu(mod)
+    mod, _ = ethosu.partition_for_ethosu(mod)
     mod = legalize.LegalizeEthosU()(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 

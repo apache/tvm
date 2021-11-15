@@ -119,7 +119,7 @@ def test_ethosu_conv2d_single(
         shape_dict={"input": ifm_shape},
         dtype_dict={"input": dtype},
     )
-    mod = partition_for_ethosu(relay_module, params)
+    mod, _ = partition_for_ethosu(relay_module, params)
 
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
@@ -219,7 +219,7 @@ def test_ethosu_conv2d_double(
         shape_dict={"input": ifm_shape},
         dtype_dict={"input": dtype},
     )
-    mod = partition_for_ethosu(relay_module, params)
+    mod, _ = partition_for_ethosu(relay_module, params)
 
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
@@ -348,7 +348,7 @@ def _get_tflite_graph(tf_func, shapes, ranges=None):
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
     relay_module, params = relay.frontend.from_tflite(tflite_model)
-    mod = partition_for_ethosu(relay_module, params)
+    mod, _ = partition_for_ethosu(relay_module, params)
     return mod, tflite_graph
 
 
@@ -607,7 +607,7 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
     mod, input_data, output_data = (
         create_mod_from_relay() if use_same_quantization else create_mod_from_tflite()
     )
-    mod = partition_for_ethosu(mod)
+    mod, _ = partition_for_ethosu(mod)
 
     # TODO(lhutton1) For now output is not bit exact with TFLite.
     # This is because TFLite reference kernels are not being used.
@@ -649,7 +649,7 @@ def test_elementwise_add_from_constant_scalar(accel_type, dtype, constant):
         return tvm.IRModule.from_expr(relay.Function(relay.analysis.free_vars(add), add))
 
     cpu_mod = create_relay_graph()
-    ethosu_mod = partition_for_ethosu(cpu_mod)
+    ethosu_mod, _ = partition_for_ethosu(cpu_mod)
 
     # Generate reference data
     input_data = {
@@ -695,7 +695,7 @@ def test_ethosu_left_shift_binary_elemwise(
         "ifm2": np.random.randint(0, high=32, size=ifm2_shape, dtype=dtype),
     }
     output_data = generate_ref_data(cpu_mod, input_data)
-    ethosu_mod = partition_for_ethosu(cpu_mod)
+    ethosu_mod, _ = partition_for_ethosu(cpu_mod)
 
     _compare_ethosu_with_reference(
         ethosu_mod, input_data, output_data, accel_type, output_tolerance=0
@@ -1010,7 +1010,7 @@ def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, 
     cpu_mod = create_model()
     input_data = {"ifm": np.random.randint(-128, high=127, size=ifm_shape, dtype=dtype)}
     output_data = generate_ref_data(cpu_mod, input_data)
-    ethosu_mod = partition_for_ethosu(cpu_mod)
+    ethosu_mod, _ = partition_for_ethosu(cpu_mod)
 
     _compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
 

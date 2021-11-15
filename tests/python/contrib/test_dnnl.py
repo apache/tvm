@@ -64,7 +64,7 @@ def run_and_verify(mod, input, params, target, run_module):
         for use_dnnl in [False, True]:
             result_key = mode + ("_dnnl" if use_dnnl else "")
             if use_dnnl:
-                mod = dnnl.partition_for_dnnl(mod, params)
+                mod, _ = dnnl.partition_for_dnnl(mod, params)
             with tvm.transform.PassContext(opt_level=3):
                 func = relay.create_executor(mode, mod=mod, device=dev, target=target).evaluate()
             if run_module:
@@ -228,7 +228,7 @@ def test_dnnl_not_compatible(run_module, target="llvm", dtype="float32"):
     f = relay.Function([x], out)
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = dnnl.partition_for_dnnl(mod)
+    mod, _ = dnnl.partition_for_dnnl(mod)
     for mode in ["graph", "vm"]:
         with tvm.transform.PassContext(opt_level=3):
             func = relay.create_executor(mode, mod=mod, device=tvm.cpu(0), target=target).evaluate()

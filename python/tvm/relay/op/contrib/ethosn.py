@@ -59,7 +59,10 @@ def partition_for_ethosn77(mod, params=None, **opts):
 
     Returns
     -------
-    ret : annotated and partitioned module.
+    mod : Module
+        Annotated and partitioned module
+    config : dict
+        Configuration which should be given to PassContext when building
     """
     if opts:
         tops = opts.get("tops", None)
@@ -83,7 +86,7 @@ def partition_for_ethosn77(mod, params=None, **opts):
         ]
     )
 
-    return seq(mod)
+    return seq(mod), None
 
 
 def partition_for_ethosn78(mod, params=None, **opts):
@@ -99,10 +102,13 @@ def partition_for_ethosn78(mod, params=None, **opts):
 
     Returns
     -------
-    ret : annotated and partitioned module.
+    mod : Module
+        Annotated and partitioned module
+    config : dict
+        Configuration which should be given to PassContext when building
     """
-    if not opts or opts.get("variant", "").lower() != "ethos-n78":
-        raise ValueError("When targeting Ethos(TM)-N78, -variant=Ethos-N78 should be set.")
+    config = opts or {}
+    config["variant"] = "Ethos-N78"
 
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
@@ -117,7 +123,7 @@ def partition_for_ethosn78(mod, params=None, **opts):
         ]
     )
 
-    return seq(mod)
+    return seq(mod), config
 
 
 @register_pattern_table("ethos-n")

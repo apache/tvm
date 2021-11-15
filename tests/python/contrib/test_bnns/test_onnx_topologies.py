@@ -108,7 +108,7 @@ def process(model_name):
             if simplify:
                 mod = simplify_model(mod)
             if with_bnns:
-                mod = partition_for_bnns(mod)
+                mod, _ = partition_for_bnns(mod)
             graph_module = relay.build(mod, target=target, params=params)
 
         lib_name = "deploy.tar"

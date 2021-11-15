@@ -214,4 +214,4 @@ def partition_for_dnnl(mod, params=None):
     )
     with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
-    return mod
+    return mod, None

@@ -44,8 +44,10 @@ def partition_for_cmsisnn(mod, params=None, **opts):
 
     Returns
     -------
-    ret : Module
-        annotated and partitioned module.
+    mod : Module
+        Annotated and partitioned module
+    config : dict
+        Configuration which should be given to PassContext when building
     """
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
@@ -62,7 +64,8 @@ def partition_for_cmsisnn(mod, params=None, **opts):
             transform.InferType(),
         ]
     )
-    return seq(mod)
+
+    return seq(mod), None
 
 
 @register_pattern_table("cmsis-nn")

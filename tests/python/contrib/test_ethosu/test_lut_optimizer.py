@@ -118,7 +118,7 @@ def test_lut_optimizer_runs_in_compilation_pipeline():
         return tf.nn.tanh(op)
 
     mod, _ = _get_tflite_graph(get_graph, [ifm_shape])
-    mod = partition_for_ethosu(mod)
+    mod, _ = partition_for_ethosu(mod)
 
     external_gv_name = mod["main"].body.op.name_hint
     external_func = mod[external_gv_name]

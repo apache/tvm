@@ -299,4 +299,4 @@ def partition_for_cutlass(mod, params=None):
         ]
     )
 
-    return seq(mod)
+    return seq(mod, None)

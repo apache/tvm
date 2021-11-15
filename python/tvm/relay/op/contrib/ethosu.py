@@ -1675,6 +1675,8 @@ def partition_for_ethosu(
     -------
     mod : IRModule
         The partitioned IRModule with external global functions
+    config : dict
+        Configuration which should be given to PassContext when building
     """
     from tvm.relay.backend.contrib.ethosu import preprocess
 
@@ -1690,4 +1692,4 @@ def partition_for_ethosu(
     mod = relay.transform.PartitionGraph()(mod)
     mod = relay.transform.InferType()(mod)
     mod = preprocess.preprocess_ext_io()(mod)
-    return mod
+    return mod, None

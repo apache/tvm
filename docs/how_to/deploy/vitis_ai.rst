@@ -299,7 +299,7 @@ After importing the model, we utilize the Relay API to annotate the Relay expres
 
 .. code:: python
 
-    mod = partition_for_vitis_ai(mod, params, dpu=dpu_target)
+    mod, config = partition_for_vitis_ai(mod, params, dpu=dpu_target)
 
 
 **Build the Model**   

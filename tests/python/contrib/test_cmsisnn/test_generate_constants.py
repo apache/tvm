@@ -212,7 +212,7 @@ def test_op_int8(
     )
     mod = make_module(model)
 
-    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(mod, params)
+    cmsisnn_mod, _ = cmsisnn.partition_for_cmsisnn(mod, params)
     multiplier_array = []
     shift_array = []
     for i in range(out_channels):

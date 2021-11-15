@@ -91,7 +91,7 @@ def test_tflite_lut_activations(accel_type):
         shape_dict={"input": ifm_shape},
         dtype_dict={"input": dtype},
     )
-    mod = partition_for_ethosu(relay_module, params)
+    mod, _ = partition_for_ethosu(relay_module, params)
 
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
