@@ -674,6 +674,18 @@ def requires_opencl(*args):
     return _compose(args, _requires_opencl)
 
 
+def requires_corstone300(*args):
+    """Mark a test as requiring the corstone300 FVP
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_corstone300 = [pytest.mark.corstone300]
+    return _compose(args, _requires_corstone300)
+
+
 def requires_rocm(*args):
     """Mark a test as requiring the rocm runtime.
 
